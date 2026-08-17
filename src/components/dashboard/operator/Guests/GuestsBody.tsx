@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { GuestsOverview } from "@/components/dashboard/operator/Guests/GuestsOverview"
 import { GuestsSmartGroupsSection } from "@/components/dashboard/operator/Guests/GuestsSmartGroupsSection"
+import type { OperatorTabContentStatus } from "@/components/dashboard/operator/OperatorTableTabPanel"
 import {
   GUESTS_PAGE_HEADER_COPY_CLASS,
   GUESTS_PAGE_HEADER_ROW_CLASS,
@@ -19,6 +20,7 @@ import type {
 } from "@/types/operatorGuests"
 
 type GuestsBodyProps = {
+  tabContentStatus: OperatorTabContentStatus
   viewModel: OperatorGuestsViewModel
   searchQuery: string
   sortId: OperatorGuestSortId
@@ -52,6 +54,7 @@ type GuestsBodyProps = {
 
 /** Guests page body — overview KPIs and Smart Groups table from live API. */
 export function GuestsBody({
+  tabContentStatus,
   viewModel,
   searchQuery,
   sortId,
@@ -126,6 +129,7 @@ export function GuestsBody({
       />
 
       <GuestsSmartGroupsSection
+        tabContentStatus={tabContentStatus}
         tabs={viewModel.smartGroupTabs}
         activeTabId={viewModel.activeSmartGroupId}
         onTabChange={onSmartGroupChange}

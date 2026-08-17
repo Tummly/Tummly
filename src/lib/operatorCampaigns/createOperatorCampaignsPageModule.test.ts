@@ -547,6 +547,294 @@ describe("createOperatorCampaignsPageModule", () => {
     })
   })
 
+  it("hides old list content while a cold tab loads", async () => {
+    let resolveDrafts: ((value: CampaignsListResponse) => void) | undefined
+    const allResponse = emptyListResponse({
+      totalCount: 1,
+      items: [draftListItem({ id: 1, name: "All campaign" })],
+      tabCounts: {
+        all: 1,
+        drafts: 1,
+        needsAttention: 0,
+        inFlight: 0,
+        sent: 0,
+      },
+    })
+    const loadCampaignsList = vi.fn(
+      (params: { view: string }): Promise<CampaignsListResponse> => {
+        if (params.view === "all") {
+          return Promise.resolve(allResponse)
+        }
+        return new Promise((resolve) => {
+          resolveDrafts = resolve
+        })
+      }
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    expect(pageModule.getSnapshot().tabContentStatus).toBe("ready")
+
+    const switchPromise = pageModule.setListView("drafts")
+
+    expect(pageModule.getSnapshot()).toMatchObject({
+      loadStatus: "loaded",
+      tabContentStatus: "loading",
+      viewModel: {
+        list: {
+          activeViewId: "drafts",
+          rows: [],
+          empty: null,
+          tabs: expect.arrayContaining([
+            expect.objectContaining({ id: "drafts", count: 1 }),
+          ]),
+        },
+      },
+    })
+
+    resolveDrafts?.(
+      emptyListResponse({
+        totalCount: 1,
+        items: [draftListItem({ id: 2, name: "Draft campaign" })],
+        tabCounts: allResponse.tabCounts,
+      })
+    )
+    await switchPromise
+
+    expect(pageModule.getSnapshot()).toMatchObject({
+      tabContentStatus: "ready",
+      viewModel: {
+        list: {
+          rows: [expect.objectContaining({ name: "Draft campaign" })],
+        },
+      },
+    })
+  })
+
+  it("shows cached tab content immediately while it refreshes", async () => {
+    let resolveAllRefresh: ((value: CampaignsListResponse) => void) | undefined
+    const allResponse = emptyListResponse({
+      totalCount: 1,
+      items: [draftListItem({ id: 1, name: "Cached all campaign" })],
+      tabCounts: {
+        all: 2,
+        drafts: 1,
+        needsAttention: 0,
+        inFlight: 0,
+        sent: 0,
+      },
+    })
+    const draftsResponse = emptyListResponse({
+      totalCount: 1,
+      items: [draftListItem({ id: 2, name: "Draft campaign" })],
+      tabCounts: allResponse.tabCounts,
+    })
+    const loadCampaignsList = vi
+      .fn()
+      .mockResolvedValueOnce(allResponse)
+      .mockResolvedValueOnce(draftsResponse)
+      .mockImplementationOnce(
+        () =>
+          new Promise<CampaignsListResponse>((resolve) => {
+            resolveAllRefresh = resolve
+          })
+      )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    await pageModule.setListView("drafts")
+
+    const returnPromise = pageModule.setListView("all")
+
+    expect(pageModule.getSnapshot()).toMatchObject({
+      tabContentStatus: "refreshing",
+      viewModel: {
+        list: {
+          activeViewId: "all",
+          rows: [expect.objectContaining({ name: "Cached all campaign" })],
+        },
+      },
+    })
+
+    resolveAllRefresh?.(
+      emptyListResponse({
+        totalCount: 1,
+        items: [draftListItem({ id: 3, name: "Refreshed all campaign" })],
+        tabCounts: allResponse.tabCounts,
+      })
+    )
+    await returnPromise
+
+    expect(pageModule.getSnapshot()).toMatchObject({
+      tabContentStatus: "ready",
+      viewModel: {
+        list: {
+          rows: [expect.objectContaining({ name: "Refreshed all campaign" })],
+        },
+      },
+    })
+  })
+
+  it("caches rapid tab responses without replacing the active tab", async () => {
+    const pending = new Map<
+      string,
+      (value: CampaignsListResponse) => void
+    >()
+    const counts = {
+      all: 2,
+      drafts: 1,
+      needsAttention: 0,
+      inFlight: 0,
+      sent: 1,
+    }
+    const loadCampaignsList = vi.fn(
+      (params: { view: string }): Promise<CampaignsListResponse> => {
+        if (params.view === "all") {
+          return Promise.resolve(
+            emptyListResponse({
+              totalCount: 2,
+              items: [draftListItem({ id: 1, name: "All campaign" })],
+              tabCounts: counts,
+            })
+          )
+        }
+        return new Promise((resolve) => {
+          pending.set(params.view, resolve)
+        })
+      }
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    const draftsPromise = pageModule.setListView("drafts")
+    const sentPromise = pageModule.setListView("sent")
+    pending.get("drafts")?.(
+      emptyListResponse({
+        totalCount: 1,
+        items: [draftListItem({ id: 2, name: "Draft result" })],
+        tabCounts: counts,
+      })
+    )
+    await draftsPromise
+
+    expect(pageModule.getSnapshot()).toMatchObject({
+      tabContentStatus: "loading",
+      viewModel: {
+        list: {
+          activeViewId: "sent",
+          rows: [],
+        },
+      },
+    })
+
+    pending.get("sent")?.(
+      emptyListResponse({
+        totalCount: 1,
+        items: [draftListItem({ id: 3, name: "Sent result" })],
+        tabCounts: counts,
+      })
+    )
+    await sentPromise
+    expect(pageModule.getSnapshot().viewModel?.list.rows[0]?.name).toBe(
+      "Sent result"
+    )
+
+    const draftsRefreshPromise = pageModule.setListView("drafts")
+    expect(pageModule.getSnapshot()).toMatchObject({
+      tabContentStatus: "refreshing",
+      viewModel: {
+        list: {
+          activeViewId: "drafts",
+          rows: [expect.objectContaining({ name: "Draft result" })],
+        },
+      },
+    })
+
+    pending.get("drafts")?.(
+      emptyListResponse({
+        totalCount: 1,
+        items: [draftListItem({ id: 4, name: "Refreshed draft" })],
+        tabCounts: counts,
+      })
+    )
+    await draftsRefreshPromise
+  })
+
+  it("treats a cached tab as cold after clearTabCache", async () => {
+    let resolveAllReload: ((value: CampaignsListResponse) => void) | undefined
+    const counts = {
+      all: 1,
+      drafts: 1,
+      needsAttention: 0,
+      inFlight: 0,
+      sent: 0,
+    }
+    const allResponse = emptyListResponse({
+      totalCount: 1,
+      items: [draftListItem({ id: 1, name: "Cached all campaign" })],
+      tabCounts: counts,
+    })
+    const loadCampaignsList = vi
+      .fn()
+      .mockResolvedValueOnce(allResponse)
+      .mockResolvedValueOnce(
+        emptyListResponse({
+          totalCount: 1,
+          items: [draftListItem({ id: 2, name: "Draft campaign" })],
+          tabCounts: counts,
+        })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<CampaignsListResponse>((resolve) => {
+            resolveAllReload = resolve
+          })
+      )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    await pageModule.setListView("drafts")
+    pageModule.clearTabCache()
+
+    const returnPromise = pageModule.setListView("all")
+
+    expect(pageModule.getSnapshot()).toMatchObject({
+      tabContentStatus: "loading",
+      viewModel: {
+        list: {
+          activeViewId: "all",
+          rows: [],
+          empty: null,
+        },
+      },
+    })
+
+    resolveAllReload?.(allResponse)
+    await returnPromise
+    expect(pageModule.getSnapshot().tabContentStatus).toBe("ready")
+  })
+
   it("selects filter-search empty when search returns no rows", async () => {
     const loadCampaignsList = vi.fn(
       async (params: {

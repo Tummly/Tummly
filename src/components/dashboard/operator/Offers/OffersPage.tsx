@@ -43,6 +43,13 @@ export function OffersPage() {
   const offersIntent = useDashboardUiStore((state) => state.offersIntent)
   const setOffersIntent = useDashboardUiStore((state) => state.setOffersIntent)
 
+  useEffect(
+    () => () => {
+      pageModule.clearTabCache()
+    },
+    [pageModule]
+  )
+
   useEffect(() => {
     if (offersIntent?.view !== "drafts") {
       return
@@ -117,6 +124,7 @@ export function OffersPage() {
   return (
     <>
       <OffersBody
+        tabContentStatus={snapshot.tabContentStatus}
         viewModel={snapshot.viewModel}
         createOfferDrawer={snapshot.createOfferDrawer}
         redemptionLogHref={redemptionLogHref}

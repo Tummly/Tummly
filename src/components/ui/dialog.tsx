@@ -128,7 +128,7 @@ function DialogDescription({
     <DialogPrimitive.Description
       data-slot="dialog-description"
       className={cn(
-        "text-base leading-[22px] tracking-[-0.32px] text-[#232323] dark:text-white",
+        "text-base leading-[22px] tracking-[-0.32px] text-[#232323] dark:text-op-color-gray-550 max-w-sm",
         className
       )}
       {...props}

@@ -30,9 +30,16 @@ import {
 
 export function FeedbackPage() {
   const feedback = useFeedbackPageModule()
-  const { snapshot } = feedback
+  const { snapshot, clearTabCache } = feedback
   const { mode, selectedLocationId } =
     useOutletContext<DashboardOutletContext>()
+
+  useEffect(
+    () => () => {
+      clearTabCache()
+    },
+    [clearTabCache]
+  )
   const navigate = useNavigate()
   const inboxRef = useRef<HTMLElement | null>(null)
 
@@ -134,6 +141,7 @@ export function FeedbackPage() {
   return (
     <>
       <FeedbackBody
+        tabContentStatus={snapshot.tabContentStatus}
         viewModel={viewModel}
         activeInboxTabId={snapshot.activeInboxTabId}
         selectedDateRange={feedbackPageDateRange}
@@ -181,6 +189,9 @@ export function FeedbackPage() {
         }}
         onStartInboxRecovery={(feedbackId) => {
           void feedback.startInboxRecovery(feedbackId)
+        }}
+        onReopenInboxFeedback={(feedbackId) => {
+          void feedback.reopenFeedback(feedbackId)
         }}
         onStartInboxMarkResolved={(feedbackId) => {
           void feedback.startInboxMarkResolved(feedbackId)

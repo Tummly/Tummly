@@ -367,6 +367,8 @@ html.op {
   /* Figma AI Assistant headline gradient end rgb(19, 90, 204) (3454:56046) */
   --op-color-blue-600: #135acc;
   --op-color-green-700: #00892c;
+  /* Figma destructive primary action (Delete note confirm) */
+  --op-color-red-500: #da4231;
   --op-color-red-550: #b24949;
   --op-capture-pause-warning-background: rgba(178, 73, 73, 0.1);
   --op-capture-pause-warning-text: var(--op-color-red-550);

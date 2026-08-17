@@ -19,6 +19,7 @@ export type FeedbackExportQueryParams = {
   detectedTags?: string[]
   qrSource?: string[]
   contact?: string[]
+  workflowStatus?: string[]
   datePreset?: string
   dateFrom?: string
   dateTo?: string
@@ -54,6 +55,7 @@ export function buildFeedbackExportQueryParams(input: {
     detectedTags: inboxParams.detectedTags,
     qrSource: inboxParams.qrSource,
     contact: inboxParams.contact,
+    workflowStatus: inboxParams.workflowStatus,
     datePreset: inboxParams.datePreset,
     dateFrom: inboxParams.dateFrom,
     dateTo: inboxParams.dateTo,

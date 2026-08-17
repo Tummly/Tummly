@@ -4,6 +4,7 @@ import { CampaignsMessagingUsage } from "@/components/dashboard/operator/Campaig
 import { CampaignsOverviewDateRangeControl } from "@/components/dashboard/operator/Campaigns/CampaignsOverviewDateRangeControl"
 import { CampaignsRecommendedNextStep } from "@/components/dashboard/operator/Campaigns/CampaignsRecommendedNextStep"
 import { CampaignsSummary } from "@/components/dashboard/operator/Campaigns/CampaignsSummary"
+import type { OperatorTabContentStatus } from "@/components/dashboard/operator/OperatorTableTabPanel"
 import { Button } from "@/components/ui/button"
 import {
   CAMPAIGNS_PAGE_COPY,
@@ -32,6 +33,7 @@ import type {
 } from "@/types/operatorCampaigns"
 
 type CampaignsBodyProps = {
+  tabContentStatus: OperatorTabContentStatus
   viewModel: OperatorCampaignsPageViewModel
   /** Visit-scoped store value — keeps the control in sync if refetch fails. */
   selectedDateRange: CampaignsOverviewDateRange
@@ -67,6 +69,7 @@ type CampaignsBodyProps = {
 
 /** Campaigns page body — header, summary, messaging usage, recommended, list (Figma stack). */
 export function CampaignsBody({
+  tabContentStatus,
   viewModel,
   selectedDateRange,
   onCommitDateRange,
@@ -166,6 +169,7 @@ export function CampaignsBody({
       />
 
       <CampaignsListSection
+        tabContentStatus={tabContentStatus}
         list={viewModel.list}
         onViewChange={onListViewChange}
         onSearchQueryChange={onSearchQueryChange}

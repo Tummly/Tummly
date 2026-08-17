@@ -8,6 +8,7 @@ import type {
 
 export type OperatorGuestsPageModuleApi = {
   snapshot: OperatorGuestsPageSnapshot
+  clearTabCache: OperatorGuestsPageModule["clearTabCache"]
   retryLoad: OperatorGuestsPageModule["retryLoad"]
   setActiveSmartGroupId: OperatorGuestsPageModule["setActiveSmartGroupId"]
   setSearchQuery: OperatorGuestsPageModule["setSearchQuery"]
@@ -90,6 +91,7 @@ export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
 
   return {
     snapshot,
+    clearTabCache: pageModule.clearTabCache,
     retryLoad: pageModule.retryLoad,
     setActiveSmartGroupId: pageModule.setActiveSmartGroupId,
     setSearchQuery: pageModule.setSearchQuery,

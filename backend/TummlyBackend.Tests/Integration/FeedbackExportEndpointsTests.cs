@@ -206,10 +206,8 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task Export_FeedbackId_ReturnsOnlyRequestedFeedback()
+        public async Task ExportSingle_ReturnsOnlyRequestedFeedback()
         {
-            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
-            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
             var seeded = await SeedOwnerWithLocationAsync(
                 "feedback-export-single"
             );
@@ -233,13 +231,8 @@ namespace TummlyBackend.Tests.Integration
             );
 
             using var request = AuthorizedGet(
-                ExportUrl(
-                    seeded.LocationId,
-                    from,
-                    to,
-                    format: "csv",
-                    feedbackId: requestedId
-                ),
+                $"/api/feedback/{requestedId}/export"
+                    + $"?locationId={seeded.LocationId}&format=csv",
                 seeded.Jwt
             );
             var response = await _client.SendAsync(request);

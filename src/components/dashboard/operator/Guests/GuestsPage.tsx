@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { useOutletContext } from "react-router-dom"
 
 import { AddTagDialog } from "@/components/dashboard/operator/Guests/AddTagDialog"
@@ -19,7 +20,7 @@ import { guestsFilterSheetSchemaForWorkspace } from "@/lib/operatorGuests/guests
 
 export function GuestsPage() {
   const guests = useGuestsPageModule()
-  const { snapshot } = guests
+  const { snapshot, clearTabCache } = guests
   const { mode, locations, selectedLocationId } =
     useOutletContext<DashboardOutletContext>()
   const guestsOverviewDateRange = useDashboardUiStore(
@@ -27,6 +28,13 @@ export function GuestsPage() {
   )
   const setGuestsOverviewDateRange = useDashboardUiStore(
     (state) => state.setGuestsOverviewDateRange
+  )
+
+  useEffect(
+    () => () => {
+      clearTabCache()
+    },
+    [clearTabCache]
   )
 
   const handleCommitOverviewDateRange = (range: GuestsOverviewDateRange) => {
@@ -102,6 +110,7 @@ export function GuestsPage() {
         </p>
       ) : null}
       <GuestsBody
+        tabContentStatus={snapshot.tabContentStatus}
         viewModel={snapshot.viewModel}
         searchQuery={snapshot.searchQuery}
         sortId={snapshot.sortId}

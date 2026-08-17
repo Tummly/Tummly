@@ -709,6 +709,31 @@ export const exportFeedback = async (
   }
 }
 
+export const exportSingleFeedback = async (params: {
+  feedbackId: number
+  locationId: number
+  format?: FeedbackExportQueryParams["format"]
+  includeGuestContact?: boolean
+}): Promise<{ blob: Blob; filename: string }> => {
+  const format = params.format ?? "xlsx"
+  const response = await axiosInstance.get<Blob>(
+    `/feedback/${params.feedbackId}/export`,
+    {
+      params: {
+        locationId: params.locationId,
+        format,
+        includeGuestContact: params.includeGuestContact ?? false,
+      },
+      responseType: "blob",
+    }
+  )
+  const filename =
+    parseContentDispositionFilename(
+      response.headers["content-disposition"] as string | undefined
+    ) ?? `tummly-feedback-${params.feedbackId}.${format}`
+  return { blob: response.data, filename }
+}
+
 export const getHomeLatestActivity = async (
   locationId: number
 ): Promise<HomeLatestActivityResponse> => {

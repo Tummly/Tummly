@@ -79,6 +79,16 @@ function createGuestsResponse(
   }
 }
 
+function deferredGuestsResponse() {
+  let resolve!: (value: GuestsResponse) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<GuestsResponse>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 function createAdapters(
   overrides: Partial<OperatorGuestsPageAdapters> & {
     getGuests: Mock<OperatorGuestsPageAdapters["getGuests"]>
@@ -217,6 +227,7 @@ describe("createOperatorGuestsPageModule", () => {
       pageSize: 25,
     })
     expect(module.getSnapshot().loadStatus).toBe("loaded")
+    expect(module.getSnapshot().tabContentStatus).toBe("ready")
     expect(module.getSnapshot().viewModel?.tableRows).toHaveLength(25)
     expect(module.getSnapshot().viewModel?.totalFilteredCount).toBe(40)
   })
@@ -247,18 +258,12 @@ describe("createOperatorGuestsPageModule", () => {
     )
   })
 
-  it("selects the smart group tab immediately while the quiet refetch is in flight", async () => {
-    let resolveSecond: ((value: ReturnType<typeof createGuestsResponse>) => void) | null =
-      null
+  it("hides old rows and empty state during a cold smart-group switch", async () => {
+    const second = deferredGuestsResponse()
     const getGuests = vi
       .fn()
       .mockResolvedValueOnce(createGuestsResponse())
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveSecond = resolve
-          })
-      )
+      .mockReturnValueOnce(second.promise)
 
     const module = createOperatorGuestsPageModule(createAdapters({ getGuests }))
     await module.syncWorkspace({
@@ -268,12 +273,20 @@ describe("createOperatorGuestsPageModule", () => {
 
     module.setActiveSmartGroupId("positive-feedback")
 
+    const loadingSnapshot = module.getSnapshot()
+    expect(loadingSnapshot.tabContentStatus).toBe("loading")
     expect(module.getSnapshot().viewModel?.activeSmartGroupId).toBe(
       "positive-feedback"
     )
-    expect(module.getSnapshot().loadStatus).toBe("loaded")
+    expect(loadingSnapshot.viewModel?.tableRows).toEqual([])
+    expect(loadingSnapshot.viewModel?.tableEmptyState).toBeNull()
+    expect(
+      loadingSnapshot.viewModel?.smartGroupTabs.find(
+        (tab) => tab.id === "all-guests"
+      )?.count
+    ).toBe(40)
 
-    resolveSecond?.(
+    second.resolve(
       createGuestsResponse({
         smartGroup: "positive-feedback",
         overview: undefined,
@@ -287,7 +300,7 @@ describe("createOperatorGuestsPageModule", () => {
       expect(module.getSnapshot().viewModel?.totalFilteredCount).toBe(0)
     })
 
-    // Tab counts / overview KPIs are preserved across table-only refetches.
+    expect(module.getSnapshot().tabContentStatus).toBe("ready")
     expect(module.getSnapshot().viewModel?.activeSmartGroupId).toBe(
       "positive-feedback"
     )
@@ -301,6 +314,157 @@ describe("createOperatorGuestsPageModule", () => {
         (kpi) => kpi.id === "total-guests"
       )?.value
     ).toBe(40)
+  })
+
+  it("shows cached smart-group content immediately while it refreshes", async () => {
+    const warmRefresh = deferredGuestsResponse()
+    const positiveRows = createGuestsResponse({
+      smartGroup: "positive-feedback",
+      rows: [
+        {
+          ...createGuestsResponse().rows[0]!,
+          id: "positive-guest",
+          name: "Positive Guest",
+        },
+      ],
+      totalFilteredCount: 1,
+    })
+    const getGuests = vi
+      .fn()
+      .mockResolvedValueOnce(createGuestsResponse())
+      .mockResolvedValueOnce(positiveRows)
+      .mockResolvedValueOnce(createGuestsResponse())
+      .mockReturnValueOnce(warmRefresh.promise)
+    const module = createOperatorGuestsPageModule(createAdapters({ getGuests }))
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Loc 1" }],
+    })
+    module.setActiveSmartGroupId("positive-feedback")
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().viewModel?.tableRows[0]?.id).toBe(
+        "positive-guest"
+      )
+    })
+    module.setActiveSmartGroupId("all-guests")
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().tabContentStatus).toBe("ready")
+    })
+
+    module.setActiveSmartGroupId("positive-feedback")
+
+    expect(module.getSnapshot().tabContentStatus).toBe("refreshing")
+    expect(module.getSnapshot().viewModel?.tableRows[0]?.id).toBe(
+      "positive-guest"
+    )
+
+    warmRefresh.resolve(positiveRows)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().tabContentStatus).toBe("ready")
+    })
+  })
+
+  it("caches rapid inactive responses without replacing the active tab", async () => {
+    const positive = deferredGuestsResponse()
+    const dormant = deferredGuestsResponse()
+    const positiveRefresh = deferredGuestsResponse()
+    const getGuests = vi
+      .fn()
+      .mockResolvedValueOnce(createGuestsResponse())
+      .mockReturnValueOnce(positive.promise)
+      .mockReturnValueOnce(dormant.promise)
+      .mockReturnValueOnce(positiveRefresh.promise)
+    const module = createOperatorGuestsPageModule(createAdapters({ getGuests }))
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Loc 1" }],
+    })
+    module.setActiveSmartGroupId("positive-feedback")
+    module.setActiveSmartGroupId("dormant-guests")
+
+    positive.resolve(
+      createGuestsResponse({
+        smartGroup: "positive-feedback",
+        rows: [
+          {
+            ...createGuestsResponse().rows[0]!,
+            id: "positive-guest",
+          },
+        ],
+      })
+    )
+    await Promise.resolve()
+    expect(module.getSnapshot().viewModel?.activeSmartGroupId).toBe(
+      "dormant-guests"
+    )
+    expect(module.getSnapshot().viewModel?.tableRows).toEqual([])
+
+    dormant.resolve(
+      createGuestsResponse({
+        smartGroup: "dormant-guests",
+        rows: [
+          {
+            ...createGuestsResponse().rows[0]!,
+            id: "dormant-guest",
+          },
+        ],
+      })
+    )
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().viewModel?.tableRows[0]?.id).toBe(
+        "dormant-guest"
+      )
+    })
+
+    module.setActiveSmartGroupId("positive-feedback")
+
+    expect(module.getSnapshot().tabContentStatus).toBe("refreshing")
+    expect(module.getSnapshot().viewModel?.tableRows[0]?.id).toBe(
+      "positive-guest"
+    )
+  })
+
+  it("clearTabCache makes a previously warm smart group cold", async () => {
+    const coldReload = deferredGuestsResponse()
+    const getGuests = vi
+      .fn()
+      .mockResolvedValueOnce(createGuestsResponse())
+      .mockResolvedValueOnce(
+        createGuestsResponse({
+          smartGroup: "positive-feedback",
+          rows: [
+            {
+              ...createGuestsResponse().rows[0]!,
+              id: "positive-guest",
+            },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(createGuestsResponse())
+      .mockReturnValueOnce(coldReload.promise)
+    const module = createOperatorGuestsPageModule(createAdapters({ getGuests }))
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Loc 1" }],
+    })
+    module.setActiveSmartGroupId("positive-feedback")
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().tabContentStatus).toBe("ready")
+    })
+    module.setActiveSmartGroupId("all-guests")
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().tabContentStatus).toBe("ready")
+    })
+
+    module.clearTabCache()
+    module.setActiveSmartGroupId("positive-feedback")
+
+    expect(module.getSnapshot().tabContentStatus).toBe("loading")
+    expect(module.getSnapshot().viewModel?.tableRows).toEqual([])
+    expect(module.getSnapshot().viewModel?.tableEmptyState).toBeNull()
   })
 
   it("debounces search refetch and clears selection on search change", async () => {

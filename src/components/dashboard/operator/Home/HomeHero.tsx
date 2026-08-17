@@ -1,6 +1,6 @@
 import { CrownIcon } from "lucide-react"
 
-import tearImg from "@/assets/images/tear-img.png"
+import tearImg from "@/assets/svg/tear-v2.svg"
 import heroFormAccentDark from "@/assets/svg/hero-form-accent-dark.svg"
 import heroFormAccent from "@/assets/svg/hero-form-accent.svg"
 import { HomeGuestFormPhone } from "@/components/dashboard/operator/Home/HomeGuestFormPhone"
@@ -37,11 +37,11 @@ type HomeHeroProps = {
   onCopySmartGuestLink?: () => void
 }
 
+/** Warning/urgent only — default tone keeps `variant="soft"` chip tokens. */
 const ACTIVATION_PERIOD_BADGE_TONE_CLASS: Record<
-  ActivationPeriodBadgeTone,
+  Exclude<ActivationPeriodBadgeTone, "default">,
   string
 > = {
-  default: "bg-black/5 text-foreground dark:bg-[#202020] dark:text-white",
   warning:
     "bg-[#f3eae4] text-foreground dark:bg-[#f3eae4]/25 dark:text-[#f4f4f4]",
   urgent:
@@ -86,19 +86,19 @@ export function HomeHero({
         </div>
 
         {/*
-          tear-img (3072x1313): green band in rows 1080-1284. Figma draws the
-          band 105px tall then shifts it up so only ~42px (mostly the jagged
-          edge) stays inside the card. Flip so the edge faces down; size so
-          the band is 105px and offset past the solid green.
+          tear-v2 is jagged on both edges, so anchor the band to the bottom of
+          the crop: the top jag stays outside the card and only the lower jag
+          shows. The asset stretches freely, so the band keeps one height at
+          every card width.
         */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[34px] overflow-hidden sm:h-[42px]"
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[26px] overflow-hidden sm:h-[32px]"
         >
           <img
             src={tearImg}
             alt=""
-            className="absolute top-[-62px] left-0 h-[541px] w-full max-w-none -scale-y-100 object-fill sm:top-[-77px] sm:h-[675px]"
+            className="absolute inset-x-0 bottom-0 h-[44px] w-full max-w-none sm:h-[54px]"
           />
         </div>
 
@@ -109,7 +109,11 @@ export function HomeHero({
                 variant="soft"
                 className={cn(
                   OPERATOR_HOME_HERO_BADGE_CLASS,
-                  ACTIVATION_PERIOD_BADGE_TONE_CLASS[activationPeriodBadge.tone]
+                  activationPeriodBadge.tone === "default"
+                    ? null
+                    : ACTIVATION_PERIOD_BADGE_TONE_CLASS[
+                        activationPeriodBadge.tone
+                      ]
                 )}
                 aria-label={formatActivationPeriodBadgeAriaLabel(
                   activationPeriodBadge

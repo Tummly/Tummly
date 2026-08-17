@@ -9,6 +9,7 @@ import {
   createCatalogOffer,
   createFeedbackInternalNote,
   exportFeedback,
+  exportSingleFeedback as exportSingleFeedbackApi,
   getCatalogOfferById,
   getFeedbackDetails,
   getFeedbackInbox,
@@ -47,6 +48,7 @@ export function FeedbackPageModuleProvider({
         getFeedbackSummary(locationId, from, to),
       getFeedbackInbox: async (params) => getFeedbackInbox(params),
       exportFeedback: async (params) => exportFeedback(params),
+      exportSingleFeedback: async (params) => exportSingleFeedbackApi(params),
       triggerBrowserDownload,
       getFeedbackPageDateRange: () =>
         dashboardUiStore.getState().feedbackPageDateRange,

@@ -38,6 +38,11 @@ import {
   type FeedbackCloseOutReason,
 } from "@/lib/operatorFeedback/feedbackCloseOutPresentation"
 import {
+  FEEDBACK_DIALOG_BODY_CLASS,
+  FEEDBACK_DIALOG_CONTENT_CLASS,
+  FEEDBACK_DIALOG_DESCRIPTION_CLASS,
+  FEEDBACK_DIALOG_FOOTER_CLASS,
+  FEEDBACK_DIALOG_HEADER_ROW_DIVIDED_CLASS,
   FEEDBACK_DIALOG_SELECT_GROUP_CLASS,
   FEEDBACK_DIALOG_SELECT_ITEM_CLASS,
   FEEDBACK_DIALOG_SELECT_MENU_CLASS,
@@ -103,35 +108,41 @@ export function FeedbackCloseOutDialog({
     >
       <DialogContent
         showCloseButton={false}
-        className="max-h-[min(90vh,900px)] gap-[60px] overflow-y-auto bg-[var(--op-color-gray-995)] p-8 text-op-text-primary sm:max-w-[642px]"
+        className={FEEDBACK_DIALOG_CONTENT_CLASS}
       >
-        <div className="flex flex-col gap-[30px]">
-          <div className="flex items-start gap-[22px]">
-            <DialogHeader className="min-w-0 flex-1 gap-3 text-left">
-              <DialogTitle className="pr-0 text-2xl font-bold tracking-normal text-op-text-primary">
-                {copy.title}
-              </DialogTitle>
-              <DialogDescription className="text-sm font-medium leading-normal text-[var(--op-color-gray-550)]">
-                {copy.subtitle}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogClose asChild>
-              <Button
-                type="button"
-                variant="op-collapse"
-                aria-label="Close"
-                className="shrink-0"
-                disabled={saving}
-              >
-                <XIcon aria-hidden />
-              </Button>
-            </DialogClose>
-          </div>
+        <div className={FEEDBACK_DIALOG_HEADER_ROW_DIVIDED_CLASS}>
+          <DialogHeader className="min-w-0 flex-1 gap-3 text-left">
+            <DialogTitle className="pr-0 text-2xl font-bold tracking-normal text-op-text-primary">
+              {copy.title}
+            </DialogTitle>
+            <DialogDescription className={FEEDBACK_DIALOG_DESCRIPTION_CLASS}>
+              {closeOut.intent === "mark_resolved" ? (
+                <>
+                  Confirm how the feedback was handled. The resolution
+                  <br />
+                  will be recorded in the activity history.
+                </>
+              ) : (
+                copy.subtitle
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogClose asChild>
+            <Button
+              type="button"
+              variant="op-collapse"
+              aria-label="Close"
+              className="shrink-0"
+              disabled={saving}
+            >
+              <XIcon aria-hidden />
+            </Button>
+          </DialogClose>
+        </div>
 
+        <div className={FEEDBACK_DIALOG_BODY_CLASS}>
           {details != null ? (
             <>
-              <div className={DIVIDER_CLASS} aria-hidden />
-
               <dl className="m-0 flex flex-col gap-5 text-sm">
                 <div className="flex items-center justify-between gap-4">
                   <dt className={SUMMARY_LABEL_CLASS}>Guest</dt>
@@ -165,9 +176,7 @@ export function FeedbackCloseOutDialog({
 
               <div className={DIVIDER_CLASS} aria-hidden />
             </>
-          ) : (
-            <div className={DIVIDER_CLASS} aria-hidden />
-          )}
+          ) : null}
 
           <div className="flex flex-col gap-2">
             <Label
@@ -271,13 +280,9 @@ export function FeedbackCloseOutDialog({
               {closeOut.saveError}
             </p>
           ) : null}
-
-          {!showAcknowledgment ? (
-            <div className={DIVIDER_CLASS} aria-hidden />
-          ) : null}
         </div>
 
-        <DialogFooter className="flex-row gap-3 sm:justify-start">
+        <DialogFooter className={FEEDBACK_DIALOG_FOOTER_CLASS}>
           <Button
             type="button"
             variant="op-primary"

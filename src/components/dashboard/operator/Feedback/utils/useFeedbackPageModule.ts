@@ -8,6 +8,7 @@ import type {
 
 export type OperatorFeedbackPageModuleApi = {
   snapshot: OperatorFeedbackPageSnapshot
+  clearTabCache: OperatorFeedbackPageModule["clearTabCache"]
   retryLoad: OperatorFeedbackPageModule["retryLoad"]
   reloadForFeedbackPageDateRange: OperatorFeedbackPageModule["reloadForFeedbackPageDateRange"]
   reviewNeedsAttention: OperatorFeedbackPageModule["reviewNeedsAttention"]
@@ -34,6 +35,7 @@ export type OperatorFeedbackPageModuleApi = {
   closeFeedbackDetails: OperatorFeedbackPageModule["closeFeedbackDetails"]
   openPreviousFeedback: OperatorFeedbackPageModule["openPreviousFeedback"]
   openNextFeedback: OperatorFeedbackPageModule["openNextFeedback"]
+  reopenFeedback: OperatorFeedbackPageModule["reopenFeedback"]
   startInboxMarkResolved: OperatorFeedbackPageModule["startInboxMarkResolved"]
   startInboxMarkNoActionNeeded: OperatorFeedbackPageModule["startInboxMarkNoActionNeeded"]
   startInboxRecovery: OperatorFeedbackPageModule["startInboxRecovery"]
@@ -183,6 +185,7 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
 
   return {
     snapshot,
+    clearTabCache: pageModule.clearTabCache,
     retryLoad: pageModule.retryLoad,
     reloadForFeedbackPageDateRange: pageModule.reloadForFeedbackPageDateRange,
     reviewNeedsAttention: pageModule.reviewNeedsAttention,
@@ -209,6 +212,7 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     closeFeedbackDetails: pageModule.closeFeedbackDetails,
     openPreviousFeedback: pageModule.openPreviousFeedback,
     openNextFeedback: pageModule.openNextFeedback,
+    reopenFeedback: pageModule.reopenFeedback,
     startInboxMarkResolved: pageModule.startInboxMarkResolved,
     startInboxMarkNoActionNeeded: pageModule.startInboxMarkNoActionNeeded,
     startInboxRecovery: pageModule.startInboxRecovery,

@@ -14,7 +14,11 @@ import {
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { OPERATOR_SHELL_TOUCH_TARGET_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
+import {
+  OPERATOR_NAVBAR_GUTTER_RIGHT,
+  OPERATOR_NAVBAR_UTILITY_INSET_LEFT,
+  OPERATOR_SHELL_TOUCH_TARGET_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 import type { OperatorShellPresentation } from "@/types/operatorHome"
 
@@ -55,10 +59,15 @@ export function DashboardNavbar({
   const showUnreadBadge = notificationsUnreadCount > 0
 
   return (
-    <header className="z-40 h-[60px] w-full shrink-0 overflow-x-hidden bg-op-header-background">
+    // Both axes hidden: with only `overflow-x-hidden`, `overflow-y` computes to
+    // `auto` and paints a scrollbar inside the 60px bar.
+    <header className="z-40 h-[60px] w-full shrink-0 overflow-hidden bg-op-header-background">
       <nav
         aria-label="Operator dashboard"
-        className="relative flex h-full min-w-0 items-center gap-1.5 overflow-x-hidden py-2 pl-2 pr-2 sm:gap-3 sm:pl-[17px] sm:pr-6 md:gap-4 md:pr-8 lg:gap-0 lg:py-[10px] lg:pl-0 lg:pr-[70px]"
+        className={cn(
+          "relative flex h-full min-w-0 items-center gap-1.5 overflow-hidden py-2 pl-2 sm:gap-3 sm:pl-[17px] md:gap-4 lg:gap-0 lg:py-[10px] lg:pl-0",
+          OPERATOR_NAVBAR_GUTTER_RIGHT
+        )}
       >
         {/*
           Desktop logo column matches sidenav width (260px open / 52px collapsed)
@@ -122,7 +131,13 @@ export function DashboardNavbar({
           </Link>
         </div>
 
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2 lg:justify-start lg:gap-3">
+        {/* At `lg+` the row starts one navbar gutter after the side-nav edge. */}
+        <div
+          className={cn(
+            "flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2 lg:justify-start lg:gap-3",
+            OPERATOR_NAVBAR_UTILITY_INSET_LEFT
+          )}
+        >
           <LocationSwitcher
             locationSwitcher={locationSwitcher}
             onSelectLocation={onSelectLocation}

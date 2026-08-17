@@ -4,6 +4,7 @@ import { OffersListSection } from "@/components/dashboard/operator/Offers/Offers
 import { OffersNeedsAttentionSection } from "@/components/dashboard/operator/Offers/OffersNeedsAttentionSection"
 import { OffersPerformanceSection } from "@/components/dashboard/operator/Offers/OffersPerformanceSection"
 import { CreateEditOfferDrawer } from "@/components/dashboard/operator/Offers/CreateEditOfferDrawer"
+import type { OperatorTabContentStatus } from "@/components/dashboard/operator/OperatorTableTabPanel"
 import { Button } from "@/components/ui/button"
 import type { OfferRowActionId } from "@/lib/operatorOffers/offerListPresentation"
 import type {
@@ -33,6 +34,7 @@ import type {
 } from "@/types/operatorCampaigns"
 
 type OffersBodyProps = {
+  tabContentStatus: OperatorTabContentStatus
   viewModel: OperatorOffersPageViewModel
   createOfferDrawer: OperatorOffersCreateOfferDrawerViewModel | null
   redemptionLogHref: string
@@ -64,6 +66,7 @@ type OffersBodyProps = {
 
 /** Offers page — header, Performance, Needs attention, list chrome, and Create/Edit drawer. */
 export function OffersBody({
+  tabContentStatus,
   viewModel,
   createOfferDrawer,
   redemptionLogHref,
@@ -142,6 +145,7 @@ export function OffersBody({
       />
 
       <OffersListSection
+        tabContentStatus={tabContentStatus}
         list={viewModel.list}
         onViewChange={onListViewChange}
         onSearchQueryChange={onSearchQueryChange}

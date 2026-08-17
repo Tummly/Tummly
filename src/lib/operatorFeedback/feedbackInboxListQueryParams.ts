@@ -26,6 +26,7 @@ export type FeedbackInboxListQueryParams = {
   detectedTags?: string[]
   qrSource?: string[]
   contact?: string[]
+  workflowStatus?: string[]
   datePreset?: string
   dateFrom?: string
   dateTo?: string
@@ -54,6 +55,7 @@ function appendFilterParams(
   const detectedTags = getMultiSelectIds(filters, "detectedTag")
   const qrSource = getMultiSelectIds(filters, "qrSource")
   const contact = getMultiSelectIds(filters, "contact")
+  const workflowStatus = getMultiSelectIds(filters, "workflowStatus")
   const date = getDateValue(filters, "date")
 
   const next: FeedbackInboxListQueryParams = { ...params }
@@ -69,6 +71,9 @@ function appendFilterParams(
   }
   if (contact.length > 0) {
     next.contact = contact
+  }
+  if (workflowStatus.length > 0) {
+    next.workflowStatus = workflowStatus
   }
 
   if (date.kind === "preset") {

@@ -72,10 +72,16 @@ describe("heroPresentation", () => {
     expect(OPERATOR_HOME_HERO_PHONE_CLASS).toContain("left-[8%]")
     expect(OPERATOR_HOME_HERO_PHONE_CLASS).toContain("w-[min(88%,340px)]")
     expect(OPERATOR_HOME_HERO_PHONE_SHELL_CLASS).toContain(
-      "bg-[var(--op-color-gray-950)]"
+      "bg-[var(--op-color-gray-750)]"
+    )
+    expect(OPERATOR_HOME_HERO_PHONE_SHELL_CLASS).toContain(
+      "dark:bg-op-color-gray-950"
     )
     expect(OPERATOR_HOME_HERO_PHONE_SHELL_CLASS).not.toContain("#2d2d2d")
+    expect(OPERATOR_HOME_HERO_PHONE_SHELL_CLASS).not.toContain("shadow-[")
     expect(OPERATOR_HOME_HERO_PHONE_FADE_CLASS).toContain("bottom-0")
+    expect(OPERATOR_HOME_HERO_PHONE_FADE_CLASS).toContain("hidden")
+    expect(OPERATOR_HOME_HERO_PHONE_FADE_CLASS).toContain("dark:block")
     expect(OPERATOR_HOME_HERO_PHONE_FADE_CLASS).toContain("h-[28%]")
     expect(OPERATOR_HOME_HERO_PHONE_FADE_CLASS).toContain(
       "var(--op-card-background)_88%"

@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.FileProviders;
 using TummlyBackend.Helpers;
 using TummlyBackend.Helpers.EmailTemplates;
 
@@ -30,11 +28,15 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("Cookie settings", html);
             Assert.Contains("Powered by", html);
             Assert.Contains("role='presentation'", html);
-            Assert.Contains($"cid:{BaseNonTransactionalEmailTemplate.CidLogo}", html);
             Assert.Contains(
-                $"cid:{BaseNonTransactionalEmailTemplate.CidTopDecoration}",
+                $"https://app.tummly.test{BaseNonTransactionalEmailTemplate.PublicLogoPath}",
                 html
             );
+            Assert.Contains(
+                $"https://app.tummly.test{BaseNonTransactionalEmailTemplate.PublicTopDecorationPath}",
+                html
+            );
+            Assert.DoesNotContain("cid:", html);
             Assert.DoesNotContain("cid:bottom-strip", html);
             Assert.DoesNotContain("data-guest-response-footer-strip", html);
             Assert.Contains("data-guest-response-top-decoration='1'", html);
@@ -127,15 +129,15 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("data-guest-response-notch='1'", html);
             Assert.Contains("#2c2c2c", html);
             Assert.Contains(
-                $"cid:{BaseNonTransactionalEmailTemplate.CidOfferQr}",
+                OfferClaimQr.ToPngDataUri("BURGERCO-4829"),
                 html
             );
-            Assert.DoesNotContain("data:image", html);
+            Assert.DoesNotContain("cid:", html);
             Assert.DoesNotContain("Give feedback", html);
         }
 
         [Fact]
-        public void Generate_OfferClaimQr_UsesCid_NotDataUri()
+        public void Generate_OfferClaimQr_UsesDataUri_NotCid()
         {
             const string claimCode = "BURGERCO-4829";
             var html = GenerateSample(
@@ -147,11 +149,8 @@ namespace TummlyBackend.Tests.Helpers
                 )
             );
 
-            Assert.Contains(
-                $"cid:{BaseNonTransactionalEmailTemplate.CidOfferQr}",
-                html
-            );
-            Assert.DoesNotContain(OfferClaimQr.ToPngDataUri(claimCode), html);
+            Assert.Contains(OfferClaimQr.ToPngDataUri(claimCode), html);
+            Assert.DoesNotContain("cid:", html);
             Assert.DoesNotContain(OfferClaimQr.ToPngDataUri("OTHER-CODE"), html);
         }
 
@@ -175,10 +174,7 @@ namespace TummlyBackend.Tests.Helpers
             Assert.DoesNotContain("Give feedback", html);
             Assert.DoesNotContain("data-guest-response-offer=", html);
             Assert.DoesNotContain("data-guest-response-offer-qr", html);
-            Assert.DoesNotContain(
-                $"cid:{BaseNonTransactionalEmailTemplate.CidOfferQr}",
-                html
-            );
+            Assert.DoesNotContain("cid:", html);
         }
 
         [Fact]
@@ -206,76 +202,6 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("Expires: &lt;soon&gt;", html);
             Assert.DoesNotContain("<script>", html);
             Assert.DoesNotContain("Give feedback", html);
-        }
-
-        [Fact]
-        public void BuildNonTransactionalInlineImages_AttachesChromeAndOfferQr()
-        {
-            var offer = new GuestResponseEmailOfferBlock(
-                Title: "15% off",
-                Description: "Helper",
-                RedemptionCode: "BURGERCO-4829",
-                ExpiryLabel: "Expires: 31 July 2026"
-            );
-            var images = EmailAssets.BuildNonTransactionalInlineImages(
-                new StubWebHostEnvironment
-                {
-                    ContentRootPath = BackendContentRoot(),
-                },
-                offer
-            );
-
-            Assert.Equal(3, images.Count);
-            Assert.Equal(
-                BaseNonTransactionalEmailTemplate.CidLogo,
-                images[0].ContentId
-            );
-            Assert.Equal(
-                BaseNonTransactionalEmailTemplate.CidTopDecoration,
-                images[1].ContentId
-            );
-            Assert.Equal(
-                BaseNonTransactionalEmailTemplate.CidOfferQr,
-                images[2].ContentId
-            );
-            Assert.Equal(
-                OfferClaimQr.ToPngBytes("BURGERCO-4829"),
-                images[2].Content
-            );
-        }
-
-        private static string BackendContentRoot()
-        {
-            var dir = Path.GetFullPath(
-                Path.Combine(
-                    AppContext.BaseDirectory,
-                    "..",
-                    "..",
-                    "..",
-                    "..",
-                    "TummlyBackend"
-                )
-            );
-            var logo = Path.Combine(dir, "Assets", "emails", "logo.png");
-            Assert.True(File.Exists(logo), $"Email logo missing at {logo}");
-            return dir;
-        }
-
-        private sealed class StubWebHostEnvironment : IWebHostEnvironment
-        {
-            public string ApplicationName { get; set; } = "Tests";
-
-            public string EnvironmentName { get; set; } = "Testing";
-
-            public string ContentRootPath { get; set; } = ".";
-
-            public string WebRootPath { get; set; } = ".";
-
-            public IFileProvider ContentRootFileProvider { get; set; } =
-                new NullFileProvider();
-
-            public IFileProvider WebRootFileProvider { get; set; } =
-                new NullFileProvider();
         }
 
         private static string GenerateSample(

@@ -16,8 +16,9 @@ export const OPERATOR_HOME_HERO_PHONE_CANVAS_WIDTH = 393
 export const OPERATOR_HOME_HERO_PHONE_CLASS =
   "absolute top-[18%] left-[8%] aspect-[300/560] w-[min(88%,340px)]"
 
+/** Light bezel uses gray-750; dark keeps gray-950. */
 export const OPERATOR_HOME_HERO_PHONE_SHELL_CLASS =
-  "relative size-full rounded-[13%/7%] bg-[var(--op-color-gray-950)] p-[3%] shadow-[0_24px_60px_rgba(0,0,0,0.32)]"
+  "relative size-full rounded-[13%/7%] bg-[var(--op-color-gray-750)] p-[3%] dark:bg-op-color-gray-950"
 
 export const OPERATOR_HOME_HERO_PHONE_SCREEN_CLASS =
   "relative size-full overflow-hidden rounded-[10%/5.5%] bg-guest-feedback-bg"
@@ -31,8 +32,9 @@ export const OPERATOR_HOME_HERO_PHONE_GUEST_SHELL_CLASS =
 export const OPERATOR_HOME_HERO_PHONE_GUEST_CONTENT_CLASS =
   "!max-w-[393px] !px-[30px] !pt-[24px]"
 
+/** Soft bottom crop — dark mode only; light mode keeps a hard phone edge. */
 export const OPERATOR_HOME_HERO_PHONE_FADE_CLASS =
-  "absolute inset-x-0 bottom-0 h-[28%] bg-[linear-gradient(180deg,transparent_0%,var(--op-card-background)_88%)]"
+  "absolute inset-x-0 bottom-0 hidden h-[28%] bg-[linear-gradient(180deg,transparent_0%,var(--op-card-background)_88%)] dark:block"
 
 /** Figma hero inner copy block — PRD §4.1 responsive padding steps. */
 export const OPERATOR_HOME_HERO_INNER_CLASS =

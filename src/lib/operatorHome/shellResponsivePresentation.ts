@@ -11,6 +11,17 @@ export const OPERATOR_SHELL_GUTTER_X =
 export const OPERATOR_SHELL_GUTTER_Y =
   "pt-6 pb-10 md:pt-8 lg:pt-[70px] lg:pb-[70px]"
 
+/** Navbar right gutter — same steps as {@link OPERATOR_SHELL_GUTTER_X} at `sm+`. */
+export const OPERATOR_NAVBAR_GUTTER_RIGHT =
+  "pr-2 sm:pr-6 md:pr-8 lg:pr-[70px]"
+
+/**
+ * Navbar utility row inset from the side-nav edge at `lg+` — mirrors
+ * {@link OPERATOR_NAVBAR_GUTTER_RIGHT} so the location picker starts on the same
+ * gutter as the main-pane content under it.
+ */
+export const OPERATOR_NAVBAR_UTILITY_INSET_LEFT = "lg:pl-[70px]"
+
 /**
  * Compact location switcher trigger (&lt;lg): name-only width cap.
  * At `lg+`, content-sized width (see FULL) so the search field can flex beside it.
@@ -18,9 +29,13 @@ export const OPERATOR_SHELL_GUTTER_Y =
 export const OPERATOR_LOCATION_SWITCHER_COMPACT_WIDTH_CLASS =
   "min-w-0 shrink max-w-[9rem] sm:max-w-[11rem] md:max-w-[14rem]"
 
-/** Full location switcher trigger (≥lg) — content-sized; search flexes beside it. */
+/**
+ * Full location switcher trigger (≥lg) — content-sized; search flexes beside it.
+ * Stays shrinkable so the name truncates instead of pushing the account menu
+ * out of the navbar at narrow desktop widths.
+ */
 export const OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS =
-  "lg:w-auto lg:max-w-none lg:shrink-0"
+  "lg:w-auto lg:max-w-none"
 
 /** Compact icon-button hit area for navbar + mobile nav sheet. */
 export const OPERATOR_SHELL_TOUCH_TARGET_CLASS =

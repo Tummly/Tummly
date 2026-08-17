@@ -6,6 +6,8 @@ import {
   OPERATOR_LOCATION_SWITCHER_COMPACT_WIDTH_CLASS,
   OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS,
   OPERATOR_MOBILE_NAV_SHEET_CLASS,
+  OPERATOR_NAVBAR_GUTTER_RIGHT,
+  OPERATOR_NAVBAR_UTILITY_INSET_LEFT,
   OPERATOR_NOTIFICATION_FILTER_TABLIST_CLASS,
   OPERATOR_NOTIFICATION_FILTER_TAB_CLASS,
   OPERATOR_RIGHT_DRAWER_BODY_CLASS,
@@ -58,9 +60,19 @@ describe("shellResponsivePresentation", () => {
     expect(OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS).toContain(
       "lg:max-w-none"
     )
-    expect(OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS).toContain(
+  })
+
+  it("keeps the location switcher shrinkable at lg so the navbar cannot clip", () => {
+    expect(OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS).not.toContain(
       "lg:shrink-0"
     )
+  })
+
+  it("mirrors the navbar right gutter on the utility row at lg", () => {
+    expect(OPERATOR_NAVBAR_GUTTER_RIGHT).toBe(
+      "pr-2 sm:pr-6 md:pr-8 lg:pr-[70px]"
+    )
+    expect(OPERATOR_NAVBAR_UTILITY_INSET_LEFT).toBe("lg:pl-[70px]")
   })
 
   it("uses compact touch targets for shell icon buttons", () => {

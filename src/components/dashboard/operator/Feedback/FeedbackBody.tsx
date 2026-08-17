@@ -4,6 +4,7 @@ import { FeedbackInboxSection } from "@/components/dashboard/operator/Feedback/F
 import { FeedbackPageDateRangeControl } from "@/components/dashboard/operator/Feedback/FeedbackPageDateRangeControl"
 import { FeedbackPageHeaderActionsMenu } from "@/components/dashboard/operator/Feedback/FeedbackPageHeaderActionsMenu"
 import { FeedbackSummarySection } from "@/components/dashboard/operator/Feedback/FeedbackSummarySection"
+import type { OperatorTabContentStatus } from "@/components/dashboard/operator/OperatorTableTabPanel"
 import { Button } from "@/components/ui/button"
 import {
   GUESTS_PAGE_HEADER_COPY_CLASS,
@@ -31,6 +32,7 @@ import type {
 } from "@/types/operatorFeedback"
 
 type FeedbackBodyProps = {
+  tabContentStatus: OperatorTabContentStatus
   viewModel: OperatorFeedbackPageViewModel
   activeInboxTabId: OperatorFeedbackInboxTabId
   selectedDateRange: HomePerformanceDateRange
@@ -60,6 +62,7 @@ type FeedbackBodyProps = {
   onInboxRemoveFilterChip: (chip: FilterChip) => void
   onOpenFeedbackDetails: (feedbackId: number) => void
   onStartInboxRecovery: (feedbackId: number) => void
+  onReopenInboxFeedback: (feedbackId: number) => void
   onStartInboxMarkResolved: (feedbackId: number) => void
   onStartInboxMarkNoActionNeeded: (feedbackId: number) => void
   onExportFeedback: () => void
@@ -67,6 +70,7 @@ type FeedbackBodyProps = {
 
 /** Feedback page body — header chrome, summary KPIs, and inbox. */
 export function FeedbackBody({
+  tabContentStatus,
   viewModel,
   activeInboxTabId,
   selectedDateRange,
@@ -96,6 +100,7 @@ export function FeedbackBody({
   onInboxRemoveFilterChip,
   onOpenFeedbackDetails,
   onStartInboxRecovery,
+  onReopenInboxFeedback,
   onStartInboxMarkResolved,
   onStartInboxMarkNoActionNeeded,
   onExportFeedback,
@@ -159,6 +164,7 @@ export function FeedbackBody({
       />
 
       <FeedbackInboxSection
+        tabContentStatus={tabContentStatus}
         inboxRef={inboxRef}
         tabs={inboxTabs}
         activeTabId={activeInboxTabId}
@@ -183,6 +189,7 @@ export function FeedbackBody({
         onRemoveFilterChip={onInboxRemoveFilterChip}
         onOpenFeedbackDetails={onOpenFeedbackDetails}
         onStartInboxRecovery={onStartInboxRecovery}
+        onReopenInboxFeedback={onReopenInboxFeedback}
         onStartInboxMarkResolved={onStartInboxMarkResolved}
         onStartInboxMarkNoActionNeeded={onStartInboxMarkNoActionNeeded}
       />

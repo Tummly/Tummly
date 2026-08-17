@@ -75,14 +75,20 @@ export function GuestProfileAddNoteDialog({
         className="gap-10 bg-op-surface-secondary p-8 text-foreground sm:max-w-[560px]"
       >
         <div className="flex flex-col gap-[30px]">
-          <DialogHeader className="gap-3 pr-10">
-            <DialogTitle className="text-2xl font-bold tracking-normal text-foreground">
-              {copy.dialogTitle}
-            </DialogTitle>
-            <DialogDescription className="text-sm font-medium leading-normal text-muted-foreground dark:text-[#7c7c7c]">
-              {copy.dialogDescription}
-            </DialogDescription>
-          </DialogHeader>
+          <div className="flex flex-col gap-[30px]">
+            <DialogHeader className="gap-3 pr-10">
+              <DialogTitle className="text-2xl font-bold tracking-normal text-foreground">
+                {copy.dialogTitle}
+              </DialogTitle>
+              <DialogDescription className="text-sm font-medium leading-normal text-muted-foreground dark:text-[#7c7c7c]">
+                {copy.dialogDescription}
+              </DialogDescription>
+            </DialogHeader>
+            <div
+              className="h-px w-full shrink-0 bg-op-border-default"
+              aria-hidden
+            />
+          </div>
 
           <div className="flex min-h-[169px] flex-col gap-2">
             <label

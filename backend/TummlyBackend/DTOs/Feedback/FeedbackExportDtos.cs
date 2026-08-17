@@ -37,6 +37,8 @@ namespace TummlyBackend.DTOs.Feedback
 
         public string[]? Contact { get; init; }
 
+        public string[]? WorkflowStatus { get; init; }
+
         public string? DatePreset { get; init; }
 
         public DateTime? DateFrom { get; init; }

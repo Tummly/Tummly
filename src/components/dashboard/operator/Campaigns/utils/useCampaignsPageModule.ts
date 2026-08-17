@@ -8,6 +8,7 @@ import type {
 
 export type OperatorCampaignsPageModuleApi = {
   snapshot: OperatorCampaignsPageSnapshot
+  clearTabCache: OperatorCampaignsPageModule["clearTabCache"]
   retryLoad: OperatorCampaignsPageModule["retryLoad"]
   reloadForOverviewDateRange: OperatorCampaignsPageModule["reloadForOverviewDateRange"]
   retryRecommendation: OperatorCampaignsPageModule["retryRecommendation"]
@@ -31,6 +32,7 @@ export function useCampaignsPageModule(): OperatorCampaignsPageModuleApi {
 
   return {
     snapshot,
+    clearTabCache: pageModule.clearTabCache,
     retryLoad: pageModule.retryLoad,
     reloadForOverviewDateRange: pageModule.reloadForOverviewDateRange,
     retryRecommendation: pageModule.retryRecommendation,

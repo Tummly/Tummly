@@ -147,10 +147,10 @@ export const OPERATOR_NOTE_ACTIONS = {
   editLabel: "Edit",
   deleteLabel: "Delete",
   editedLabel: "Edited",
-  deleteDialogTitle: "Delete note?",
+  deleteDialogTitle: "Remove this note?",
   deleteDialogDescription:
-    "This note will be removed from the list and cannot be restored.",
-  deleteDialogConfirm: "Delete note",
+    "The note will be hidden from the normal Feedback view. A record of the removal will remain in the audit history.",
+  deleteDialogConfirm: "Remove note",
   deleteDialogCancel: "Cancel",
 } as const
 

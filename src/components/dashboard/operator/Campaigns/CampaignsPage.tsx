@@ -133,7 +133,7 @@ async function loadAudienceEligibility(input: {
 
 export function CampaignsPage() {
   const campaigns = useCampaignsPageModule()
-  const { snapshot } = campaigns
+  const { snapshot, clearTabCache } = campaigns
   const { locations, mode } = useOutletContext<DashboardOutletContext>()
   const campaignsOverviewDateRange = useDashboardUiStore(
     (state) => state.campaignsOverviewDateRange
@@ -144,6 +144,13 @@ export function CampaignsPage() {
   const campaignsIntent = useDashboardUiStore((state) => state.campaignsIntent)
   const setCampaignsIntent = useDashboardUiStore(
     (state) => state.setCampaignsIntent
+  )
+
+  useEffect(
+    () => () => {
+      clearTabCache()
+    },
+    [clearTabCache]
   )
 
   useEffect(() => {
@@ -520,6 +527,7 @@ export function CampaignsPage() {
   return (
     <>
       <CampaignsBody
+        tabContentStatus={snapshot.tabContentStatus}
         viewModel={snapshot.viewModel}
         selectedDateRange={campaignsOverviewDateRange}
         onCommitDateRange={handleCommitDateRange}
