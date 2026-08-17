@@ -1,9 +1,9 @@
 import { CrownIcon } from "lucide-react"
 
 import tearImg from "@/assets/images/tear-img.png"
-import guestLoopLivePhone from "@/assets/operator-home/guest-loop-live-phone.png"
 import heroFormAccentDark from "@/assets/svg/hero-form-accent-dark.svg"
 import heroFormAccent from "@/assets/svg/hero-form-accent.svg"
+import { HomeGuestFormPhone } from "@/components/dashboard/operator/Home/HomeGuestFormPhone"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type {
@@ -19,7 +19,6 @@ import {
   OPERATOR_HOME_HERO_CARD_CLASS,
   OPERATOR_HOME_HERO_CTA_ROW_CLASS,
   OPERATOR_HOME_HERO_INNER_CLASS,
-  OPERATOR_HOME_HERO_PHONE_FADE_CLASS,
   OPERATOR_HOME_HERO_PRIMARY_BUTTON_CLASS,
   OPERATOR_HOME_HERO_SECONDARY_BUTTON_CLASS,
   OPERATOR_HOME_HERO_SUBTITLE_CLASS,
@@ -32,6 +31,8 @@ type HomeHeroProps = {
   canPreviewGuestForm: boolean
   canCopySmartGuestLink: boolean
   previewBusy?: boolean
+  guestFormPreviewLocationName?: string
+  guestFormPreviewAddress?: string
   onPreviewGuestForm?: () => void
   onCopySmartGuestLink?: () => void
 }
@@ -53,6 +54,8 @@ export function HomeHero({
   canPreviewGuestForm,
   canCopySmartGuestLink,
   previewBusy = false,
+  guestFormPreviewLocationName = "",
+  guestFormPreviewAddress = "",
   onPreviewGuestForm,
   onCopySmartGuestLink,
 }: HomeHeroProps) {
@@ -100,7 +103,7 @@ export function HomeHero({
         </div>
 
         <div className={OPERATOR_HOME_HERO_INNER_CLASS}>
-          <div className="relative flex min-w-0 flex-1 flex-col items-start gap-[26px]">
+          <div className="relative flex min-w-0 flex-1 flex-col items-start gap-[26px] lg:max-w-[52%]">
             {activationPeriodBadge ? (
               <Badge
                 variant="soft"
@@ -169,15 +172,10 @@ export function HomeHero({
             aria-hidden
             className="pointer-events-none absolute inset-y-0 right-0 hidden w-[min(48%,622px)] overflow-hidden lg:block"
           >
-            <div className="absolute top-[14%] right-[38.7%] bottom-0 w-[56.6%] overflow-hidden">
-              <img
-                src={guestLoopLivePhone}
-                alt=""
-                className="absolute top-0 left-0 w-full max-w-none"
-              />
-              {/* Bottom fade over the phone — dark mode only (washes it out in light) */}
-              <div className={OPERATOR_HOME_HERO_PHONE_FADE_CLASS} />
-            </div>
+            <HomeGuestFormPhone
+              locationName={guestFormPreviewLocationName}
+              address={guestFormPreviewAddress}
+            />
           </div>
         </div>
       </div>

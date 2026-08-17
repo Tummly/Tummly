@@ -6,10 +6,12 @@ import {
   operatorDashboardCaptureLocationPath,
   operatorDashboardGuestEditPath,
   operatorDashboardGuestProfilePath,
+  operatorDashboardModeForAccountType,
   operatorDashboardNavPath,
   operatorDashboardOfferDetailsPath,
   operatorDashboardOffersRedemptionLogPath,
   operatorDashboardRootPath,
+  resolveMismatchedOperatorDashboardRedirect,
   resolveOperatorSidebarActiveId,
 } from "./operatorDashboardPaths"
 
@@ -17,6 +19,81 @@ describe("operatorDashboardRootPath", () => {
   it("maps dashboard mode to the root path", () => {
     expect(operatorDashboardRootPath("single")).toBe("/single-dashboard")
     expect(operatorDashboardRootPath("multi")).toBe("/multi-dashboard")
+  })
+})
+
+describe("operatorDashboardModeForAccountType", () => {
+  it("maps Single and Multi account types to dashboard modes", () => {
+    expect(operatorDashboardModeForAccountType("Single")).toBe("single")
+    expect(operatorDashboardModeForAccountType("Multi")).toBe("multi")
+  })
+
+  it("returns null for unknown or missing account types", () => {
+    expect(operatorDashboardModeForAccountType(null)).toBeNull()
+    expect(operatorDashboardModeForAccountType(undefined)).toBeNull()
+    expect(operatorDashboardModeForAccountType("Owner")).toBeNull()
+  })
+})
+
+describe("resolveMismatchedOperatorDashboardRedirect", () => {
+  it("blocks a Multi operator from opening single-dashboard via URL", () => {
+    expect(
+      resolveMismatchedOperatorDashboardRedirect({
+        mode: "single",
+        accountType: "Multi",
+        pathname: "/single-dashboard",
+        search: "?location=7",
+      })
+    ).toBe("/multi-dashboard?location=7")
+  })
+
+  it("preserves nested path when remapping Multi away from single-dashboard", () => {
+    expect(
+      resolveMismatchedOperatorDashboardRedirect({
+        mode: "single",
+        accountType: "Multi",
+        pathname: "/single-dashboard/guests",
+        search: "?location=7",
+      })
+    ).toBe("/multi-dashboard/guests?location=7")
+  })
+
+  it("blocks a Single operator from opening multi-dashboard via URL", () => {
+    expect(
+      resolveMismatchedOperatorDashboardRedirect({
+        mode: "multi",
+        accountType: "Single",
+        pathname: "/multi-dashboard/capture",
+        search: "?location=42",
+      })
+    ).toBe("/single-dashboard/capture?location=42")
+  })
+
+  it("allows matching AccountType and mode", () => {
+    expect(
+      resolveMismatchedOperatorDashboardRedirect({
+        mode: "multi",
+        accountType: "Multi",
+        pathname: "/multi-dashboard",
+      })
+    ).toBeNull()
+    expect(
+      resolveMismatchedOperatorDashboardRedirect({
+        mode: "single",
+        accountType: "Single",
+        pathname: "/single-dashboard/guests",
+      })
+    ).toBeNull()
+  })
+
+  it("does not redirect when AccountType is unknown", () => {
+    expect(
+      resolveMismatchedOperatorDashboardRedirect({
+        mode: "single",
+        accountType: null,
+        pathname: "/single-dashboard",
+      })
+    ).toBeNull()
   })
 })
 

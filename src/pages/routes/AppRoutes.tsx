@@ -7,6 +7,7 @@ import { GoogleAnalytics } from "@/components/common/GoogleAnalytics";
 import { ScrollToTop } from "@/components/common/ScrollToTop";
 import { OperatorAppearanceProvider } from "@/components/theme/OperatorAppearanceProvider";
 import MainLayout from "../../layouts/MainLayout";
+import OperatorDashboardRoute from "./OperatorDashboardRoute";
 import ProtectedRoute from "./ProtectedRoute";
 import PublicOnlyRoute from "./PublicOnlyRoute";
 import RoleRoute from "./RoleRoute";
@@ -130,79 +131,83 @@ function AppRoutes() {
           </Route>
 
           <Route element={<ProtectedRoute />}>
-            <Route path="single-dashboard" element={<OperatorDashboard mode="single" />}>
-              <Route index element={<HomeRoute />} />
-              <Route path="guests" element={<GuestsRoute />} />
-              <Route
-                path="guests/:guestId"
-                element={<GuestProfilePageModuleProvider />}
-              >
-                <Route index element={<GuestProfileRoute />} />
-                <Route path="edit" element={<GuestEditRoute />} />
+            <Route element={<OperatorDashboardRoute mode="single" />}>
+              <Route path="single-dashboard" element={<OperatorDashboard mode="single" />}>
+                <Route index element={<HomeRoute />} />
+                <Route path="guests" element={<GuestsRoute />} />
+                <Route
+                  path="guests/:guestId"
+                  element={<GuestProfilePageModuleProvider />}
+                >
+                  <Route index element={<GuestProfileRoute />} />
+                  <Route path="edit" element={<GuestEditRoute />} />
+                </Route>
+                <Route path="capture" element={<CaptureSingleRoute />} />
+                <Route
+                  path="capture/archive"
+                  element={<CaptureArchiveRoute mode="single" />}
+                />
+                <Route path="feedback" element={<FeedbackRoute />} />
+                <Route path="campaigns" element={<CampaignsRoute />} />
+                <Route path="offers" element={<OffersRoute />} />
+                <Route
+                  path="offers/redemption-log"
+                  element={
+                    <OffersRedemptionLogPageModuleProvider>
+                      <OffersRedemptionLogRoute />
+                    </OffersRedemptionLogPageModuleProvider>
+                  }
+                />
+                <Route
+                  path="offers/:offerId"
+                  element={
+                    <OfferDetailsPageModuleProvider>
+                      <OfferDetailsRoute />
+                    </OfferDetailsPageModuleProvider>
+                  }
+                />
               </Route>
-              <Route path="capture" element={<CaptureSingleRoute />} />
-              <Route
-                path="capture/archive"
-                element={<CaptureArchiveRoute mode="single" />}
-              />
-              <Route path="feedback" element={<FeedbackRoute />} />
-              <Route path="campaigns" element={<CampaignsRoute />} />
-              <Route path="offers" element={<OffersRoute />} />
-              <Route
-                path="offers/redemption-log"
-                element={
-                  <OffersRedemptionLogPageModuleProvider>
-                    <OffersRedemptionLogRoute />
-                  </OffersRedemptionLogPageModuleProvider>
-                }
-              />
-              <Route
-                path="offers/:offerId"
-                element={
-                  <OfferDetailsPageModuleProvider>
-                    <OfferDetailsRoute />
-                  </OfferDetailsPageModuleProvider>
-                }
-              />
             </Route>
-            <Route path="multi-dashboard" element={<OperatorDashboard mode="multi" />}>
-              <Route index element={<HomeRoute />} />
-              <Route path="guests" element={<GuestsRoute />} />
-              <Route
-                path="guests/:guestId"
-                element={<GuestProfilePageModuleProvider />}
-              >
-                <Route index element={<GuestProfileRoute />} />
-                <Route path="edit" element={<GuestEditRoute />} />
+            <Route element={<OperatorDashboardRoute mode="multi" />}>
+              <Route path="multi-dashboard" element={<OperatorDashboard mode="multi" />}>
+                <Route index element={<HomeRoute />} />
+                <Route path="guests" element={<GuestsRoute />} />
+                <Route
+                  path="guests/:guestId"
+                  element={<GuestProfilePageModuleProvider />}
+                >
+                  <Route index element={<GuestProfileRoute />} />
+                  <Route path="edit" element={<GuestEditRoute />} />
+                </Route>
+                <Route path="capture" element={<CaptureMultiRootRoute />} />
+                <Route
+                  path="capture/archive"
+                  element={<CaptureArchiveRoute mode="multi" />}
+                />
+                <Route
+                  path="capture/locations/:locationId"
+                  element={<CaptureNestedRoute />}
+                />
+                <Route path="feedback" element={<FeedbackRoute />} />
+                <Route path="campaigns" element={<CampaignsRoute />} />
+                <Route path="offers" element={<OffersRoute />} />
+                <Route
+                  path="offers/redemption-log"
+                  element={
+                    <OffersRedemptionLogPageModuleProvider>
+                      <OffersRedemptionLogRoute />
+                    </OffersRedemptionLogPageModuleProvider>
+                  }
+                />
+                <Route
+                  path="offers/:offerId"
+                  element={
+                    <OfferDetailsPageModuleProvider>
+                      <OfferDetailsRoute />
+                    </OfferDetailsPageModuleProvider>
+                  }
+                />
               </Route>
-              <Route path="capture" element={<CaptureMultiRootRoute />} />
-              <Route
-                path="capture/archive"
-                element={<CaptureArchiveRoute mode="multi" />}
-              />
-              <Route
-                path="capture/locations/:locationId"
-                element={<CaptureNestedRoute />}
-              />
-              <Route path="feedback" element={<FeedbackRoute />} />
-              <Route path="campaigns" element={<CampaignsRoute />} />
-              <Route path="offers" element={<OffersRoute />} />
-              <Route
-                path="offers/redemption-log"
-                element={
-                  <OffersRedemptionLogPageModuleProvider>
-                    <OffersRedemptionLogRoute />
-                  </OffersRedemptionLogPageModuleProvider>
-                }
-              />
-              <Route
-                path="offers/:offerId"
-                element={
-                  <OfferDetailsPageModuleProvider>
-                    <OfferDetailsRoute />
-                  </OfferDetailsPageModuleProvider>
-                }
-              />
             </Route>
             <Route
               path="admin-dashboard"

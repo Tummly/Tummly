@@ -18,7 +18,7 @@ export function HomePage({
 }: HomePageProps) {
   const home = useHomePageModule()
   const navigate = useNavigate()
-  const { mode, selectedLocationId } =
+  const { mode, selectedLocationId, locations } =
     useOutletContext<DashboardOutletContext>()
   const homePerformanceDateRange = useDashboardUiStore(
     (state) => state.homePerformanceDateRange
@@ -38,6 +38,9 @@ export function HomePage({
   }
 
   const viewModel = home.snapshot.viewModel
+  const selectedLocation = locations.find(
+    (location) => location.id === selectedLocationId
+  )
   const feedbackState =
     home.snapshot.loadStatus === "idle" ||
     home.snapshot.loadStatus === "loading" ||
@@ -82,6 +85,8 @@ export function HomePage({
         onCommitHomePerformanceDateRange={handleCommitHomePerformanceDateRange}
         feedbackState={feedbackState}
         performanceLoading={home.snapshot.performanceLoadStatus === "loading"}
+        guestFormPreviewLocationName={viewModel.selectedLocationName}
+        guestFormPreviewAddress={selectedLocation?.address ?? ""}
         onRetryFeedback={() => {
           void home.retryLoad()
         }}
