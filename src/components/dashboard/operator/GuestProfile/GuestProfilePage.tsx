@@ -3,6 +3,7 @@ import { toast } from "sonner"
 
 import { useGuestProfilePageModule } from "@/components/dashboard/operator/GuestProfile/utils/useGuestProfilePageModule"
 import { GuestProfileShell } from "@/components/dashboard/operator/GuestProfile/GuestProfileShell"
+import { ManageMarketingPreferencesDialog } from "@/components/dashboard/operator/GuestProfile/ManageMarketingPreferencesDialog"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -75,6 +76,12 @@ export function GuestProfilePage({
     recoveryWizards,
     updateNote,
     softDeleteNote,
+    marketingPreferencesSnapshot,
+    openManageMarketingPreferences,
+    closeManageMarketingPreferences,
+    saveManageMarketingPreferences,
+    setMarketingPreferenceDraft,
+    setMarketingPreferenceNote,
   } = useGuestProfilePageModule()
   const navigate = useNavigate()
   const guestsListPath = operatorDashboardNavPath(
@@ -153,7 +160,8 @@ export function GuestProfilePage({
   )
 
   return (
-    <GuestProfileShell
+    <>
+      <GuestProfileShell
       mode={mode}
       selectedLocationId={selectedLocationId}
       viewModel={snapshot.viewModel}
@@ -229,6 +237,7 @@ export function GuestProfilePage({
       onManageTags={() => {
         navigate(headerPaths.manageTags)
       }}
+      onManageMarketingPermissions={openManageMarketingPreferences}
       onExportGuestRecord={() => {
         void (async () => {
           const result = await exportGuestRecord()
@@ -241,5 +250,20 @@ export function GuestProfilePage({
         navigate(headerPaths.deleteGuestData)
       }}
     />
+      <ManageMarketingPreferencesDialog
+        snapshot={marketingPreferencesSnapshot}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeManageMarketingPreferences()
+          }
+        }}
+        onDraftPreferenceChange={setMarketingPreferenceDraft}
+        onDraftNoteChange={setMarketingPreferenceNote}
+        onSave={saveManageMarketingPreferences}
+        onNoteSaveFailure={(message) => {
+          toast.error(message)
+        }}
+      />
+    </>
   )
 }

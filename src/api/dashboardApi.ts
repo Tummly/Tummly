@@ -96,6 +96,8 @@ import type {
   FeedbackInternalNoteItem,
   PatchGuestIdentityRequest,
   PatchGuestIdentityResponse,
+  PatchGuestMarketingPreferenceRequest,
+  PatchGuestMarketingPreferenceResponse,
   CorrectFeedbackClassificationRequest,
   CorrectFeedbackClassificationResponse,
   UpdateFeedbackDetectedTagsRequest,
@@ -1044,6 +1046,20 @@ export const patchGuestIdentity = async (params: {
     params.body,
     { params: { locationId: params.locationId } }
   )
+  return response.data
+}
+
+export const patchGuestMarketingPreference = async (params: {
+  guestId: number
+  locationId: number
+  body: PatchGuestMarketingPreferenceRequest
+}): Promise<PatchGuestMarketingPreferenceResponse> => {
+  const response =
+    await axiosInstance.patch<PatchGuestMarketingPreferenceResponse>(
+      `/guests/${params.guestId}/marketing-preference`,
+      params.body,
+      { params: { locationId: params.locationId } }
+    )
   return response.data
 }
 

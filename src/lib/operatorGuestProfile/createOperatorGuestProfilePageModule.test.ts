@@ -81,6 +81,9 @@ function createAdapters(
     OperatorGuestProfilePageAdapters["softDeleteGuestNote"]
   >
   patchGuestIdentity: Mock<OperatorGuestProfilePageAdapters["patchGuestIdentity"]>
+  patchGuestMarketingPreference: Mock<
+    OperatorGuestProfilePageAdapters["patchGuestMarketingPreference"]
+  >
   listGuestTags: Mock<OperatorGuestProfilePageAdapters["listGuestTags"]>
   syncGuestTags: Mock<OperatorGuestProfilePageAdapters["syncGuestTags"]>
   getGuestActivity: Mock<OperatorGuestProfilePageAdapters["getGuestActivity"]>
@@ -148,6 +151,15 @@ function createAdapters(
   const patchGuestIdentity =
     overrides.patchGuestIdentity ??
     vi.fn(async () => ({ success: true, changedFields: ["name"] }))
+  const patchGuestMarketingPreference =
+    overrides.patchGuestMarketingPreference ??
+    vi.fn(async () => ({
+      success: true,
+      preference: "opted_out" as const,
+      preferenceChanged: true,
+      noteCreated: false,
+      noteError: null,
+    }))
   const listGuestTags =
     overrides.listGuestTags ?? vi.fn(async () => defaultCatalog)
   const syncGuestTags =
@@ -326,6 +338,7 @@ function createAdapters(
       updateGuestNote,
       softDeleteGuestNote,
       patchGuestIdentity,
+      patchGuestMarketingPreference,
       listGuestTags,
       syncGuestTags,
       getGuestActivity,
@@ -416,6 +429,9 @@ function createAdapters(
     >,
     patchGuestIdentity: patchGuestIdentity as Mock<
       OperatorGuestProfilePageAdapters["patchGuestIdentity"]
+    >,
+    patchGuestMarketingPreference: patchGuestMarketingPreference as Mock<
+      OperatorGuestProfilePageAdapters["patchGuestMarketingPreference"]
     >,
     listGuestTags: listGuestTags as Mock<
       OperatorGuestProfilePageAdapters["listGuestTags"]
@@ -1419,5 +1435,63 @@ describe("createOperatorGuestProfilePageModule", () => {
     expect(selected).toBe(false)
     expect(pageModule.getSnapshot().startRecovery.isOpen).toBe(true)
     expect(pageModule.getSnapshot().respondToGuest.isOpen).toBe(false)
+  })
+
+  it("opens the manage marketing preferences session from the loaded Guest Profile", async () => {
+    const { adapters, getGuestProfile } = createAdapters({
+      getGuestProfile: vi.fn(async () =>
+        createGuestProfileResponse({
+          contactEligibility: [
+            {
+              channel: "email",
+              status: "eligible",
+              detailKind: "consent_captured",
+              detailAt: "2026-08-06T10:00:00.000Z",
+            },
+            {
+              channel: "sms",
+              status: "not_provided",
+              detailKind: null,
+              detailAt: null,
+            },
+          ],
+        })
+      ),
+    })
+    const pageModule = createOperatorGuestProfilePageModule(adapters)
+    await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
+    getGuestProfile.mockClear()
+
+    pageModule.openManageMarketingPreferences()
+    const snap = pageModule.marketingPreferences.getSnapshot()
+
+    expect(snap.isOpen).toBe(true)
+    expect(snap.draftPreference).toBe("allowed")
+    expect(snap.guestName).toBe("Amelia Hart")
+    expect(getGuestProfile).not.toHaveBeenCalled()
+  })
+
+  it("refreshes Guest Profile after a successful marketing preference Save", async () => {
+    const { adapters, getGuestProfile, patchGuestMarketingPreference } =
+      createAdapters()
+    const pageModule = createOperatorGuestProfilePageModule(adapters)
+    await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
+    getGuestProfile.mockClear()
+
+    pageModule.openManageMarketingPreferences()
+    pageModule.marketingPreferences.setDraftPreference("opted_out")
+    const result = await pageModule.saveManageMarketingPreferences()
+
+    expect(result).toEqual({ status: "saved" })
+    expect(patchGuestMarketingPreference).toHaveBeenCalledWith({
+      guestId: 42,
+      locationId: 1,
+      body: { preference: "opted_out" },
+    })
+    expect(getGuestProfile).toHaveBeenCalledWith({
+      guestId: 42,
+      locationId: 1,
+    })
+    expect(pageModule.marketingPreferences.getSnapshot().isOpen).toBe(false)
   })
 })

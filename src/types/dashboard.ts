@@ -967,6 +967,19 @@ export interface PatchGuestIdentityResponse {
   changedFields: string[];
 }
 
+export interface PatchGuestMarketingPreferenceRequest {
+  preference: LocationGuestMarketingPreference;
+  note?: string;
+}
+
+export interface PatchGuestMarketingPreferenceResponse {
+  success: boolean;
+  preference: LocationGuestMarketingPreference;
+  preferenceChanged: boolean;
+  noteCreated: boolean;
+  noteError: string | null;
+}
+
 export interface GuestProfileResponse {
   success: boolean;
   locationId: number;

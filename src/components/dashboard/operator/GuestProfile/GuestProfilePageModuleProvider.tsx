@@ -14,6 +14,7 @@ import {
   listGuestNotes,
   listGuestTags,
   patchGuestIdentity,
+  patchGuestMarketingPreference,
   softDeleteFeedbackInternalNote,
   softDeleteGuestNote,
   syncGuestTags,
@@ -53,6 +54,8 @@ export function GuestProfilePageModuleProvider({
       updateGuestNote: async (params) => updateGuestNote(params),
       softDeleteGuestNote: async (params) => softDeleteGuestNote(params),
       patchGuestIdentity: async (params) => patchGuestIdentity(params),
+      patchGuestMarketingPreference: async (params) =>
+        patchGuestMarketingPreference(params),
       listGuestTags: async (params) => listGuestTags(params),
       syncGuestTags: async (params) => syncGuestTags(params),
       getGuestActivity,

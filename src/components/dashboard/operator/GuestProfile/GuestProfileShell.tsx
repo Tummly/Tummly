@@ -121,6 +121,7 @@ type GuestProfileShellProps = {
   onCancelFeedbackNoteDelete: () => void
   onConfirmFeedbackNoteDelete: () => Promise<boolean>
   onManageTags: () => void
+  onManageMarketingPermissions: () => void
   onExportGuestRecord: () => void
   onDeleteGuestData: () => void
 }
@@ -469,6 +470,7 @@ export function GuestProfileShell({
   onCancelFeedbackNoteDelete,
   onConfirmFeedbackNoteDelete,
   onManageTags,
+  onManageMarketingPermissions,
   onExportGuestRecord,
   onDeleteGuestData,
 }: GuestProfileShellProps) {
@@ -570,6 +572,7 @@ export function GuestProfileShell({
           <GuestProfileHeaderActionsMenu
             guestName={viewModel.name}
             onManageTags={onManageTags}
+            onManageMarketingPermissions={onManageMarketingPermissions}
             onExportGuestRecord={onExportGuestRecord}
             onDeleteGuestData={onDeleteGuestData}
           />
