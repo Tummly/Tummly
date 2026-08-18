@@ -12,6 +12,7 @@ import {
   getGuestTagMemberships,
   getGuests,
   listGuestTags,
+  patchGuestMarketingPreference,
   softDeleteFeedbackInternalNote,
   triggerBrowserDownload,
   updateFeedbackDetectedTags,
@@ -60,6 +61,8 @@ export function GuestsPageModuleProvider({
       getGuestTagMemberships: async (params) => getGuestTagMemberships(params),
       getGuestProfile: async (params) => getGuestProfile(params),
       createGuestNote: async (params) => createGuestNote(params),
+      patchGuestMarketingPreference: async (params) =>
+        patchGuestMarketingPreference(params),
       ...createRecoveryWizardApiAdapters(),
       correctClassification: async (feedbackId, input) => {
         const trimmedNote = input.noteBody?.trim() ?? ""

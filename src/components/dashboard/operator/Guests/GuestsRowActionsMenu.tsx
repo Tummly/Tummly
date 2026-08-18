@@ -22,6 +22,7 @@ type GuestsRowActionsMenuProps = {
   guestName: string
   onManageTags: (guestId: string) => void
   onViewGuest: (guestId: string) => void
+  onManageMarketingPermissions: (guestId: string) => void
 }
 
 /** Figma Guests table Actions menu — node `4213:61228`. */
@@ -30,6 +31,7 @@ export function GuestsRowActionsMenu({
   guestName,
   onManageTags,
   onViewGuest,
+  onManageMarketingPermissions,
 }: GuestsRowActionsMenuProps) {
   return (
     <DropdownMenu>
@@ -66,6 +68,15 @@ export function GuestsRowActionsMenu({
                 className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
                 onClick={() => {
                   onViewGuest(guestId)
+                }}
+              >
+                {action.label}
+              </DropdownMenuItem>
+            ) : action.id === "manage-marketing-permissions" ? (
+              <DropdownMenuItem
+                className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+                onClick={() => {
+                  onManageMarketingPermissions(guestId)
                 }}
               >
                 {action.label}

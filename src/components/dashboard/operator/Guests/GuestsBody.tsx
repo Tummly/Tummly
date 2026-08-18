@@ -40,6 +40,7 @@ type GuestsBodyProps = {
   onAddTag?: () => void
   onManageGuestTags: (guestId: string) => void
   onViewGuest: (guestId: string) => void
+  onManageMarketingPermissions: (guestId: string) => void
   onExportCsv: () => void
   onExportSelected?: () => void
   exportBusy?: boolean
@@ -74,6 +75,7 @@ export function GuestsBody({
   onAddTag,
   onManageGuestTags,
   onViewGuest,
+  onManageMarketingPermissions,
   onExportCsv,
   onExportSelected,
   exportBusy = false,
@@ -156,6 +158,7 @@ export function GuestsBody({
         onAddTag={onAddTag}
         onManageGuestTags={onManageGuestTags}
         onViewGuest={onViewGuest}
+        onManageMarketingPermissions={onManageMarketingPermissions}
         onExportSelected={onExportSelected}
         exportBusy={exportBusy}
         filterChips={filterChips}

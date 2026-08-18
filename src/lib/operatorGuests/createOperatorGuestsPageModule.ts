@@ -29,9 +29,16 @@ import {
 } from "@/lib/operatorFeedback/createRecoveryWizardsModule"
 import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
 import type { GuestTag } from "@/lib/operatorGuests/guestTag"
+import {
+  createManageMarketingPreferencesSessionModule,
+  type ManageMarketingPreferencesSaveResult,
+  type ManageMarketingPreferencesSessionModule,
+} from "@/lib/operatorGuests/createManageMarketingPreferencesSessionModule"
 import type {
   FeedbackSentiment,
   FeedbackWorkflowStatus,
+  PatchGuestMarketingPreferenceRequest,
+  PatchGuestMarketingPreferenceResponse,
 } from "@/types/dashboard"
 import { mapGuestsApiResponseToViewModel } from "@/lib/operatorGuests/mapGuestsApiResponseToViewModel"
 import { OPERATOR_GUEST_DEFAULT_SORT_ID } from "@/lib/operatorGuests/guestsPresentation"
@@ -133,6 +140,11 @@ export type OperatorGuestsPageAdapters = {
   }) => Promise<ReadonlyMap<string, readonly string[]>>
   getGuestProfile: GuestDetailsAdapters["getGuestProfile"]
   createGuestNote: GuestDetailsAdapters["createGuestNote"]
+  patchGuestMarketingPreference: (params: {
+    guestId: number
+    locationId: number
+    body: PatchGuestMarketingPreferenceRequest
+  }) => Promise<PatchGuestMarketingPreferenceResponse>
   getFeedbackDetails: FeedbackDetailsAdapters["getFeedbackDetails"]
   correctClassification: FeedbackDetailsAdapters["correctClassification"]
   updateDetectedTags: FeedbackDetailsAdapters["updateDetectedTags"]
@@ -239,6 +251,11 @@ export type OperatorGuestsPageModule = {
   retryStartRecovery: () => Promise<void>
   /** Wizard actions for the four recovery intents (see `RecoveryWizardsHost`). */
   recoveryWizards: RecoveryWizardsModule
+  /** Manage marketing preferences session (shared with Guest Profile). */
+  marketingPreferences: ManageMarketingPreferencesSessionModule
+  openManageMarketingPreferences: (guestId: string) => Promise<void>
+  closeManageMarketingPreferences: () => void
+  saveManageMarketingPreferences: () => Promise<ManageMarketingPreferencesSaveResult>
 }
 
 type ModuleState = {
@@ -375,6 +392,10 @@ export function createOperatorGuestsPageModule(
   const locationIdHolder: { current: () => number | null } = {
     current: () => null,
   }
+  const marketingPreferences = createManageMarketingPreferencesSessionModule({
+    getGuestProfile: adapters.getGuestProfile,
+    patchMarketingPreference: adapters.patchGuestMarketingPreference,
+  })
   const recoveryWizards = createRecoveryWizardsModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     setWorkflowStatus: adapters.setWorkflowStatus,
@@ -697,6 +718,7 @@ export function createOperatorGuestsPageModule(
         guestDetails.reset()
         feedbackDetails.reset()
         recoveryWizards.closeStartRecovery()
+        marketingPreferences.close()
         state = {
           loadStatus: "idle",
           tabContentStatus: "loading",
@@ -738,6 +760,7 @@ export function createOperatorGuestsPageModule(
         guestDetails.reset()
         feedbackDetails.reset()
         recoveryWizards.closeStartRecovery()
+        marketingPreferences.close()
         tagMembershipsByGuestId = new Map()
         state = {
           ...state,
@@ -1361,5 +1384,31 @@ export function createOperatorGuestsPageModule(
       recoveryWizards.selectStartRecoveryIntent(intentId),
     retryStartRecovery: () => recoveryWizards.retryStartRecovery(),
     recoveryWizards,
+    marketingPreferences,
+    openManageMarketingPreferences: async (guestId) => {
+      const locationId = state.workspace?.selectedLocationId
+      const parsedGuestId = Number.parseInt(guestId, 10)
+      if (locationId == null || Number.isNaN(parsedGuestId)) {
+        return
+      }
+      await marketingPreferences.openFromList({
+        guestId: parsedGuestId,
+        locationId,
+      })
+    },
+    closeManageMarketingPreferences: () => {
+      marketingPreferences.close()
+    },
+    async saveManageMarketingPreferences() {
+      const result = await marketingPreferences.save()
+      if (
+        result.status === "saved" ||
+        result.status === "saved_with_note_error"
+      ) {
+        clearTabCache()
+        await fetchGuests({ quiet: true })
+      }
+      return result
+    },
   }
 }

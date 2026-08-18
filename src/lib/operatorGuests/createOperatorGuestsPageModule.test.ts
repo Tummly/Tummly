@@ -12,7 +12,10 @@ import {
   type LocationOverride,
   type OperatorFilterSelection,
 } from "@/lib/operatorFilterSheet"
-import type { GuestsResponse } from "@/types/dashboard"
+import type {
+  GuestProfileResponse,
+  GuestsResponse,
+} from "@/types/dashboard"
 
 const GUESTS_SCHEMA = guestsFilterSheetSchema()
 
@@ -79,6 +82,58 @@ function createGuestsResponse(
   }
 }
 
+function createGuestProfileResponse(
+  overrides: Partial<GuestProfileResponse> = {}
+): GuestProfileResponse {
+  return {
+    success: true,
+    locationId: 1,
+    id: 1,
+    name: "Guest 1",
+    marketingStatus: "Eligible — Email",
+    marketingPreference: "allowed",
+    guestSinceAt: "2026-05-12T10:00:00.000Z",
+    lastActivityAt: "2026-07-01T10:00:00.000Z",
+    lastInteractionLabel: "Feedback submitted",
+    profileSummary: {
+      email: "guest1@example.com",
+      mobile: null,
+      firstCapturedAt: "2026-05-12T10:00:00.000Z",
+      locationName: "Camden Street",
+      feedbackSubmissionCount: 1,
+      offerClaimsAndRedemptions: 0,
+      lastInteractionAt: "2026-07-01T10:00:00.000Z",
+      lastInteractionLabel: "Feedback submitted",
+      guestTags: [],
+    },
+    overviewDetails: {
+      guestSinceAt: "2026-05-12T10:00:00.000Z",
+      totalInteractions: 1,
+      feedbackReceived: 1,
+      offersClaimed: 0,
+      campaignsSent: 0,
+      lastActivityAt: "2026-07-01T10:00:00.000Z",
+    },
+    contactEligibility: [
+      {
+        channel: "email",
+        status: "eligible",
+        detailKind: "consent_captured",
+        detailAt: "2026-08-06T10:00:00.000Z",
+      },
+      {
+        channel: "sms",
+        status: "not_provided",
+        detailKind: null,
+        detailAt: null,
+      },
+    ],
+    latestFeedback: [],
+    recentNotes: [],
+    ...overrides,
+  }
+}
+
 function deferredGuestsResponse() {
   let resolve!: (value: GuestsResponse) => void
   let reject!: (reason?: unknown) => void
@@ -126,6 +181,9 @@ function createAdapters(
     }),
     getGuestProfile: vi.fn(async () => {
       throw new Error("getGuestProfile not stubbed")
+    }),
+    patchGuestMarketingPreference: vi.fn(async () => {
+      throw new Error("patchGuestMarketingPreference not stubbed")
     }),
     createGuestNote: vi.fn(async () => {
       throw new Error("createGuestNote not stubbed")
@@ -1593,5 +1651,136 @@ describe("createOperatorGuestsPageModule", () => {
     expect(selected).toBe(false)
     expect(module.getSnapshot().startRecovery.isOpen).toBe(true)
     expect(module.getSnapshot().respondToGuest.isOpen).toBe(false)
+  })
+
+  it("opens manage marketing preferences from the list via Guest Profile GET, not the row", async () => {
+    const getGuests = vi.fn(async () => createGuestsResponse())
+    const getGuestProfile = vi.fn(async () =>
+      createGuestProfileResponse({
+        marketingPreference: "opted_out",
+        marketingStatus: "Not eligible",
+      })
+    )
+    const module = createOperatorGuestsPageModule(
+      createAdapters({ getGuests, getGuestProfile })
+    )
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Camden Street" }],
+    })
+    expect(
+      module.getSnapshot().viewModel?.tableRows[0]?.marketingStatusLabel
+    ).toBe("Eligible — Email")
+
+    await module.openManageMarketingPreferences("1")
+    const session = module.marketingPreferences.getSnapshot()
+
+    expect(getGuestProfile).toHaveBeenCalledWith({
+      guestId: 1,
+      locationId: 1,
+    })
+    expect(session.isOpen).toBe(true)
+    expect(session.draftPreference).toBe("opted_out")
+    expect(module.getSnapshot().viewModel).not.toBeNull()
+    expect(
+      module.getSnapshot().viewModel?.tableRows[0]?.marketingStatusLabel
+    ).toBe("Eligible — Email")
+  })
+
+  it("keeps the manage marketing preferences dialog open with an error when list load fails", async () => {
+    const getGuests = vi.fn(async () => createGuestsResponse())
+    const getGuestProfile = vi.fn(async () => {
+      throw new Error("missing")
+    })
+    const module = createOperatorGuestsPageModule(
+      createAdapters({ getGuests, getGuestProfile })
+    )
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Camden Street" }],
+    })
+
+    await module.openManageMarketingPreferences("1")
+    const session = module.marketingPreferences.getSnapshot()
+
+    expect(session.isOpen).toBe(true)
+    expect(session.loadStatus).toBe("error")
+    expect(module.getSnapshot().viewModel).not.toBeNull()
+  })
+
+  it("refreshes the list row and marketing-eligible aggregate after a successful Save", async () => {
+    const getGuests = vi
+      .fn()
+      .mockResolvedValueOnce(createGuestsResponse())
+      .mockResolvedValueOnce(
+        createGuestsResponse({
+          overview: {
+            totalGuests: 40,
+            newThisMonth: 0,
+            marketingEligible: 19,
+            needsRecovery: 0,
+          },
+          rows: [
+            {
+              id: "1",
+              name: "Guest 1",
+              email: "guest1@example.com",
+              mobile: null,
+              marketingStatus: "Not eligible",
+              locationName: "Camden Street",
+              latestFeedbackSentiment: "positive",
+              feedbackSubmissionCount: 1,
+              lastInteractionLabel: "Feedback submitted",
+              lastInteractionAt: "2026-07-01T10:00:00.000Z",
+              capturedAt: "2026-06-15T10:00:00.000Z",
+              tagIds: [10, 20],
+            },
+          ],
+        })
+      )
+    const getGuestProfile = vi.fn(async () => createGuestProfileResponse())
+    const patchGuestMarketingPreference = vi.fn(async () => ({
+      success: true,
+      preference: "opted_out" as const,
+      preferenceChanged: true,
+      noteCreated: false,
+      noteError: null,
+    }))
+    const module = createOperatorGuestsPageModule(
+      createAdapters({
+        getGuests,
+        getGuestProfile,
+        patchGuestMarketingPreference,
+      })
+    )
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Camden Street" }],
+    })
+    await module.openManageMarketingPreferences("1")
+    module.marketingPreferences.setDraftPreference("opted_out")
+    getGuests.mockClear()
+
+    const result = await module.saveManageMarketingPreferences()
+
+    expect(result).toEqual({ status: "saved" })
+    expect(patchGuestMarketingPreference).toHaveBeenCalledWith({
+      guestId: 1,
+      locationId: 1,
+      body: { preference: "opted_out" },
+    })
+    expect(getGuests).toHaveBeenCalled()
+    expect(
+      module.getSnapshot().viewModel?.tableRows[0]?.marketingStatusLabel
+    ).toBe("Not eligible")
+    expect(
+      module
+        .getSnapshot()
+        .viewModel?.overviewKpis.find((kpi) => kpi.id === "marketing-eligible")
+        ?.value
+    ).toBe(19)
   })
 })

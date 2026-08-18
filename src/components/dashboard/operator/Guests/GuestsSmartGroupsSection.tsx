@@ -117,6 +117,7 @@ type GuestsSmartGroupsSectionProps = {
   onAddTag?: () => void
   onManageGuestTags: (guestId: string) => void
   onViewGuest: (guestId: string) => void
+  onManageMarketingPermissions: (guestId: string) => void
   onExportSelected?: () => void
   exportBusy?: boolean
   filterChips: readonly FilterChip[]
@@ -174,6 +175,7 @@ export function GuestsSmartGroupsSection({
   onAddTag,
   onManageGuestTags,
   onViewGuest,
+  onManageMarketingPermissions,
   onExportSelected,
   exportBusy = false,
   filterChips,
@@ -459,6 +461,9 @@ export function GuestsSmartGroupsSection({
                             guestName={row.name}
                             onManageTags={onManageGuestTags}
                             onViewGuest={onViewGuest}
+                            onManageMarketingPermissions={
+                              onManageMarketingPermissions
+                            }
                           />
                         </div>
                       </TableCell>
