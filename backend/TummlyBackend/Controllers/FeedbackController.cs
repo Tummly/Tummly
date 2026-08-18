@@ -1630,7 +1630,8 @@ namespace TummlyBackend.Controllers
                     userId,
                     dto.Subject,
                     dto.Body,
-                    dto.Offer
+                    dto.Offer,
+                    dto.ToEmail
                 );
 
                 if (result == null)

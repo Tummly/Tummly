@@ -72,6 +72,39 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SendGuestPreviewTest_WithToEmail_SendsToNominatedAddress()
+        {
+            var tracking = new TrackingGuestResponseEmailService();
+            var client = CreateClientWithEmail(tracking);
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-preview-send-test-to-email-tok",
+                guestContact: "guest-inbox@example.com",
+                email: "operator-send-test@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-preview-send-test"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                subject = "Thanks for visiting",
+                body = "Hi guest, thanks for your feedback.",
+                toEmail = "teammate@example.com",
+            });
+
+            var response = await client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("teammate@example.com", tracking.LastToEmail);
+            Assert.DoesNotContain(
+                seeded.OperatorEmail,
+                tracking.LastToEmail ?? ""
+            );
+        }
+
+        [Fact]
         public async Task SendGuestPreviewTest_Returns502_WhenResendFails()
         {
             var tracking = new TrackingGuestResponseEmailService

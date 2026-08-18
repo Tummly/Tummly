@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  START_RECOVERY_INTENT_CARD_IDLE_CLASS,
+  START_RECOVERY_INTENT_CARD_SURFACE_CLASS,
+  START_RECOVERY_SUMMARY_CLASS,
+  START_RECOVERY_SUMMARY_DIVIDER_CLASS,
   buildStartRecoveryIntents,
   deriveStartRecoveryContactCapability,
   startRecoveryContactCapabilityLabel,
@@ -119,5 +123,23 @@ describe("startRecoveryPresentation", () => {
     })
 
     expect(intents.every((intent) => !intent.enabled)).toBe(true)
+  })
+
+  it("uses gray-60 / gray-1000 fill, divider idle border, and gray-550 idle hover", () => {
+    expect(START_RECOVERY_INTENT_CARD_SURFACE_CLASS).toContain("bg-op-color-gray-60")
+    expect(START_RECOVERY_INTENT_CARD_SURFACE_CLASS).toContain(
+      "dark:bg-[var(--op-color-gray-1000)]"
+    )
+    expect(START_RECOVERY_INTENT_CARD_SURFACE_CLASS).toContain("border-op-divider")
+    expect(START_RECOVERY_INTENT_CARD_SURFACE_CLASS).not.toContain(
+      "dark:border-[var(--op-color-gray-550)]"
+    )
+    expect(START_RECOVERY_INTENT_CARD_IDLE_CLASS).toContain(
+      "hover:border-[var(--op-color-gray-550)]"
+    )
+    expect(START_RECOVERY_SUMMARY_CLASS).toContain(
+      START_RECOVERY_INTENT_CARD_SURFACE_CLASS
+    )
+    expect(START_RECOVERY_SUMMARY_DIVIDER_CLASS).toBe("bg-op-divider")
   })
 })

@@ -16,6 +16,7 @@ namespace TummlyBackend.Services
         public const string ActiveStatus = CatalogOfferStatus.Active;
         public const int MaxTitleLength = 60;
         public const int MaxDescriptionLength = 240;
+        public const int MaxAdditionalExclusionsLength = 500;
         public const int MaxStaffInstructionsLength = 1000;
         public const int DefaultPageSize = CampaignsListService.DefaultPageSize;
         /// <summary>
@@ -1055,6 +1056,15 @@ namespace TummlyBackend.Services
                 )
                     ? null
                     : request.AdditionalExclusions.Trim();
+                if (
+                    additionalExclusions != null
+                    && additionalExclusions.Length > MaxAdditionalExclusionsLength
+                )
+                {
+                    throw new ArgumentException(
+                        $"Additional exclusions must be at most {MaxAdditionalExclusionsLength} characters."
+                    );
+                }
             }
             else if (offerType == CatalogOfferType.ReplacementItem)
             {

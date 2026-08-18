@@ -11,6 +11,13 @@ import {
   GUEST_PREVIEW_EDIT_TEXT_LABEL,
   GUEST_PREVIEW_EMPTY_VALUE,
   GUEST_PREVIEW_HEADING,
+  GUEST_PREVIEW_RAIL_CLASS,
+  GUEST_PREVIEW_RAIL_HEADING_CLASS,
+  GUEST_PREVIEW_RAIL_SMS_CLASS,
+  GUEST_PREVIEW_RAIL_SMS_TEXT_CLASS,
+  GUEST_PREVIEW_RAIL_VEIL_CLASS,
+  GUEST_PREVIEW_RAIL_VEIL_FADE_CLASS,
+  GUEST_PREVIEW_RAIL_VEIL_WASH_CLASS,
   GUEST_PREVIEW_SEND_TEST_LABEL,
 } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import type { RespondToGuestChannel } from "@/lib/operatorFeedback/respondToGuestPresentation"
@@ -91,14 +98,14 @@ export function GuestPreviewPanel({
   return (
     <>
       <aside className="flex w-full flex-1 flex-col">
-        <div className="relative flex min-h-[562px] w-full flex-col overflow-clip rounded-[4px] bg-[var(--op-color-gray-1000)]">
+        <div className={GUEST_PREVIEW_RAIL_CLASS}>
           <div
             className="pointer-events-none absolute inset-x-0 top-[50px] flex justify-center overflow-hidden"
             aria-hidden
           >
             {isSms ? (
-              <div className="w-[min(100%,360px)] rounded-[4px] border border-[var(--op-color-gray-980)] bg-[var(--op-color-gray-995)] p-6 opacity-40">
-                <p className="m-0 whitespace-pre-wrap text-sm font-medium leading-5 text-[var(--op-color-white)]">
+              <div className={GUEST_PREVIEW_RAIL_SMS_CLASS}>
+                <p className={GUEST_PREVIEW_RAIL_SMS_TEXT_CLASS}>
                   {message.trim() || GUEST_PREVIEW_EMPTY_VALUE}
                 </p>
               </div>
@@ -115,18 +122,14 @@ export function GuestPreviewPanel({
             )}
           </div>
 
-          <div
-            className="relative z-10 flex min-h-[562px] flex-1 flex-col justify-between p-6"
-            style={{
-              backgroundImage:
-                "linear-gradient(90deg, color-mix(in srgb, var(--op-color-black) 60%, transparent) 0%, color-mix(in srgb, var(--op-color-black) 60%, transparent) 100%), linear-gradient(180deg, transparent 26%, var(--op-color-gray-995) 88%)",
-            }}
-          >
-            <h2 className="m-0 text-base font-semibold leading-normal text-[var(--op-color-white)]">
+          <div className={GUEST_PREVIEW_RAIL_VEIL_CLASS}>
+            <div className={GUEST_PREVIEW_RAIL_VEIL_WASH_CLASS} aria-hidden />
+            <div className={GUEST_PREVIEW_RAIL_VEIL_FADE_CLASS} aria-hidden />
+            <h2 className={GUEST_PREVIEW_RAIL_HEADING_CLASS}>
               {GUEST_PREVIEW_HEADING}
             </h2>
 
-            <div className="flex flex-1 items-center justify-center">
+            <div className="relative flex flex-1 items-center justify-center">
               <Button
                 type="button"
                 variant="op-secondary"
@@ -136,7 +139,7 @@ export function GuestPreviewPanel({
               </Button>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="relative flex flex-wrap gap-3">
               <Button
                 type="button"
                 variant="op-tertiary"

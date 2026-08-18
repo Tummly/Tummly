@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  RECOVERY_EXISTING_OFFER_PICKER_CARD_CLASS,
+  RECOVERY_EXISTING_OFFER_PICKER_PANEL_CLASS,
   RECOVERY_OFFER_PURPOSE_ID,
   RECOVERY_OFFER_PURPOSE_LABEL,
   RECOVERY_OFFER_PURCHASE_REQUIREMENT_OPTIONS,
@@ -22,14 +24,28 @@ describe("recoveryOfferPresentation", () => {
     expect(RECOVERY_OFFER_PURPOSE_LABEL).toBe("Include a recovery offer")
   })
 
-  it("exposes Create and Existing stance options as enabled", () => {
+  it("exposes Existing offer above Create and select as enabled", () => {
     expect(RECOVERY_OFFER_STANCE_OPTIONS.map((option) => option.id)).toEqual([
-      "create-and-select",
       "existing-offer",
+      "create-and-select",
     ])
     expect(
       RECOVERY_OFFER_STANCE_OPTIONS.every((option) => option.disabled === false)
     ).toBe(true)
+  })
+
+  it("uses Figma Existing offer picker panel and card tokens", () => {
+    expect(RECOVERY_EXISTING_OFFER_PICKER_PANEL_CLASS).toContain("border-op-divider")
+    expect(RECOVERY_EXISTING_OFFER_PICKER_PANEL_CLASS).toContain(
+      "bg-op-color-gray-60"
+    )
+    expect(RECOVERY_EXISTING_OFFER_PICKER_PANEL_CLASS).toContain(
+      "dark:bg-[var(--op-color-gray-1000)]"
+    )
+    expect(RECOVERY_EXISTING_OFFER_PICKER_CARD_CLASS).toContain("bg-op-shell-chrome")
+    expect(RECOVERY_EXISTING_OFFER_PICKER_CARD_CLASS).toContain("border-op-divider")
+    expect(RECOVERY_EXISTING_OFFER_PICKER_CARD_CLASS).toContain("p-6")
+    expect(RECOVERY_EXISTING_OFFER_PICKER_CARD_CLASS).toContain("gap-9")
   })
 
   it("exposes Figma offer-type card labels and descriptions", () => {

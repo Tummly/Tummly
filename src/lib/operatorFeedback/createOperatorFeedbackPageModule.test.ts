@@ -189,6 +189,9 @@ function createAdapters(
     sendGuestPreviewTest:
       overrides.sendGuestPreviewTest
       ?? vi.fn(async () => {}),
+    getOperatorAccountEmail:
+      overrides.getOperatorAccountEmail
+      ?? (async () => "ops@example.com"),
     completeRecovery:
       overrides.completeRecovery
       ?? vi.fn(async () => ({

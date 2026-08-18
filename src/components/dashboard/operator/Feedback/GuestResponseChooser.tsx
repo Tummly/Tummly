@@ -4,6 +4,7 @@ import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import {
   GUEST_RESPONSE_AI_ACTION_METERING_LABEL,
+  GUEST_RESPONSE_CHOOSER_CARD_CLASS,
   GUEST_RESPONSE_PREPARE_ACTION_LABEL,
   GUEST_RESPONSE_PREPARE_DESCRIPTION,
   GUEST_RESPONSE_PREPARE_TITLE,
@@ -57,7 +58,7 @@ export function GuestResponseChooser({
 
   return (
     <div className="flex w-full flex-col gap-[18px]">
-      <div className="flex w-full flex-col gap-[22px] rounded-[4px] border border-op-card-border bg-op-background-secondary p-[18px]">
+      <div className={GUEST_RESPONSE_CHOOSER_CARD_CLASS}>
         <div className="flex flex-col gap-1">
           <p className="text-base font-medium text-op-text-primary">
             {GUEST_RESPONSE_PREPARE_TITLE}
@@ -83,7 +84,7 @@ export function GuestResponseChooser({
         </div>
       </div>
 
-      <div className="flex w-full flex-col gap-[22px] rounded-[4px] border border-op-card-border bg-op-background-secondary p-[18px]">
+      <div className={GUEST_RESPONSE_CHOOSER_CARD_CLASS}>
         <div className="flex flex-col gap-1">
           <p className="text-base font-medium text-op-text-primary">
             {GUEST_RESPONSE_WRITE_MANUAL_TITLE}

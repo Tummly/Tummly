@@ -163,6 +163,7 @@ export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   debounceMs?: number
   sendGuestResponse: RespondToGuestAdapters["sendGuestResponse"]
   sendGuestPreviewTest: RespondToGuestAdapters["sendGuestPreviewTest"]
+  getOperatorAccountEmail?: RespondToGuestAdapters["getOperatorAccountEmail"]
   completeRecovery: RespondToGuestAdapters["completeRecovery"]
   prepareRecoveryDraft: RespondToGuestAdapters["prepareRecoveryDraft"]
   recordInternalAction: RecordInternalActionAdapters["recordInternalAction"]
@@ -253,7 +254,10 @@ export type OperatorFeedbackPageModule = {
   editRespondToGuestText: () => void
   openRespondToGuestGuestPreview: () => void
   closeRespondToGuestGuestPreview: () => void
-  sendRespondToGuestGuestPreviewTest: () => Promise<void>
+  openRespondToGuestSendTestDialog: () => Promise<void>
+  closeRespondToGuestSendTestDialog: () => void
+  setRespondToGuestSendTestEmail: (value: string) => void
+  confirmRespondToGuestSendTest: () => Promise<void>
   openRespondToGuestSendConfirm: () => void
   cancelRespondToGuestSendConfirm: () => void
   confirmRespondToGuestSend: () => Promise<void>
@@ -318,7 +322,10 @@ export type OperatorFeedbackPageModule = {
   editRespondAndRecordText: () => void
   openRespondAndRecordGuestPreview: () => void
   closeRespondAndRecordGuestPreview: () => void
-  sendRespondAndRecordGuestPreviewTest: () => Promise<void>
+  openRespondAndRecordSendTestDialog: () => Promise<void>
+  closeRespondAndRecordSendTestDialog: () => void
+  setRespondAndRecordSendTestEmail: (value: string) => void
+  confirmRespondAndRecordSendTest: () => Promise<void>
   openRespondAndRecordSendConfirm: () => void
   cancelRespondAndRecordSendConfirm: () => void
   confirmRespondAndRecordSend: () => Promise<void>
@@ -372,7 +379,10 @@ export type OperatorFeedbackPageModule = {
   editRespondWithRecoveryOfferText: () => void
   openRespondWithRecoveryOfferGuestPreview: () => void
   closeRespondWithRecoveryOfferGuestPreview: () => void
-  sendRespondWithRecoveryOfferGuestPreviewTest: () => Promise<void>
+  openRespondWithRecoveryOfferSendTestDialog: () => Promise<void>
+  closeRespondWithRecoveryOfferSendTestDialog: () => void
+  setRespondWithRecoveryOfferSendTestEmail: (value: string) => void
+  confirmRespondWithRecoveryOfferSendTest: () => Promise<void>
   openRespondWithRecoveryOfferSendConfirm: () => void
   cancelRespondWithRecoveryOfferSendConfirm: () => void
   confirmRespondWithRecoveryOfferSend: () => Promise<void>
@@ -549,6 +559,7 @@ export function createOperatorFeedbackPageModule(
     getFeedbackDetails: adapters.getFeedbackDetails,
     sendGuestResponse: adapters.sendGuestResponse,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
+    getOperatorAccountEmail: adapters.getOperatorAccountEmail,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
   })
@@ -563,6 +574,7 @@ export function createOperatorFeedbackPageModule(
     getFeedbackDetails: adapters.getFeedbackDetails,
     sendAndRecord: adapters.sendAndRecord,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
+    getOperatorAccountEmail: adapters.getOperatorAccountEmail,
     completeRecovery:
       adapters.completeRecovery as RespondAndRecordAdapters["completeRecovery"],
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
@@ -583,6 +595,7 @@ export function createOperatorFeedbackPageModule(
     listCatalogOffers: adapters.listCatalogOffers,
     sendAndIssueRecoveryOffer: adapters.sendAndIssueRecoveryOffer,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
+    getOperatorAccountEmail: adapters.getOperatorAccountEmail,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryOfferDraft,
   })
@@ -1758,8 +1771,13 @@ export function createOperatorFeedbackPageModule(
     editRespondToGuestText: () => respondToGuest.editText(),
     openRespondToGuestGuestPreview: () => respondToGuest.openGuestPreview(),
     closeRespondToGuestGuestPreview: () => respondToGuest.closeGuestPreview(),
-    sendRespondToGuestGuestPreviewTest: () =>
-      respondToGuest.sendGuestPreviewTest(),
+    openRespondToGuestSendTestDialog: () =>
+      respondToGuest.openSendTestDialog(),
+    closeRespondToGuestSendTestDialog: () =>
+      respondToGuest.closeSendTestDialog(),
+    setRespondToGuestSendTestEmail: (value) =>
+      respondToGuest.setSendTestEmail(value),
+    confirmRespondToGuestSendTest: () => respondToGuest.confirmSendTest(),
     openRespondToGuestSendConfirm: () => respondToGuest.openSendConfirm(),
     cancelRespondToGuestSendConfirm: () => respondToGuest.cancelSendConfirm(),
     confirmRespondToGuestSend: () => respondToGuest.confirmSend(),
@@ -1864,8 +1882,14 @@ export function createOperatorFeedbackPageModule(
       respondAndRecord.openGuestPreview(),
     closeRespondAndRecordGuestPreview: () =>
       respondAndRecord.closeGuestPreview(),
-    sendRespondAndRecordGuestPreviewTest: () =>
-      respondAndRecord.sendGuestPreviewTest(),
+    openRespondAndRecordSendTestDialog: () =>
+      respondAndRecord.openSendTestDialog(),
+    closeRespondAndRecordSendTestDialog: () =>
+      respondAndRecord.closeSendTestDialog(),
+    setRespondAndRecordSendTestEmail: (value) =>
+      respondAndRecord.setSendTestEmail(value),
+    confirmRespondAndRecordSendTest: () =>
+      respondAndRecord.confirmSendTest(),
     openRespondAndRecordSendConfirm: () => respondAndRecord.openSendConfirm(),
     cancelRespondAndRecordSendConfirm: () =>
       respondAndRecord.cancelSendConfirm(),
@@ -1948,8 +1972,14 @@ export function createOperatorFeedbackPageModule(
       respondWithRecoveryOffer.openGuestPreview(),
     closeRespondWithRecoveryOfferGuestPreview: () =>
       respondWithRecoveryOffer.closeGuestPreview(),
-    sendRespondWithRecoveryOfferGuestPreviewTest: () =>
-      respondWithRecoveryOffer.sendGuestPreviewTest(),
+    openRespondWithRecoveryOfferSendTestDialog: () =>
+      respondWithRecoveryOffer.openSendTestDialog(),
+    closeRespondWithRecoveryOfferSendTestDialog: () =>
+      respondWithRecoveryOffer.closeSendTestDialog(),
+    setRespondWithRecoveryOfferSendTestEmail: (value) =>
+      respondWithRecoveryOffer.setSendTestEmail(value),
+    confirmRespondWithRecoveryOfferSendTest: () =>
+      respondWithRecoveryOffer.confirmSendTest(),
     openRespondWithRecoveryOfferSendConfirm: () =>
       respondWithRecoveryOffer.openSendConfirm(),
     cancelRespondWithRecoveryOfferSendConfirm: () =>

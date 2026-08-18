@@ -108,6 +108,9 @@ function createAdapters(
       typeof vi.fn<(req: SendGuestResponseRequest) => Promise<SendGuestResponseResult>>
     >,
     sendGuestPreviewTest: sendGuestPreviewTest as RespondToGuestAdapters["sendGuestPreviewTest"],
+    getOperatorAccountEmail:
+      overrides.getOperatorAccountEmail
+      ?? (async () => "ops@example.com"),
     completeRecovery: completeRecovery as ReturnType<
       typeof vi.fn<
         (
@@ -343,23 +346,33 @@ describe("createRespondToGuestModule", () => {
     })
   })
 
-  it("Guest preview send test emails draft to operator and stays on review", async () => {
+  it("Send test opens specify-email dialog and does not send until confirm", async () => {
     const adapters = createAdapters()
     const module = createRespondToGuestModule(adapters)
     await openAtReview(module)
 
-    await module.sendGuestPreviewTest()
+    await module.openSendTestDialog()
+    expect(module.getSnapshot().sendTest).toMatchObject({
+      isOpen: true,
+      email: "ops@example.com",
+      canSubmit: true,
+    })
+    expect(adapters.sendGuestPreviewTest).not.toHaveBeenCalled()
+
+    await module.confirmSendTest()
 
     expect(adapters.sendGuestPreviewTest).toHaveBeenCalledWith({
       feedbackId: 2418,
       subject: "Sorry about your visit",
       body: "Thank you for telling us.",
+      toEmail: "ops@example.com",
     })
     expect(module.getSnapshot()).toMatchObject({
       step: "review",
       sendTestStatus: "success",
       sendTestError: null,
     })
+    expect(module.getSnapshot().sendTest?.isOpen).toBe(false)
     expect(adapters.sendGuestResponse).not.toHaveBeenCalled()
   })
 
@@ -372,15 +385,17 @@ describe("createRespondToGuestModule", () => {
     const module = createRespondToGuestModule(adapters)
     await openAtReview(module)
 
-    await module.sendGuestPreviewTest()
+    await module.openSendTestDialog()
+    await module.confirmSendTest()
 
     expect(module.getSnapshot()).toMatchObject({
       step: "review",
       sendTestStatus: "error",
       sendTestError: "We could not send the test email. Try again.",
     })
+    expect(module.getSnapshot().sendTest?.isOpen).toBe(true)
 
-    await module.sendGuestPreviewTest()
+    await module.confirmSendTest()
     expect(adapters.sendGuestPreviewTest).toHaveBeenCalledTimes(2)
   })
 

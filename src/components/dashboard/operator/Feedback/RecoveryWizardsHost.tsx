@@ -62,7 +62,14 @@ export function RecoveryWizardsHost({
         onEditText={wizards.respondToGuest.editText}
         onOpenGuestPreview={wizards.respondToGuest.openGuestPreview}
         onCloseGuestPreview={wizards.respondToGuest.closeGuestPreview}
-        onSendGuestPreviewTest={wizards.respondToGuest.sendGuestPreviewTest}
+        onOpenSendTest={() => {
+          void wizards.respondToGuest.openSendTestDialog()
+        }}
+        onCloseSendTest={wizards.respondToGuest.closeSendTestDialog}
+        onSendTestEmailChange={wizards.respondToGuest.setSendTestEmail}
+        onConfirmSendTest={() => {
+          void wizards.respondToGuest.confirmSendTest()
+        }}
         onOpenSendConfirm={wizards.respondToGuest.openSendConfirm}
         onCancelSendConfirm={wizards.respondToGuest.cancelSendConfirm}
         onConfirmSend={() => {
@@ -135,7 +142,14 @@ export function RecoveryWizardsHost({
         onEditText={wizards.respondAndRecord.editText}
         onOpenGuestPreview={wizards.respondAndRecord.openGuestPreview}
         onCloseGuestPreview={wizards.respondAndRecord.closeGuestPreview}
-        onSendGuestPreviewTest={wizards.respondAndRecord.sendGuestPreviewTest}
+        onOpenSendTest={() => {
+          void wizards.respondAndRecord.openSendTestDialog()
+        }}
+        onCloseSendTest={wizards.respondAndRecord.closeSendTestDialog}
+        onSendTestEmailChange={wizards.respondAndRecord.setSendTestEmail}
+        onConfirmSendTest={() => {
+          void wizards.respondAndRecord.confirmSendTest()
+        }}
         onOpenSendConfirm={wizards.respondAndRecord.openSendConfirm}
         onCancelSendConfirm={wizards.respondAndRecord.cancelSendConfirm}
         onConfirmSend={() => {
@@ -202,9 +216,16 @@ export function RecoveryWizardsHost({
         onEditText={wizards.respondWithRecoveryOffer.editText}
         onOpenGuestPreview={wizards.respondWithRecoveryOffer.openGuestPreview}
         onCloseGuestPreview={wizards.respondWithRecoveryOffer.closeGuestPreview}
-        onSendGuestPreviewTest={
-          wizards.respondWithRecoveryOffer.sendGuestPreviewTest
+        onOpenSendTest={() => {
+          void wizards.respondWithRecoveryOffer.openSendTestDialog()
+        }}
+        onCloseSendTest={wizards.respondWithRecoveryOffer.closeSendTestDialog}
+        onSendTestEmailChange={
+          wizards.respondWithRecoveryOffer.setSendTestEmail
         }
+        onConfirmSendTest={() => {
+          void wizards.respondWithRecoveryOffer.confirmSendTest()
+        }}
         onOpenSendConfirm={wizards.respondWithRecoveryOffer.openSendConfirm}
         onCancelSendConfirm={wizards.respondWithRecoveryOffer.cancelSendConfirm}
         onConfirmSend={() => {

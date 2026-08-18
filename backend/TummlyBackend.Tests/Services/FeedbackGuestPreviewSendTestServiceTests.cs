@@ -68,6 +68,52 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendAsync_WithToEmail_SendsToNominatedAddress_NotOperator()
+        {
+            var seeded = await SeedAsync(
+                operatorEmail: "operator@example.com",
+                guestContact: "guest@example.com"
+            );
+
+            var result = await _service.SendAsync(
+                seeded.FeedbackId,
+                seeded.OperatorUserId,
+                subject: "Thanks for visiting",
+                body: "Hi guest, thanks for your feedback.",
+                offer: null,
+                toEmail: "teammate@example.com"
+            );
+
+            Assert.True(result);
+            Assert.Equal("teammate@example.com", _emailService.LastToEmail);
+            Assert.DoesNotContain("operator@example.com", _emailService.LastToEmail);
+            Assert.DoesNotContain("guest@example.com", _emailService.LastToEmail);
+            Assert.Equal(0, await _context.FeedbackGuestResponses.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendAsync_WithInvalidToEmail_ThrowsArgumentException()
+        {
+            var seeded = await SeedAsync(
+                operatorEmail: "operator@example.com",
+                guestContact: "guest@example.com"
+            );
+
+            await Assert.ThrowsAsync<ArgumentException>(() =>
+                _service.SendAsync(
+                    seeded.FeedbackId,
+                    seeded.OperatorUserId,
+                    subject: "Thanks for visiting",
+                    body: "Hi guest, thanks for your feedback.",
+                    offer: null,
+                    toEmail: "not-an-email"
+                )
+            );
+
+            Assert.Equal(0, _emailService.CallCount);
+        }
+
+        [Fact]
         public async Task SendAsync_WithOfferDraft_SendsSampleCode_CreatesNoOfferFact()
         {
             var seeded = await SeedAsync(

@@ -18,6 +18,8 @@ import {
   updateCatalogOffer,
 } from "@/api/dashboardApi"
 import { labelForInternalActionCategory } from "@/lib/operatorFeedback/internalActionPresentation"
+import { fetchCurrentUser } from "@/api/loginContextClient"
+import { parseOperatorProfile } from "@/lib/operatorHome/parseOperatorProfile"
 import type {
   PrepareRecoveryDraftResult,
 } from "@/lib/operatorFeedback/createRespondToGuestModule"
@@ -102,8 +104,13 @@ export function createRecoveryWizardApiAdapters(): Omit<
       await sendGuestPreviewTestApi(request.feedbackId, {
         subject: request.subject,
         body: request.body,
+        toEmail: request.toEmail,
         offer: request.offer ?? null,
       })
+    },
+    getOperatorAccountEmail: async () => {
+      const result = await fetchCurrentUser()
+      return parseOperatorProfile(result)?.email ?? null
     },
     completeRecovery: async (feedbackId, intent) => {
       const result = await completeFeedbackRecovery(feedbackId, { intent })

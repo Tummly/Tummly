@@ -24,6 +24,7 @@ export type CampaignCatalogOfferValidityId =
 
 export const CAMPAIGN_OFFER_TITLE_MAX = 60
 export const CAMPAIGN_OFFER_DESCRIPTION_MAX = 240
+export const CAMPAIGN_OFFER_ADDITIONAL_EXCLUSIONS_MAX = 500
 
 /** Figma Create Offer — default staff instructions. */
 export const OFFER_CATALOG_DEFAULT_STAFF_INSTRUCTIONS =
@@ -252,6 +253,12 @@ export function canConfirmCampaignCatalogOfferDetails(
     ) {
       return false
     }
+    if (
+      offer.additionalExclusions.trim().length
+      > CAMPAIGN_OFFER_ADDITIONAL_EXCLUSIONS_MAX
+    ) {
+      return false
+    }
   } else if (offer.offerType === "replacement_item") {
     if (offer.replacementItemText.trim() === "") {
       return false
@@ -440,6 +447,11 @@ export function isDirtyBenefitOrValidity(
     return (
       normalizeDraftText(baseline.freeItemText)
       !== normalizeDraftText(current.freeItemText)
+      || baseline.purchaseRequirement !== current.purchaseRequirement
+      || normalizeDraftText(baseline.minimumSpend)
+        !== normalizeDraftText(current.minimumSpend)
+      || normalizeDraftText(baseline.additionalExclusions)
+        !== normalizeDraftText(current.additionalExclusions)
     )
   }
   if (offerType === "replacement_item") {

@@ -14,11 +14,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CAMPAIGN_SEND_TEST_COPY, CAMPAIGN_SEND_TEST_DIALOG_CONTENT_CLASS, CAMPAIGN_SEND_TEST_DIALOG_OVERLAY_CLASS } from "@/lib/operatorCampaigns/campaignSendTestPresentation"
 import type { CampaignSendTestDialogViewModel } from "@/lib/operatorCampaigns/createCampaignWizardModule"
+import type { GuestPreviewSendTestDialogViewModel } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import { FEEDBACK_FIELD_LABEL_CLASS } from "@/lib/operatorFeedback/feedbackPresentation"
 import { cn } from "@/lib/utils"
 
 type CampaignSendTestEmailDialogProps = {
-  sendTest: CampaignSendTestDialogViewModel
+  sendTest: CampaignSendTestDialogViewModel | GuestPreviewSendTestDialogViewModel
   onOpenChange: (open: boolean) => void
   onEmailChange: (value: string) => void
   onConfirm: () => void

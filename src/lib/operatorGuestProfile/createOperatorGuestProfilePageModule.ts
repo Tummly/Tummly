@@ -145,6 +145,7 @@ export type OperatorGuestProfilePageAdapters = {
   closeOutFeedback: FeedbackDetailsAdapters["closeOutFeedback"]
   sendGuestResponse: RecoveryWizardsAdapters["sendGuestResponse"]
   sendGuestPreviewTest: RecoveryWizardsAdapters["sendGuestPreviewTest"]
+  getOperatorAccountEmail?: RecoveryWizardsAdapters["getOperatorAccountEmail"]
   completeRecovery: RecoveryWizardsAdapters["completeRecovery"]
   prepareRecoveryDraft: RecoveryWizardsAdapters["prepareRecoveryDraft"]
   recordInternalAction: RecoveryWizardsAdapters["recordInternalAction"]
@@ -501,6 +502,7 @@ export function createOperatorGuestProfilePageModule(
     updateOffer: adapters.updateOffer,
     sendGuestResponse: adapters.sendGuestResponse,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
+    getOperatorAccountEmail: adapters.getOperatorAccountEmail,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
     recordInternalAction: adapters.recordInternalAction,

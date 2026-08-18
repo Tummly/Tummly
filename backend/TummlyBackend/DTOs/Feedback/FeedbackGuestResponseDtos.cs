@@ -28,6 +28,12 @@ namespace TummlyBackend.DTOs.Feedback
             = string.Empty;
 
         /// <summary>
+        /// Nominated destination from Send test email. When empty, the service
+        /// sends to the signed-in operator account email.
+        /// </summary>
+        public string? ToEmail { get; set; }
+
+        /// <summary>
         /// Optional Recovery offer draft chrome for offer-wizard send test.
         /// Never creates a live Recovery offer; sample code is applied server-side.
         /// </summary>

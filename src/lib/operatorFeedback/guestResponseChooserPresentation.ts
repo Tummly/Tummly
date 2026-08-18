@@ -1,5 +1,7 @@
 /** Shared Guest response chooser chrome for messaging recovery intents (Figma U-06). */
 
+import { OPERATOR_WIZARD_SELECTABLE_CARD_SURFACE_CLASS } from "@/lib/operatorUi/operatorWizardChromePresentation"
+
 export const GUEST_RESPONSE_STEP_HEADING = "Guest response"
 
 export const GUEST_RESPONSE_STEP_DESCRIPTION =
@@ -22,6 +24,14 @@ export const GUEST_RESPONSE_WRITE_MANUAL_DESCRIPTION =
 
 export const GUEST_RESPONSE_WRITE_MANUAL_ACTION_LABEL =
   "Write response manually"
+
+export const GUEST_RESPONSE_REWRITE_AI_LABEL = "Rewrite with AI"
+
+export const GUEST_RESPONSE_REWRITE_RETRY_LABEL = "Try Again"
+
+/** Prepare / Write-manually cards — same fill and idle border as other wizard cards. */
+export const GUEST_RESPONSE_CHOOSER_CARD_CLASS =
+  `flex w-full flex-col gap-[22px] rounded-[4px] border p-[18px] ${OPERATOR_WIZARD_SELECTABLE_CARD_SURFACE_CLASS}`
 
 /** Step heading when the operator is on the manual/AI editor path. */
 export const GUEST_RESPONSE_WRITE_MANUAL_STEP_HEADING =

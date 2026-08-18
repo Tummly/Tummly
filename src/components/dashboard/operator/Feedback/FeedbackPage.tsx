@@ -243,7 +243,14 @@ export function FeedbackPage() {
         onEditText={feedback.editRespondToGuestText}
         onOpenGuestPreview={feedback.openRespondToGuestGuestPreview}
         onCloseGuestPreview={feedback.closeRespondToGuestGuestPreview}
-        onSendGuestPreviewTest={feedback.sendRespondToGuestGuestPreviewTest}
+        onOpenSendTest={() => {
+          void feedback.openRespondToGuestSendTestDialog()
+        }}
+        onCloseSendTest={feedback.closeRespondToGuestSendTestDialog}
+        onSendTestEmailChange={feedback.setRespondToGuestSendTestEmail}
+        onConfirmSendTest={() => {
+          void feedback.confirmRespondToGuestSendTest()
+        }}
         onOpenSendConfirm={feedback.openRespondToGuestSendConfirm}
         onCancelSendConfirm={feedback.cancelRespondToGuestSendConfirm}
         onConfirmSend={() => {
@@ -314,7 +321,14 @@ export function FeedbackPage() {
         onEditText={feedback.editRespondAndRecordText}
         onOpenGuestPreview={feedback.openRespondAndRecordGuestPreview}
         onCloseGuestPreview={feedback.closeRespondAndRecordGuestPreview}
-        onSendGuestPreviewTest={feedback.sendRespondAndRecordGuestPreviewTest}
+        onOpenSendTest={() => {
+          void feedback.openRespondAndRecordSendTestDialog()
+        }}
+        onCloseSendTest={feedback.closeRespondAndRecordSendTestDialog}
+        onSendTestEmailChange={feedback.setRespondAndRecordSendTestEmail}
+        onConfirmSendTest={() => {
+          void feedback.confirmRespondAndRecordSendTest()
+        }}
         onOpenSendConfirm={feedback.openRespondAndRecordSendConfirm}
         onCancelSendConfirm={feedback.cancelRespondAndRecordSendConfirm}
         onConfirmSend={() => {
@@ -375,9 +389,16 @@ export function FeedbackPage() {
         onEditText={feedback.editRespondWithRecoveryOfferText}
         onOpenGuestPreview={feedback.openRespondWithRecoveryOfferGuestPreview}
         onCloseGuestPreview={feedback.closeRespondWithRecoveryOfferGuestPreview}
-        onSendGuestPreviewTest={
-          feedback.sendRespondWithRecoveryOfferGuestPreviewTest
+        onOpenSendTest={() => {
+          void feedback.openRespondWithRecoveryOfferSendTestDialog()
+        }}
+        onCloseSendTest={feedback.closeRespondWithRecoveryOfferSendTestDialog}
+        onSendTestEmailChange={
+          feedback.setRespondWithRecoveryOfferSendTestEmail
         }
+        onConfirmSendTest={() => {
+          void feedback.confirmRespondWithRecoveryOfferSendTest()
+        }}
         onOpenSendConfirm={feedback.openRespondWithRecoveryOfferSendConfirm}
         onCancelSendConfirm={
           feedback.cancelRespondWithRecoveryOfferSendConfirm

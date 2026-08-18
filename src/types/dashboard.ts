@@ -646,6 +646,8 @@ export type SendFeedbackGuestResponseRequest = {
 export type SendGuestPreviewTestRequest = {
   subject: string
   body: string
+  /** Nominated destination from Send test email. */
+  toEmail?: string
   /** Offer-wizard send test only — sample code applied server-side. */
   offer?: {
     title: string

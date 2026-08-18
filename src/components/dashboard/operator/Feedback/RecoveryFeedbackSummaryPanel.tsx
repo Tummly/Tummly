@@ -2,6 +2,10 @@ import type { ReactNode } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import {
+  START_RECOVERY_SUMMARY_CLASS,
+  START_RECOVERY_SUMMARY_DIVIDER_CLASS,
+} from "@/lib/operatorFeedback/startRecoveryPresentation"
 import type {
   ClassificationStatus,
   FeedbackSentiment,
@@ -69,7 +73,7 @@ export type RecoveryFeedbackSummaryPanelProps = {
   extraRows?: readonly { label: string; children: ReactNode }[]
 }
 
-/** Mid-flow Feedback summary with Classification, Contact, and Issue tags. */
+/** Mid-flow Feedback summary — same fill, border, and divider as the intent screen. */
 export function RecoveryFeedbackSummaryPanel({
   guestName,
   classificationStatus,
@@ -80,24 +84,24 @@ export function RecoveryFeedbackSummaryPanel({
   extraRows = [],
 }: RecoveryFeedbackSummaryPanelProps) {
   return (
-    <aside className="flex w-full flex-1 flex-col gap-6 rounded-[6px] bg-op-background-secondary p-5">
+    <aside className={START_RECOVERY_SUMMARY_CLASS}>
       <h2 className="text-lg font-semibold text-op-text-primary">
         Feedback summary
       </h2>
       <dl className="flex flex-col gap-3.5">
         <SummaryRow label="Guest:">{guestName}</SummaryRow>
-        <Separator className="bg-op-card-border" />
+        <Separator className={START_RECOVERY_SUMMARY_DIVIDER_CLASS} />
         <SummaryRow label="Classification:">
           <ClassificationValue
             status={classificationStatus}
             sentiment={classificationSentiment}
           />
         </SummaryRow>
-        <Separator className="bg-op-card-border" />
+        <Separator className={START_RECOVERY_SUMMARY_DIVIDER_CLASS} />
         <SummaryRow label="Contact:">{contactLabel}</SummaryRow>
-        <Separator className="bg-op-card-border" />
+        <Separator className={START_RECOVERY_SUMMARY_DIVIDER_CLASS} />
         <SummaryRow label="Feedback:">“{feedbackComment}”</SummaryRow>
-        <Separator className="bg-op-card-border" />
+        <Separator className={START_RECOVERY_SUMMARY_DIVIDER_CLASS} />
         <SummaryRow label="Issue tags:">
           {issueTagLabels == null ? (
             <span>—</span>
@@ -113,11 +117,11 @@ export function RecoveryFeedbackSummaryPanel({
             </ul>
           )}
         </SummaryRow>
-        <Separator className="bg-op-card-border" />
+        <Separator className={START_RECOVERY_SUMMARY_DIVIDER_CLASS} />
         {extraRows.map((row) => (
           <div key={row.label} className="contents">
             <SummaryRow label={row.label}>{row.children}</SummaryRow>
-            <Separator className="bg-op-card-border" />
+            <Separator className={START_RECOVERY_SUMMARY_DIVIDER_CLASS} />
           </div>
         ))}
       </dl>

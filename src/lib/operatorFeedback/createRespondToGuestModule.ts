@@ -28,7 +28,13 @@ import {
   type RespondToGuestWriteEntry,
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
 import type { InternalActionCategoryId } from "@/lib/operatorFeedback/internalActionPresentation"
-import { GUEST_PREVIEW_SEND_TEST_ERROR } from "@/lib/operatorFeedback/guestPreviewPresentation"
+import {
+  buildGuestPreviewSendTestDialog,
+  emptyGuestPreviewSendTestSession,
+  canOpenGuestPreviewSendTest,
+  GUEST_PREVIEW_SEND_TEST_ERROR,
+  type GuestPreviewSendTestDialogViewModel,
+} from "@/lib/operatorFeedback/guestPreviewPresentation"
 
 const SEND_ERROR_MESSAGE =
   "Could not send the response. Please try again."
@@ -131,12 +137,14 @@ export type RespondToGuestAdapters = {
     feedbackId: number
     subject: string
     body: string
+    toEmail: string
     offer?: {
       title: string
       description: string
       expiryLabel: string
     } | null
   }) => Promise<void>
+  getOperatorAccountEmail?: () => string | null | Promise<string | null>
   completeRecovery: (
     feedbackId: number,
     intent:
@@ -202,6 +210,7 @@ export type RespondToGuestSnapshot = {
   sendError: string | null
   sendTestStatus: "idle" | "sending" | "success" | "error"
   sendTestError: string | null
+  sendTest: GuestPreviewSendTestDialogViewModel | null
   completeStatus: "idle" | "saving" | "error"
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
@@ -251,7 +260,10 @@ export type RespondToGuestModule = {
   editText: () => void
   openGuestPreview: () => void
   closeGuestPreview: () => void
-  sendGuestPreviewTest: () => Promise<void>
+  openSendTestDialog: () => Promise<void>
+  closeSendTestDialog: () => void
+  setSendTestEmail: (value: string) => void
+  confirmSendTest: () => Promise<void>
   openSendConfirm: () => void
   cancelSendConfirm: () => void
   confirmSend: () => Promise<void>
@@ -287,6 +299,8 @@ type SessionState = {
   sendConfirmOpen: boolean
   sendStatus: RespondToGuestSnapshot["sendStatus"]
   sendError: string | null
+  sendTestDialogOpen: boolean
+  sendTestEmail: string
   sendTestStatus: RespondToGuestSnapshot["sendTestStatus"]
   sendTestError: string | null
   completeStatus: RespondToGuestSnapshot["completeStatus"]
@@ -325,8 +339,7 @@ function emptySession(): SessionState {
     sendConfirmOpen: false,
     sendStatus: "idle",
     sendError: null,
-    sendTestStatus: "idle",
-    sendTestError: null,
+    ...emptyGuestPreviewSendTestSession(),
     completeStatus: "idle",
     completeError: null,
     workflowStatus: null,
@@ -410,6 +423,14 @@ function toSnapshot(state: SessionState): RespondToGuestSnapshot {
     sendError: state.sendError,
     sendTestStatus: state.sendTestStatus,
     sendTestError: state.sendTestError,
+    sendTest: buildGuestPreviewSendTestDialog({
+      wizardOpen: state.isOpen,
+      channel: draft.channel,
+      dialogOpen: state.sendTestDialogOpen,
+      email: state.sendTestEmail,
+      status: state.sendTestStatus,
+      error: state.sendTestError,
+    }),
     completeStatus: state.completeStatus,
     completeError: state.completeError,
     workflowStatus: state.workflowStatus,
@@ -1024,20 +1045,94 @@ export function createRespondToGuestModule(
       }
       publish()
     },
-    async sendGuestPreviewTest() {
+    async openSendTestDialog() {
+      if (
+        !canOpenGuestPreviewSendTest({
+          feedbackId: state.feedbackId,
+          channel: state.draft.channel,
+          step: state.step,
+          sendTestStatus: state.sendTestStatus,
+          aiDraftStatus: state.aiDraftStatus,
+        })
+      ) {
+        return
+      }
+
+      let email = ""
+      if (adapters.getOperatorAccountEmail != null) {
+        try {
+          email = (await adapters.getOperatorAccountEmail()) ?? ""
+        } catch {
+          email = ""
+        }
+      }
+
+      if (
+        !canOpenGuestPreviewSendTest({
+          feedbackId: state.feedbackId,
+          channel: state.draft.channel,
+          step: state.step,
+          sendTestStatus: state.sendTestStatus,
+          aiDraftStatus: state.aiDraftStatus,
+        })
+      ) {
+        return
+      }
+
+      state = {
+        ...state,
+        sendTestDialogOpen: true,
+        sendTestEmail: email,
+        sendTestStatus: "idle",
+        sendTestError: null,
+      }
+      publish()
+    },
+    closeSendTestDialog() {
+      if (!state.sendTestDialogOpen || state.sendTestStatus === "sending") {
+        return
+      }
+      state = {
+        ...state,
+        ...emptyGuestPreviewSendTestSession(),
+      }
+      publish()
+    },
+    setSendTestEmail(value) {
+      if (!state.sendTestDialogOpen) {
+        return
+      }
+      const clearingError = state.sendTestStatus === "error"
+      state = {
+        ...state,
+        sendTestEmail: value,
+        sendTestStatus: clearingError ? "idle" : state.sendTestStatus,
+        sendTestError: clearingError ? null : state.sendTestError,
+      }
+      publish()
+    },
+    async confirmSendTest() {
       if (
         state.feedbackId == null
         || state.draft.channel !== "email"
         || state.step !== "review"
+        || !state.sendTestDialogOpen
         || state.sendTestStatus === "sending"
         || state.aiDraftStatus === "running"
       ) {
         return
       }
 
+      const toEmail = state.sendTestEmail.trim()
       const subject = state.draft.subject.trim()
       const body = state.draft.message.trim()
-      if (subject === "" || body === "") {
+      if (toEmail === "" || subject === "" || body === "") {
+        state = {
+          ...state,
+          sendTestStatus: "error",
+          sendTestError: GUEST_PREVIEW_SEND_TEST_ERROR,
+        }
+        publish()
         return
       }
 
@@ -1054,9 +1149,11 @@ export function createRespondToGuestModule(
           feedbackId,
           subject,
           body,
+          toEmail,
         })
         state = {
           ...state,
+          sendTestDialogOpen: false,
           sendTestStatus: "success",
           sendTestError: null,
         }

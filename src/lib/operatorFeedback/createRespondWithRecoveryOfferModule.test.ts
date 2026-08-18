@@ -191,6 +191,9 @@ function createAdapters(
       >
     >,
     sendGuestPreviewTest: sendGuestPreviewTest as RespondWithRecoveryOfferAdapters["sendGuestPreviewTest"],
+    getOperatorAccountEmail:
+      overrides.getOperatorAccountEmail
+      ?? (async () => "ops@example.com"),
     completeRecovery: completeRecovery as ReturnType<
       typeof vi.fn<
         (
@@ -484,17 +487,26 @@ describe("createRespondWithRecoveryOfferModule", () => {
     })
   })
 
-  it("Guest preview send test includes sample offer block and does not issue", async () => {
+  it("Send test opens specify-email dialog and includes sample offer without issuing", async () => {
     const adapters = createAdapters()
     const module = createRespondWithRecoveryOfferModule(adapters)
     await openAtReview(module)
 
-    await module.sendGuestPreviewTest()
+    await module.openSendTestDialog()
+    expect(module.getSnapshot().sendTest).toMatchObject({
+      isOpen: true,
+      email: "ops@example.com",
+      canSubmit: true,
+    })
+    expect(adapters.sendGuestPreviewTest).not.toHaveBeenCalled()
+
+    await module.confirmSendTest()
 
     expect(adapters.sendGuestPreviewTest).toHaveBeenCalledWith({
       feedbackId: 2418,
       subject: "Sorry about your visit",
       body: "Please use this offer on your next visit.",
+      toEmail: "ops@example.com",
       offer: expect.objectContaining({
         title: "20% off",
         description: "Thanks for your feedback — enjoy 20% off.",
@@ -506,6 +518,7 @@ describe("createRespondWithRecoveryOfferModule", () => {
       sendTestStatus: "success",
       sendTestError: null,
     })
+    expect(module.getSnapshot().sendTest?.isOpen).toBe(false)
     expect(adapters.sendAndIssueRecoveryOffer).not.toHaveBeenCalled()
   })
 
@@ -518,15 +531,17 @@ describe("createRespondWithRecoveryOfferModule", () => {
     const module = createRespondWithRecoveryOfferModule(adapters)
     await openAtReview(module)
 
-    await module.sendGuestPreviewTest()
+    await module.openSendTestDialog()
+    await module.confirmSendTest()
 
     expect(module.getSnapshot()).toMatchObject({
       step: "review",
       sendTestStatus: "error",
       sendTestError: "We could not send the test email. Try again.",
     })
+    expect(module.getSnapshot().sendTest?.isOpen).toBe(true)
 
-    await module.sendGuestPreviewTest()
+    await module.confirmSendTest()
     expect(adapters.sendGuestPreviewTest).toHaveBeenCalledTimes(2)
     expect(adapters.sendAndIssueRecoveryOffer).not.toHaveBeenCalled()
   })
@@ -797,8 +812,8 @@ describe("createRespondWithRecoveryOfferModule", () => {
 
     const snap = module.getSnapshot()
     expect(snap.offerStanceOptions.map((o) => o.id)).toEqual([
-      "create-and-select",
       "existing-offer",
+      "create-and-select",
     ])
     expect(snap.offerStanceOptions.find((o) => o.id === "create-and-select")).toMatchObject({
       disabled: false,
@@ -865,6 +880,44 @@ describe("createRespondWithRecoveryOfferModule", () => {
 
     module.continueOffer()
     expect(module.getSnapshot().step).toBe("write")
+  })
+
+  it("Feedback summary Offer row follows the newly selected Existing offer", async () => {
+    const listCatalogOffers = vi.fn(async () =>
+      catalogListResponse([
+        catalogListItem({ id: 501, title: "10% off next visit" }),
+        catalogListItem({ id: 88, title: "Brunch deal" }),
+      ])
+    )
+    const adapters = createAdapters({
+      listCatalogOffers,
+      getOffer: vi.fn(async (id: number) =>
+        sampleCatalogOffer({
+          id,
+          title: id === 501 ? "10% off next visit" : "Brunch deal",
+        })
+      ),
+    })
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await openAtOffer(module)
+
+    module.setOfferStanceId("existing-offer")
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().existingOfferPicker?.loadStatus).toBe("ready")
+    })
+    module.selectExistingOffer(501)
+    expect(module.getSnapshot().summary?.offerTitle).toBe("10% off next visit")
+
+    module.setOfferStanceId("existing-offer")
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().existingOfferPicker?.loadStatus).toBe("ready")
+    })
+    module.selectExistingOffer(88)
+    expect(module.getSnapshot().attachedOfferTitle).toBe("Brunch deal")
+    expect(module.getSnapshot().summary?.offerTitle).toBe("Brunch deal")
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().offer.title).toBe("Brunch deal")
+    })
   })
 
   it("Edit attached Existing offer reopens picker for replace", async () => {

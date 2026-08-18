@@ -22,6 +22,28 @@ describe("offerCatalogPresentation draft helpers", () => {
     expect(canConfirmCampaignCatalogOfferDetails(draft)).toBe(false)
   })
 
+  it("maps free-item additional exclusions for any purchase requirement", () => {
+    const draft = emptyCampaignCatalogOfferDetailsDraft()
+    draft.offerType = "free_item"
+    draft.freeItemText = "side"
+    draft.purchaseRequirement = "no_purchase_required"
+    draft.additionalExclusions = "Not valid on weekends"
+    draft.title = "Enjoy a free side"
+    draft.description = "One free side with your visit."
+
+    expect(canConfirmCampaignCatalogOfferDetails(draft)).toBe(true)
+    expect(
+      toCreateCatalogOfferRequestBody({ locationId: 42, draft })
+    ).toEqual(
+      expect.objectContaining({
+        offerType: "free_item",
+        freeItemText: "side",
+        purchaseRequirement: "no_purchase_required",
+        additionalExclusions: "Not valid on weekends",
+      })
+    )
+  })
+
   it("toCreateCatalogOfferRequestBody maps a valid percentage draft", () => {
     const draft = emptyCampaignCatalogOfferDetailsDraft()
     draft.offerType = "percentage_discount"
@@ -106,6 +128,24 @@ describe("offerCatalogPresentation draft helpers", () => {
         purchaseRequirement: "with_any_purchase",
       })
     ).toBe(false)
+  })
+
+  it("treats free-item additional exclusions as a dirty benefit", () => {
+    const baseline = emptyCampaignCatalogOfferDetailsDraft()
+    baseline.offerType = "free_item"
+    baseline.freeItemText = "side"
+    baseline.purchaseRequirement = "no_purchase_required"
+    baseline.additionalExclusions = ""
+    baseline.title = "Enjoy a free side"
+    baseline.description = "One free side."
+    baseline.validity = "30_days_after_issue"
+
+    expect(
+      isDirtyBenefitOrValidity(baseline, {
+        ...baseline,
+        additionalExclusions: "Not valid on weekends",
+      })
+    ).toBe(true)
   })
 
   it("shouldConfirmEditOfferSave requires issues and dirty benefit/validity", () => {

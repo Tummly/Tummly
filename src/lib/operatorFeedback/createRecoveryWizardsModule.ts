@@ -49,6 +49,7 @@ export type RecoveryWizardsAdapters = {
   setRecoveryOfferAttach: RespondWithRecoveryOfferAdapters["setRecoveryOfferAttach"]
   sendGuestResponse: RespondToGuestAdapters["sendGuestResponse"]
   sendGuestPreviewTest: RespondToGuestAdapters["sendGuestPreviewTest"]
+  getOperatorAccountEmail?: RespondToGuestAdapters["getOperatorAccountEmail"]
   completeRecovery: RespondToGuestAdapters["completeRecovery"]
   prepareRecoveryDraft: RespondToGuestAdapters["prepareRecoveryDraft"]
   recordInternalAction: RecordInternalActionAdapters["recordInternalAction"]
@@ -103,6 +104,7 @@ export function createRecoveryWizardsModule(
     getFeedbackDetails: adapters.getFeedbackDetails,
     sendGuestResponse: adapters.sendGuestResponse,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
+    getOperatorAccountEmail: adapters.getOperatorAccountEmail,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
   })
@@ -117,6 +119,7 @@ export function createRecoveryWizardsModule(
     getFeedbackDetails: adapters.getFeedbackDetails,
     sendAndRecord: adapters.sendAndRecord,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
+    getOperatorAccountEmail: adapters.getOperatorAccountEmail,
     // Each wizard module declares its own narrower `CompleteRecoveryResult`
     // locally (pre-existing duplication tracked by ticket 23); the runtime
     // value always satisfies every module's shape.
@@ -136,6 +139,7 @@ export function createRecoveryWizardsModule(
     listCatalogOffers: adapters.listCatalogOffers,
     sendAndIssueRecoveryOffer: adapters.sendAndIssueRecoveryOffer,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
+    getOperatorAccountEmail: adapters.getOperatorAccountEmail,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryOfferDraft,
   })

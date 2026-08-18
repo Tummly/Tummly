@@ -53,7 +53,9 @@
   --color-op-background-secondary: var(--op-background-secondary);
   --color-op-surface-primary: var(--op-surface-primary);
   --color-op-surface-secondary: var(--op-surface-secondary);
+  --color-op-shell-chrome: var(--op-shell-chrome);
   --color-op-border-default: var(--op-border-default);
+  --color-op-divider: var(--op-divider);
   --color-op-input-border: var(--op-input-border);
   --color-op-input-placeholder: var(--op-input-placeholder);
   --color-op-checkbox-border: var(--op-checkbox-border);
@@ -69,6 +71,7 @@
   --color-op-color-green-500-muted: var(--op-color-green-500-muted);
   --color-op-color-green-600: var(--op-color-green-600);
   --color-op-color-blue-600: var(--op-color-blue-600);
+  --color-op-color-gray-60: var(--op-color-gray-60);
   --color-op-color-gray-70: var(--op-color-gray-70);
   --color-op-color-gray-85: var(--op-color-gray-85);
   --color-op-color-gray-950: var(--op-color-gray-950);
@@ -320,6 +323,8 @@ html.op {
   --op-color-white: #ffffff;
   --op-color-black: #141414;
   --op-color-gray-50: #f8f8f8;
+  /* Figma Operator intent-card / nested panel fill (light) */
+  --op-color-gray-60: #f5f5f5;
   /* Figma Operator right-Drawer Close fill (light) */
   --op-color-gray-70: #f1f1f1;
   --op-color-gray-85: #e8e8e8;
@@ -396,6 +401,8 @@ html.op {
   --op-surface-primary: var(--op-color-white);
   --op-surface-secondary: var(--op-color-gray-50);
   --op-border-default: var(--op-color-gray-210);
+  /* Figma wizard / intent-picker divider — #e5e5e5 light / #262626 dark */
+  --op-divider: var(--op-color-gray-200);
   /* Figma input / select / textarea field border (light) */
   --op-input-border: #b2b2b3;
   /* Figma Container/Input placeholder (#7d7d7d) — 4574:38058 */
@@ -562,6 +569,7 @@ html.op.dark {
   /* Header + SideNav chrome — was #141414 before token migration. */
   --op-shell-chrome: var(--op-color-black);
   --op-border-default: var(--op-color-gray-980);
+  --op-divider: var(--op-color-gray-980);
   /* Same composite as former rgba(74,74,76,0.4) on dark surfaces */
   --op-input-border: rgba(74, 74, 76, 0.4);
   --op-checkbox-border: rgb(255 255 255 / 0.2);

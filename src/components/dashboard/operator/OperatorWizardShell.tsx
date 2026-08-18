@@ -13,7 +13,16 @@ import {
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
 import {
+  OPERATOR_WIZARD_PREPARING_OVERLAY_BODY_CLASS,
+  OPERATOR_WIZARD_PREPARING_OVERLAY_CLASS,
   OPERATOR_WIZARD_SHELL_BODY_CLASS,
+  OPERATOR_WIZARD_SHELL_DIALOG_CLASS,
+  OPERATOR_WIZARD_SHELL_FOOTER_CLASS,
+  OPERATOR_WIZARD_SHELL_HEADER_CLASS,
+  OPERATOR_WIZARD_SHELL_INSET_CLASS,
+  OPERATOR_WIZARD_SUCCESS_BODY_GAP_CLASS,
+  OPERATOR_WIZARD_SUCCESS_COLUMN_CLASS,
+  OPERATOR_WIZARD_SUCCESS_DESCRIPTION_CLASS,
   formatOperatorWizardLastSavedLabel,
 } from "@/lib/operatorUi/operatorWizardChromePresentation"
 import { cn } from "@/lib/utils"
@@ -151,6 +160,7 @@ export function OperatorWizardShell({
   const lastSavedLabel = formatOperatorWizardLastSavedLabel(
     lastSavedAt ?? openedAt
   )
+  const isSuccessLayout = footerLayout === "end"
 
   return (
     <>
@@ -167,12 +177,9 @@ export function OperatorWizardShell({
       >
         <DialogContent
           showCloseButton={false}
-          className={cn(
-            "fixed inset-0 top-0 left-0 z-[130] flex h-dvh max-h-dvh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-op-surface-secondary p-0 text-op-text-primary shadow-none sm:max-w-none",
-            "data-open:zoom-in-100 data-closed:zoom-out-100"
-          )}
+          className={OPERATOR_WIZARD_SHELL_DIALOG_CLASS}
         >
-          <div className="flex w-full shrink-0 items-center justify-end p-6">
+          <div className={OPERATOR_WIZARD_SHELL_HEADER_CLASS}>
             <Button
               type="button"
               variant="ghost"
@@ -189,14 +196,28 @@ export function OperatorWizardShell({
           {/* Full-bleed scroll: content + footer share one track at the screen edge. */}
           <div className={OPERATOR_WIZARD_SHELL_BODY_CLASS}>
             <div className="flex min-h-full flex-col">
-              {/* Figma 1728 frame uses 200px side inset; scale down on narrower viewports. */}
-              <div className="flex flex-1 flex-col px-4 pb-24 pt-10 sm:px-6 sm:pt-[60px] md:px-[100px] min-[1728px]:px-[200px]">
+              {/* Figma 1728 frame uses 200px side inset; success centers a 600px column. */}
+              <div
+                className={cn(
+                  "flex flex-1 flex-col",
+                  OPERATOR_WIZARD_SHELL_INSET_CLASS,
+                  isSuccessLayout && "items-center"
+                )}
+              >
+                <div
+                  className={
+                    isSuccessLayout
+                      ? OPERATOR_WIZARD_SUCCESS_COLUMN_CLASS
+                      : undefined
+                  }
+                >
                 <DialogTitle className="text-[28px] font-bold leading-normal tracking-normal text-op-text-primary sm:text-[32px]">
                   {title}
                 </DialogTitle>
                 <DialogDescription
                   className={cn(
                     "mt-2 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]",
+                    isSuccessLayout && OPERATOR_WIZARD_SUCCESS_DESCRIPTION_CLASS,
                     descriptionClassName,
                     descriptionSrOnly && "sr-only"
                   )}
@@ -276,13 +297,22 @@ export function OperatorWizardShell({
                 ) : null}
 
                 {!isLoading && children != null ? (
-                  <div className={cn(stepHeading != null ? "mt-7" : "mt-10")}>
+                  <div
+                    className={cn(
+                      isSuccessLayout
+                        ? OPERATOR_WIZARD_SUCCESS_BODY_GAP_CLASS
+                        : stepHeading != null
+                          ? "mt-7"
+                          : "mt-10"
+                    )}
+                  >
                     {children}
                   </div>
                 ) : null}
+                </div>
               </div>
 
-              <div className="border-t border-op-card-border bg-op-surface-secondary px-4 py-6 sm:px-6 md:px-[100px] min-[1728px]:px-[200px]">
+              <div className={OPERATOR_WIZARD_SHELL_FOOTER_CLASS}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   {footerLayout === "wizard" ? (
                     <>
@@ -343,9 +373,9 @@ export function OperatorWizardShell({
           <DialogContent
             showCloseButton={false}
             overlayClassName="z-[150]"
-            className="z-[150] w-full max-w-[min(100%-2rem,520px)] gap-0 rounded-[4px] border-op-card-border bg-op-surface-secondary p-0 text-op-text-primary shadow-none sm:max-w-[520px]"
+            className={OPERATOR_WIZARD_PREPARING_OVERLAY_CLASS}
           >
-            <div className="flex flex-col items-center py-[22px]">
+            <div className={OPERATOR_WIZARD_PREPARING_OVERLAY_BODY_CLASS}>
               <div className="flex w-full flex-col items-center gap-16">
                 <div className="flex w-full items-center justify-between px-[22px] pb-[9px]">
                   <p className="min-w-0 flex-1 text-sm leading-5 text-[var(--op-color-gray-550)]">

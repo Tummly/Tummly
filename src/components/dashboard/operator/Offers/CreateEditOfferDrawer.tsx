@@ -36,7 +36,10 @@ import {
   CREATE_EDIT_OFFER_DRAWER_COPY,
   CREATE_EDIT_OFFER_DRAWER_DIVIDER_CLASS,
   CREATE_EDIT_OFFER_DRAWER_FOOTER_ACTIONS_CLASS,
+  CREATE_EDIT_OFFER_DRAWER_FOOTER_CLASS,
+  CREATE_EDIT_OFFER_DRAWER_HEADER_CLASS,
   CREATE_EDIT_OFFER_DRAWER_SHELL_CLASS,
+  CREATE_EDIT_OFFER_DRAWER_SURFACE_CLASS,
   createEditOfferDrawerConfirmLabel,
   createEditOfferDrawerShowsTypePicker,
   createEditOfferDrawerTitle,
@@ -46,6 +49,7 @@ import {
   CAMPAIGN_CATALOG_OFFER_PURCHASE_REQUIREMENT_OPTIONS,
   CAMPAIGN_CATALOG_OFFER_TYPE_OPTIONS,
   CAMPAIGN_CATALOG_OFFER_VALIDITY_OPTIONS,
+  CAMPAIGN_OFFER_ADDITIONAL_EXCLUSIONS_MAX,
   CAMPAIGN_OFFER_DESCRIPTION_MAX,
   CAMPAIGN_OFFER_TITLE_MAX,
   type CampaignCatalogOfferDetailsDraft,
@@ -258,48 +262,49 @@ function TypeSpecificFields({
           itemClassName={FEEDBACK_DIALOG_SELECT_ITEM_CLASS}
         />
         {draft.purchaseRequirement === "with_minimum_spend" ? (
-          <>
-            <div className="flex flex-col gap-2">
-              <label
-                htmlFor={`${idPrefix}-min-spend`}
-                className={FEEDBACK_FIELD_LABEL_CLASS}
-              >
-                Minimum spend
-              </label>
-              <Input
-                id={`${idPrefix}-min-spend`}
-                type="number"
-                min={0}
-                step="any"
-                placeholder="£0.00"
-                value={draft.minimumSpend}
-                disabled={saving}
-                onChange={(event) => {
-                  onPatch({ minimumSpend: event.target.value })
-                }}
-                className={`${FEEDBACK_INPUT_CLASS} h-12`}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <label
-                htmlFor={`${idPrefix}-exclusions`}
-                className={FEEDBACK_FIELD_LABEL_CLASS}
-              >
-                Additional exclusions
-              </label>
-              <Textarea
-                id={`${idPrefix}-exclusions`}
-                placeholder="Add any products, dates or conditions that are excluded…"
-                value={draft.additionalExclusions}
-                disabled={saving}
-                onChange={(event) => {
-                  onPatch({ additionalExclusions: event.target.value })
-                }}
-                className={`${FEEDBACK_TEXTAREA_CLASS} min-h-[80px]`}
-              />
-            </div>
-          </>
+          <div className="flex flex-col gap-2">
+            <label
+              htmlFor={`${idPrefix}-min-spend`}
+              className={FEEDBACK_FIELD_LABEL_CLASS}
+            >
+              Minimum spend
+            </label>
+            <Input
+              id={`${idPrefix}-min-spend`}
+              type="number"
+              min={0}
+              step="any"
+              placeholder="£0.00"
+              value={draft.minimumSpend}
+              disabled={saving}
+              onChange={(event) => {
+                onPatch({ minimumSpend: event.target.value })
+              }}
+              className={`${FEEDBACK_INPUT_CLASS} h-12`}
+            />
+          </div>
         ) : null}
+        <div className="flex flex-col gap-2">
+          <label
+            htmlFor={`${idPrefix}-exclusions`}
+            className={FEEDBACK_FIELD_LABEL_CLASS}
+          >
+            {CREATE_EDIT_OFFER_DRAWER_COPY.additionalExclusionsLabel}
+          </label>
+          <Textarea
+            id={`${idPrefix}-exclusions`}
+            placeholder={
+              CREATE_EDIT_OFFER_DRAWER_COPY.additionalExclusionsPlaceholder
+            }
+            value={draft.additionalExclusions}
+            maxLength={CAMPAIGN_OFFER_ADDITIONAL_EXCLUSIONS_MAX}
+            disabled={saving}
+            onChange={(event) => {
+              onPatch({ additionalExclusions: event.target.value })
+            }}
+            className={`${FEEDBACK_TEXTAREA_CLASS} min-h-[80px]`}
+          />
+        </div>
       </div>
     )
   }
@@ -468,10 +473,14 @@ export function CreateEditOfferDrawer({
         <DrawerContent
           /* Above RecoveryWizardShell / Campaign wizard (z-130); select menus stay at 140. */
           overlayClassName="z-[135]"
-          className={cn(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS, "z-[138]")}
+          className={cn(
+            OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
+            CREATE_EDIT_OFFER_DRAWER_SURFACE_CLASS,
+            "z-[138]"
+          )}
         >
           <div className={CREATE_EDIT_OFFER_DRAWER_SHELL_CLASS}>
-            <header className="flex shrink-0 items-start gap-[22px]">
+            <header className={CREATE_EDIT_OFFER_DRAWER_HEADER_CLASS}>
               <div className="flex min-w-0 flex-1 flex-col gap-3">
                 <DrawerTitle className="text-2xl font-bold leading-normal tracking-normal text-op-text-primary">
                   {createEditOfferDrawerTitle(mode)}
@@ -664,7 +673,7 @@ export function CreateEditOfferDrawer({
               </div>
             </div>
 
-            <footer className="flex shrink-0 flex-col gap-2 pt-1">
+            <footer className={CREATE_EDIT_OFFER_DRAWER_FOOTER_CLASS}>
               {saveGated ? (
                 <p className="m-0 text-xs text-op-text-muted" role="status">
                   {copy.editSaveGatedHelper}

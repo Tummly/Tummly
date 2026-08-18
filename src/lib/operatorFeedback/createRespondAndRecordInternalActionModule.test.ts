@@ -108,7 +108,10 @@ function createAdapters(
       typeof vi.fn<(req: SendAndRecordRequest) => Promise<SendAndRecordResult>>
     >,
     sendGuestPreviewTest:
-      overrides.sendGuestPreviewTest ?? (async () => {}),
+      overrides.sendGuestPreviewTest ?? vi.fn(async () => {}),
+    getOperatorAccountEmail:
+      overrides.getOperatorAccountEmail
+      ?? (async () => "ops@example.com"),
     completeRecovery: completeRecovery as ReturnType<
       typeof vi.fn<
         (
@@ -196,6 +199,32 @@ describe("createRespondAndRecordInternalActionModule", () => {
       purpose: "acknowledge_feedback",
       message: "Thank you for telling us.",
     })
+  })
+
+  it("Send test opens specify-email dialog and does not send until confirm", async () => {
+    const adapters = createAdapters()
+    const module = createRespondAndRecordInternalActionModule(adapters)
+    await openAtReview(module)
+
+    await module.openSendTestDialog()
+    expect(module.getSnapshot().sendTest).toMatchObject({
+      isOpen: true,
+      email: "ops@example.com",
+      canSubmit: true,
+    })
+    expect(adapters.sendGuestPreviewTest).not.toHaveBeenCalled()
+
+    await module.confirmSendTest()
+
+    expect(adapters.sendGuestPreviewTest).toHaveBeenCalledWith({
+      feedbackId: 2418,
+      subject: "Sorry about your visit",
+      body: "Thank you for telling us.",
+      toEmail: "ops@example.com",
+    })
+    expect(module.getSnapshot().sendTestStatus).toBe("success")
+    expect(module.getSnapshot().sendTest?.isOpen).toBe(false)
+    expect(adapters.sendAndRecord).not.toHaveBeenCalled()
   })
 
   it("Edit text returns from Review to Guest response editor", async () => {
