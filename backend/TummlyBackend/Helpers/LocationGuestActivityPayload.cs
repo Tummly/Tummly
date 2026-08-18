@@ -20,6 +20,12 @@ namespace TummlyBackend.Helpers
         [JsonPropertyName("changedFields")]
         public IReadOnlyList<string>? ChangedFields { get; set; }
 
+        [JsonPropertyName("fromPreference")]
+        public string? FromPreference { get; set; }
+
+        [JsonPropertyName("toPreference")]
+        public string? ToPreference { get; set; }
+
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,

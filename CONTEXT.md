@@ -468,7 +468,7 @@ One operator-only note attached to a **Location Guest**. Many notes may exist pe
 _Avoid_: Internal note (as the canonical noun), guest note, Master Guest note, Feedback note, CRM note, append-only note (when meaning immutable)
 
 **Location Guest activity event**:
-One append-only timeline row for something that happened to a **Location Guest** (joined, feedback submitted, **Location Guest note** added or soft-deleted, Guest tag applied/removed, profile edited, classification succeeded/failed). Persisted in the Location Guest activity store; listed on the Guest Profile Activity tab. Does not record **Location Guest note** body edits or **Feedback internal note** mutations — those belong on the note itself or on per-**Feedback** activity history. Distinct from Home **Latest activity** and from per-**Feedback** activity history.
+One append-only timeline row for something that happened to a **Location Guest** (joined, feedback submitted, **Location Guest note** added or soft-deleted, Guest tag applied/removed, profile edited, **Location Guest marketing preference** changed, classification succeeded/failed). Persisted in the Location Guest activity store; listed on the Guest Profile Activity tab. Does not record **Location Guest note** body edits or **Feedback internal note** mutations — those belong on the note itself or on per-**Feedback** activity history. Distinct from Home **Latest activity** and from per-**Feedback** activity history.
 _Avoid_: Guest activity log, audit trail, timeline event (when meaning this store)
 
 **Location Guest activity recorder**:

@@ -195,6 +195,8 @@ namespace TummlyBackend.Services
                         AuthorDisplayName = payload?.AuthorDisplayName,
                         Sentiment = sentiment,
                         ChangedFields = payload?.ChangedFields,
+                        FromPreference = payload?.FromPreference,
+                        ToPreference = payload?.ToPreference,
                     };
                 })
                 .ToList();

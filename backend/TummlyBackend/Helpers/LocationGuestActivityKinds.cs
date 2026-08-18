@@ -9,6 +9,8 @@ namespace TummlyBackend.Helpers
         public const string TagApplied = "tag-applied";
         public const string TagRemoved = "tag-removed";
         public const string ProfileEdited = "profile-edited";
+        public const string MarketingPreferenceChanged =
+            "marketing-preference-changed";
         public const string ClassificationSucceeded = "classification-succeeded";
         public const string ClassificationFailed = "classification-failed";
 

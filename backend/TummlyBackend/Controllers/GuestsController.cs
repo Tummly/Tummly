@@ -34,6 +34,7 @@ namespace TummlyBackend.Controllers
         private readonly IGuestFeedbacksListService _guestFeedbacks;
         private readonly IGuestNotesService _guestNotes;
         private readonly IGuestIdentityUpdateService _guestIdentity;
+        private readonly IGuestMarketingPreferenceUpdateService _guestMarketingPreference;
         private readonly ILocationGuestDeleteService _guestDelete;
 
         public GuestsController(
@@ -47,6 +48,7 @@ namespace TummlyBackend.Controllers
             IGuestFeedbacksListService guestFeedbacks,
             IGuestNotesService guestNotes,
             IGuestIdentityUpdateService guestIdentity,
+            IGuestMarketingPreferenceUpdateService guestMarketingPreference,
             ILocationGuestDeleteService guestDelete
         )
         {
@@ -60,6 +62,7 @@ namespace TummlyBackend.Controllers
             _guestFeedbacks = guestFeedbacks;
             _guestNotes = guestNotes;
             _guestIdentity = guestIdentity;
+            _guestMarketingPreference = guestMarketingPreference;
             _guestDelete = guestDelete;
         }
 
@@ -801,6 +804,63 @@ namespace TummlyBackend.Controllers
                     {
                         success = false,
                         message = "Unexpected identity update status.",
+                    }
+                ),
+            };
+        }
+
+        [HttpPatch("{guestId:int}/marketing-preference")]
+        public async Task<IActionResult> PatchGuestMarketingPreference(
+            int guestId,
+            [FromQuery] int locationId,
+            [FromBody] PatchGuestMarketingPreferenceRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var outcome = await _guestMarketingPreference.UpdateAsync(
+                guestId,
+                locationId,
+                userId,
+                request
+            );
+
+            return outcome.Status switch
+            {
+                GuestMarketingPreferenceUpdateStatus.Updated => Ok(outcome.Result),
+                GuestMarketingPreferenceUpdateStatus.NotFound => NotFound(new
+                {
+                    success = false,
+                    message = outcome.ErrorMessage,
+                }),
+                GuestMarketingPreferenceUpdateStatus.ValidationError => BadRequest(new
+                {
+                    success = false,
+                    message = outcome.ErrorMessage,
+                }),
+                _ => StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "Unexpected marketing preference update status.",
                     }
                 ),
             };

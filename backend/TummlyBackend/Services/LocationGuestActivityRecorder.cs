@@ -136,6 +136,27 @@ namespace TummlyBackend.Services
             );
         }
 
+        public void RecordMarketingPreferenceChanged(
+            int locationGuestId,
+            string fromPreference,
+            string toPreference,
+            string actorDisplayName,
+            DateTime occurredAt
+        )
+        {
+            Append(
+                kind: LocationGuestActivityKinds.MarketingPreferenceChanged,
+                occurredAt: occurredAt,
+                locationGuestId: locationGuestId,
+                payload: new LocationGuestActivityPayload
+                {
+                    FromPreference = fromPreference,
+                    ToPreference = toPreference,
+                    AuthorDisplayName = actorDisplayName,
+                }
+            );
+        }
+
         public void RecordClassificationTerminal(
             Feedback feedback,
             DateTime occurredAt
