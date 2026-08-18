@@ -232,6 +232,41 @@ describe("createOperatorGuestsPageModule", () => {
     expect(module.getSnapshot().viewModel?.totalFilteredCount).toBe(40)
   })
 
+  it("reloads after tab-cache clear during first load when location is unchanged", async () => {
+    const first = deferredGuestsResponse()
+    const second = deferredGuestsResponse()
+    const getGuests = vi
+      .fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+    const module = createOperatorGuestsPageModule(createAdapters({ getGuests }))
+    const workspace = {
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Camden Street" }],
+    }
+
+    const firstSync = module.syncWorkspace(workspace)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().loadStatus).toBe("loading")
+    })
+
+    module.clearTabCache()
+    const secondSync = module.syncWorkspace(workspace)
+
+    first.resolve(createGuestsResponse({ rows: [], totalFilteredCount: 0 }))
+    await firstSync
+
+    await vi.waitFor(() => {
+      expect(getGuests).toHaveBeenCalledTimes(2)
+    })
+    second.resolve(createGuestsResponse())
+    await secondSync
+
+    expect(module.getSnapshot().loadStatus).toBe("loaded")
+    expect(module.getSnapshot().viewModel).not.toBeNull()
+    expect(module.getSnapshot().viewModel?.tableRows).toHaveLength(25)
+  })
+
   it("refetches when the active smart group changes and clears selection", async () => {
     const getGuests = vi.fn(async () => createGuestsResponse())
     const module = createOperatorGuestsPageModule(createAdapters({ getGuests }))

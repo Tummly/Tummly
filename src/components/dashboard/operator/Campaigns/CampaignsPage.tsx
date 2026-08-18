@@ -429,7 +429,7 @@ export function CampaignsPage() {
   const handleSaveAndExit = async () => {
     await campaignWizard.saveAndExit()
     if (!campaignWizard.getSnapshot().isOpen) {
-      void campaigns.retryLoad()
+      await campaigns.retryLoad()
     }
   }
 

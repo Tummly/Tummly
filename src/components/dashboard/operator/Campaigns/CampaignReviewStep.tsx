@@ -10,6 +10,7 @@ import type {
   CampaignReviewSectionViewModel,
   CampaignReviewViewModel,
 } from "@/lib/operatorCampaigns/createCampaignWizardModule"
+import { CAMPAIGN_REVIEW_GUEST_PREVIEW_RAIL_CLASS } from "@/lib/operatorCampaigns/campaignReviewPresentation"
 import { cn } from "@/lib/utils"
 
 type CampaignReviewStepProps = {
@@ -62,7 +63,7 @@ export function CampaignReviewStep({
   sendTestBusy = false,
 }: CampaignReviewStepProps) {
   return (
-    <div className="flex w-full flex-col items-start gap-8 lg:flex-row lg:gap-[42px]">
+    <div className="flex w-full flex-col items-start justify-between gap-8 lg:flex-row lg:gap-[42px]">
       <div className="flex min-h-0 w-full max-w-[690px] flex-col gap-7">
         <header className="flex flex-col gap-2">
           <h2 className="m-0 text-xl font-semibold leading-normal text-op-text-primary sm:text-[22px]">
@@ -100,25 +101,27 @@ export function CampaignReviewStep({
         </Accordion>
       </div>
 
-      <GuestPreviewPanel
-        channel={review.guestPreview.channelId}
-        subject={review.guestPreview.subject}
-        message={review.guestPreview.body}
-        locationName={review.guestPreview.locationName}
-        locationAddress={review.guestPreview.locationAddress}
-        guestPreviewOpen={review.guestPreview.guestPreviewOpen}
-        onOpenPreview={onOpenGuestPreview}
-        onClosePreview={onCloseGuestPreview}
-        onEditText={onEditMessage}
-        onSendTest={onSendTest}
-        sendTestDisabled={!review.guestPreview.sendTestAvailable}
-        sendTestBusy={sendTestBusy}
-        offerCoupon={
-          review.guestPreview.offerCoupon != null ? (
-            <GuestPreviewOfferCoupon coupon={review.guestPreview.offerCoupon} />
-          ) : undefined
-        }
-      />
+      <div className={CAMPAIGN_REVIEW_GUEST_PREVIEW_RAIL_CLASS}>
+        <GuestPreviewPanel
+          channel={review.guestPreview.channelId}
+          subject={review.guestPreview.subject}
+          message={review.guestPreview.body}
+          locationName={review.guestPreview.locationName}
+          locationAddress={review.guestPreview.locationAddress}
+          guestPreviewOpen={review.guestPreview.guestPreviewOpen}
+          onOpenPreview={onOpenGuestPreview}
+          onClosePreview={onCloseGuestPreview}
+          onEditText={onEditMessage}
+          onSendTest={onSendTest}
+          sendTestDisabled={!review.guestPreview.sendTestAvailable}
+          sendTestBusy={sendTestBusy}
+          offerCoupon={
+            review.guestPreview.offerCoupon != null ? (
+              <GuestPreviewOfferCoupon coupon={review.guestPreview.offerCoupon} />
+            ) : undefined
+          }
+        />
+      </div>
     </div>
   )
 }

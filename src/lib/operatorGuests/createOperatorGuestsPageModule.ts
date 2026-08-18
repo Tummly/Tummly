@@ -757,6 +757,11 @@ export function createOperatorGuestsPageModule(
         return
       }
 
+      if (state.viewModel == null) {
+        await fetchGuests()
+        return
+      }
+
       publish()
     },
     retryLoad: () => fetchGuests(),

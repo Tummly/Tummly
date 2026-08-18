@@ -835,6 +835,71 @@ describe("createOperatorCampaignsPageModule", () => {
     expect(pageModule.getSnapshot().tabContentStatus).toBe("ready")
   })
 
+  it("retryLoad after Save keeps the new Draft when a tab switch is in flight", async () => {
+    const empty = emptyListResponse()
+    const savedDraft = emptyListResponse({
+      totalCount: 1,
+      items: [draftListItem({ id: 91, name: "Thank recent guests" })],
+      tabCounts: {
+        all: 1,
+        drafts: 1,
+        needsAttention: 0,
+        inFlight: 0,
+        sent: 0,
+      },
+    })
+    let allReloadResolve: ((value: CampaignsListResponse) => void) | undefined
+    let draftsResolve: ((value: CampaignsListResponse) => void) | undefined
+    let allReloadCalls = 0
+    const loadCampaignsList = vi.fn(
+      (params: { view: string }): Promise<CampaignsListResponse> => {
+        if (params.view === "all") {
+          allReloadCalls += 1
+          if (allReloadCalls === 1) {
+            return Promise.resolve(empty)
+          }
+          if (allReloadCalls === 2) {
+            return new Promise((resolve) => {
+              allReloadResolve = resolve
+            })
+          }
+          return Promise.resolve(empty)
+        }
+        return new Promise((resolve) => {
+          draftsResolve = resolve
+        })
+      }
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    expect(pageModule.getSnapshot().viewModel?.isTrueEmpty).toBe(true)
+
+    const reloadPromise = pageModule.retryLoad()
+    const draftsPromise = pageModule.setListView("drafts")
+
+    allReloadResolve?.(savedDraft)
+    await reloadPromise
+
+    draftsResolve?.(empty)
+    await draftsPromise
+
+    const returnAll = pageModule.setListView("all")
+    const snapshot = pageModule.getSnapshot()
+    expect(snapshot.tabContentStatus).toBe("refreshing")
+    expect(snapshot.viewModel?.list.showListChrome).toBe(true)
+    expect(snapshot.viewModel?.list.empty).toBeNull()
+    expect(snapshot.viewModel?.list.rows).toEqual([
+      expect.objectContaining({ id: 91, name: "Thank recent guests" }),
+    ])
+    await returnAll
+  })
+
   it("selects filter-search empty when search returns no rows", async () => {
     const loadCampaignsList = vi.fn(
       async (params: {

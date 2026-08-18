@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest"
 import {
   CAMPAIGN_SCHEDULE_COPY,
   campaignScheduledAtUtcIso,
+  campaignScheduleFieldErrors,
   canContinueCampaignSchedule,
   defaultCampaignScheduleModeId,
 } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
@@ -71,6 +72,70 @@ describe("campaignSchedulePresentation", () => {
         now,
       })
     ).toBe(true)
+  })
+
+  it("puts past-date error on the date field and past-time error on the time field", () => {
+    const now = new Date("2026-08-14T14:18:00")
+
+    expect(
+      campaignScheduleFieldErrors({
+        modeId: "send-now",
+        dateLocal: "2026-08-10",
+        timeLocal: "09:00",
+        now,
+      })
+    ).toEqual({ dateError: null, timeError: null })
+
+    expect(
+      campaignScheduleFieldErrors({
+        modeId: "schedule-later",
+        dateLocal: "",
+        timeLocal: "",
+        now,
+      })
+    ).toEqual({ dateError: null, timeError: null })
+
+    expect(
+      campaignScheduleFieldErrors({
+        modeId: "schedule-later",
+        dateLocal: "2026-08-10",
+        timeLocal: "18:00",
+        now,
+      })
+    ).toEqual({
+      dateError: CAMPAIGN_SCHEDULE_COPY.pastDateError,
+      timeError: null,
+    })
+
+    expect(
+      campaignScheduleFieldErrors({
+        modeId: "schedule-later",
+        dateLocal: "2026-08-14",
+        timeLocal: "14:00",
+        now,
+      })
+    ).toEqual({
+      dateError: null,
+      timeError: CAMPAIGN_SCHEDULE_COPY.pastTimeError,
+    })
+
+    expect(
+      campaignScheduleFieldErrors({
+        modeId: "schedule-later",
+        dateLocal: "2026-08-14",
+        timeLocal: "14:30",
+        now,
+      })
+    ).toEqual({ dateError: null, timeError: null })
+
+    expect(
+      campaignScheduleFieldErrors({
+        modeId: "schedule-later",
+        dateLocal: "2026-08-20",
+        timeLocal: "00:00",
+        now,
+      })
+    ).toEqual({ dateError: null, timeError: null })
   })
 
   it("uses shared Calendar/Popover date picker chrome for schedule-later fields", () => {

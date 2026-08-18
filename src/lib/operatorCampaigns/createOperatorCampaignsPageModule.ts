@@ -902,7 +902,9 @@ export function createOperatorCampaignsPageModule(
     invalidateTabCache()
     const cacheGeneration = tabCacheGeneration
     const generation = state.loadGeneration + 1
-    const listLoadGeneration = state.listLoadGeneration + 1
+    const requestedViewId = state.activeViewId
+    const listSequence = state.listLoadGeneration + 1
+    latestRequestByView.set(requestedViewId, listSequence)
     const marketingEligibleGeneration = state.marketingEligibleGeneration + 1
     const recommendationGeneration = state.recommendationGeneration + 1
     const overviewDateRange = adapters.getCampaignsOverviewDateRange()
@@ -925,7 +927,7 @@ export function createOperatorCampaignsPageModule(
       tabContentStatus: "loading",
       loadError: null,
       loadGeneration: generation,
-      listLoadGeneration,
+      listLoadGeneration: listSequence,
       marketingEligibleGeneration,
       recommendationGeneration,
       recommendation: nextRecommendation,
@@ -948,32 +950,43 @@ export function createOperatorCampaignsPageModule(
         ])
       if (
         generation !== state.loadGeneration
-        || listLoadGeneration !== state.listLoadGeneration
-        || marketingEligibleGeneration !== state.marketingEligibleGeneration
+        || cacheGeneration !== tabCacheGeneration
+        || state.workspace?.selectedLocationId !== selectedLocationId
       ) {
         return
       }
-      const summaryFacts = toSummaryFacts(marketingEligible, siblingSummary)
-      state = {
-        ...state,
-        loadStatus: "loaded",
-        tabContentStatus: "ready",
-        loadError: null,
-        lastListResponse: listResponse,
-        lastSummaryFacts: siblingSummary,
-        createdByCatalog: catalogFromResponse(listResponse),
-        viewModel: assembleFromState(
-          workspace,
-          listResponse,
-          summaryFacts,
-          overviewDateRange,
-          messagingUsage
-        ),
+      const isLatestForView =
+        latestRequestByView.get(requestedViewId) === listSequence
+      if (isLatestForView) {
+        tabCache.set(requestedViewId, listResponse)
       }
-      if (cacheGeneration === tabCacheGeneration) {
-        tabCache.set(state.activeViewId, listResponse)
+      if (marketingEligibleGeneration === state.marketingEligibleGeneration) {
+        state = {
+          ...state,
+          lastSummaryFacts: siblingSummary,
+        }
       }
-      publish()
+      if (isLatestForView && state.activeViewId === requestedViewId) {
+        state = {
+          ...state,
+          loadStatus: "loaded",
+          tabContentStatus: "ready",
+          loadError: null,
+          lastListResponse: listResponse,
+          createdByCatalog: catalogFromResponse(listResponse),
+          viewModel: assembleFromState(
+            workspace,
+            listResponse,
+            toSummaryFacts(
+              marketingEligible,
+              state.lastSummaryFacts ?? siblingSummary
+            ),
+            overviewDateRange,
+            messagingUsage
+          ),
+        }
+        publish()
+      }
     } catch {
       if (generation !== state.loadGeneration) {
         return
@@ -1069,14 +1082,12 @@ export function createOperatorCampaignsPageModule(
       if (
         cacheGeneration !== tabCacheGeneration
         || state.workspace?.selectedLocationId !== requestedLocationId
+        || latestRequestByView.get(requestedView) !== generation
       ) {
         return
       }
       tabCache.set(requestedView, listResponse)
-      if (
-        state.activeViewId !== requestedView
-        || latestRequestByView.get(requestedView) !== generation
-      ) {
+      if (state.activeViewId !== requestedView) {
         return
       }
 
@@ -1357,34 +1368,36 @@ export function createOperatorCampaignsPageModule(
       }
       if (state.viewModel != null) {
         const workspace = state.workspace
+        const nextList =
+          cachedResponse != null && workspace != null
+            ? buildListViewModel({
+                response: cachedResponse,
+                activeViewId: viewId,
+                searchQuery: state.searchQuery,
+                sortId: state.sortId,
+                page: 1,
+                appliedFilters: state.appliedFilters,
+                createdByCatalog: state.createdByCatalog,
+                workspace,
+                nowMs: getNow().getTime(),
+              })
+            : {
+                ...state.viewModel.list,
+                activeViewId: viewId,
+                currentPage: 1,
+                rows: [],
+                empty: null,
+                totalCount: 0,
+                pageRangeLabel: "Showing 0 of 0 campaigns",
+                canGoPrevious: false,
+                canGoNext: false,
+              }
         state = {
           ...state,
           viewModel: {
             ...state.viewModel,
-            list:
-              cachedResponse != null && workspace != null
-                ? buildListViewModel({
-                    response: cachedResponse,
-                    activeViewId: viewId,
-                    searchQuery: state.searchQuery,
-                    sortId: state.sortId,
-                    page: 1,
-                    appliedFilters: state.appliedFilters,
-                    createdByCatalog: state.createdByCatalog,
-                    workspace,
-                    nowMs: getNow().getTime(),
-                  })
-                : {
-                    ...state.viewModel.list,
-                    activeViewId: viewId,
-                    currentPage: 1,
-                    rows: [],
-                    empty: null,
-                    totalCount: 0,
-                    pageRangeLabel: "Showing 0 of 0 campaigns",
-                    canGoPrevious: false,
-                    canGoNext: false,
-                  },
+            isTrueEmpty: nextList.empty?.kind === "true-empty",
+            list: nextList,
           },
         }
         publish()

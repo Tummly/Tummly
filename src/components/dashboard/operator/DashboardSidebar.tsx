@@ -12,8 +12,7 @@ import type {
 import { resolveSettingsDisclosureOpen } from "@/lib/operatorHome/sidebarNav"
 
 import chevronIcon from "@/assets/operator-home/sidenav/chevron.svg"
-/** Figma Home vector @2x — luminance mask; colour from currentColor. */
-import homeIconMask from "@/assets/operator-home/sidenav/home.png"
+import homeIcon from "@/assets/operator-home/sidenav/home.svg"
 import guestsIcon from "@/assets/operator-home/sidenav/guests.svg"
 import captureIcon from "@/assets/operator-home/sidenav/capture.svg"
 import feedbackIcon from "@/assets/operator-home/sidenav/feedback.svg"
@@ -44,9 +43,10 @@ function SideNavMenuIcon({ className }: { className?: string }) {
 }
 
 const NAV_ICONS: Record<
-  Exclude<OperatorSidebarPrimaryNavId | OperatorSidebarFooterNavId, "home">,
+  OperatorSidebarPrimaryNavId | OperatorSidebarFooterNavId,
   string
 > = {
+  home: homeIcon,
   guests: guestsIcon,
   capture: captureIcon,
   feedback: feedbackIcon,
@@ -71,44 +71,21 @@ type DashboardSidebarProps = {
 }
 
 /**
- * Home uses a PNG luminance mask (currentColor).
- * Other assets are SVG `<img>`s baked at #AEAEAE — tint with filters for
+ * SideNav assets are SVG `<img>`s baked at #AEAEAE — tint with filters for
  * enabled (#676767) and active (primary) in light mode.
  */
 function SideNavIcon({
   src,
   active = false,
   enabled = false,
-  mask = false,
   className,
 }: {
   src: string
   active?: boolean
   /** Navigable / interactive idle — darken baked #AEAEAE toward #676767. */
   enabled?: boolean
-  mask?: boolean
   className?: string
 }) {
-  if (mask) {
-    return (
-      <span
-        aria-hidden
-        className={cn("block size-[18px] shrink-0 bg-current", className)}
-        style={{
-          maskImage: `url(${src})`,
-          maskMode: "alpha",
-          maskSize: "contain",
-          maskRepeat: "no-repeat",
-          maskPosition: "center",
-          WebkitMaskImage: `url(${src})`,
-          WebkitMaskSize: "contain",
-          WebkitMaskRepeat: "no-repeat",
-          WebkitMaskPosition: "center",
-        }}
-      />
-    )
-  }
-
   return (
     <img
       src={src}
@@ -160,7 +137,6 @@ function NavRowContent({
   iconSrc,
   active = false,
   enabled = false,
-  mask = false,
   trailing,
 }: {
   label: string
@@ -168,7 +144,6 @@ function NavRowContent({
   iconSrc: string
   active?: boolean
   enabled?: boolean
-  mask?: boolean
   trailing?: ReactNode
 }) {
   return (
@@ -185,7 +160,6 @@ function NavRowContent({
           src={iconSrc}
           active={active}
           enabled={enabled}
-          mask={mask}
         />
         {!collapsed ? (
           <span className="max-w-[12rem] truncate pl-3 text-inherit">
@@ -198,20 +172,11 @@ function NavRowContent({
   )
 }
 
-function iconForItem(item: OperatorSidebarNavItem): {
-  src: string
-  mask: boolean
-} {
-  if (item.id === "home") {
-    return { src: homeIconMask, mask: true }
-  }
+function iconForItem(item: OperatorSidebarNavItem): string {
   if (item.id in NAV_ICONS) {
-    return {
-      src: NAV_ICONS[item.id as keyof typeof NAV_ICONS],
-      mask: false,
-    }
+    return NAV_ICONS[item.id as keyof typeof NAV_ICONS]
   }
-  return { src: settingsIcon, mask: false }
+  return settingsIcon
 }
 
 export function DashboardSidebar({
@@ -285,8 +250,7 @@ export function DashboardSidebar({
                     <NavRowContent
                       label={item.label}
                       collapsed={collapsed}
-                      iconSrc={icon.src}
-                      mask={icon.mask}
+                      iconSrc={icon}
                     />
                   </Button>
                 )
@@ -306,10 +270,9 @@ export function DashboardSidebar({
                   <NavRowContent
                     label={item.label}
                     collapsed={collapsed}
-                    iconSrc={icon.src}
+                    iconSrc={icon}
                     active={item.active}
                     enabled
-                    mask={icon.mask}
                   />
                 </NavLink>
               )
@@ -428,8 +391,7 @@ export function DashboardSidebar({
               <NavRowContent
                 label={item.label}
                 collapsed={collapsed}
-                iconSrc={icon.src}
-                mask={icon.mask}
+                iconSrc={icon}
               />
             </Button>
             )

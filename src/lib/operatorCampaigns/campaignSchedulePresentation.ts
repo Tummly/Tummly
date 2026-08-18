@@ -22,6 +22,8 @@ export const CAMPAIGN_SCHEDULE_COPY = {
   sendTimePlaceholder: "Select time",
   datetimeRequired:
     "Choose a send date and time that is after now.",
+  pastDateError: "Choose a send date that is not in the past.",
+  pastTimeError: "Choose a send time that is after now.",
 } as const
 
 export const CAMPAIGN_SCHEDULE_OPTIONS: readonly CampaignScheduleOptionDef[] = [
@@ -155,4 +157,68 @@ export function canContinueCampaignSchedule(input: {
     return false
   }
   return new Date(iso).getTime() > input.now.getTime()
+}
+
+export type CampaignScheduleFieldErrors = {
+  dateError: string | null
+  timeError: string | null
+}
+
+function localDateKey(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+/**
+ * Field errors for Schedule for later. Past calendar date → date field.
+ * Same local day with a time that is not after now → time field.
+ */
+export function campaignScheduleFieldErrors(input: {
+  modeId: CampaignScheduleModeId
+  dateLocal: string
+  timeLocal: string
+  now: Date
+}): CampaignScheduleFieldErrors {
+  if (input.modeId !== "schedule-later") {
+    return { dateError: null, timeError: null }
+  }
+
+  const date = input.dateLocal.trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return { dateError: null, timeError: null }
+  }
+
+  const todayKey = localDateKey(input.now)
+  if (date < todayKey) {
+    return {
+      dateError: CAMPAIGN_SCHEDULE_COPY.pastDateError,
+      timeError: null,
+    }
+  }
+
+  if (date > todayKey) {
+    return { dateError: null, timeError: null }
+  }
+
+  const time = input.timeLocal.trim()
+  if (!/^\d{2}:\d{2}$/.test(time)) {
+    return { dateError: null, timeError: null }
+  }
+
+  const iso = campaignScheduledAtUtcIso({
+    dateLocal: date,
+    timeLocal: time,
+  })
+  if (iso == null) {
+    return { dateError: null, timeError: null }
+  }
+  if (new Date(iso).getTime() <= input.now.getTime()) {
+    return {
+      dateError: null,
+      timeError: CAMPAIGN_SCHEDULE_COPY.pastTimeError,
+    }
+  }
+  return { dateError: null, timeError: null }
 }

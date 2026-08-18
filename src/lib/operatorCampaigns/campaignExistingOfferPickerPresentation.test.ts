@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   CAMPAIGN_EXISTING_OFFER_PICKER_COPY,
+  EXISTING_OFFER_PICKER_CARD_CLASS,
+  EXISTING_OFFER_PICKER_PANEL_CLASS,
   filterExistingOfferPickerItems,
   formatExistingOfferPickerValidUntil,
   mapCatalogOfferToExistingPickerCard,
@@ -77,8 +79,19 @@ describe("campaignExistingOfferPickerPresentation", () => {
     expect(filterExistingOfferPickerItems(items, "brunch").map((i) => i.id)).toEqual(
       [1]
     )
-    expect(
-      filterExistingOfferPickerItems(items, "percentage").map((i) => i.id)
-    ).toEqual([2])
+    expect(filterExistingOfferPickerItems(items, "percentage").map((i) => i.id))
+      .toEqual([2])
+  })
+
+  it("uses Figma Existing offer picker panel and card tokens", () => {
+    expect(EXISTING_OFFER_PICKER_PANEL_CLASS).toContain("border-op-divider")
+    expect(EXISTING_OFFER_PICKER_PANEL_CLASS).toContain("bg-op-color-gray-60")
+    expect(EXISTING_OFFER_PICKER_PANEL_CLASS).toContain(
+      "dark:bg-[var(--op-color-gray-1000)]"
+    )
+    expect(EXISTING_OFFER_PICKER_CARD_CLASS).toContain("bg-op-shell-chrome")
+    expect(EXISTING_OFFER_PICKER_CARD_CLASS).toContain("border-op-divider")
+    expect(EXISTING_OFFER_PICKER_CARD_CLASS).toContain("p-6")
+    expect(EXISTING_OFFER_PICKER_CARD_CLASS).toContain("gap-9")
   })
 })
