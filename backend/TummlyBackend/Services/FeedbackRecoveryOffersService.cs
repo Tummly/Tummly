@@ -296,13 +296,16 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            var optedOut = await _context.LocationGuests
+            var marketingBlocked = await _context.LocationGuests
                 .AsNoTracking()
                 .Where(g => g.Id == locationGuestId)
-                .Select(g => g.OffersOptOut)
+                .Select(g =>
+                    g.MarketingPreference
+                    != LocationGuestMarketingPreference.Allowed
+                )
                 .FirstOrDefaultAsync(cancellationToken);
 
-            if (optedOut)
+            if (marketingBlocked)
             {
                 throw new ArgumentException(
                     "Guest has opted out of offers."

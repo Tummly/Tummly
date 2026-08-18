@@ -3,6 +3,7 @@ import type {
   FeedbackDetailsResponse,
   FeedbackSentiment,
   FeedbackWorkflowStatus,
+  LocationGuestMarketingPreference,
 } from "@/types/dashboard"
 import { labelForDetectedTag } from "@/lib/operatorHome/detectedTags"
 import {
@@ -80,7 +81,7 @@ type EntryState = {
   summary: StartRecoveryFeedbackSummary | null
   intents: StartRecoveryIntentCard[]
   selectedIntentId: StartRecoveryIntentId | null
-  guestOffersOptOut: boolean
+  marketingPreference: LocationGuestMarketingPreference | undefined
   contactCapability: ReturnType<typeof deriveStartRecoveryContactCapability> | null
   loadedDetails: FeedbackDetailsResponse | null
 }
@@ -99,7 +100,7 @@ function emptyState(): EntryState {
     summary: null,
     intents: [],
     selectedIntentId: null,
-    guestOffersOptOut: false,
+    marketingPreference: undefined,
     contactCapability: null,
     loadedDetails: null,
   }
@@ -161,7 +162,7 @@ function rebuildIntents(state: EntryState): StartRecoveryIntentCard[] {
   }
   return buildStartRecoveryIntents({
     contactCapability: state.contactCapability,
-    guestOffersOptOut: state.guestOffersOptOut,
+    marketingPreference: state.marketingPreference,
     workflowStatus: state.workflowStatus,
   })
 }
@@ -206,7 +207,7 @@ export function createStartRecoveryEntryModule(
       response.contactType,
       response.guestContact
     )
-    const guestOffersOptOut = response.guestOffersOptOut === true
+    const marketingPreference = response.marketingPreference
     const summary = mapSummary(response, contactCapability)
 
     state = {
@@ -222,7 +223,7 @@ export function createStartRecoveryEntryModule(
         response.qrSource
       ),
       summary,
-      guestOffersOptOut,
+      marketingPreference,
       contactCapability,
       intents: [],
       loadedDetails: response,

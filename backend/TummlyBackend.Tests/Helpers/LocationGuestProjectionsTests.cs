@@ -6,12 +6,34 @@ namespace TummlyBackend.Tests.Helpers
     public class LocationGuestProjectionsTests
     {
         [Fact]
-        public void DeriveMarketingStatus_ReturnsNotEligibleWhenOffersOptOut()
+        public void FromFeedbackOffersOptOut_MapsTrueToOptedOut()
+        {
+            Assert.Equal(
+                LocationGuestMarketingPreference.OptedOut,
+                LocationGuestMarketingPreferenceExtensions.FromFeedbackOffersOptOut(
+                    true
+                )
+            );
+        }
+
+        [Fact]
+        public void FromFeedbackOffersOptOut_MapsFalseToAllowed()
+        {
+            Assert.Equal(
+                LocationGuestMarketingPreference.Allowed,
+                LocationGuestMarketingPreferenceExtensions.FromFeedbackOffersOptOut(
+                    false
+                )
+            );
+        }
+
+        [Fact]
+        public void DeriveMarketingStatus_ReturnsNotEligibleWhenOptedOut()
         {
             Assert.Equal(
                 "Not eligible",
                 LocationGuestProjections.DeriveMarketingStatus(
-                    offersOptOut: true,
+                    LocationGuestMarketingPreference.OptedOut,
                     email: "guest@example.com",
                     mobile: "07700900123"
                 )
@@ -19,12 +41,25 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void DeriveMarketingStatus_PrefersEmailOverSmsWhenBothPresent()
+        public void DeriveMarketingStatus_ReturnsNotEligibleWhenNotRecorded()
+        {
+            Assert.Equal(
+                "Not eligible",
+                LocationGuestProjections.DeriveMarketingStatus(
+                    LocationGuestMarketingPreference.NotRecorded,
+                    email: "guest@example.com",
+                    mobile: "07700900123"
+                )
+            );
+        }
+
+        [Fact]
+        public void DeriveMarketingStatus_PrefersEmailOverSmsWhenAllowed()
         {
             Assert.Equal(
                 "Eligible — Email",
                 LocationGuestProjections.DeriveMarketingStatus(
-                    offersOptOut: false,
+                    LocationGuestMarketingPreference.Allowed,
                     email: "guest@example.com",
                     mobile: "07700900123"
                 )
@@ -37,7 +72,7 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal(
                 "Eligible — SMS",
                 LocationGuestProjections.DeriveMarketingStatus(
-                    offersOptOut: false,
+                    LocationGuestMarketingPreference.Allowed,
                     email: null,
                     mobile: "07700900123"
                 )
@@ -56,9 +91,21 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal(
                 "Not eligible",
                 LocationGuestProjections.DeriveMarketingStatus(
-                    offersOptOut: false,
+                    LocationGuestMarketingPreference.Allowed,
                     email,
                     mobile
+                )
+            );
+        }
+
+        [Fact]
+        public void IsMarketingEligible_IsFalseWhenNotRecordedEvenWithContact()
+        {
+            Assert.False(
+                LocationGuestProjections.IsMarketingEligible(
+                    LocationGuestMarketingPreference.NotRecorded,
+                    email: "guest@example.com",
+                    mobile: "07700900123"
                 )
             );
         }
@@ -126,7 +173,7 @@ namespace TummlyBackend.Tests.Helpers
         {
             var consentAt = new DateTime(2026, 5, 12, 10, 0, 0, DateTimeKind.Utc);
             var rows = LocationGuestProjections.BuildContactEligibility(
-                offersOptOut: false,
+                LocationGuestMarketingPreference.Allowed,
                 email: "guest@example.com",
                 mobile: null,
                 consentCapturedAt: consentAt
@@ -148,7 +195,7 @@ namespace TummlyBackend.Tests.Helpers
         {
             var unsubscribedAt = new DateTime(2026, 6, 1, 9, 30, 0, DateTimeKind.Utc);
             var rows = LocationGuestProjections.BuildContactEligibility(
-                offersOptOut: true,
+                LocationGuestMarketingPreference.OptedOut,
                 email: "guest@example.com",
                 mobile: "07700900123",
                 consentCapturedAt: unsubscribedAt
@@ -166,12 +213,64 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void BuildContactEligibility_MarksPresentChannelsNotRecordedWhenPreferenceIsNotRecorded()
+        {
+            var capturedAt = new DateTime(2026, 6, 1, 9, 30, 0, DateTimeKind.Utc);
+            var rows = LocationGuestProjections.BuildContactEligibility(
+                LocationGuestMarketingPreference.NotRecorded,
+                email: "guest@example.com",
+                mobile: "07700900123",
+                consentCapturedAt: capturedAt
+            );
+
+            Assert.All(
+                rows,
+                row =>
+                {
+                    Assert.Equal("not_recorded", row.Status);
+                    Assert.Equal("not_recorded", row.DetailKind);
+                    Assert.Equal(capturedAt, row.DetailAt);
+                }
+            );
+        }
+
+        [Fact]
+        public void BuildContactEligibility_KeepsMissingContactAsNotProvidedWhenNotRecorded()
+        {
+            var rows = LocationGuestProjections.BuildContactEligibility(
+                LocationGuestMarketingPreference.NotRecorded,
+                email: "guest@example.com",
+                mobile: null
+            );
+
+            Assert.Equal("not_recorded", rows[0].Status);
+            Assert.Equal("not_provided", rows[1].Status);
+            Assert.Null(rows[1].DetailKind);
+        }
+
+        [Fact]
         public void ResolveOffersConsentDetailAt_ReturnsNullWhenNoFeedback()
         {
             Assert.Null(
                 LocationGuestProjections.ResolveOffersConsentDetailAt(
-                    currentOffersOptOut: false,
+                    LocationGuestMarketingPreference.Allowed,
                     feedbacks: Array.Empty<LocationGuestOffersOptOutFact>()
+                )
+            );
+        }
+
+        [Fact]
+        public void ResolveOffersConsentDetailAt_ReturnsNullWhenNotRecorded()
+        {
+            var consentedAt = new DateTime(2026, 5, 12, 10, 0, 0, DateTimeKind.Utc);
+
+            Assert.Null(
+                LocationGuestProjections.ResolveOffersConsentDetailAt(
+                    LocationGuestMarketingPreference.NotRecorded,
+                    feedbacks:
+                    [
+                        new LocationGuestOffersOptOutFact(consentedAt, OffersOptOut: false),
+                    ]
                 )
             );
         }
@@ -184,7 +283,7 @@ namespace TummlyBackend.Tests.Helpers
             var laterAffirmation = new DateTime(2026, 7, 20, 14, 22, 0, DateTimeKind.Utc);
 
             var detailAt = LocationGuestProjections.ResolveOffersConsentDetailAt(
-                currentOffersOptOut: false,
+                LocationGuestMarketingPreference.Allowed,
                 feedbacks:
                 [
                     new LocationGuestOffersOptOutFact(laterAffirmation, OffersOptOut: false),
@@ -203,7 +302,7 @@ namespace TummlyBackend.Tests.Helpers
             var reOptedInAt = new DateTime(2026, 7, 20, 14, 22, 0, DateTimeKind.Utc);
 
             var detailAt = LocationGuestProjections.ResolveOffersConsentDetailAt(
-                currentOffersOptOut: false,
+                LocationGuestMarketingPreference.Allowed,
                 feedbacks:
                 [
                     new LocationGuestOffersOptOutFact(reOptedInAt, OffersOptOut: false),
@@ -221,7 +320,7 @@ namespace TummlyBackend.Tests.Helpers
             var optedOutAt = new DateTime(2026, 6, 1, 9, 30, 0, DateTimeKind.Utc);
 
             var detailAt = LocationGuestProjections.ResolveOffersConsentDetailAt(
-                currentOffersOptOut: true,
+                LocationGuestMarketingPreference.OptedOut,
                 feedbacks:
                 [
                     new LocationGuestOffersOptOutFact(optedOutAt, OffersOptOut: true),

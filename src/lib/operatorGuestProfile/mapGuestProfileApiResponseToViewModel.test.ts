@@ -12,7 +12,7 @@ function createGuestProfileResponse(
     id: 1842,
     name: "Amelia Hart",
     marketingStatus: "Eligible — Email",
-    offersOptOut: false,
+    marketingPreference: "allowed",
     guestSinceAt: "2026-05-12T10:00:00Z",
     lastActivityAt: "2026-07-20T14:22:00Z",
     lastInteractionLabel: "Feedback submitted",
@@ -216,7 +216,7 @@ describe("mapGuestProfileApiResponseToViewModel", () => {
     const viewModel = mapGuestProfileApiResponseToViewModel({
       response: createGuestProfileResponse({
         marketingStatus: "Not eligible",
-        offersOptOut: true,
+        marketingPreference: "opted_out",
         contactEligibility: [
           {
             channel: "email",
@@ -251,6 +251,77 @@ describe("mapGuestProfileApiResponseToViewModel", () => {
         detailDisplay: "Unsubscribed 1 June 2026, 10:30 AM",
       },
     ])
+  })
+
+  it("maps not_recorded contact status labels without inventing Not provided", () => {
+    const viewModel = mapGuestProfileApiResponseToViewModel({
+      response: createGuestProfileResponse({
+        marketingStatus: "Not eligible",
+        marketingPreference: "not_recorded",
+        contactEligibility: [
+          {
+            channel: "email",
+            status: "not_recorded",
+            detailKind: "not_recorded",
+            detailAt: null,
+          },
+          {
+            channel: "sms",
+            status: "not_provided",
+            detailKind: null,
+            detailAt: null,
+          },
+        ],
+      }),
+      nowMs,
+    })
+
+    expect(viewModel.contactEligibility).toEqual([
+      {
+        channel: "email",
+        channelLabel: "Email",
+        status: "not_recorded",
+        statusLabel: "Not recorded",
+        detailDisplay: "—",
+      },
+      {
+        channel: "sms",
+        channelLabel: "SMS",
+        status: "not_provided",
+        statusLabel: "Not provided",
+        detailDisplay: "—",
+      },
+    ])
+  })
+
+  it("does not label not_recorded Detail as Unsubscribed when a date exists", () => {
+    const viewModel = mapGuestProfileApiResponseToViewModel({
+      response: createGuestProfileResponse({
+        marketingStatus: "Not eligible",
+        marketingPreference: "not_recorded",
+        contactEligibility: [
+          {
+            channel: "email",
+            status: "not_recorded",
+            detailKind: "not_recorded",
+            detailAt: "2026-06-01T09:30:00Z",
+          },
+          {
+            channel: "sms",
+            status: "not_provided",
+            detailKind: null,
+            detailAt: null,
+          },
+        ],
+      }),
+      nowMs,
+    })
+
+    expect(viewModel.contactEligibility[0]).toMatchObject({
+      status: "not_recorded",
+      statusLabel: "Not recorded",
+      detailDisplay: "Not recorded 1 June 2026, 10:30 AM",
+    })
   })
 
   it("shows empty Detail when consent_captured has no detailAt", () => {

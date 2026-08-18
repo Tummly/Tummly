@@ -475,7 +475,10 @@ namespace TummlyBackend.Services
             return await _context.LocationGuests
                 .AsNoTracking()
                 .Where(g => g.Id == locationGuestId)
-                .Select(g => g.OffersOptOut)
+                .Select(g =>
+                    g.MarketingPreference
+                    != LocationGuestMarketingPreference.Allowed
+                )
                 .FirstOrDefaultAsync(cancellationToken);
         }
 

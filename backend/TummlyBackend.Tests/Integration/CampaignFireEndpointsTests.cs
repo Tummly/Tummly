@@ -65,7 +65,7 @@ namespace TummlyBackend.Tests.Integration
                     .Include(lg => lg.MasterGuest)
                     .Where(lg => lg.RestaurantLocationId == seeded.LocationId)
                     .FirstAsync();
-                guest.OffersOptOut = true;
+                guest.MarketingPreference = LocationGuestMarketingPreference.OptedOut;
                 await context.SaveChangesAsync();
             }
 
@@ -180,7 +180,7 @@ namespace TummlyBackend.Tests.Integration
             {
                 RestaurantLocationId = location.Id,
                 MasterGuestId = master.Id,
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow,
             };
             context.LocationGuests.Add(lg);

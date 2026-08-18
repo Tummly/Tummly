@@ -417,7 +417,7 @@ namespace TummlyBackend.Tests.Integration
                         MasterGuestId = master.Id,
                         RestaurantLocationId = owner.LocationId,
                         Name = "Doe, \"Jane\"",
-                        OffersOptOut = false,
+                        MarketingPreference = LocationGuestMarketingPreference.Allowed,
                         CreatedAt = DateTime.UtcNow,
                     }
                 );
@@ -567,7 +567,8 @@ namespace TummlyBackend.Tests.Integration
                     MasterGuestId = master.Id,
                     RestaurantLocationId = owner.LocationId,
                     Name = name,
-                    OffersOptOut = offersOptOut,
+                    MarketingPreference = LocationGuestMarketingPreferenceExtensions.FromFeedbackOffersOptOut(offersOptOut),
+
                     CreatedAt = capturedAt,
                 };
                 context.LocationGuests.Add(locationGuest);
@@ -740,7 +741,7 @@ namespace TummlyBackend.Tests.Integration
                         MasterGuestId = master.Id,
                         RestaurantLocationId = owner.LocationId,
                         Name = $"Guest {index}",
-                        OffersOptOut = false,
+                        MarketingPreference = LocationGuestMarketingPreference.Allowed,
                         CreatedAt = DateTime.UtcNow.AddMinutes(-index),
                     }
                 )
@@ -826,7 +827,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = masterA.Id,
                 RestaurantLocationId = locationA.Id,
                 Name = "Location A Guest",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow.AddDays(-3),
             };
             var guestB = new LocationGuest
@@ -834,7 +835,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = masterB.Id,
                 RestaurantLocationId = locationB.Id,
                 Name = "Location B Guest",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow.AddDays(-4),
             };
             context.LocationGuests.AddRange(guestA, guestB);

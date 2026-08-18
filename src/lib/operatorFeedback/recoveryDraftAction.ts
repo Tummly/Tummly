@@ -13,6 +13,7 @@ import {
 import type {
   ContactType,
   FeedbackWorkflowStatus,
+  LocationGuestMarketingPreference,
 } from "@/types/dashboard"
 
 /** Server pendingRecoveryDraft / one-shot router payload for Review hydrate. */
@@ -189,7 +190,7 @@ export function recoveryDraftActionGateToast(input: {
   workflowStatus: FeedbackWorkflowStatus
   contactType: ContactType
   guestContact: string
-  guestOffersOptOut: boolean
+  marketingPreference: LocationGuestMarketingPreference | undefined
 }): string | null {
   if (input.workflowStatus === "resolved") {
     return RECOVERY_DRAFT_ACTION_TOASTS.resolved
@@ -199,7 +200,7 @@ export function recoveryDraftActionGateToast(input: {
     deriveStartRecoveryContactCapability(input.contactType, input.guestContact)
   const card = buildStartRecoveryIntents({
     contactCapability,
-    guestOffersOptOut: input.guestOffersOptOut,
+    marketingPreference: input.marketingPreference,
     workflowStatus: input.workflowStatus,
   }).find((item) => item.id === input.intent)
 

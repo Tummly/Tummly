@@ -12,6 +12,7 @@ export type OperatorGuestProfileEligibilityStatus =
   | "eligible"
   | "unsubscribed"
   | "not_provided"
+  | "not_recorded"
 
 export type OperatorGuestProfileLatestFeedbackRow = {
   id: number

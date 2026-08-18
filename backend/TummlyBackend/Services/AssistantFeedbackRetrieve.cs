@@ -253,7 +253,7 @@ namespace TummlyBackend.Services
                 {
                     guest.Id,
                     guest.Name,
-                    guest.OffersOptOut,
+                    guest.MarketingPreference,
                     Email = guest.MasterGuest != null ? guest.MasterGuest.Email : null,
                     Mobile = guest.MasterGuest != null ? guest.MasterGuest.Mobile : null,
                 })
@@ -286,14 +286,14 @@ namespace TummlyBackend.Services
             foreach (var guest in guests)
             {
                 var eligible = LocationGuestProjections.IsMarketingEligible(
-                    guest.OffersOptOut,
+                    guest.MarketingPreference,
                     guest.Email,
                     guest.Mobile
                 );
                 facts[guest.Id] = new GuestFact(
                     guest.Name,
                     LocationGuestProjections.DeriveMarketingStatus(
-                        guest.OffersOptOut,
+                        guest.MarketingPreference,
                         guest.Email,
                         guest.Mobile
                     ),

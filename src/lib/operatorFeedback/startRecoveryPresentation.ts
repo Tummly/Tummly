@@ -4,7 +4,12 @@ import {
   OPERATOR_WIZARD_SELECTABLE_CARD_SELECTED_CLASS,
   OPERATOR_WIZARD_SELECTABLE_CARD_SURFACE_CLASS,
 } from "@/lib/operatorUi/operatorWizardChromePresentation"
-import type { ContactType, FeedbackWorkflowStatus } from "@/types/dashboard"
+import type {
+  ContactType,
+  FeedbackWorkflowStatus,
+  LocationGuestMarketingPreference,
+} from "@/types/dashboard"
+import { isLocationGuestMarketingIneligible } from "@/lib/operatorGuests/locationGuestMarketingPreference"
 
 export type StartRecoveryContactCapability =
   | "email_available"
@@ -96,11 +101,14 @@ export function startRecoveryContactCapabilityLabel(
  */
 export function buildStartRecoveryIntents(input: {
   contactCapability: StartRecoveryContactCapability
-  guestOffersOptOut: boolean
+  marketingPreference: LocationGuestMarketingPreference | undefined
   workflowStatus: FeedbackWorkflowStatus
 }): StartRecoveryIntentCard[] {
   const isResolved = input.workflowStatus === "resolved"
   const hasNoContact = input.contactCapability === "no_contact"
+  const marketingIneligible = isLocationGuestMarketingIneligible(
+    input.marketingPreference
+  )
 
   return INTENT_DEFINITIONS.map((definition) => {
     if (isResolved) {
@@ -127,7 +135,7 @@ export function buildStartRecoveryIntents(input: {
           disableReason: NO_CONTACT_REASON,
         }
       }
-      if (input.guestOffersOptOut) {
+      if (marketingIneligible) {
         return {
           ...definition,
           enabled: false,

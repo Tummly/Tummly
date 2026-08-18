@@ -23,7 +23,7 @@ namespace TummlyBackend.Helpers
         )
         {
             return query.Where(lg =>
-                !lg.OffersOptOut
+                lg.MarketingPreference == LocationGuestMarketingPreference.Allowed
                 && (
                     !string.IsNullOrWhiteSpace(lg.MasterGuest!.Email)
                     || !string.IsNullOrWhiteSpace(lg.MasterGuest.Mobile)
@@ -36,7 +36,7 @@ namespace TummlyBackend.Helpers
         )
         {
             return query.Where(lg =>
-                lg.OffersOptOut
+                lg.MarketingPreference != LocationGuestMarketingPreference.Allowed
                 || (
                     string.IsNullOrWhiteSpace(lg.MasterGuest!.Email)
                     && string.IsNullOrWhiteSpace(lg.MasterGuest.Mobile)

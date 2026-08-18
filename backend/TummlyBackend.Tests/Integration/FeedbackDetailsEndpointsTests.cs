@@ -302,7 +302,7 @@ namespace TummlyBackend.Tests.Integration
                     MasterGuestId = masterGuest.Id,
                     RestaurantLocationId = location.Id,
                     Name = "Alex Guest",
-                    OffersOptOut = false,
+                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
                     CreatedAt = DateTime.UtcNow,
                 };
                 context.LocationGuests.Add(locationGuest);

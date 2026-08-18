@@ -277,12 +277,12 @@ namespace TummlyBackend.Tests.Integration
             var alexJoin = joinItems.Single(item =>
                 item.GetProperty("guestName").GetString() == "Alex Guest"
             );
-            Assert.True(alexJoin.GetProperty("offersOptOut").GetBoolean());
+            Assert.Equal("opted_out", alexJoin.GetProperty("marketingPreference").GetString());
 
             var patJoin = joinItems.Single(item =>
                 item.GetProperty("guestName").GetString() == "Pat Join"
             );
-            Assert.False(patJoin.GetProperty("offersOptOut").GetBoolean());
+            Assert.Equal("allowed", patJoin.GetProperty("marketingPreference").GetString());
         }
 
         [Fact]
@@ -558,7 +558,8 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = masterGuest.Id,
                 RestaurantLocationId = location.Id,
                 Name = "Alex Guest",
-                OffersOptOut = primaryLocationGuestOffersOptOut,
+                MarketingPreference = LocationGuestMarketingPreferenceExtensions.FromFeedbackOffersOptOut(primaryLocationGuestOffersOptOut),
+
                 CreatedAt = primaryLocationGuestCreatedAt ?? DateTime.UtcNow,
             };
 

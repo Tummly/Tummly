@@ -74,7 +74,7 @@ namespace TummlyBackend.Services
             var matchedRows = await matchedQuery
                 .Select(lg => new GuestEligibilityRow(
                     lg.Id,
-                    lg.OffersOptOut,
+                    lg.MarketingPreference,
                     lg.MasterGuest!.Email,
                     lg.MasterGuest.Mobile
                 ))
@@ -124,7 +124,7 @@ namespace TummlyBackend.Services
             var matchedRows = await matchedQuery
                 .Select(lg => new GuestEligibilityRow(
                     lg.Id,
-                    lg.OffersOptOut,
+                    lg.MarketingPreference,
                     lg.MasterGuest!.Email,
                     lg.MasterGuest.Mobile
                 ))
@@ -265,7 +265,7 @@ namespace TummlyBackend.Services
             GuestEligibilityRow guest
         )
         {
-            if (guest.OffersOptOut)
+            if (!guest.MarketingPreference.IsAllowed())
             {
                 return "opt-out";
             }
@@ -304,7 +304,7 @@ namespace TummlyBackend.Services
 
         private readonly record struct GuestEligibilityRow(
             int LocationGuestId,
-            bool OffersOptOut,
+            LocationGuestMarketingPreference MarketingPreference,
             string? Email,
             string? Mobile
         );

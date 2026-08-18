@@ -1085,7 +1085,7 @@ describe("createOperatorFeedbackPageModule", () => {
           ...sampleDetails,
           id: feedbackId,
           workflowStatus: "new" as const,
-          guestOffersOptOut: false,
+          marketingPreference: "allowed" as const,
         })),
         setWorkflowStatus,
       })

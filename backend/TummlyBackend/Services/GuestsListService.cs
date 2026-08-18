@@ -609,7 +609,7 @@ namespace TummlyBackend.Services
                 LatestFeedbackSentiment = latestFeedbackSentiment,
                 LastInteractionAt = lastInteractionAt,
                 MarketingStatus = LocationGuestProjections.DeriveMarketingStatus(
-                    locationGuest.OffersOptOut,
+                    locationGuest.MarketingPreference,
                     masterGuest.Email,
                     masterGuest.Mobile
                 ),

@@ -730,7 +730,7 @@ namespace TummlyBackend.Tests.Integration
                     MasterGuestId = master.Id,
                     RestaurantLocationId = seeded.LocationId,
                     Name = "Eligible Guest",
-                    OffersOptOut = false,
+                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
                     CreatedAt = DateTime.UtcNow.AddDays(-3),
                 }
             );

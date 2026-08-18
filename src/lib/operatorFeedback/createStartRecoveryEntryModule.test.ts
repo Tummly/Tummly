@@ -26,7 +26,7 @@ const sampleDetails: FeedbackDetailsResponse = {
   detectedTags: ["FoodTemperature", "FoodQuality", "SlowDelivery"],
   locationGuestId: 501,
   workflowStatus: "new",
-  guestOffersOptOut: false,
+  marketingPreference: "allowed",
   internalNotes: [],
   activityHistory: [],
 }
@@ -165,7 +165,7 @@ describe("createStartRecoveryEntryModule", () => {
 
   it("disables recovery-offer intent when Location Guest offers opt-out", async () => {
     const adapters = createAdapters({
-      details: { ...sampleDetails, guestOffersOptOut: true },
+      details: { ...sampleDetails, marketingPreference: "opted_out" },
     })
     const module = createStartRecoveryEntryModule(adapters)
 

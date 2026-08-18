@@ -34,7 +34,7 @@ const sampleDetails: FeedbackDetailsResponse = {
   detectedTags: ["FoodTemperature"],
   locationGuestId: 501,
   workflowStatus: "in_progress",
-  guestOffersOptOut: false,
+  marketingPreference: "allowed",
   internalNotes: [],
   activityHistory: [],
 }

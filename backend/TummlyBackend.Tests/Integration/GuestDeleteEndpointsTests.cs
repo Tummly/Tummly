@@ -365,7 +365,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = master.Id,
                 RestaurantLocationId = primary.Id,
                 Name = "Delete Target",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow,
             };
             context.LocationGuests.Add(locationGuest);
@@ -512,7 +512,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = master.Id,
                 RestaurantLocationId = primary.Id,
                 Name = "Primary Guest",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow,
             };
             var secondaryGuest = new LocationGuest
@@ -520,7 +520,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = master.Id,
                 RestaurantLocationId = secondary.Id,
                 Name = "Secondary Guest",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow,
             };
             context.LocationGuests.AddRange(primaryGuest, secondaryGuest);

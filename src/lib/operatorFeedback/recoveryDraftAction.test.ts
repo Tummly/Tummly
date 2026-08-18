@@ -76,7 +76,7 @@ describe("recoveryDraftAction", () => {
         workflowStatus: "resolved",
         contactType: "Email",
         guestContact: "a@b.com",
-        guestOffersOptOut: false,
+        marketingPreference: "allowed",
       })
     ).toBe(RECOVERY_DRAFT_ACTION_TOASTS.resolved)
 
@@ -86,7 +86,7 @@ describe("recoveryDraftAction", () => {
         workflowStatus: "new",
         contactType: "Unknown",
         guestContact: "",
-        guestOffersOptOut: false,
+        marketingPreference: "allowed",
       })
     ).toBe(RECOVERY_DRAFT_ACTION_TOASTS.noContact)
 
@@ -96,7 +96,17 @@ describe("recoveryDraftAction", () => {
         workflowStatus: "in_progress",
         contactType: "Email",
         guestContact: "a@b.com",
-        guestOffersOptOut: true,
+        marketingPreference: "opted_out",
+      })
+    ).toBe(RECOVERY_DRAFT_ACTION_TOASTS.offersOptOut)
+
+    expect(
+      recoveryDraftActionGateToast({
+        intent: "respond-with-recovery-offer",
+        workflowStatus: "in_progress",
+        contactType: "Email",
+        guestContact: "a@b.com",
+        marketingPreference: "not_recorded",
       })
     ).toBe(RECOVERY_DRAFT_ACTION_TOASTS.offersOptOut)
 
@@ -106,7 +116,7 @@ describe("recoveryDraftAction", () => {
         workflowStatus: "in_progress",
         contactType: "Email",
         guestContact: "a@b.com",
-        guestOffersOptOut: false,
+        marketingPreference: "allowed",
       })
     ).toBeNull()
   })

@@ -333,7 +333,7 @@ namespace TummlyBackend.Tests.Services
             {
                 RestaurantLocationId = locationId,
                 MasterGuestId = master.Id,
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = _now,
             };
             _context.LocationGuests.Add(lg);
@@ -397,7 +397,8 @@ namespace TummlyBackend.Tests.Services
             {
                 RestaurantLocationId = location.Id,
                 MasterGuestId = master.Id,
-                OffersOptOut = offersOptOut,
+                MarketingPreference = LocationGuestMarketingPreferenceExtensions.FromFeedbackOffersOptOut(offersOptOut),
+
                 CreatedAt = _now,
             };
             _context.LocationGuests.Add(lg);

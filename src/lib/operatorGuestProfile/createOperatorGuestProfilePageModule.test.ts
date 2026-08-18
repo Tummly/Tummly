@@ -17,7 +17,7 @@ function createGuestProfileResponse(
     id: 42,
     name: "Amelia Hart",
     marketingStatus: "Eligible — Email",
-    offersOptOut: false,
+    marketingPreference: "allowed",
     guestSinceAt: "2026-05-12T10:00:00Z",
     lastActivityAt: "2026-07-20T14:22:00Z",
     lastInteractionLabel: "Feedback submitted",
@@ -698,7 +698,7 @@ describe("createOperatorGuestProfilePageModule", () => {
       detectedTags: ["WaitTime"],
       locationGuestId: 42,
       workflowStatus: "new" as const,
-      guestOffersOptOut: false,
+      marketingPreference: "allowed",
       internalNotes: [],
       activityHistory: [],
     }))
@@ -1353,7 +1353,7 @@ describe("createOperatorGuestProfilePageModule", () => {
         detectedTags: ["cold_food"],
         locationGuestId: 42,
         workflowStatus: "new" as const,
-        guestOffersOptOut: false,
+        marketingPreference: "allowed",
         internalNotes: [],
         activityHistory: [],
       }))
@@ -1399,7 +1399,7 @@ describe("createOperatorGuestProfilePageModule", () => {
       detectedTags: ["cold_food"],
       locationGuestId: 42,
       workflowStatus: "new" as const,
-      guestOffersOptOut: false,
+      marketingPreference: "allowed",
       internalNotes: [],
       activityHistory: [],
     }))

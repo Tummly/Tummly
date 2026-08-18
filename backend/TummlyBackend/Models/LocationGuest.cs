@@ -20,9 +20,10 @@ namespace TummlyBackend.Models
             = string.Empty;
 
         /// <summary>
-        /// Durable Location Guest offers opt-out for this Owned location.
+        /// Durable Location Guest marketing preference for this Owned location.
         /// </summary>
-        public bool OffersOptOut { get; set; }
+        public LocationGuestMarketingPreference MarketingPreference { get; set; }
+            = LocationGuestMarketingPreference.Allowed;
 
         public DateTime CreatedAt { get; set; }
             = DateTime.UtcNow;

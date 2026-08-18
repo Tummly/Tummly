@@ -40,7 +40,7 @@ describe("startRecoveryPresentation", () => {
   it("orders four PRD intents with canonical copy when contact is available", () => {
     const intents = buildStartRecoveryIntents({
       contactCapability: "email_available",
-      guestOffersOptOut: false,
+      marketingPreference: "allowed",
       workflowStatus: "new",
     })
 
@@ -69,7 +69,7 @@ describe("startRecoveryPresentation", () => {
   it("disables Respond* intents when No contact; keeps Record internal action only enabled", () => {
     const intents = buildStartRecoveryIntents({
       contactCapability: "no_contact",
-      guestOffersOptOut: false,
+      marketingPreference: "allowed",
       workflowStatus: "in_progress",
     })
 
@@ -100,7 +100,7 @@ describe("startRecoveryPresentation", () => {
   it("disables recovery-offer intent when Location Guest offers opt-out", () => {
     const intents = buildStartRecoveryIntents({
       contactCapability: "sms_available",
-      guestOffersOptOut: true,
+      marketingPreference: "opted_out",
       workflowStatus: "new",
     })
 
@@ -115,10 +115,25 @@ describe("startRecoveryPresentation", () => {
     })
   })
 
+  it("disables recovery-offer intent when Location Guest preference is not recorded", () => {
+    const intents = buildStartRecoveryIntents({
+      contactCapability: "email_available",
+      marketingPreference: "not_recorded",
+      workflowStatus: "new",
+    })
+
+    expect(
+      intents.find((i) => i.id === "respond-with-recovery-offer")
+    ).toMatchObject({
+      enabled: false,
+      disableReason: "Guest has opted out of offers",
+    })
+  })
+
   it("disables all intents when Feedback is Resolved", () => {
     const intents = buildStartRecoveryIntents({
       contactCapability: "email_available",
-      guestOffersOptOut: false,
+      marketingPreference: "allowed",
       workflowStatus: "resolved",
     })
 

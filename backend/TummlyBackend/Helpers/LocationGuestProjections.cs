@@ -40,17 +40,17 @@ namespace TummlyBackend.Helpers
     public static class LocationGuestProjections
     {
         /// <summary>
-        /// Marketing-eligible when not opted out and a reachable email or mobile
-        /// is present. Keep in sync with
+        /// Marketing-eligible when preference is allowed and a reachable email
+        /// or mobile is present. Keep in sync with
         /// <see cref="GuestsListQueryComposer.WhereMarketingEligible"/>.
         /// </summary>
         public static bool IsMarketingEligible(
-            bool offersOptOut,
+            LocationGuestMarketingPreference preference,
             string? email,
             string? mobile
         )
         {
-            return !offersOptOut
+            return preference.IsAllowed()
                 && (
                     !string.IsNullOrWhiteSpace(email)
                     || !string.IsNullOrWhiteSpace(mobile)
@@ -58,12 +58,12 @@ namespace TummlyBackend.Helpers
         }
 
         public static string DeriveMarketingStatus(
-            bool offersOptOut,
+            LocationGuestMarketingPreference preference,
             string? email,
             string? mobile
         )
         {
-            if (!IsMarketingEligible(offersOptOut, email, mobile))
+            if (!IsMarketingEligible(preference, email, mobile))
             {
                 return "Not eligible";
             }
@@ -104,16 +104,25 @@ namespace TummlyBackend.Helpers
         }
 
         /// <summary>
-        /// When the current Location Guest offers opt-out state began, from
+        /// When the current Location Guest marketing preference began, from
         /// per-Feedback Offers opt-out audit. Newest contiguous streak matching
-        /// <paramref name="currentOffersOptOut"/>; returns the oldest CreatedAt
+        /// <paramref name="currentPreference"/>; returns the oldest CreatedAt
         /// in that streak (first consent, or re-opt-in after a prior opt-out).
+        /// <see cref="LocationGuestMarketingPreference.NotRecorded"/> has no
+        /// Feedback mapping and returns null.
         /// </summary>
         public static DateTime? ResolveOffersConsentDetailAt(
-            bool currentOffersOptOut,
+            LocationGuestMarketingPreference currentPreference,
             IEnumerable<LocationGuestOffersOptOutFact> feedbacks
         )
         {
+            if (currentPreference == LocationGuestMarketingPreference.NotRecorded)
+            {
+                return null;
+            }
+
+            var currentOffersOptOut =
+                currentPreference == LocationGuestMarketingPreference.OptedOut;
             DateTime? streakStart = null;
 
             foreach (
@@ -132,7 +141,7 @@ namespace TummlyBackend.Helpers
         }
 
         public static IReadOnlyList<LocationGuestContactEligibilityRow> BuildContactEligibility(
-            bool offersOptOut,
+            LocationGuestMarketingPreference preference,
             string? email,
             string? mobile,
             DateTime? consentCapturedAt = null
@@ -140,15 +149,15 @@ namespace TummlyBackend.Helpers
         {
             return
             [
-                BuildContactEligibilityRow("email", email, offersOptOut, consentCapturedAt),
-                BuildContactEligibilityRow("sms", mobile, offersOptOut, consentCapturedAt),
+                BuildContactEligibilityRow("email", email, preference, consentCapturedAt),
+                BuildContactEligibilityRow("sms", mobile, preference, consentCapturedAt),
             ];
         }
 
         private static LocationGuestContactEligibilityRow BuildContactEligibilityRow(
             string channel,
             string? contact,
-            bool offersOptOut,
+            LocationGuestMarketingPreference preference,
             DateTime? consentCapturedAt
         )
         {
@@ -162,12 +171,22 @@ namespace TummlyBackend.Helpers
                 );
             }
 
-            if (offersOptOut)
+            if (preference == LocationGuestMarketingPreference.OptedOut)
             {
                 return new LocationGuestContactEligibilityRow(
                     Channel: channel,
                     Status: "unsubscribed",
                     DetailKind: "unsubscribed",
+                    DetailAt: consentCapturedAt
+                );
+            }
+
+            if (preference == LocationGuestMarketingPreference.NotRecorded)
+            {
+                return new LocationGuestContactEligibilityRow(
+                    Channel: channel,
+                    Status: "not_recorded",
+                    DetailKind: "not_recorded",
                     DetailAt: consentCapturedAt
                 );
             }

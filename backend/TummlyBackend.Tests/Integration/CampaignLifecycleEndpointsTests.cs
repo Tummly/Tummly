@@ -162,7 +162,7 @@ namespace TummlyBackend.Tests.Integration
             {
                 RestaurantLocationId = location.Id,
                 MasterGuestId = master.Id,
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = now,
             };
             context.LocationGuests.Add(locationGuest);

@@ -99,6 +99,7 @@ export const GUEST_PROFILE_CONTACT_STATUS_LABELS = {
   eligible: "Eligible",
   unsubscribed: "Unsubscribed",
   not_provided: GUEST_PROFILE_NOT_PROVIDED,
+  not_recorded: "Not recorded",
 } as const
 
 /** Honesty: Source until first-class capture ships. */
@@ -226,6 +227,7 @@ export const GUEST_EDIT_PAGE = {
       eligible: "Opted in",
       unsubscribed: "Unsubscribed",
       not_provided: "Not opted in",
+      not_recorded: "Not recorded",
     },
     sourcePlaceholder: "—",
     datePlaceholder: "—",

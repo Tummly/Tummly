@@ -497,7 +497,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = master.Id,
                 RestaurantLocationId = location.Id,
                 Name = "Notes Guest",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow,
             };
             context.LocationGuests.Add(locationGuest);
