@@ -2197,11 +2197,230 @@ namespace TummlyBackend.Tests.Services
             var campaign = Assert.Single(_context.Campaigns);
             Assert.Equal("draft", campaign.Status);
             Assert.Contains("Nothing was sent or scheduled", ok.Conversation.Messages[^1].Body);
+            Assert.Null(ok.Conversation.SendScheduleRoute);
             Assert.Equal(
                 new[] { "review-campaign", "change-audience", "add-offer" },
                 ok.Conversation.Messages[^1].Actions.Select(action => action.Type)
             );
         }
+
+        [Fact]
+        public async Task SendTurn_LaterSendItNow_RoutesStoredCampaignDraftAndDoesNotSend()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com"
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+            var campaign = Assert.Single(_context.Campaigns);
+
+            var later = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "send it now", started.Conversation.Id)
+                )
+            );
+
+            Assert.Equal("draft", campaign.Status);
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+            Assert.Null(campaign.ScheduledAtUtc);
+            var answer = later.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Contains("Nothing was sent", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+            var route = later.Conversation.SendScheduleRoute;
+            Assert.NotNull(route);
+            Assert.Equal("campaign", route!.Kind);
+            Assert.Equal(campaign.Id, route.CampaignId);
+            Assert.Equal("review", route.Step);
+            Assert.Equal("send-now", route.ScheduleMode);
+
+            var resumed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.GetAsync(ownerUserId: 7, started.Conversation.Id)
+            );
+            Assert.Null(resumed.Conversation.SendScheduleRoute);
+            Assert.Equal(
+                campaign.Id,
+                resumed.Conversation.Messages
+                    .SelectMany(message => message.Actions)
+                    .First(action => action.Type == "review-campaign")
+                    .CampaignId
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_SendItNowWithoutStoredId_DoesNotRouteOrPersist()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "send it now")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.Null(ok.Conversation.SendScheduleRoute);
+            Assert.DoesNotContain(
+                ok.Conversation.Messages[^1].Actions,
+                action => action.Type == "review-campaign"
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_ActivateOffer_IsRefusedAndDoesNotRoute()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, CanonicalCamdenOfferPathAsk)
+                )
+            );
+
+            var later = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "activate this offer", started.Conversation.Id)
+                )
+            );
+
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(CatalogOfferStatus.Draft, offer.Status);
+            Assert.Null(later.Conversation.SendScheduleRoute);
+            Assert.Equal("refusal", later.Conversation.Messages[^1].Class);
+            Assert.Contains(
+                "cannot activate",
+                later.Conversation.Messages[^1].Body,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_LaterSendItNowOnRecovery_RoutesReviewAndDoesNotSend()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest"
+            );
+            _recoveryDrafts.SucceedWith(
+                "Thank you for your feedback. We are looking into this.",
+                "Regarding your recent visit",
+                "email"
+            );
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Prepare a recovery response")
+                )
+            );
+
+            var later = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "send it now", started.Conversation.Id)
+                )
+            );
+
+            Assert.Equal(
+                FeedbackWorkflowStatus.New,
+                (await _context.Feedbacks.SingleAsync()).WorkflowStatus
+            );
+            Assert.Empty(_context.FeedbackRecoveryOffers);
+            var route = later.Conversation.SendScheduleRoute;
+            Assert.NotNull(route);
+            Assert.Equal("recovery", route!.Kind);
+            Assert.Equal(
+                started.Conversation.PendingRecoveryDraft!.FeedbackId,
+                route.FeedbackId
+            );
+            Assert.Equal("respond-to-guest", route.Intent);
+            Assert.Contains("Nothing was sent", later.Conversation.Messages[^1].Body);
+        }
+
+        [Fact]
+        public async Task SendTurn_RecoveryTimedSchedule_StaysInAssistant()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest"
+            );
+            _recoveryDrafts.SucceedWith(
+                "Thank you for your feedback. We are looking into this.",
+                "Regarding your recent visit",
+                "email"
+            );
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Prepare a recovery response")
+                )
+            );
+
+            var later = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "schedule it for Friday",
+                        started.Conversation.Id
+                    )
+                )
+            );
+
+            Assert.Null(later.Conversation.SendScheduleRoute);
+            Assert.Equal("refusal", later.Conversation.Messages[^1].Class);
+        }
+
+        [Fact]
+        public async Task SendTurn_MixedRetrieveAndSendItNow_RoutesWithoutRetrieveAnswer()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com"
+            );
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+
+            var later = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Show me Campaign drafts and send it now",
+                        started.Conversation.Id
+                    )
+                )
+            );
+
+            Assert.NotNull(later.Conversation.SendScheduleRoute);
+            Assert.Equal("campaign", later.Conversation.SendScheduleRoute!.Kind);
+            Assert.DoesNotContain(
+                "No facts",
+                later.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("Nothing was sent", later.Conversation.Messages[^1].Body);
+        }
+
 
         [Fact]
         public async Task SendTurn_CampaignPersistFailure_NamesFailedStepAndDoesNotInventId()
@@ -3349,7 +3568,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_UnsupportedMixedAsk_GroundsInScope_AndAddsRefuseSentence()
+        public async Task SendTurn_UnsupportedMixedAsk_StaysAndDoesNotSearch()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
@@ -3361,9 +3580,14 @@ namespace TummlyBackend.Tests.Services
 
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             var answer = ok.Conversation.Messages[1];
-            Assert.Equal("grounded", answer.Class);
-            Assert.Contains("1 feedback item", answer.Body);
-            Assert.Contains("cannot create, send, or change records", answer.Body);
+            Assert.Equal("refusal", answer.Class);
+            Assert.Null(ok.Conversation.SendScheduleRoute);
+            Assert.DoesNotContain("1 feedback item", answer.Body);
+            Assert.Contains(
+                "cannot send or schedule",
+                answer.Body,
+                StringComparison.OrdinalIgnoreCase
+            );
         }
 
         [Fact]

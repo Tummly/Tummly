@@ -26,6 +26,7 @@ import type {
   CatalogOfferDetail,
   CreateCampaignDraftRequest,
 } from "@/types/operatorCampaigns"
+import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import {
   ASSISTANT_ARCHIVE_EMPTY_TITLE,
   ASSISTANT_ARCHIVE_TITLE,
@@ -129,6 +130,18 @@ export type OperatorAiAssistantConversationRow = {
   pendingOfferDraft?: CreateCatalogOfferRequestBody | null
   pendingRecoveryDraft?: RecoveryDraftActionPayload | null
   draftInterviewActive?: boolean
+  sendScheduleRoute?: AssistantSendScheduleRoute | null
+}
+
+export type AssistantSendScheduleRoute = {
+  kind: "campaign" | "recovery"
+  campaignId?: number | null
+  step?: "review" | "schedule" | null
+  scheduleMode?: CampaignScheduleModeId | null
+  dateLocal?: string | null
+  timeLocal?: string | null
+  feedbackId?: number | null
+  intent?: string | null
 }
 
 export type OperatorAiAssistantOwnedLocationOption = {
@@ -297,6 +310,7 @@ export type OperatorAiAssistantAdapters = {
     recoveryDraft?: RecoveryDraftActionPayload | null
     campaignDraft?: CampaignDraftDetail | null
     catalogOffer?: CatalogOfferDetail | null
+    sendScheduleRoute?: AssistantSendScheduleRoute | null
   }) => void
   /**
    * Load the Campaign Draft to gate completing-turn open. Return null when
@@ -595,6 +609,7 @@ export function createInMemoryOperatorAiAssistantAdapters(
     campaignDraft?: CampaignDraftDetail | null
     catalogOffer?: CatalogOfferDetail | null
     recoveryDraft?: RecoveryDraftActionPayload | null
+    sendScheduleRoute?: AssistantSendScheduleRoute | null
   } | null
 } {
   const conversations: OperatorAiAssistantConversationRow[] = []
@@ -611,6 +626,7 @@ export function createInMemoryOperatorAiAssistantAdapters(
       campaignDraft?: CampaignDraftDetail | null
       catalogOffer?: CatalogOfferDetail | null
       recoveryDraft?: RecoveryDraftActionPayload | null
+      sendScheduleRoute?: AssistantSendScheduleRoute | null
     } | null,
   }
 
@@ -1527,6 +1543,99 @@ export function createOperatorAiAssistantModule(
     publish()
   }
 
+  const followSendScheduleRoute = (
+    row: OperatorAiAssistantConversationRow
+  ) => {
+    const route = row.sendScheduleRoute
+    const analysisScope = state.analysisScope
+    if (route == null || analysisScope == null || state.actionInFlight) {
+      return
+    }
+    if (route.kind === "recovery") {
+      const payload = row.pendingRecoveryDraft
+      if (payload == null) {
+        return
+      }
+      state = { ...state, actionInFlight: true }
+      publish()
+      void adapters
+        .prepareOpenRecovery({
+          feedbackId: payload.feedbackId,
+          intent: payload.intent,
+          offerId: payload.offerId ?? null,
+        })
+        .then(() => adapters.openRecoveryFromDraftAction(payload))
+        .then(() => {
+          state = { ...state, actionInFlight: false }
+          publish()
+          closeDrawer()
+          adapters.navigateAction({
+            action: {
+              type: "open-recovery",
+              label: "Review recovery",
+              feedbackId: payload.feedbackId,
+              intent: payload.intent,
+            },
+            analysisScope,
+            recoveryDraft: payload,
+            sendScheduleRoute: route,
+          })
+        })
+        .catch((error: unknown) => {
+          state = { ...state, actionInFlight: false }
+          const message =
+            error instanceof Error && error.message.trim() !== ""
+              ? error.message
+              : "Could not open recovery. Please try again."
+          adapters.notifyRecoveryDraftError(message)
+          publish()
+        })
+      return
+    }
+
+    const campaignId = route.campaignId
+    if (campaignId == null) {
+      return
+    }
+    state = {
+      ...state,
+      actionInFlight: true,
+      completingCampaignNavigateId: campaignId,
+    }
+    publish()
+    void adapters
+      .getCampaignDraft(campaignId)
+      .then((campaign) => {
+        if (
+          !canOpenStoredDraftFromAssistant(
+            campaign,
+            analysisScope.ownedLocationId
+          )
+        ) {
+          throw new Error("Campaign draft cannot open.")
+        }
+        adapters.navigateAction({
+          action: {
+            type: "review-campaign",
+            label: "Review campaign draft",
+            campaignId,
+          },
+          analysisScope,
+          campaignDraft: campaign,
+          sendScheduleRoute: route,
+        })
+        closeDrawer()
+      })
+      .catch(() => {
+        state = {
+          ...state,
+          actionInFlight: false,
+          completingCampaignNavigateId: null,
+        }
+        publish()
+      })
+  }
+
   const runTurn = (message: string, replaceFailure: boolean) => {
     if (state.turnInFlight) {
       return
@@ -1591,6 +1700,7 @@ export function createOperatorAiAssistantModule(
           composerDraft: "",
         }
         publish()
+        followSendScheduleRoute(row)
       })
       .catch((error: unknown) => {
         if (generation !== sendGeneration) {

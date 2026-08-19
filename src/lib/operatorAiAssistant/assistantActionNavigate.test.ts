@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { planAssistantActionNavigate } from "./assistantActionNavigate"
+import { planAssistantActionNavigate, planAssistantSendScheduleRoute } from "./assistantActionNavigate"
 import type { OperatorAiAssistantAnalysisScope } from "./createOperatorAiAssistantModule"
 
 const SCOPE: OperatorAiAssistantAnalysisScope = {
@@ -310,6 +310,77 @@ describe("planAssistantActionNavigate", () => {
     ).toEqual({
       path: "/single-dashboard/guests/42?location=11",
       selectLocationId: 11,
+    })
+  })
+
+  it("maps later Send it now to Campaign wizard Review, not Campaign Detail", () => {
+    expect(
+      planAssistantSendScheduleRoute({
+        route: {
+          kind: "campaign",
+          campaignId: 41,
+          step: "review",
+          scheduleMode: "send-now",
+        },
+        analysisScope: SCOPE,
+        mode: "multi",
+      })
+    ).toEqual({
+      path: "/multi-dashboard/campaigns?location=11",
+      selectLocationId: 11,
+      campaigns: {
+        continueEditingCampaignId: 41,
+        continueEditingStep: "review",
+        scheduleMode: "send-now",
+      },
+    })
+  })
+
+  it("maps later schedule without datetime to Campaign wizard Schedule", () => {
+    expect(
+      planAssistantSendScheduleRoute({
+        route: {
+          kind: "campaign",
+          campaignId: 41,
+          step: "schedule",
+          scheduleMode: "schedule-later",
+        },
+        analysisScope: SCOPE,
+        mode: "multi",
+      }).campaigns
+    ).toEqual({
+      continueEditingCampaignId: 41,
+      continueEditingStep: "schedule",
+      scheduleMode: "schedule-later",
+    })
+  })
+
+  it("maps later recovery send to Feedback Review hydrate, not Campaign wizard", () => {
+    const recoveryDraft = {
+      feedbackId: 42,
+      intent: "respond-to-guest" as const,
+      channel: "email" as const,
+      purpose: "acknowledge_feedback" as const,
+      tone: "warm_and_apologetic" as const,
+      includeNotes: "",
+      subject: "Hi",
+      message: "Thanks",
+    }
+    expect(
+      planAssistantSendScheduleRoute({
+        route: {
+          kind: "recovery",
+          feedbackId: 42,
+          intent: "respond-to-guest",
+        },
+        analysisScope: SCOPE,
+        mode: "multi",
+        recoveryDraft,
+      })
+    ).toEqual({
+      path: "/multi-dashboard/feedback?location=11",
+      selectLocationId: 11,
+      recoveryDraft,
     })
   })
 })

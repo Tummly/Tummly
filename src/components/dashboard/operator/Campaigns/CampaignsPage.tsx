@@ -47,6 +47,7 @@ import { createCampaignTemplatePickerModule } from "@/lib/operatorCampaigns/crea
 import { createCampaignTemplatePreviewModule } from "@/lib/operatorCampaigns/createCampaignTemplatePreviewModule"
 import { createCampaignWizardModule } from "@/lib/operatorCampaigns/createCampaignWizardModule"
 import type { CampaignWizardContinueEditingStep } from "@/lib/operatorCampaigns/campaignWizardPresentation"
+import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import type { CampaignRowActionId } from "@/lib/operatorCampaigns/campaignListPresentation"
 import { loadCampaignMessagingBalances } from "@/lib/operatorCampaigns/loadCampaignMessagingBalances"
 import { prepareCampaignMessageDraft } from "@/lib/operatorCampaigns/prepareCampaignMessageDraft"
@@ -336,7 +337,12 @@ export function CampaignsPage() {
   const handleContinueEditing = (
     campaignId: number,
     startStep?: CampaignWizardContinueEditingStep,
-    loadedDraft?: CampaignDraftDetail
+    loadedDraft?: CampaignDraftDetail,
+    scheduleLand?: {
+      scheduleMode?: CampaignScheduleModeId
+      dateLocal?: string
+      timeLocal?: string
+    }
   ) => {
     const viewModel = snapshot.viewModel
     if (viewModel == null) {
@@ -357,6 +363,9 @@ export function CampaignsPage() {
           locationAddress: selectedLocationAddress,
           draft,
           startStep,
+          scheduleMode: scheduleLand?.scheduleMode,
+          dateLocal: scheduleLand?.dateLocal,
+          timeLocal: scheduleLand?.timeLocal,
         })
       } catch {
         toast.error("Could not open this campaign draft. Try again.")
@@ -377,8 +386,13 @@ export function CampaignsPage() {
     const campaignId = campaignsIntent.continueEditingCampaignId
     const startStep = campaignsIntent.continueEditingStep
     const loadedDraft = campaignsIntent.campaign
+    const scheduleLand = {
+      scheduleMode: campaignsIntent.scheduleMode,
+      dateLocal: campaignsIntent.dateLocal,
+      timeLocal: campaignsIntent.timeLocal,
+    }
     setCampaignsIntent(null)
-    handleContinueEditing(campaignId, startStep, loadedDraft)
+    handleContinueEditing(campaignId, startStep, loadedDraft, scheduleLand)
   }, [campaignsIntent, setCampaignsIntent, snapshot.viewModel])
 
   const handlePreviewCampaign = (campaignId: number) => {

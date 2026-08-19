@@ -655,6 +655,23 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (gapState is null
+                && !AssistantTaskClassification.LooksLikeCreateCampaignDraft(userMessage)
+                && !AssistantTaskClassification.LooksLikeOfferPath(userMessage)
+                && !AssistantTaskClassification.LooksLikeRecoveryPath(userMessage))
+            {
+                var sendScheduleTurn = await TryFinishSendScheduleRouteAsync(
+                    conversation,
+                    userMessage,
+                    replaceFailure,
+                    cancellationToken
+                );
+                if (sendScheduleTurn is not null)
+                {
+                    return sendScheduleTurn;
+                }
+            }
+
             var periodPhrase = AssistantAnalysisScope.PeriodPhrase(scope.ReportingPeriod);
             var window = AssistantReportingPeriodWindow.Resolve(
                 scope.ReportingPeriod,
@@ -2616,13 +2633,210 @@ namespace TummlyBackend.Services
             }
         }
 
+        private async Task<AssistantTurnOutcome?> TryFinishSendScheduleRouteAsync(
+            AssistantConversation conversation,
+            string userMessage,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken
+        )
+        {
+            if (AssistantSendScheduleAsk.LooksLikeOfferActivate(userMessage))
+            {
+                return await PersistSendScheduleStayAsync(
+                    conversation,
+                    RefusalMessage(
+                        DateTime.UtcNow,
+                        AssistantSendScheduleCopy.OfferActivateBody()
+                    ),
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
+
+            if (!AssistantSendScheduleAsk.LooksLikeSendOrSchedule(userMessage))
+            {
+                return null;
+            }
+
+            var recovery = AssistantRecoveryWork.Parse(conversation.RecoveryWorkJson);
+            var hasCampaign = conversation.CreatedCampaignId is int;
+            var hasRecovery = recovery is not null;
+            if (!hasCampaign && !hasRecovery)
+            {
+                return await PersistSendScheduleStayAsync(
+                    conversation,
+                    RefusalMessage(
+                        DateTime.UtcNow,
+                        AssistantSendScheduleCopy.NoStoredBody()
+                    ),
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
+
+            var namesCampaign = AssistantSendScheduleAsk.LooksLikeCampaignNamed(userMessage);
+            var namesRecovery = AssistantSendScheduleAsk.LooksLikeRecoverySend(userMessage);
+            var timedSchedule = AssistantSendScheduleAsk.LooksLikeTimedSchedule(userMessage);
+
+            if (hasRecovery && (!hasCampaign || (namesRecovery && !namesCampaign)))
+            {
+                if (namesCampaign && !namesRecovery)
+                {
+                    return await PersistSendScheduleStayAsync(
+                        conversation,
+                        RefusalMessage(
+                            DateTime.UtcNow,
+                            AssistantSendScheduleCopy.OtherTypeBody()
+                        ),
+                        replaceFailure,
+                        cancellationToken
+                    );
+                }
+
+                if (timedSchedule)
+                {
+                    return await PersistSendScheduleStayAsync(
+                        conversation,
+                        RefusalMessage(
+                            DateTime.UtcNow,
+                            AssistantSendScheduleCopy.RecoveryScheduleBody()
+                        ),
+                        replaceFailure,
+                        cancellationToken
+                    );
+                }
+
+                return await PersistSendScheduleStayAsync(
+                    conversation,
+                    GroundedMessage(
+                        DateTime.UtcNow,
+                        AssistantSendScheduleCopy.Title,
+                        AssistantSendScheduleCopy.RecoveryBody(),
+                        []
+                    ),
+                    replaceFailure,
+                    cancellationToken,
+                    new AssistantSendScheduleRouteDto
+                    {
+                        Kind = AssistantSendScheduleAsk.KindRecovery,
+                        FeedbackId = recovery!.FeedbackId,
+                        Intent = recovery.Intent,
+                    }
+                );
+            }
+
+            if (hasCampaign && namesRecovery && !namesCampaign)
+            {
+                return await PersistSendScheduleStayAsync(
+                    conversation,
+                    RefusalMessage(
+                        DateTime.UtcNow,
+                        AssistantSendScheduleCopy.OtherTypeBody()
+                    ),
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
+
+            var campaignId = conversation.CreatedCampaignId!.Value;
+            CampaignDraftDto? draft;
+            try
+            {
+                draft = await _campaignDrafts.GetByIdAsync(campaignId, cancellationToken);
+            }
+            catch
+            {
+                return await PersistSendScheduleStayAsync(
+                    conversation,
+                    RefusalMessage(
+                        DateTime.UtcNow,
+                        AssistantSendScheduleCopy.OpenFailureBody()
+                    ),
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
+
+            if (draft is null || draft.LocationId != conversation.OwnedLocationId)
+            {
+                return await PersistSendScheduleStayAsync(
+                    conversation,
+                    RefusalMessage(
+                        DateTime.UtcNow,
+                        AssistantSendScheduleCopy.OpenFailureBody()
+                    ),
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
+
+            if (AssistantSendScheduleAsk.IsNamedCampaignMismatch(userMessage, draft.Name))
+            {
+                return await PersistSendScheduleStayAsync(
+                    conversation,
+                    GroundedMessage(
+                        DateTime.UtcNow,
+                        AssistantSendScheduleCopy.MismatchTitle,
+                        AssistantSendScheduleCopy.NamedMismatchBody(draft.Name),
+                        []
+                    ),
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
+
+            var landing = AssistantSendScheduleAsk.CampaignLanding(
+                userMessage,
+                DateTime.UtcNow
+            );
+            return await PersistSendScheduleStayAsync(
+                conversation,
+                GroundedMessage(
+                    DateTime.UtcNow,
+                    AssistantSendScheduleCopy.Title,
+                    AssistantSendScheduleCopy.CampaignBody(landing.Step),
+                    []
+                ),
+                replaceFailure,
+                cancellationToken,
+                new AssistantSendScheduleRouteDto
+                {
+                    Kind = AssistantSendScheduleAsk.KindCampaign,
+                    CampaignId = draft.Id,
+                    Step = landing.Step,
+                    ScheduleMode = landing.ScheduleMode,
+                    DateLocal = landing.DateLocal,
+                    TimeLocal = landing.TimeLocal,
+                }
+            );
+        }
+
+        private async Task<AssistantTurnOutcome> PersistSendScheduleStayAsync(
+            AssistantConversation conversation,
+            AssistantMessage assistantMessage,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken,
+            AssistantSendScheduleRouteDto? sendScheduleRoute = null
+        )
+        {
+            conversation.LastCompareLocationIdsJson = null;
+            return await PersistAssistantAsync(
+                conversation,
+                assistantMessage,
+                replaceFailure,
+                cancellationToken,
+                sendScheduleRoute: sendScheduleRoute
+            );
+        }
+
         private async Task<AssistantTurnOutcome> PersistAssistantAsync(
             AssistantConversation conversation,
             AssistantMessage assistantMessage,
             AssistantMessage? replaceFailure,
             CancellationToken cancellationToken,
             string? proposedConversationTitle = null,
-            bool liveAnswerAlreadyCompleted = false
+            bool liveAnswerAlreadyCompleted = false,
+            AssistantSendScheduleRouteDto? sendScheduleRoute = null
         )
         {
             if (replaceFailure is not null)
@@ -2649,9 +2863,9 @@ namespace TummlyBackend.Services
             conversation.LastActivityAt = assistantMessage.CreatedAt;
             await _context.SaveChangesAsync(cancellationToken);
 
-            return new AssistantTurnOutcome.Ok(
-                AssistantAnalysisScope.ToConversationDto(conversation)
-            );
+            var dto = AssistantAnalysisScope.ToConversationDto(conversation);
+            dto.SendScheduleRoute = sendScheduleRoute;
+            return new AssistantTurnOutcome.Ok(dto);
         }
 
         private async Task<string?> TryReadModelConversationTitleAsync(

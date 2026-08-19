@@ -161,8 +161,11 @@ export type CampaignWizardOpenFromDraftInput = {
   locationName: string
   locationAddress?: string | null
   draft: CampaignDraftDetail
-  /** Assistant Change audience / Add Offer land. Default resumes from persisted fields. */
+  /** Assistant Change audience / Add Offer / later send-schedule land. */
   startStep?: CampaignWizardContinueEditingStep
+  scheduleMode?: CampaignScheduleModeId
+  dateLocal?: string
+  timeLocal?: string
 }
 
 export type CampaignWizardOpenFromRecommendationInput = {
@@ -2504,11 +2507,15 @@ export function createCampaignWizardModule(
           ? "audience"
           : input.startStep === "offer"
             ? "offer"
-            : goalId == null
-              ? "goal"
-              : hasMessageContent
-                ? "schedule"
-                : "audience"
+            : input.startStep === "schedule"
+              ? "schedule"
+              : input.startStep === "review"
+                ? "review"
+                : goalId == null
+                  ? "goal"
+                  : hasMessageContent
+                    ? "schedule"
+                    : "audience"
 
       const offerStanceId = forceNoOfferLand
         ? "no-offer"
@@ -2537,6 +2544,9 @@ export function createCampaignWizardModule(
         messageWriteEntry: hasMessageContent ? "editor" : "chooser",
         messageSubject: draft.messageSubject ?? "",
         messageBody: draft.messageBody ?? "",
+        scheduleModeId: input.scheduleMode ?? defaultCampaignScheduleModeId(),
+        scheduleDateLocal: input.dateLocal ?? "",
+        scheduleTimeLocal: input.timeLocal ?? "",
         lastSavedAt: getNow(),
         saveStatus: "saved",
       }

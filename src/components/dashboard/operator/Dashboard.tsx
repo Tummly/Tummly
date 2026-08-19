@@ -6,7 +6,7 @@ import {
   DashboardUiStoreProvider,
   useDashboardUiStoreApi,
 } from "@/components/dashboard/operator/DashboardUiStoreProvider"
-import { planAssistantActionNavigate } from "@/lib/operatorAiAssistant/assistantActionNavigate"
+import { planAssistantActionNavigate, planAssistantSendScheduleRoute } from "@/lib/operatorAiAssistant/assistantActionNavigate"
 import { CapturePageModuleProvider } from "@/components/dashboard/operator/Capture/CapturePageModuleProvider"
 import { HomePageModuleProvider } from "@/components/dashboard/operator/Home/HomePageModuleProvider"
 import { CampaignsPageModuleProvider } from "@/components/dashboard/operator/Campaigns/CampaignsPageModuleProvider"
@@ -74,14 +74,22 @@ function DashboardContent({ mode }: DashboardProps) {
       id: location.id,
       name: location.locationName,
     })),
-    navigateAction: ({ action, analysisScope, recoveryDraft, campaignDraft }) => {
-      const plan = planAssistantActionNavigate({
-        action,
-        analysisScope,
-        mode,
-        recoveryDraft,
-        campaignDraft,
-      })
+    navigateAction: ({ action, analysisScope, recoveryDraft, campaignDraft, sendScheduleRoute }) => {
+      const plan = sendScheduleRoute
+        ? planAssistantSendScheduleRoute({
+            route: sendScheduleRoute,
+            analysisScope,
+            mode,
+            recoveryDraft,
+            campaignDraft,
+          })
+        : planAssistantActionNavigate({
+            action,
+            analysisScope,
+            mode,
+            recoveryDraft,
+            campaignDraft,
+          })
       workspace.selectLocation(plan.selectLocationId)
       if (plan.feedbackDateRange) {
         dashboardUiStore

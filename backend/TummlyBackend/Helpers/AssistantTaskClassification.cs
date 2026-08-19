@@ -32,6 +32,12 @@ namespace TummlyBackend.Helpers
                 return AssistantTask.OfferPath;
             }
 
+            if (AssistantSendScheduleAsk.LooksLikeOfferActivate(userMessage)
+                || AssistantSendScheduleAsk.LooksLikeSendOrSchedule(userMessage))
+            {
+                return AssistantTask.Refuse;
+            }
+
             if (AssistantAskIntent.IsFullRefusal(AssistantAskIntent.Classify(userMessage)))
             {
                 return AssistantTask.Refuse;

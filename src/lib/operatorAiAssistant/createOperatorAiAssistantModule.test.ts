@@ -16,7 +16,7 @@ import {
   periodPhraseForReportingPeriod,
   type OperatorAiAssistantConversationRow,
 } from "./createOperatorAiAssistantModule"
-import { planAssistantActionNavigate } from "./assistantActionNavigate"
+import { planAssistantActionNavigate, planAssistantSendScheduleRoute } from "./assistantActionNavigate"
 
 describe("createOperatorAiAssistantModule", () => {
   it("openDrawer shows the empty greeting at collapsed 620 width with no server row", () => {
@@ -1706,6 +1706,206 @@ describe("grounded live answers, helpful fill, and Actions", () => {
       id: 41,
       status: "draft",
       locationId: 1,
+    })
+  })
+
+  it("does not auto-route when completing create includes send it now", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-create",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: null,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Campaign Draft saved",
+            body: "Nothing was sent or scheduled.",
+            actions: [
+              {
+                type: "review-campaign",
+                label: "Review campaign draft",
+                campaignId: 41,
+              },
+            ],
+          },
+        ],
+      }),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft(
+      "Draft an Email Campaign to bring back all currently Email-eligible guests at Camden and send it now"
+    )
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(adapters.lastNavigate).toBeNull()
+  })
+
+  it("closes the Assistant and lands Campaign wizard Review on later Send it now, not Campaign Detail", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-route",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: null,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Open to confirm",
+            body: "Nothing was sent. Opening Campaign Review so you can confirm.",
+            actions: [],
+          },
+        ],
+        sendScheduleRoute: {
+          kind: "campaign",
+          campaignId: 41,
+          step: "review",
+          scheduleMode: "send-now",
+        },
+      }),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("send it now")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(adapters.lastNavigate?.sendScheduleRoute).toMatchObject({
+      kind: "campaign",
+      campaignId: 41,
+      step: "review",
+      scheduleMode: "send-now",
+    })
+    expect(
+      planAssistantSendScheduleRoute({
+        route: adapters.lastNavigate!.sendScheduleRoute!,
+        analysisScope: adapters.lastNavigate!.analysisScope,
+        mode: "multi",
+        campaignDraft: adapters.lastNavigate!.campaignDraft,
+      }).campaigns
+    ).toEqual({
+      continueEditingCampaignId: 41,
+      continueEditingStep: "review",
+      scheduleMode: "send-now",
+      campaign: expect.objectContaining({ id: 41, status: "draft" }),
+    })
+  })
+
+  it("keeps the Assistant open when later Send it now cannot load the Campaign Draft", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-route",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: null,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Open to confirm",
+            body: "Nothing was sent. Opening Campaign Review so you can confirm.",
+            actions: [],
+          },
+        ],
+        sendScheduleRoute: {
+          kind: "campaign",
+          campaignId: 41,
+          step: "review",
+          scheduleMode: "send-now",
+        },
+      }),
+      getCampaignDraft: async () => null,
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("send it now")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(adapters.lastNavigate).toBeNull()
+  })
+
+  it("closes the Assistant and hydrates recovery Review on later Send it now", async () => {
+    const recoveryDraft = {
+      feedbackId: 42,
+      intent: "respond-to-guest" as const,
+      channel: "email" as const,
+      purpose: "apologise_and_confirm_follow_up" as const,
+      tone: "warm_and_apologetic" as const,
+      includeNotes: "",
+      subject: "Regarding your recent visit",
+      message: "Thank you for your feedback.",
+    }
+    let prepareCalls = 0
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-recovery-route",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingRecoveryDraft: recoveryDraft,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Open to confirm",
+            body: "Nothing was sent. Opening Feedback recovery Review.",
+            actions: [],
+          },
+        ],
+        sendScheduleRoute: {
+          kind: "recovery",
+          feedbackId: 42,
+          intent: "respond-to-guest",
+        },
+      }),
+      prepareOpenRecovery: async () => {
+        prepareCalls += 1
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("send it now")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(prepareCalls).toBe(1)
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(adapters.lastNavigate?.sendScheduleRoute?.kind).toBe("recovery")
+    expect(adapters.lastNavigate?.recoveryDraft).toMatchObject({
+      feedbackId: 42,
+      intent: "respond-to-guest",
     })
   })
 

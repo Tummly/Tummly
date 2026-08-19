@@ -1,5 +1,6 @@
 import type { OperatorAiAssistantAction } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { OperatorAiAssistantAnalysisScope } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import type { AssistantSendScheduleRoute } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
 import {
   operatorDashboardCaptureLocationPath,
@@ -11,6 +12,7 @@ import {
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import type { CampaignWizardContinueEditingStep } from "@/lib/operatorCampaigns/campaignWizardPresentation"
 import type { CampaignDraftDetail } from "@/types/operatorCampaigns"
+import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import type { OperatorFeedbackInboxTabId } from "@/types/operatorFeedback"
 
 export type AssistantFeedbackInboxIntent = {
@@ -35,6 +37,9 @@ export type AssistantCampaignsIntent =
   | {
       continueEditingCampaignId: number
       continueEditingStep: AssistantCampaignContinueEditingStep
+      scheduleMode?: CampaignScheduleModeId
+      dateLocal?: string
+      timeLocal?: string
       campaign?: CampaignDraftDetail
     }
 
@@ -201,5 +206,51 @@ export function planAssistantActionNavigate(input: {
         path: operatorDashboardNavPath(mode, "feedback", locationId),
         selectLocationId: locationId,
       }
+  }
+}
+
+export function planAssistantSendScheduleRoute(input: {
+  route: AssistantSendScheduleRoute
+  analysisScope: OperatorAiAssistantAnalysisScope
+  mode: OperatorDashboardMode
+  campaignDraft?: CampaignDraftDetail | null
+  recoveryDraft?: RecoveryDraftActionPayload | null
+}): AssistantActionNavigatePlan {
+  const locationId = input.analysisScope.ownedLocationId
+  if (input.route.kind === "recovery") {
+    return {
+      path: operatorDashboardNavPath(input.mode, "feedback", locationId),
+      selectLocationId: locationId,
+      recoveryDraft: input.recoveryDraft ?? undefined,
+    }
+  }
+
+  const campaignId = input.route.campaignId
+  const step =
+    input.route.step === "schedule" || input.route.step === "review"
+      ? input.route.step
+      : "review"
+  return {
+    path: operatorDashboardNavPath(input.mode, "campaigns", locationId),
+    selectLocationId: locationId,
+    campaigns:
+      campaignId != null
+        ? {
+            continueEditingCampaignId: campaignId,
+            continueEditingStep: step,
+            ...(input.route.scheduleMode != null
+              ? { scheduleMode: input.route.scheduleMode }
+              : {}),
+            ...(input.route.dateLocal
+              ? { dateLocal: input.route.dateLocal }
+              : {}),
+            ...(input.route.timeLocal
+              ? { timeLocal: input.route.timeLocal }
+              : {}),
+            ...(input.campaignDraft != null
+              ? { campaign: input.campaignDraft }
+              : {}),
+          }
+        : undefined,
   }
 }

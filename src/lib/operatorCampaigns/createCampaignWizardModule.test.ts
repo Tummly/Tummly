@@ -714,6 +714,118 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.commitConfirm?.open).toBe(false)
   })
 
+  it("later Send it now opens Review send-now with confirm closed", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    await wizard.openFromDraft({
+      locationName: "Camden",
+      startStep: "review",
+      scheduleMode: "send-now",
+      draft: {
+        id: 55,
+        locationId: 42,
+        status: "draft",
+        name: "Tuesday lunch reminder",
+        goalId: "boost-quieter-time",
+        templateId: null,
+        templateVersion: null,
+        audienceKey: "new-guests",
+        channel: "sms",
+        offerStance: "no-offer",
+        offerId: null,
+        messageSubject: "Lunch",
+        messageBody: "Come for lunch",
+        rowVersion: "AAAAAAAAB9E=",
+        createdAt: "2026-08-07T10:00:00Z",
+        updatedAt: "2026-08-08T10:00:00Z",
+      },
+    })
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("review")
+    expect(snapshot.primaryActionLabel).toBe("Send campaign now")
+    expect(snapshot.commitConfirm?.open).toBe(false)
+  })
+
+  it("later schedule with future datetime opens Review later with confirm closed", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    await wizard.openFromDraft({
+      locationName: "Camden",
+      startStep: "review",
+      scheduleMode: "schedule-later",
+      dateLocal: "2027-08-21",
+      timeLocal: "18:00",
+      draft: {
+        id: 55,
+        locationId: 42,
+        status: "draft",
+        name: "Tuesday lunch reminder",
+        goalId: "boost-quieter-time",
+        templateId: null,
+        templateVersion: null,
+        audienceKey: "new-guests",
+        channel: "sms",
+        offerStance: "no-offer",
+        offerId: null,
+        messageSubject: "Lunch",
+        messageBody: "Come for lunch",
+        rowVersion: "AAAAAAAAB9E=",
+        createdAt: "2026-08-07T10:00:00Z",
+        updatedAt: "2026-08-08T10:00:00Z",
+      },
+    })
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("review")
+    expect(snapshot.primaryActionLabel).toBe("Schedule campaign")
+    expect(snapshot.commitConfirm?.open).toBe(false)
+  })
+
+  it("later schedule without datetime opens Schedule with empty fields and confirm closed", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    await wizard.openFromDraft({
+      locationName: "Camden",
+      startStep: "schedule",
+      scheduleMode: "schedule-later",
+      draft: {
+        id: 55,
+        locationId: 42,
+        status: "draft",
+        name: "Tuesday lunch reminder",
+        goalId: "boost-quieter-time",
+        templateId: null,
+        templateVersion: null,
+        audienceKey: "new-guests",
+        channel: "sms",
+        offerStance: "no-offer",
+        offerId: null,
+        messageSubject: "Lunch",
+        messageBody: "Come for lunch",
+        rowVersion: "AAAAAAAAB9E=",
+        createdAt: "2026-08-07T10:00:00Z",
+        updatedAt: "2026-08-08T10:00:00Z",
+      },
+    })
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("schedule")
+    expect(snapshot.schedule?.selectedModeId).toBe("schedule-later")
+    expect(snapshot.schedule?.dateLocal).toBe("")
+    expect(snapshot.schedule?.timeLocal).toBe("")
+    expect(snapshot.commitConfirm?.open).toBe(false)
+  })
+
   it("Continue editing at Offer keeps an attached Offer", async () => {
     const wizard = createCampaignWizardModule({
       ...defaultAudienceAdapters(),

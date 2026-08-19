@@ -9,6 +9,7 @@ import type {
   OperatorAiAssistantConversationRow,
   OperatorAiAssistantListItem,
   OperatorAiAssistantMessage,
+  AssistantSendScheduleRoute,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import type { CreateCampaignDraftRequest } from "@/types/operatorCampaigns"
@@ -79,6 +80,16 @@ type AssistantConversationDto = {
     useConfirmedActionForGuestResponse?: boolean
   } | null
   draftInterviewActive?: boolean
+  sendScheduleRoute?: {
+    kind: string
+    campaignId?: number | null
+    step?: string | null
+    scheduleMode?: string | null
+    dateLocal?: string | null
+    timeLocal?: string | null
+    feedbackId?: number | null
+    intent?: string | null
+  } | null
 }
 
 type AssistantConversationListItemDto = {
@@ -215,6 +226,33 @@ function fromPendingRecoveryDraft(
   return parseRecoveryDraftActionPayload(draft)
 }
 
+function fromSendScheduleRoute(
+  route: AssistantConversationDto["sendScheduleRoute"]
+): AssistantSendScheduleRoute | null {
+  if (route == null) {
+    return null
+  }
+  if (route.kind !== "campaign" && route.kind !== "recovery") {
+    return null
+  }
+  const step =
+    route.step === "review" || route.step === "schedule" ? route.step : null
+  const scheduleMode =
+    route.scheduleMode === "send-now" || route.scheduleMode === "schedule-later"
+      ? route.scheduleMode
+      : null
+  return {
+    kind: route.kind,
+    campaignId: route.campaignId,
+    step,
+    scheduleMode,
+    dateLocal: route.dateLocal,
+    timeLocal: route.timeLocal,
+    feedbackId: route.feedbackId,
+    intent: route.intent,
+  }
+}
+
 export function fromConversationDto(
   conversation: AssistantConversationDto
 ): OperatorAiAssistantConversationRow {
@@ -231,6 +269,7 @@ export function fromConversationDto(
       conversation.pendingRecoveryDraft
     ),
     draftInterviewActive: conversation.draftInterviewActive === true,
+    sendScheduleRoute: fromSendScheduleRoute(conversation.sendScheduleRoute),
   }
 }
 

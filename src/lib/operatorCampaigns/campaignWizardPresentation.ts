@@ -18,10 +18,10 @@ export type CampaignWizardStepId =
   | "review"
   | "success"
 
-/** Assistant Change audience / Add Offer land — a Campaign wizard step. */
+/** Assistant Change audience / Add Offer / later send-schedule land — a Campaign wizard step. */
 export type CampaignWizardContinueEditingStep = Extract<
   CampaignWizardStepId,
-  "audience" | "offer"
+  "audience" | "offer" | "schedule" | "review"
 >
 
 export type CampaignGoalOption = {

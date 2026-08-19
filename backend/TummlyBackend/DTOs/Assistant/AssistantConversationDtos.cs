@@ -38,6 +38,31 @@ namespace TummlyBackend.DTOs.Assistant
         public AssistantRecoveryDraftPayloadDto? PendingRecoveryDraft { get; set; }
 
         public bool DraftInterviewActive { get; set; }
+
+        /// <summary>
+        /// One-shot later send / schedule land. Present on that turn only.
+        /// Resume and GET omit this. The Assistant never executes the send.
+        /// </summary>
+        public AssistantSendScheduleRouteDto? SendScheduleRoute { get; set; }
+    }
+
+    public class AssistantSendScheduleRouteDto
+    {
+        public string Kind { get; set; } = string.Empty;
+
+        public int? CampaignId { get; set; }
+
+        public string? Step { get; set; }
+
+        public string? ScheduleMode { get; set; }
+
+        public string? DateLocal { get; set; }
+
+        public string? TimeLocal { get; set; }
+
+        public int? FeedbackId { get; set; }
+
+        public string? Intent { get; set; }
     }
 
     public class AssistantCampaignDraftPayloadDto

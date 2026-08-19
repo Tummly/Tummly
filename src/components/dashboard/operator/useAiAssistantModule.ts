@@ -30,6 +30,7 @@ import {
   type OperatorAiAssistantModule,
   type OperatorAiAssistantOwnedLocationOption,
   type OperatorAiAssistantSnapshot,
+  type AssistantSendScheduleRoute,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
 import {
@@ -49,6 +50,7 @@ export type OperatorAiAssistantDashboardContext = {
     recoveryDraft?: RecoveryDraftActionPayload | null
     campaignDraft?: CampaignDraftDetail | null
     catalogOffer?: CatalogOfferDetail | null
+    sendScheduleRoute?: AssistantSendScheduleRoute | null
   }) => void
   openRecoveryFromDraftAction: (
     payload: RecoveryDraftActionPayload
