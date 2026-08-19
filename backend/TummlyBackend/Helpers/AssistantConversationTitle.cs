@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Helpers
 {
@@ -23,11 +24,11 @@ namespace TummlyBackend.Helpers
         );
 
         public static string? TryAccept(
-            string? proposed,
+            string? proposedConversationTitle,
             string? liveAnswerMessageTitle
         )
         {
-            var firstLine = proposed?
+            var firstLine = proposedConversationTitle?
                 .Replace("\r\n", "\n", StringComparison.Ordinal)
                 .Split('\n')[0]
                 .Trim()
@@ -44,18 +45,54 @@ namespace TummlyBackend.Helpers
                 return null;
             }
 
-            var cut = CutToMax(firstLine);
-            if (liveAnswerMessageTitle is not null
+            var liveAnswerTitle = liveAnswerMessageTitle?.Trim();
+            if (liveAnswerTitle is { Length: > 0 }
                 && string.Equals(
-                    cut,
-                    liveAnswerMessageTitle.Trim(),
+                    firstLine,
+                    liveAnswerTitle,
                     StringComparison.Ordinal
                 ))
             {
                 return null;
             }
 
+            var cut = CutToMax(firstLine);
+            if (liveAnswerTitle is { Length: > 0 }
+                && string.Equals(cut, liveAnswerTitle, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
             return cut;
+        }
+
+        public static void TryApply(
+            AssistantConversation conversation,
+            AssistantMessage assistantMessage,
+            string? proposedConversationTitle
+        )
+        {
+            if (assistantMessage.Class == AssistantMessageClass.Failure)
+            {
+                return;
+            }
+
+            var userTurns = conversation.Messages.Count(
+                message => message.Role == AssistantMessageRole.User
+            );
+            if (userTurns != 1)
+            {
+                return;
+            }
+
+            var accepted = TryAccept(
+                proposedConversationTitle,
+                assistantMessage.Title
+            );
+            if (accepted is not null)
+            {
+                conversation.Title = accepted;
+            }
         }
 
         private static string CutToMax(string trimmed)

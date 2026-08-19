@@ -88,8 +88,7 @@ namespace TummlyBackend.Services
                     "Campaign Draft",
                     "Create Campaign Draft.",
                     [],
-                    AssistantTask.CreateCampaignDraft,
-                    ConversationTitleForCreateCampaignDraft(input.UserMessage)
+                    AssistantTask.CreateCampaignDraft
                 );
             }
 
@@ -128,16 +127,6 @@ namespace TummlyBackend.Services
                 input.Caveat,
                 input.DroppedUnknownSentence
             ) with { AssistantTask = AssistantTask.Retrieve };
-        }
-
-        private static string ConversationTitleForCreateCampaignDraft(string userMessage)
-        {
-            if (userMessage.Contains("bring back", StringComparison.OrdinalIgnoreCase))
-            {
-                return "Bring back Email-eligible guests";
-            }
-
-            return "Create Campaign Draft";
         }
     }
 }

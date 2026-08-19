@@ -829,6 +829,15 @@ namespace TummlyBackend.Services
             if (answer is AssistantLiveAnswerResult.Succeeded succeeded)
             {
                 proposedConversationTitle = succeeded.ConversationTitle;
+                AssistantConversationTitle.TryApply(
+                    conversation,
+                    new AssistantMessage
+                    {
+                        Class = succeeded.Class,
+                        Title = succeeded.Title,
+                    },
+                    proposedConversationTitle
+                );
                 if (string.Equals(
                         succeeded.AssistantTask,
                         AssistantTask.CreateCampaignDraft,
@@ -940,7 +949,8 @@ namespace TummlyBackend.Services
                 assistantMessage,
                 replaceFailure,
                 cancellationToken,
-                proposedConversationTitle
+                proposedConversationTitle,
+                liveAnswerAlreadyCompleted: true
             );
         }
 
@@ -1684,7 +1694,8 @@ namespace TummlyBackend.Services
             AssistantMessage assistantMessage,
             AssistantMessage? replaceFailure,
             CancellationToken cancellationToken,
-            string? proposedConversationTitle = null
+            string? proposedConversationTitle = null,
+            bool liveAnswerAlreadyCompleted = false
         )
         {
             if (replaceFailure is not null)
@@ -1693,7 +1704,16 @@ namespace TummlyBackend.Services
                 _context.AssistantMessages.Remove(replaceFailure);
             }
 
-            TryApplyGeneratedConversationTitle(
+            if (!liveAnswerAlreadyCompleted)
+            {
+                proposedConversationTitle = await TryReadModelConversationTitleAsync(
+                    conversation,
+                    assistantMessage,
+                    cancellationToken
+                );
+            }
+
+            AssistantConversationTitle.TryApply(
                 conversation,
                 assistantMessage,
                 proposedConversationTitle
@@ -1707,15 +1727,15 @@ namespace TummlyBackend.Services
             );
         }
 
-        private static void TryApplyGeneratedConversationTitle(
+        private async Task<string?> TryReadModelConversationTitleAsync(
             AssistantConversation conversation,
             AssistantMessage assistantMessage,
-            string? proposedConversationTitle
+            CancellationToken cancellationToken
         )
         {
             if (assistantMessage.Class == AssistantMessageClass.Failure)
             {
-                return;
+                return null;
             }
 
             var userTurns = conversation.Messages.Count(
@@ -1723,16 +1743,37 @@ namespace TummlyBackend.Services
             );
             if (userTurns != 1)
             {
-                return;
+                return null;
             }
 
-            var accepted = AssistantConversationTitle.TryAccept(
-                proposedConversationTitle,
-                assistantMessage.Title
-            );
-            if (accepted is not null)
+            var user = conversation.Messages
+                .Where(message => message.Role == AssistantMessageRole.User)
+                .OrderBy(message => message.CreatedAt)
+                .ThenBy(message => message.Id)
+                .Last();
+            var scope = AssistantAnalysisScope.FromConversation(conversation);
+            try
             {
-                conversation.Title = accepted;
+                var answer = await _liveAnswer.CompleteAsync(
+                    new AssistantLiveAnswerInput(
+                        user.Body,
+                        conversation.OwnedLocationName,
+                        AssistantAnalysisScope.PeriodPhrase(scope.ReportingPeriod),
+                        EmptyEvidence
+                    ),
+                    cancellationToken
+                );
+                return answer is AssistantLiveAnswerResult.Succeeded succeeded
+                    ? succeeded.ConversationTitle
+                    : null;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return null;
             }
         }
 

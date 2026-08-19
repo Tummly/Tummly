@@ -2883,7 +2883,7 @@ describe("Recent, Archive, search, and delete", () => {
     expect(module.getSnapshot().showArchiveFooter).toBe(true)
   })
 
-  it("shows the generated conversation title on Recent after the first complete without a page reload", async () => {
+  it("shows the generated Assistant conversation title on Recent after the first complete without a page reload", async () => {
     const inner = createInMemoryOperatorAiAssistantAdapters({ nowMs: () => now })
     const sendTurn = inner.sendTurn.bind(inner)
     inner.sendTurn = async (input) => {
