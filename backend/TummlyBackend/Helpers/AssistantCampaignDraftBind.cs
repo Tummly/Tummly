@@ -29,6 +29,32 @@ namespace TummlyBackend.Helpers
         string? OfferNote
     );
 
+    public sealed record AssistantCampaignDraftBindChoice(
+        string? OfferTitle = null,
+        string? AudienceLabel = null,
+        string? ChannelLabel = null
+    )
+    {
+        public static readonly AssistantCampaignDraftBindChoice Empty = new();
+
+        public bool HasValue
+            => OfferTitle is not null
+                || AudienceLabel is not null
+                || ChannelLabel is not null;
+
+        public static AssistantCampaignDraftBindChoice FromGapKind(
+            string kind,
+            string value
+        )
+            => kind switch
+            {
+                AssistantGapTurn.KindOffer => new(OfferTitle: value),
+                AssistantGapTurn.KindAudience => new(AudienceLabel: value),
+                AssistantGapTurn.KindChannel => new(ChannelLabel: value),
+                _ => Empty,
+            };
+    }
+
     public abstract record AssistantCampaignDraftBindOutcome
     {
         public sealed record Bound(AssistantCampaignDraftBindFields Fields)
@@ -66,28 +92,48 @@ namespace TummlyBackend.Helpers
                 [AudienceRecovery] = "Completed recovery follow-up",
             };
 
+        private static readonly IReadOnlyDictionary<string, string[]> AudienceNeedles =
+            new Dictionary<string, string[]>(StringComparer.Ordinal)
+            {
+                [AudienceNewGuests] =
+                    ["new guests", "new guest", "first-time", "first time"],
+                [AudiencePositive] = ["positive", "happy"],
+                [AudienceDormant] = ["dormant", "lapsed", "90 days", "90-day", "90 day"],
+                [AudienceRecovery] =
+                [
+                    "completed recovery follow-up",
+                    "completed recovery",
+                    "recovery follow-up",
+                ],
+            };
+
         public static AssistantCampaignDraftBindOutcome Resolve(
             string userMessage,
             string locationName,
             IReadOnlyList<AssistantCatalogOfferRef> locationOffers,
             IReadOnlyList<AssistantCampaignTemplateRef> templates,
-            string? chosenOfferTitle = null,
-            string? chosenAudienceLabel = null,
-            string? chosenChannelLabel = null
+            AssistantCampaignDraftBindChoice? choice = null,
+            IReadOnlyList<AssistantCatalogOfferRef>? otherLocationOffers = null
         )
         {
             var text = userMessage.Trim();
             var lower = text.ToLowerInvariant();
+            var bindChoice = choice ?? AssistantCampaignDraftBindChoice.Empty;
 
-            if (IsUnevaluableAudience(lower) && chosenAudienceLabel is null)
+            if (IsUnevaluableAudience(lower) && bindChoice.AudienceLabel is null)
             {
                 return new AssistantCampaignDraftBindOutcome.UnevaluableAudience(
                     UnevaluableAudienceBody()
                 );
             }
 
-            var offer = ResolveOffer(text, locationOffers, chosenOfferTitle);
-            if (offer.ClashTitles is { } offerClash && chosenOfferTitle is null)
+            var offer = ResolveOffer(
+                text,
+                locationOffers,
+                bindChoice.OfferTitle,
+                otherLocationOffers
+            );
+            if (offer.ClashTitles is { } offerClash && bindChoice.OfferTitle is null)
             {
                 return new AssistantCampaignDraftBindOutcome.Gap(
                     AssistantGapTurn.KindOffer,
@@ -96,8 +142,8 @@ namespace TummlyBackend.Helpers
                 );
             }
 
-            var audiences = ResolveAudiences(lower, chosenAudienceLabel);
-            if (audiences.Count >= 2 && chosenAudienceLabel is null)
+            var audiences = ResolveAudiences(lower, bindChoice.AudienceLabel);
+            if (audiences.Count >= 2 && bindChoice.AudienceLabel is null)
             {
                 var labels = audiences
                     .Select(key => AudienceLabels[key])
@@ -109,8 +155,8 @@ namespace TummlyBackend.Helpers
                 );
             }
 
-            var channel = ResolveChannel(lower, chosenChannelLabel);
-            if (channel.Clash && chosenChannelLabel is null)
+            var channel = ResolveChannel(lower, bindChoice.ChannelLabel);
+            if (channel.Clash && bindChoice.ChannelLabel is null)
             {
                 return new AssistantCampaignDraftBindOutcome.Gap(
                     AssistantGapTurn.KindChannel,
@@ -256,34 +302,22 @@ namespace TummlyBackend.Helpers
                 }
             }
 
-            if (ContainsAny(
-                    lower,
-                    "completed recovery follow-up",
-                    "completed recovery",
-                    "recovery follow-up"
-                ))
+            if (NamesAudience(lower, AudienceRecovery))
             {
                 Add(AudienceRecovery);
             }
 
-            if (ContainsAny(lower, "dormant", "lapsed", "90 days", "90-day", "90 day"))
+            if (NamesAudience(lower, AudienceDormant))
             {
                 Add(AudienceDormant);
             }
 
-            if (ContainsAny(
-                    lower,
-                    "new guests",
-                    "new guest",
-                    "first-time",
-                    "first time"
-                ))
+            if (NamesAudience(lower, AudienceNewGuests))
             {
                 Add(AudienceNewGuests);
             }
 
-            if (ContainsPhrase(lower, "positive")
-                || ContainsPhrase(lower, "happy"))
+            if (NamesAudience(lower, AudiencePositive))
             {
                 Add(AudiencePositive);
             }
@@ -313,21 +347,25 @@ namespace TummlyBackend.Helpers
             return [];
         }
 
+        private static bool NamesAudience(string lower, string key)
+        {
+            if (key == AudiencePositive)
+            {
+                return ContainsPhrase(lower, "positive")
+                    || ContainsPhrase(lower, "happy");
+            }
+
+            return AudienceNeedles.TryGetValue(key, out var needles)
+                && ContainsAny(lower, needles);
+        }
+
         private static int IndexOfAudience(string lower, string key)
         {
-            var needles = key switch
+            if (!AudienceNeedles.TryGetValue(key, out var needles))
             {
-                AudienceNewGuests => new[] { "new guests", "new guest", "first-time", "first time" },
-                AudiencePositive => new[] { "positive feedback", "positive guests", "happy guests", "happy" },
-                AudienceDormant => new[] { "dormant", "lapsed", "90 days", "90-day", "90 day" },
-                AudienceRecovery => new[]
-                {
-                    "completed recovery follow-up",
-                    "completed recovery",
-                    "recovery follow-up",
-                },
-                _ => [],
-            };
+                return int.MaxValue;
+            }
+
             var index = needles
                 .Select(needle => lower.IndexOf(needle, StringComparison.Ordinal))
                 .Where(value => value >= 0)
@@ -421,7 +459,8 @@ namespace TummlyBackend.Helpers
         private static OfferBind ResolveOffer(
             string text,
             IReadOnlyList<AssistantCatalogOfferRef> locationOffers,
-            string? chosenTitle
+            string? chosenTitle,
+            IReadOnlyList<AssistantCatalogOfferRef>? otherLocationOffers
         )
         {
             var lower = text.ToLowerInvariant();
@@ -493,6 +532,15 @@ namespace TummlyBackend.Helpers
                 return OfferBind.Attached(termMatches[0]);
             }
 
+            var otherTitles = MatchTitles(text, otherLocationOffers ?? []);
+            if (otherTitles.Count >= 1)
+            {
+                var named = otherTitles[0].Title;
+                return OfferBind.None(
+                    $"{named} was not attached because it is not attachable at this Owned location."
+                );
+            }
+
             if (LooksLikeNamedMissingOffer(lower))
             {
                 return OfferBind.None(
@@ -507,23 +555,11 @@ namespace TummlyBackend.Helpers
             string text,
             IReadOnlyList<AssistantCatalogOfferRef> offers
         )
-        {
-            var exact = CollectTitleMatches(
+            => CollectTitleMatches(
                 text,
                 offers,
                 (offer, ask) => ContainsPhrase(ask, offer.Title)
             );
-            if (exact.Count >= 1)
-            {
-                return exact;
-            }
-
-            return CollectTitleMatches(
-                text,
-                offers,
-                (offer, ask) => TitleHeadIsNamed(offer.Title, ask)
-            );
-        }
 
         private static List<AssistantCatalogOfferRef> CollectTitleMatches(
             string text,
@@ -546,18 +582,6 @@ namespace TummlyBackend.Helpers
             }
 
             return CollapseLongerTitle(collected, text);
-        }
-
-        private static bool TitleHeadIsNamed(string title, string text)
-        {
-            var words = title.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (words.Length < 2)
-            {
-                return false;
-            }
-
-            var head = string.Join(' ', words.Take(2));
-            return head.Length >= 8 && ContainsPhrase(text, head);
         }
 
         private static List<AssistantCatalogOfferRef> CollapseLongerTitle(
@@ -664,7 +688,7 @@ namespace TummlyBackend.Helpers
         }
 
         private static bool LooksLikeNamedMissingOffer(string lower)
-            => ContainsAny(lower, "offer called", "offer named", "the offer")
+            => ContainsAny(lower, "offer called", "offer named")
                 && !ContainsAny(
                     lower,
                     "use an offer",

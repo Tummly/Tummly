@@ -40,7 +40,7 @@ namespace TummlyBackend.Helpers
                     => $"Boost a quieter time by {channelWord} at {place}",
                 "follow-up-completed-recovery"
                     => $"Follow up after completed recovery by {channelWord} at {place}",
-                _ => GoalDefault,
+                _ => $"Campaign by {channelWord} at {place}",
             };
         }
 

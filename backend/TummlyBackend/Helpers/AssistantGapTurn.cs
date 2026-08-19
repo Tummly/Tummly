@@ -70,6 +70,22 @@ namespace TummlyBackend.Helpers
         )
             => CreateNamed(KindChannel, options, sourceUserMessage, assistantTask);
 
+        public static AssistantGapState CreateBindKind(
+            string kind,
+            IReadOnlyList<string> options,
+            string sourceUserMessage,
+            string assistantTask
+        )
+            => kind switch
+            {
+                KindOffer => CreateOffer(options, sourceUserMessage, assistantTask),
+                KindAudience => CreateAudience(options, sourceUserMessage, assistantTask),
+                KindChannel => CreateChannel(options, sourceUserMessage, assistantTask),
+                _ => throw new InvalidOperationException(
+                    $"Unknown bind Gap turn kind: {kind}"
+                ),
+            };
+
         private static AssistantGapState CreateNamed(
             string kind,
             IReadOnlyList<string> options,

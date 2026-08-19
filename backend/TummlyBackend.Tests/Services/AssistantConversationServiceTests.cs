@@ -786,7 +786,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_TwoNamedAudiences_IsGapAndPersistsNothing()
+        public async Task SendTurn_TwoNamedAudiences_IsGapTurnAndPersistsNothing()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
 
@@ -808,7 +808,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_EmailAndSms_IsChannelGap()
+        public async Task SendTurn_EmailAndSms_IsChannelGapTurn()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
 
@@ -858,7 +858,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_TwoMatchingOffers_IsGapThenUniqueTitlePersistsAttach()
+        public async Task SendTurn_TwoMatchingOffers_IsGapTurnThenUniqueTitlePersistsAttach()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             await SeedLinkedGuestAsync(
@@ -983,6 +983,37 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("No Offer", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
             Assert.Contains("Weekend brunch", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
             Assert.Contains("not attachable", ok.Conversation.Messages[^1].Body, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task SendTurn_NamedOfferAtOtherOwnedLocation_PersistsNoOfferAndExplains()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var sohoId = await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com"
+            );
+            await SeedCatalogOfferAsync(sohoId, "Weekend brunch");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    CanonicalCamdenEmailWinBackAsk + " with Weekend brunch"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Equal("no-offer", campaign.OfferStance);
+            Assert.Null(campaign.OfferId);
+            Assert.Contains(
+                "not attachable",
+                ok.Conversation.Messages[^1].Body,
+                StringComparison.OrdinalIgnoreCase
+            );
         }
 
         [Fact]

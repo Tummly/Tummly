@@ -22,7 +22,7 @@ namespace TummlyBackend.Tests.Helpers
         )
             => new(id, title, "active", true, percent, amount, freeItem);
 
-        private static AssistantCatalogOfferRef Inactive(
+        private static AssistantCatalogOfferRef NotAttachable(
             int id,
             string title,
             string status
@@ -92,7 +92,7 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void EmailAndSms_IsChannelClash()
+        public void EmailAndSms_IsChannelGapTurn()
         {
             var gap = Assert.IsType<AssistantCampaignDraftBindOutcome.Gap>(
                 AssistantCampaignDraftBind.Resolve(
@@ -157,7 +157,7 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void TwoNamedEvaluableAudiences_IsAudienceClash()
+        public void TwoNamedEvaluableAudiences_IsAudienceGapTurn()
         {
             var gap = Assert.IsType<AssistantCampaignDraftBindOutcome.Gap>(
                 AssistantCampaignDraftBind.Resolve(
@@ -285,7 +285,7 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void TwoMatchingOfferTitles_IsOfferClash_BeforeAudienceClash()
+        public void TwoMatchingOfferTitles_IsOfferGapTurn_BeforeAudienceGapTurn()
         {
             var gap = Assert.IsType<AssistantCampaignDraftBindOutcome.Gap>(
                 AssistantCampaignDraftBind.Resolve(
@@ -307,7 +307,7 @@ namespace TummlyBackend.Tests.Helpers
                 AssistantCampaignDraftBind.Resolve(
                     CanonicalAsk + " with Weekend brunch",
                     "Camden",
-                    [Inactive(9, "Weekend brunch", "draft")],
+                    [NotAttachable(9, "Weekend brunch", "draft")],
                     []
                 )
             );
@@ -366,7 +366,7 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void ChosenChannel_ResolvesClash()
+        public void ChosenChannel_ResolvesChannelGapTurn()
         {
             var bound = Assert.IsType<AssistantCampaignDraftBindOutcome.Bound>(
                 AssistantCampaignDraftBind.Resolve(
@@ -374,7 +374,7 @@ namespace TummlyBackend.Tests.Helpers
                     "Camden",
                     [],
                     [],
-                    chosenChannelLabel: "SMS"
+                    new AssistantCampaignDraftBindChoice(ChannelLabel: "SMS")
                 )
             );
 
@@ -481,6 +481,76 @@ namespace TummlyBackend.Tests.Helpers
                 "No matching Active Offer",
                 bound.Fields.OfferNote,
                 StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public void WithTheOfferUnnamed_StaysSilentNoOffer()
+        {
+            var bound = Assert.IsType<AssistantCampaignDraftBindOutcome.Bound>(
+                AssistantCampaignDraftBind.Resolve(
+                    CanonicalAsk + " with the offer",
+                    "Camden",
+                    [Active(4, "Weekend brunch")],
+                    []
+                )
+            );
+
+            Assert.Equal("no-offer", bound.Fields.OfferStance);
+            Assert.Null(bound.Fields.OfferNote);
+        }
+
+        [Fact]
+        public void PrefixOfLongerTitle_DoesNotAttach()
+        {
+            var bound = Assert.IsType<AssistantCampaignDraftBindOutcome.Bound>(
+                AssistantCampaignDraftBind.Resolve(
+                    CanonicalAsk + " with Weekend brunch",
+                    "Camden",
+                    [Active(5, "Weekend brunch special")],
+                    []
+                )
+            );
+
+            Assert.Equal("no-offer", bound.Fields.OfferStance);
+            Assert.Null(bound.Fields.OfferId);
+        }
+
+        [Fact]
+        public void NamedOfferAtOtherOwnedLocation_StaysNoOfferAndExplains()
+        {
+            var bound = Assert.IsType<AssistantCampaignDraftBindOutcome.Bound>(
+                AssistantCampaignDraftBind.Resolve(
+                    CanonicalAsk + " with Weekend brunch",
+                    "Camden",
+                    [],
+                    [],
+                    otherLocationOffers: [Active(4, "Weekend brunch")]
+                )
+            );
+
+            Assert.Equal("no-offer", bound.Fields.OfferStance);
+            Assert.Contains("Weekend brunch", bound.Fields.OfferNote, StringComparison.Ordinal);
+            Assert.Contains("not attachable", bound.Fields.OfferNote, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void CustomCampaign_NameUsesChannelAndLocation()
+        {
+            var bound = Assert.IsType<AssistantCampaignDraftBindOutcome.Bound>(
+                AssistantCampaignDraftBind.Resolve(
+                    "Draft a Campaign for eligible guests at Camden",
+                    "Camden",
+                    [],
+                    []
+                )
+            );
+
+            Assert.Equal("custom-campaign", bound.Fields.GoalId);
+            Assert.Equal("Campaign by Email at Camden", bound.Fields.Name);
+            Assert.NotEqual(
+                AssistantCampaignDraftName.GoalDefault,
+                bound.Fields.Name
             );
         }
 
