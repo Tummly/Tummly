@@ -716,6 +716,125 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("draft", campaign.Status);
         }
 
+        [Theory]
+        [InlineData("Create a campaign")]
+        [InlineData("Draft an offer")]
+        [InlineData("Prepare a recovery response")]
+        public async Task SendTurn_FormerPhraseNeedles_DoNotStartDraftInterview(
+            string message
+        )
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, message)
+                )
+            );
+
+            var answer = outcome.Conversation.Messages[^1];
+            Assert.DoesNotContain("Campaign goal catalogue", answer.Body);
+            Assert.DoesNotContain("Offer type catalogue", answer.Body);
+            Assert.DoesNotContain("Recovery intent catalogue", answer.Body);
+            Assert.DoesNotContain(
+                answer.Actions,
+                action => action.Type is "draft-campaign" or "draft-offer"
+            );
+            Assert.False(outcome.Conversation.DraftInterviewActive);
+            Assert.Null(outcome.Conversation.PendingCampaignDraft);
+            Assert.Null(outcome.Conversation.PendingOfferDraft);
+        }
+
+        [Fact]
+        public async Task GetAsync_LeftoverCampaignInterviewJson_DoesNotResumeInterview()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var conversationId = await SeedConversationWithInterviewJsonAsync(
+                ownerUserId: 7,
+                locationId,
+                "Camden",
+                AssistantCampaignDraftInterview.Serialize(
+                    new AssistantCampaignDraftState
+                    {
+                        Name = "Win back",
+                        GoalId = "re-engage-inactive",
+                        AudienceKey = "all-eligible-guests",
+                        Channel = "email",
+                        OfferStance = "no-offer",
+                        UsefulOptionalsSkipped = true,
+                    }
+                )
+            );
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.GetAsync(ownerUserId: 7, conversationId)
+            );
+
+            Assert.False(outcome.Conversation.DraftInterviewActive);
+            Assert.Null(outcome.Conversation.PendingCampaignDraft);
+            Assert.Empty(outcome.Conversation.Messages);
+        }
+
+        [Fact]
+        public async Task SendTurn_LeftoverInterviewJson_FollowsRetrieveNotInterview()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
+            var conversationId = await SeedConversationWithInterviewJsonAsync(
+                ownerUserId: 7,
+                locationId,
+                "Camden",
+                AssistantRecoveryDraftInterview.Serialize(
+                    new AssistantRecoveryDraftState()
+                )
+            );
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Show me Campaign drafts",
+                        conversationId
+                    )
+                )
+            );
+
+            var answer = outcome.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.DoesNotContain("Recovery intent catalogue", answer.Body);
+            Assert.DoesNotContain("Campaign goal catalogue", answer.Body);
+            Assert.DoesNotContain(
+                answer.Actions,
+                action => action.Type is "draft-campaign" or "draft-offer"
+            );
+            Assert.False(outcome.Conversation.DraftInterviewActive);
+            Assert.Null(outcome.Conversation.PendingCampaignDraft);
+            Assert.Empty(_context.Campaigns);
+        }
+
+        [Fact]
+        public async Task SendTurn_ModelUnavailable_DoesNotStartPhraseMatchInterview()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.Fail();
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Create a campaign")
+                )
+            );
+
+            var answer = outcome.Conversation.Messages[^1];
+            Assert.Equal("failure", answer.Class);
+            Assert.Empty(answer.Actions);
+            Assert.False(outcome.Conversation.DraftInterviewActive);
+            Assert.Empty(_context.Campaigns);
+        }
+
         private const string CanonicalCamdenOfferPathAsk =
             "Create a 25% Offer valid 30 days after issue";
 
@@ -5240,6 +5359,30 @@ namespace TummlyBackend.Tests.Services
             {
                 Assert.Contains(calls, call => call.OwnedLocationId == locationId);
             }
+        }
+
+        private async Task<int> SeedConversationWithInterviewJsonAsync(
+            int ownerUserId,
+            int locationId,
+            string locationName,
+            string interviewJson
+        )
+        {
+            var conversation = new AssistantConversation
+            {
+                OwnerUserId = ownerUserId,
+                Title = "Leftover interview",
+                OwnedLocationId = locationId,
+                OwnedLocationName = locationName,
+                ReportingPeriodKind = "preset",
+                ReportingPeriodPresetId = "last7",
+                CreatedAt = DateTime.UtcNow,
+                LastActivityAt = DateTime.UtcNow,
+                DraftInterviewJson = interviewJson,
+            };
+            _context.AssistantConversations.Add(conversation);
+            await _context.SaveChangesAsync();
+            return conversation.Id;
         }
 
         private async Task<int> SeedLocationAsync(

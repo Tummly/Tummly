@@ -175,8 +175,6 @@ const KNOWN_ASSISTANT_ACTION_TYPES = new Set<OperatorAiAssistantActionType>([
   "change-audience",
   "add-offer",
   "review-offer",
-  "draft-campaign",
-  "draft-offer",
   "open-recovery",
   "view-feedback-set",
   "prepare-recovery",

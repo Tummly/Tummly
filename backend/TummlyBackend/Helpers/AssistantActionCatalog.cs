@@ -22,8 +22,6 @@ namespace TummlyBackend.Helpers
             "add-offer",
             "review-offer",
             "open-recovery",
-            "draft-campaign",
-            "draft-offer",
             "view-feedback-set",
             "prepare-recovery",
             "view-campaigns",
@@ -106,27 +104,6 @@ namespace TummlyBackend.Helpers
                 .ToList();
         }
 
-        public static IReadOnlyList<AssistantActionDto> ValidateCampaignDraft(
-            IEnumerable<AssistantActionDto>? proposed,
-            AssistantMessageClass answerClass
-        )
-        {
-            if (answerClass != AssistantMessageClass.Grounded
-                || !(proposed ?? []).Any(action => action.Type == "draft-campaign"))
-            {
-                return [];
-            }
-
-            return
-            [
-                new AssistantActionDto
-                {
-                    Type = "draft-campaign",
-                    Label = LabelFor(new AssistantActionDto { Type = "draft-campaign" }),
-                },
-            ];
-        }
-
         public static IReadOnlyList<AssistantActionDto> ValidateReviewCampaign(
             int? campaignId,
             AssistantMessageClass answerClass,
@@ -169,27 +146,6 @@ namespace TummlyBackend.Helpers
                     Type = "review-offer",
                     Label = LabelFor(new AssistantActionDto { Type = "review-offer" }),
                     OfferId = offerId,
-                },
-            ];
-        }
-
-        public static IReadOnlyList<AssistantActionDto> ValidateOfferDraft(
-            IEnumerable<AssistantActionDto>? proposed,
-            AssistantMessageClass answerClass
-        )
-        {
-            if (answerClass != AssistantMessageClass.Grounded
-                || !(proposed ?? []).Any(action => action.Type == "draft-offer"))
-            {
-                return [];
-            }
-
-            return
-            [
-                new AssistantActionDto
-                {
-                    Type = "draft-offer",
-                    Label = LabelFor(new AssistantActionDto { Type = "draft-offer" }),
                 },
             ];
         }
@@ -349,8 +305,6 @@ namespace TummlyBackend.Helpers
                 "change-audience" => "Change audience",
                 "add-offer" => "Add Offer",
                 "review-offer" => "Review offer draft",
-                "draft-campaign" => "Create campaign draft",
-                "draft-offer" => "Create offer draft",
                 "open-recovery" => "Review recovery",
                 "view-feedback-set" => action.Count == 1
                     ? "View 1 feedback item"
@@ -377,8 +331,6 @@ namespace TummlyBackend.Helpers
                 or "change-audience"
                 or "add-offer"
                 or "review-offer"
-                or "draft-campaign"
-                or "draft-offer"
                 or "open-recovery")
             {
                 return null;

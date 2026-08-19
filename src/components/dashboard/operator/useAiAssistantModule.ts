@@ -13,8 +13,6 @@ import {
   clearAssistantDraftInterview,
 } from "@/api/assistantApi"
 import {
-  createCampaignDraft,
-  createCatalogOfferDraft,
   getCampaignDraftById,
   getCatalogOfferById,
   getFeedbackDetails,
@@ -142,18 +140,6 @@ export function useAiAssistantModule(
             return null
           }
           return response.offer
-        },
-        createCampaignDraft: async (body) => {
-          const response = await createCampaignDraft(body)
-          if (!response.success || response.campaign == null) {
-            throw new Error("Campaign draft create failed.")
-          }
-        },
-        createCatalogOfferDraft: async (body) => {
-          const response = await createCatalogOfferDraft(body)
-          if (!response.success || response.offer == null) {
-            throw new Error("Offer draft create failed.")
-          }
         },
         prepareOpenRecovery: async (input) => {
           const details = await getFeedbackDetails(input.feedbackId)

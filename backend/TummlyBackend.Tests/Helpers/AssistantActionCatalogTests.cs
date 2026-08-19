@@ -72,35 +72,10 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void ValidateCampaignDraft_KeepsOnlyServerDraftAction_WithoutEvidence()
+        public void CatalogOrder_OmitsPersistOnClickDraftTypes()
         {
-            var actions = AssistantActionCatalog.ValidateCampaignDraft(
-                [
-                    new AssistantActionDto { Type = "view-campaigns" },
-                    new AssistantActionDto { Type = "draft-campaign" },
-                ],
-                AssistantMessageClass.Grounded
-            );
-
-            var action = Assert.Single(actions);
-            Assert.Equal("draft-campaign", action.Type);
-            Assert.Equal("Create campaign draft", action.Label);
-        }
-
-        [Fact]
-        public void ValidateOfferDraft_KeepsOnlyServerDraftAction_WithoutEvidence()
-        {
-            var actions = AssistantActionCatalog.ValidateOfferDraft(
-                [
-                    new AssistantActionDto { Type = "view-offers" },
-                    new AssistantActionDto { Type = "draft-offer" },
-                ],
-                AssistantMessageClass.Grounded
-            );
-
-            var action = Assert.Single(actions);
-            Assert.Equal("draft-offer", action.Type);
-            Assert.Equal("Create offer draft", action.Label);
+            Assert.DoesNotContain("draft-campaign", AssistantActionCatalog.CatalogOrder);
+            Assert.DoesNotContain("draft-offer", AssistantActionCatalog.CatalogOrder);
         }
 
         [Fact]
@@ -181,7 +156,7 @@ namespace TummlyBackend.Tests.Helpers
                     "add-offer",
                     "review-offer",
                     "open-recovery",
-                    "draft-campaign",
+                    "view-feedback-set",
                 },
                 AssistantActionCatalog.CatalogOrder.Take(6)
             );
@@ -197,8 +172,8 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal("Review offer draft", AssistantActionCatalog.LabelFor(
                 new AssistantActionDto { Type = "review-offer" }
             ));
-            Assert.Equal("Create offer draft", AssistantActionCatalog.LabelFor(
-                new AssistantActionDto { Type = "draft-offer" }
+            Assert.Equal("Review recovery", AssistantActionCatalog.LabelFor(
+                new AssistantActionDto { Type = "open-recovery" }
             ));
         }
 

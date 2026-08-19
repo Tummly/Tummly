@@ -308,8 +308,8 @@ export type OperatorAiAssistantAdapters = {
    * the Offer is missing. Throw on load fail.
    */
   getCatalogOffer: (offerId: number) => Promise<CatalogOfferDetail | null>
-  createCampaignDraft: (body: CreateCampaignDraftRequest) => Promise<void>
-  createCatalogOfferDraft: (body: CreateCatalogOfferRequestBody) => Promise<void>
+  createCampaignDraft?: (body: CreateCampaignDraftRequest) => Promise<void>
+  createCatalogOfferDraft?: (body: CreateCatalogOfferRequestBody) => Promise<void>
   /**
    * Recheck eligibility, then New → In progress and offer attach.
    * Throws Error with a shipped toast. Does not prepare copy.
@@ -1042,13 +1042,16 @@ function canOpenStoredDraftFromAssistant(
 
 function visibleActionsForMessage(
   message: OperatorAiAssistantMessage,
-  storedMessages: OperatorAiAssistantMessage[],
   state: AssistantState
 ): OperatorAiAssistantAction[] | undefined {
-  const raw = message.actions
-  if (raw == null) {
+  if (message.actions == null) {
     return undefined
   }
+
+  const raw = message.actions.filter(
+    (action) =>
+      action.type !== "draft-campaign" && action.type !== "draft-offer"
+  )
 
   const hasCompletingCampaign = raw.some((action) =>
     isCompletingCampaignAction(action.type)
@@ -1056,20 +1059,13 @@ function visibleActionsForMessage(
   const hasCompletingOffer = raw.some((action) =>
     isCompletingOfferAction(action.type)
   )
-  const hasOfferOrRecovery = raw.some(
-    (action) => action.type === "draft-offer" || action.type === "open-recovery"
-  )
+  const hasOpenRecovery = raw.some((action) => action.type === "open-recovery")
   const filtered = hasCompletingCampaign
     ? raw.filter((action) => isCompletingCampaignAction(action.type)).slice(0, 3)
     : hasCompletingOffer
       ? raw.filter((action) => isCompletingOfferAction(action.type)).slice(0, 1)
-      : hasOfferOrRecovery
-        ? raw
-            .filter(
-              (action) =>
-                action.type === "draft-offer" || action.type === "open-recovery"
-            )
-            .slice(0, 1)
+      : hasOpenRecovery
+        ? raw.filter((action) => action.type === "open-recovery").slice(0, 1)
         : raw.slice(0, 3)
 
   return filtered.map((action) => ({
@@ -1088,13 +1084,6 @@ function visibleActionsForMessage(
               && state.completingOfferNavigateId != null
               && action.offerId === state.completingOfferNavigateId)
           )
-        : action.type === "draft-campaign"
-        ? (!state.actionInFlight
-          && !state.draftActionSpent
-          && state.pendingCampaignDraft != null
-          && message === storedMessages.at(-1))
-        : action.type === "draft-offer"
-          ? false
           : action.type === "open-recovery"
             ? !(
                 state.turnInFlight
@@ -1125,7 +1114,7 @@ function toSnapshot(
     : storedMessages).map((message) => {
       return {
         ...message,
-        actions: visibleActionsForMessage(message, storedMessages, state),
+        actions: visibleActionsForMessage(message, state),
       }
     })
   const lastAssistant = [...displayMessages]
@@ -2144,7 +2133,7 @@ export function createOperatorAiAssistantModule(
           })
         return
       }
-      if (action.type === "draft-offer") {
+      if (action.type === "draft-offer" || action.type === "draft-campaign") {
         return
       }
       if (action.type === "open-recovery") {

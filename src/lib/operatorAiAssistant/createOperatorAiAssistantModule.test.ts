@@ -1264,13 +1264,68 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    const action = module.getSnapshot().messages.at(-1)?.actions?.[0]
-    expect(action).toMatchObject({
+    expect(module.getSnapshot().messages.at(-1)?.actions ?? []).toEqual([])
+    module.clickAction({
       type: "draft-offer",
       label: "Create offer draft",
-      clickable: false,
     })
-    module.clickAction(action!)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(createCalls).toBe(0)
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(adapters.lastNavigate).toBe(null)
+  })
+
+  it("does not POST create on leftover Create campaign draft", async () => {
+    let createCalls = 0
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-leftover-campaign",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: {
+          locationId: 1,
+          name: "Win back",
+          audienceKey: "all-eligible-guests",
+          channel: "email",
+          offerStance: "no-offer",
+        },
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Campaign draft ready",
+            body: "Create campaign draft.",
+            actions: [
+              {
+                type: "draft-campaign",
+                label: "Create campaign draft",
+              },
+            ],
+          },
+        ],
+      }),
+      createCampaignDraft: async () => {
+        createCalls += 1
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Create a campaign")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().messages.at(-1)?.actions ?? []).toEqual([])
+    module.clickAction({
+      type: "draft-campaign",
+      label: "Create campaign draft",
+    })
     await Promise.resolve()
     await Promise.resolve()
 

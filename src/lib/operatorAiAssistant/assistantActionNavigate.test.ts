@@ -186,7 +186,7 @@ describe("planAssistantActionNavigate", () => {
     })
   })
 
-  it("maps leftover draft-offer to Offers Drafts without a view query", () => {
+  it("does not map leftover persist-on-click types onto Drafts land", () => {
     expect(
       planAssistantActionNavigate({
         action: { type: "draft-offer", label: "Create offer draft" },
@@ -194,9 +194,18 @@ describe("planAssistantActionNavigate", () => {
         mode: "multi",
       })
     ).toEqual({
-      path: "/multi-dashboard/offers?location=11",
+      path: "/multi-dashboard/feedback?location=11",
       selectLocationId: 11,
-      offers: { view: "drafts" },
+    })
+    expect(
+      planAssistantActionNavigate({
+        action: { type: "draft-campaign", label: "Create campaign draft" },
+        analysisScope: SCOPE,
+        mode: "multi",
+      })
+    ).toEqual({
+      path: "/multi-dashboard/feedback?location=11",
+      selectLocationId: 11,
     })
   })
 

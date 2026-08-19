@@ -108,11 +108,6 @@ export function planAssistantActionNavigate(input: {
               }
             : undefined,
       }
-    case "draft-campaign":
-      return {
-        path: operatorDashboardNavPath(mode, "campaigns", locationId),
-        selectLocationId: locationId,
-      }
     case "review-offer":
       return {
         path:
@@ -120,12 +115,6 @@ export function planAssistantActionNavigate(input: {
             ? operatorDashboardOfferDetailsPath(mode, action.offerId, locationId)
             : operatorDashboardNavPath(mode, "offers", locationId),
         selectLocationId: locationId,
-      }
-    case "draft-offer":
-      return {
-        path: operatorDashboardNavPath(mode, "offers", locationId),
-        selectLocationId: locationId,
-        offers: { view: "drafts" },
       }
     case "open-recovery":
       return {

@@ -441,22 +441,15 @@ namespace TummlyBackend.Services
                 ))
                 .ToList();
             if (AssistantCampaignDraftInterview.Parse(conversation.DraftInterviewJson)
-                is not null)
+                is not null
+                || AssistantOfferDraftInterview.Parse(conversation.DraftInterviewJson)
+                    is not null
+                || AssistantRecoveryDraftInterview.Parse(conversation.DraftInterviewJson)
+                    is not null)
             {
                 conversation.DraftInterviewJson = null;
             }
 
-            if (AssistantOfferDraftInterview.Parse(conversation.DraftInterviewJson)
-                is not null)
-            {
-                conversation.DraftInterviewJson = null;
-            }
-            var offerDraftState = AssistantOfferDraftInterview.Parse(
-                conversation.DraftInterviewJson
-            );
-            var recoveryDraftState = AssistantRecoveryDraftInterview.Parse(
-                conversation.DraftInterviewJson
-            );
             var draftTargetChoiceState = AssistantDraftTargetChoice.Parse(
                 conversation.DraftInterviewJson
             );
@@ -470,17 +463,11 @@ namespace TummlyBackend.Services
                 );
             }
             var cancelDraft =
-                (offerDraftState is not null
-                    || recoveryDraftState is not null
-                    || draftTargetChoiceState is not null
-                    || gapState is not null)
+                gapState is not null
                 && AssistantCampaignDraftInterview.IsClearCancel(userMessage);
-            var cancelledGap = cancelDraft && gapState is not null;
             if (cancelDraft)
             {
                 conversation.DraftInterviewJson = null;
-                offerDraftState = null;
-                recoveryDraftState = null;
                 draftTargetChoiceState = null;
                 gapState = null;
             }
@@ -644,17 +631,13 @@ namespace TummlyBackend.Services
                     }
                 }
             }
-            var hasActiveDraftInterview =
-                offerDraftState is not null
-                || recoveryDraftState is not null
-                || draftTargetChoiceState is not null;
             var hasExplicitRetrieveAsk =
                 AssistantAskIntent.HasExplicitRetrieveAsk(userMessage);
             var hasRetrieveAsk =
                 AssistantAskIntent.HasRetrieveAsk(userMessage)
                 && (
                     hasExplicitRetrieveAsk
-                    || (!hasActiveDraftInterview && draftTargets.Count == 0)
+                    || draftTargets.Count == 0
                 );
             if (cancelDraft && !hasRetrieveAsk)
             {
@@ -663,10 +646,8 @@ namespace TummlyBackend.Services
                     conversation,
                     GroundedMessage(
                         DateTime.UtcNow,
-                        cancelledGap ? "Question cancelled" : "Draft interview cancelled",
-                        cancelledGap
-                            ? "I cancelled that question."
-                            : "I cancelled the incomplete draft interview.",
+                        "Question cancelled",
+                        "I cancelled that question.",
                         []
                     ),
                     replaceFailure,
@@ -767,32 +748,6 @@ namespace TummlyBackend.Services
                 );
             }
 
-            string? draftTargetChoiceBody = null;
-            string? draftInterviewTitle = null;
-            string? draftInterviewBody = null;
-            bool draftInterviewReady = false;
-            IReadOnlyList<AssistantActionDto> draftReadyActions = [];
-            var draftComposed = false;
-
-            if (!cancelDraft)
-            {
-                if (draftComposed && !hasRetrieveAsk && draftTargetChoiceBody is null)
-                {
-                    conversation.LastCompareLocationIdsJson = null;
-                    return await PersistAssistantAsync(
-                        conversation,
-                        GroundedMessage(
-                            DateTime.UtcNow,
-                            draftInterviewTitle!,
-                            AppendRefusedOutParts(draftInterviewBody!, userMessage),
-                            draftReadyActions
-                        ),
-                        replaceFailure,
-                        cancellationToken
-                    );
-                }
-            }
-
             AssistantLiveAnswerResult answer;
             try
             {
@@ -811,7 +766,7 @@ namespace TummlyBackend.Services
                         compareEvidence,
                         caveat,
                         droppedUnknown,
-                        SuppressMixedRefusal: draftComposed
+                        SuppressMixedRefusal: false
                     ),
                     cancellationToken
                 );
@@ -848,7 +803,6 @@ namespace TummlyBackend.Services
                         AssistantTask.CreateCampaignDraft,
                         StringComparison.Ordinal
                     )
-                    && !draftComposed
                     && !AssistantAskIntent.IsHelpCentreAsk(userMessage))
                 {
                     var persistLocationId = boundCreateLocationId ?? conversation.OwnedLocationId;
@@ -877,7 +831,6 @@ namespace TummlyBackend.Services
                         AssistantTask.OfferPath,
                         StringComparison.Ordinal
                     )
-                    && !draftComposed
                     && !AssistantAskIntent.IsHelpCentreAsk(userMessage))
                 {
                     var persistLocationId = boundCreateLocationId ?? conversation.OwnedLocationId;
@@ -921,7 +874,6 @@ namespace TummlyBackend.Services
                         AssistantTask.RecoveryPath,
                         StringComparison.Ordinal
                     )
-                    && !draftComposed
                     && !AssistantAskIntent.IsHelpCentreAsk(userMessage))
                 {
                     var persist = await PersistPrepareRecoveryAsync(
@@ -953,72 +905,40 @@ namespace TummlyBackend.Services
                 }
                 else
                 {
-                    var composed =
-                        draftComposed
-                        && succeeded.Class != AssistantMessageClass.Grounded
-                            ? AssistantLiveAnswerCopy.WithSentences(
-                                AssistantLiveAnswerCopy.GroundedFromEvidence(
-                                    userMessage,
-                                    locationName,
-                                    periodPhrase,
-                                    savedEvidence,
-                                    suppressMixedRefusal: true
-                                ),
-                                caveat,
-                                droppedUnknown
-                            )
-                            : succeeded;
-                if (draftComposed)
-                {
-                    var interviewBody = draftInterviewBody ?? draftTargetChoiceBody!;
-                    composed = composed with
-                    {
-                        Body = AppendRefusedOutParts(
-                            $"{composed.Body}\n\n{interviewBody}",
-                            userMessage
-                        ),
-                    };
-                    conversation.LastCompareLocationIdsJson = null;
-                }
-                var actions = draftInterviewReady
-                    ? draftReadyActions
-                    : draftTargetChoiceBody is not null
-                        ? []
-                        : AssistantActionCatalog.Validate(
-                            composed.Actions,
-                            composed.Class,
-                            savedEvidence,
-                            AssistantAskIntent.ClassifyGrounded(userMessage)
-                        );
-                var redactionTokens = savedEvidence.Feedback.ContactRedactionTokens
-                    .Concat(savedEvidence.Guests.ContactRedactionTokens)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-                var title = composed.Class == AssistantMessageClass.Grounded
-                    ? AssistantContactRedaction.RedactTitle(
-                        composed.Title,
-                        redactionTokens
-                    )
-                    : null;
-                var body = AssistantContactRedaction.RedactBody(
-                    composed.Body,
-                    redactionTokens
-                );
-                assistantMessage = new AssistantMessage
-                {
-                    Role = AssistantMessageRole.Assistant,
-                    Class = composed.Class,
-                    Title = title,
-                    Body = body,
-                    ActionsJson = AssistantAnalysisScope.SerializeActions(actions),
-                    CreatedAt = assistantNow,
-                };
-                conversation.LastCompareLocationIdsJson =
-                    compareOutcome is AssistantCompareOutcome.Compare compareOk
-                    && composed.Class == AssistantMessageClass.Grounded
-                    && !draftComposed
-                        ? AssistantCompareTurn.SerializeLocationIds(compareOk.LocationIds)
+                    var actions = AssistantActionCatalog.Validate(
+                        succeeded.Actions,
+                        succeeded.Class,
+                        savedEvidence,
+                        AssistantAskIntent.ClassifyGrounded(userMessage)
+                    );
+                    var redactionTokens = savedEvidence.Feedback.ContactRedactionTokens
+                        .Concat(savedEvidence.Guests.ContactRedactionTokens)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    var title = succeeded.Class == AssistantMessageClass.Grounded
+                        ? AssistantContactRedaction.RedactTitle(
+                            succeeded.Title,
+                            redactionTokens
+                        )
                         : null;
+                    var body = AssistantContactRedaction.RedactBody(
+                        succeeded.Body,
+                        redactionTokens
+                    );
+                    assistantMessage = new AssistantMessage
+                    {
+                        Role = AssistantMessageRole.Assistant,
+                        Class = succeeded.Class,
+                        Title = title,
+                        Body = body,
+                        ActionsJson = AssistantAnalysisScope.SerializeActions(actions),
+                        CreatedAt = assistantNow,
+                    };
+                    conversation.LastCompareLocationIdsJson =
+                        compareOutcome is AssistantCompareOutcome.Compare compareOk
+                        && succeeded.Class == AssistantMessageClass.Grounded
+                            ? AssistantCompareTurn.SerializeLocationIds(compareOk.LocationIds)
+                            : null;
                 }
             }
             else
