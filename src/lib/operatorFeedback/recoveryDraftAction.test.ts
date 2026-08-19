@@ -112,6 +112,16 @@ describe("recoveryDraftAction", () => {
 
     expect(
       recoveryDraftActionGateToast({
+        intent: "respond-with-recovery-offer",
+        workflowStatus: "in_progress",
+        contactType: "Email",
+        guestContact: "a@b.com",
+        marketingPreference: undefined,
+      })
+    ).toBe(RECOVERY_DRAFT_ACTION_TOASTS.offersOptOut)
+
+    expect(
+      recoveryDraftActionGateToast({
         intent: "respond-to-guest",
         workflowStatus: "in_progress",
         contactType: "Email",

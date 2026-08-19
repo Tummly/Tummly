@@ -49,6 +49,28 @@ namespace TummlyBackend.Models
 
         public string? DraftInterviewJson { get; set; }
 
+        /// <summary>
+        /// Campaign id stored on a completing Create Campaign Draft turn.
+        /// Null when this conversation has not persisted a Campaign Draft.
+        /// Distinct from Draft interview JSON.
+        /// </summary>
+        public int? CreatedCampaignId { get; set; }
+
+        /// <summary>
+        /// Offer id stored on a completing Offer path turn.
+        /// Null when this conversation has not persisted an Offers catalog Draft.
+        /// Distinct from Draft interview JSON.
+        /// </summary>
+        public int? CreatedOfferId { get; set; }
+
+        /// <summary>
+        /// Feedback recovery work stored on a completing Recovery path turn.
+        /// JSON: Feedback id + intent + eligibility snapshot + prepared fields.
+        /// Null when this conversation has not prepared recovery work.
+        /// Distinct from Draft interview JSON.
+        /// </summary>
+        public string? RecoveryWorkJson { get; set; }
+
         public ICollection<AssistantMessage> Messages { get; set; }
             = new List<AssistantMessage>();
     }

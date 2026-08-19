@@ -156,10 +156,24 @@ describe("createOperatorDashboardUiStore", () => {
     expect(store.getState().feedbackInboxIntent).toBeNull()
   })
 
-  it("holds a Campaigns Drafts intent until Campaigns consumes it", () => {
+  it("holds a Campaigns preview intent until Campaigns consumes it", () => {
     const store = createOperatorDashboardUiStore()
-    store.getState().setCampaignsIntent({ view: "drafts" })
-    expect(store.getState().campaignsIntent).toEqual({ view: "drafts" })
+    store.getState().setCampaignsIntent({ previewCampaignId: 41 })
+    expect(store.getState().campaignsIntent).toEqual({ previewCampaignId: 41 })
+    store.getState().setCampaignsIntent(null)
+    expect(store.getState().campaignsIntent).toBeNull()
+  })
+
+  it("holds a Campaigns Continue editing intent until Campaigns consumes it", () => {
+    const store = createOperatorDashboardUiStore()
+    store.getState().setCampaignsIntent({
+      continueEditingCampaignId: 41,
+      continueEditingStep: "audience",
+    })
+    expect(store.getState().campaignsIntent).toEqual({
+      continueEditingCampaignId: 41,
+      continueEditingStep: "audience",
+    })
     store.getState().setCampaignsIntent(null)
     expect(store.getState().campaignsIntent).toBeNull()
   })

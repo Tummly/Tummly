@@ -712,15 +712,18 @@ namespace TummlyBackend.Controllers
                     .FirstOrDefaultAsync(q => q.Id == feedback.QrCodeId);
             }
 
-            var marketingPreference = LocationGuestMarketingPreference.Allowed;
+            LocationGuestMarketingPreference? loadedPreference = null;
             if (feedback.LocationGuestId is int locationGuestId)
             {
-                marketingPreference = await _context.LocationGuests
+                loadedPreference = await _context.LocationGuests
                     .AsNoTracking()
                     .Where(lg => lg.Id == locationGuestId)
-                    .Select(lg => lg.MarketingPreference)
+                    .Select(lg => (LocationGuestMarketingPreference?)lg.MarketingPreference)
                     .FirstOrDefaultAsync();
             }
+
+            var marketingPreference =
+                loadedPreference ?? LocationGuestMarketingPreference.NotRecorded;
 
             return Ok(new
             {

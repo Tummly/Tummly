@@ -109,6 +109,7 @@ import {
   labelForCampaignGoalId,
   type CampaignGoalId,
   type CampaignGoalOption,
+  type CampaignWizardContinueEditingStep,
   type CampaignWizardStepId,
 } from "@/lib/operatorCampaigns/campaignWizardPresentation"
 import { mapCampaignTemplateSuggestions } from "@/lib/operatorCampaigns/mapCampaignTemplateSuggestions"
@@ -160,6 +161,11 @@ export type CampaignWizardOpenFromDraftInput = {
   locationName: string
   locationAddress?: string | null
   draft: CampaignDraftDetail
+  /** Assistant Change audience / Add Offer / later send-schedule land. */
+  startStep?: CampaignWizardContinueEditingStep
+  scheduleMode?: CampaignScheduleModeId
+  dateLocal?: string
+  timeLocal?: string
 }
 
 export type CampaignWizardOpenFromRecommendationInput = {
@@ -2493,12 +2499,28 @@ export function createCampaignWizardModule(
         (draft.messageBody?.trim().length ?? 0) > 0
         || (draft.messageSubject?.trim().length ?? 0) > 0
       // Resume at first incomplete step from persisted fields (schedule is not stored).
+      // Assistant Change audience / Add Offer may force Audience or Offer.
+      const forceNoOfferLand =
+        input.startStep === "offer" && draft.offerId == null
       const stepId: CampaignWizardStepId =
-        goalId == null
-          ? "goal"
-          : hasMessageContent
-            ? "schedule"
-            : "audience"
+        input.startStep === "audience"
+          ? "audience"
+          : input.startStep === "offer"
+            ? "offer"
+            : input.startStep === "schedule"
+              ? "schedule"
+              : input.startStep === "review"
+                ? "review"
+                : goalId == null
+                  ? "goal"
+                  : hasMessageContent
+                    ? "schedule"
+                    : "audience"
+
+      const offerStanceId = forceNoOfferLand
+        ? "no-offer"
+        : resolved.offerStanceId
+      const attachedOfferId = forceNoOfferLand ? null : draft.offerId
 
       state = {
         ...emptyState(),
@@ -2515,20 +2537,27 @@ export function createCampaignWizardModule(
         openedAt: getNow(),
         audienceId: resolved.audienceId,
         channelId: resolved.channelId,
-        offerStanceId: resolved.offerStanceId,
-        attachedOfferId: draft.offerId,
+        offerStanceId,
+        attachedOfferId,
         attachedOfferTitle: null,
+        createOfferPanelOpen: false,
         messageWriteEntry: hasMessageContent ? "editor" : "chooser",
         messageSubject: draft.messageSubject ?? "",
         messageBody: draft.messageBody ?? "",
+        scheduleModeId: input.scheduleMode
+          ?? (input.startStep === "schedule"
+            ? "schedule-later"
+            : defaultCampaignScheduleModeId()),
+        scheduleDateLocal: input.dateLocal ?? "",
+        scheduleTimeLocal: input.timeLocal ?? "",
         lastSavedAt: getNow(),
         saveStatus: "saved",
       }
       publish()
-      if (draft.offerId != null) {
+      if (!forceNoOfferLand && draft.offerId != null) {
         await hydrateAttachedOffer(draft.offerId)
       }
-      if (stepId === "audience") {
+      if (stepId === "audience" || stepId === "offer") {
         await Promise.all([
           loadAudienceCounts(),
           refreshMessagingBalances(),

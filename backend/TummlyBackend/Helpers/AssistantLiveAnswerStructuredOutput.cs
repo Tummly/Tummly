@@ -72,7 +72,15 @@ namespace TummlyBackend.Helpers
             {
                 ["type"] = "object",
                 ["additionalProperties"] = false,
-                ["required"] = new JsonArray { "answerClass", "title", "body", "actions" },
+                ["required"] = new JsonArray
+                {
+                    "answerClass",
+                    "title",
+                    "body",
+                    "actions",
+                    "assistantTask",
+                    "conversationTitle"
+                },
                 ["properties"] = new JsonObject
                 {
                     ["answerClass"] = new JsonObject
@@ -86,7 +94,24 @@ namespace TummlyBackend.Helpers
                             "clarify"
                         }
                     },
+                    ["assistantTask"] = new JsonObject
+                    {
+                        ["type"] = "string",
+                        ["enum"] = new JsonArray(
+                            AssistantTask.All
+                                .Select(task => (JsonNode)task)
+                                .ToArray()
+                        )
+                    },
                     ["title"] = new JsonObject
+                    {
+                        ["anyOf"] = new JsonArray
+                        {
+                            new JsonObject { ["type"] = "string" },
+                            new JsonObject { ["type"] = "null" }
+                        }
+                    },
+                    ["conversationTitle"] = new JsonObject
                     {
                         ["anyOf"] = new JsonArray
                         {
@@ -116,6 +141,7 @@ namespace TummlyBackend.Helpers
                                 "guestId",
                                 "smartGroup",
                                 "marketingEligible",
+                                "campaignId",
                             },
                             ["properties"] = new JsonObject
                             {
@@ -136,6 +162,7 @@ namespace TummlyBackend.Helpers
                                 ["guestId"] = NullableInteger(),
                                 ["smartGroup"] = NullableString(),
                                 ["marketingEligible"] = NullableBoolean(),
+                                ["campaignId"] = NullableInteger(),
                             },
                         },
                     },
@@ -148,11 +175,27 @@ namespace TummlyBackend.Helpers
                 Prompt/schema version: {promptSchemaVersion}.
 
                 Return Structured Outputs only. Do not stream.
+                Emit exactly one assistantTask: retrieve, create-campaign-draft,
+                offer-path, recovery-path, or refuse. Do not invent eligible
+                counts. The server binds tools and may overwrite the body on
+                create-campaign-draft and offer-path.
+
+                Emit conversationTitle with assistantTask: a short task label
+                for the Assistant conversation row (max 60 characters, one line,
+                no Markdown, no ellipsis). Omit Owned location, Reporting period,
+                guest Name / email / phone, Campaign Draft name, the live answer
+                message title, and tool counts. Keep task words from the ask.
+                Do not copy title. The server accepts or rejects this string.
+                Later turns may still emit it; the server ignores it after the
+                first successful complete.
+
                 Every restaurant claim must come from retrieved evidence in the
                 user payload. Re-retrieve is already done. Prior assistant text is
                 not evidence. Vague time words map to the current Reporting period.
                 Title and body must use periodPhrase for windowed facts. Do not
-                write a hard-coded "this week".
+                write a hard-coded "this week". The server owns Gap turns: do not
+                ask Campaign name, catalogues, extra questions, or Location when
+                the ask plus Analysis scope already name one Owned location.
 
                 Grounded body formatting uses this Markdown allow-list only:
                 short level 2 or level 3 headings (## or ###), bold (**text**),
@@ -225,12 +268,24 @@ namespace TummlyBackend.Helpers
                 Empty evidence is a grounded empty answer: title and body name the
                 Owned location and Reporting period. No Actions.
 
-                Mutate asks (create, send, or change records) are a refusal: body
-                only, no Actions, no claim the record changed.
-                Mixed ask: ground the in-scope allow-list part and add one refuse
-                sentence for the out part. Class is grounded if any in-scope facts
-                were retrieved. If suppressMixedRefusal is true, return only the
-                grounded retrieve part. The service adds interview and refusal copy.
+                Legal Create Campaign Draft, Offer path, and Recovery path asks
+                are not Mutate refusals. Emit assistantTask create-campaign-draft
+                for a Campaign create outcome such as “Draft an Email Campaign…”
+                or an SMS Campaign. Do not emit create-campaign-draft for nouns
+                alone (“Show me Campaign drafts” is retrieve). Help Centre how-to
+                (“How do I create a campaign?”) is refuse. Send, schedule, issue,
+                activate, and other writes outside those three create paths are
+                refuse: body only, no Actions, no claim the record changed. The
+                server binds location, audience, channel, eligibility, Offer, and
+                template. It may overwrite the live answer on create-campaign-draft,
+                offer-path, and recovery-path. Do not dump audience, goal, or
+                channel catalogues. Do not invent an eligible count. Mixed retrieve plus a legal create task:
+                emit the create task; retrieve is evidence only.
+                Mixed retrieve plus an out-of-scope write: ground the in-scope
+                allow-list part and add one refuse sentence for the out part.
+                Class is grounded if any in-scope facts were retrieved. If
+                suppressMixedRefusal is true, return only the grounded retrieve
+                part. The service adds interview and refusal copy.
 
                 Actions: choose typed rows only. Do not invent labels or destinations.
                 Max three. Catalog order. At most one per type. Navigate only.
@@ -353,12 +408,30 @@ namespace TummlyBackend.Helpers
                     evidence,
                     AssistantAskIntent.ClassifyGrounded(userMessage)
                 );
+                var assistantTask = AssistantTask.Retrieve;
+                if (root.TryGetProperty("assistantTask", out var taskElement)
+                    && taskElement.ValueKind == JsonValueKind.String)
+                {
+                    assistantTask = AssistantTask.Normalize(taskElement.GetString());
+                }
+
+                string? conversationTitle = null;
+                if (root.TryGetProperty("conversationTitle", out var conversationTitleElement)
+                    && conversationTitleElement.ValueKind == JsonValueKind.String)
+                {
+                    var rawConversationTitle = conversationTitleElement.GetString()?.Trim();
+                    conversationTitle = string.IsNullOrEmpty(rawConversationTitle)
+                        ? null
+                        : rawConversationTitle;
+                }
 
                 result = new AssistantLiveAnswerResult.Succeeded(
                     answerClass,
                     title,
                     body,
-                    actions
+                    actions,
+                    assistantTask,
+                    conversationTitle
                 );
                 return true;
             }
@@ -662,6 +735,7 @@ namespace TummlyBackend.Helpers
                         GuestId = ReadNullableInt(item, "guestId"),
                         SmartGroup = ReadNullableString(item, "smartGroup"),
                         MarketingEligible = ReadNullableBool(item, "marketingEligible"),
+                        CampaignId = ReadNullableInt(item, "campaignId"),
                     }
                 );
             }

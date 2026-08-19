@@ -87,4 +87,20 @@ describe("createCampaignDetailPreviewModule", () => {
       },
     })
   })
+
+  it("opens Preview from a loaded Campaign without fetching again", () => {
+    const loadCampaign = vi.fn(async () => sampleCampaign())
+    const module = createCampaignDetailPreviewModule({ loadCampaign })
+    const campaign = sampleCampaign({ id: 41, name: "Win-back" })
+
+    module.openLoaded(campaign)
+
+    expect(loadCampaign).not.toHaveBeenCalled()
+    expect(module.getSnapshot().open).toBe(true)
+    expect(module.getSnapshot().loadStatus).toBe("loaded")
+    expect(module.getSnapshot().viewModel).toMatchObject({
+      campaignId: 41,
+      title: "Win-back",
+    })
+  })
 })

@@ -9,6 +9,7 @@ import type {
   OperatorAiAssistantConversationRow,
   OperatorAiAssistantListItem,
   OperatorAiAssistantMessage,
+  AssistantSendScheduleRoute,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import type { CreateCampaignDraftRequest } from "@/types/operatorCampaigns"
@@ -42,6 +43,7 @@ type AssistantActionDto = {
   marketingEligible?: boolean | null
   feedbackId?: number | null
   intent?: string | null
+  campaignId?: number | null
 }
 
 type AssistantMessageDto = {
@@ -78,6 +80,16 @@ type AssistantConversationDto = {
     useConfirmedActionForGuestResponse?: boolean
   } | null
   draftInterviewActive?: boolean
+  sendScheduleRoute?: {
+    kind: string
+    campaignId?: number | null
+    step?: string | null
+    scheduleMode?: string | null
+    dateLocal?: string | null
+    timeLocal?: string | null
+    feedbackId?: number | null
+    intent?: string | null
+  } | null
 }
 
 type AssistantConversationListItemDto = {
@@ -150,6 +162,7 @@ function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessag
     || classValue === "refusal"
     || classValue === "failure"
     || classValue === "clarify"
+    || classValue === "gap"
       ? classValue
       : undefined
 
@@ -169,8 +182,10 @@ function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessag
 }
 
 const KNOWN_ASSISTANT_ACTION_TYPES = new Set<OperatorAiAssistantActionType>([
-  "draft-campaign",
-  "draft-offer",
+  "review-campaign",
+  "change-audience",
+  "add-offer",
+  "review-offer",
   "open-recovery",
   "view-feedback-set",
   "prepare-recovery",
@@ -201,6 +216,7 @@ function fromActionDto(
     marketingEligible: action.marketingEligible,
     feedbackId: action.feedbackId,
     intent: action.intent,
+    campaignId: action.campaignId,
   }
 }
 
@@ -208,6 +224,33 @@ function fromPendingRecoveryDraft(
   draft: AssistantConversationDto["pendingRecoveryDraft"]
 ): RecoveryDraftActionPayload | null {
   return parseRecoveryDraftActionPayload(draft)
+}
+
+function fromSendScheduleRoute(
+  route: AssistantConversationDto["sendScheduleRoute"]
+): AssistantSendScheduleRoute | null {
+  if (route == null) {
+    return null
+  }
+  if (route.kind !== "campaign" && route.kind !== "recovery") {
+    return null
+  }
+  const step =
+    route.step === "review" || route.step === "schedule" ? route.step : null
+  const scheduleMode =
+    route.scheduleMode === "send-now" || route.scheduleMode === "schedule-later"
+      ? route.scheduleMode
+      : null
+  return {
+    kind: route.kind,
+    campaignId: route.campaignId,
+    step,
+    scheduleMode,
+    dateLocal: route.dateLocal,
+    timeLocal: route.timeLocal,
+    feedbackId: route.feedbackId,
+    intent: route.intent,
+  }
 }
 
 export function fromConversationDto(
@@ -226,6 +269,7 @@ export function fromConversationDto(
       conversation.pendingRecoveryDraft
     ),
     draftInterviewActive: conversation.draftInterviewActive === true,
+    sendScheduleRoute: fromSendScheduleRoute(conversation.sendScheduleRoute),
   }
 }
 

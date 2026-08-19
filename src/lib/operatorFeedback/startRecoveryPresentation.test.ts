@@ -115,6 +115,26 @@ describe("startRecoveryPresentation", () => {
     })
   })
 
+  it("disables recovery-offer intent when Location Guest preference is missing", () => {
+    const intents = buildStartRecoveryIntents({
+      contactCapability: "email_available",
+      marketingPreference: undefined,
+      workflowStatus: "new",
+    })
+
+    expect(
+      intents.find((i) => i.id === "respond-with-recovery-offer")
+    ).toMatchObject({
+      enabled: false,
+      disableReason: "Guest has opted out of offers",
+    })
+    expect(
+      intents.find((i) => i.id === "respond-to-guest")
+    ).toMatchObject({
+      enabled: true,
+    })
+  })
+
   it("disables recovery-offer intent when Location Guest preference is not recorded", () => {
     const intents = buildStartRecoveryIntents({
       contactCapability: "email_available",

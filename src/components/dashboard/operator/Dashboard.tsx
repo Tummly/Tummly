@@ -6,7 +6,7 @@ import {
   DashboardUiStoreProvider,
   useDashboardUiStoreApi,
 } from "@/components/dashboard/operator/DashboardUiStoreProvider"
-import { planAssistantActionNavigate } from "@/lib/operatorAiAssistant/assistantActionNavigate"
+import { planAssistantActionNavigate, planAssistantSendScheduleRoute } from "@/lib/operatorAiAssistant/assistantActionNavigate"
 import { CapturePageModuleProvider } from "@/components/dashboard/operator/Capture/CapturePageModuleProvider"
 import { HomePageModuleProvider } from "@/components/dashboard/operator/Home/HomePageModuleProvider"
 import { CampaignsPageModuleProvider } from "@/components/dashboard/operator/Campaigns/CampaignsPageModuleProvider"
@@ -28,7 +28,6 @@ import {
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
 import { resolveOperatorSidebarActiveId } from "@/lib/operatorHome/operatorDashboardPaths"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
-import { toast } from "sonner"
 
 type DashboardProps = {
   mode: "single" | "multi"
@@ -75,13 +74,22 @@ function DashboardContent({ mode }: DashboardProps) {
       id: location.id,
       name: location.locationName,
     })),
-    navigateAction: ({ action, analysisScope, recoveryDraft }) => {
-      const plan = planAssistantActionNavigate({
-        action,
-        analysisScope,
-        mode,
-        recoveryDraft,
-      })
+    navigateAction: ({ action, analysisScope, recoveryDraft, campaignDraft, sendScheduleRoute }) => {
+      const plan = sendScheduleRoute
+        ? planAssistantSendScheduleRoute({
+            route: sendScheduleRoute,
+            analysisScope,
+            mode,
+            recoveryDraft,
+            campaignDraft,
+          })
+        : planAssistantActionNavigate({
+            action,
+            analysisScope,
+            mode,
+            recoveryDraft,
+            campaignDraft,
+          })
       workspace.selectLocation(plan.selectLocationId)
       if (plan.feedbackDateRange) {
         dashboardUiStore
@@ -112,12 +120,6 @@ function DashboardContent({ mode }: DashboardProps) {
           ? { recoveryDraft: plan.recoveryDraft }
           : undefined,
       })
-      if (action.type === "draft-campaign") {
-        toast.success("New draft created.")
-      }
-      if (action.type === "draft-offer") {
-        toast.success("Offer draft created.")
-      }
     },
     openRecoveryFromDraftAction: (payload) =>
       feedbackPage.openFromDraftAction(payload),

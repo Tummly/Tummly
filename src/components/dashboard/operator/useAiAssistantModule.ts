@@ -13,8 +13,8 @@ import {
   clearAssistantDraftInterview,
 } from "@/api/assistantApi"
 import {
-  createCampaignDraft,
-  createCatalogOfferDraft,
+  getCampaignDraftById,
+  getCatalogOfferById,
   getFeedbackDetails,
   setFeedbackWorkflowStatus,
   setFeedbackRecoveryOfferAttach,
@@ -30,12 +30,14 @@ import {
   type OperatorAiAssistantModule,
   type OperatorAiAssistantOwnedLocationOption,
   type OperatorAiAssistantSnapshot,
+  type AssistantSendScheduleRoute,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
 import {
   RECOVERY_DRAFT_ACTION_TOASTS,
   recoveryDraftActionGateToast,
 } from "@/lib/operatorFeedback/recoveryDraftAction"
+import type { CampaignDraftDetail, CatalogOfferDetail } from "@/types/operatorCampaigns"
 
 export type OperatorAiAssistantDashboardContext = {
   mode: "single" | "multi"
@@ -46,6 +48,9 @@ export type OperatorAiAssistantDashboardContext = {
     action: OperatorAiAssistantAction
     analysisScope: OperatorAiAssistantAnalysisScope
     recoveryDraft?: RecoveryDraftActionPayload | null
+    campaignDraft?: CampaignDraftDetail | null
+    catalogOffer?: CatalogOfferDetail | null
+    sendScheduleRoute?: AssistantSendScheduleRoute | null
   }) => void
   openRecoveryFromDraftAction: (
     payload: RecoveryDraftActionPayload
@@ -124,17 +129,19 @@ export function useAiAssistantModule(
         navigateAction: (input) => {
           contextRef.current.navigateAction(input)
         },
-        createCampaignDraft: async (body) => {
-          const response = await createCampaignDraft(body)
+        getCampaignDraft: async (campaignId) => {
+          const response = await getCampaignDraftById(campaignId)
           if (!response.success || response.campaign == null) {
-            throw new Error("Campaign draft create failed.")
+            return null
           }
+          return response.campaign
         },
-        createCatalogOfferDraft: async (body) => {
-          const response = await createCatalogOfferDraft(body)
+        getCatalogOffer: async (offerId) => {
+          const response = await getCatalogOfferById(offerId)
           if (!response.success || response.offer == null) {
-            throw new Error("Offer draft create failed.")
+            return null
           }
+          return response.offer
         },
         prepareOpenRecovery: async (input) => {
           const details = await getFeedbackDetails(input.feedbackId)
@@ -149,32 +156,29 @@ export function useAiAssistantModule(
           if (gate != null) {
             throw new Error(gate)
           }
-        },
-        openRecoveryFromDraftAction: async (payload) => {
-          // Hydrate Review while Assistant is still open, then apply durable writes.
-          await contextRef.current.openRecoveryFromDraftAction(payload)
-          const details = await getFeedbackDetails(payload.feedbackId)
-          const workflowStatus = details.workflowStatus ?? "new"
           if (workflowStatus === "new") {
             try {
-              await setFeedbackWorkflowStatus(payload.feedbackId, "in_progress")
+              await setFeedbackWorkflowStatus(input.feedbackId, "in_progress")
             } catch {
               throw new Error(RECOVERY_DRAFT_ACTION_TOASTS.statusAdvance)
             }
           }
           if (
-            payload.intent === "respond-with-recovery-offer"
-            && payload.offerId != null
+            input.intent === "respond-with-recovery-offer"
+            && input.offerId != null
           ) {
             try {
               await setFeedbackRecoveryOfferAttach(
-                payload.feedbackId,
-                payload.offerId
+                input.feedbackId,
+                input.offerId
               )
             } catch {
               throw new Error(RECOVERY_DRAFT_ACTION_TOASTS.openFailed)
             }
           }
+        },
+        openRecoveryFromDraftAction: async (payload) => {
+          await contextRef.current.openRecoveryFromDraftAction(payload)
         },
         clearDraftInterview: clearAssistantDraftInterview,
         notifyDraftError: () => {

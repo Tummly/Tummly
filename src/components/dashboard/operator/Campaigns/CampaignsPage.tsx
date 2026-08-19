@@ -46,6 +46,8 @@ import { createCampaignDetailPreviewModule } from "@/lib/operatorCampaigns/creat
 import { createCampaignTemplatePickerModule } from "@/lib/operatorCampaigns/createCampaignTemplatePickerModule"
 import { createCampaignTemplatePreviewModule } from "@/lib/operatorCampaigns/createCampaignTemplatePreviewModule"
 import { createCampaignWizardModule } from "@/lib/operatorCampaigns/createCampaignWizardModule"
+import type { CampaignWizardContinueEditingStep } from "@/lib/operatorCampaigns/campaignWizardPresentation"
+import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import type { CampaignRowActionId } from "@/lib/operatorCampaigns/campaignListPresentation"
 import { loadCampaignMessagingBalances } from "@/lib/operatorCampaigns/loadCampaignMessagingBalances"
 import { prepareCampaignMessageDraft } from "@/lib/operatorCampaigns/prepareCampaignMessageDraft"
@@ -60,8 +62,11 @@ import {
   OPERATOR_GUEST_PAGE_SIZE,
 } from "@/lib/operatorGuests/guestsPresentation"
 import { parseOperatorProfile } from "@/lib/operatorHome/parseOperatorProfile"
-import type { OperatorCampaignsListViewId } from "@/types/operatorCampaigns"
-import type { CampaignRecommendation } from "@/types/operatorCampaigns"
+import type {
+  CampaignDraftDetail,
+  CampaignRecommendation,
+  OperatorCampaignsListViewId,
+} from "@/types/operatorCampaigns"
 import type { OperatorGuestSmartGroupId } from "@/types/operatorGuests"
 
 const GUESTS_SCHEMA = guestsFilterSheetSchema()
@@ -153,25 +158,6 @@ export function CampaignsPage() {
     [clearTabCache]
   )
 
-  useEffect(() => {
-    if (campaignsIntent?.view !== "drafts") {
-      return
-    }
-    setCampaignsIntent(null)
-    void campaigns
-      .clearSearchAndFilters()
-      .then(() => {
-        campaigns.setSortId("recent-activity")
-        return campaigns.setListView("drafts")
-      })
-      .then(() => {
-        document.getElementById("campaigns-list")?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        })
-      })
-  }, [campaigns, campaignsIntent, setCampaignsIntent])
-
   const [templatePicker] = useState(() =>
     createCampaignTemplatePickerModule({
       loadTemplates: loadCampaignTemplatesList,
@@ -210,6 +196,20 @@ export function CampaignsPage() {
     campaignDetailPreview.getSnapshot,
     campaignDetailPreview.getSnapshot
   )
+
+  useEffect(() => {
+    if (campaignsIntent == null || !("previewCampaignId" in campaignsIntent)) {
+      return
+    }
+    const previewCampaignId = campaignsIntent.previewCampaignId
+    const loadedCampaign = campaignsIntent.campaign
+    setCampaignsIntent(null)
+    if (loadedCampaign != null) {
+      campaignDetailPreview.openLoaded(loadedCampaign)
+      return
+    }
+    void campaignDetailPreview.open(previewCampaignId)
+  }, [campaignDetailPreview, campaignsIntent, setCampaignsIntent])
 
   const [campaignWizard] = useState(() =>
     createCampaignWizardModule({
@@ -334,27 +334,66 @@ export function CampaignsPage() {
     void templatePicker.open()
   }
 
-  const handleContinueEditing = (campaignId: number) => {
+  const handleContinueEditing = (
+    campaignId: number,
+    startStep?: CampaignWizardContinueEditingStep,
+    loadedDraft?: CampaignDraftDetail,
+    scheduleLand?: {
+      scheduleMode?: CampaignScheduleModeId
+      dateLocal?: string
+      timeLocal?: string
+    }
+  ) => {
     const viewModel = snapshot.viewModel
     if (viewModel == null) {
       return
     }
     void (async () => {
       try {
-        const response = await getCampaignDraftById(campaignId)
-        if (!response.success || response.campaign == null) {
-          throw new Error("Campaign draft load failed.")
+        let draft = loadedDraft
+        if (draft == null) {
+          const response = await getCampaignDraftById(campaignId)
+          if (!response.success || response.campaign == null) {
+            throw new Error("Campaign draft load failed.")
+          }
+          draft = response.campaign
         }
         await campaignWizard.openFromDraft({
           locationName: viewModel.locationName,
           locationAddress: selectedLocationAddress,
-          draft: response.campaign,
+          draft,
+          startStep,
+          scheduleMode: scheduleLand?.scheduleMode,
+          dateLocal: scheduleLand?.dateLocal,
+          timeLocal: scheduleLand?.timeLocal,
         })
       } catch {
         toast.error("Could not open this campaign draft. Try again.")
       }
     })()
   }
+
+  useEffect(() => {
+    if (
+      campaignsIntent == null
+      || !("continueEditingCampaignId" in campaignsIntent)
+    ) {
+      return
+    }
+    if (snapshot.viewModel == null) {
+      return
+    }
+    const campaignId = campaignsIntent.continueEditingCampaignId
+    const startStep = campaignsIntent.continueEditingStep
+    const loadedDraft = campaignsIntent.campaign
+    const scheduleLand = {
+      scheduleMode: campaignsIntent.scheduleMode,
+      dateLocal: campaignsIntent.dateLocal,
+      timeLocal: campaignsIntent.timeLocal,
+    }
+    setCampaignsIntent(null)
+    handleContinueEditing(campaignId, startStep, loadedDraft, scheduleLand)
+  }, [campaignsIntent, setCampaignsIntent, snapshot.viewModel])
 
   const handlePreviewCampaign = (campaignId: number) => {
     void campaignDetailPreview.open(campaignId)

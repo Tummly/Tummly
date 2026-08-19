@@ -140,18 +140,7 @@ namespace TummlyBackend.Helpers
                 .ThenBy(message => message.Id)
                 .Select(ToMessageDto)
                 .ToList();
-            var campaignDraftState = AssistantCampaignDraftInterview.Parse(
-                conversation.DraftInterviewJson
-            );
-            var offerDraftState = AssistantOfferDraftInterview.Parse(
-                conversation.DraftInterviewJson
-            );
-            var recoveryDraftState = AssistantRecoveryDraftInterview.Parse(
-                conversation.DraftInterviewJson
-            );
-            var draftTargetChoiceState = AssistantDraftTargetChoice.Parse(
-                conversation.DraftInterviewJson
-            );
+            var recoveryWork = AssistantRecoveryWork.Parse(conversation.RecoveryWorkJson);
 
             return new AssistantConversationDto
             {
@@ -162,28 +151,12 @@ namespace TummlyBackend.Helpers
                 LastActivityAt = conversation.LastActivityAt,
                 Messages = messages,
                 RetryEligible = IsRetryEligible(conversation, messages),
-                DraftInterviewActive = campaignDraftState is not null
-                    || offerDraftState is not null
-                    || recoveryDraftState is not null
-                    || draftTargetChoiceState is not null,
-                PendingCampaignDraft = campaignDraftState is not null
-                    && AssistantCampaignDraftInterview.IsReady(campaignDraftState)
-                        ? AssistantCampaignDraftInterview.ToPayload(
-                            campaignDraftState,
-                            conversation.OwnedLocationId
-                        )
-                        : null,
-                PendingOfferDraft = offerDraftState is not null
-                    && AssistantOfferDraftInterview.IsReady(offerDraftState)
-                        ? AssistantOfferDraftInterview.ToPayload(
-                            offerDraftState,
-                            conversation.OwnedLocationId
-                        )
-                        : null,
-                PendingRecoveryDraft = recoveryDraftState is not null
-                    && AssistantRecoveryDraftInterview.IsReady(recoveryDraftState)
-                        ? AssistantRecoveryDraftInterview.ToPayload(recoveryDraftState)
-                        : null,
+                DraftInterviewActive = false,
+                PendingCampaignDraft = null,
+                PendingOfferDraft = null,
+                PendingRecoveryDraft = recoveryWork is not null
+                    ? AssistantRecoveryWork.ToPayload(recoveryWork)
+                    : null,
             };
         }
 
@@ -238,8 +211,11 @@ namespace TummlyBackend.Helpers
 
             try
             {
-                return JsonSerializer.Deserialize<List<AssistantActionDto>>(json)
-                    ?? [];
+                return (JsonSerializer.Deserialize<List<AssistantActionDto>>(json)
+                    ?? [])
+                    .Where(action =>
+                        action.Type is not "draft-campaign" and not "draft-offer")
+                    .ToList();
             }
             catch (JsonException)
             {

@@ -6,6 +6,7 @@ namespace TummlyBackend.Services
 {
     /// <summary>
         /// Testing and local Fake twin — grounded from retrieved allow-list evidence.
+        /// Emits one Assistant task so Testing never calls Azure.
     /// </summary>
     public sealed class FakeAssistantLiveAnswerProvider
         : IAssistantLiveAnswerProvider
@@ -20,7 +21,9 @@ namespace TummlyBackend.Services
         public void SucceedWith(
             AssistantMessageClass answerClass,
             string? title,
-            string body
+            string body,
+            string assistantTask = AssistantTask.Retrieve,
+            string? conversationTitle = null
         )
         {
             _throwOnComplete = null;
@@ -28,7 +31,9 @@ namespace TummlyBackend.Services
                 answerClass,
                 title,
                 body,
-                []
+                [],
+                assistantTask,
+                conversationTitle
             );
         }
 
@@ -75,21 +80,61 @@ namespace TummlyBackend.Services
                 return _forcedResult;
             }
 
-            var ask = AssistantAskIntent.Classify(input.UserMessage);
-            if (AssistantAskIntent.IsFullRefusal(ask))
+            var task = AssistantTaskClassification.Classify(input.UserMessage);
+            if (task == AssistantTask.CreateCampaignDraft)
             {
-                return AssistantLiveAnswerCopy.Refusal(ask);
+                return new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Campaign Draft",
+                    "Create Campaign Draft.",
+                    [],
+                    AssistantTask.CreateCampaignDraft
+                );
+            }
+
+            if (task == AssistantTask.OfferPath)
+            {
+                return new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Offers catalog Draft",
+                    "Offer path.",
+                    [],
+                    AssistantTask.OfferPath
+                );
+            }
+
+            if (task == AssistantTask.RecoveryPath)
+            {
+                return new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Feedback recovery",
+                    "Prepare Feedback recovery.",
+                    [],
+                    AssistantTask.RecoveryPath
+                );
+            }
+
+            if (task == AssistantTask.Refuse)
+            {
+                var refuseKind = AssistantAskIntent.IsHelpCentreAsk(input.UserMessage)
+                    ? AssistantAskKind.HelpCentre
+                    : AssistantAskIntent.Classify(input.UserMessage);
+                if (AssistantAskIntent.IsFullRefusal(refuseKind))
+                {
+                    return AssistantLiveAnswerCopy.Refusal(refuseKind);
+                }
             }
 
             if (input.CompareLocations is { Count: >= 2 })
             {
-                return AssistantLiveAnswerCopy.CompareFromEvidence(
+                var compare = AssistantLiveAnswerCopy.CompareFromEvidence(
                     input.UserMessage,
                     input.PeriodPhrase,
                     input.CompareLocations,
                     input.Evidence,
                     input.DroppedUnknownSentence
                 );
+                return compare with { AssistantTask = AssistantTask.Retrieve };
             }
 
             var grounded = AssistantLiveAnswerCopy.GroundedFromEvidence(
@@ -103,7 +148,7 @@ namespace TummlyBackend.Services
                 grounded,
                 input.Caveat,
                 input.DroppedUnknownSentence
-            );
+            ) with { AssistantTask = AssistantTask.Retrieve };
         }
     }
 }

@@ -21,7 +21,12 @@ import {
   type OperatorAiAssistantRecentGroup,
 } from "./assistantConversationList"
 import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
-import type { CreateCampaignDraftRequest } from "@/types/operatorCampaigns"
+import type {
+  CampaignDraftDetail,
+  CatalogOfferDetail,
+  CreateCampaignDraftRequest,
+} from "@/types/operatorCampaigns"
+import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import {
   ASSISTANT_ARCHIVE_EMPTY_TITLE,
   ASSISTANT_ARCHIVE_TITLE,
@@ -66,10 +71,15 @@ export type OperatorAiAssistantMessageClass =
   | "refusal"
   | "failure"
   | "clarify"
+  | "gap"
 
 export type OperatorAiAssistantHelpfulFill = "helpful" | "not-helpful"
 
 export type OperatorAiAssistantActionType =
+  | "review-campaign"
+  | "change-audience"
+  | "add-offer"
+  | "review-offer"
   | "draft-campaign"
   | "draft-offer"
   | "open-recovery"
@@ -95,6 +105,7 @@ export type OperatorAiAssistantAction = {
   marketingEligible?: boolean | null
   feedbackId?: number | null
   intent?: string | null
+  campaignId?: number | null
   clickable?: boolean
 }
 
@@ -119,6 +130,18 @@ export type OperatorAiAssistantConversationRow = {
   pendingOfferDraft?: CreateCatalogOfferRequestBody | null
   pendingRecoveryDraft?: RecoveryDraftActionPayload | null
   draftInterviewActive?: boolean
+  sendScheduleRoute?: AssistantSendScheduleRoute | null
+}
+
+export type AssistantSendScheduleRoute = {
+  kind: "campaign" | "recovery"
+  campaignId?: number | null
+  step?: "review" | "schedule" | null
+  scheduleMode?: CampaignScheduleModeId | null
+  dateLocal?: string | null
+  timeLocal?: string | null
+  feedbackId?: number | null
+  intent?: string | null
 }
 
 export type OperatorAiAssistantOwnedLocationOption = {
@@ -285,12 +308,25 @@ export type OperatorAiAssistantAdapters = {
     action: OperatorAiAssistantAction
     analysisScope: OperatorAiAssistantAnalysisScope
     recoveryDraft?: RecoveryDraftActionPayload | null
+    campaignDraft?: CampaignDraftDetail | null
+    catalogOffer?: CatalogOfferDetail | null
+    sendScheduleRoute?: AssistantSendScheduleRoute | null
   }) => void
-  createCampaignDraft: (body: CreateCampaignDraftRequest) => Promise<void>
-  createCatalogOfferDraft: (body: CreateCatalogOfferRequestBody) => Promise<void>
   /**
-   * Gate Resolved / No contact / opt-out before hydrate. Throws Error with
-   * toast message. Durable status/attach runs after hydrate succeeds.
+   * Load the Campaign Draft to gate completing-turn open. Return null when
+   * the Campaign is missing. Throw on load fail.
+   */
+  getCampaignDraft: (campaignId: number) => Promise<CampaignDraftDetail | null>
+  /**
+   * Load the Offers catalog row to gate completing-turn open. Return null when
+   * the Offer is missing. Throw on load fail.
+   */
+  getCatalogOffer: (offerId: number) => Promise<CatalogOfferDetail | null>
+  createCampaignDraft?: (body: CreateCampaignDraftRequest) => Promise<void>
+  createCatalogOfferDraft?: (body: CreateCatalogOfferRequestBody) => Promise<void>
+  /**
+   * Recheck eligibility, then New → In progress and offer attach.
+   * Throws Error with a shipped toast. Does not prepare copy.
    */
   prepareOpenRecovery: (input: {
     feedbackId: number
@@ -298,9 +334,8 @@ export type OperatorAiAssistantAdapters = {
     offerId: number | null
   }) => Promise<void>
   /**
-   * Hydrate Feedback Review from the Draft Action while the Assistant is still
-   * open, then apply status/attach. Throws on failure so the row stays
-   * re-clickable.
+   * Hydrate Feedback Review from stored conversation fields.
+   * Throws on failure so the row stays re-clickable.
    */
   openRecoveryFromDraftAction: (
     payload: RecoveryDraftActionPayload
@@ -377,6 +412,59 @@ const EMPTY_BODY =
 const DEFAULT_OWNED_LOCATION: OperatorAiAssistantOwnedLocationOption = {
   id: 1,
   name: "Camden",
+}
+
+export function inMemoryOpenableCampaignDraft(
+  campaignId: number,
+  overrides: Partial<CampaignDraftDetail> = {}
+): CampaignDraftDetail {
+  return {
+    id: campaignId,
+    locationId: DEFAULT_OWNED_LOCATION.id,
+    status: "draft",
+    name: "Campaign Draft",
+    goalId: "re-engage-inactive",
+    templateId: null,
+    templateVersion: null,
+    audienceKey: "all-eligible-guests",
+    channel: "email",
+    offerStance: "no-offer",
+    offerId: null,
+    messageSubject: null,
+    messageBody: null,
+    rowVersion: "1",
+    createdAt: "2026-08-19T00:00:00Z",
+    updatedAt: "2026-08-19T00:00:00Z",
+    ...overrides,
+  }
+}
+
+export function inMemoryOpenableCatalogOffer(
+  offerId: number,
+  overrides: Partial<CatalogOfferDetail> = {}
+): CatalogOfferDetail {
+  return {
+    id: offerId,
+    locationId: DEFAULT_OWNED_LOCATION.id,
+    status: "draft",
+    offerType: "percentage_discount",
+    title: "25% off your next visit",
+    description: "Save 25% on your next visit.",
+    validity: "30_days_after_issue",
+    expiryDate: null,
+    discountPercentage: 25,
+    discountAmount: null,
+    freeItemText: null,
+    purchaseRequirement: null,
+    minimumSpend: null,
+    additionalExclusions: null,
+    replacementItemText: null,
+    staffInstructions: null,
+    issueCount: 0,
+    createdAt: "2026-08-19T00:00:00Z",
+    updatedAt: "2026-08-19T00:00:00Z",
+    ...overrides,
+  }
 }
 
 export function buildAssistantEmptyGreeting(
@@ -518,6 +606,10 @@ export function createInMemoryOperatorAiAssistantAdapters(
   lastNavigate: {
     action: OperatorAiAssistantAction
     analysisScope: OperatorAiAssistantAnalysisScope
+    campaignDraft?: CampaignDraftDetail | null
+    catalogOffer?: CatalogOfferDetail | null
+    recoveryDraft?: RecoveryDraftActionPayload | null
+    sendScheduleRoute?: AssistantSendScheduleRoute | null
   } | null
 } {
   const conversations: OperatorAiAssistantConversationRow[] = []
@@ -531,6 +623,10 @@ export function createInMemoryOperatorAiAssistantAdapters(
     lastNavigate: null as {
       action: OperatorAiAssistantAction
       analysisScope: OperatorAiAssistantAnalysisScope
+      campaignDraft?: CampaignDraftDetail | null
+      catalogOffer?: CatalogOfferDetail | null
+      recoveryDraft?: RecoveryDraftActionPayload | null
+      sendScheduleRoute?: AssistantSendScheduleRoute | null
     } | null,
   }
 
@@ -540,6 +636,9 @@ export function createInMemoryOperatorAiAssistantAdapters(
     navigateAction: (input) => {
       extras.lastNavigate = input
     },
+    getCampaignDraft: async (campaignId) =>
+      inMemoryOpenableCampaignDraft(campaignId),
+    getCatalogOffer: async (offerId) => inMemoryOpenableCatalogOffer(offerId),
     createCampaignDraft: async () => {},
     createCatalogOfferDraft: async () => {},
     prepareOpenRecovery: async () => {},
@@ -611,13 +710,7 @@ export function createInMemoryOperatorAiAssistantAdapters(
     listConversations: async (archived) => {
       return conversations
         .filter((row) => row.isArchived === archived)
-        .map((row) => ({
-          id: row.id,
-          title: row.title,
-          ownedLocationName: row.analysisScope.ownedLocationName,
-          lastActivityAt: row.lastActivityAt,
-          isArchived: row.isArchived,
-        }))
+        .map((row) => toListItemFromConversation(row))
     },
     archiveConversation: async (conversationId) => {
       const row = conversations.find((item) => item.id === conversationId)
@@ -709,7 +802,11 @@ type AssistantState = {
   pendingCampaignDraft: CreateCampaignDraftRequest | null
   pendingOfferDraft: CreateCatalogOfferRequestBody | null
   pendingRecoveryDraft: RecoveryDraftActionPayload | null
-  draftActionInFlight: boolean
+  actionInFlight: boolean
+  /** Completing Campaign id whose Action rows are locked while open is in flight. */
+  completingCampaignNavigateId: number | null
+  /** Completing Offer id whose Action row is locked while open is in flight. */
+  completingOfferNavigateId: number | null
   draftActionSpent: boolean
   draftInterviewActive: boolean
 }
@@ -748,7 +845,9 @@ const INITIAL_STATE: AssistantState = {
   pendingCampaignDraft: null,
   pendingOfferDraft: null,
   pendingRecoveryDraft: null,
-  draftActionInFlight: false,
+  actionInFlight: false,
+  completingCampaignNavigateId: null,
+  completingOfferNavigateId: null,
   draftActionSpent: false,
   draftInterviewActive: false,
 }
@@ -928,6 +1027,94 @@ function showsLoadedListRows(
   )
 }
 
+function isCompletingCampaignAction(
+  type: OperatorAiAssistantActionType
+): boolean {
+  return (
+    type === "review-campaign"
+    || type === "change-audience"
+    || type === "add-offer"
+  )
+}
+
+function isCompletingOfferAction(
+  type: OperatorAiAssistantActionType
+): boolean {
+  return type === "review-offer"
+}
+
+function isRetiredDraftActionType(
+  type: OperatorAiAssistantActionType
+): boolean {
+  return type === "draft-campaign" || type === "draft-offer"
+}
+
+function canOpenStoredDraftFromAssistant(
+  row: { status: string; locationId: number } | null,
+  analysisScopeLocationId: number
+): boolean {
+  if (row == null) {
+    return false
+  }
+  if (row.status.toLowerCase() !== "draft") {
+    return false
+  }
+  return row.locationId === analysisScopeLocationId
+}
+
+function visibleActionsForMessage(
+  message: OperatorAiAssistantMessage,
+  state: AssistantState
+): OperatorAiAssistantAction[] | undefined {
+  if (message.actions == null) {
+    return undefined
+  }
+
+  const raw = message.actions.filter(
+    (action) => !isRetiredDraftActionType(action.type)
+  )
+
+  const hasCompletingCampaign = raw.some((action) =>
+    isCompletingCampaignAction(action.type)
+  )
+  const hasCompletingOffer = raw.some((action) =>
+    isCompletingOfferAction(action.type)
+  )
+  const hasOpenRecovery = raw.some((action) => action.type === "open-recovery")
+  const filtered = hasCompletingCampaign
+    ? raw.filter((action) => isCompletingCampaignAction(action.type)).slice(0, 3)
+    : hasCompletingOffer
+      ? raw.filter((action) => isCompletingOfferAction(action.type)).slice(0, 1)
+      : hasOpenRecovery
+        ? raw.filter((action) => action.type === "open-recovery").slice(0, 1)
+        : raw.slice(0, 3)
+
+  return filtered.map((action) => ({
+    ...action,
+    clickable: isCompletingCampaignAction(action.type)
+      ? !(
+          state.turnInFlight
+          || (state.actionInFlight
+            && state.completingCampaignNavigateId != null
+            && action.campaignId === state.completingCampaignNavigateId)
+        )
+      : isCompletingOfferAction(action.type)
+        ? !(
+            state.turnInFlight
+            || (state.actionInFlight
+              && state.completingOfferNavigateId != null
+              && action.offerId === state.completingOfferNavigateId)
+          )
+          : action.type === "open-recovery"
+            ? !(
+                state.turnInFlight
+                || state.actionInFlight
+                || state.pendingRecoveryDraft == null
+              )
+            : true,
+  }))
+}
+
 function toSnapshot(
   state: AssistantState,
   nowMs: number,
@@ -946,44 +1133,9 @@ function toSnapshot(
         },
       ]
     : storedMessages).map((message) => {
-      const hasDraftAction = message.actions?.some(
-        (action) =>
-          action.type === "draft-campaign"
-          || action.type === "draft-offer"
-          || action.type === "open-recovery"
-      )
-      const actions = hasDraftAction
-        ? message.actions
-            ?.filter(
-              (action) =>
-                action.type === "draft-campaign"
-                || action.type === "draft-offer"
-                || action.type === "open-recovery"
-            )
-            .slice(0, 1)
-        : message.actions?.slice(0, 3)
       return {
         ...message,
-        actions: actions?.map((action) => ({
-          ...action,
-          clickable:
-            action.type === "draft-campaign"
-              ? (!state.draftActionInFlight
-                && !state.draftActionSpent
-                && state.pendingCampaignDraft != null
-                && message === storedMessages.at(-1))
-              : action.type === "draft-offer"
-                ? (!state.draftActionInFlight
-                  && !state.draftActionSpent
-                  && state.pendingOfferDraft != null
-                  && message === storedMessages.at(-1))
-                : action.type === "open-recovery"
-                  ? (!state.draftActionInFlight
-                    && !state.draftActionSpent
-                    && state.pendingRecoveryDraft != null
-                    && message === storedMessages.at(-1))
-                  : true,
-        })),
+        actions: visibleActionsForMessage(message, state),
       }
     })
   const lastAssistant = [...displayMessages]
@@ -1110,12 +1262,41 @@ function applyConversation(
     pendingRecoveryDraft: row.pendingRecoveryDraft ?? null,
     draftInterviewActive: row.draftInterviewActive === true,
     // Per-conversation clickability — do not keep spent/in-flight from another thread.
-    draftActionInFlight: false,
+    actionInFlight: false,
+    completingCampaignNavigateId: null,
+    completingOfferNavigateId: null,
     draftActionSpent: false,
     turnInFlight: false,
     waitBody: ASSISTANT_WAIT_BODY,
     turnConversationId: null,
+    listItems: upsertListItem(state.listItems, row, activeListPanel(state)),
   }
+}
+
+function toListItemFromConversation(
+  row: OperatorAiAssistantConversationRow
+): OperatorAiAssistantListItem {
+  return {
+    id: row.id,
+    title: row.title,
+    ownedLocationName: row.analysisScope.ownedLocationName,
+    lastActivityAt: row.lastActivityAt,
+    isArchived: row.isArchived,
+  }
+}
+
+function upsertListItem(
+  items: OperatorAiAssistantListItem[],
+  row: OperatorAiAssistantConversationRow,
+  listPanel: OperatorAiAssistantListPanel
+): OperatorAiAssistantListItem[] {
+  const without = items.filter((item) => item.id !== row.id)
+  const rowIsOnActivePanel =
+    listPanel === "archive" ? row.isArchived : !row.isArchived
+  if (!rowIsOnActivePanel) {
+    return without
+  }
+  return [toListItemFromConversation(row), ...without]
 }
 
 function emptyGreetingState(
@@ -1137,7 +1318,9 @@ function emptyGreetingState(
     pendingCampaignDraft: null,
     pendingOfferDraft: null,
     pendingRecoveryDraft: null,
-    draftActionInFlight: false,
+    actionInFlight: false,
+    completingCampaignNavigateId: null,
+    completingOfferNavigateId: null,
     draftActionSpent: false,
     draftInterviewActive: false,
     turnInFlight: false,
@@ -1360,6 +1543,99 @@ export function createOperatorAiAssistantModule(
     publish()
   }
 
+  const followSendScheduleRoute = (
+    row: OperatorAiAssistantConversationRow
+  ) => {
+    const route = row.sendScheduleRoute
+    const analysisScope = state.analysisScope
+    if (route == null || analysisScope == null || state.actionInFlight) {
+      return
+    }
+    if (route.kind === "recovery") {
+      const payload = row.pendingRecoveryDraft
+      if (payload == null) {
+        return
+      }
+      state = { ...state, actionInFlight: true }
+      publish()
+      void adapters
+        .prepareOpenRecovery({
+          feedbackId: payload.feedbackId,
+          intent: payload.intent,
+          offerId: payload.offerId ?? null,
+        })
+        .then(() => adapters.openRecoveryFromDraftAction(payload))
+        .then(() => {
+          state = { ...state, actionInFlight: false }
+          publish()
+          closeDrawer()
+          adapters.navigateAction({
+            action: {
+              type: "open-recovery",
+              label: "Review recovery",
+              feedbackId: payload.feedbackId,
+              intent: payload.intent,
+            },
+            analysisScope,
+            recoveryDraft: payload,
+            sendScheduleRoute: route,
+          })
+        })
+        .catch((error: unknown) => {
+          state = { ...state, actionInFlight: false }
+          const message =
+            error instanceof Error && error.message.trim() !== ""
+              ? error.message
+              : "Could not open recovery. Please try again."
+          adapters.notifyRecoveryDraftError(message)
+          publish()
+        })
+      return
+    }
+
+    const campaignId = route.campaignId
+    if (campaignId == null) {
+      return
+    }
+    state = {
+      ...state,
+      actionInFlight: true,
+      completingCampaignNavigateId: campaignId,
+    }
+    publish()
+    void adapters
+      .getCampaignDraft(campaignId)
+      .then((campaign) => {
+        if (
+          !canOpenStoredDraftFromAssistant(
+            campaign,
+            analysisScope.ownedLocationId
+          )
+        ) {
+          throw new Error("Campaign draft cannot open.")
+        }
+        adapters.navigateAction({
+          action: {
+            type: "review-campaign",
+            label: "Review campaign draft",
+            campaignId,
+          },
+          analysisScope,
+          campaignDraft: campaign,
+          sendScheduleRoute: route,
+        })
+        closeDrawer()
+      })
+      .catch(() => {
+        state = {
+          ...state,
+          actionInFlight: false,
+          completingCampaignNavigateId: null,
+        }
+        publish()
+      })
+  }
+
   const runTurn = (message: string, replaceFailure: boolean) => {
     if (state.turnInFlight) {
       return
@@ -1424,6 +1700,7 @@ export function createOperatorAiAssistantModule(
           composerDraft: "",
         }
         publish()
+        followSendScheduleRoute(row)
       })
       .catch((error: unknown) => {
         if (generation !== sendGeneration) {
@@ -1891,74 +2168,101 @@ export function createOperatorAiAssistantModule(
       if (analysisScope == null) {
         return
       }
-      if (action.type === "draft-campaign" || action.type === "draft-offer") {
-        const conversationId = state.conversationId
-        const pendingBody =
-          action.type === "draft-campaign"
-            ? state.pendingCampaignDraft
-            : state.pendingOfferDraft
-        const latest = state.messages.at(-1)
-        if (
-          conversationId == null
-          || pendingBody == null
-          || state.draftActionInFlight
-          || state.draftActionSpent
-          || latest?.role !== "assistant"
-          || !latest.actions?.some((item) => item.type === action.type)
-        ) {
+      if (isCompletingCampaignAction(action.type)) {
+        const campaignId = action.campaignId
+        if (campaignId == null || state.actionInFlight) {
           return
         }
-        const body = {
-          ...pendingBody,
-          locationId: analysisScope.ownedLocationId,
+        state = {
+          ...state,
+          actionInFlight: true,
+          completingCampaignNavigateId: campaignId,
         }
-        state = { ...state, draftActionInFlight: true }
         publish()
-        const create =
-          action.type === "draft-campaign"
-            ? adapters.createCampaignDraft(body as CreateCampaignDraftRequest)
-            : adapters.createCatalogOfferDraft(body as CreateCatalogOfferRequestBody)
-        void create
-          .then(async () => {
-            // Spend before clear so a clear failure cannot unlock a second POST.
-            state = {
-              ...state,
-              draftActionInFlight: false,
-              draftActionSpent: true,
-              pendingCampaignDraft: null,
-              pendingOfferDraft: null,
+        void adapters
+          .getCampaignDraft(campaignId)
+          .then((campaign) => {
+            if (
+              !canOpenStoredDraftFromAssistant(
+                campaign,
+                analysisScope.ownedLocationId
+              )
+            ) {
+              throw new Error("Campaign draft cannot open.")
             }
-            publish()
-            try {
-              await adapters.clearDraftInterview(conversationId)
-            } catch {
-              // Create already succeeded; keep the row spent.
-            }
+            adapters.navigateAction({
+              action,
+              analysisScope,
+              campaignDraft: campaign,
+            })
             closeDrawer()
-            adapters.navigateAction({ action, analysisScope })
           })
           .catch(() => {
-            state = { ...state, draftActionInFlight: false }
-            adapters.notifyDraftError()
+            // Open-failure: stay in the Assistant; the row stays clickable.
+            state = {
+              ...state,
+              actionInFlight: false,
+              completingCampaignNavigateId: null,
+            }
             publish()
           })
         return
       }
+      if (isCompletingOfferAction(action.type)) {
+        const offerId = action.offerId
+        if (offerId == null || state.actionInFlight) {
+          return
+        }
+        state = {
+          ...state,
+          actionInFlight: true,
+          completingOfferNavigateId: offerId,
+        }
+        publish()
+        void adapters
+          .getCatalogOffer(offerId)
+          .then((offer) => {
+            if (
+              !canOpenStoredDraftFromAssistant(
+                offer,
+                analysisScope.ownedLocationId
+              )
+            ) {
+              throw new Error("Offer draft cannot open.")
+            }
+            adapters.navigateAction({
+              action,
+              analysisScope,
+              catalogOffer: offer,
+            })
+            closeDrawer()
+          })
+          .catch(() => {
+            // Open-failure: stay in the Assistant; the row stays clickable.
+            state = {
+              ...state,
+              actionInFlight: false,
+              completingOfferNavigateId: null,
+            }
+            publish()
+          })
+        return
+      }
+      if (isRetiredDraftActionType(action.type)) {
+        return
+      }
       if (action.type === "open-recovery") {
-        const conversationId = state.conversationId
         const payload = state.pendingRecoveryDraft
         const latest = state.messages.at(-1)
         if (
-          conversationId == null
-          || payload == null
-          || state.draftActionInFlight
-          || state.draftActionSpent
+          payload == null
+          || state.actionInFlight
           || latest?.role !== "assistant"
           || !latest.actions?.some((item) => item.type === "open-recovery")
         ) {
           return
         }
-        state = { ...state, draftActionInFlight: true }
+        state = { ...state, actionInFlight: true }
         publish()
         void adapters
           .prepareOpenRecovery({
@@ -1967,25 +2271,21 @@ export function createOperatorAiAssistantModule(
             offerId: payload.offerId ?? null,
           })
           .then(() => adapters.openRecoveryFromDraftAction(payload))
-          .then(async () => {
-            // Spend only after Review hydrate succeeds; failure stays re-clickable.
+          .then(() => {
             state = {
               ...state,
-              draftActionInFlight: false,
-              draftActionSpent: true,
-              pendingRecoveryDraft: null,
+              actionInFlight: false,
             }
             publish()
-            try {
-              await adapters.clearDraftInterview(conversationId)
-            } catch {
-              // Hydrate already succeeded; keep the row spent.
-            }
             closeDrawer()
-            adapters.navigateAction({ action, analysisScope })
+            adapters.navigateAction({
+              action,
+              analysisScope,
+              recoveryDraft: payload,
+            })
           })
           .catch((error: unknown) => {
-            state = { ...state, draftActionInFlight: false }
+            state = { ...state, actionInFlight: false }
             const message =
               error instanceof Error && error.message.trim() !== ""
                 ? error.message

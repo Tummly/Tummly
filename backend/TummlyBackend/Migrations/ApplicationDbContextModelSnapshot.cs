@@ -109,6 +109,12 @@ namespace TummlyBackend.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("CreatedCampaignId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreatedOfferId")
+                        .HasColumnType("int");
+
                     b.Property<string>("DraftInterviewJson")
                         .HasColumnType("nvarchar(max)");
 
@@ -148,6 +154,9 @@ namespace TummlyBackend.Migrations
                     b.Property<string>("ReportingPeriodStartDate")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("RecoveryWorkJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Title")
                         .IsRequired()

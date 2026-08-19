@@ -7,35 +7,75 @@ namespace TummlyBackend.Tests.Helpers
     public class AssistantActionCatalogTests
     {
         [Fact]
-        public void ValidateCampaignDraft_KeepsOnlyServerDraftAction_WithoutEvidence()
+        public void ValidateReviewCampaign_AttachesReviewChangeAudienceAndAddOffer_WhenNoOffer()
         {
-            var actions = AssistantActionCatalog.ValidateCampaignDraft(
-                [
-                    new AssistantActionDto { Type = "view-campaigns" },
-                    new AssistantActionDto { Type = "draft-campaign" },
-                ],
-                AssistantMessageClass.Grounded
+            var actions = AssistantActionCatalog.ValidateReviewCampaign(
+                41,
+                AssistantMessageClass.Grounded,
+                "no-offer",
+                offerId: null
             );
 
-            var action = Assert.Single(actions);
-            Assert.Equal("draft-campaign", action.Type);
-            Assert.Equal("Create campaign draft", action.Label);
+            Assert.Equal(
+                new[] { "review-campaign", "change-audience", "add-offer" },
+                actions.Select(action => action.Type)
+            );
+            Assert.Equal("Review campaign draft", actions[0].Label);
+            Assert.Equal("Change audience", actions[1].Label);
+            Assert.Equal("Add Offer", actions[2].Label);
+            Assert.All(actions, action => Assert.Equal(41, action.CampaignId));
+            Assert.Empty(
+                AssistantActionCatalog.ValidateReviewCampaign(
+                    null,
+                    AssistantMessageClass.Grounded,
+                    "no-offer",
+                    offerId: null
+                )
+            );
         }
 
         [Fact]
-        public void ValidateOfferDraft_KeepsOnlyServerDraftAction_WithoutEvidence()
+        public void ValidateReviewOffer_AttachesReviewOnly()
         {
-            var actions = AssistantActionCatalog.ValidateOfferDraft(
-                [
-                    new AssistantActionDto { Type = "view-offers" },
-                    new AssistantActionDto { Type = "draft-offer" },
-                ],
+            var actions = AssistantActionCatalog.ValidateReviewOffer(
+                9,
                 AssistantMessageClass.Grounded
             );
 
             var action = Assert.Single(actions);
-            Assert.Equal("draft-offer", action.Type);
-            Assert.Equal("Create offer draft", action.Label);
+            Assert.Equal("review-offer", action.Type);
+            Assert.Equal("Review offer draft", action.Label);
+            Assert.Equal(9, action.OfferId);
+            Assert.Empty(
+                AssistantActionCatalog.ValidateReviewOffer(
+                    null,
+                    AssistantMessageClass.Grounded
+                )
+            );
+        }
+
+        [Fact]
+        public void ValidateReviewCampaign_OmitsAddOffer_WhenOfferIsAttached()
+        {
+            var actions = AssistantActionCatalog.ValidateReviewCampaign(
+                41,
+                AssistantMessageClass.Grounded,
+                "existing-offer",
+                offerId: 9
+            );
+
+            Assert.Equal(
+                new[] { "review-campaign", "change-audience" },
+                actions.Select(action => action.Type)
+            );
+            Assert.DoesNotContain(actions, action => action.Type == "add-offer");
+        }
+
+        [Fact]
+        public void CatalogOrder_OmitsRetiredDraftActionTypes()
+        {
+            Assert.DoesNotContain("draft-campaign", AssistantActionCatalog.CatalogOrder);
+            Assert.DoesNotContain("draft-offer", AssistantActionCatalog.CatalogOrder);
         }
 
         [Fact]
@@ -85,6 +125,10 @@ namespace TummlyBackend.Tests.Helpers
         {
             var actions = AssistantActionCatalog.Validate(
                 [
+                    new AssistantActionDto { Type = "review-campaign", CampaignId = 41 },
+                    new AssistantActionDto { Type = "change-audience", CampaignId = 41 },
+                    new AssistantActionDto { Type = "add-offer", CampaignId = 41 },
+                    new AssistantActionDto { Type = "review-offer", OfferId = 9 },
                     new AssistantActionDto { Type = "draft-campaign" },
                     new AssistantActionDto { Type = "draft-offer" },
                     new AssistantActionDto
@@ -102,14 +146,34 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void CatalogOrder_PlacesDraftOfferAndOpenRecoveryAfterDraftCampaign()
+        public void CatalogOrder_PlacesCampaignCompletingActionsBeforeRetrieve()
         {
             Assert.Equal(
-                new[] { "draft-campaign", "draft-offer", "open-recovery" },
-                AssistantActionCatalog.CatalogOrder.Take(3)
+                new[]
+                {
+                    "review-campaign",
+                    "change-audience",
+                    "add-offer",
+                    "review-offer",
+                    "open-recovery",
+                    "view-feedback-set",
+                },
+                AssistantActionCatalog.CatalogOrder.Take(6)
             );
-            Assert.Equal("Create offer draft", AssistantActionCatalog.LabelFor(
-                new AssistantActionDto { Type = "draft-offer" }
+            Assert.Equal("Review campaign draft", AssistantActionCatalog.LabelFor(
+                new AssistantActionDto { Type = "review-campaign" }
+            ));
+            Assert.Equal("Change audience", AssistantActionCatalog.LabelFor(
+                new AssistantActionDto { Type = "change-audience" }
+            ));
+            Assert.Equal("Add Offer", AssistantActionCatalog.LabelFor(
+                new AssistantActionDto { Type = "add-offer" }
+            ));
+            Assert.Equal("Review offer draft", AssistantActionCatalog.LabelFor(
+                new AssistantActionDto { Type = "review-offer" }
+            ));
+            Assert.Equal("Review recovery", AssistantActionCatalog.LabelFor(
+                new AssistantActionDto { Type = "open-recovery" }
             ));
         }
 

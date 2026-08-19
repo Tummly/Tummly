@@ -95,6 +95,9 @@ namespace TummlyBackend.Helpers
         public static bool IsFullRefusal(AssistantAskKind kind)
             => kind is AssistantAskKind.Mutate or AssistantAskKind.HelpCentre;
 
+        public static bool IsHelpCentreAsk(string text)
+            => LooksLikeHelpCentre(text);
+
         public static bool HasRetrieveAsk(string text)
             => LooksLikeInScope(text);
 
@@ -111,6 +114,28 @@ namespace TummlyBackend.Helpers
                 "count",
                 "which ",
                 "who ",
+                "compare",
+                "overview",
+                "breakdown",
+                "performance",
+                "trend"
+            );
+        }
+
+        /// <summary>
+        /// Retrieve or compare that replaces an open Gap turn. Omits "which"
+        /// / "who" so a Location answer is not treated as a new Retrieve task.
+        /// </summary>
+        public static bool HasReplacingRetrieveAsk(string text)
+        {
+            var lower = text.Trim().ToLowerInvariant();
+            return ContainsAny(
+                lower,
+                "summarise",
+                "summarize",
+                "show",
+                "list",
+                "how many",
                 "compare",
                 "overview",
                 "breakdown",
@@ -251,7 +276,9 @@ namespace TummlyBackend.Helpers
                 "mark this resolved",
                 "mark as resolved",
                 "write a reply and send",
-                "send the recovery"
+                "send the recovery",
+                "send it now",
+                "send now"
             );
         }
 

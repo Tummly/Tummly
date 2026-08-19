@@ -17,8 +17,10 @@ namespace TummlyBackend.Helpers
 
         public static readonly string[] CatalogOrder =
         [
-            "draft-campaign",
-            "draft-offer",
+            "review-campaign",
+            "change-audience",
+            "add-offer",
+            "review-offer",
             "open-recovery",
             "view-feedback-set",
             "prepare-recovery",
@@ -102,34 +104,37 @@ namespace TummlyBackend.Helpers
                 .ToList();
         }
 
-        public static IReadOnlyList<AssistantActionDto> ValidateCampaignDraft(
-            IEnumerable<AssistantActionDto>? proposed,
-            AssistantMessageClass answerClass
+        public static IReadOnlyList<AssistantActionDto> ValidateReviewCampaign(
+            int? campaignId,
+            AssistantMessageClass answerClass,
+            string? offerStance,
+            int? offerId
         )
         {
-            if (answerClass != AssistantMessageClass.Grounded
-                || !(proposed ?? []).Any(action => action.Type == "draft-campaign"))
+            if (answerClass != AssistantMessageClass.Grounded || campaignId is null)
             {
                 return [];
             }
 
-            return
-            [
-                new AssistantActionDto
-                {
-                    Type = "draft-campaign",
-                    Label = LabelFor(new AssistantActionDto { Type = "draft-campaign" }),
-                },
-            ];
+            var actions = new List<AssistantActionDto>
+            {
+                CompletingCampaignAction("review-campaign", campaignId.Value),
+                CompletingCampaignAction("change-audience", campaignId.Value),
+            };
+            if (DraftHasNoOffer(offerStance, offerId))
+            {
+                actions.Add(CompletingCampaignAction("add-offer", campaignId.Value));
+            }
+
+            return actions;
         }
 
-        public static IReadOnlyList<AssistantActionDto> ValidateOfferDraft(
-            IEnumerable<AssistantActionDto>? proposed,
+        public static IReadOnlyList<AssistantActionDto> ValidateReviewOffer(
+            int? offerId,
             AssistantMessageClass answerClass
         )
         {
-            if (answerClass != AssistantMessageClass.Grounded
-                || !(proposed ?? []).Any(action => action.Type == "draft-offer"))
+            if (answerClass != AssistantMessageClass.Grounded || offerId is null)
             {
                 return [];
             }
@@ -138,8 +143,9 @@ namespace TummlyBackend.Helpers
             [
                 new AssistantActionDto
                 {
-                    Type = "draft-offer",
-                    Label = LabelFor(new AssistantActionDto { Type = "draft-offer" }),
+                    Type = "review-offer",
+                    Label = LabelFor(new AssistantActionDto { Type = "review-offer" }),
+                    OfferId = offerId,
                 },
             ];
         }
@@ -295,8 +301,10 @@ namespace TummlyBackend.Helpers
         {
             return action.Type switch
             {
-                "draft-campaign" => "Create campaign draft",
-                "draft-offer" => "Create offer draft",
+                "review-campaign" => "Review campaign draft",
+                "change-audience" => "Change audience",
+                "add-offer" => "Add Offer",
+                "review-offer" => "Review offer draft",
                 "open-recovery" => "Review recovery",
                 "view-feedback-set" => action.Count == 1
                     ? "View 1 feedback item"
@@ -318,8 +326,12 @@ namespace TummlyBackend.Helpers
             AssistantGroundedAsk ask
         )
         {
-            // Draft Action types are attached by the server on completing interviews.
-            if (raw.Type is "draft-campaign" or "draft-offer" or "open-recovery")
+            // Completing-turn types are attached by the server. The model must not invent them.
+            if (raw.Type is "review-campaign"
+                or "change-audience"
+                or "add-offer"
+                or "review-offer"
+                or "open-recovery")
             {
                 return null;
             }
@@ -426,6 +438,18 @@ namespace TummlyBackend.Helpers
             action.Label = LabelFor(action);
             return action;
         }
+
+        private static AssistantActionDto CompletingCampaignAction(string type, int campaignId)
+            => new()
+            {
+                Type = type,
+                Label = LabelFor(new AssistantActionDto { Type = type }),
+                CampaignId = campaignId,
+            };
+
+        private static bool DraftHasNoOffer(string? offerStance, int? offerId)
+            => offerId is null
+                && string.Equals(offerStance, "no-offer", StringComparison.OrdinalIgnoreCase);
 
         private static bool GuestListFactsUsed(
             AssistantGroundedAsk ask,

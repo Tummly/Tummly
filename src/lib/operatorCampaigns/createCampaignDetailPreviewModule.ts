@@ -78,6 +78,8 @@ export type CampaignDetailPreviewModule = {
   getSnapshot: () => CampaignDetailPreviewSnapshot
   subscribe: (listener: () => void) => () => void
   open: (campaignId: number) => Promise<void>
+  /** Open Preview from an already-loaded Campaign. Does not fetch again. */
+  openLoaded: (campaign: CampaignDetailPreviewSource) => void
   close: () => void
   retryLoad: () => Promise<void>
   setSelectedChannel: (channelId: CampaignTemplatePreviewChannelId) => void
@@ -296,6 +298,18 @@ export function createCampaignDetailPreviewModule(
     open: async (campaignId) => {
       setState({ open: true })
       await loadDetail(campaignId)
+    },
+    openLoaded: (campaign) => {
+      const generation = state.loadGeneration + 1
+      setState({
+        loadGeneration: generation,
+        open: true,
+        loadStatus: "loaded",
+        loadError: null,
+        campaign,
+        selectedChannelId: resolveChannelId(campaign.channel),
+        campaignId: campaign.id,
+      })
     },
     close: () => {
       setState({
