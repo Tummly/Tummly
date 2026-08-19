@@ -133,6 +133,24 @@ export const MANAGE_MARKETING_PREFERENCES_SECTION_CLASS =
 export const MANAGE_MARKETING_PREFERENCES_CARDS_CLASS =
   "flex w-full flex-col gap-[18px] sm:flex-row"
 
+/**
+ * Figma Internal action cards (5016:62152). Fill `#171717` /
+ * `--op-color-gray-1000` in dark (`--op-color-gray-60` in light). Selected
+ * border `#7c7c7c` / `--op-color-gray-550`. Idle border `#262626` /
+ * `--op-card-border` in dark.
+ */
+export const MANAGE_MARKETING_PREFERENCES_CARD_SURFACE_CLASS =
+  "h-auto min-h-0 min-w-0 flex-1 items-start justify-start rounded-op-md border bg-op-color-gray-60 px-[18px] py-4 text-left whitespace-normal shadow-none hover:bg-op-color-gray-60 dark:bg-[var(--op-color-gray-1000)] dark:hover:bg-[var(--op-color-gray-1000)]"
+
+export const MANAGE_MARKETING_PREFERENCES_CARD_SELECTED_CLASS =
+  "border-[var(--op-color-gray-550)]"
+
+export const MANAGE_MARKETING_PREFERENCES_CARD_IDLE_CLASS =
+  "border-op-card-border hover:border-[var(--op-color-gray-550)]"
+
+export const MANAGE_MARKETING_PREFERENCES_CARD_DISABLED_CLASS =
+  "cursor-not-allowed hover:border-op-card-border"
+
 export const MANAGE_MARKETING_PREFERENCES_DIVIDER_CLASS =
   "h-px w-full shrink-0 bg-op-border-default"
 

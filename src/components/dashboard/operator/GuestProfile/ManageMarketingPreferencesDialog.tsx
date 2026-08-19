@@ -14,10 +14,6 @@ import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/ui/toggle-group"
-import {
   FEEDBACK_FIELD_LABEL_CLASS,
   FEEDBACK_INPUT_CLASS,
   FEEDBACK_TEXTAREA_CLASS,
@@ -29,6 +25,10 @@ import type {
 import { GUESTS_PAGE_PRIMARY_BUTTON_CLASS } from "@/lib/operatorGuests/guestsPresentation"
 import {
   MANAGE_MARKETING_PREFERENCES_CARDS_CLASS,
+  MANAGE_MARKETING_PREFERENCES_CARD_DISABLED_CLASS,
+  MANAGE_MARKETING_PREFERENCES_CARD_IDLE_CLASS,
+  MANAGE_MARKETING_PREFERENCES_CARD_SELECTED_CLASS,
+  MANAGE_MARKETING_PREFERENCES_CARD_SURFACE_CLASS,
   MANAGE_MARKETING_PREFERENCES_CHANNEL_ICON_CLASS,
   MANAGE_MARKETING_PREFERENCES_COPY,
   MANAGE_MARKETING_PREFERENCES_DIALOG_CLASS,
@@ -36,12 +36,6 @@ import {
   MANAGE_MARKETING_PREFERENCES_EVIDENCE_FIELD_CLASS,
   MANAGE_MARKETING_PREFERENCES_SECTION_CLASS,
 } from "@/lib/operatorGuests/manageMarketingPreferencesPresentation"
-import {
-  OPERATOR_WIZARD_SELECTABLE_CARD_DISABLED_CLASS,
-  OPERATOR_WIZARD_SELECTABLE_CARD_IDLE_CLASS,
-  OPERATOR_WIZARD_SELECTABLE_CARD_SELECTED_CLASS,
-  OPERATOR_WIZARD_SELECTABLE_CARD_SURFACE_CLASS,
-} from "@/lib/operatorUi/operatorWizardChromePresentation"
 import { cn } from "@/lib/utils"
 import type { LocationGuestMarketingPreference } from "@/types/dashboard"
 
@@ -99,48 +93,49 @@ function ChannelSection({
       </div>
 
       {available ? (
-        <ToggleGroup
-          type="single"
-          value={snapshot.draftPreference ?? undefined}
-          onValueChange={(next) => {
-            if (next === "") {
-              return
-            }
-            onDraftPreferenceChange(next as LocationGuestMarketingPreference)
-          }}
-          disabled={busy}
-          spacing={0}
+        <div
+          role="radiogroup"
           aria-label={label}
-          className={cn(MANAGE_MARKETING_PREFERENCES_CARDS_CLASS, "rounded-none")}
+          className={MANAGE_MARKETING_PREFERENCES_CARDS_CLASS}
         >
-          {snapshot.statusCards.map((card) => (
-            <ToggleGroupItem
-              key={`${channel}-${card.id}`}
-              value={card.id}
-              variant="outline"
-              disabled={card.disabled || busy}
-              className={cn(
-                "h-auto min-w-0 flex-1 items-start justify-start rounded-[4px] border px-[18px] py-4 text-left whitespace-normal shadow-none hover:bg-transparent hover:text-op-text-primary data-[state=on]:bg-transparent data-[state=on]:text-op-text-primary",
-                OPERATOR_WIZARD_SELECTABLE_CARD_SURFACE_CLASS,
-                card.selected
-                  ? OPERATOR_WIZARD_SELECTABLE_CARD_SELECTED_CLASS
-                  : OPERATOR_WIZARD_SELECTABLE_CARD_IDLE_CLASS,
-                card.disabled
-                  ? OPERATOR_WIZARD_SELECTABLE_CARD_DISABLED_CLASS
-                  : null
-              )}
-            >
-              <span className="flex flex-col items-start gap-1">
-                <span className="text-sm font-medium text-op-text-primary">
-                  {card.label}
+          {snapshot.statusCards.map((card) => {
+            const cannotSelect = card.disabled || busy
+            return (
+              <Button
+                key={`${channel}-${card.id}`}
+                type="button"
+                variant="op-ghost"
+                role="radio"
+                aria-checked={card.selected}
+                aria-disabled={cannotSelect}
+                className={cn(
+                  MANAGE_MARKETING_PREFERENCES_CARD_SURFACE_CLASS,
+                  card.selected
+                    ? MANAGE_MARKETING_PREFERENCES_CARD_SELECTED_CLASS
+                    : MANAGE_MARKETING_PREFERENCES_CARD_IDLE_CLASS,
+                  cannotSelect
+                    ? MANAGE_MARKETING_PREFERENCES_CARD_DISABLED_CLASS
+                    : null
+                )}
+                onClick={() => {
+                  if (cannotSelect) {
+                    return
+                  }
+                  onDraftPreferenceChange(card.id)
+                }}
+              >
+                <span className="flex flex-col items-start gap-1">
+                  <span className="text-sm font-medium text-op-text-primary">
+                    {card.label}
+                  </span>
+                  <span className={cn("text-xs font-medium", MUTED_HELPER_CLASS)}>
+                    {card.helper}
+                  </span>
                 </span>
-                <span className={cn("text-xs font-medium", MUTED_HELPER_CLASS)}>
-                  {card.helper}
-                </span>
-              </span>
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+              </Button>
+            )
+          })}
+        </div>
       ) : null}
     </section>
   )
