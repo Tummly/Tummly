@@ -25,5 +25,7 @@ namespace TummlyBackend.DTOs.Assistant
         public int? FeedbackId { get; set; }
 
         public string? Intent { get; set; }
+
+        public int? CampaignId { get; set; }
     }
 }

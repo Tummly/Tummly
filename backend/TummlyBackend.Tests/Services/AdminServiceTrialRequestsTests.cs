@@ -65,7 +65,14 @@ namespace TummlyBackend.Tests.Services
                     ),
                     new AssistantHomeKpiRetrieve(_context),
                     new AssistantGuestsRetrieve(_context),
-                    new NullAssistantProgressPublisher()
+                    new NullAssistantProgressPublisher(),
+                    new CampaignDraftService(
+                        _context,
+                        new CampaignTemplateCatalogueService(),
+                        new OffersCatalogService(_context)
+                    ),
+                    new CampaignEligibilityService(_context),
+                    new CampaignMessageDraftService(new FakeCampaignMessageDraftProvider())
                 )
             );
         }

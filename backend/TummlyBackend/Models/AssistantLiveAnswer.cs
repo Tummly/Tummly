@@ -26,7 +26,8 @@ namespace TummlyBackend.Models
             AssistantMessageClass Class,
             string? Title,
             string Body,
-            IReadOnlyList<AssistantActionDto> Actions
+            IReadOnlyList<AssistantActionDto> Actions,
+            string AssistantTask = Helpers.AssistantTask.Retrieve
         ) : AssistantLiveAnswerResult;
 
         public sealed record Failed(bool Retryable) : AssistantLiveAnswerResult;

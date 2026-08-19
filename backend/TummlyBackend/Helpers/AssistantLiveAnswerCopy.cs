@@ -41,7 +41,8 @@ namespace TummlyBackend.Helpers
                 kind == AssistantAskKind.HelpCentre
                     ? HelpCentreRefusalBody
                     : MutateRefusalBody,
-                []
+                [],
+                AssistantTask.Refuse
             );
 
         public static AssistantLiveAnswerResult.Succeeded GroundedFromEvidence(

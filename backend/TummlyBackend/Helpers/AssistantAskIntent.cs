@@ -95,6 +95,9 @@ namespace TummlyBackend.Helpers
         public static bool IsFullRefusal(AssistantAskKind kind)
             => kind is AssistantAskKind.Mutate or AssistantAskKind.HelpCentre;
 
+        public static bool IsHelpCentreAsk(string text)
+            => LooksLikeHelpCentre(text);
+
         public static bool HasRetrieveAsk(string text)
             => LooksLikeInScope(text);
 

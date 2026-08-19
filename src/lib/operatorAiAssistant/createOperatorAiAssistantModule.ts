@@ -70,6 +70,7 @@ export type OperatorAiAssistantMessageClass =
 export type OperatorAiAssistantHelpfulFill = "helpful" | "not-helpful"
 
 export type OperatorAiAssistantActionType =
+  | "review-campaign"
   | "draft-campaign"
   | "draft-offer"
   | "open-recovery"
@@ -95,6 +96,7 @@ export type OperatorAiAssistantAction = {
   marketingEligible?: boolean | null
   feedbackId?: number | null
   intent?: string | null
+  campaignId?: number | null
   clickable?: boolean
 }
 
@@ -948,7 +950,7 @@ function toSnapshot(
     : storedMessages).map((message) => {
       const hasDraftAction = message.actions?.some(
         (action) =>
-          action.type === "draft-campaign"
+          action.type === "review-campaign"
           || action.type === "draft-offer"
           || action.type === "open-recovery"
       )
@@ -956,7 +958,7 @@ function toSnapshot(
         ? message.actions
             ?.filter(
               (action) =>
-                action.type === "draft-campaign"
+                action.type === "review-campaign"
                 || action.type === "draft-offer"
                 || action.type === "open-recovery"
             )
@@ -967,7 +969,9 @@ function toSnapshot(
         actions: actions?.map((action) => ({
           ...action,
           clickable:
-            action.type === "draft-campaign"
+            action.type === "review-campaign"
+              ? !state.turnInFlight && !state.draftActionInFlight
+              : action.type === "draft-campaign"
               ? (!state.draftActionInFlight
                 && !state.draftActionSpent
                 && state.pendingCampaignDraft != null
@@ -1891,12 +1895,18 @@ export function createOperatorAiAssistantModule(
       if (analysisScope == null) {
         return
       }
-      if (action.type === "draft-campaign" || action.type === "draft-offer") {
+      if (action.type === "review-campaign") {
+        try {
+          adapters.navigateAction({ action, analysisScope })
+          closeDrawer()
+        } catch {
+          // Open-failure: stay in the Assistant; the row stays clickable.
+        }
+        return
+      }
+      if (action.type === "draft-offer") {
         const conversationId = state.conversationId
-        const pendingBody =
-          action.type === "draft-campaign"
-            ? state.pendingCampaignDraft
-            : state.pendingOfferDraft
+        const pendingBody = state.pendingOfferDraft
         const latest = state.messages.at(-1)
         if (
           conversationId == null
@@ -1904,7 +1914,7 @@ export function createOperatorAiAssistantModule(
           || state.draftActionInFlight
           || state.draftActionSpent
           || latest?.role !== "assistant"
-          || !latest.actions?.some((item) => item.type === action.type)
+          || !latest.actions?.some((item) => item.type === "draft-offer")
         ) {
           return
         }
@@ -1914,18 +1924,14 @@ export function createOperatorAiAssistantModule(
         }
         state = { ...state, draftActionInFlight: true }
         publish()
-        const create =
-          action.type === "draft-campaign"
-            ? adapters.createCampaignDraft(body as CreateCampaignDraftRequest)
-            : adapters.createCatalogOfferDraft(body as CreateCatalogOfferRequestBody)
-        void create
+        void adapters
+          .createCatalogOfferDraft(body as CreateCatalogOfferRequestBody)
           .then(async () => {
             // Spend before clear so a clear failure cannot unlock a second POST.
             state = {
               ...state,
               draftActionInFlight: false,
               draftActionSpent: true,
-              pendingCampaignDraft: null,
               pendingOfferDraft: null,
             }
             publish()

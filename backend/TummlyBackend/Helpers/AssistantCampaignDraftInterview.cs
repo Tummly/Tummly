@@ -75,10 +75,6 @@ namespace TummlyBackend.Helpers
         {
             var lower = message.Trim().ToLowerInvariant();
             var targets = new List<string>();
-            if (IsCampaignDraftAsk(message))
-            {
-                targets.Add("Campaign");
-            }
             if (AssistantOfferDraftInterview.IsOfferDraftAsk(message))
             {
                 targets.Add("Offer");
@@ -97,7 +93,7 @@ namespace TummlyBackend.Helpers
                     "what can you draft"
                 ))
             {
-                targets.AddRange(["Campaign", "Offer", "Feedback recovery"]);
+                targets.AddRange(["Offer", "Feedback recovery"]);
             }
             else if (targets.Count == 0
                 && ContainsAny(
@@ -106,7 +102,7 @@ namespace TummlyBackend.Helpers
                     "help me reach out"
                 ))
             {
-                targets.AddRange(["Campaign", "Feedback recovery"]);
+                targets.Add("Feedback recovery");
             }
 
             return targets;

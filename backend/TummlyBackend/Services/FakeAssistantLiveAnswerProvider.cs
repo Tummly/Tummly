@@ -6,6 +6,7 @@ namespace TummlyBackend.Services
 {
     /// <summary>
         /// Testing and local Fake twin — grounded from retrieved allow-list evidence.
+        /// Emits one Assistant task so Testing never calls Azure.
     /// </summary>
     public sealed class FakeAssistantLiveAnswerProvider
         : IAssistantLiveAnswerProvider
@@ -20,7 +21,8 @@ namespace TummlyBackend.Services
         public void SucceedWith(
             AssistantMessageClass answerClass,
             string? title,
-            string body
+            string body,
+            string assistantTask = AssistantTask.Retrieve
         )
         {
             _throwOnComplete = null;
@@ -28,7 +30,8 @@ namespace TummlyBackend.Services
                 answerClass,
                 title,
                 body,
-                []
+                [],
+                assistantTask
             );
         }
 
@@ -75,21 +78,39 @@ namespace TummlyBackend.Services
                 return _forcedResult;
             }
 
-            var ask = AssistantAskIntent.Classify(input.UserMessage);
-            if (AssistantAskIntent.IsFullRefusal(ask))
+            var task = ClassifyAssistantTask(input.UserMessage);
+            if (task == AssistantTask.CreateCampaignDraft)
             {
-                return AssistantLiveAnswerCopy.Refusal(ask);
+                return new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Campaign Draft",
+                    "Create Campaign Draft.",
+                    [],
+                    AssistantTask.CreateCampaignDraft
+                );
+            }
+
+            if (task == AssistantTask.Refuse)
+            {
+                var refuseKind = AssistantAskIntent.IsHelpCentreAsk(input.UserMessage)
+                    ? AssistantAskKind.HelpCentre
+                    : AssistantAskIntent.Classify(input.UserMessage);
+                if (AssistantAskIntent.IsFullRefusal(refuseKind))
+                {
+                    return AssistantLiveAnswerCopy.Refusal(refuseKind);
+                }
             }
 
             if (input.CompareLocations is { Count: >= 2 })
             {
-                return AssistantLiveAnswerCopy.CompareFromEvidence(
+                var compare = AssistantLiveAnswerCopy.CompareFromEvidence(
                     input.UserMessage,
                     input.PeriodPhrase,
                     input.CompareLocations,
                     input.Evidence,
                     input.DroppedUnknownSentence
                 );
+                return compare with { AssistantTask = AssistantTask.Retrieve };
             }
 
             var grounded = AssistantLiveAnswerCopy.GroundedFromEvidence(
@@ -103,7 +124,80 @@ namespace TummlyBackend.Services
                 grounded,
                 input.Caveat,
                 input.DroppedUnknownSentence
+            ) with { AssistantTask = AssistantTask.Retrieve };
+        }
+
+        public static string ClassifyAssistantTask(string userMessage)
+        {
+            if (AssistantAskIntent.IsHelpCentreAsk(userMessage)
+                && LooksLikeCreateCampaignDraft(userMessage))
+            {
+                return AssistantTask.Refuse;
+            }
+
+            if (LooksLikeCreateCampaignDraft(userMessage))
+            {
+                return AssistantTask.CreateCampaignDraft;
+            }
+
+            if (AssistantAskIntent.IsFullRefusal(AssistantAskIntent.Classify(userMessage)))
+            {
+                return AssistantTask.Refuse;
+            }
+
+            return AssistantTask.Retrieve;
+        }
+
+        private static bool LooksLikeCreateCampaignDraft(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            if (LooksLikeCampaignRetrieveOnly(lower))
+            {
+                return false;
+            }
+
+            return ContainsAny(
+                lower,
+                "draft an email campaign",
+                "draft a campaign",
+                "create a campaign draft",
+                "create a campaign",
+                "create an email campaign",
+                "prepare a campaign",
+                "make a campaign",
+                "make a draft campaign",
+                "write a campaign"
             );
         }
+
+        private static bool LooksLikeCampaignRetrieveOnly(string lower)
+        {
+            var retrieve = ContainsAny(
+                lower,
+                "show me",
+                "show ",
+                "list ",
+                "summarise",
+                "summarize"
+            );
+            var campaignDraftNoun = lower.Contains("campaign draft", StringComparison.Ordinal)
+                || lower.Contains("campaign drafts", StringComparison.Ordinal);
+            if (!retrieve || !campaignDraftNoun)
+            {
+                return false;
+            }
+
+            return !ContainsAny(
+                lower,
+                "create",
+                "prepare",
+                "make a",
+                "draft an",
+                "draft a "
+            );
+        }
+
+        private static bool ContainsAny(string lower, params string[] needles)
+            => needles.Any(needle => lower.Contains(needle, StringComparison.Ordinal));
     }
 }

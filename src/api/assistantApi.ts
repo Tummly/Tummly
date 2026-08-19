@@ -42,6 +42,7 @@ type AssistantActionDto = {
   marketingEligible?: boolean | null
   feedbackId?: number | null
   intent?: string | null
+  campaignId?: number | null
 }
 
 type AssistantMessageDto = {
@@ -169,6 +170,7 @@ function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessag
 }
 
 const KNOWN_ASSISTANT_ACTION_TYPES = new Set<OperatorAiAssistantActionType>([
+  "review-campaign",
   "draft-campaign",
   "draft-offer",
   "open-recovery",
@@ -201,6 +203,7 @@ function fromActionDto(
     marketingEligible: action.marketingEligible,
     feedbackId: action.feedbackId,
     intent: action.intent,
+    campaignId: action.campaignId,
   }
 }
 

@@ -112,9 +112,6 @@ function DashboardContent({ mode }: DashboardProps) {
           ? { recoveryDraft: plan.recoveryDraft }
           : undefined,
       })
-      if (action.type === "draft-campaign") {
-        toast.success("New draft created.")
-      }
       if (action.type === "draft-offer") {
         toast.success("Offer draft created.")
       }

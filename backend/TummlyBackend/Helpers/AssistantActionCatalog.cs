@@ -17,6 +17,7 @@ namespace TummlyBackend.Helpers
 
         public static readonly string[] CatalogOrder =
         [
+            "review-campaign",
             "draft-campaign",
             "draft-offer",
             "open-recovery",
@@ -119,6 +120,27 @@ namespace TummlyBackend.Helpers
                 {
                     Type = "draft-campaign",
                     Label = LabelFor(new AssistantActionDto { Type = "draft-campaign" }),
+                },
+            ];
+        }
+
+        public static IReadOnlyList<AssistantActionDto> ValidateReviewCampaign(
+            int? campaignId,
+            AssistantMessageClass answerClass
+        )
+        {
+            if (answerClass != AssistantMessageClass.Grounded || campaignId is null)
+            {
+                return [];
+            }
+
+            return
+            [
+                new AssistantActionDto
+                {
+                    Type = "review-campaign",
+                    Label = LabelFor(new AssistantActionDto { Type = "review-campaign" }),
+                    CampaignId = campaignId,
                 },
             ];
         }
@@ -295,6 +317,7 @@ namespace TummlyBackend.Helpers
         {
             return action.Type switch
             {
+                "review-campaign" => "Review campaign draft",
                 "draft-campaign" => "Create campaign draft",
                 "draft-offer" => "Create offer draft",
                 "open-recovery" => "Review recovery",
@@ -319,7 +342,7 @@ namespace TummlyBackend.Helpers
         )
         {
             // Draft Action types are attached by the server on completing interviews.
-            if (raw.Type is "draft-campaign" or "draft-offer" or "open-recovery")
+            if (raw.Type is "review-campaign" or "draft-campaign" or "draft-offer" or "open-recovery")
             {
                 return null;
             }

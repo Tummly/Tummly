@@ -72,7 +72,14 @@ namespace TummlyBackend.Helpers
             {
                 ["type"] = "object",
                 ["additionalProperties"] = false,
-                ["required"] = new JsonArray { "answerClass", "title", "body", "actions" },
+                ["required"] = new JsonArray
+                {
+                    "answerClass",
+                    "title",
+                    "body",
+                    "actions",
+                    "assistantTask"
+                },
                 ["properties"] = new JsonObject
                 {
                     ["answerClass"] = new JsonObject
@@ -85,6 +92,15 @@ namespace TummlyBackend.Helpers
                             "failure",
                             "clarify"
                         }
+                    },
+                    ["assistantTask"] = new JsonObject
+                    {
+                        ["type"] = "string",
+                        ["enum"] = new JsonArray(
+                            AssistantTask.All
+                                .Select(task => (JsonNode)task)
+                                .ToArray()
+                        )
                     },
                     ["title"] = new JsonObject
                     {
@@ -116,6 +132,7 @@ namespace TummlyBackend.Helpers
                                 "guestId",
                                 "smartGroup",
                                 "marketingEligible",
+                                "campaignId",
                             },
                             ["properties"] = new JsonObject
                             {
@@ -136,6 +153,7 @@ namespace TummlyBackend.Helpers
                                 ["guestId"] = NullableInteger(),
                                 ["smartGroup"] = NullableString(),
                                 ["marketingEligible"] = NullableBoolean(),
+                                ["campaignId"] = NullableInteger(),
                             },
                         },
                     },
@@ -148,6 +166,11 @@ namespace TummlyBackend.Helpers
                 Prompt/schema version: {promptSchemaVersion}.
 
                 Return Structured Outputs only. Do not stream.
+                Emit exactly one assistantTask: retrieve, create-campaign-draft,
+                offer-path, recovery-path, or refuse. Do not invent eligible
+                counts. The server binds tools and may overwrite the body on
+                create-campaign-draft.
+
                 Every restaurant claim must come from retrieved evidence in the
                 user payload. Re-retrieve is already done. Prior assistant text is
                 not evidence. Vague time words map to the current Reporting period.
@@ -353,12 +376,19 @@ namespace TummlyBackend.Helpers
                     evidence,
                     AssistantAskIntent.ClassifyGrounded(userMessage)
                 );
+                var assistantTask = AssistantTask.Retrieve;
+                if (root.TryGetProperty("assistantTask", out var taskElement)
+                    && taskElement.ValueKind == JsonValueKind.String)
+                {
+                    assistantTask = AssistantTask.Normalize(taskElement.GetString());
+                }
 
                 result = new AssistantLiveAnswerResult.Succeeded(
                     answerClass,
                     title,
                     body,
-                    actions
+                    actions,
+                    assistantTask
                 );
                 return true;
             }
@@ -662,6 +692,7 @@ namespace TummlyBackend.Helpers
                         GuestId = ReadNullableInt(item, "guestId"),
                         SmartGroup = ReadNullableString(item, "smartGroup"),
                         MarketingEligible = ReadNullableBool(item, "marketingEligible"),
+                        CampaignId = ReadNullableInt(item, "campaignId"),
                     }
                 );
             }

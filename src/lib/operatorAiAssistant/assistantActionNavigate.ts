@@ -23,7 +23,7 @@ export type AssistantGuestsIntent = {
 }
 
 export type AssistantCampaignsIntent = {
-  view: "drafts"
+  previewCampaignId: number
 }
 
 export type AssistantOffersIntent = {
@@ -64,11 +64,19 @@ export function planAssistantActionNavigate(input: {
   const { action, mode } = input
 
   switch (action.type) {
+    case "review-campaign":
+      return {
+        path: operatorDashboardNavPath(mode, "campaigns", locationId),
+        selectLocationId: locationId,
+        campaigns:
+          action.campaignId != null
+            ? { previewCampaignId: action.campaignId }
+            : undefined,
+      }
     case "draft-campaign":
       return {
         path: operatorDashboardNavPath(mode, "campaigns", locationId),
         selectLocationId: locationId,
-        campaigns: { view: "drafts" },
       }
     case "draft-offer":
       return {

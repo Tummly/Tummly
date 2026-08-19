@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Assistant;
+using TummlyBackend.DTOs.Campaigns;
 using TummlyBackend.DTOs.OwnedLocation;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -23,6 +24,9 @@ namespace TummlyBackend.Services
         private readonly IAssistantHomeKpiRetrieve _homeRetrieve;
         private readonly IAssistantGuestsRetrieve _guestsRetrieve;
         private readonly IAssistantProgressPublisher _progress;
+        private readonly ICampaignDraftService _campaignDrafts;
+        private readonly ICampaignEligibilityService _campaignEligibility;
+        private readonly ICampaignMessageDraftService _campaignMessageDrafts;
 
         public AssistantConversationService(
             ApplicationDbContext context,
@@ -34,7 +38,10 @@ namespace TummlyBackend.Services
             IAssistantCaptureRetrieve captureRetrieve,
             IAssistantHomeKpiRetrieve homeRetrieve,
             IAssistantGuestsRetrieve guestsRetrieve,
-            IAssistantProgressPublisher progress
+            IAssistantProgressPublisher progress,
+            ICampaignDraftService campaignDrafts,
+            ICampaignEligibilityService campaignEligibility,
+            ICampaignMessageDraftService campaignMessageDrafts
         )
         {
             _context = context;
@@ -47,6 +54,9 @@ namespace TummlyBackend.Services
             _homeRetrieve = homeRetrieve;
             _guestsRetrieve = guestsRetrieve;
             _progress = progress;
+            _campaignDrafts = campaignDrafts;
+            _campaignEligibility = campaignEligibility;
+            _campaignMessageDrafts = campaignMessageDrafts;
         }
 
         public async Task<AssistantTurnOutcome> SendTurnAsync(
@@ -422,9 +432,11 @@ namespace TummlyBackend.Services
                     location.CaptureStatus
                 ))
                 .ToList();
-            var campaignDraftState = AssistantCampaignDraftInterview.Parse(
-                conversation.DraftInterviewJson
-            );
+            if (AssistantCampaignDraftInterview.Parse(conversation.DraftInterviewJson)
+                is not null)
+            {
+                conversation.DraftInterviewJson = null;
+            }
             var offerDraftState = AssistantOfferDraftInterview.Parse(
                 conversation.DraftInterviewJson
             );
@@ -435,15 +447,13 @@ namespace TummlyBackend.Services
                 conversation.DraftInterviewJson
             );
             var cancelDraft =
-                (campaignDraftState is not null
-                    || offerDraftState is not null
+                (offerDraftState is not null
                     || recoveryDraftState is not null
                     || draftTargetChoiceState is not null)
                 && AssistantCampaignDraftInterview.IsClearCancel(userMessage);
             if (cancelDraft)
             {
                 conversation.DraftInterviewJson = null;
-                campaignDraftState = null;
                 offerDraftState = null;
                 recoveryDraftState = null;
                 draftTargetChoiceState = null;
@@ -495,8 +505,7 @@ namespace TummlyBackend.Services
                 }
             }
             var hasActiveDraftInterview =
-                campaignDraftState is not null
-                || offerDraftState is not null
+                offerDraftState is not null
                 || recoveryDraftState is not null
                 || draftTargetChoiceState is not null;
             var hasExplicitRetrieveAsk =
@@ -599,9 +608,6 @@ namespace TummlyBackend.Services
             }
 
             var askKind = AssistantAskIntent.Classify(userMessage);
-            var isCampaignDraftAsk =
-                AssistantCampaignDraftInterview.IsCampaignDraftAsk(userMessage)
-                && askKind != AssistantAskKind.Mixed;
             var isOfferDraftAsk =
                 AssistantOfferDraftInterview.IsOfferDraftAsk(userMessage)
                 && askKind != AssistantAskKind.Mixed;
@@ -652,9 +658,6 @@ namespace TummlyBackend.Services
             }
             else if (!cancelDraft)
             {
-                var namedCampaign =
-                    draftTargets.Contains("Campaign", StringComparer.Ordinal)
-                    || isCampaignDraftAsk;
                 var namedOffer =
                     draftTargets.Contains("Offer", StringComparer.Ordinal)
                     || isOfferDraftAsk;
@@ -662,10 +665,8 @@ namespace TummlyBackend.Services
                     draftTargets.Contains("Feedback recovery", StringComparer.Ordinal)
                     || isRecoveryDraftAsk;
                 var continuingInterview =
-                    (campaignDraftState is not null
-                        || offerDraftState is not null
+                    (offerDraftState is not null
                         || recoveryDraftState is not null)
-                    && !namedCampaign
                     && !namedOffer
                     && !namedRecovery;
                 // Skip field Apply only when the send is retrieve-only after stripping retrieve clauses.
@@ -681,7 +682,6 @@ namespace TummlyBackend.Services
 
                 if (namedRecovery
                     || (recoveryDraftState is not null
-                        && !namedCampaign
                         && !namedOffer))
                 {
                     var current = namedRecovery ? null : recoveryDraftState;
@@ -713,7 +713,6 @@ namespace TummlyBackend.Services
                 }
                 else if (namedOffer
                     || (offerDraftState is not null
-                        && !namedCampaign
                         && !namedRecovery))
                 {
                     var current = namedOffer ? null : offerDraftState;
@@ -729,30 +728,6 @@ namespace TummlyBackend.Services
                     draftReadyActions = draftTurn.IsReady
                         ? AssistantActionCatalog.ValidateOfferDraft(
                             [new AssistantActionDto { Type = "draft-offer" }],
-                            AssistantMessageClass.Grounded
-                        )
-                        : [];
-                    draftComposed = true;
-                }
-                else if (namedCampaign
-                    || (campaignDraftState is not null
-                        && !namedOffer
-                        && !namedRecovery))
-                {
-                    var current = namedCampaign ? null : campaignDraftState;
-                    var draftTurn = AssistantCampaignDraftInterview.Apply(
-                        current,
-                        applyMessage,
-                        savedEvidence.Offers
-                    );
-                    conversation.DraftInterviewJson =
-                        AssistantCampaignDraftInterview.Serialize(draftTurn.State);
-                    draftInterviewTitle = draftTurn.Title;
-                    draftInterviewBody = draftTurn.Body;
-                    draftInterviewReady = draftTurn.IsReady;
-                    draftReadyActions = draftTurn.IsReady
-                        ? AssistantActionCatalog.ValidateCampaignDraft(
-                            [new AssistantActionDto { Type = "draft-campaign" }],
                             AssistantMessageClass.Grounded
                         )
                         : [];
@@ -813,11 +788,40 @@ namespace TummlyBackend.Services
 
             var assistantNow = DateTime.UtcNow;
             AssistantMessage assistantMessage;
-            if (answer is AssistantLiveAnswerResult.Succeeded succeeded)
+            if (answer is AssistantLiveAnswerResult.Succeeded succeeded
+                && string.Equals(
+                    succeeded.AssistantTask,
+                    AssistantTask.CreateCampaignDraft,
+                    StringComparison.Ordinal
+                )
+                && !draftComposed
+                && !AssistantAskIntent.IsHelpCentreAsk(userMessage))
+            {
+                var persist = await PersistCreateCampaignDraftAsync(
+                    conversation,
+                    userMessage,
+                    locationName,
+                    ownedLocations,
+                    cancellationToken
+                );
+                conversation.DraftInterviewJson = null;
+                conversation.LastCompareLocationIdsJson = null;
+                if (persist.CreatedCampaignId is int createdCampaignId)
+                {
+                    conversation.CreatedCampaignId = createdCampaignId;
+                }
+                assistantMessage = GroundedMessage(
+                    assistantNow,
+                    persist.Title,
+                    persist.Body,
+                    persist.Actions
+                );
+            }
+            else if (answer is AssistantLiveAnswerResult.Succeeded succeededRetrieve)
             {
                 var composed =
                     draftComposed
-                    && succeeded.Class != AssistantMessageClass.Grounded
+                    && succeededRetrieve.Class != AssistantMessageClass.Grounded
                         ? AssistantLiveAnswerCopy.WithSentences(
                             AssistantLiveAnswerCopy.GroundedFromEvidence(
                                 userMessage,
@@ -829,7 +833,7 @@ namespace TummlyBackend.Services
                             caveat,
                             droppedUnknown
                         )
-                        : succeeded;
+                        : succeededRetrieve;
                 if (draftComposed)
                 {
                     var interviewBody = draftInterviewBody ?? draftTargetChoiceBody!;
@@ -894,6 +898,165 @@ namespace TummlyBackend.Services
                 replaceFailure,
                 cancellationToken
             );
+        }
+
+        private sealed record CreateCampaignDraftPersistTurn(
+            string Title,
+            string Body,
+            IReadOnlyList<AssistantActionDto> Actions,
+            int? CreatedCampaignId
+        );
+
+        private async Task<CreateCampaignDraftPersistTurn> PersistCreateCampaignDraftAsync(
+            AssistantConversation conversation,
+            string userMessage,
+            string analysisScopeLocationName,
+            IReadOnlyList<OwnedLocationRow> ownedLocations,
+            CancellationToken cancellationToken
+        )
+        {
+            const string channel = "email";
+            const string audienceKey = "all-eligible-guests";
+            const string goalId = "re-engage-inactive";
+            const string offerStance = "no-offer";
+            const string audienceLabel = "All eligible guests";
+            const string channelLabel = "Email";
+
+            var locationId = BindNamedOwnedLocationId(
+                userMessage,
+                conversation.OwnedLocationId,
+                ownedLocations
+            );
+            var locationName = ownedLocations
+                .Where(location => location.Id == locationId)
+                .Select(location => location.Name)
+                .FirstOrDefault()
+                ?? analysisScopeLocationName;
+            var campaignName = AssistantCampaignDraftName.Compose(
+                userMessage,
+                channel,
+                locationName
+            );
+
+            string? messageSubject = null;
+            string? messageBody = null;
+            try
+            {
+                var copy = await _campaignMessageDrafts.PrepareAsync(
+                    locationName,
+                    new PrepareCampaignMessageDraftRequest
+                    {
+                        LocationId = locationId,
+                        Channel = channel,
+                        GoalId = goalId,
+                        AudienceKey = audienceKey,
+                        OfferStance = offerStance,
+                        CampaignName = campaignName,
+                        Tone = "friendly_and_clear",
+                        Mode = "prepare",
+                    },
+                    cancellationToken
+                );
+                if (copy is CampaignMessageDraftServiceResult.Ok okCopy)
+                {
+                    messageSubject = okCopy.Subject;
+                    messageBody = okCopy.Body;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // Persist with empty message fields when copy generate fails.
+            }
+
+            CampaignDraftDto created;
+            try
+            {
+                created = await _campaignDrafts.CreateAsync(
+                    new CreateCampaignDraftRequest
+                    {
+                        LocationId = locationId,
+                        Name = campaignName,
+                        GoalId = goalId,
+                        AudienceKey = audienceKey,
+                        Channel = channel,
+                        OfferStance = offerStance,
+                        OfferId = null,
+                        TemplateId = null,
+                        MessageSubject = messageSubject,
+                        MessageBody = messageBody,
+                    },
+                    conversation.OwnerUserId,
+                    cancellationToken
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return new CreateCampaignDraftPersistTurn(
+                    AssistantCampaignDraftPersistCopy.FailureTitle,
+                    AssistantCampaignDraftPersistCopy.FailureBody("Campaign create"),
+                    [],
+                    null
+                );
+            }
+
+            int? emailEligible = null;
+            try
+            {
+                var eligibility = await _campaignEligibility.EvaluateAsync(
+                    locationId,
+                    audienceKey,
+                    cancellationToken
+                );
+                emailEligible = eligibility.EmailEligible;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                emailEligible = null;
+            }
+
+            return new CreateCampaignDraftPersistTurn(
+                AssistantCampaignDraftPersistCopy.SuccessTitle,
+                AssistantCampaignDraftPersistCopy.SuccessBody(
+                    locationName,
+                    channelLabel,
+                    audienceLabel,
+                    emailEligible,
+                    created.Name
+                ),
+                AssistantActionCatalog.ValidateReviewCampaign(
+                    created.Id,
+                    AssistantMessageClass.Grounded
+                ),
+                created.Id
+            );
+        }
+
+        private static int BindNamedOwnedLocationId(
+            string userMessage,
+            int analysisScopeLocationId,
+            IReadOnlyList<OwnedLocationRow> ownedLocations
+        )
+        {
+            var matches = ownedLocations
+                .Where(location =>
+                    userMessage.Contains(
+                        location.Name,
+                        StringComparison.OrdinalIgnoreCase
+                    ))
+                .ToList();
+            return matches.Count == 1 ? matches[0].Id : analysisScopeLocationId;
         }
 
         private async Task<IReadOnlyList<OwnedLocationRow>> LoadOwnedLocationsAsync(

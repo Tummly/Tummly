@@ -49,6 +49,13 @@ namespace TummlyBackend.Models
 
         public string? DraftInterviewJson { get; set; }
 
+        /// <summary>
+        /// Campaign id stored on a completing Create Campaign Draft turn.
+        /// Null when this conversation has not persisted a Campaign Draft.
+        /// Distinct from Draft interview JSON.
+        /// </summary>
+        public int? CreatedCampaignId { get; set; }
+
         public ICollection<AssistantMessage> Messages { get; set; }
             = new List<AssistantMessage>();
     }

@@ -72,17 +72,21 @@ describe("planAssistantActionNavigate", () => {
     })
   })
 
-  it("maps draft-campaign to Campaigns Drafts without a view query", () => {
+  it("maps review-campaign to Campaigns with Campaign Detail id, not Drafts view", () => {
     expect(
       planAssistantActionNavigate({
-        action: { type: "draft-campaign", label: "Create campaign draft" },
+        action: {
+          type: "review-campaign",
+          label: "Review campaign draft",
+          campaignId: 41,
+        },
         analysisScope: SCOPE,
         mode: "multi",
       })
     ).toEqual({
       path: "/multi-dashboard/campaigns?location=11",
       selectLocationId: 11,
-      campaigns: { view: "drafts" },
+      campaigns: { previewCampaignId: 41 },
     })
   })
 

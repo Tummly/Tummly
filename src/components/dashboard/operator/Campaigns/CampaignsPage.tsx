@@ -153,25 +153,6 @@ export function CampaignsPage() {
     [clearTabCache]
   )
 
-  useEffect(() => {
-    if (campaignsIntent?.view !== "drafts") {
-      return
-    }
-    setCampaignsIntent(null)
-    void campaigns
-      .clearSearchAndFilters()
-      .then(() => {
-        campaigns.setSortId("recent-activity")
-        return campaigns.setListView("drafts")
-      })
-      .then(() => {
-        document.getElementById("campaigns-list")?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        })
-      })
-  }, [campaigns, campaignsIntent, setCampaignsIntent])
-
   const [templatePicker] = useState(() =>
     createCampaignTemplatePickerModule({
       loadTemplates: loadCampaignTemplatesList,
@@ -210,6 +191,15 @@ export function CampaignsPage() {
     campaignDetailPreview.getSnapshot,
     campaignDetailPreview.getSnapshot
   )
+
+  useEffect(() => {
+    const previewCampaignId = campaignsIntent?.previewCampaignId
+    if (previewCampaignId == null) {
+      return
+    }
+    setCampaignsIntent(null)
+    void campaignDetailPreview.open(previewCampaignId)
+  }, [campaignDetailPreview, campaignsIntent, setCampaignsIntent])
 
   const [campaignWizard] = useState(() =>
     createCampaignWizardModule({
