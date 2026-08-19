@@ -31,6 +31,34 @@ export const GUEST_PREVIEW_OVERLAY_BODY_CLASS =
 
 export const GUEST_PREVIEW_HEADING = "Guest preview"
 
+/**
+ * Review right-rail Guest preview card.
+ * Fill `#f5f5f5` / `--op-color-gray-60` light, `#171717` / `--op-color-gray-1000`
+ * dark — same as other wizard cards.
+ */
+export const GUEST_PREVIEW_RAIL_CLASS =
+  "relative flex min-h-[562px] w-full flex-col overflow-clip rounded-[4px] border border-op-divider bg-op-color-gray-60 dark:bg-[var(--op-color-gray-1000)]"
+
+export const GUEST_PREVIEW_RAIL_HEADING_CLASS =
+  "relative m-0 text-base font-semibold leading-normal text-op-text-primary"
+
+export const GUEST_PREVIEW_RAIL_VEIL_CLASS =
+  "relative z-10 flex min-h-[562px] flex-1 flex-col justify-between p-6"
+
+/** Horizontal wash so Preview stays readable over the scaled email. */
+export const GUEST_PREVIEW_RAIL_VEIL_WASH_CLASS =
+  "pointer-events-none absolute inset-0 bg-op-shell-chrome/40 dark:bg-[color-mix(in_srgb,var(--op-color-black)_60%,transparent)]"
+
+/** Bottom fade into the rail fill. */
+export const GUEST_PREVIEW_RAIL_VEIL_FADE_CLASS =
+  "pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_40%,color-mix(in_srgb,var(--op-color-gray-60)_50%,transparent)_88%)] dark:bg-[linear-gradient(180deg,transparent_26%,var(--op-color-gray-995)_88%)]"
+
+export const GUEST_PREVIEW_RAIL_SMS_CLASS =
+  "w-[min(100%,360px)] rounded-[4px] border border-op-divider bg-op-shell-chrome p-6 opacity-40"
+
+export const GUEST_PREVIEW_RAIL_SMS_TEXT_CLASS =
+  "m-0 whitespace-pre-wrap text-sm font-medium leading-5 text-op-text-primary"
+
 export const GUEST_PREVIEW_CONTROL_LABEL = "Preview"
 
 export const GUEST_PREVIEW_EDIT_TEXT_LABEL = "Edit text"
@@ -38,10 +66,75 @@ export const GUEST_PREVIEW_EDIT_TEXT_LABEL = "Edit text"
 export const GUEST_PREVIEW_SEND_TEST_LABEL = "Send test"
 
 export const GUEST_PREVIEW_SEND_TEST_SUCCESS =
-  "Test email sent to your account."
+  "Test email sent."
 
 export const GUEST_PREVIEW_SEND_TEST_ERROR =
   "We could not send the test email. Try again."
+
+export type GuestPreviewSendTestStatus =
+  | "idle"
+  | "sending"
+  | "success"
+  | "error"
+
+export type GuestPreviewSendTestDialogViewModel = {
+  isOpen: boolean
+  email: string
+  status: GuestPreviewSendTestStatus
+  error: string | null
+  canSubmit: boolean
+}
+
+export function buildGuestPreviewSendTestDialog(input: {
+  wizardOpen: boolean
+  channel: "email" | "sms" | null
+  dialogOpen: boolean
+  email: string
+  status: GuestPreviewSendTestStatus
+  error: string | null
+}): GuestPreviewSendTestDialogViewModel | null {
+  if (!input.wizardOpen || input.channel !== "email") {
+    return null
+  }
+  const trimmed = input.email.trim()
+  return {
+    isOpen: input.dialogOpen,
+    email: input.email,
+    status: input.status,
+    error: input.error,
+    canSubmit: trimmed.length > 0 && input.status !== "sending",
+  }
+}
+
+export function emptyGuestPreviewSendTestSession(): {
+  sendTestDialogOpen: boolean
+  sendTestEmail: string
+  sendTestStatus: GuestPreviewSendTestStatus
+  sendTestError: string | null
+} {
+  return {
+    sendTestDialogOpen: false,
+    sendTestEmail: "",
+    sendTestStatus: "idle",
+    sendTestError: null,
+  }
+}
+
+export function canOpenGuestPreviewSendTest(input: {
+  feedbackId: number | null
+  channel: "email" | "sms" | null
+  step: string
+  sendTestStatus: GuestPreviewSendTestStatus
+  aiDraftStatus: string
+}): boolean {
+  return (
+    input.feedbackId != null
+    && input.channel === "email"
+    && input.step === "review"
+    && input.sendTestStatus !== "sending"
+    && input.aiDraftStatus !== "running"
+  )
+}
 
 export const GUEST_PREVIEW_DESKTOP_LABEL = "Desktop"
 

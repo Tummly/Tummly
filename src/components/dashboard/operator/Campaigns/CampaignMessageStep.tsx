@@ -1,5 +1,3 @@
-import { Loader2Icon } from "lucide-react"
-
 import { CampaignMessageChooser } from "@/components/dashboard/operator/Campaigns/CampaignMessageChooser"
 import { GuestPreviewOverlay } from "@/components/dashboard/operator/Feedback/GuestPreviewOverlay"
 import { AiIcon } from "@/components/ui/ai-icon"
@@ -33,10 +31,12 @@ type CampaignMessageStepProps = {
 
 function RewriteAiButton({
   busy,
+  failed,
   disabled,
   onClick,
 }: {
   busy: boolean
+  failed: boolean
   disabled: boolean
   onClick: () => void
 }) {
@@ -48,12 +48,10 @@ function RewriteAiButton({
       onClick={onClick}
       className="gap-2 px-[14px] py-2"
     >
-      {busy ? (
-        <Loader2Icon className="size-[18px] animate-spin" aria-hidden />
-      ) : (
-        <AiIcon size={18} />
-      )}
-      {CAMPAIGN_MESSAGE_COPY.rewriteWithAiLabel}
+      <AiIcon size={18} className={busy ? "animate-spin" : undefined} />
+      {failed
+        ? CAMPAIGN_MESSAGE_COPY.retryAiLabel
+        : CAMPAIGN_MESSAGE_COPY.rewriteWithAiLabel}
     </Button>
   )
 }
@@ -169,10 +167,10 @@ export function CampaignMessageStep({
           {isEditor ? (
             <>
               <Separator className="bg-op-card-border" />
-              <div className="flex w-full flex-col gap-6">
+              <div className="flex w-full flex-col gap-3">
                 {message.showSubject ? (
                   <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-end gap-3">
                       <label
                         htmlFor="campaign-message-subject"
                         className={cn(
@@ -186,20 +184,14 @@ export function CampaignMessageStep({
                         <>
                           <RewriteAiButton
                             busy={subjectBusy}
+                            failed={showSubjectRetry}
                             disabled={rewriteDisabled}
-                            onClick={onRewriteSubject}
+                            onClick={
+                              showSubjectRetry
+                                ? onRetryAiDraft
+                                : onRewriteSubject
+                            }
                           />
-                          {showSubjectRetry ? (
-                            <Button
-                              type="button"
-                              variant="op-primary"
-                              size="sm"
-                              disabled={fieldsDisabled}
-                              onClick={onRetryAiDraft}
-                            >
-                              {CAMPAIGN_MESSAGE_COPY.retryAiLabel}
-                            </Button>
-                          ) : null}
                         </>
                       ) : null}
                     </div>
@@ -216,7 +208,7 @@ export function CampaignMessageStep({
                 ) : null}
 
                 <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-end gap-3">
                     <label
                       htmlFor="campaign-message-body"
                       className={cn(
@@ -230,10 +222,15 @@ export function CampaignMessageStep({
                       <>
                         <RewriteAiButton
                           busy={messageBusy}
+                          failed={showMessageRetry}
                           disabled={rewriteDisabled}
-                          onClick={onRewriteMessage}
+                          onClick={
+                            showMessageRetry
+                              ? onRetryAiDraft
+                              : onRewriteMessage
+                          }
                         />
-                        {showMessageRetry || showPrepareRetry ? (
+                        {showPrepareRetry ? (
                           <Button
                             type="button"
                             variant="op-primary"

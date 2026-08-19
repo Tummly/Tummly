@@ -225,6 +225,7 @@ export type OperatorCampaignsPageViewModel = {
 
 export type OperatorCampaignsPageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
+  tabContentStatus: "loading" | "ready" | "refreshing"
   viewModel: OperatorCampaignsPageViewModel | null
   loadError: string | null
 }
@@ -256,10 +257,12 @@ export type OperatorCampaignsPageModule = {
   removeFilterChip: (chip: FilterChip) => void
   clearSearchAndFilters: () => Promise<void>
   viewAllCampaigns: () => Promise<void>
+  clearTabCache: () => void
 }
 
 type CampaignsState = {
   loadStatus: OperatorCampaignsPageSnapshot["loadStatus"]
+  tabContentStatus: OperatorCampaignsPageSnapshot["tabContentStatus"]
   workspace: OperatorCampaignsWorkspaceInput | null
   viewModel: OperatorCampaignsPageViewModel | null
   loadError: string | null
@@ -651,6 +654,7 @@ export function createOperatorCampaignsPageModule(
 
   let state: CampaignsState = {
     loadStatus: "idle",
+    tabContentStatus: "loading",
     workspace: null,
     viewModel: null,
     loadError: null,
@@ -673,6 +677,7 @@ export function createOperatorCampaignsPageModule(
 
   let snapshot: OperatorCampaignsPageSnapshot = {
     loadStatus: state.loadStatus,
+    tabContentStatus: state.tabContentStatus,
     viewModel: state.viewModel,
     loadError: state.loadError,
   }
@@ -690,10 +695,17 @@ export function createOperatorCampaignsPageModule(
     cacheKey: string
     viewModel: OperatorCampaignsRecommendationViewModel
   } | null = null
+  const tabCache = new Map<
+    OperatorCampaignsListViewId,
+    CampaignsListResponse
+  >()
+  let tabCacheGeneration = 0
+  const latestRequestByView = new Map<OperatorCampaignsListViewId, number>()
 
   const publish = () => {
     snapshot = {
       loadStatus: state.loadStatus,
+      tabContentStatus: state.tabContentStatus,
       viewModel: state.viewModel,
       loadError: state.loadError,
     }
@@ -709,15 +721,36 @@ export function createOperatorCampaignsPageModule(
     }
   }
 
-  const buildListParams = (locationId: number): CampaignsListQueryParams =>
+  const invalidateTabCache = () => {
+    tabCache.clear()
+    latestRequestByView.clear()
+    tabCacheGeneration += 1
+  }
+
+  const buildListParams = (
+    locationId: number,
+    input: {
+      view: OperatorCampaignsListViewId
+      searchQuery: string
+      sortId: OperatorCampaignsSortId
+      page: number
+      appliedFilters: OperatorFilterSelection
+    } = {
+      view: state.activeViewId,
+      searchQuery: state.searchQuery,
+      sortId: state.sortId,
+      page: state.page,
+      appliedFilters: state.appliedFilters,
+    }
+  ): CampaignsListQueryParams =>
     buildCampaignsListQueryParams({
       locationId,
-      view: state.activeViewId,
-      q: state.searchQuery,
-      sort: state.sortId,
-      page: state.page,
+      view: input.view,
+      q: input.searchQuery,
+      sort: input.sortId,
+      page: input.page,
       pageSize: CAMPAIGNS_PAGE_SIZE,
-      filters: state.appliedFilters,
+      filters: input.appliedFilters,
       now: getNow(),
     })
 
@@ -866,8 +899,12 @@ export function createOperatorCampaignsPageModule(
     }
 
     clearSearchDebounce()
+    invalidateTabCache()
+    const cacheGeneration = tabCacheGeneration
     const generation = state.loadGeneration + 1
-    const listLoadGeneration = state.listLoadGeneration + 1
+    const requestedViewId = state.activeViewId
+    const listSequence = state.listLoadGeneration + 1
+    latestRequestByView.set(requestedViewId, listSequence)
     const marketingEligibleGeneration = state.marketingEligibleGeneration + 1
     const recommendationGeneration = state.recommendationGeneration + 1
     const overviewDateRange = adapters.getCampaignsOverviewDateRange()
@@ -887,9 +924,10 @@ export function createOperatorCampaignsPageModule(
     state = {
       ...state,
       loadStatus: "loading",
+      tabContentStatus: "loading",
       loadError: null,
       loadGeneration: generation,
-      listLoadGeneration,
+      listLoadGeneration: listSequence,
       marketingEligibleGeneration,
       recommendationGeneration,
       recommendation: nextRecommendation,
@@ -912,28 +950,43 @@ export function createOperatorCampaignsPageModule(
         ])
       if (
         generation !== state.loadGeneration
-        || listLoadGeneration !== state.listLoadGeneration
-        || marketingEligibleGeneration !== state.marketingEligibleGeneration
+        || cacheGeneration !== tabCacheGeneration
+        || state.workspace?.selectedLocationId !== selectedLocationId
       ) {
         return
       }
-      const summaryFacts = toSummaryFacts(marketingEligible, siblingSummary)
-      state = {
-        ...state,
-        loadStatus: "loaded",
-        loadError: null,
-        lastListResponse: listResponse,
-        lastSummaryFacts: siblingSummary,
-        createdByCatalog: catalogFromResponse(listResponse),
-        viewModel: assembleFromState(
-          workspace,
-          listResponse,
-          summaryFacts,
-          overviewDateRange,
-          messagingUsage
-        ),
+      const isLatestForView =
+        latestRequestByView.get(requestedViewId) === listSequence
+      if (isLatestForView) {
+        tabCache.set(requestedViewId, listResponse)
       }
-      publish()
+      if (marketingEligibleGeneration === state.marketingEligibleGeneration) {
+        state = {
+          ...state,
+          lastSummaryFacts: siblingSummary,
+        }
+      }
+      if (isLatestForView && state.activeViewId === requestedViewId) {
+        state = {
+          ...state,
+          loadStatus: "loaded",
+          tabContentStatus: "ready",
+          loadError: null,
+          lastListResponse: listResponse,
+          createdByCatalog: catalogFromResponse(listResponse),
+          viewModel: assembleFromState(
+            workspace,
+            listResponse,
+            toSummaryFacts(
+              marketingEligible,
+              state.lastSummaryFacts ?? siblingSummary
+            ),
+            overviewDateRange,
+            messagingUsage
+          ),
+        }
+        publish()
+      }
     } catch {
       if (generation !== state.loadGeneration) {
         return
@@ -941,6 +994,7 @@ export function createOperatorCampaignsPageModule(
       state = {
         ...state,
         loadStatus: "error",
+        tabContentStatus: "ready",
         loadError: CAMPAIGNS_LOAD_ERROR_MESSAGE,
         viewModel: null,
         lastListResponse: null,
@@ -997,11 +1051,23 @@ export function createOperatorCampaignsPageModule(
     }
 
     const generation = state.listLoadGeneration + 1
+    const cacheGeneration = tabCacheGeneration
+    const requestedView = state.activeViewId
+    const requestedLocationId = selectedLocationId
+    const requestParams = buildListParams(selectedLocationId, {
+      view: requestedView,
+      searchQuery: state.searchQuery,
+      sortId: state.sortId,
+      page: state.page,
+      appliedFilters: state.appliedFilters,
+    })
+    const isWarmRequest = tabCache.has(requestedView)
+    latestRequestByView.set(requestedView, generation)
     state = {
       ...state,
       listLoadGeneration: generation,
       loadStatus:
-        options?.quiet === true && state.viewModel != null
+        state.viewModel != null
           ? state.loadStatus
           : "loading",
     }
@@ -1011,9 +1077,17 @@ export function createOperatorCampaignsPageModule(
 
     try {
       const listResponse = await adapters.loadCampaignsList(
-        buildListParams(selectedLocationId)
+        requestParams
       )
-      if (generation !== state.listLoadGeneration) {
+      if (
+        cacheGeneration !== tabCacheGeneration
+        || state.workspace?.selectedLocationId !== requestedLocationId
+        || latestRequestByView.get(requestedView) !== generation
+      ) {
+        return
+      }
+      tabCache.set(requestedView, listResponse)
+      if (state.activeViewId !== requestedView) {
         return
       }
 
@@ -1038,6 +1112,7 @@ export function createOperatorCampaignsPageModule(
       state = {
         ...state,
         loadStatus: "loaded",
+        tabContentStatus: "ready",
         loadError: null,
         lastListResponse: listResponse,
         createdByCatalog: catalogFromResponse(listResponse),
@@ -1051,13 +1126,25 @@ export function createOperatorCampaignsPageModule(
       }
       publish()
     } catch {
-      if (generation !== state.listLoadGeneration) {
+      if (
+        cacheGeneration !== tabCacheGeneration
+        || state.workspace?.selectedLocationId !== requestedLocationId
+        || state.activeViewId !== requestedView
+        || latestRequestByView.get(requestedView) !== generation
+      ) {
         return
       }
-      if (options?.quiet !== true) {
+      if (isWarmRequest) {
+        state = {
+          ...state,
+          tabContentStatus: "ready",
+        }
+        publish()
+      } else if (options?.quiet !== true) {
         state = {
           ...state,
           loadStatus: "error",
+          tabContentStatus: "ready",
           loadError: CAMPAIGNS_LOAD_ERROR_MESSAGE,
         }
         publish()
@@ -1146,10 +1233,12 @@ export function createOperatorCampaignsPageModule(
     syncWorkspace: async (input) => {
       if (input.selectedLocationId == null) {
         clearSearchDebounce()
+        invalidateTabCache()
         recommendationDismissedForSession = false
         softCachedRecommendation = null
         state = {
           loadStatus: "idle",
+          tabContentStatus: "loading",
           workspace: null,
           viewModel: null,
           loadError: null,
@@ -1185,6 +1274,7 @@ export function createOperatorCampaignsPageModule(
         recommendationDismissedForSession = false
         if (locationChanged) {
           softCachedRecommendation = null
+          invalidateTabCache()
         }
         state = {
           ...state,
@@ -1269,21 +1359,45 @@ export function createOperatorCampaignsPageModule(
         return
       }
       clearSearchDebounce()
+      const cachedResponse = tabCache.get(viewId)
       state = {
         ...state,
         activeViewId: viewId,
         page: 1,
+        tabContentStatus: cachedResponse == null ? "loading" : "refreshing",
       }
       if (state.viewModel != null) {
+        const workspace = state.workspace
+        const nextList =
+          cachedResponse != null && workspace != null
+            ? buildListViewModel({
+                response: cachedResponse,
+                activeViewId: viewId,
+                searchQuery: state.searchQuery,
+                sortId: state.sortId,
+                page: 1,
+                appliedFilters: state.appliedFilters,
+                createdByCatalog: state.createdByCatalog,
+                workspace,
+                nowMs: getNow().getTime(),
+              })
+            : {
+                ...state.viewModel.list,
+                activeViewId: viewId,
+                currentPage: 1,
+                rows: [],
+                empty: null,
+                totalCount: 0,
+                pageRangeLabel: "Showing 0 of 0 campaigns",
+                canGoPrevious: false,
+                canGoNext: false,
+              }
         state = {
           ...state,
           viewModel: {
             ...state.viewModel,
-            list: {
-              ...state.viewModel.list,
-              activeViewId: viewId,
-              currentPage: 1,
-            },
+            isTrueEmpty: nextList.empty?.kind === "true-empty",
+            list: nextList,
           },
         }
         publish()
@@ -1291,6 +1405,7 @@ export function createOperatorCampaignsPageModule(
       await fetchList()
     },
     setSearchQuery: (query) => {
+      invalidateTabCache()
       state = {
         ...state,
         searchQuery: query,
@@ -1318,6 +1433,7 @@ export function createOperatorCampaignsPageModule(
         return
       }
       clearSearchDebounce()
+      invalidateTabCache()
       state = {
         ...state,
         sortId: id,
@@ -1330,6 +1446,7 @@ export function createOperatorCampaignsPageModule(
         return
       }
       clearSearchDebounce()
+      invalidateTabCache()
       state = {
         ...state,
         page: state.page - 1,
@@ -1343,6 +1460,7 @@ export function createOperatorCampaignsPageModule(
         return
       }
       clearSearchDebounce()
+      invalidateTabCache()
       state = {
         ...state,
         page: state.page + 1,
@@ -1406,6 +1524,7 @@ export function createOperatorCampaignsPageModule(
     },
     applyFilters: (filters) => {
       clearSearchDebounce()
+      invalidateTabCache()
       state = {
         ...state,
         appliedFilters: filters,
@@ -1421,6 +1540,7 @@ export function createOperatorCampaignsPageModule(
         return
       }
       clearSearchDebounce()
+      invalidateTabCache()
       const filterSchema = resolveFilterSchema({
         workspace,
         createdByCatalog: state.createdByCatalog,
@@ -1446,6 +1566,7 @@ export function createOperatorCampaignsPageModule(
         return
       }
       clearSearchDebounce()
+      invalidateTabCache()
       state = {
         ...state,
         searchQuery: "",
@@ -1460,6 +1581,7 @@ export function createOperatorCampaignsPageModule(
     },
     viewAllCampaigns: async () => {
       clearSearchDebounce()
+      invalidateTabCache()
       state = {
         ...state,
         activeViewId: "all",
@@ -1469,5 +1591,6 @@ export function createOperatorCampaignsPageModule(
       }
       await fetchList()
     },
+    clearTabCache: invalidateTabCache,
   }
 }

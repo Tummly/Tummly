@@ -1,10 +1,13 @@
+import { useEffect } from "react"
 import { useOutletContext } from "react-router-dom"
+import { toast } from "sonner"
 
 import { AddTagDialog } from "@/components/dashboard/operator/Guests/AddTagDialog"
 import { GuestDetailsDrawer } from "@/components/dashboard/operator/Guests/GuestDetailsDrawer"
 import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
 import { RecoveryWizardsHost } from "@/components/dashboard/operator/Feedback/RecoveryWizardsHost"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
+import { ManageMarketingPreferencesDialog } from "@/components/dashboard/operator/GuestProfile/ManageMarketingPreferencesDialog"
 import { GuestsBody } from "@/components/dashboard/operator/Guests/GuestsBody"
 import { useGuestsPageModule } from "@/components/dashboard/operator/Guests/utils/useGuestsPageModule"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -19,7 +22,7 @@ import { guestsFilterSheetSchemaForWorkspace } from "@/lib/operatorGuests/guests
 
 export function GuestsPage() {
   const guests = useGuestsPageModule()
-  const { snapshot } = guests
+  const { snapshot, clearTabCache } = guests
   const { mode, locations, selectedLocationId } =
     useOutletContext<DashboardOutletContext>()
   const guestsOverviewDateRange = useDashboardUiStore(
@@ -27,6 +30,13 @@ export function GuestsPage() {
   )
   const setGuestsOverviewDateRange = useDashboardUiStore(
     (state) => state.setGuestsOverviewDateRange
+  )
+
+  useEffect(
+    () => () => {
+      clearTabCache()
+    },
+    [clearTabCache]
   )
 
   const handleCommitOverviewDateRange = (range: GuestsOverviewDateRange) => {
@@ -102,6 +112,7 @@ export function GuestsPage() {
         </p>
       ) : null}
       <GuestsBody
+        tabContentStatus={snapshot.tabContentStatus}
         viewModel={snapshot.viewModel}
         searchQuery={snapshot.searchQuery}
         sortId={snapshot.sortId}
@@ -130,6 +141,9 @@ export function GuestsPage() {
         }}
         onViewGuest={(guestId) => {
           void guests.openGuestDetails(Number.parseInt(guestId, 10))
+        }}
+        onManageMarketingPermissions={(guestId) => {
+          void guests.openManageMarketingPreferences(guestId)
         }}
         onExportCsv={() => {
           void guests.exportCsv()
@@ -290,6 +304,20 @@ export function GuestsPage() {
         }}
       />
       <RecoveryWizardsHost snapshot={snapshot} wizards={guests.recoveryWizards} />
+      <ManageMarketingPreferencesDialog
+        snapshot={guests.marketingPreferencesSnapshot}
+        onOpenChange={(open) => {
+          if (!open) {
+            guests.closeManageMarketingPreferences()
+          }
+        }}
+        onDraftPreferenceChange={guests.setMarketingPreferenceDraft}
+        onDraftNoteChange={guests.setMarketingPreferenceNote}
+        onSave={guests.saveManageMarketingPreferences}
+        onNoteSaveFailure={(message) => {
+          toast.error(message)
+        }}
+      />
     </>
   )
 }

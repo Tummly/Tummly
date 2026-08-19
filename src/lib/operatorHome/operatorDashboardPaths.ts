@@ -22,6 +22,49 @@ export function operatorDashboardRootPath(
   return mode === "single" ? "/single-dashboard" : "/multi-dashboard"
 }
 
+/** AccountType from auth session → which dashboard root the operator may use. */
+export function operatorDashboardModeForAccountType(
+  accountType: string | null | undefined
+): OperatorDashboardMode | null {
+  if (accountType === "Single") {
+    return "single"
+  }
+  if (accountType === "Multi") {
+    return "multi"
+  }
+  return null
+}
+
+/**
+ * When the URL mode does not match AccountType, return a same-suffix path on the
+ * allowed dashboard (query string preserved). Returns null when access is allowed
+ * or AccountType is unknown.
+ */
+export function resolveMismatchedOperatorDashboardRedirect(options: {
+  mode: OperatorDashboardMode
+  accountType: string | null | undefined
+  pathname: string
+  search?: string
+}): string | null {
+  const allowedMode = operatorDashboardModeForAccountType(options.accountType)
+  if (allowedMode == null || allowedMode === options.mode) {
+    return null
+  }
+
+  const fromRoot = operatorDashboardRootPath(options.mode)
+  const toRoot = operatorDashboardRootPath(allowedMode)
+  if (
+    options.pathname !== fromRoot &&
+    !options.pathname.startsWith(`${fromRoot}/`)
+  ) {
+    return null
+  }
+
+  const suffix = options.pathname.slice(fromRoot.length)
+  const search = options.search ?? ""
+  return `${toRoot}${suffix}${search}`
+}
+
 export function operatorDashboardNavPath(
   mode: OperatorDashboardMode,
   navId: NavigableOperatorSidebarPrimaryNavId,

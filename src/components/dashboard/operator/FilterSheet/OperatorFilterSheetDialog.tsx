@@ -460,7 +460,7 @@ function DateControl({
           }
         >
           {dateCustomStep ? (
-            <div className="flex flex-col gap-2 p-2">
+            <div className="flex flex-col gap-2 p-4">
               <Calendar
                 mode="range"
                 numberOfMonths={2}
@@ -469,7 +469,10 @@ function DateControl({
                 defaultMonth={draftRange?.from}
               />
               {draftOverMax ? (
-                <p className={PERFORMANCE_DATE_CUSTOM_HINT_CLASS} role="status">
+                <p
+                  className={cn(PERFORMANCE_DATE_CUSTOM_HINT_CLASS, "px-2")}
+                  role="status"
+                >
                   Choose a range of {HOME_PERFORMANCE_CUSTOM_MAX_SPAN_DAYS} days or
                   fewer
                   {draftComplete
@@ -478,35 +481,28 @@ function DateControl({
                   .
                 </p>
               ) : (
-                <p className={PERFORMANCE_DATE_CUSTOM_HINT_CLASS}>
+                <p className={cn(PERFORMANCE_DATE_CUSTOM_HINT_CLASS, "px-2")}>
                   Select a start and end date (max{" "}
                   {HOME_PERFORMANCE_CUSTOM_MAX_SPAN_DAYS} days).
                 </p>
               )}
-              <div className={PERFORMANCE_DATE_CUSTOM_ACTIONS_CLASS}>
-                <Button
-                  type="button"
-                  variant="op-ghost"
-                  size="sm"
-                  onClick={() => {
-                    setDraftRange(undefined)
-                    setDateCustomStep(false)
-                  }}
-                >
-                  Back
-                </Button>
+              <div
+                className={cn(
+                  PERFORMANCE_DATE_CUSTOM_ACTIONS_CLASS,
+                  "justify-end px-2"
+                )}
+              >
                 <div className="flex items-center gap-1">
                   <Button
                     type="button"
                     variant="op-ghost"
-                    size="sm"
                     onClick={() => onOpenChange(false)}
                   >
                     Cancel
                   </Button>
                   <Button
                     type="button"
-                    size="sm"
+                    variant="op-primary"
                     disabled={!canApplyCustom}
                     onClick={() => {
                       if (!canApplyCustom || draftStartKey == null || draftEndKey == null) {

@@ -97,6 +97,34 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(CatalogOfferStatus.Draft, item.Status);
         }
 
+        [Fact]
+        public async Task CreateActiveAsync_FreeItem_PersistsAdditionalExclusionsWithoutMinimumSpend()
+        {
+            var locationId = await SeedLocationAsync();
+            var request = new CreateCatalogOfferRequest
+            {
+                LocationId = locationId,
+                OfferType = "free_item",
+                Title = "Enjoy a free side",
+                Description = "One free side with your visit.",
+                Validity = "7_days_after_issue",
+                FreeItemText = "side",
+                PurchaseRequirement = "no_purchase_required",
+                AdditionalExclusions = "Not valid on weekends",
+            };
+
+            var dto = await _service.CreateActiveAsync(request, createdByUserId: 1);
+
+            Assert.Equal("free_item", dto.OfferType);
+            Assert.Equal("side", dto.FreeItemText);
+            Assert.Equal("no_purchase_required", dto.PurchaseRequirement);
+            Assert.Null(dto.MinimumSpend);
+            Assert.Equal("Not valid on weekends", dto.AdditionalExclusions);
+
+            var entity = await _context.CatalogOffers.SingleAsync();
+            Assert.Equal("Not valid on weekends", entity.AdditionalExclusions);
+        }
+
         private static CreateCatalogOfferRequest SampleCreateRequest(
             int locationId,
             string title

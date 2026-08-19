@@ -2,8 +2,13 @@ import { describe, expect, it } from "vitest"
 
 import {
   catalogOfferWriteSuccessToast,
+  CREATE_EDIT_OFFER_DRAWER_BODY_CLASS,
   CREATE_EDIT_OFFER_DRAWER_COPY,
   CREATE_EDIT_OFFER_DRAWER_FOOTER_ACTIONS_CLASS,
+  CREATE_EDIT_OFFER_DRAWER_FOOTER_CLASS,
+  CREATE_EDIT_OFFER_DRAWER_HEADER_CLASS,
+  CREATE_EDIT_OFFER_DRAWER_SHELL_CLASS,
+  CREATE_EDIT_OFFER_DRAWER_SURFACE_CLASS,
   createEditOfferDrawerConfirmLabel,
   createEditOfferDrawerShowsTypePicker,
   createEditOfferDrawerTitle,
@@ -24,6 +29,12 @@ describe("createEditOfferDrawerPresentation", () => {
     expect(CREATE_EDIT_OFFER_DRAWER_COPY.staffInstructionsLabel).not.toMatch(
       /optional/i
     )
+    expect(CREATE_EDIT_OFFER_DRAWER_COPY.additionalExclusionsLabel).toBe(
+      "Additional exclusions"
+    )
+    expect(CREATE_EDIT_OFFER_DRAWER_COPY.additionalExclusionsPlaceholder).toBe(
+      "Add any products, dates or conditions that are excluded…"
+    )
   })
 
   it("left-aligns Create/Cancel footer actions to match Offers Create Figma", () => {
@@ -33,6 +44,18 @@ describe("createEditOfferDrawerPresentation", () => {
     expect(CREATE_EDIT_OFFER_DRAWER_FOOTER_ACTIONS_CLASS).not.toContain(
       "justify-end"
     )
+  })
+
+  it("uses gray-60 / gray-1000 fill and keeps the body scrollbar on the drawer edge", () => {
+    expect(CREATE_EDIT_OFFER_DRAWER_SURFACE_CLASS).toContain("bg-op-color-gray-60")
+    expect(CREATE_EDIT_OFFER_DRAWER_SURFACE_CLASS).toContain(
+      "dark:bg-[var(--op-color-gray-1000)]"
+    )
+    expect(CREATE_EDIT_OFFER_DRAWER_SHELL_CLASS).not.toContain("p-8")
+    expect(CREATE_EDIT_OFFER_DRAWER_HEADER_CLASS).toContain("px-8")
+    expect(CREATE_EDIT_OFFER_DRAWER_BODY_CLASS).toContain("overflow-y-auto")
+    expect(CREATE_EDIT_OFFER_DRAWER_BODY_CLASS).toContain("px-8")
+    expect(CREATE_EDIT_OFFER_DRAWER_FOOTER_CLASS).toContain("px-8")
   })
 
   it("never shows the Create type picker in Edit mode", () => {

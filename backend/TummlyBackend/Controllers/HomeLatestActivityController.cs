@@ -133,7 +133,7 @@ namespace TummlyBackend.Controllers
                         kind = "guest-joined",
                         locationGuestId = guest.Id,
                         guestName = guest.Name,
-                        offersOptOut = guest.OffersOptOut,
+                        marketingPreference = guest.MarketingPreference.ToWireString(),
                         createdAt = guest.CreatedAt
                     };
                 })

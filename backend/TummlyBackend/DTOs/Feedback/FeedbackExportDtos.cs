@@ -23,6 +23,8 @@ namespace TummlyBackend.DTOs.Feedback
 
         public bool IncludeGuestContact { get; init; }
 
+        public int? FeedbackId { get; init; }
+
         public string Tab { get; init; } = "all";
 
         public string? Q { get; init; }
@@ -34,6 +36,8 @@ namespace TummlyBackend.DTOs.Feedback
         public string[]? QrSource { get; init; }
 
         public string[]? Contact { get; init; }
+
+        public string[]? WorkflowStatus { get; init; }
 
         public string? DatePreset { get; init; }
 

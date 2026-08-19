@@ -103,8 +103,9 @@ export const RECOMMENDED_SECTION_CLASS = `${OPERATOR_HOME_WHITE_CARD_CLASS} gap-
 
 export const RECOMMENDED_HEADER_CLASS = "flex items-start gap-3 pb-6"
 
+/** AI response body — Figma #ebebeb → op-background-secondary (gray-150). */
 export const RECOMMENDED_INNER_PANEL_CLASS =
-  "rounded-sm bg-op-surface-primary p-4 sm:p-5 dark:bg-op-background-secondary"
+  "rounded-sm bg-op-background-secondary p-4 sm:p-5"
 
 export const RECOMMENDED_EMPTY_COPY =
   "A recommended action will appear once there is enough guest activity."

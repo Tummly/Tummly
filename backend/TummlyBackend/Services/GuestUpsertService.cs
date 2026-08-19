@@ -172,7 +172,9 @@ namespace TummlyBackend.Services
                     MasterGuest = masterGuest,
                     RestaurantLocationId = restaurantLocationId,
                     Name = trimmedName,
-                    OffersOptOut = offersOptOut,
+                    MarketingPreference =
+                        LocationGuestMarketingPreferenceExtensions
+                            .FromFeedbackOffersOptOut(offersOptOut),
                     CreatedAt = createdAt,
                 };
                 _context.LocationGuests.Add(locationGuest);
@@ -185,7 +187,9 @@ namespace TummlyBackend.Services
                     locationGuest.Name = trimmedName;
                 }
 
-                locationGuest.OffersOptOut = offersOptOut;
+                locationGuest.MarketingPreference =
+                    LocationGuestMarketingPreferenceExtensions
+                        .FromFeedbackOffersOptOut(offersOptOut);
             }
 
             return locationGuest;

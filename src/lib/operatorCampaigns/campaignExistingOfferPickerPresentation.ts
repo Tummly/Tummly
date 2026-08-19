@@ -20,6 +20,34 @@ export const CAMPAIGN_EXISTING_OFFER_PICKER_COPY = {
   searchMissHelper: "No offers match your search.",
 } as const
 
+/**
+ * Figma `5338:64710` — Existing offer picker panel on Offer selection.
+ * Fill `#f5f5f5` / `--op-color-gray-60` light, `#171717` / `--op-color-gray-1000`
+ * dark. Idle border `--op-divider` (`#e5e5e5` light / `#262626` dark).
+ */
+export const EXISTING_OFFER_PICKER_PANEL_CLASS =
+  "flex w-full flex-col gap-[18px] rounded-[4px] border border-op-divider bg-op-color-gray-60 p-5 dark:bg-[var(--op-color-gray-1000)]"
+
+/**
+ * Figma Offer card — `#fff` / `--op-shell-chrome` light, `#141414` dark;
+ * 24px padding and 36px gap between header and actions.
+ * Idle border matches other wizard cards (`--op-divider`).
+ */
+export const EXISTING_OFFER_PICKER_CARD_CLASS =
+  "flex w-full flex-col gap-9 overflow-clip rounded-[4px] border border-op-divider bg-op-shell-chrome p-6"
+
+export const EXISTING_OFFER_PICKER_ICON_WELL_CLASS =
+  "flex size-[47px] shrink-0 items-center justify-center rounded-[2.6px] bg-op-background-secondary"
+
+export const EXISTING_OFFER_PICKER_CARD_TITLE_CLASS =
+  "m-0 text-base font-semibold leading-6 tracking-[-0.4px] text-op-text-primary"
+
+export const EXISTING_OFFER_PICKER_CARD_META_CLASS =
+  "m-0 flex flex-wrap items-start gap-2 text-xs font-normal leading-normal text-[var(--op-color-gray-550)]"
+
+export const EXISTING_OFFER_PICKER_CARD_ACTIONS_CLASS =
+  "flex flex-wrap items-center gap-3"
+
 export type CampaignExistingOfferPickerCard = {
   id: number
   title: string

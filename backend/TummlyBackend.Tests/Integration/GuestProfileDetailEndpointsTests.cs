@@ -169,7 +169,7 @@ namespace TummlyBackend.Tests.Integration
                 "Eligible — Email",
                 body.GetProperty("marketingStatus").GetString()
             );
-            Assert.False(body.GetProperty("offersOptOut").GetBoolean());
+            Assert.Equal("allowed", body.GetProperty("marketingPreference").GetString());
             Assert.Equal(
                 guestSinceAt,
                 body.GetProperty("guestSinceAt").GetDateTime()
@@ -507,7 +507,7 @@ namespace TummlyBackend.Tests.Integration
                 "Not eligible",
                 body.GetProperty("marketingStatus").GetString()
             );
-            Assert.True(body.GetProperty("offersOptOut").GetBoolean());
+            Assert.Equal("opted_out", body.GetProperty("marketingPreference").GetString());
 
             var eligibility = body.GetProperty("contactEligibility")
                 .EnumerateArray()
@@ -532,6 +532,128 @@ namespace TummlyBackend.Tests.Integration
                 optedOutAt,
                 eligibility[1].GetProperty("detailAt").GetDateTime()
             );
+        }
+
+        [Fact]
+        public async Task GetGuestProfile_MarksPresentChannelsNotRecorded_WhenPreferenceIsNotRecorded()
+        {
+            var seeded = await SeedOwnerWithGuestAsync(
+                "guest-profile-not-recorded-tok",
+                name: "Not Recorded Nel",
+                guestEmail: "nel@example.com",
+                mobile: "07700900457",
+                offersOptOut: false,
+                guestSinceAt: DateTime.UtcNow.AddDays(-10),
+                feedbackCreatedAts: [new DateTime(2026, 6, 1, 9, 30, 0, DateTimeKind.Utc)]
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var guest = await context.LocationGuests.SingleAsync(
+                    lg => lg.Id == seeded.LocationGuestId
+                );
+                guest.MarketingPreference =
+                    LocationGuestMarketingPreference.NotRecorded;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                GuestUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            var body = await ReadJsonAsync(response);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                "Not eligible",
+                body.GetProperty("marketingStatus").GetString()
+            );
+            Assert.Equal(
+                "not_recorded",
+                body.GetProperty("marketingPreference").GetString()
+            );
+
+            var eligibility = body.GetProperty("contactEligibility")
+                .EnumerateArray()
+                .ToList();
+
+            Assert.Equal("not_recorded", eligibility[0].GetProperty("status").GetString());
+            Assert.Equal(
+                "not_recorded",
+                eligibility[0].GetProperty("detailKind").GetString()
+            );
+            Assert.Equal(
+                new DateTime(2026, 6, 1, 9, 30, 0, DateTimeKind.Utc),
+                eligibility[0].GetProperty("detailAt").GetDateTime()
+            );
+            Assert.Equal("not_recorded", eligibility[1].GetProperty("status").GetString());
+            Assert.Equal(
+                "not_recorded",
+                eligibility[1].GetProperty("detailKind").GetString()
+            );
+            Assert.Equal(
+                new DateTime(2026, 6, 1, 9, 30, 0, DateTimeKind.Utc),
+                eligibility[1].GetProperty("detailAt").GetDateTime()
+            );
+        }
+
+        [Fact]
+        public async Task GetGuestProfile_KeepsConsentDetail_WhenOperatorOptedOutAfterAllowedFeedback()
+        {
+            var consentedAt = new DateTime(2026, 6, 1, 9, 30, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerWithGuestAsync(
+                "guest-profile-op-opt-out-tok",
+                ownerEmail: "guest-profile-op-opt-out@example.com",
+                name: "Operator Opt Out Oli",
+                guestEmail: "oli@example.com",
+                mobile: "07700900458",
+                offersOptOut: false,
+                guestSinceAt: DateTime.UtcNow.AddDays(-10),
+                feedbackCreatedAts: [consentedAt]
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var guest = await context.LocationGuests.SingleAsync(
+                    lg => lg.Id == seeded.LocationGuestId
+                );
+                guest.MarketingPreference =
+                    LocationGuestMarketingPreference.OptedOut;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                GuestUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            var body = await ReadJsonAsync(response);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                "opted_out",
+                body.GetProperty("marketingPreference").GetString()
+            );
+
+            var eligibility = body.GetProperty("contactEligibility")
+                .EnumerateArray()
+                .ToList();
+
+            Assert.Equal("unsubscribed", eligibility[0].GetProperty("status").GetString());
+            Assert.Equal(consentedAt, eligibility[0].GetProperty("detailAt").GetDateTime());
+            Assert.Equal("unsubscribed", eligibility[1].GetProperty("status").GetString());
+            Assert.Equal(consentedAt, eligibility[1].GetProperty("detailAt").GetDateTime());
         }
 
         [Fact]
@@ -565,7 +687,7 @@ namespace TummlyBackend.Tests.Integration
                     .GetRequiredService<ApplicationDbContext>();
                 var guest = await context.LocationGuests
                     .SingleAsync(lg => lg.Id == seeded.LocationGuestId);
-                guest.OffersOptOut = false;
+                guest.MarketingPreference = LocationGuestMarketingPreference.Allowed;
                 await context.SaveChangesAsync();
             }
 
@@ -738,7 +860,8 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = master.Id,
                 RestaurantLocationId = location.Id,
                 Name = name,
-                OffersOptOut = offersOptOut,
+                MarketingPreference = LocationGuestMarketingPreferenceExtensions.FromFeedbackOffersOptOut(offersOptOut),
+
                 CreatedAt = capturedAt,
             };
             context.LocationGuests.Add(locationGuest);
@@ -843,7 +966,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = master.Id,
                 RestaurantLocationId = location.Id,
                 Name = "Latest Feedback Guest",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = guestSinceAt,
             };
             context.LocationGuests.Add(locationGuest);
@@ -945,7 +1068,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = master.Id,
                 RestaurantLocationId = location.Id,
                 Name = "Recent Notes Guest",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = guestSinceAt,
             };
             context.LocationGuests.Add(locationGuest);
@@ -1048,7 +1171,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = master.Id,
                 RestaurantLocationId = secondary.Id,
                 Name = "Elsewhere Guest",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow,
             };
             context.LocationGuests.Add(otherGuest);

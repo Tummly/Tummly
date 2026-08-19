@@ -12,7 +12,10 @@ import {
   type LocationOverride,
   type OperatorFilterSelection,
 } from "@/lib/operatorFilterSheet"
-import type { GuestsResponse } from "@/types/dashboard"
+import type {
+  GuestProfileResponse,
+  GuestsResponse,
+} from "@/types/dashboard"
 
 const GUESTS_SCHEMA = guestsFilterSheetSchema()
 
@@ -79,6 +82,68 @@ function createGuestsResponse(
   }
 }
 
+function createGuestProfileResponse(
+  overrides: Partial<GuestProfileResponse> = {}
+): GuestProfileResponse {
+  return {
+    success: true,
+    locationId: 1,
+    id: 1,
+    name: "Guest 1",
+    marketingStatus: "Eligible — Email",
+    marketingPreference: "allowed",
+    guestSinceAt: "2026-05-12T10:00:00.000Z",
+    lastActivityAt: "2026-07-01T10:00:00.000Z",
+    lastInteractionLabel: "Feedback submitted",
+    profileSummary: {
+      email: "guest1@example.com",
+      mobile: null,
+      firstCapturedAt: "2026-05-12T10:00:00.000Z",
+      locationName: "Camden Street",
+      feedbackSubmissionCount: 1,
+      offerClaimsAndRedemptions: 0,
+      lastInteractionAt: "2026-07-01T10:00:00.000Z",
+      lastInteractionLabel: "Feedback submitted",
+      guestTags: [],
+    },
+    overviewDetails: {
+      guestSinceAt: "2026-05-12T10:00:00.000Z",
+      totalInteractions: 1,
+      feedbackReceived: 1,
+      offersClaimed: 0,
+      campaignsSent: 0,
+      lastActivityAt: "2026-07-01T10:00:00.000Z",
+    },
+    contactEligibility: [
+      {
+        channel: "email",
+        status: "eligible",
+        detailKind: "consent_captured",
+        detailAt: "2026-08-06T10:00:00.000Z",
+      },
+      {
+        channel: "sms",
+        status: "not_provided",
+        detailKind: null,
+        detailAt: null,
+      },
+    ],
+    latestFeedback: [],
+    recentNotes: [],
+    ...overrides,
+  }
+}
+
+function deferredGuestsResponse() {
+  let resolve!: (value: GuestsResponse) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<GuestsResponse>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 function createAdapters(
   overrides: Partial<OperatorGuestsPageAdapters> & {
     getGuests: Mock<OperatorGuestsPageAdapters["getGuests"]>
@@ -116,6 +181,9 @@ function createAdapters(
     }),
     getGuestProfile: vi.fn(async () => {
       throw new Error("getGuestProfile not stubbed")
+    }),
+    patchGuestMarketingPreference: vi.fn(async () => {
+      throw new Error("patchGuestMarketingPreference not stubbed")
     }),
     createGuestNote: vi.fn(async () => {
       throw new Error("createGuestNote not stubbed")
@@ -217,8 +285,44 @@ describe("createOperatorGuestsPageModule", () => {
       pageSize: 25,
     })
     expect(module.getSnapshot().loadStatus).toBe("loaded")
+    expect(module.getSnapshot().tabContentStatus).toBe("ready")
     expect(module.getSnapshot().viewModel?.tableRows).toHaveLength(25)
     expect(module.getSnapshot().viewModel?.totalFilteredCount).toBe(40)
+  })
+
+  it("reloads after tab-cache clear during first load when location is unchanged", async () => {
+    const first = deferredGuestsResponse()
+    const second = deferredGuestsResponse()
+    const getGuests = vi
+      .fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+    const module = createOperatorGuestsPageModule(createAdapters({ getGuests }))
+    const workspace = {
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Camden Street" }],
+    }
+
+    const firstSync = module.syncWorkspace(workspace)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().loadStatus).toBe("loading")
+    })
+
+    module.clearTabCache()
+    const secondSync = module.syncWorkspace(workspace)
+
+    first.resolve(createGuestsResponse({ rows: [], totalFilteredCount: 0 }))
+    await firstSync
+
+    await vi.waitFor(() => {
+      expect(getGuests).toHaveBeenCalledTimes(2)
+    })
+    second.resolve(createGuestsResponse())
+    await secondSync
+
+    expect(module.getSnapshot().loadStatus).toBe("loaded")
+    expect(module.getSnapshot().viewModel).not.toBeNull()
+    expect(module.getSnapshot().viewModel?.tableRows).toHaveLength(25)
   })
 
   it("refetches when the active smart group changes and clears selection", async () => {
@@ -247,18 +351,12 @@ describe("createOperatorGuestsPageModule", () => {
     )
   })
 
-  it("selects the smart group tab immediately while the quiet refetch is in flight", async () => {
-    let resolveSecond: ((value: ReturnType<typeof createGuestsResponse>) => void) | null =
-      null
+  it("hides old rows and empty state during a cold smart-group switch", async () => {
+    const second = deferredGuestsResponse()
     const getGuests = vi
       .fn()
       .mockResolvedValueOnce(createGuestsResponse())
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveSecond = resolve
-          })
-      )
+      .mockReturnValueOnce(second.promise)
 
     const module = createOperatorGuestsPageModule(createAdapters({ getGuests }))
     await module.syncWorkspace({
@@ -268,12 +366,20 @@ describe("createOperatorGuestsPageModule", () => {
 
     module.setActiveSmartGroupId("positive-feedback")
 
+    const loadingSnapshot = module.getSnapshot()
+    expect(loadingSnapshot.tabContentStatus).toBe("loading")
     expect(module.getSnapshot().viewModel?.activeSmartGroupId).toBe(
       "positive-feedback"
     )
-    expect(module.getSnapshot().loadStatus).toBe("loaded")
+    expect(loadingSnapshot.viewModel?.tableRows).toEqual([])
+    expect(loadingSnapshot.viewModel?.tableEmptyState).toBeNull()
+    expect(
+      loadingSnapshot.viewModel?.smartGroupTabs.find(
+        (tab) => tab.id === "all-guests"
+      )?.count
+    ).toBe(40)
 
-    resolveSecond?.(
+    second.resolve(
       createGuestsResponse({
         smartGroup: "positive-feedback",
         overview: undefined,
@@ -287,7 +393,7 @@ describe("createOperatorGuestsPageModule", () => {
       expect(module.getSnapshot().viewModel?.totalFilteredCount).toBe(0)
     })
 
-    // Tab counts / overview KPIs are preserved across table-only refetches.
+    expect(module.getSnapshot().tabContentStatus).toBe("ready")
     expect(module.getSnapshot().viewModel?.activeSmartGroupId).toBe(
       "positive-feedback"
     )
@@ -301,6 +407,157 @@ describe("createOperatorGuestsPageModule", () => {
         (kpi) => kpi.id === "total-guests"
       )?.value
     ).toBe(40)
+  })
+
+  it("shows cached smart-group content immediately while it refreshes", async () => {
+    const warmRefresh = deferredGuestsResponse()
+    const positiveRows = createGuestsResponse({
+      smartGroup: "positive-feedback",
+      rows: [
+        {
+          ...createGuestsResponse().rows[0]!,
+          id: "positive-guest",
+          name: "Positive Guest",
+        },
+      ],
+      totalFilteredCount: 1,
+    })
+    const getGuests = vi
+      .fn()
+      .mockResolvedValueOnce(createGuestsResponse())
+      .mockResolvedValueOnce(positiveRows)
+      .mockResolvedValueOnce(createGuestsResponse())
+      .mockReturnValueOnce(warmRefresh.promise)
+    const module = createOperatorGuestsPageModule(createAdapters({ getGuests }))
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Loc 1" }],
+    })
+    module.setActiveSmartGroupId("positive-feedback")
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().viewModel?.tableRows[0]?.id).toBe(
+        "positive-guest"
+      )
+    })
+    module.setActiveSmartGroupId("all-guests")
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().tabContentStatus).toBe("ready")
+    })
+
+    module.setActiveSmartGroupId("positive-feedback")
+
+    expect(module.getSnapshot().tabContentStatus).toBe("refreshing")
+    expect(module.getSnapshot().viewModel?.tableRows[0]?.id).toBe(
+      "positive-guest"
+    )
+
+    warmRefresh.resolve(positiveRows)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().tabContentStatus).toBe("ready")
+    })
+  })
+
+  it("caches rapid inactive responses without replacing the active tab", async () => {
+    const positive = deferredGuestsResponse()
+    const dormant = deferredGuestsResponse()
+    const positiveRefresh = deferredGuestsResponse()
+    const getGuests = vi
+      .fn()
+      .mockResolvedValueOnce(createGuestsResponse())
+      .mockReturnValueOnce(positive.promise)
+      .mockReturnValueOnce(dormant.promise)
+      .mockReturnValueOnce(positiveRefresh.promise)
+    const module = createOperatorGuestsPageModule(createAdapters({ getGuests }))
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Loc 1" }],
+    })
+    module.setActiveSmartGroupId("positive-feedback")
+    module.setActiveSmartGroupId("dormant-guests")
+
+    positive.resolve(
+      createGuestsResponse({
+        smartGroup: "positive-feedback",
+        rows: [
+          {
+            ...createGuestsResponse().rows[0]!,
+            id: "positive-guest",
+          },
+        ],
+      })
+    )
+    await Promise.resolve()
+    expect(module.getSnapshot().viewModel?.activeSmartGroupId).toBe(
+      "dormant-guests"
+    )
+    expect(module.getSnapshot().viewModel?.tableRows).toEqual([])
+
+    dormant.resolve(
+      createGuestsResponse({
+        smartGroup: "dormant-guests",
+        rows: [
+          {
+            ...createGuestsResponse().rows[0]!,
+            id: "dormant-guest",
+          },
+        ],
+      })
+    )
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().viewModel?.tableRows[0]?.id).toBe(
+        "dormant-guest"
+      )
+    })
+
+    module.setActiveSmartGroupId("positive-feedback")
+
+    expect(module.getSnapshot().tabContentStatus).toBe("refreshing")
+    expect(module.getSnapshot().viewModel?.tableRows[0]?.id).toBe(
+      "positive-guest"
+    )
+  })
+
+  it("clearTabCache makes a previously warm smart group cold", async () => {
+    const coldReload = deferredGuestsResponse()
+    const getGuests = vi
+      .fn()
+      .mockResolvedValueOnce(createGuestsResponse())
+      .mockResolvedValueOnce(
+        createGuestsResponse({
+          smartGroup: "positive-feedback",
+          rows: [
+            {
+              ...createGuestsResponse().rows[0]!,
+              id: "positive-guest",
+            },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(createGuestsResponse())
+      .mockReturnValueOnce(coldReload.promise)
+    const module = createOperatorGuestsPageModule(createAdapters({ getGuests }))
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Loc 1" }],
+    })
+    module.setActiveSmartGroupId("positive-feedback")
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().tabContentStatus).toBe("ready")
+    })
+    module.setActiveSmartGroupId("all-guests")
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().tabContentStatus).toBe("ready")
+    })
+
+    module.clearTabCache()
+    module.setActiveSmartGroupId("positive-feedback")
+
+    expect(module.getSnapshot().tabContentStatus).toBe("loading")
+    expect(module.getSnapshot().viewModel?.tableRows).toEqual([])
+    expect(module.getSnapshot().viewModel?.tableEmptyState).toBeNull()
   })
 
   it("debounces search refetch and clears selection on search change", async () => {
@@ -1007,7 +1264,7 @@ describe("createOperatorGuestsPageModule", () => {
       id: guestId,
       name: "Mohamed",
       marketingStatus: "Eligible — Email",
-      offersOptOut: false,
+      marketingPreference: "allowed" as const,
       guestSinceAt: "2026-05-12T10:00:00.000Z",
       lastActivityAt: null,
       lastInteractionLabel: "—",
@@ -1092,7 +1349,7 @@ describe("createOperatorGuestsPageModule", () => {
       id: guestId,
       name: "Mohamed",
       marketingStatus: "Eligible — Email",
-      offersOptOut: false,
+      marketingPreference: "allowed" as const,
       guestSinceAt: "2026-05-12T10:00:00.000Z",
       lastActivityAt: null,
       lastInteractionLabel: "—",
@@ -1203,7 +1460,7 @@ describe("createOperatorGuestsPageModule", () => {
       id: 42,
       name: "Mohamed",
       marketingStatus: "Eligible — Email",
-      offersOptOut: false,
+      marketingPreference: "allowed" as const,
       guestSinceAt: "2026-05-01T10:00:00.000Z",
       lastActivityAt: "2026-07-14T11:00:00.000Z",
       lastInteractionLabel: "Feedback submitted",
@@ -1255,7 +1512,7 @@ describe("createOperatorGuestsPageModule", () => {
       detectedTags: ["cold_food"],
       locationGuestId: 42,
       workflowStatus: "new" as const,
-      guestOffersOptOut: false,
+      marketingPreference: "allowed" as const,
       internalNotes: [],
       activityHistory: [],
     }))
@@ -1322,7 +1579,7 @@ describe("createOperatorGuestsPageModule", () => {
         detectedTags: ["cold_food"],
         locationGuestId: 42,
         workflowStatus: "new" as const,
-        guestOffersOptOut: false,
+        marketingPreference: "allowed" as const,
         internalNotes: [],
         activityHistory: [],
       }))
@@ -1370,7 +1627,7 @@ describe("createOperatorGuestsPageModule", () => {
       detectedTags: ["cold_food"],
       locationGuestId: 42,
       workflowStatus: "new" as const,
-      guestOffersOptOut: false,
+      marketingPreference: "allowed" as const,
       internalNotes: [],
       activityHistory: [],
     }))
@@ -1394,5 +1651,136 @@ describe("createOperatorGuestsPageModule", () => {
     expect(selected).toBe(false)
     expect(module.getSnapshot().startRecovery.isOpen).toBe(true)
     expect(module.getSnapshot().respondToGuest.isOpen).toBe(false)
+  })
+
+  it("opens manage marketing preferences from the list via Guest Profile GET, not the row", async () => {
+    const getGuests = vi.fn(async () => createGuestsResponse())
+    const getGuestProfile = vi.fn(async () =>
+      createGuestProfileResponse({
+        marketingPreference: "opted_out",
+        marketingStatus: "Not eligible",
+      })
+    )
+    const module = createOperatorGuestsPageModule(
+      createAdapters({ getGuests, getGuestProfile })
+    )
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Camden Street" }],
+    })
+    expect(
+      module.getSnapshot().viewModel?.tableRows[0]?.marketingStatusLabel
+    ).toBe("Eligible — Email")
+
+    await module.openManageMarketingPreferences("1")
+    const session = module.marketingPreferences.getSnapshot()
+
+    expect(getGuestProfile).toHaveBeenCalledWith({
+      guestId: 1,
+      locationId: 1,
+    })
+    expect(session.isOpen).toBe(true)
+    expect(session.draftPreference).toBe("opted_out")
+    expect(module.getSnapshot().viewModel).not.toBeNull()
+    expect(
+      module.getSnapshot().viewModel?.tableRows[0]?.marketingStatusLabel
+    ).toBe("Eligible — Email")
+  })
+
+  it("keeps the manage marketing preferences dialog open with an error when list load fails", async () => {
+    const getGuests = vi.fn(async () => createGuestsResponse())
+    const getGuestProfile = vi.fn(async () => {
+      throw new Error("missing")
+    })
+    const module = createOperatorGuestsPageModule(
+      createAdapters({ getGuests, getGuestProfile })
+    )
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Camden Street" }],
+    })
+
+    await module.openManageMarketingPreferences("1")
+    const session = module.marketingPreferences.getSnapshot()
+
+    expect(session.isOpen).toBe(true)
+    expect(session.loadStatus).toBe("error")
+    expect(module.getSnapshot().viewModel).not.toBeNull()
+  })
+
+  it("refreshes the list row and marketing-eligible aggregate after a successful Save", async () => {
+    const getGuests = vi
+      .fn()
+      .mockResolvedValueOnce(createGuestsResponse())
+      .mockResolvedValueOnce(
+        createGuestsResponse({
+          overview: {
+            totalGuests: 40,
+            newThisMonth: 0,
+            marketingEligible: 19,
+            needsRecovery: 0,
+          },
+          rows: [
+            {
+              id: "1",
+              name: "Guest 1",
+              email: "guest1@example.com",
+              mobile: null,
+              marketingStatus: "Not eligible",
+              locationName: "Camden Street",
+              latestFeedbackSentiment: "positive",
+              feedbackSubmissionCount: 1,
+              lastInteractionLabel: "Feedback submitted",
+              lastInteractionAt: "2026-07-01T10:00:00.000Z",
+              capturedAt: "2026-06-15T10:00:00.000Z",
+              tagIds: [10, 20],
+            },
+          ],
+        })
+      )
+    const getGuestProfile = vi.fn(async () => createGuestProfileResponse())
+    const patchGuestMarketingPreference = vi.fn(async () => ({
+      success: true,
+      preference: "opted_out" as const,
+      preferenceChanged: true,
+      noteCreated: false,
+      noteError: null,
+    }))
+    const module = createOperatorGuestsPageModule(
+      createAdapters({
+        getGuests,
+        getGuestProfile,
+        patchGuestMarketingPreference,
+      })
+    )
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Camden Street" }],
+    })
+    await module.openManageMarketingPreferences("1")
+    module.marketingPreferences.setDraftPreference("opted_out")
+    getGuests.mockClear()
+
+    const result = await module.saveManageMarketingPreferences()
+
+    expect(result).toEqual({ status: "saved" })
+    expect(patchGuestMarketingPreference).toHaveBeenCalledWith({
+      guestId: 1,
+      locationId: 1,
+      body: { preference: "opted_out" },
+    })
+    expect(getGuests).toHaveBeenCalled()
+    expect(
+      module.getSnapshot().viewModel?.tableRows[0]?.marketingStatusLabel
+    ).toBe("Not eligible")
+    expect(
+      module
+        .getSnapshot()
+        .viewModel?.overviewKpis.find((kpi) => kpi.id === "marketing-eligible")
+        ?.value
+    ).toBe(19)
   })
 })

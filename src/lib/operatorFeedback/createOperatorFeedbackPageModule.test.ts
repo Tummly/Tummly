@@ -11,6 +11,15 @@ import type {
   FeedbackInboxListResponse,
   FeedbackSummaryResponse,
 } from "@/types/dashboard"
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
 function summaryResponse(
   overrides: Partial<FeedbackSummaryResponse> = {}
 ): FeedbackSummaryResponse {
@@ -108,6 +117,12 @@ function createAdapters(
         blob: new Blob(["id"], { type: "text/csv" }),
         filename: "tummly-feedback-1-20260717-120000Z.csv",
       })),
+    exportSingleFeedback:
+      overrides.exportSingleFeedback
+      ?? vi.fn(async () => ({
+        blob: new Blob(["id"]),
+        filename: "tummly-feedback-1-20260717-120000Z.xlsx",
+      })),
     triggerBrowserDownload: overrides.triggerBrowserDownload ?? vi.fn(),
     getFeedbackPageDateRange:
       overrides.getFeedbackPageDateRange
@@ -174,6 +189,9 @@ function createAdapters(
     sendGuestPreviewTest:
       overrides.sendGuestPreviewTest
       ?? vi.fn(async () => {}),
+    getOperatorAccountEmail:
+      overrides.getOperatorAccountEmail
+      ?? (async () => "ops@example.com"),
     completeRecovery:
       overrides.completeRecovery
       ?? vi.fn(async () => ({
@@ -471,6 +489,216 @@ describe("createOperatorFeedbackPageModule", () => {
     })
     expect(pageModule.getSnapshot().activeInboxTabId).toBe("new")
   })
+  it("hides old inbox content while a cold tab loads", async () => {
+    const newInbox = deferred<FeedbackInboxListResponse>()
+    const getFeedbackInbox = vi.fn(async (params) => {
+      if (params.tab === "new") {
+        return newInbox.promise
+      }
+      return inboxResponse({ items: [inboxItem({ id: 10 })] })
+    })
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({ getFeedbackInbox })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+
+    pageModule.setActiveInboxTabId("new")
+
+    const loading = pageModule.getSnapshot()
+    expect(loading.activeInboxTabId).toBe("new")
+    expect(loading.tabContentStatus).toBe("loading")
+    expect(loading.viewModel?.summary.kind).toBe("kpis")
+    expect(loading.viewModel?.inbox.tabs).toHaveLength(5)
+    expect(loading.viewModel?.inbox.tableRows).toEqual([])
+    expect(loading.viewModel?.inbox.tableEmptyState).toBeNull()
+
+    newInbox.resolve(inboxResponse({ items: [inboxItem({ id: 20 })] }))
+    await vi.waitFor(() => {
+      expect(pageModule.getSnapshot().tabContentStatus).toBe("ready")
+    })
+    expect(
+      pageModule.getSnapshot().viewModel?.inbox.tableRows.map((row) => row.id)
+    ).toEqual([20])
+  })
+  it("shows a warm tab immediately while it refreshes", async () => {
+    const refreshedAll = deferred<FeedbackInboxListResponse>()
+    let allRequestCount = 0
+    const getFeedbackInbox = vi.fn(async (params) => {
+      if (params.tab === "all") {
+        allRequestCount += 1
+        return allRequestCount === 1
+          ? inboxResponse({ items: [inboxItem({ id: 10 })] })
+          : refreshedAll.promise
+      }
+      return inboxResponse({ items: [inboxItem({ id: 20 })] })
+    })
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({ getFeedbackInbox })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+    pageModule.setActiveInboxTabId("new")
+    await vi.waitFor(() => {
+      expect(pageModule.getSnapshot().tabContentStatus).toBe("ready")
+    })
+
+    pageModule.setActiveInboxTabId("all")
+
+    expect(pageModule.getSnapshot().tabContentStatus).toBe("refreshing")
+    expect(
+      pageModule.getSnapshot().viewModel?.inbox.tableRows.map((row) => row.id)
+    ).toEqual([10])
+
+    refreshedAll.resolve(
+      inboxResponse({ items: [inboxItem({ id: 11 })] })
+    )
+    await vi.waitFor(() => {
+      expect(pageModule.getSnapshot().tabContentStatus).toBe("ready")
+    })
+    expect(
+      pageModule.getSnapshot().viewModel?.inbox.tableRows.map((row) => row.id)
+    ).toEqual([11])
+  })
+  it("caches rapid tab responses without replacing the active inbox", async () => {
+    const newInbox = deferred<FeedbackInboxListResponse>()
+    const resolvedInbox = deferred<FeedbackInboxListResponse>()
+    const newRefresh = deferred<FeedbackInboxListResponse>()
+    let newRequestCount = 0
+    const getFeedbackInbox = vi.fn(async (params) => {
+      if (params.tab === "new") {
+        newRequestCount += 1
+        return newRequestCount === 1 ? newInbox.promise : newRefresh.promise
+      }
+      if (params.tab === "resolved") {
+        return resolvedInbox.promise
+      }
+      return inboxResponse({ items: [inboxItem({ id: 10 })] })
+    })
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({ getFeedbackInbox })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+
+    pageModule.setActiveInboxTabId("new")
+    pageModule.setActiveInboxTabId("resolved")
+    newInbox.resolve(inboxResponse({ items: [inboxItem({ id: 20 })] }))
+    await Promise.resolve()
+    expect(pageModule.getSnapshot().activeInboxTabId).toBe("resolved")
+    expect(pageModule.getSnapshot().viewModel?.inbox.tableRows).toEqual([])
+
+    resolvedInbox.resolve(
+      inboxResponse({ items: [inboxItem({ id: 30 })] })
+    )
+    await vi.waitFor(() => {
+      expect(
+        pageModule.getSnapshot().viewModel?.inbox.tableRows.map((row) => row.id)
+      ).toEqual([30])
+    })
+
+    pageModule.setActiveInboxTabId("new")
+    expect(pageModule.getSnapshot().tabContentStatus).toBe("refreshing")
+    expect(
+      pageModule.getSnapshot().viewModel?.inbox.tableRows.map((row) => row.id)
+    ).toEqual([20])
+  })
+  it("treats a cleared tab cache as a cold miss", async () => {
+    const secondAll = deferred<FeedbackInboxListResponse>()
+    let allRequestCount = 0
+    const getFeedbackInbox = vi.fn(async (params) => {
+      if (params.tab === "all") {
+        allRequestCount += 1
+        return allRequestCount === 1
+          ? inboxResponse({ items: [inboxItem({ id: 10 })] })
+          : secondAll.promise
+      }
+      return inboxResponse({ items: [inboxItem({ id: 20 })] })
+    })
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({ getFeedbackInbox })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+    pageModule.setActiveInboxTabId("new")
+    await vi.waitFor(() => {
+      expect(pageModule.getSnapshot().tabContentStatus).toBe("ready")
+    })
+
+    pageModule.clearTabCache()
+    pageModule.setActiveInboxTabId("all")
+
+    expect(pageModule.getSnapshot().tabContentStatus).toBe("loading")
+    expect(pageModule.getSnapshot().viewModel?.inbox.tableRows).toEqual([])
+    expect(allRequestCount).toBe(2)
+  })
+  it("keeps current rows while a quiet summary and inbox reload runs", async () => {
+    const quietReload = deferred<FeedbackInboxListResponse>()
+    let inboxRequestCount = 0
+    const getFeedbackInbox = vi.fn(async () => {
+      inboxRequestCount += 1
+      return inboxRequestCount === 1
+        ? inboxResponse({ items: [inboxItem({ id: 10 })] })
+        : quietReload.promise
+    })
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({ getFeedbackInbox })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+
+    const reopened = pageModule.reopenFeedback(10)
+    await vi.waitFor(() => {
+      expect(inboxRequestCount).toBe(2)
+    })
+
+    const refreshing = pageModule.getSnapshot()
+    expect(refreshing.tabContentStatus).toBe("refreshing")
+    expect(refreshing.viewModel?.inbox.tableRows.map((row) => row.id)).toEqual([
+      10,
+    ])
+
+    quietReload.resolve(inboxResponse({ items: [inboxItem({ id: 11 })] }))
+    await reopened
+
+    const after = pageModule.getSnapshot()
+    expect(after.tabContentStatus).toBe("ready")
+    expect(after.viewModel?.inbox.tableRows.map((row) => row.id)).toEqual([11])
+  })
+  it("keeps current rows and returns ready when a quiet reload fails", async () => {
+    let inboxRequestCount = 0
+    const getFeedbackInbox = vi.fn(async () => {
+      inboxRequestCount += 1
+      if (inboxRequestCount === 1) {
+        return inboxResponse({ items: [inboxItem({ id: 10 })] })
+      }
+      throw new Error("inbox unavailable")
+    })
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({ getFeedbackInbox })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+
+    await pageModule.reopenFeedback(10)
+
+    const after = pageModule.getSnapshot()
+    expect(after.tabContentStatus).toBe("ready")
+    expect(after.viewModel?.inbox.tableRows.map((row) => row.id)).toEqual([10])
+    expect(after.loadStatus).toBe("error")
+  })
   it("search and filters compose in getFeedbackInbox params", async () => {
     const getFeedbackInbox = vi.fn(async () => inboxResponse())
     const pageModule = createOperatorFeedbackPageModule(
@@ -483,6 +711,7 @@ describe("createOperatorFeedbackPageModule", () => {
     getFeedbackInbox.mockClear()
     pageModule.setSearchQuery("cold food")
     pageModule.applyFilters({
+      workflowStatus: { kind: "multi-select", ids: [] },
       sentiment: { kind: "multi-select", ids: ["negative"] },
       detectedTag: { kind: "multi-select", ids: [] },
       qrSource: { kind: "multi-select", ids: [] },
@@ -494,6 +723,34 @@ describe("createOperatorFeedbackPageModule", () => {
         expect.objectContaining({
           q: "cold food",
           sentiment: ["negative"],
+          page: 1,
+        })
+      )
+    })
+  })
+
+  it("sends workflowStatus filter in getFeedbackInbox params", async () => {
+    const getFeedbackInbox = vi.fn(async () => inboxResponse())
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({ getFeedbackInbox })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+    getFeedbackInbox.mockClear()
+    pageModule.applyFilters({
+      workflowStatus: { kind: "multi-select", ids: ["resolved"] },
+      sentiment: { kind: "multi-select", ids: [] },
+      detectedTag: { kind: "multi-select", ids: [] },
+      qrSource: { kind: "multi-select", ids: [] },
+      contact: { kind: "multi-select", ids: [] },
+      date: { kind: "date", value: { kind: "none" } },
+    })
+    await vi.waitFor(() => {
+      expect(getFeedbackInbox).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowStatus: ["resolved"],
           page: 1,
         })
       )
@@ -686,6 +943,19 @@ describe("createOperatorFeedbackPageModule", () => {
       selectedLocationId: 7,
       locations: [{ id: 7, locationName: "Camden Street" }],
     })
+    pageModule.applyFilters({
+      workflowStatus: { kind: "multi-select", ids: ["resolved"] },
+      sentiment: { kind: "multi-select", ids: [] },
+      detectedTag: { kind: "multi-select", ids: [] },
+      qrSource: { kind: "multi-select", ids: [] },
+      contact: { kind: "multi-select", ids: [] },
+      date: { kind: "date", value: { kind: "none" } },
+    })
+    await vi.waitFor(() => {
+      expect(
+        pageModule.getSnapshot().viewModel?.inbox.filterChipCount
+      ).toBeGreaterThan(0)
+    })
     pageModule.openExportDialog()
     pageModule.setExportFormat("csv")
     pageModule.setExportIncludeGuestContact(true)
@@ -698,6 +968,7 @@ describe("createOperatorFeedbackPageModule", () => {
         format: "csv",
         includeGuestContact: true,
         tab: "all",
+        workflowStatus: ["resolved"],
       })
     )
     expect(triggerBrowserDownload).toHaveBeenCalledWith(
@@ -705,6 +976,31 @@ describe("createOperatorFeedbackPageModule", () => {
       "tummly-feedback-7-20260717-120000Z.csv"
     )
     expect(pageModule.getSnapshot().exportDialog).toBeNull()
+  })
+
+  it("exports one feedback item from the details drawer", async () => {
+    const exportSingleFeedback = vi.fn(async () => ({
+      blob: new Blob(["xlsx"]),
+      filename: "tummly-feedback-42-20260717-120000Z.xlsx",
+    }))
+    const triggerBrowserDownload = vi.fn()
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({ exportSingleFeedback, triggerBrowserDownload })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 7,
+      locations: [{ id: 7, locationName: "Camden Street" }],
+    })
+
+    await expect(pageModule.exportSingleFeedback(42)).resolves.toBe(true)
+    expect(exportSingleFeedback).toHaveBeenCalledWith({
+      feedbackId: 42,
+      locationId: 7,
+    })
+    expect(triggerBrowserDownload).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "tummly-feedback-42-20260717-120000Z.xlsx"
+    )
   })
 
   it("keeps dialog open with soft-max error and does not download", async () => {
@@ -789,7 +1085,7 @@ describe("createOperatorFeedbackPageModule", () => {
           ...sampleDetails,
           id: feedbackId,
           workflowStatus: "new" as const,
-          guestOffersOptOut: false,
+          marketingPreference: "allowed" as const,
         })),
         setWorkflowStatus,
       })
@@ -811,5 +1107,63 @@ describe("createOperatorFeedbackPageModule", () => {
       workflowStatus: "in_progress",
     })
     expect(setWorkflowStatus).toHaveBeenCalledWith(42, "in_progress")
+  })
+
+  it("starts inbox mark resolved without opening the details drawer", async () => {
+    const pageModule = createOperatorFeedbackPageModule(createAdapters())
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+
+    await pageModule.startInboxMarkResolved(42)
+
+    expect(pageModule.getSnapshot().feedbackDetails).toMatchObject({
+      isOpen: false,
+      loadStatus: "loaded",
+      feedbackId: 42,
+      closeOut: {
+        isOpen: true,
+        intent: "mark_resolved",
+      },
+    })
+  })
+
+  it("starts inbox mark no action needed without opening the details drawer", async () => {
+    const pageModule = createOperatorFeedbackPageModule(createAdapters())
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+
+    await pageModule.startInboxMarkNoActionNeeded(42)
+
+    expect(pageModule.getSnapshot().feedbackDetails).toMatchObject({
+      isOpen: false,
+      loadStatus: "loaded",
+      feedbackId: 42,
+      closeOut: {
+        isOpen: true,
+        intent: "mark_no_action_needed",
+      },
+    })
+  })
+
+  it("clears background-loaded details when inbox close-out is cancelled", async () => {
+    const pageModule = createOperatorFeedbackPageModule(createAdapters())
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+
+    await pageModule.startInboxMarkResolved(42)
+    pageModule.cancelFeedbackCloseOut()
+
+    expect(pageModule.getSnapshot().feedbackDetails).toMatchObject({
+      isOpen: false,
+      loadStatus: "idle",
+      feedbackId: null,
+      closeOut: { isOpen: false },
+    })
   })
 })

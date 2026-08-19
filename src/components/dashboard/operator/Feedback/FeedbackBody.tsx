@@ -4,6 +4,7 @@ import { FeedbackInboxSection } from "@/components/dashboard/operator/Feedback/F
 import { FeedbackPageDateRangeControl } from "@/components/dashboard/operator/Feedback/FeedbackPageDateRangeControl"
 import { FeedbackPageHeaderActionsMenu } from "@/components/dashboard/operator/Feedback/FeedbackPageHeaderActionsMenu"
 import { FeedbackSummarySection } from "@/components/dashboard/operator/Feedback/FeedbackSummarySection"
+import type { OperatorTabContentStatus } from "@/components/dashboard/operator/OperatorTableTabPanel"
 import { Button } from "@/components/ui/button"
 import {
   GUESTS_PAGE_HEADER_COPY_CLASS,
@@ -11,12 +12,13 @@ import {
   GUESTS_PAGE_PRIMARY_BUTTON_CLASS,
   GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
   GUESTS_PAGE_STACK_CLASS,
-  GUESTS_PAGE_SUBTITLE_CLASS,
   GUESTS_PAGE_TITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import {
   FEEDBACK_PAGE_COPY,
   FEEDBACK_PAGE_META_CLASS,
+  FEEDBACK_PAGE_META_STACK_CLASS,
+  FEEDBACK_PAGE_SUBTITLE_CLASS,
 } from "@/lib/operatorFeedback/feedbackPresentation"
 import type { FilterChip } from "@/lib/operatorFilterSheet"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
@@ -30,6 +32,7 @@ import type {
 } from "@/types/operatorFeedback"
 
 type FeedbackBodyProps = {
+  tabContentStatus: OperatorTabContentStatus
   viewModel: OperatorFeedbackPageViewModel
   activeInboxTabId: OperatorFeedbackInboxTabId
   selectedDateRange: HomePerformanceDateRange
@@ -59,6 +62,7 @@ type FeedbackBodyProps = {
   onInboxRemoveFilterChip: (chip: FilterChip) => void
   onOpenFeedbackDetails: (feedbackId: number) => void
   onStartInboxRecovery: (feedbackId: number) => void
+  onReopenInboxFeedback: (feedbackId: number) => void
   onStartInboxMarkResolved: (feedbackId: number) => void
   onStartInboxMarkNoActionNeeded: (feedbackId: number) => void
   onExportFeedback: () => void
@@ -66,6 +70,7 @@ type FeedbackBodyProps = {
 
 /** Feedback page body — header chrome, summary KPIs, and inbox. */
 export function FeedbackBody({
+  tabContentStatus,
   viewModel,
   activeInboxTabId,
   selectedDateRange,
@@ -95,6 +100,7 @@ export function FeedbackBody({
   onInboxRemoveFilterChip,
   onOpenFeedbackDetails,
   onStartInboxRecovery,
+  onReopenInboxFeedback,
   onStartInboxMarkResolved,
   onStartInboxMarkNoActionNeeded,
   onExportFeedback,
@@ -106,13 +112,17 @@ export function FeedbackBody({
       <div className={GUESTS_PAGE_HEADER_ROW_CLASS}>
         <header className={GUESTS_PAGE_HEADER_COPY_CLASS}>
           <h1 className={GUESTS_PAGE_TITLE_CLASS}>{copy.title}</h1>
-          <p className={GUESTS_PAGE_SUBTITLE_CLASS}>{copy.subtitle}</p>
-          <p className={FEEDBACK_PAGE_META_CLASS}>
-            {viewModel.locationName} · {viewModel.dateRangeLabel}
-            {viewModel.updatedRelativeLabel
-              ? ` · Updated ${viewModel.updatedRelativeLabel}`
-              : null}
-          </p>
+          <p className={FEEDBACK_PAGE_SUBTITLE_CLASS}>{copy.subtitle}</p>
+          <div className={FEEDBACK_PAGE_META_STACK_CLASS}>
+            <p className={FEEDBACK_PAGE_META_CLASS}>
+              {viewModel.locationName} · {viewModel.dateRangeLabel}
+            </p>
+            {viewModel.updatedRelativeLabel ? (
+              <p className={FEEDBACK_PAGE_META_CLASS}>
+                Updated {viewModel.updatedRelativeLabel}
+              </p>
+            ) : null}
+          </div>
         </header>
 
         <div className="flex shrink-0 flex-wrap items-center gap-3">
@@ -154,6 +164,7 @@ export function FeedbackBody({
       />
 
       <FeedbackInboxSection
+        tabContentStatus={tabContentStatus}
         inboxRef={inboxRef}
         tabs={inboxTabs}
         activeTabId={activeInboxTabId}
@@ -178,6 +189,7 @@ export function FeedbackBody({
         onRemoveFilterChip={onInboxRemoveFilterChip}
         onOpenFeedbackDetails={onOpenFeedbackDetails}
         onStartInboxRecovery={onStartInboxRecovery}
+        onReopenInboxFeedback={onReopenInboxFeedback}
         onStartInboxMarkResolved={onStartInboxMarkResolved}
         onStartInboxMarkNoActionNeeded={onStartInboxMarkNoActionNeeded}
       />

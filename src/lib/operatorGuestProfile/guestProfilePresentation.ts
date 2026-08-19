@@ -93,12 +93,56 @@ export const OPERATOR_GUEST_ACTIVITY_TYPE_LABELS = {
   note: "Note",
   tag: "Tag",
   "profile-update": "Profile update",
+  "marketing-preference": "Marketing preference",
 } as const
+
+const MARKETING_PREFERENCE_ACTIVITY_STATUS_LABELS: Record<string, string> = {
+  allowed: "Allowed",
+  opted_out: "Opted out",
+  not_recorded: "Not recorded",
+}
+
+export function formatMarketingPreferenceActivityBody(input: {
+  fromPreference: string | null
+  toPreference: string | null
+  authorDisplayName: string | null
+}): string {
+  const from = humanizeMarketingPreferenceActivityStatus(input.fromPreference)
+  const to = humanizeMarketingPreferenceActivityStatus(input.toPreference)
+  const author = input.authorDisplayName?.trim()
+  const change =
+    from != null && to != null ? `from ${from} to ${to}` : null
+
+  if (author != null && author.length > 0 && change != null) {
+    return `${author} changed marketing preference ${change}.`
+  }
+  if (change != null) {
+    return `Marketing preference changed ${change}.`
+  }
+  if (author != null && author.length > 0) {
+    return `Marketing preference changed by ${author}.`
+  }
+  return "Marketing preference changed."
+}
+
+function humanizeMarketingPreferenceActivityStatus(
+  value: string | null
+): string | null {
+  if (value == null) {
+    return null
+  }
+  const key = value.trim().toLowerCase()
+  if (key.length === 0) {
+    return null
+  }
+  return MARKETING_PREFERENCE_ACTIVITY_STATUS_LABELS[key] ?? null
+}
 
 export const GUEST_PROFILE_CONTACT_STATUS_LABELS = {
   eligible: "Eligible",
   unsubscribed: "Unsubscribed",
   not_provided: GUEST_PROFILE_NOT_PROVIDED,
+  not_recorded: "Not recorded",
 } as const
 
 /** Honesty: Source until first-class capture ships. */
@@ -147,10 +191,10 @@ export const OPERATOR_NOTE_ACTIONS = {
   editLabel: "Edit",
   deleteLabel: "Delete",
   editedLabel: "Edited",
-  deleteDialogTitle: "Delete note?",
+  deleteDialogTitle: "Remove this note?",
   deleteDialogDescription:
-    "This note will be removed from the list and cannot be restored.",
-  deleteDialogConfirm: "Delete note",
+    "The note will be hidden from the normal Feedback view. A record of the removal will remain in the audit history.",
+  deleteDialogConfirm: "Remove note",
   deleteDialogCancel: "Cancel",
 } as const
 
@@ -226,6 +270,7 @@ export const GUEST_EDIT_PAGE = {
       eligible: "Opted in",
       unsubscribed: "Unsubscribed",
       not_provided: "Not opted in",
+      not_recorded: "Not recorded",
     },
     sourcePlaceholder: "—",
     datePlaceholder: "—",

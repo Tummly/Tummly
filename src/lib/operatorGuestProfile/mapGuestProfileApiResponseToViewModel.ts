@@ -116,6 +116,10 @@ function formatContactEligibilityDetail(
     return `Consent captured ${formatted}`
   }
 
+  if (row.detailKind === "not_recorded") {
+    return `Not recorded ${formatted}`
+  }
+
   return `Unsubscribed ${formatted}`
 }
 

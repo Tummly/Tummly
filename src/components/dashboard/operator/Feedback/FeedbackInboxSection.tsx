@@ -6,6 +6,10 @@ import { FeedbackInboxTableEmptyState } from "@/components/dashboard/operator/Fe
 import { GuestProfileFeedbackPreviewCell } from "@/components/dashboard/operator/GuestProfile/GuestProfileFeedbackPreviewCell"
 import { GuestProfileIssueTagsCell } from "@/components/dashboard/operator/GuestProfile/GuestProfileIssueTagsCell"
 import { GuestsFilterChipRow } from "@/components/dashboard/operator/Guests/GuestsFilterChipRow"
+import {
+  OperatorTableTabPanel,
+  type OperatorTabContentStatus,
+} from "@/components/dashboard/operator/OperatorTableTabPanel"
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -80,6 +84,7 @@ const SORT_OPTIONS = Object.entries(OPERATOR_FEEDBACK_INBOX_SORT_LABELS) as Arra
 >
 
 type FeedbackInboxSectionProps = {
+  tabContentStatus: OperatorTabContentStatus
   inboxRef: RefObject<HTMLElement | null>
   tabs: OperatorFeedbackInboxTab[]
   activeTabId: OperatorFeedbackInboxTabId
@@ -104,6 +109,7 @@ type FeedbackInboxSectionProps = {
   onRemoveFilterChip: (chip: FilterChip) => void
   onOpenFeedbackDetails: (feedbackId: number) => void
   onStartInboxRecovery: (feedbackId: number) => void
+  onReopenInboxFeedback: (feedbackId: number) => void
   onStartInboxMarkResolved: (feedbackId: number) => void
   onStartInboxMarkNoActionNeeded: (feedbackId: number) => void
 }
@@ -129,6 +135,7 @@ function SentimentCell({
 
 /** Feedback inbox — tabs, toolbar, table, pagination (Guests Smart groups shape). */
 export function FeedbackInboxSection({
+  tabContentStatus,
   inboxRef,
   tabs,
   activeTabId,
@@ -153,6 +160,7 @@ export function FeedbackInboxSection({
   onRemoveFilterChip,
   onOpenFeedbackDetails,
   onStartInboxRecovery,
+  onReopenInboxFeedback,
   onStartInboxMarkResolved,
   onStartInboxMarkNoActionNeeded,
 }: FeedbackInboxSectionProps) {
@@ -267,7 +275,10 @@ export function FeedbackInboxSection({
           onRemoveChip={onRemoveFilterChip}
         />
 
-        <div role="tabpanel">
+        <OperatorTableTabPanel
+          status={tabContentStatus}
+          loadingLabel="Loading feedback"
+        >
           {tableEmptyState ? (
             <FeedbackInboxTableEmptyState
               kind={tableEmptyState}
@@ -377,6 +388,9 @@ export function FeedbackInboxSection({
                               onViewFeedback={() => {
                                 onOpenFeedbackDetails(row.id)
                               }}
+                              onReopen={() => {
+                                onReopenInboxFeedback(row.id)
+                              }}
                               onMarkResolved={() => {
                                 onStartInboxMarkResolved(row.id)
                               }}
@@ -393,7 +407,7 @@ export function FeedbackInboxSection({
               </TooltipProvider>
             </div>
           )}
-        </div>
+        </OperatorTableTabPanel>
 
         {!tableEmptyState ? (
           <div className={GUESTS_PAGINATION_ROW_CLASS}>

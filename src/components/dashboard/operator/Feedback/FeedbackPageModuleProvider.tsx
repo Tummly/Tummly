@@ -9,6 +9,7 @@ import {
   createCatalogOffer,
   createFeedbackInternalNote,
   exportFeedback,
+  exportSingleFeedback as exportSingleFeedbackApi,
   getCatalogOfferById,
   getFeedbackDetails,
   getFeedbackInbox,
@@ -32,6 +33,8 @@ import { feedbackPageModuleContext } from "@/components/dashboard/operator/Feedb
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { createOperatorFeedbackPageModule } from "@/lib/operatorFeedback/createOperatorFeedbackPageModule"
 import { connectFeedbackHomeHub } from "@/lib/operatorHome/connectFeedbackHomeHub"
+import { parseOperatorProfile } from "@/lib/operatorHome/parseOperatorProfile"
+import { fetchCurrentUser } from "@/api/loginContextClient"
 import { labelForInternalActionCategory } from "@/lib/operatorFeedback/internalActionPresentation"
 import { prepareRecoveryDraft as prepareRecoveryDraftHttp } from "@/lib/operatorFeedback/prepareRecoveryDraft"
 
@@ -47,6 +50,7 @@ export function FeedbackPageModuleProvider({
         getFeedbackSummary(locationId, from, to),
       getFeedbackInbox: async (params) => getFeedbackInbox(params),
       exportFeedback: async (params) => exportFeedback(params),
+      exportSingleFeedback: async (params) => exportSingleFeedbackApi(params),
       triggerBrowserDownload,
       getFeedbackPageDateRange: () =>
         dashboardUiStore.getState().feedbackPageDateRange,
@@ -164,8 +168,13 @@ export function FeedbackPageModuleProvider({
         await sendGuestPreviewTest(request.feedbackId, {
           subject: request.subject,
           body: request.body,
+          toEmail: request.toEmail,
           offer: request.offer ?? null,
         })
+      },
+      getOperatorAccountEmail: async () => {
+        const result = await fetchCurrentUser()
+        return parseOperatorProfile(result)?.email ?? null
       },
       completeRecovery: async (feedbackId, intent) => {
         const result = await completeFeedbackRecovery(feedbackId, { intent })

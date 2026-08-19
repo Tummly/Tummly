@@ -1,9 +1,9 @@
 import { CrownIcon } from "lucide-react"
 
-import tearImg from "@/assets/images/tear-img.png"
-import guestLoopLivePhone from "@/assets/operator-home/guest-loop-live-phone.png"
+import tearImg from "@/assets/svg/tear-v2.svg"
 import heroFormAccentDark from "@/assets/svg/hero-form-accent-dark.svg"
 import heroFormAccent from "@/assets/svg/hero-form-accent.svg"
+import { HomeGuestFormPhone } from "@/components/dashboard/operator/Home/HomeGuestFormPhone"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type {
@@ -19,7 +19,6 @@ import {
   OPERATOR_HOME_HERO_CARD_CLASS,
   OPERATOR_HOME_HERO_CTA_ROW_CLASS,
   OPERATOR_HOME_HERO_INNER_CLASS,
-  OPERATOR_HOME_HERO_PHONE_FADE_CLASS,
   OPERATOR_HOME_HERO_PRIMARY_BUTTON_CLASS,
   OPERATOR_HOME_HERO_SECONDARY_BUTTON_CLASS,
   OPERATOR_HOME_HERO_SUBTITLE_CLASS,
@@ -32,15 +31,17 @@ type HomeHeroProps = {
   canPreviewGuestForm: boolean
   canCopySmartGuestLink: boolean
   previewBusy?: boolean
+  guestFormPreviewLocationName?: string
+  guestFormPreviewAddress?: string
   onPreviewGuestForm?: () => void
   onCopySmartGuestLink?: () => void
 }
 
+/** Warning/urgent only — default tone keeps `variant="soft"` chip tokens. */
 const ACTIVATION_PERIOD_BADGE_TONE_CLASS: Record<
-  ActivationPeriodBadgeTone,
+  Exclude<ActivationPeriodBadgeTone, "default">,
   string
 > = {
-  default: "bg-black/5 text-foreground dark:bg-[#202020] dark:text-white",
   warning:
     "bg-[#f3eae4] text-foreground dark:bg-[#f3eae4]/25 dark:text-[#f4f4f4]",
   urgent:
@@ -53,6 +54,8 @@ export function HomeHero({
   canPreviewGuestForm,
   canCopySmartGuestLink,
   previewBusy = false,
+  guestFormPreviewLocationName = "",
+  guestFormPreviewAddress = "",
   onPreviewGuestForm,
   onCopySmartGuestLink,
 }: HomeHeroProps) {
@@ -83,30 +86,34 @@ export function HomeHero({
         </div>
 
         {/*
-          tear-img (3072x1313): green band in rows 1080-1284. Figma draws the
-          band 105px tall then shifts it up so only ~42px (mostly the jagged
-          edge) stays inside the card. Flip so the edge faces down; size so
-          the band is 105px and offset past the solid green.
+          tear-v2 is jagged on both edges, so anchor the band to the bottom of
+          the crop: the top jag stays outside the card and only the lower jag
+          shows. The asset stretches freely, so the band keeps one height at
+          every card width.
         */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[34px] overflow-hidden sm:h-[42px]"
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[26px] overflow-hidden sm:h-[32px]"
         >
           <img
             src={tearImg}
             alt=""
-            className="absolute top-[-62px] left-0 h-[541px] w-full max-w-none -scale-y-100 object-fill sm:top-[-77px] sm:h-[675px]"
+            className="absolute inset-x-0 bottom-0 h-[44px] w-full max-w-none sm:h-[54px]"
           />
         </div>
 
         <div className={OPERATOR_HOME_HERO_INNER_CLASS}>
-          <div className="relative flex min-w-0 flex-1 flex-col items-start gap-[26px]">
+          <div className="relative flex min-w-0 flex-1 flex-col items-start gap-[26px] lg:max-w-[52%]">
             {activationPeriodBadge ? (
               <Badge
                 variant="soft"
                 className={cn(
                   OPERATOR_HOME_HERO_BADGE_CLASS,
-                  ACTIVATION_PERIOD_BADGE_TONE_CLASS[activationPeriodBadge.tone]
+                  activationPeriodBadge.tone === "default"
+                    ? null
+                    : ACTIVATION_PERIOD_BADGE_TONE_CLASS[
+                        activationPeriodBadge.tone
+                      ]
                 )}
                 aria-label={formatActivationPeriodBadgeAriaLabel(
                   activationPeriodBadge
@@ -169,15 +176,10 @@ export function HomeHero({
             aria-hidden
             className="pointer-events-none absolute inset-y-0 right-0 hidden w-[min(48%,622px)] overflow-hidden lg:block"
           >
-            <div className="absolute top-[14%] right-[38.7%] bottom-0 w-[56.6%] overflow-hidden">
-              <img
-                src={guestLoopLivePhone}
-                alt=""
-                className="absolute top-0 left-0 w-full max-w-none"
-              />
-              {/* Bottom fade over the phone — dark mode only (washes it out in light) */}
-              <div className={OPERATOR_HOME_HERO_PHONE_FADE_CLASS} />
-            </div>
+            <HomeGuestFormPhone
+              locationName={guestFormPreviewLocationName}
+              address={guestFormPreviewAddress}
+            />
           </div>
         </div>
       </div>

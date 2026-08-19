@@ -3,6 +3,7 @@ import type { FeedbackWorkflowStatus } from "@/types/dashboard"
 export type FeedbackInboxRowActionId =
   | "start-recovery"
   | "view-feedback"
+  | "reopen"
   | "mark-resolved"
   | "mark-no-action-needed"
 
@@ -36,6 +37,12 @@ export function buildFeedbackInboxRowActions(
       label: "View feedback",
       enabled: true,
       visible: true,
+    },
+    {
+      id: "reopen",
+      label: "Reopen",
+      enabled: isResolved,
+      visible: isResolved,
     },
     {
       id: "mark-resolved",

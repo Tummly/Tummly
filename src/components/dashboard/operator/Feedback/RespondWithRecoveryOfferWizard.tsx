@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { GuestPreviewOfferCoupon } from "@/components/dashboard/operator/Feedback/GuestPreviewOfferCoupon"
 import { GuestPreviewPanel } from "@/components/dashboard/operator/Feedback/GuestPreviewPanel"
+import { CampaignSendTestEmailDialog } from "@/components/dashboard/operator/Campaigns/CampaignSendTestEmailDialog"
 import { GuestResponseChooser } from "@/components/dashboard/operator/Feedback/GuestResponseChooser"
 import { GuestResponseWriteFields } from "@/components/dashboard/operator/Feedback/GuestResponseWriteFields"
 import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
@@ -48,6 +49,8 @@ import {
   type RespondToGuestToneId,
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
 import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorOffers/offerCatalogPresentation"
+import { OPERATOR_WIZARD_SELECTABLE_CARD_SURFACE_CLASS } from "@/lib/operatorUi/operatorWizardChromePresentation"
+import { cn } from "@/lib/utils"
 
 type RespondWithRecoveryOfferWizardProps = {
   snapshot: RespondWithRecoveryOfferSnapshot
@@ -80,7 +83,10 @@ type RespondWithRecoveryOfferWizardProps = {
   onEditText: () => void
   onOpenGuestPreview: () => void
   onCloseGuestPreview: () => void
-  onSendGuestPreviewTest: () => void
+  onOpenSendTest: () => void
+  onCloseSendTest: () => void
+  onSendTestEmailChange: (value: string) => void
+  onConfirmSendTest: () => void
   onOpenSendConfirm: () => void
   onCancelSendConfirm: () => void
   onConfirmSend: () => void
@@ -113,8 +119,13 @@ function OfferSummaryCard({
 }) {
   const offer = snapshot.offer
   return (
-    <div className="flex flex-col gap-3 rounded-[6px] border border-op-card-border bg-op-background-secondary p-4">
-      <div className="flex items-start justify-between gap-3">
+    <div
+      className={cn(
+        "flex flex-col gap-3 rounded-[6px] border p-4",
+        OPERATOR_WIZARD_SELECTABLE_CARD_SURFACE_CLASS
+      )}
+    >
+      <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-op-text-muted">
             Recovery offer
@@ -173,7 +184,10 @@ export function RespondWithRecoveryOfferWizard({
   onEditText,
   onOpenGuestPreview,
   onCloseGuestPreview,
-  onSendGuestPreviewTest,
+  onOpenSendTest,
+  onCloseSendTest,
+  onSendTestEmailChange,
+  onConfirmSendTest,
   onOpenSendConfirm,
   onCancelSendConfirm,
   onConfirmSend,
@@ -273,6 +287,7 @@ export function RespondWithRecoveryOfferWizard({
     ) : undefined
 
   return (
+    <>
     <OperatorWizardShell
       isOpen={snapshot.isOpen}
       onRequestClose={isSuccess ? onKeepInProgress : onSaveAndExit}
@@ -502,7 +517,7 @@ export function RespondWithRecoveryOfferWizard({
               onOpenPreview={onOpenGuestPreview}
               onClosePreview={onCloseGuestPreview}
               onEditText={onEditText}
-              onSendTest={onSendGuestPreviewTest}
+              onSendTest={onOpenSendTest}
               sendTestBusy={snapshot.sendTestStatus === "sending"}
               offerCoupon={offerCoupon}
             />
@@ -543,5 +558,18 @@ export function RespondWithRecoveryOfferWizard({
         </div>
       ) : null}
     </OperatorWizardShell>
+      {snapshot.sendTest != null ? (
+        <CampaignSendTestEmailDialog
+          sendTest={snapshot.sendTest}
+          onOpenChange={(open) => {
+            if (!open) {
+              onCloseSendTest()
+            }
+          }}
+          onEmailChange={onSendTestEmailChange}
+          onConfirm={onConfirmSendTest}
+        />
+      ) : null}
+    </>
   )
 }

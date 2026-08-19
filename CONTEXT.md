@@ -309,7 +309,7 @@ A per-Feedback boolean the guest sets on the Private feedback form — whether t
 _Avoid_: Guest list opt-in, marketing consent, offers opt-in, soft opt-in (as the field name)
 
 **Location Guest offers opt-out**:
-The durable consent flag on a **Location Guest** — whether that location may message the Guest with offers. Updated from **Offers opt-out** on Feedback submissions for that location. Drives **Marketing status** for the Location Guest. Distinct from Master-level suppression (deferred).
+The durable **Location Guest marketing preference** on a **Location Guest** — whether that location may message the Guest with offers. Three persisted values: `allowed`, `opted_out`, `not_recorded`. Replaces the earlier boolean flag. Existing guests map `true` → `opted_out` and `false` → `allowed`; migration does not write `not_recorded`. Updated from per-**Feedback** **Offers opt-out** on every Feedback submit for that location (`true` → `opted_out`, `false` → `allowed`; never `not_recorded`). Drives **Marketing status**, Campaign eligibility, Guests `not-opted-in`, and recovery-offer gating: `opted_out` and `not_recorded` are ineligible; eligible only when `allowed` and a reachable email or mobile exists. Distinct from Master-level suppression (deferred) and from per-Feedback **Offers opt-out**, which stays a boolean.
 _Avoid_: Opt-in flag, marketing consent field, guest list opt-in, location consent (as the field name)
 
 **Feedback**:
@@ -337,7 +337,7 @@ Shared full-screen Operator wizard chrome used by **Feedback recovery** intents 
 _Avoid_: RecoveryWizardShell (as the product/glossary name); Campaign wizard shell (as a second shell); forked wizard chrome
 
 **Recovery offer** (Feedback recovery):
-**Shipped (current):** catalog path on **Respond with a recovery offer** — shared Create Offer drawer or **Existing offer** → durable **Recovery offer attach** (`OfferId`) → catalog **Offer issue** on successful send (unique **Offer Claim code**; email / preview include **Offer claim QR**). Issuance is blocked when **Location Guest offers opt-out** is true (and when No contact). No new Feedback-scoped one-off creates. Historical pre-cutover one-off rows stay Feedback facts only.
+**Shipped (current):** catalog path on **Respond with a recovery offer** — shared Create Offer drawer or **Existing offer** → durable **Recovery offer attach** (`OfferId`) → catalog **Offer issue** on successful send (unique **Offer Claim code**; email / preview include **Offer claim QR**). Issuance is blocked when **Location Guest offers opt-out** is `opted_out` or `not_recorded` (and when No contact). No new Feedback-scoped one-off creates. Historical pre-cutover one-off rows stay Feedback facts only.
 **Target (remaining):** Feedback activity / success chrome from catalog **Offer issue** (`.scratch/recovery-catalog-offers/issues/06-recovery-activity-success-offer-issue.md`); Guest form thank-you paint of offer + **Offer Claim code** + **Offer claim QR** (`.scratch/recovery-catalog-offers/issues/09-guest-thank-you-paint-qr.md`). Product lock: `.scratch/recovery-catalog-offers/PRD.md`; build handoff: `.scratch/recovery-catalog-offers/IMPLEMENT.md`. Distinct from Guest Loop setup offer strings and Operator Home live offers/campaigns.
 _Avoid_: Campaign offer (when meaning a Feedback-scoped one-off fact), live offer (when meaning in-wizard one-off create)
 
@@ -468,7 +468,7 @@ One operator-only note attached to a **Location Guest**. Many notes may exist pe
 _Avoid_: Internal note (as the canonical noun), guest note, Master Guest note, Feedback note, CRM note, append-only note (when meaning immutable)
 
 **Location Guest activity event**:
-One append-only timeline row for something that happened to a **Location Guest** (joined, feedback submitted, **Location Guest note** added or soft-deleted, Guest tag applied/removed, profile edited, classification succeeded/failed). Persisted in the Location Guest activity store; listed on the Guest Profile Activity tab. Does not record **Location Guest note** body edits or **Feedback internal note** mutations — those belong on the note itself or on per-**Feedback** activity history. Distinct from Home **Latest activity** and from per-**Feedback** activity history.
+One append-only timeline row for something that happened to a **Location Guest** (joined, feedback submitted, **Location Guest note** added or soft-deleted, Guest tag applied/removed, profile edited, **Location Guest marketing preference** changed, classification succeeded/failed). Persisted in the Location Guest activity store; listed on the Guest Profile Activity tab. Does not record **Location Guest note** body edits or **Feedback internal note** mutations — those belong on the note itself or on per-**Feedback** activity history. Distinct from Home **Latest activity** and from per-**Feedback** activity history.
 _Avoid_: Guest activity log, audit trail, timeline event (when meaning this store)
 
 **Location Guest activity recorder**:
@@ -500,8 +500,8 @@ The Home Latest activity signal that a **Location Guest** was first created at a
 _Avoid_: Guest created, new profile, guest signup, first visit event
 
 **Marketing status**:
-The operator-facing label of whether a **Location Guest** may be contacted for offers or campaigns and by which channel (e.g. Eligible — Email). Derived from **Location Guest offers opt-out**, reachable contact, and suppression — not a free-text tag. Distinct from per-Feedback **Offers opt-out**, which feeds Location Guest offers opt-out over time.
-_Avoid_: Consent status, marketing consent, opt-in state, eligibility badge (as the field name)
+The operator-facing label of whether a **Location Guest** may be contacted for offers or campaigns and by which channel. Three labels only: Eligible — Email, Eligible — SMS, Not eligible. Derived from **Location Guest offers opt-out** (`allowed` | `opted_out` | `not_recorded`), reachable contact, and suppression — not a free-text tag. Both `opted_out` and `not_recorded` derive **Not eligible**. Do not emit **Suppressed**. Distinct from per-Feedback **Offers opt-out**, which overwrites Location Guest marketing preference over time.
+_Avoid_: Consent status, marketing consent, opt-in state, eligibility badge (as the field name), Suppressed (as a Marketing status label)
 
 **Guest details**:
 The operator drawer opened from the Smart Groups table via guest-name click or row **View guest** that shows a summary of one **Location Guest** (identity, contact and permissions, relationship summary, recent feedback, offers and campaigns, internal notes, recent activity). Loads that Location Guest from the backend (not from the list row as source of truth). Escalates to the full **Guest Profile** page via **View full profile**. Live CTAs in the Guests entry slice: **View full profile**, **Add note**, **Open feedback** (when latest feedback exists), and **View full activity**; **Create campaign**, **Start recovery**, and **View engagement history** stay pending. **Open feedback** and **View full activity** close **Guest details** and navigate to **Guest Profile** with one-shot router location state (`openFeedbackId` / Activity tab) — not durable query deep links. Distinct from **Guest Profile** (full-page surface) and from **Feedback details** (one Feedback). Distinct from **Guest preview** in **Feedback recovery**.

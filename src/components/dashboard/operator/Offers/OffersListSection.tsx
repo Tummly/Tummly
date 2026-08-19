@@ -1,6 +1,10 @@
 import { OffersListEmptyState } from "@/components/dashboard/operator/Offers/OffersListEmptyState"
 import { OffersListTable } from "@/components/dashboard/operator/Offers/OffersListTable"
 import { GuestsFilterChipRow } from "@/components/dashboard/operator/Guests/GuestsFilterChipRow"
+import {
+  OperatorTableTabPanel,
+  type OperatorTabContentStatus,
+} from "@/components/dashboard/operator/OperatorTableTabPanel"
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { Button } from "@/components/ui/button"
 import {
@@ -49,6 +53,7 @@ import type {
 import { cn } from "@/lib/utils"
 
 type OffersListSectionProps = {
+  tabContentStatus: OperatorTabContentStatus
   list: OperatorOffersListViewModel
   onViewChange: (viewId: OperatorOffersListViewId) => void
   onSearchQueryChange: (query: string) => void
@@ -66,6 +71,7 @@ type OffersListSectionProps = {
 
 /** Offers list — tabs, Filters/Sort, chips, table, pagination (ticket 20). */
 export function OffersListSection({
+  tabContentStatus,
   list,
   onViewChange,
   onSearchQueryChange,
@@ -217,7 +223,10 @@ export function OffersListSection({
           </>
         ) : null}
 
-        <div role="tabpanel">
+        <OperatorTableTabPanel
+          status={tabContentStatus}
+          loadingLabel="Loading offers"
+        >
           {empty != null ? (
             <OffersListEmptyState
               empty={empty}
@@ -229,7 +238,7 @@ export function OffersListSection({
           ) : list.rows.length > 0 ? (
             <OffersListTable rows={list.rows} onRowAction={onRowAction} />
           ) : null}
-        </div>
+        </OperatorTableTabPanel>
 
         {list.showListChrome ? (
           <div className={GUESTS_PAGINATION_ROW_CLASS}>

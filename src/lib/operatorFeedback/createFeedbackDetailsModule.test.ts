@@ -1139,6 +1139,23 @@ describe("createFeedbackDetailsModule", () => {
     })
   })
 
+  it("loadWithoutOpening keeps the drawer closed while details load", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: sampleDetails,
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.loadWithoutOpening(42)
+
+    expect(details.getSnapshot()).toMatchObject({
+      isOpen: false,
+      loadStatus: "loaded",
+      feedbackId: 42,
+    })
+    expect(details.startMarkResolved()).toBe(true)
+    expect(details.getSnapshot().closeOut.isOpen).toBe(true)
+  })
+
   it("builds venue line from location and QR source (not address)", async () => {
     const adapters = createInMemoryFeedbackDetailsAdapters({
       42: {

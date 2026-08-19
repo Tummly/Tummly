@@ -182,11 +182,34 @@ namespace TummlyBackend.Services
                 $@"
                 <div style='background:#fff3cd;padding:12px;border-radius:8px;margin-bottom:16px;font-size:14px;color:#664d03;'>
                 <strong>QA redirect:</strong> This email was meant for
-                <strong>{toEmail}</strong>. Check this inbox for the OTP;
+                <strong>{System.Net.WebUtility.HtmlEncode(toEmail)}</strong>. Check this inbox for the OTP;
                 verification still uses the address entered on the form.
                 </div>";
 
-            return (redirectTo, banner + htmlBody);
+            return (redirectTo, InjectHtmlAfterBodyOpen(htmlBody, banner));
+        }
+
+        private static string InjectHtmlAfterBodyOpen(
+            string htmlBody,
+            string snippet
+        )
+        {
+            var bodyOpen = htmlBody.IndexOf(
+                "<body",
+                StringComparison.OrdinalIgnoreCase
+            );
+            if (bodyOpen < 0)
+            {
+                return snippet + htmlBody;
+            }
+
+            var tagEnd = htmlBody.IndexOf('>', bodyOpen);
+            if (tagEnd < 0)
+            {
+                return snippet + htmlBody;
+            }
+
+            return htmlBody.Insert(tagEnd + 1, snippet);
         }
 
         private async Task<SmtpClient> CreateSmtpClientAsync()
@@ -708,12 +731,7 @@ namespace TummlyBackend.Services
                 offer
             );
 
-            var inlineImages = EmailAssets.BuildNonTransactionalInlineImages(
-                _environment,
-                offer
-            );
-
-            await SendEmailAsync(toEmail, subject, htmlBody, inlineImages);
+            await SendEmailAsync(toEmail, subject, htmlBody);
         }
 
         private sealed class ResendEmailPayload

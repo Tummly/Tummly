@@ -49,6 +49,14 @@ namespace TummlyBackend.Interfaces
             DateTime occurredAt
         );
 
+        void RecordMarketingPreferenceChanged(
+            int locationGuestId,
+            string fromPreference,
+            string toPreference,
+            string actorDisplayName,
+            DateTime occurredAt
+        );
+
         void RecordClassificationTerminal(
             Feedback feedback,
             DateTime occurredAt

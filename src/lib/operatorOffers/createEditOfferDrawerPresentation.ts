@@ -43,6 +43,9 @@ export const CREATE_EDIT_OFFER_DRAWER_COPY = {
   discardConfirm: "Discard",
   discardKeepEditing: "Keep editing",
   descriptionPlaceholder: "Explain the offer to the guest…",
+  additionalExclusionsLabel: "Additional exclusions",
+  additionalExclusionsPlaceholder:
+    "Add any products, dates or conditions that are excluded…",
   replacementPlaceholder: "Enter the item that can be replaced…",
   expiryDatePlaceholder: "Select a date",
 } as const
@@ -51,19 +54,35 @@ export const CREATE_EDIT_OFFER_DRAWER_COPY = {
 export const CREATE_EDIT_OFFER_DRAWER_FOOTER_ACTIONS_CLASS =
   "flex justify-start gap-3"
 
-/** Drawer shell padding — Figma Create Offer `p-[32px]`. */
-export const CREATE_EDIT_OFFER_DRAWER_SHELL_CLASS =
-  "flex h-full min-h-0 flex-col gap-5 p-8"
+/**
+ * Drawer fill — `#f5f5f5` / `--op-color-gray-60` light, `#171717` /
+ * `--op-color-gray-1000` dark. Overrides the shared right-drawer `#202020` fill.
+ */
+export const CREATE_EDIT_OFFER_DRAWER_SURFACE_CLASS =
+  "bg-op-color-gray-60 dark:bg-[var(--op-color-gray-1000)]"
 
 /**
- * Scroll body — bottom padding so the last field clears the sticky footer
- * while scrolling (shared body class has no pb).
+ * Shell holds no padding: header / body / footer carry inset so the body
+ * scrollbar tracks the drawer edge.
+ */
+export const CREATE_EDIT_OFFER_DRAWER_SHELL_CLASS =
+  "flex h-full min-h-0 flex-col gap-5"
+
+export const CREATE_EDIT_OFFER_DRAWER_HEADER_CLASS =
+  "flex shrink-0 items-start gap-[22px] px-8 pt-8"
+
+/**
+ * Scroll body — horizontal inset on the overflow track so the scrollbar sits
+ * on the drawer edge. Bottom padding clears the sticky footer.
  */
 export const CREATE_EDIT_OFFER_DRAWER_BODY_CLASS =
-  "min-h-0 flex-1 overflow-y-auto pb-8"
+  "min-h-0 flex-1 overflow-y-auto px-8 pb-8"
+
+export const CREATE_EDIT_OFFER_DRAWER_FOOTER_CLASS =
+  "flex shrink-0 flex-col gap-2 px-8 pb-8 pt-1"
 
 export const CREATE_EDIT_OFFER_DRAWER_DIVIDER_CLASS =
-  "h-px w-full shrink-0 bg-op-card-border"
+  "h-px w-full shrink-0 bg-op-divider"
 
 /**
  * Discard dialog must sit above Create/Edit drawer (`z-[138]`) —

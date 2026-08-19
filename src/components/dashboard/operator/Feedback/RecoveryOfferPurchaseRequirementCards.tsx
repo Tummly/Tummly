@@ -6,6 +6,11 @@ import {
   RECOVERY_OFFER_PURCHASE_REQUIREMENT_OPTIONS,
   type RecoveryOfferPurchaseRequirementId,
 } from "@/lib/operatorFeedback/recoveryOfferPresentation"
+import {
+  OPERATOR_WIZARD_SELECTABLE_CARD_IDLE_CLASS,
+  OPERATOR_WIZARD_SELECTABLE_CARD_SELECTED_CLASS,
+  OPERATOR_WIZARD_SELECTABLE_CARD_SURFACE_CLASS,
+} from "@/lib/operatorUi/operatorWizardChromePresentation"
 import { cn } from "@/lib/utils"
 
 type RecoveryOfferPurchaseRequirementCardsProps = {
@@ -52,9 +57,11 @@ export function RecoveryOfferPurchaseRequirementCards({
             value={option.id}
             variant="outline"
             className={cn(
-              "h-auto min-w-0 items-start justify-start rounded-[4px] border-op-card-border bg-op-background-secondary px-[18px] py-4 text-left whitespace-normal shadow-none",
-              "hover:bg-op-surface-secondary hover:text-op-text-primary",
-              "data-[state=on]:border-[var(--op-color-gray-550)] data-[state=on]:bg-op-background-secondary data-[state=on]:text-op-text-primary data-[state=on]:ring-1 data-[state=on]:ring-[var(--op-color-gray-550)]"
+              "h-auto min-w-0 items-start justify-start rounded-[4px] border px-[18px] py-4 text-left whitespace-normal shadow-none hover:bg-transparent hover:text-op-text-primary data-[state=on]:bg-op-color-gray-60 data-[state=on]:text-op-text-primary dark:data-[state=on]:bg-[var(--op-color-gray-1000)]",
+              OPERATOR_WIZARD_SELECTABLE_CARD_SURFACE_CLASS,
+              option.id === value
+                ? OPERATOR_WIZARD_SELECTABLE_CARD_SELECTED_CLASS
+                : OPERATOR_WIZARD_SELECTABLE_CARD_IDLE_CLASS
             )}
           >
             <span className="text-sm font-medium text-op-text-primary">

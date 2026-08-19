@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Services
 {
@@ -70,14 +71,14 @@ namespace TummlyBackend.Services
             );
 
             var marketingStatus = LocationGuestProjections.DeriveMarketingStatus(
-                locationGuest.OffersOptOut,
+                locationGuest.MarketingPreference,
                 masterGuest.Email,
                 masterGuest.Mobile
             );
 
             var consentDetailAt =
                 LocationGuestProjections.ResolveOffersConsentDetailAt(
-                    locationGuest.OffersOptOut,
+                    locationGuest.MarketingPreference,
                     feedbackRows.Select(f => new LocationGuestOffersOptOutFact(
                         f.CreatedAt,
                         f.OffersOptOut
@@ -86,7 +87,7 @@ namespace TummlyBackend.Services
 
             var contactEligibility =
                 LocationGuestProjections.BuildContactEligibility(
-                    locationGuest.OffersOptOut,
+                    locationGuest.MarketingPreference,
                     masterGuest.Email,
                     masterGuest.Mobile,
                     consentDetailAt
@@ -159,7 +160,8 @@ namespace TummlyBackend.Services
                 id = locationGuest.Id,
                 name = locationGuest.Name,
                 marketingStatus,
-                offersOptOut = locationGuest.OffersOptOut,
+                marketingPreference =
+                    locationGuest.MarketingPreference.ToWireString(),
                 guestSinceAt = locationGuest.CreatedAt,
                 lastActivityAt,
                 lastInteractionLabel = LastInteractionLabel,

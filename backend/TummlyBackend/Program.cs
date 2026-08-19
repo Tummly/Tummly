@@ -426,6 +426,10 @@ builder.Services.AddScoped<
     GuestIdentityUpdateService
 >();
 builder.Services.AddScoped<
+    IGuestMarketingPreferenceUpdateService,
+    GuestMarketingPreferenceUpdateService
+>();
+builder.Services.AddScoped<
     ILocationGuestDeleteService,
     LocationGuestDeleteService
 >();

@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+using System.Net.Mail;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Feedback;
@@ -35,6 +37,7 @@ namespace TummlyBackend.Services
             string? subject,
             string body,
             GuestPreviewTestOfferDto? offer = null,
+            string? toEmail = null,
             CancellationToken cancellationToken = default
         )
         {
@@ -44,21 +47,11 @@ namespace TummlyBackend.Services
                 body
             );
 
-            var operatorUser = await _context.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == operatorUserId, cancellationToken);
-
-            if (operatorUser == null)
-            {
-                throw new InvalidOperationException("User not found.");
-            }
-
-            if (string.IsNullOrWhiteSpace(operatorUser.Email))
-            {
-                throw new InvalidOperationException(
-                    "Operator account email is required for Guest preview send test."
-                );
-            }
+            var destination = await ResolveDestinationEmailAsync(
+                operatorUserId,
+                toEmail,
+                cancellationToken
+            );
 
             var feedback = await _context.Feedbacks
                 .AsNoTracking()
@@ -91,7 +84,7 @@ namespace TummlyBackend.Services
             var offerBlock = BuildSampleOfferBlock(offer);
 
             await _emailService.SendGuestResponseEmailAsync(
-                operatorUser.Email.Trim(),
+                destination,
                 content.Subject!,
                 brandTitle,
                 brandSubtitle,
@@ -102,6 +95,69 @@ namespace TummlyBackend.Services
             );
 
             return true;
+        }
+
+        private async Task<string> ResolveDestinationEmailAsync(
+            int operatorUserId,
+            string? toEmail,
+            CancellationToken cancellationToken
+        )
+        {
+            var nominated = (toEmail ?? string.Empty).Trim();
+            if (nominated.Length > 0)
+            {
+                return ValidateNominatedEmail(nominated);
+            }
+
+            var operatorUser = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == operatorUserId, cancellationToken);
+
+            if (operatorUser == null)
+            {
+                throw new InvalidOperationException("User not found.");
+            }
+
+            if (string.IsNullOrWhiteSpace(operatorUser.Email))
+            {
+                throw new InvalidOperationException(
+                    "Operator account email is required for Guest preview send test."
+                );
+            }
+
+            return operatorUser.Email.Trim();
+        }
+
+        private static string ValidateNominatedEmail(string toEmail)
+        {
+            if (!IsValidEmail(toEmail))
+            {
+                throw new ArgumentException("Email address is invalid.");
+            }
+
+            return toEmail;
+        }
+
+        private static bool IsValidEmail(string email)
+        {
+            if (new EmailAddressAttribute().IsValid(email) != true)
+            {
+                return false;
+            }
+
+            try
+            {
+                var parsed = new MailAddress(email);
+                return string.Equals(
+                    parsed.Address,
+                    email,
+                    StringComparison.OrdinalIgnoreCase
+                );
+            }
+            catch (FormatException)
+            {
+                return false;
+            }
         }
 
         private static GuestResponseEmailOfferBlock? BuildSampleOfferBlock(

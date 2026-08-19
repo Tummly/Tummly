@@ -8,6 +8,7 @@ import type {
 
 export type OperatorFeedbackPageModuleApi = {
   snapshot: OperatorFeedbackPageSnapshot
+  clearTabCache: OperatorFeedbackPageModule["clearTabCache"]
   retryLoad: OperatorFeedbackPageModule["retryLoad"]
   reloadForFeedbackPageDateRange: OperatorFeedbackPageModule["reloadForFeedbackPageDateRange"]
   reviewNeedsAttention: OperatorFeedbackPageModule["reviewNeedsAttention"]
@@ -29,10 +30,12 @@ export type OperatorFeedbackPageModuleApi = {
   setExportFormat: OperatorFeedbackPageModule["setExportFormat"]
   setExportIncludeGuestContact: OperatorFeedbackPageModule["setExportIncludeGuestContact"]
   downloadExport: OperatorFeedbackPageModule["downloadExport"]
+  exportSingleFeedback: OperatorFeedbackPageModule["exportSingleFeedback"]
   openFeedbackDetails: OperatorFeedbackPageModule["openFeedbackDetails"]
   closeFeedbackDetails: OperatorFeedbackPageModule["closeFeedbackDetails"]
   openPreviousFeedback: OperatorFeedbackPageModule["openPreviousFeedback"]
   openNextFeedback: OperatorFeedbackPageModule["openNextFeedback"]
+  reopenFeedback: OperatorFeedbackPageModule["reopenFeedback"]
   startInboxMarkResolved: OperatorFeedbackPageModule["startInboxMarkResolved"]
   startInboxMarkNoActionNeeded: OperatorFeedbackPageModule["startInboxMarkNoActionNeeded"]
   startInboxRecovery: OperatorFeedbackPageModule["startInboxRecovery"]
@@ -58,7 +61,10 @@ export type OperatorFeedbackPageModuleApi = {
   editRespondToGuestText: OperatorFeedbackPageModule["editRespondToGuestText"]
   openRespondToGuestGuestPreview: OperatorFeedbackPageModule["openRespondToGuestGuestPreview"]
   closeRespondToGuestGuestPreview: OperatorFeedbackPageModule["closeRespondToGuestGuestPreview"]
-  sendRespondToGuestGuestPreviewTest: OperatorFeedbackPageModule["sendRespondToGuestGuestPreviewTest"]
+  openRespondToGuestSendTestDialog: OperatorFeedbackPageModule["openRespondToGuestSendTestDialog"]
+  closeRespondToGuestSendTestDialog: OperatorFeedbackPageModule["closeRespondToGuestSendTestDialog"]
+  setRespondToGuestSendTestEmail: OperatorFeedbackPageModule["setRespondToGuestSendTestEmail"]
+  confirmRespondToGuestSendTest: OperatorFeedbackPageModule["confirmRespondToGuestSendTest"]
   openRespondToGuestSendConfirm: OperatorFeedbackPageModule["openRespondToGuestSendConfirm"]
   cancelRespondToGuestSendConfirm: OperatorFeedbackPageModule["cancelRespondToGuestSendConfirm"]
   confirmRespondToGuestSend: OperatorFeedbackPageModule["confirmRespondToGuestSend"]
@@ -99,7 +105,10 @@ export type OperatorFeedbackPageModuleApi = {
   editRespondAndRecordText: OperatorFeedbackPageModule["editRespondAndRecordText"]
   openRespondAndRecordGuestPreview: OperatorFeedbackPageModule["openRespondAndRecordGuestPreview"]
   closeRespondAndRecordGuestPreview: OperatorFeedbackPageModule["closeRespondAndRecordGuestPreview"]
-  sendRespondAndRecordGuestPreviewTest: OperatorFeedbackPageModule["sendRespondAndRecordGuestPreviewTest"]
+  openRespondAndRecordSendTestDialog: OperatorFeedbackPageModule["openRespondAndRecordSendTestDialog"]
+  closeRespondAndRecordSendTestDialog: OperatorFeedbackPageModule["closeRespondAndRecordSendTestDialog"]
+  setRespondAndRecordSendTestEmail: OperatorFeedbackPageModule["setRespondAndRecordSendTestEmail"]
+  confirmRespondAndRecordSendTest: OperatorFeedbackPageModule["confirmRespondAndRecordSendTest"]
   openRespondAndRecordSendConfirm: OperatorFeedbackPageModule["openRespondAndRecordSendConfirm"]
   cancelRespondAndRecordSendConfirm: OperatorFeedbackPageModule["cancelRespondAndRecordSendConfirm"]
   confirmRespondAndRecordSend: OperatorFeedbackPageModule["confirmRespondAndRecordSend"]
@@ -133,7 +142,10 @@ export type OperatorFeedbackPageModuleApi = {
   editRespondWithRecoveryOfferText: OperatorFeedbackPageModule["editRespondWithRecoveryOfferText"]
   openRespondWithRecoveryOfferGuestPreview: OperatorFeedbackPageModule["openRespondWithRecoveryOfferGuestPreview"]
   closeRespondWithRecoveryOfferGuestPreview: OperatorFeedbackPageModule["closeRespondWithRecoveryOfferGuestPreview"]
-  sendRespondWithRecoveryOfferGuestPreviewTest: OperatorFeedbackPageModule["sendRespondWithRecoveryOfferGuestPreviewTest"]
+  openRespondWithRecoveryOfferSendTestDialog: OperatorFeedbackPageModule["openRespondWithRecoveryOfferSendTestDialog"]
+  closeRespondWithRecoveryOfferSendTestDialog: OperatorFeedbackPageModule["closeRespondWithRecoveryOfferSendTestDialog"]
+  setRespondWithRecoveryOfferSendTestEmail: OperatorFeedbackPageModule["setRespondWithRecoveryOfferSendTestEmail"]
+  confirmRespondWithRecoveryOfferSendTest: OperatorFeedbackPageModule["confirmRespondWithRecoveryOfferSendTest"]
   openRespondWithRecoveryOfferSendConfirm: OperatorFeedbackPageModule["openRespondWithRecoveryOfferSendConfirm"]
   cancelRespondWithRecoveryOfferSendConfirm: OperatorFeedbackPageModule["cancelRespondWithRecoveryOfferSendConfirm"]
   confirmRespondWithRecoveryOfferSend: OperatorFeedbackPageModule["confirmRespondWithRecoveryOfferSend"]
@@ -182,6 +194,7 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
 
   return {
     snapshot,
+    clearTabCache: pageModule.clearTabCache,
     retryLoad: pageModule.retryLoad,
     reloadForFeedbackPageDateRange: pageModule.reloadForFeedbackPageDateRange,
     reviewNeedsAttention: pageModule.reviewNeedsAttention,
@@ -203,10 +216,12 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     setExportFormat: pageModule.setExportFormat,
     setExportIncludeGuestContact: pageModule.setExportIncludeGuestContact,
     downloadExport: pageModule.downloadExport,
+    exportSingleFeedback: pageModule.exportSingleFeedback,
     openFeedbackDetails: pageModule.openFeedbackDetails,
     closeFeedbackDetails: pageModule.closeFeedbackDetails,
     openPreviousFeedback: pageModule.openPreviousFeedback,
     openNextFeedback: pageModule.openNextFeedback,
+    reopenFeedback: pageModule.reopenFeedback,
     startInboxMarkResolved: pageModule.startInboxMarkResolved,
     startInboxMarkNoActionNeeded: pageModule.startInboxMarkNoActionNeeded,
     startInboxRecovery: pageModule.startInboxRecovery,
@@ -233,8 +248,12 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     editRespondToGuestText: pageModule.editRespondToGuestText,
     openRespondToGuestGuestPreview: pageModule.openRespondToGuestGuestPreview,
     closeRespondToGuestGuestPreview: pageModule.closeRespondToGuestGuestPreview,
-    sendRespondToGuestGuestPreviewTest:
-      pageModule.sendRespondToGuestGuestPreviewTest,
+    openRespondToGuestSendTestDialog:
+      pageModule.openRespondToGuestSendTestDialog,
+    closeRespondToGuestSendTestDialog:
+      pageModule.closeRespondToGuestSendTestDialog,
+    setRespondToGuestSendTestEmail: pageModule.setRespondToGuestSendTestEmail,
+    confirmRespondToGuestSendTest: pageModule.confirmRespondToGuestSendTest,
     openRespondToGuestSendConfirm: pageModule.openRespondToGuestSendConfirm,
     cancelRespondToGuestSendConfirm: pageModule.cancelRespondToGuestSendConfirm,
     confirmRespondToGuestSend: pageModule.confirmRespondToGuestSend,
@@ -284,8 +303,13 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
       pageModule.openRespondAndRecordGuestPreview,
     closeRespondAndRecordGuestPreview:
       pageModule.closeRespondAndRecordGuestPreview,
-    sendRespondAndRecordGuestPreviewTest:
-      pageModule.sendRespondAndRecordGuestPreviewTest,
+    openRespondAndRecordSendTestDialog:
+      pageModule.openRespondAndRecordSendTestDialog,
+    closeRespondAndRecordSendTestDialog:
+      pageModule.closeRespondAndRecordSendTestDialog,
+    setRespondAndRecordSendTestEmail:
+      pageModule.setRespondAndRecordSendTestEmail,
+    confirmRespondAndRecordSendTest: pageModule.confirmRespondAndRecordSendTest,
     openRespondAndRecordSendConfirm: pageModule.openRespondAndRecordSendConfirm,
     cancelRespondAndRecordSendConfirm:
       pageModule.cancelRespondAndRecordSendConfirm,
@@ -344,8 +368,14 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
       pageModule.openRespondWithRecoveryOfferGuestPreview,
     closeRespondWithRecoveryOfferGuestPreview:
       pageModule.closeRespondWithRecoveryOfferGuestPreview,
-    sendRespondWithRecoveryOfferGuestPreviewTest:
-      pageModule.sendRespondWithRecoveryOfferGuestPreviewTest,
+    openRespondWithRecoveryOfferSendTestDialog:
+      pageModule.openRespondWithRecoveryOfferSendTestDialog,
+    closeRespondWithRecoveryOfferSendTestDialog:
+      pageModule.closeRespondWithRecoveryOfferSendTestDialog,
+    setRespondWithRecoveryOfferSendTestEmail:
+      pageModule.setRespondWithRecoveryOfferSendTestEmail,
+    confirmRespondWithRecoveryOfferSendTest:
+      pageModule.confirmRespondWithRecoveryOfferSendTest,
     openRespondWithRecoveryOfferSendConfirm:
       pageModule.openRespondWithRecoveryOfferSendConfirm,
     cancelRespondWithRecoveryOfferSendConfirm:

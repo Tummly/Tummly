@@ -83,6 +83,34 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task RecordMarketingPreferenceChanged_SerializesFromToAndActor()
+        {
+            var guest = await SeedLocationGuestAsync();
+            var occurredAt = new DateTime(2026, 8, 18, 11, 0, 0, DateTimeKind.Utc);
+
+            _recorder.RecordMarketingPreferenceChanged(
+                guest.Id,
+                "allowed",
+                "opted_out",
+                "Ada Operator",
+                occurredAt
+            );
+            await _context.SaveChangesAsync();
+
+            var row = await _context.LocationGuestActivityEvents.SingleAsync();
+            Assert.Equal(
+                LocationGuestActivityKinds.MarketingPreferenceChanged,
+                row.Kind
+            );
+            Assert.Equal(occurredAt, row.OccurredAt);
+            var payload = LocationGuestActivityPayload.Deserialize(row.PayloadJson);
+            Assert.NotNull(payload);
+            Assert.Equal("allowed", payload!.FromPreference);
+            Assert.Equal("opted_out", payload.ToPreference);
+            Assert.Equal("Ada Operator", payload.AuthorDisplayName);
+        }
+
+        [Fact]
         public async Task RecordClassificationTerminal_SkipsWhenPending()
         {
             var guest = await SeedLocationGuestAsync();

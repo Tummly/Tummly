@@ -19,7 +19,21 @@ import {
 } from "@/components/ui/tooltip"
 import type { StartRecoveryEntrySnapshot } from "@/lib/operatorFeedback/createStartRecoveryEntryModule"
 import { formatRecoveryLastSavedLabel } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
-import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
+import {
+  START_RECOVERY_INTENT_CARD_CLASS,
+  START_RECOVERY_INTENT_CARD_DISABLED_CLASS,
+  START_RECOVERY_INTENT_CARD_IDLE_CLASS,
+  START_RECOVERY_INTENT_CARD_SELECTED_CLASS,
+  START_RECOVERY_SUMMARY_CLASS,
+  START_RECOVERY_SUMMARY_DIVIDER_CLASS,
+  type StartRecoveryIntentId,
+} from "@/lib/operatorFeedback/startRecoveryPresentation"
+import {
+  OPERATOR_WIZARD_SHELL_BODY_CLASS,
+  OPERATOR_WIZARD_SHELL_DIALOG_CLASS,
+  OPERATOR_WIZARD_SHELL_FOOTER_CLASS,
+  OPERATOR_WIZARD_SHELL_HEADER_CLASS,
+} from "@/lib/operatorUi/operatorWizardChromePresentation"
 import { cn } from "@/lib/utils"
 
 type StartRecoveryEntryShellProps = {
@@ -130,12 +144,9 @@ export function StartRecoveryEntryShell({
     >
       <DialogContent
         showCloseButton={false}
-        className={cn(
-          "fixed inset-0 top-0 left-0 z-[130] flex h-dvh max-h-dvh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-op-surface-secondary p-0 text-op-text-primary shadow-none sm:max-w-none",
-          "data-open:zoom-in-100 data-closed:zoom-out-100"
-        )}
+        className={OPERATOR_WIZARD_SHELL_DIALOG_CLASS}
       >
-        <div className="flex w-full shrink-0 items-center justify-end p-6">
+        <div className={OPERATOR_WIZARD_SHELL_HEADER_CLASS}>
           <Button
             type="button"
             variant="op-collapse"
@@ -147,7 +158,7 @@ export function StartRecoveryEntryShell({
         </div>
 
         {/* Full-bleed scroll: content + footer share one track at the screen edge. */}
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-t-[20px] border-t border-op-card-border bg-op-background-primary">
+        <div className={OPERATOR_WIZARD_SHELL_BODY_CLASS}>
           <div className="flex min-h-full flex-col">
             {/* Figma 1728 frame uses 200px side inset; scale down on narrower viewports. */}
             <div className="flex flex-1 flex-col px-4 pb-24 pt-10 sm:px-6 sm:pt-[60px] md:px-[100px] min-[1728px]:px-[200px]">
@@ -232,15 +243,15 @@ export function StartRecoveryEntryShell({
                                   : undefined
                               }
                               className={cn(
-                                "h-auto w-full items-center justify-start rounded-[4px] border px-[18px] py-4 text-left whitespace-normal hover:bg-transparent",
+                                START_RECOVERY_INTENT_CARD_CLASS,
                                 !intent.enabled
-                                  && "cursor-not-allowed border-op-card-border bg-op-background-secondary opacity-50 hover:border-op-card-border",
+                                  && START_RECOVERY_INTENT_CARD_DISABLED_CLASS,
                                 intent.enabled
                                   && selected
-                                  && "border-[var(--op-color-gray-550)] bg-op-surface-secondary",
+                                  && START_RECOVERY_INTENT_CARD_SELECTED_CLASS,
                                 intent.enabled
                                   && !selected
-                                  && "border-op-card-border bg-op-background-secondary hover:border-[var(--op-color-gray-550)]"
+                                  && START_RECOVERY_INTENT_CARD_IDLE_CLASS
                               )}
                               onClick={() => {
                                 if (!intent.enabled) {
@@ -285,7 +296,7 @@ export function StartRecoveryEntryShell({
                     </TooltipProvider>
                   </div>
 
-                  <aside className="flex flex-1 flex-col gap-6 rounded-[6px] bg-op-background-secondary p-4 sm:p-5">
+                  <aside className={START_RECOVERY_SUMMARY_CLASS}>
                     <h2 className="text-lg font-semibold text-op-text-primary">
                       Feedback summary
                     </h2>
@@ -293,22 +304,22 @@ export function StartRecoveryEntryShell({
                       <SummaryRow label="Guest:">
                         {snapshot.summary.guestName}
                       </SummaryRow>
-                      <Separator className="bg-op-card-border" />
+                      <Separator className={START_RECOVERY_SUMMARY_DIVIDER_CLASS} />
                       <SummaryRow label="Classification:">
                         <ClassificationValue
                           status={snapshot.summary.classificationStatus}
                           sentiment={snapshot.summary.classificationSentiment}
                         />
                       </SummaryRow>
-                      <Separator className="bg-op-card-border" />
+                      <Separator className={START_RECOVERY_SUMMARY_DIVIDER_CLASS} />
                       <SummaryRow label="Contact:">
                         {snapshot.summary.contactLabel}
                       </SummaryRow>
-                      <Separator className="bg-op-card-border" />
+                      <Separator className={START_RECOVERY_SUMMARY_DIVIDER_CLASS} />
                       <SummaryRow label="Feedback:">
                         “{snapshot.summary.feedbackComment}”
                       </SummaryRow>
-                      <Separator className="bg-op-card-border" />
+                      <Separator className={START_RECOVERY_SUMMARY_DIVIDER_CLASS} />
                       <SummaryRow label="Issue tags:">
                         {snapshot.summary.issueTagLabels == null ? (
                           <span>—</span>
@@ -324,14 +335,14 @@ export function StartRecoveryEntryShell({
                           </ul>
                         )}
                       </SummaryRow>
-                      <Separator className="bg-op-card-border" />
+                      <Separator className={START_RECOVERY_SUMMARY_DIVIDER_CLASS} />
                     </dl>
                   </aside>
                 </div>
               ) : null}
             </div>
 
-            <div className="border-t border-op-card-border bg-op-surface-secondary px-4 py-6 sm:px-6 md:px-[100px] min-[1728px]:px-[200px]">
+            <div className={OPERATOR_WIZARD_SHELL_FOOTER_CLASS}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-[18px]">
                   <Button

@@ -127,6 +127,7 @@ describe("createOperatorOffersPageModule", () => {
 
     expect(pageModule.getSnapshot()).toEqual({
       loadStatus: "idle",
+      tabContentStatus: "ready",
       viewModel: null,
       loadError: null,
       createOfferDrawer: null,
@@ -293,7 +294,7 @@ describe("createOperatorOffersPageModule", () => {
 
   it("loads Active offers and window KPIs from getOffersPerformance on sync", async () => {
     const getOffersPerformance = vi.fn(
-      async (_locationId: number, _from: string, _to: string) => ({
+      async () => ({
         activeOffers: 4,
         offersIssued: 12,
         claims: 8,
@@ -331,12 +332,17 @@ describe("createOperatorOffersPageModule", () => {
 
   it("refetches window KPIs when the Performance date range changes", async () => {
     const getOffersPerformance = vi
-      .fn(async (_locationId: number, _from: string, _to: string) => ({
-        activeOffers: 3,
-        offersIssued: 5,
-        claims: 0,
-        redemptions: 0,
-      }))
+      .fn(async (locationId: number, from: string, to: string) => {
+        void locationId
+        void from
+        void to
+        return {
+          activeOffers: 3,
+          offersIssued: 5,
+          claims: 0,
+          redemptions: 0,
+        }
+      })
       .mockResolvedValueOnce({
         activeOffers: 3,
         offersIssued: 5,
@@ -386,12 +392,17 @@ describe("createOperatorOffersPageModule", () => {
   it("refetches Performance for This month and Custom without remounting the list", async () => {
     const listCatalogOffers = vi.fn(async () => emptyListResponse())
     const getOffersPerformance = vi.fn(
-      async (_locationId: number, _from: string, _to: string) => ({
-        activeOffers: 1,
-        offersIssued: 1,
-        claims: 1,
-        redemptions: 0,
-      })
+      async (locationId: number, from: string, to: string) => {
+        void locationId
+        void from
+        void to
+        return {
+          activeOffers: 1,
+          offersIssued: 1,
+          claims: 1,
+          redemptions: 0,
+        }
+      }
     )
     const pageModule = createOperatorOffersPageModule(
       createAdapters({ listCatalogOffers, getOffersPerformance })
@@ -442,6 +453,7 @@ describe("createOperatorOffersPageModule", () => {
 
     expect(pageModule.getSnapshot()).toEqual({
       loadStatus: "idle",
+      tabContentStatus: "ready",
       viewModel: null,
       loadError: null,
       createOfferDrawer: null,
@@ -461,6 +473,7 @@ describe("createOperatorOffersPageModule", () => {
 
     expect(pageModule.getSnapshot()).toEqual({
       loadStatus: "error",
+      tabContentStatus: "ready",
       viewModel: null,
       loadError: OFFERS_LOAD_ERROR_MESSAGE,
       createOfferDrawer: null,
@@ -538,6 +551,329 @@ describe("createOperatorOffersPageModule", () => {
       "view-scoped"
     )
     expect(pageModule.getSnapshot().viewModel?.list.showListChrome).toBe(true)
+  })
+
+  it("hides old rows and empty content while a cold list tab loads", async () => {
+    let resolveDrafts!: (response: CatalogOffersListResponse) => void
+    const draftsResponse = new Promise<CatalogOffersListResponse>((resolve) => {
+      resolveDrafts = resolve
+    })
+    const listCatalogOffers = vi.fn(
+      async (params: { view?: string }) => {
+        if (params.view === "drafts") {
+          return draftsResponse
+        }
+        return emptyListResponse({
+          totalCount: 1,
+          items: [offerListItem({ id: 1, title: "All offer" })],
+          tabCounts: {
+            all: 1,
+            drafts: 1,
+            needsAttention: 0,
+            inFlight: 0,
+            sent: 0,
+          },
+        })
+      }
+    )
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ listCatalogOffers })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    const switchPromise = pageModule.setListView("drafts")
+    expect(pageModule.getSnapshot()).toMatchObject({
+      tabContentStatus: "loading",
+      viewModel: {
+        list: {
+          activeViewId: "drafts",
+          rows: [],
+          empty: null,
+          tabs: expect.arrayContaining([
+            expect.objectContaining({ id: "all", count: 1 }),
+          ]),
+        },
+      },
+    })
+
+    resolveDrafts(
+      emptyListResponse({
+        totalCount: 1,
+        items: [offerListItem({ id: 2, title: "Draft offer" })],
+        tabCounts: {
+          all: 1,
+          drafts: 1,
+          needsAttention: 0,
+          inFlight: 0,
+          sent: 0,
+        },
+      })
+    )
+    await switchPromise
+    expect(pageModule.getSnapshot().tabContentStatus).toBe("ready")
+    expect(pageModule.getSnapshot().viewModel?.list.rows[0]?.title).toBe(
+      "Draft offer"
+    )
+  })
+
+  it("shows cached tab content while a warm tab refreshes", async () => {
+    let allCallCount = 0
+    let resolveWarmRefresh!: (response: CatalogOffersListResponse) => void
+    const warmRefresh = new Promise<CatalogOffersListResponse>((resolve) => {
+      resolveWarmRefresh = resolve
+    })
+    const listCatalogOffers = vi.fn(
+      async (params: { view?: string }) => {
+        if (params.view === "all") {
+          allCallCount += 1
+          if (allCallCount === 1) {
+            return emptyListResponse({
+              totalCount: 1,
+              items: [offerListItem({ id: 1, title: "Cached all offer" })],
+            })
+          }
+          return warmRefresh
+        }
+        return emptyListResponse({
+          totalCount: 1,
+          items: [offerListItem({ id: 2, title: "Draft offer" })],
+        })
+      }
+    )
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ listCatalogOffers })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    await pageModule.setListView("drafts")
+
+    const returnPromise = pageModule.setListView("all")
+    expect(pageModule.getSnapshot().tabContentStatus).toBe("refreshing")
+    expect(pageModule.getSnapshot().viewModel?.list.rows[0]?.title).toBe(
+      "Cached all offer"
+    )
+
+    resolveWarmRefresh(
+      emptyListResponse({
+        totalCount: 1,
+        items: [offerListItem({ id: 3, title: "Fresh all offer" })],
+      })
+    )
+    await returnPromise
+    expect(pageModule.getSnapshot().tabContentStatus).toBe("ready")
+    expect(pageModule.getSnapshot().viewModel?.list.rows[0]?.title).toBe(
+      "Fresh all offer"
+    )
+  })
+
+  it("caches rapid tab responses without replacing the active tab", async () => {
+    let resolveDrafts!: (response: CatalogOffersListResponse) => void
+    let resolveSent!: (response: CatalogOffersListResponse) => void
+    const drafts = new Promise<CatalogOffersListResponse>((resolve) => {
+      resolveDrafts = resolve
+    })
+    const sent = new Promise<CatalogOffersListResponse>((resolve) => {
+      resolveSent = resolve
+    })
+    let draftsCalls = 0
+    const listCatalogOffers = vi.fn(
+      async (params: { view?: string }) => {
+        if (params.view === "drafts") {
+          draftsCalls += 1
+          if (draftsCalls === 1) {
+            return drafts
+          }
+          return new Promise<CatalogOffersListResponse>(() => undefined)
+        }
+        if (params.view === "sent") {
+          return sent
+        }
+        return emptyListResponse()
+      }
+    )
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ listCatalogOffers })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    const draftsPromise = pageModule.setListView("drafts")
+    const sentPromise = pageModule.setListView("sent")
+    resolveDrafts(
+      emptyListResponse({
+        totalCount: 1,
+        items: [offerListItem({ id: 2, title: "Draft response" })],
+      })
+    )
+    await draftsPromise
+    expect(pageModule.getSnapshot().viewModel?.list.activeViewId).toBe("sent")
+    expect(pageModule.getSnapshot().viewModel?.list.rows).toEqual([])
+
+    resolveSent(
+      emptyListResponse({
+        totalCount: 1,
+        items: [offerListItem({ id: 3, title: "Sent response" })],
+      })
+    )
+    await sentPromise
+    expect(pageModule.getSnapshot().viewModel?.list.rows[0]?.title).toBe(
+      "Sent response"
+    )
+
+    void pageModule.setListView("drafts")
+    expect(pageModule.getSnapshot().tabContentStatus).toBe("refreshing")
+    expect(pageModule.getSnapshot().viewModel?.list.rows[0]?.title).toBe(
+      "Draft response"
+    )
+  })
+
+  it("ignores an older same-view response that lands after a newer one", async () => {
+    const draftsResolvers: Array<
+      (response: CatalogOffersListResponse) => void
+    > = []
+    const listCatalogOffers = vi.fn(
+      async (params: { view?: string }) => {
+        if (params.view === "drafts") {
+          return new Promise<CatalogOffersListResponse>((resolve) => {
+            draftsResolvers.push(resolve)
+          })
+        }
+        if (params.view === "all") {
+          return emptyListResponse({
+            totalCount: 1,
+            items: [offerListItem({ id: 1, title: "All offer" })],
+          })
+        }
+        return emptyListResponse()
+      }
+    )
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ listCatalogOffers })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    const olderDrafts = pageModule.setListView("drafts")
+    void pageModule.setListView("all")
+    const newerDrafts = pageModule.setListView("drafts")
+    await vi.waitFor(() => {
+      expect(draftsResolvers).toHaveLength(2)
+    })
+
+    draftsResolvers[1]!(
+      emptyListResponse({
+        totalCount: 1,
+        items: [offerListItem({ id: 3, title: "Newer drafts" })],
+      })
+    )
+    await newerDrafts
+    expect(pageModule.getSnapshot().viewModel?.list.rows[0]?.title).toBe(
+      "Newer drafts"
+    )
+
+    draftsResolvers[0]!(
+      emptyListResponse({
+        totalCount: 1,
+        items: [offerListItem({ id: 2, title: "Older drafts" })],
+      })
+    )
+    await olderDrafts
+    expect(pageModule.getSnapshot().viewModel?.list.rows[0]?.title).toBe(
+      "Newer drafts"
+    )
+
+    await pageModule.setListView("all")
+    void pageModule.setListView("drafts")
+    expect(pageModule.getSnapshot().tabContentStatus).toBe("refreshing")
+    expect(pageModule.getSnapshot().viewModel?.list.rows[0]?.title).toBe(
+      "Newer drafts"
+    )
+  })
+
+  it("keeps cached content and returns to ready when a warm refresh fails", async () => {
+    let allCalls = 0
+    const listCatalogOffers = vi.fn(
+      async (params: { view?: string }) => {
+        if (params.view === "all") {
+          allCalls += 1
+          if (allCalls > 1) {
+            throw new Error("network")
+          }
+          return emptyListResponse({
+            totalCount: 1,
+            items: [offerListItem({ id: 1, title: "Cached all offer" })],
+          })
+        }
+        return emptyListResponse({
+          totalCount: 1,
+          items: [offerListItem({ id: 2, title: "Draft offer" })],
+        })
+      }
+    )
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ listCatalogOffers })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    await pageModule.setListView("drafts")
+
+    await pageModule.setListView("all")
+
+    expect(pageModule.getSnapshot().tabContentStatus).toBe("ready")
+    expect(pageModule.getSnapshot().loadStatus).toBe("loaded")
+    expect(pageModule.getSnapshot().loadError).toBeNull()
+    expect(pageModule.getSnapshot().viewModel?.list.rows[0]?.title).toBe(
+      "Cached all offer"
+    )
+  })
+
+  it("treats a cleared tab cache as a cold miss", async () => {
+    let allCalls = 0
+    const listCatalogOffers = vi.fn(
+      async (params: { view?: string }) => {
+        if (params.view === "all") {
+          allCalls += 1
+          if (allCalls > 1) {
+            return new Promise<CatalogOffersListResponse>(() => undefined)
+          }
+          return emptyListResponse({
+            totalCount: 1,
+            items: [offerListItem({ id: 1, title: "Cached all offer" })],
+          })
+        }
+        return emptyListResponse({
+          totalCount: 1,
+          items: [offerListItem({ id: 2, title: "Draft offer" })],
+        })
+      }
+    )
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ listCatalogOffers })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    await pageModule.setListView("drafts")
+
+    pageModule.clearTabCache()
+    void pageModule.setListView("all")
+
+    expect(pageModule.getSnapshot().tabContentStatus).toBe("loading")
+    expect(pageModule.getSnapshot().viewModel?.list.activeViewId).toBe("all")
+    expect(pageModule.getSnapshot().viewModel?.list.rows).toEqual([])
+    expect(pageModule.getSnapshot().viewModel?.list.empty).toBeNull()
   })
 
   it("selects filter-search empty when search returns no rows", async () => {

@@ -29,9 +29,16 @@ import {
 } from "@/lib/operatorFeedback/createRecoveryWizardsModule"
 import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
 import type { GuestTag } from "@/lib/operatorGuests/guestTag"
+import {
+  createManageMarketingPreferencesSessionModule,
+  type ManageMarketingPreferencesSaveResult,
+  type ManageMarketingPreferencesSessionModule,
+} from "@/lib/operatorGuests/createManageMarketingPreferencesSessionModule"
 import type {
   FeedbackSentiment,
   FeedbackWorkflowStatus,
+  PatchGuestMarketingPreferenceRequest,
+  PatchGuestMarketingPreferenceResponse,
 } from "@/types/dashboard"
 import { mapGuestsApiResponseToViewModel } from "@/lib/operatorGuests/mapGuestsApiResponseToViewModel"
 import { OPERATOR_GUEST_DEFAULT_SORT_ID } from "@/lib/operatorGuests/guestsPresentation"
@@ -84,6 +91,7 @@ export type OperatorGuestsWorkspaceInput = {
 
 export type OperatorGuestsPageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
+  tabContentStatus: "loading" | "ready" | "refreshing"
   viewModel: OperatorGuestsViewModel | null
   searchQuery: string
   sortId: OperatorGuestSortId
@@ -132,6 +140,11 @@ export type OperatorGuestsPageAdapters = {
   }) => Promise<ReadonlyMap<string, readonly string[]>>
   getGuestProfile: GuestDetailsAdapters["getGuestProfile"]
   createGuestNote: GuestDetailsAdapters["createGuestNote"]
+  patchGuestMarketingPreference: (params: {
+    guestId: number
+    locationId: number
+    body: PatchGuestMarketingPreferenceRequest
+  }) => Promise<PatchGuestMarketingPreferenceResponse>
   getFeedbackDetails: FeedbackDetailsAdapters["getFeedbackDetails"]
   correctClassification: FeedbackDetailsAdapters["correctClassification"]
   updateDetectedTags: FeedbackDetailsAdapters["updateDetectedTags"]
@@ -142,6 +155,7 @@ export type OperatorGuestsPageAdapters = {
   closeOutFeedback: FeedbackDetailsAdapters["closeOutFeedback"]
   sendGuestResponse: RecoveryWizardsAdapters["sendGuestResponse"]
   sendGuestPreviewTest: RecoveryWizardsAdapters["sendGuestPreviewTest"]
+  getOperatorAccountEmail?: RecoveryWizardsAdapters["getOperatorAccountEmail"]
   completeRecovery: RecoveryWizardsAdapters["completeRecovery"]
   prepareRecoveryDraft: RecoveryWizardsAdapters["prepareRecoveryDraft"]
   recordInternalAction: RecoveryWizardsAdapters["recordInternalAction"]
@@ -165,6 +179,7 @@ export type OperatorGuestsPageModule = {
   getSnapshot: () => OperatorGuestsPageSnapshot
   syncWorkspace: (input: OperatorGuestsWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
+  clearTabCache: () => void
   setActiveSmartGroupId: (id: OperatorGuestSmartGroupId) => void
   setSearchQuery: (query: string) => void
   setSortId: (id: OperatorGuestSortId) => void
@@ -236,10 +251,16 @@ export type OperatorGuestsPageModule = {
   retryStartRecovery: () => Promise<void>
   /** Wizard actions for the four recovery intents (see `RecoveryWizardsHost`). */
   recoveryWizards: RecoveryWizardsModule
+  /** Manage marketing preferences session (shared with Guest Profile). */
+  marketingPreferences: ManageMarketingPreferencesSessionModule
+  openManageMarketingPreferences: (guestId: string) => Promise<void>
+  closeManageMarketingPreferences: () => void
+  saveManageMarketingPreferences: () => Promise<ManageMarketingPreferencesSaveResult>
 }
 
 type ModuleState = {
   loadStatus: OperatorGuestsPageSnapshot["loadStatus"]
+  tabContentStatus: OperatorGuestsPageSnapshot["tabContentStatus"]
   viewModel: OperatorGuestsViewModel | null
   workspace: OperatorGuestsWorkspaceInput | null
   activeSmartGroupId: OperatorGuestSmartGroupId
@@ -305,6 +326,7 @@ function buildSnapshot(
 
   return {
     loadStatus: state.loadStatus,
+    tabContentStatus: state.tabContentStatus,
     viewModel: state.viewModel,
     searchQuery: state.searchQuery,
     sortId: state.sortId,
@@ -370,6 +392,10 @@ export function createOperatorGuestsPageModule(
   const locationIdHolder: { current: () => number | null } = {
     current: () => null,
   }
+  const marketingPreferences = createManageMarketingPreferencesSessionModule({
+    getGuestProfile: adapters.getGuestProfile,
+    patchMarketingPreference: adapters.patchGuestMarketingPreference,
+  })
   const recoveryWizards = createRecoveryWizardsModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     setWorkflowStatus: adapters.setWorkflowStatus,
@@ -382,6 +408,7 @@ export function createOperatorGuestsPageModule(
     updateOffer: adapters.updateOffer,
     sendGuestResponse: adapters.sendGuestResponse,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
+    getOperatorAccountEmail: adapters.getOperatorAccountEmail,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
     recordInternalAction: adapters.recordInternalAction,
@@ -392,6 +419,7 @@ export function createOperatorGuestsPageModule(
 
   let state: ModuleState = {
     loadStatus: "idle",
+    tabContentStatus: "loading",
     viewModel: null,
     workspace: null,
     activeSmartGroupId: "all-guests",
@@ -422,6 +450,12 @@ export function createOperatorGuestsPageModule(
   )
   const listeners = new Set<() => void>()
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+  const tabCache = new Map<
+    OperatorGuestSmartGroupId,
+    OperatorGuestsViewModel
+  >()
+  const tabRequestGeneration = new Map<OperatorGuestSmartGroupId, number>()
+  let tabCacheGeneration = 0
 
   const publish = () => {
     snapshot = buildSnapshot(
@@ -461,6 +495,36 @@ export function createOperatorGuestsPageModule(
     selectedGuestIds = new Set()
   }
 
+  const clearTabCache = () => {
+    tabCache.clear()
+    tabRequestGeneration.clear()
+    tabCacheGeneration += 1
+  }
+
+  const nextTabRequestGeneration = (
+    smartGroupId: OperatorGuestSmartGroupId
+  ) => {
+    const generation = (tabRequestGeneration.get(smartGroupId) ?? 0) + 1
+    tabRequestGeneration.set(smartGroupId, generation)
+    return generation
+  }
+
+  const coldTabPlaceholder = (
+    previous: OperatorGuestsViewModel | null,
+    activeSmartGroupId: OperatorGuestSmartGroupId
+  ): OperatorGuestsViewModel | null =>
+    previous == null
+      ? null
+      : {
+          ...previous,
+          activeSmartGroupId,
+          tableRows: [],
+          tableEmptyState: null,
+          totalFilteredCount: 0,
+          currentPage: 1,
+          pageRangeLabel: "",
+        }
+
   const mergeMembershipsFromResponse = (response: GuestsResponse) => {
     for (const row of response.rows) {
       tagMembershipsByGuestId.set(
@@ -470,33 +534,48 @@ export function createOperatorGuestsPageModule(
     }
   }
 
-  const fetchGuests = async (options?: {
-    quiet?: boolean
-    includeAggregates?: boolean
+  /**
+   * Runs one list request for `smartGroupId`, caches the mapped result, and
+   * applies it only while that group is still the active tab.
+   *
+   * `cached` is the entry already on screen for a warm tab switch: it seeds the
+   * aggregate carry-over and is restored when the background request fails.
+   * `loadGeneration` is set for shared-query refreshes that own
+   * `state.loadGeneration`; tab switches pass null and rely on the per-group
+   * generation, so a slower inactive-tab request can still fill its own cache.
+   */
+  const runGuestsRequest = async (request: {
+    smartGroupId: OperatorGuestSmartGroupId
+    cached: OperatorGuestsViewModel | null
+    includeAggregates: boolean
+    loadGeneration: number | null
   }) => {
     const selectedLocationId = state.workspace?.selectedLocationId
     if (selectedLocationId == null) {
       return
     }
 
-    const generation = state.loadGeneration + 1
-    const isQuiet = options?.quiet === true && state.viewModel != null
-    const includeAggregates = options?.includeAggregates !== false
+    const { smartGroupId, cached, includeAggregates, loadGeneration } = request
+    const tabGeneration = nextTabRequestGeneration(smartGroupId)
+    const cacheGeneration = tabCacheGeneration
+    const sortId = state.sortId
+    const previousViewModel = cached ?? state.viewModel
 
-    state = {
-      ...state,
-      loadStatus: isQuiet ? state.loadStatus : "loading",
-      loadGeneration: generation,
-    }
-    publish()
+    const ownsTabCache = () =>
+      cacheGeneration === tabCacheGeneration &&
+      tabGeneration === tabRequestGeneration.get(smartGroupId)
+    const ownsVisibleContent = () =>
+      ownsTabCache() &&
+      state.activeSmartGroupId === smartGroupId &&
+      (loadGeneration == null || loadGeneration === state.loadGeneration)
 
     try {
       const response = await adapters.getGuests(
         buildGuestsListQueryParams({
           locationId: selectedLocationId,
-          smartGroup: state.activeSmartGroupId,
+          smartGroup: smartGroupId,
           q: state.searchQuery,
-          sort: state.sortId,
+          sort: sortId,
           page: state.page,
           pageSize: DEFAULT_PAGE_SIZE,
           filters: state.appliedFilters,
@@ -506,35 +585,84 @@ export function createOperatorGuestsPageModule(
         })
       )
 
-      if (generation !== state.loadGeneration) {
+      if (!ownsTabCache()) {
         return
       }
 
       mergeMembershipsFromResponse(response)
+      const nextViewModel = mapGuestsApiResponseToViewModel({
+        response,
+        activeSmartGroupId: smartGroupId,
+        sortId,
+        previous: previousViewModel,
+      })
+      tabCache.set(smartGroupId, nextViewModel)
 
-      state = {
-        ...state,
-        loadStatus: "loaded",
-        viewModel: mapGuestsApiResponseToViewModel({
-          response,
-          activeSmartGroupId: state.activeSmartGroupId,
-          sortId: state.sortId,
-          previous: state.viewModel,
-        }),
-      }
-      publish()
-    } catch {
-      if (generation !== state.loadGeneration) {
+      if (!ownsVisibleContent()) {
         return
       }
 
       state = {
         ...state,
-        loadStatus: "error",
+        loadStatus: "loaded",
+        tabContentStatus: "ready",
+        viewModel: nextViewModel,
+      }
+      publish()
+    } catch {
+      if (!ownsVisibleContent()) {
+        return
+      }
+
+      state = {
+        ...state,
+        loadStatus: cached == null ? "error" : state.loadStatus,
+        tabContentStatus: "ready",
+        viewModel: cached ?? state.viewModel,
       }
       publish()
     }
   }
+
+  /** Shared-query refresh of the active tab: search, sort, page, filters. */
+  const fetchGuests = async (options?: {
+    quiet?: boolean
+    includeAggregates?: boolean
+  }) => {
+    if (state.workspace?.selectedLocationId == null) {
+      return
+    }
+
+    const loadGeneration = state.loadGeneration + 1
+    const isQuiet = options?.quiet === true && state.viewModel != null
+
+    state = {
+      ...state,
+      loadStatus: isQuiet ? state.loadStatus : "loading",
+      tabContentStatus: isQuiet ? "refreshing" : "loading",
+      loadGeneration,
+    }
+    publish()
+
+    await runGuestsRequest({
+      smartGroupId: state.activeSmartGroupId,
+      cached: null,
+      includeAggregates: options?.includeAggregates !== false,
+      loadGeneration,
+    })
+  }
+
+  /** Tab-switch load; aggregates come from the placeholder or cached entry. */
+  const fetchTabContent = (
+    smartGroupId: OperatorGuestSmartGroupId,
+    cached: OperatorGuestsViewModel | null
+  ) =>
+    runGuestsRequest({
+      smartGroupId,
+      cached,
+      includeAggregates: false,
+      loadGeneration: null,
+    })
 
   const scheduleSearchFetch = () => {
     clearSearchDebounce()
@@ -590,8 +718,10 @@ export function createOperatorGuestsPageModule(
         guestDetails.reset()
         feedbackDetails.reset()
         recoveryWizards.closeStartRecovery()
+        marketingPreferences.close()
         state = {
           loadStatus: "idle",
+          tabContentStatus: "loading",
           viewModel: null,
           workspace: null,
           activeSmartGroupId: "all-guests",
@@ -608,6 +738,7 @@ export function createOperatorGuestsPageModule(
           actionError: null,
           loadGeneration: state.loadGeneration,
         }
+        clearTabCache()
         selectedGuestIds = new Set()
         tagMembershipsByGuestId = new Map()
         publish()
@@ -623,11 +754,13 @@ export function createOperatorGuestsPageModule(
       }
 
       if (locationChanged) {
+        clearTabCache()
         clearSearchDebounce()
         clearSelectionIfNeeded()
         guestDetails.reset()
         feedbackDetails.reset()
         recoveryWizards.closeStartRecovery()
+        marketingPreferences.close()
         tagMembershipsByGuestId = new Map()
         state = {
           ...state,
@@ -647,10 +780,19 @@ export function createOperatorGuestsPageModule(
         return
       }
 
+      if (state.viewModel == null) {
+        await fetchGuests()
+        return
+      }
+
       publish()
     },
     retryLoad: () => fetchGuests(),
-    reloadForOverviewDateRange: () => fetchGuests({ quiet: true }),
+    clearTabCache,
+    reloadForOverviewDateRange: () => {
+      clearTabCache()
+      return fetchGuests({ quiet: true })
+    },
     setActiveSmartGroupId(id) {
       if (state.activeSmartGroupId === id) {
         return
@@ -658,20 +800,18 @@ export function createOperatorGuestsPageModule(
 
       clearSearchDebounce()
       clearSelectionIfNeeded()
+      const cached = tabCache.get(id) ?? null
       state = {
         ...state,
         activeSmartGroupId: id,
         page: 1,
+        loadStatus: cached == null ? "loading" : state.loadStatus,
+        tabContentStatus: cached == null ? "loading" : "refreshing",
         viewModel:
-          state.viewModel == null
-            ? null
-            : {
-                ...state.viewModel,
-                activeSmartGroupId: id,
-                currentPage: 1,
-              },
+          cached ?? coldTabPlaceholder(state.viewModel, id),
       }
-      void fetchGuests({ quiet: true, includeAggregates: false })
+      publish()
+      void fetchTabContent(id, cached)
     },
     setSearchQuery(query) {
       if (state.searchQuery === query) {
@@ -679,6 +819,7 @@ export function createOperatorGuestsPageModule(
       }
 
       clearSelectionIfNeeded()
+      clearTabCache()
       state = {
         ...state,
         searchQuery: query,
@@ -693,6 +834,7 @@ export function createOperatorGuestsPageModule(
       }
 
       clearSearchDebounce()
+      clearTabCache()
       state = {
         ...state,
         sortId: id,
@@ -706,6 +848,7 @@ export function createOperatorGuestsPageModule(
       }
 
       clearSearchDebounce()
+      clearTabCache()
       state = {
         ...state,
         page,
@@ -718,6 +861,7 @@ export function createOperatorGuestsPageModule(
       }
 
       clearSearchDebounce()
+      clearTabCache()
       state = {
         ...state,
         page: state.page - 1,
@@ -735,6 +879,7 @@ export function createOperatorGuestsPageModule(
       }
 
       clearSearchDebounce()
+      clearTabCache()
       state = {
         ...state,
         page: state.page + 1,
@@ -792,6 +937,7 @@ export function createOperatorGuestsPageModule(
 
       clearSearchDebounce()
       clearSelectionIfNeeded()
+      clearTabCache()
       state = {
         ...state,
         searchQuery: "",
@@ -804,6 +950,7 @@ export function createOperatorGuestsPageModule(
     applyFilters(filters) {
       clearSearchDebounce()
       clearSelectionIfNeeded()
+      clearTabCache()
       state = {
         ...state,
         appliedFilters: filters,
@@ -817,6 +964,7 @@ export function createOperatorGuestsPageModule(
     removeFilterChip(chip) {
       clearSearchDebounce()
       clearSelectionIfNeeded()
+      clearTabCache()
       state = {
         ...state,
         appliedFilters: removeAppliedChip(
@@ -1119,6 +1267,7 @@ export function createOperatorGuestsPageModule(
           addTagSession: null,
         }
         publish()
+        clearTabCache()
         await fetchGuests({ quiet: true })
       } catch {
         state = {
@@ -1235,5 +1384,31 @@ export function createOperatorGuestsPageModule(
       recoveryWizards.selectStartRecoveryIntent(intentId),
     retryStartRecovery: () => recoveryWizards.retryStartRecovery(),
     recoveryWizards,
+    marketingPreferences,
+    openManageMarketingPreferences: async (guestId) => {
+      const locationId = state.workspace?.selectedLocationId
+      const parsedGuestId = Number.parseInt(guestId, 10)
+      if (locationId == null || Number.isNaN(parsedGuestId)) {
+        return
+      }
+      await marketingPreferences.openFromList({
+        guestId: parsedGuestId,
+        locationId,
+      })
+    },
+    closeManageMarketingPreferences: () => {
+      marketingPreferences.close()
+    },
+    async saveManageMarketingPreferences() {
+      const result = await marketingPreferences.save()
+      if (
+        result.status === "saved" ||
+        result.status === "saved_with_note_error"
+      ) {
+        clearTabCache()
+        await fetchGuests({ quiet: true })
+      }
+      return result
+    },
   }
 }

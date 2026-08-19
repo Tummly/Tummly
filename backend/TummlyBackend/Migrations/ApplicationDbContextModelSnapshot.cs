@@ -1336,6 +1336,11 @@ namespace TummlyBackend.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("MarketingPreference")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<int>("MasterGuestId")
                         .HasColumnType("int");
 
@@ -1343,9 +1348,6 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
-
-                    b.Property<bool>("OffersOptOut")
-                        .HasColumnType("bit");
 
                     b.Property<int>("RestaurantLocationId")
                         .HasColumnType("int");

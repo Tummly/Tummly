@@ -13,6 +13,7 @@ import {
 } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import { resolveCampaignChannelSmsShortfall } from "@/lib/operatorCampaigns/campaignChannelPresentation"
 import { CAMPAIGN_COMMIT_COPY } from "@/lib/operatorCampaigns/campaignCommitPresentation"
+import { CAMPAIGN_SCHEDULE_COPY } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import {
   CAMPAIGN_SEND_TEST_COPY,
   CAMPAIGN_SEND_TEST_SAMPLE_OFFER,
@@ -2733,10 +2734,30 @@ describe("createCampaignWizardModule", () => {
     // Schedule-later needs a future local datetime before Continue.
     expect(snapshot.canContinue).toBe(false)
 
+    wizard.setScheduleDateLocal("2026-08-10")
+    wizard.setScheduleTimeLocal("09:00")
+    snapshot = wizard.getSnapshot()
+    expect(snapshot.canContinue).toBe(false)
+    expect(snapshot.schedule!.dateError).toBe(
+      CAMPAIGN_SCHEDULE_COPY.pastDateError
+    )
+    expect(snapshot.schedule!.timeError).toBeNull()
+
+    wizard.setScheduleDateLocal("2026-08-14")
+    wizard.setScheduleTimeLocal("14:00")
+    snapshot = wizard.getSnapshot()
+    expect(snapshot.canContinue).toBe(false)
+    expect(snapshot.schedule!.dateError).toBeNull()
+    expect(snapshot.schedule!.timeError).toBe(
+      CAMPAIGN_SCHEDULE_COPY.pastTimeError
+    )
+
     wizard.setScheduleDateLocal("2026-08-20")
     wizard.setScheduleTimeLocal("10:00")
     snapshot = wizard.getSnapshot()
     expect(snapshot.canContinue).toBe(true)
+    expect(snapshot.schedule!.dateError).toBeNull()
+    expect(snapshot.schedule!.timeError).toBeNull()
   })
 
   it("Review Guest preview shows sample-code offer block when wizard has an offer", async () => {

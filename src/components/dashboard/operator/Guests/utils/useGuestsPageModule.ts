@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react"
 
 import { useGuestsPageModuleApi } from "@/components/dashboard/operator/Guests/utils/guestsPageModuleContext"
+import type { ManageMarketingPreferencesSnapshot } from "@/lib/operatorGuests/createManageMarketingPreferencesSessionModule"
 import type {
   OperatorGuestsPageModule,
   OperatorGuestsPageSnapshot,
@@ -8,6 +9,7 @@ import type {
 
 export type OperatorGuestsPageModuleApi = {
   snapshot: OperatorGuestsPageSnapshot
+  clearTabCache: OperatorGuestsPageModule["clearTabCache"]
   retryLoad: OperatorGuestsPageModule["retryLoad"]
   setActiveSmartGroupId: OperatorGuestsPageModule["setActiveSmartGroupId"]
   setSearchQuery: OperatorGuestsPageModule["setSearchQuery"]
@@ -78,6 +80,12 @@ export type OperatorGuestsPageModuleApi = {
   selectStartRecoveryIntent: OperatorGuestsPageModule["selectStartRecoveryIntent"]
   retryStartRecovery: OperatorGuestsPageModule["retryStartRecovery"]
   recoveryWizards: OperatorGuestsPageModule["recoveryWizards"]
+  marketingPreferencesSnapshot: ManageMarketingPreferencesSnapshot
+  openManageMarketingPreferences: OperatorGuestsPageModule["openManageMarketingPreferences"]
+  closeManageMarketingPreferences: OperatorGuestsPageModule["closeManageMarketingPreferences"]
+  saveManageMarketingPreferences: OperatorGuestsPageModule["saveManageMarketingPreferences"]
+  setMarketingPreferenceDraft: OperatorGuestsPageModule["marketingPreferences"]["setDraftPreference"]
+  setMarketingPreferenceNote: OperatorGuestsPageModule["marketingPreferences"]["setDraftNote"]
 }
 
 export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
@@ -87,9 +95,15 @@ export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
     pageModule.getSnapshot,
     pageModule.getSnapshot
   )
+  const marketingPreferencesSnapshot = useSyncExternalStore(
+    pageModule.marketingPreferences.subscribe,
+    pageModule.marketingPreferences.getSnapshot,
+    pageModule.marketingPreferences.getSnapshot
+  )
 
   return {
     snapshot,
+    clearTabCache: pageModule.clearTabCache,
     retryLoad: pageModule.retryLoad,
     setActiveSmartGroupId: pageModule.setActiveSmartGroupId,
     setSearchQuery: pageModule.setSearchQuery,
@@ -160,5 +174,12 @@ export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
     selectStartRecoveryIntent: pageModule.selectStartRecoveryIntent,
     retryStartRecovery: pageModule.retryStartRecovery,
     recoveryWizards: pageModule.recoveryWizards,
+    marketingPreferencesSnapshot,
+    openManageMarketingPreferences: pageModule.openManageMarketingPreferences,
+    closeManageMarketingPreferences: pageModule.closeManageMarketingPreferences,
+    saveManageMarketingPreferences: pageModule.saveManageMarketingPreferences,
+    setMarketingPreferenceDraft:
+      pageModule.marketingPreferences.setDraftPreference,
+    setMarketingPreferenceNote: pageModule.marketingPreferences.setDraftNote,
   }
 }

@@ -40,17 +40,17 @@ namespace TummlyBackend.Helpers
     public static class LocationGuestProjections
     {
         /// <summary>
-        /// Marketing-eligible when not opted out and a reachable email or mobile
-        /// is present. Keep in sync with
+        /// Marketing-eligible when preference is allowed and a reachable email
+        /// or mobile is present. Keep in sync with
         /// <see cref="GuestsListQueryComposer.WhereMarketingEligible"/>.
         /// </summary>
         public static bool IsMarketingEligible(
-            bool offersOptOut,
+            LocationGuestMarketingPreference preference,
             string? email,
             string? mobile
         )
         {
-            return !offersOptOut
+            return preference.IsAllowed()
                 && (
                     !string.IsNullOrWhiteSpace(email)
                     || !string.IsNullOrWhiteSpace(mobile)
@@ -58,12 +58,12 @@ namespace TummlyBackend.Helpers
         }
 
         public static string DeriveMarketingStatus(
-            bool offersOptOut,
+            LocationGuestMarketingPreference preference,
             string? email,
             string? mobile
         )
         {
-            if (!IsMarketingEligible(offersOptOut, email, mobile))
+            if (!IsMarketingEligible(preference, email, mobile))
             {
                 return "Not eligible";
             }
@@ -104,23 +104,37 @@ namespace TummlyBackend.Helpers
         }
 
         /// <summary>
-        /// When the current Location Guest offers opt-out state began, from
-        /// per-Feedback Offers opt-out audit. Newest contiguous streak matching
-        /// <paramref name="currentOffersOptOut"/>; returns the oldest CreatedAt
-        /// in that streak (first consent, or re-opt-in after a prior opt-out).
+        /// Historical consent evidence from per-Feedback Offers opt-out audit.
+        /// Newest contiguous streak matching <paramref name="currentPreference"/>
+        /// when that maps to Feedback; oldest CreatedAt in that streak (first
+        /// consent, or re-opt-in after a prior opt-out). When preference is
+        /// Not recorded, or an operator change no longer matches the latest
+        /// Feedback, keep that latest Feedback streak so Permission source
+        /// and Recorded on are not wiped.
         /// </summary>
         public static DateTime? ResolveOffersConsentDetailAt(
-            bool currentOffersOptOut,
+            LocationGuestMarketingPreference currentPreference,
             IEnumerable<LocationGuestOffersOptOutFact> feedbacks
         )
         {
+            var ordered = feedbacks
+                .OrderByDescending(fact => fact.CreatedAt)
+                .ToList();
+
+            if (ordered.Count == 0)
+            {
+                return null;
+            }
+
+            var streakOffersOptOut = ResolveConsentStreakPolarity(
+                currentPreference,
+                ordered[0].OffersOptOut
+            );
             DateTime? streakStart = null;
 
-            foreach (
-                var feedback in feedbacks.OrderByDescending(fact => fact.CreatedAt)
-            )
+            foreach (var feedback in ordered)
             {
-                if (feedback.OffersOptOut != currentOffersOptOut)
+                if (feedback.OffersOptOut != streakOffersOptOut)
                 {
                     break;
                 }
@@ -131,8 +145,25 @@ namespace TummlyBackend.Helpers
             return streakStart;
         }
 
+        private static bool ResolveConsentStreakPolarity(
+            LocationGuestMarketingPreference currentPreference,
+            bool newestOffersOptOut
+        )
+        {
+            if (currentPreference == LocationGuestMarketingPreference.NotRecorded)
+            {
+                return newestOffersOptOut;
+            }
+
+            var mappedOptOut =
+                currentPreference == LocationGuestMarketingPreference.OptedOut;
+            return mappedOptOut == newestOffersOptOut
+                ? mappedOptOut
+                : newestOffersOptOut;
+        }
+
         public static IReadOnlyList<LocationGuestContactEligibilityRow> BuildContactEligibility(
-            bool offersOptOut,
+            LocationGuestMarketingPreference preference,
             string? email,
             string? mobile,
             DateTime? consentCapturedAt = null
@@ -140,15 +171,15 @@ namespace TummlyBackend.Helpers
         {
             return
             [
-                BuildContactEligibilityRow("email", email, offersOptOut, consentCapturedAt),
-                BuildContactEligibilityRow("sms", mobile, offersOptOut, consentCapturedAt),
+                BuildContactEligibilityRow("email", email, preference, consentCapturedAt),
+                BuildContactEligibilityRow("sms", mobile, preference, consentCapturedAt),
             ];
         }
 
         private static LocationGuestContactEligibilityRow BuildContactEligibilityRow(
             string channel,
             string? contact,
-            bool offersOptOut,
+            LocationGuestMarketingPreference preference,
             DateTime? consentCapturedAt
         )
         {
@@ -162,12 +193,22 @@ namespace TummlyBackend.Helpers
                 );
             }
 
-            if (offersOptOut)
+            if (preference == LocationGuestMarketingPreference.OptedOut)
             {
                 return new LocationGuestContactEligibilityRow(
                     Channel: channel,
                     Status: "unsubscribed",
                     DetailKind: "unsubscribed",
+                    DetailAt: consentCapturedAt
+                );
+            }
+
+            if (preference == LocationGuestMarketingPreference.NotRecorded)
+            {
+                return new LocationGuestContactEligibilityRow(
+                    Channel: channel,
+                    Status: "not_recorded",
+                    DetailKind: "not_recorded",
                     DetailAt: consentCapturedAt
                 );
             }

@@ -18,7 +18,7 @@ function sampleProfile(
     id: 42,
     name: "Mohamed",
     marketingStatus: "Eligible — Email",
-    offersOptOut: false,
+    marketingPreference: "allowed",
     guestSinceAt: "2026-05-12T10:00:00.000Z",
     lastActivityAt: "2026-07-14T11:48:00.000Z",
     lastInteractionLabel: "Feedback submitted",

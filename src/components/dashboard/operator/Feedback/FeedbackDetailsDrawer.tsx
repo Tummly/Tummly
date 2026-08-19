@@ -105,6 +105,7 @@ type FeedbackDetailsDrawerProps = {
   onStartNoteDelete?: (noteId: number) => void
   onCancelNoteDelete?: () => void
   onConfirmNoteDelete?: () => void
+  onExport?: () => Promise<boolean>
   canGoPrevious?: boolean
   canGoNext?: boolean
   onPrevious?: () => void
@@ -419,6 +420,7 @@ function FeedbackDetailsDrawerHeader({
   onStartMarkResolved,
   onMarkNoActionNeeded,
   onViewGuestProfile,
+  onExport,
   description,
   canGoPrevious,
   canGoNext,
@@ -438,6 +440,7 @@ function FeedbackDetailsDrawerHeader({
   onStartMarkResolved?: () => void
   onMarkNoActionNeeded?: () => void
   onViewGuestProfile?: (locationGuestId: number) => void
+  onExport?: () => Promise<boolean>
   description?: string
   canGoPrevious?: boolean
   canGoNext?: boolean
@@ -588,8 +591,19 @@ function FeedbackDetailsDrawerHeader({
                     {
                       id: "export",
                       label: "Export this feedback",
-                      disabled: true,
-                      onClick: () => {},
+                      disabled: onExport == null,
+                      onClick: () => {
+                        if (onExport == null) {
+                          return
+                        }
+                        void onExport().then((exported) => {
+                          if (!exported) {
+                            toast.error(
+                              "Could not export this feedback. Please try again."
+                            )
+                          }
+                        })
+                      },
                     },
                     {
                       id: "audit",
@@ -864,7 +878,9 @@ function LoadedBody({
         <div className="flex flex-col gap-2">
           <h3 className="text-lg font-bold text-foreground">Follow-up</h3>
           <p className="text-sm font-medium text-[var(--op-color-gray-550)]">
-            Review the available contact options and record any response or operational action taken.
+            Review the available contact options and record
+            <br />
+            any response or operational action taken.
           </p>
         </div>
         <div className="flex flex-col gap-4">
@@ -1086,6 +1102,7 @@ export function FeedbackDetailsDrawer({
   onStartNoteDelete,
   onCancelNoteDelete,
   onConfirmNoteDelete,
+  onExport,
   canGoPrevious,
   canGoNext,
   onPrevious,
@@ -1103,6 +1120,7 @@ export function FeedbackDetailsDrawer({
       direction="right"
     >
       <DrawerContent
+        overlayClassName="supports-backdrop-filter:backdrop-blur-none"
         className={cn(
           OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
           "dark:bg-[#1b1b1b]"
@@ -1177,6 +1195,7 @@ export function FeedbackDetailsDrawer({
                 onStartMarkResolved={onStartMarkResolved}
                 onMarkNoActionNeeded={onMarkNoActionNeeded}
                 onViewGuestProfile={onViewGuestProfile}
+                onExport={onExport}
                 canGoPrevious={canGoPrevious}
                 canGoNext={canGoNext}
                 onPrevious={onPrevious}

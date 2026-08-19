@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  START_RECOVERY_INTENT_CARD_IDLE_CLASS,
+  START_RECOVERY_INTENT_CARD_SURFACE_CLASS,
+  START_RECOVERY_SUMMARY_CLASS,
+  START_RECOVERY_SUMMARY_DIVIDER_CLASS,
   buildStartRecoveryIntents,
   deriveStartRecoveryContactCapability,
   startRecoveryContactCapabilityLabel,
@@ -36,7 +40,7 @@ describe("startRecoveryPresentation", () => {
   it("orders four PRD intents with canonical copy when contact is available", () => {
     const intents = buildStartRecoveryIntents({
       contactCapability: "email_available",
-      guestOffersOptOut: false,
+      marketingPreference: "allowed",
       workflowStatus: "new",
     })
 
@@ -65,7 +69,7 @@ describe("startRecoveryPresentation", () => {
   it("disables Respond* intents when No contact; keeps Record internal action only enabled", () => {
     const intents = buildStartRecoveryIntents({
       contactCapability: "no_contact",
-      guestOffersOptOut: false,
+      marketingPreference: "allowed",
       workflowStatus: "in_progress",
     })
 
@@ -96,7 +100,7 @@ describe("startRecoveryPresentation", () => {
   it("disables recovery-offer intent when Location Guest offers opt-out", () => {
     const intents = buildStartRecoveryIntents({
       contactCapability: "sms_available",
-      guestOffersOptOut: true,
+      marketingPreference: "opted_out",
       workflowStatus: "new",
     })
 
@@ -111,13 +115,46 @@ describe("startRecoveryPresentation", () => {
     })
   })
 
+  it("disables recovery-offer intent when Location Guest preference is not recorded", () => {
+    const intents = buildStartRecoveryIntents({
+      contactCapability: "email_available",
+      marketingPreference: "not_recorded",
+      workflowStatus: "new",
+    })
+
+    expect(
+      intents.find((i) => i.id === "respond-with-recovery-offer")
+    ).toMatchObject({
+      enabled: false,
+      disableReason: "Guest has opted out of offers",
+    })
+  })
+
   it("disables all intents when Feedback is Resolved", () => {
     const intents = buildStartRecoveryIntents({
       contactCapability: "email_available",
-      guestOffersOptOut: false,
+      marketingPreference: "allowed",
       workflowStatus: "resolved",
     })
 
     expect(intents.every((intent) => !intent.enabled)).toBe(true)
+  })
+
+  it("uses gray-60 / gray-1000 fill, divider idle border, and gray-550 idle hover", () => {
+    expect(START_RECOVERY_INTENT_CARD_SURFACE_CLASS).toContain("bg-op-color-gray-60")
+    expect(START_RECOVERY_INTENT_CARD_SURFACE_CLASS).toContain(
+      "dark:bg-[var(--op-color-gray-1000)]"
+    )
+    expect(START_RECOVERY_INTENT_CARD_SURFACE_CLASS).toContain("border-op-divider")
+    expect(START_RECOVERY_INTENT_CARD_SURFACE_CLASS).not.toContain(
+      "dark:border-[var(--op-color-gray-550)]"
+    )
+    expect(START_RECOVERY_INTENT_CARD_IDLE_CLASS).toContain(
+      "hover:border-[var(--op-color-gray-550)]"
+    )
+    expect(START_RECOVERY_SUMMARY_CLASS).toContain(
+      START_RECOVERY_INTENT_CARD_SURFACE_CLASS
+    )
+    expect(START_RECOVERY_SUMMARY_DIVIDER_CLASS).toBe("bg-op-divider")
   })
 })

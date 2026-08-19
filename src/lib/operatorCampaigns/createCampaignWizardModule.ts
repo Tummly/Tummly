@@ -84,6 +84,7 @@ import {
   CAMPAIGN_SCHEDULE_OPTIONS,
   CAMPAIGN_SCHEDULE_TIME_OPTIONS,
   canContinueCampaignSchedule,
+  campaignScheduleFieldErrors,
   campaignScheduledAtUtcIso,
   defaultCampaignScheduleModeId,
   defaultCampaignScheduleTimeZone,
@@ -413,6 +414,8 @@ export type CampaignScheduleViewModel = {
   options: CampaignScheduleOptionViewModel[]
   dateLocal: string
   timeLocal: string
+  dateError: string | null
+  timeError: string | null
   showDatetimeFields: boolean
   timeOptions: readonly string[]
   usageSummary: {
@@ -1141,7 +1144,8 @@ function buildMessageViewModel(
 }
 
 function buildScheduleViewModel(
-  state: WizardState
+  state: WizardState,
+  now: Date
 ): CampaignScheduleViewModel | null {
   if (state.stepId !== "schedule") {
     return null
@@ -1154,6 +1158,12 @@ function buildScheduleViewModel(
         audienceLine: state.messagingBalancesError ?? "",
         rows: [] as CampaignChannelUsageRow[],
       }
+  const fieldErrors = campaignScheduleFieldErrors({
+    modeId: state.scheduleModeId,
+    dateLocal: state.scheduleDateLocal,
+    timeLocal: state.scheduleTimeLocal,
+    now,
+  })
 
   return {
     selectedModeId: state.scheduleModeId,
@@ -1165,6 +1175,8 @@ function buildScheduleViewModel(
     })),
     dateLocal: state.scheduleDateLocal,
     timeLocal: state.scheduleTimeLocal,
+    dateError: fieldErrors.dateError,
+    timeError: fieldErrors.timeError,
     showDatetimeFields: state.scheduleModeId === "schedule-later",
     timeOptions: CAMPAIGN_SCHEDULE_TIME_OPTIONS,
     usageSummary: {
@@ -1601,7 +1613,7 @@ function toSnapshot(
     channel: buildChannelViewModel(state),
     offer: buildOfferViewModel(state),
     message: buildMessageViewModel(state, prepareAiLive, sendTestAvailable),
-    schedule: buildScheduleViewModel(state),
+    schedule: buildScheduleViewModel(state, now),
     review: buildReviewViewModel(
       state,
       sendTestAvailable,

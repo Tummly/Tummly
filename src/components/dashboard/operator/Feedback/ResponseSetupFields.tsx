@@ -170,7 +170,7 @@ export function ResponseSetupFields({
             className={cn(FEEDBACK_TEXTAREA_CLASS, "min-h-[120px]")}
           />
         </div>
-        <p className="max-w-[484px] text-xs font-medium leading-4 text-op-text-muted">
+        <p className="max-w-md text-xs font-medium leading-4 text-op-text-muted">
           {RESPONSE_SETUP_INCLUDE_NOTES_HELPER}
         </p>
       </div>

@@ -114,6 +114,34 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("opt-out", result.ExcludedReasons.Single().Reason);
         }
 
+        [Fact]
+        public async Task EvaluateAsync_TreatsNotRecordedAsOptOutExclusion()
+        {
+            var seeded = await SeedLocationAsync();
+            var guest = await AddGuestAsync(
+                seeded,
+                "Not Recorded",
+                email: "nr@example.com",
+                mobile: "07700900333",
+                offersOptOut: false
+            );
+            var row = await _context.LocationGuests.SingleAsync(
+                lg => lg.Id == guest.LocationGuestId
+            );
+            row.MarketingPreference = LocationGuestMarketingPreference.NotRecorded;
+            await _context.SaveChangesAsync();
+
+            var result = await _eligibility.EvaluateAsync(
+                seeded.LocationId,
+                "all-eligible-guests"
+            );
+
+            Assert.Equal(1, result.Matched);
+            Assert.Equal(0, result.CurrentlyEligible);
+            Assert.Equal(1, result.Excluded);
+            Assert.Equal("opt-out", result.ExcludedReasons.Single().Reason);
+        }
+
         [Theory]
         [InlineData("offer-not-redeemed")]
         [InlineData("recent-redeemers")]
@@ -340,7 +368,8 @@ namespace TummlyBackend.Tests.Services
                 MasterGuestId = master.Id,
                 RestaurantLocationId = seeded.LocationId,
                 Name = name,
-                OffersOptOut = offersOptOut,
+                MarketingPreference = LocationGuestMarketingPreferenceExtensions.FromFeedbackOffersOptOut(offersOptOut),
+
                 CreatedAt = createdAt ?? DateTime.UtcNow,
             };
             _context.LocationGuests.Add(guest);

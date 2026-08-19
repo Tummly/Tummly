@@ -38,6 +38,11 @@ import {
 } from "@/lib/operatorFeedback/createRecoveryWizardsModule"
 import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
 import {
+  createManageMarketingPreferencesSessionModule,
+  type ManageMarketingPreferencesSaveResult,
+  type ManageMarketingPreferencesSessionModule,
+} from "@/lib/operatorGuests/createManageMarketingPreferencesSessionModule"
+import {
   isAddTagApplyDirty,
   tagSetsEqual,
 } from "@/lib/operatorGuests/addTagDialogLogic"
@@ -49,6 +54,8 @@ import type {
   GuestNotesListResponse,
   GuestProfileRecentNoteItem,
   GuestProfileResponse,
+  PatchGuestMarketingPreferenceRequest,
+  PatchGuestMarketingPreferenceResponse,
 } from "@/types/dashboard"
 import type {
   OperatorGuestProfileNoteRow,
@@ -127,6 +134,11 @@ export type OperatorGuestProfilePageAdapters = {
     locationId: number
     body: GuestIdentityPatchPayload
   }) => Promise<{ success: boolean; changedFields: string[] }>
+  patchGuestMarketingPreference: (params: {
+    guestId: number
+    locationId: number
+    body: PatchGuestMarketingPreferenceRequest
+  }) => Promise<PatchGuestMarketingPreferenceResponse>
   listGuestTags: (params: { locationId: number }) => Promise<GuestTag[]>
   syncGuestTags: (params: {
     locationId: number
@@ -145,6 +157,7 @@ export type OperatorGuestProfilePageAdapters = {
   closeOutFeedback: FeedbackDetailsAdapters["closeOutFeedback"]
   sendGuestResponse: RecoveryWizardsAdapters["sendGuestResponse"]
   sendGuestPreviewTest: RecoveryWizardsAdapters["sendGuestPreviewTest"]
+  getOperatorAccountEmail?: RecoveryWizardsAdapters["getOperatorAccountEmail"]
   completeRecovery: RecoveryWizardsAdapters["completeRecovery"]
   prepareRecoveryDraft: RecoveryWizardsAdapters["prepareRecoveryDraft"]
   recordInternalAction: RecoveryWizardsAdapters["recordInternalAction"]
@@ -198,6 +211,8 @@ export type OperatorGuestProfilePageModule = {
   activityTab: GuestActivityTabModule
   /** Internal Feedbacks tab module (Home-style child; not a sibling public provider). */
   feedbacksTab: GuestFeedbacksTabModule
+  /** Manage marketing preferences session (shared with Guests list). */
+  marketingPreferences: ManageMarketingPreferencesSessionModule
   syncWorkspace: (input: OperatorGuestProfileWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
   ensureNotesLoaded: () => Promise<void>
@@ -259,11 +274,15 @@ export type OperatorGuestProfilePageModule = {
   retryStartRecovery: () => Promise<void>
   /** Wizard actions for the four recovery intents (see `RecoveryWizardsHost`). */
   recoveryWizards: RecoveryWizardsModule
+  openManageMarketingPreferences: () => void
+  closeManageMarketingPreferences: () => void
+  saveManageMarketingPreferences: () => Promise<ManageMarketingPreferencesSaveResult>
 }
 
 type ModuleState = {
   loadStatus: OperatorGuestProfilePageSnapshot["loadStatus"]
   viewModel: OperatorGuestProfileViewModel | null
+  profileResponse: GuestProfileResponse | null
   workspace: OperatorGuestProfileWorkspaceInput | null
   fetchedGuestId: number | null
   fetchedLocationId: number | null
@@ -501,6 +520,7 @@ export function createOperatorGuestProfilePageModule(
     updateOffer: adapters.updateOffer,
     sendGuestResponse: adapters.sendGuestResponse,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
+    getOperatorAccountEmail: adapters.getOperatorAccountEmail,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
     recordInternalAction: adapters.recordInternalAction,
@@ -514,10 +534,15 @@ export function createOperatorGuestProfilePageModule(
   const feedbacksTab = createGuestFeedbacksTabModule({
     getGuestFeedbacks: adapters.getGuestFeedbacks,
   })
+  const marketingPreferences = createManageMarketingPreferencesSessionModule({
+    getGuestProfile: adapters.getGuestProfile,
+    patchMarketingPreference: adapters.patchGuestMarketingPreference,
+  })
 
   let state: ModuleState = {
     loadStatus: "idle",
     viewModel: null,
+    profileResponse: null,
     workspace: null,
     fetchedGuestId: null,
     fetchedLocationId: null,
@@ -609,6 +634,7 @@ export function createOperatorGuestProfilePageModule(
       setState({
         loadStatus: "loaded",
         viewModel: mapGuestProfileApiResponseToViewModel({ response }),
+        profileResponse: response,
         draft: draftFromProfile(response),
         fieldErrors: {},
         tagCatalog: mergeCatalogWithProfileTags(catalog, response),
@@ -628,6 +654,7 @@ export function createOperatorGuestProfilePageModule(
         setState({
           loadStatus: "unavailable",
           viewModel: null,
+          profileResponse: null,
           draft: emptyDraft(),
           ...emptyTagsState(),
           fetchedGuestId: guestId,
@@ -640,6 +667,7 @@ export function createOperatorGuestProfilePageModule(
       setState({
         loadStatus: "error",
         viewModel: null,
+        profileResponse: null,
         draft: emptyDraft(),
         ...emptyTagsState(),
         fetchedGuestId: guestId,
@@ -824,11 +852,14 @@ export function createOperatorGuestProfilePageModule(
     },
     activityTab,
     feedbacksTab,
+    marketingPreferences,
     async syncWorkspace(input) {
       if (input.guestId == null) {
+        marketingPreferences.close()
         setState({
           loadStatus: "unavailable",
           viewModel: null,
+          profileResponse: null,
           workspace: input,
           fetchedGuestId: null,
           fetchedLocationId: null,
@@ -848,9 +879,11 @@ export function createOperatorGuestProfilePageModule(
       }
 
       if (input.selectedLocationId == null) {
+        marketingPreferences.close()
         setState({
           loadStatus: "idle",
           viewModel: null,
+          profileResponse: null,
           workspace: input,
           fetchedGuestId: null,
           fetchedLocationId: null,
@@ -879,6 +912,10 @@ export function createOperatorGuestProfilePageModule(
       const guestOrLocationChanged =
         state.workspace?.guestId !== input.guestId ||
         state.workspace?.selectedLocationId !== input.selectedLocationId
+
+      if (guestOrLocationChanged && !samePair) {
+        marketingPreferences.close()
+      }
 
       state = {
         ...state,
@@ -1346,5 +1383,24 @@ export function createOperatorGuestProfilePageModule(
       recoveryWizards.selectStartRecoveryIntent(intentId),
     retryStartRecovery: () => recoveryWizards.retryStartRecovery(),
     recoveryWizards,
+    openManageMarketingPreferences: () => {
+      if (state.profileResponse == null) {
+        return
+      }
+      marketingPreferences.openFromLoaded(state.profileResponse)
+    },
+    closeManageMarketingPreferences: () => {
+      marketingPreferences.close()
+    },
+    async saveManageMarketingPreferences() {
+      const result = await marketingPreferences.save()
+      if (
+        result.status === "saved" ||
+        result.status === "saved_with_note_error"
+      ) {
+        await invalidate(["profile", "notes", "activity"])
+      }
+      return result
+    },
   }
 }

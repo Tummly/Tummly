@@ -233,7 +233,8 @@ namespace TummlyBackend.Tests.Integration
                         MasterGuestId = master.Id,
                         RestaurantLocationId = seeded.LocationId,
                         Name = name,
-                        OffersOptOut = offersOptOut,
+                        MarketingPreference = LocationGuestMarketingPreferenceExtensions.FromFeedbackOffersOptOut(offersOptOut),
+
                         CreatedAt = DateTime.UtcNow,
                     }
                 );

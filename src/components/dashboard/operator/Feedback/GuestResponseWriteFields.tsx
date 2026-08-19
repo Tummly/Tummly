@@ -1,5 +1,3 @@
-import { Loader2Icon } from "lucide-react"
-
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +8,10 @@ import {
   FEEDBACK_TEXTAREA_CLASS,
 } from "@/lib/operatorFeedback/feedbackPresentation"
 import type { PrepareRecoveryDraftMode } from "@/lib/operatorFeedback/createRespondToGuestModule"
+import {
+  GUEST_RESPONSE_REWRITE_AI_LABEL,
+  GUEST_RESPONSE_REWRITE_RETRY_LABEL,
+} from "@/lib/operatorFeedback/guestResponseChooserPresentation"
 import type { RespondToGuestChannel } from "@/lib/operatorFeedback/respondToGuestPresentation"
 import { cn } from "@/lib/utils"
 
@@ -31,10 +33,12 @@ export type GuestResponseWriteFieldsProps = {
 
 function RewriteAiButton({
   busy,
+  failed,
   disabled,
   onClick,
 }: {
   busy: boolean
+  failed: boolean
   disabled: boolean
   onClick: () => void
 }) {
@@ -46,12 +50,10 @@ function RewriteAiButton({
       onClick={onClick}
       className="gap-2 px-[14px] py-2"
     >
-      {busy ? (
-        <Loader2Icon className="size-[18px] animate-spin" aria-hidden />
-      ) : (
-        <AiIcon size={18} />
-      )}
-      Rewrite with AI
+      <AiIcon size={18} className={busy ? "animate-spin" : undefined} />
+      {failed
+        ? GUEST_RESPONSE_REWRITE_RETRY_LABEL
+        : GUEST_RESPONSE_REWRITE_AI_LABEL}
     </Button>
   )
 }
@@ -85,10 +87,10 @@ export function GuestResponseWriteFields({
     && aiDraftMode === "rewrite_message"
 
   return (
-    <div className="flex w-full flex-col gap-6">
+    <div className="flex w-full flex-col gap-3">
       {channel === "email" ? (
         <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex items-end gap-3">
             <label
               htmlFor={`${idPrefix}-subject`}
               className={cn(FEEDBACK_FIELD_LABEL_CLASS, "flex-1")}
@@ -97,20 +99,10 @@ export function GuestResponseWriteFields({
             </label>
             <RewriteAiButton
               busy={subjectBusy}
+              failed={showSubjectRetry}
               disabled={disabled}
-              onClick={onRewriteSubject}
+              onClick={showSubjectRetry ? onRetryAiDraft : onRewriteSubject}
             />
-            {showSubjectRetry ? (
-              <Button
-                type="button"
-                variant="op-primary"
-                size="sm"
-                disabled={disabled}
-                onClick={onRetryAiDraft}
-              >
-                Try again
-              </Button>
-            ) : null}
           </div>
           <Input
             id={`${idPrefix}-subject`}
@@ -125,7 +117,7 @@ export function GuestResponseWriteFields({
       ) : null}
 
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-end gap-3">
           <label
             htmlFor={`${idPrefix}-message`}
             className={cn(FEEDBACK_FIELD_LABEL_CLASS, "flex-1")}
@@ -134,20 +126,10 @@ export function GuestResponseWriteFields({
           </label>
           <RewriteAiButton
             busy={messageBusy}
+            failed={showMessageRetry}
             disabled={disabled}
-            onClick={onRewriteMessage}
+            onClick={showMessageRetry ? onRetryAiDraft : onRewriteMessage}
           />
-          {showMessageRetry ? (
-            <Button
-              type="button"
-              variant="op-primary"
-              size="sm"
-              disabled={disabled}
-              onClick={onRetryAiDraft}
-            >
-              Try again
-            </Button>
-          ) : null}
         </div>
         <Textarea
           id={`${idPrefix}-message`}

@@ -5,6 +5,7 @@ import { CalendarIcon, SendIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
+import { FieldError } from "@/components/ui/field"
 import {
   Popover,
   PopoverContent,
@@ -132,15 +133,18 @@ function EstimatedUsageSummary({
 
 function ScheduleSendDateField({
   dateLocal,
+  dateError,
   onScheduleDateChange,
 }: {
   dateLocal: string
+  dateError: string | null
   onScheduleDateChange: (value: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const selectedDate =
     dateLocal.trim().length > 0 ? parseLocalDateKey(dateLocal) : undefined
   const hasDate = selectedDate != null && !Number.isNaN(selectedDate.getTime())
+  const errorId = "campaign-schedule-date-error"
 
   return (
     <div className="flex w-full flex-col gap-2">
@@ -156,10 +160,13 @@ function ScheduleSendDateField({
             id="campaign-schedule-date"
             type="button"
             variant="op-ghost"
+            aria-invalid={dateError != null}
+            aria-describedby={dateError != null ? errorId : undefined}
             className={cn(
               SCHEDULE_DATE_TRIGGER_CLASS,
               "!h-[50px] !min-h-[50px] rounded-[4px]",
-              !hasDate && "text-op-input-placeholder"
+              !hasDate && "text-op-input-placeholder",
+              dateError != null && "border-destructive"
             )}
           >
             <CalendarIcon
@@ -195,6 +202,9 @@ function ScheduleSendDateField({
           />
         </PopoverContent>
       </Popover>
+      {dateError != null ? (
+        <FieldError id={errorId}>{dateError}</FieldError>
+      ) : null}
     </div>
   )
 }
@@ -202,12 +212,16 @@ function ScheduleSendDateField({
 function ScheduleSendTimeField({
   timeLocal,
   timeOptions,
+  timeError,
   onScheduleTimeChange,
 }: {
   timeLocal: string
   timeOptions: readonly string[]
+  timeError: string | null
   onScheduleTimeChange: (value: string) => void
 }) {
+  const errorId = "campaign-schedule-time-error"
+
   return (
     <div className="flex w-full flex-col gap-2">
       <label
@@ -222,6 +236,8 @@ function ScheduleSendTimeField({
       >
         <SelectTrigger
           id="campaign-schedule-time"
+          aria-invalid={timeError != null}
+          aria-describedby={timeError != null ? errorId : undefined}
           className={cn(
             FEEDBACK_INPUT_CLASS,
             "h-[50px] w-full shadow-none data-[size=default]:h-[50px] dark:bg-transparent dark:hover:bg-transparent [&_svg]:text-op-input-placeholder"
@@ -250,6 +266,9 @@ function ScheduleSendTimeField({
           ))}
         </SelectContent>
       </Select>
+      {timeError != null ? (
+        <FieldError id={errorId}>{timeError}</FieldError>
+      ) : null}
     </div>
   )
 }
@@ -296,11 +315,13 @@ export function CampaignScheduleStep({
           <div className="flex w-full flex-col gap-4">
             <ScheduleSendDateField
               dateLocal={schedule.dateLocal}
+              dateError={schedule.dateError}
               onScheduleDateChange={onScheduleDateChange}
             />
             <ScheduleSendTimeField
               timeLocal={schedule.timeLocal}
               timeOptions={schedule.timeOptions}
+              timeError={schedule.timeError}
               onScheduleTimeChange={onScheduleTimeChange}
             />
           </div>

@@ -78,6 +78,7 @@ namespace TummlyBackend.Services
             var sentiments = NormalizeSentiments(query.Sentiment);
             var tagKeys = NormalizeDetectedTags(query.DetectedTags);
             var contact = NormalizeContact(query.Contact);
+            var workflowStatuses = NormalizeWorkflowStatuses(query.WorkflowStatus);
             var (catalogTypes, digitalLinkIds) = NormalizeQrSources(
                 query.QrSource
             );
@@ -103,6 +104,7 @@ namespace TummlyBackend.Services
             );
 
             var filtered = ApplyTab(rangeQuery, tab);
+            filtered = ApplyWorkflowStatusFilter(filtered, workflowStatuses);
             filtered = ApplySearch(filtered, query.Q);
             filtered = ApplySentimentFilter(filtered, sentiments);
             filtered = ApplyDetectedTagFilter(filtered, tagKeys);
@@ -283,6 +285,16 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            if (query.FeedbackId.HasValue)
+            {
+                return _context.Feedbacks
+                    .AsNoTracking()
+                    .Where(f =>
+                        f.RestaurantLocationId == query.LocationId
+                        && f.Id == query.FeedbackId.Value
+                    );
+            }
+
             var rangeQuery = _context.Feedbacks
                 .AsNoTracking()
                 .Where(f =>
@@ -300,6 +312,7 @@ namespace TummlyBackend.Services
             var sentiments = NormalizeSentiments(query.Sentiment);
             var tagKeys = NormalizeDetectedTags(query.DetectedTags);
             var contact = NormalizeContact(query.Contact);
+            var workflowStatuses = NormalizeWorkflowStatuses(query.WorkflowStatus);
             var (catalogTypes, digitalLinkIds) = NormalizeQrSources(
                 query.QrSource
             );
@@ -312,6 +325,7 @@ namespace TummlyBackend.Services
                 );
 
             var filtered = ApplyTab(rangeQuery, tab);
+            filtered = ApplyWorkflowStatusFilter(filtered, workflowStatuses);
             filtered = ApplySearch(filtered, query.Q);
             filtered = ApplySentimentFilter(filtered, sentiments);
             filtered = ApplyDetectedTagFilter(filtered, tagKeys);
@@ -429,6 +443,34 @@ namespace TummlyBackend.Services
                 })
                 .Distinct()
                 .ToList();
+        }
+
+        private static List<FeedbackWorkflowStatus> NormalizeWorkflowStatuses(
+            string[]? workflowStatus
+        )
+        {
+            if (workflowStatus is not { Length: > 0 })
+            {
+                return [];
+            }
+
+            var statuses = new List<FeedbackWorkflowStatus>();
+            foreach (var raw in workflowStatus)
+            {
+                if (!FeedbackWorkflowStatusMapping.TryParseWire(raw, out var status))
+                {
+                    throw new ArgumentException(
+                        "workflowStatus must be new, in_progress, or resolved."
+                    );
+                }
+
+                if (!statuses.Contains(status))
+                {
+                    statuses.Add(status);
+                }
+            }
+
+            return statuses;
         }
 
         private static HashSet<string> NormalizeDetectedTags(
@@ -589,6 +631,19 @@ namespace TummlyBackend.Services
                 ),
                 _ => query,
             };
+
+        private static IQueryable<Feedback> ApplyWorkflowStatusFilter(
+            IQueryable<Feedback> query,
+            IReadOnlyList<FeedbackWorkflowStatus> statuses
+        )
+        {
+            if (statuses.Count == 0)
+            {
+                return query;
+            }
+
+            return query.Where(f => statuses.Contains(f.WorkflowStatus));
+        }
 
         private static IQueryable<Feedback> ApplySearch(
             IQueryable<Feedback> query,

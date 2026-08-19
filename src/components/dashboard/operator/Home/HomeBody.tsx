@@ -33,6 +33,8 @@ type HomeBodyProps = {
   performanceLoading?: boolean
   onRetryFeedback?: () => void
   previewBusy?: boolean
+  guestFormPreviewLocationName?: string
+  guestFormPreviewAddress?: string
   onPreviewGuestForm?: () => void
   onCopySmartGuestLink?: () => void
   feedbackDetails: FeedbackDetailsSnapshot
@@ -85,6 +87,8 @@ export function HomeBody({
   performanceLoading = false,
   onRetryFeedback,
   previewBusy = false,
+  guestFormPreviewLocationName = "",
+  guestFormPreviewAddress = "",
   onPreviewGuestForm,
   onCopySmartGuestLink,
   feedbackDetails,
@@ -131,6 +135,8 @@ export function HomeBody({
         canPreviewGuestForm={viewModel.canPreviewGuestForm}
         canCopySmartGuestLink={viewModel.canCopySmartGuestLink}
         previewBusy={previewBusy}
+        guestFormPreviewLocationName={guestFormPreviewLocationName}
+        guestFormPreviewAddress={guestFormPreviewAddress}
         onPreviewGuestForm={onPreviewGuestForm}
         onCopySmartGuestLink={onCopySmartGuestLink}
       />

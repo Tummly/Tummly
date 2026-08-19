@@ -214,7 +214,7 @@ namespace TummlyBackend.Tests.Services
             var dropGuest = await _context.LocationGuests.SingleAsync(g =>
                 g.Id == frozen[0].LocationGuestId
             );
-            dropGuest.OffersOptOut = true;
+            dropGuest.MarketingPreference = LocationGuestMarketingPreference.OptedOut;
             await _context.SaveChangesAsync();
 
             var campaign = await _context.Campaigns.SingleAsync(c =>
@@ -277,7 +277,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     RestaurantLocationId = campaign.RestaurantLocationId,
                     MasterGuestId = master.Id,
-                    OffersOptOut = false,
+                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
                     CreatedAt = _now,
                 }
             );
@@ -456,7 +456,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     RestaurantLocationId = location.Id,
                     MasterGuestId = master.Id,
-                    OffersOptOut = false,
+                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
                     CreatedAt = _now,
                 };
                 _context.LocationGuests.Add(locationGuest);

@@ -35,6 +35,8 @@ function item(overrides: {
   authorDisplayName?: string | null
   sentiment?: string | null
   changedFields?: string[] | null
+  fromPreference?: string | null
+  toPreference?: string | null
   feedbackId?: number | null
 }) {
   return {
@@ -48,6 +50,8 @@ function item(overrides: {
     authorDisplayName: overrides.authorDisplayName ?? null,
     sentiment: overrides.sentiment ?? null,
     changedFields: overrides.changedFields ?? null,
+    fromPreference: overrides.fromPreference ?? null,
+    toPreference: overrides.toPreference ?? null,
   }
 }
 
@@ -80,7 +84,7 @@ describe("createGuestActivityTabModule", () => {
   it("enables toolbar and maps PRD row copy for in-map kinds", async () => {
     const getGuestActivity = vi.fn(async () =>
       listResponse({
-        totalCount: 8,
+        totalCount: 9,
         items: [
           item({ id: 1, kind: "guest-joined" }),
           item({
@@ -109,6 +113,13 @@ describe("createGuestActivityTabModule", () => {
             id: 8,
             kind: "profile-edited",
             changedFields: ["name", "email"],
+          }),
+          item({
+            id: 9,
+            kind: "marketing-preference-changed",
+            authorDisplayName: "Ada Operator",
+            fromPreference: "allowed",
+            toPreference: "opted_out",
           }),
         ],
       })
@@ -171,6 +182,12 @@ describe("createGuestActivityTabModule", () => {
         id: 8,
         headline: "Profile updated",
         body: "Profile details updated (Name, Email).",
+        metaDisplay: "Soho · 15 July 2026, 7:42 PM",
+      },
+      {
+        id: 9,
+        headline: "Marketing preference changed",
+        body: "Ada Operator changed marketing preference from Allowed to Opted out.",
         metaDisplay: "Soho · 15 July 2026, 7:42 PM",
       },
     ])

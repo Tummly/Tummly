@@ -17,6 +17,10 @@ import { GuestsFilterChipRow } from "@/components/dashboard/operator/Guests/Gues
 import { GuestsRowActionsMenu } from "@/components/dashboard/operator/Guests/GuestsRowActionsMenu"
 import { GuestsTableEmptyState } from "@/components/dashboard/operator/Guests/GuestsTableEmptyState"
 import {
+  OperatorTableTabPanel,
+  type OperatorTabContentStatus,
+} from "@/components/dashboard/operator/OperatorTableTabPanel"
+import {
   Table,
   TableBody,
   TableCell,
@@ -86,6 +90,7 @@ const SORT_OPTIONS = Object.entries(OPERATOR_GUEST_SORT_LABELS) as Array<
 >
 
 type GuestsSmartGroupsSectionProps = {
+  tabContentStatus: OperatorTabContentStatus
   tabs: OperatorGuestSmartGroupTab[]
   activeTabId: OperatorGuestSmartGroupId
   onTabChange: (id: OperatorGuestSmartGroupId) => void
@@ -112,6 +117,7 @@ type GuestsSmartGroupsSectionProps = {
   onAddTag?: () => void
   onManageGuestTags: (guestId: string) => void
   onViewGuest: (guestId: string) => void
+  onManageMarketingPermissions: (guestId: string) => void
   onExportSelected?: () => void
   exportBusy?: boolean
   filterChips: readonly FilterChip[]
@@ -142,6 +148,7 @@ function formatSubmissionCount(count: number): string {
 
 /** Figma Smart groups — tabs, deferred toolbar chrome, and guest table. */
 export function GuestsSmartGroupsSection({
+  tabContentStatus,
   tabs,
   activeTabId,
   onTabChange,
@@ -168,6 +175,7 @@ export function GuestsSmartGroupsSection({
   onAddTag,
   onManageGuestTags,
   onViewGuest,
+  onManageMarketingPermissions,
   onExportSelected,
   exportBusy = false,
   filterChips,
@@ -300,7 +308,10 @@ export function GuestsSmartGroupsSection({
           />
         ) : null}
 
-        <div role="tabpanel">
+        <OperatorTableTabPanel
+          status={tabContentStatus}
+          loadingLabel="Loading guests"
+        >
           {tableEmptyState ? (
             <GuestsTableEmptyState
               kind={tableEmptyState}
@@ -450,6 +461,9 @@ export function GuestsSmartGroupsSection({
                             guestName={row.name}
                             onManageTags={onManageGuestTags}
                             onViewGuest={onViewGuest}
+                            onManageMarketingPermissions={
+                              onManageMarketingPermissions
+                            }
                           />
                         </div>
                       </TableCell>
@@ -460,7 +474,7 @@ export function GuestsSmartGroupsSection({
             </Table>
           </div>
           )}
-        </div>
+        </OperatorTableTabPanel>
 
         <div className={GUESTS_PAGINATION_ROW_CLASS}>
           <p className={GUESTS_PAGINATION_LABEL_CLASS}>{pageRangeLabel}</p>

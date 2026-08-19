@@ -310,7 +310,7 @@ export type OperatorGuestRowActionId =
   (typeof OPERATOR_GUEST_ROW_ACTIONS)[number]["id"]
 
 export const GUESTS_ROW_ACTIONS_TRIGGER_CLASS =
-  "size-8 text-foreground hover:bg-transparent"
+  "size-8 rounded-op-sm text-foreground"
 
 /**
  * Guests Sort panel — same chrome as Account / shell menus.

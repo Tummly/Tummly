@@ -58,7 +58,7 @@ namespace TummlyBackend.Tests.Integration
 
             Assert.Equal(seeded.LocationId, locationGuest.RestaurantLocationId);
             Assert.Equal("Jane Doe", locationGuest.Name);
-            Assert.False(locationGuest.OffersOptOut);
+            Assert.Equal(LocationGuestMarketingPreference.Allowed, locationGuest.MarketingPreference);
             Assert.Equal(seeded.RestaurantId, locationGuest.MasterGuest!.RestaurantId);
             Assert.Equal("Jane@Example.com", locationGuest.MasterGuest.Email);
             Assert.Equal("jane@example.com", locationGuest.MasterGuest.NormalizedEmail);
@@ -110,7 +110,7 @@ namespace TummlyBackend.Tests.Integration
                 .SingleAsync(lg => lg.RestaurantLocationId == seeded.LocationId);
 
             Assert.Equal("Jane D.", locationGuest.Name);
-            Assert.False(locationGuest.OffersOptOut);
+            Assert.Equal(LocationGuestMarketingPreference.Allowed, locationGuest.MarketingPreference);
 
             var feedbacks = await context.Feedbacks
                 .Where(f => f.RestaurantLocationId == seeded.LocationId)
@@ -281,8 +281,8 @@ namespace TummlyBackend.Tests.Integration
                 Assert.Equal(firstLocationGuestId, firstLg.Id);
                 Assert.Equal(firstLocationGuestCreatedAt, firstLg.CreatedAt);
                 Assert.NotEqual(firstLg.Id, secondLg.Id);
-                Assert.False(firstLg.OffersOptOut);
-                Assert.True(secondLg.OffersOptOut);
+                Assert.Equal(LocationGuestMarketingPreference.Allowed, firstLg.MarketingPreference);
+                Assert.Equal(LocationGuestMarketingPreference.OptedOut, secondLg.MarketingPreference);
             }
         }
 

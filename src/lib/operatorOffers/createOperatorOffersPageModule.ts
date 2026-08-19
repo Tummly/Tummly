@@ -194,6 +194,7 @@ export type OperatorOffersPendingEditOfferSave = {
 
 export type OperatorOffersPageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
+  tabContentStatus: "loading" | "ready" | "refreshing"
   viewModel: OperatorOffersPageViewModel | null
   loadError: string | null
   createOfferDrawer: OperatorOffersCreateOfferDrawerViewModel | null
@@ -251,6 +252,7 @@ export type OperatorOffersPageAdapters = {
 export type OperatorOffersPageModule = {
   getSnapshot: () => OperatorOffersPageSnapshot
   subscribe: (listener: () => void) => () => void
+  clearTabCache: () => void
   syncWorkspace: (input: OperatorOffersWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
   setPerformanceDateRange: (range: HomePerformanceDateRange) => Promise<void>
@@ -297,6 +299,7 @@ export type OperatorOffersPageModule = {
 
 type OffersState = {
   loadStatus: OperatorOffersPageSnapshot["loadStatus"]
+  tabContentStatus: OperatorOffersPageSnapshot["tabContentStatus"]
   workspace: OperatorOffersWorkspaceInput | null
   viewModel: OperatorOffersPageViewModel | null
   loadError: string | null
@@ -627,6 +630,7 @@ export function createOperatorOffersPageModule(
 
   let state: OffersState = {
     loadStatus: "idle",
+    tabContentStatus: "ready",
     workspace: null,
     viewModel: null,
     loadError: null,
@@ -665,6 +669,7 @@ export function createOperatorOffersPageModule(
 
   let snapshot: OperatorOffersPageSnapshot = {
     loadStatus: state.loadStatus,
+    tabContentStatus: state.tabContentStatus,
     viewModel: state.viewModel,
     loadError: state.loadError,
     createOfferDrawer: null,
@@ -675,10 +680,18 @@ export function createOperatorOffersPageModule(
 
   const listeners = new Set<() => void>()
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+  const tabCache = new Map<
+    OperatorOffersListViewId,
+    CatalogOffersListResponse
+  >()
+  let tabCacheGeneration = 0
+  const latestRequestByView = new Map<OperatorOffersListViewId, number>()
+  let listRequestSequence = 0
 
   const publish = () => {
     snapshot = {
       loadStatus: state.loadStatus,
+      tabContentStatus: state.tabContentStatus,
       viewModel: state.viewModel,
       loadError: state.loadError,
       createOfferDrawer: buildCreateOfferDrawer(state),
@@ -702,10 +715,27 @@ export function createOperatorOffersPageModule(
     }
   }
 
-  const buildListParams = (locationId: number): CatalogOffersListQueryParams =>
+  const invalidateTabCache = () => {
+    tabCache.clear()
+    latestRequestByView.clear()
+    tabCacheGeneration += 1
+  }
+
+  const claimLatestRequestForView = (
+    view: OperatorOffersListViewId
+  ): number => {
+    listRequestSequence += 1
+    latestRequestByView.set(view, listRequestSequence)
+    return listRequestSequence
+  }
+
+  const buildListParams = (
+    locationId: number,
+    view: OperatorOffersListViewId = state.activeViewId
+  ): CatalogOffersListQueryParams =>
     buildOffersListQueryParams({
       locationId,
-      view: state.activeViewId,
+      view,
       q: state.searchQuery,
       sort: state.sortId,
       page: state.page,
@@ -818,39 +848,94 @@ export function createOperatorOffersPageModule(
     )
   }
 
-  const fetchList = async (options?: { quiet?: boolean }) => {
+  const fetchList = async (options?: {
+    quiet?: boolean
+    tabSwitch?: boolean
+  }) => {
     const workspace = state.workspace
     const location = workspace != null ? resolveSelectedLocation(workspace) : null
     if (workspace == null || location == null) {
       return
     }
 
-    const generation = state.listLoadGeneration + 1
-    state = {
-      ...state,
-      listLoadGeneration: generation,
-      loadStatus:
-        options?.quiet === true && state.viewModel != null
-          ? state.loadStatus
-          : "loading",
-    }
-    if (options?.quiet !== true) {
+    const requestedViewId = state.activeViewId
+    const requestCacheGeneration = tabCacheGeneration
+    const requestSequence = claimLatestRequestForView(requestedViewId)
+    const cachedResponse = tabCache.get(requestedViewId)
+    const isWarmTabSwitch =
+      options?.tabSwitch === true && cachedResponse != null
+
+    if (options?.tabSwitch === true && state.viewModel != null) {
+      state = {
+        ...state,
+        loadStatus: isWarmTabSwitch ? state.loadStatus : "loading",
+        tabContentStatus: isWarmTabSwitch ? "refreshing" : "loading",
+        viewModel:
+          cachedResponse == null
+            ? {
+                ...state.viewModel,
+                list: {
+                  ...state.viewModel.list,
+                  activeViewId: requestedViewId,
+                  rows: [],
+                  empty: null,
+                  currentPage: state.page,
+                },
+              }
+            : assembleViewModel(
+                location,
+                cachedResponse,
+                requestedViewId,
+                state.searchQuery,
+                state.sortId,
+                state.page,
+                state.appliedFilters,
+                state.filtersSession,
+                state.filtersBusy,
+                state.pendingLifecycleAction,
+                state.performanceDateRange,
+                state.activeOffersCount,
+                state.windowCounts,
+                state.attentionListItems,
+                state.openVoidAttention
+              ),
+      }
       publish()
+    } else {
+      state = {
+        ...state,
+        tabContentStatus:
+          state.viewModel == null ? "loading" : "refreshing",
+        loadStatus:
+          options?.quiet === true && state.viewModel != null
+            ? state.loadStatus
+            : "loading",
+      }
+      if (options?.quiet !== true) {
+        publish()
+      }
     }
 
     try {
       const listResponse = await adapters.listCatalogOffers(
-        buildListParams(location.id)
+        buildListParams(location.id, requestedViewId)
       )
-      if (generation !== state.listLoadGeneration) {
+      if (
+        requestCacheGeneration !== tabCacheGeneration
+        || latestRequestByView.get(requestedViewId) !== requestSequence
+      ) {
         return
       }
+      tabCache.set(requestedViewId, listResponse)
 
       let attentionListItems = state.attentionListItems
       let openVoidAttention = state.openVoidAttention
       try {
         const attention = await loadAttentionFacts(location.id)
-        if (generation !== state.listLoadGeneration) {
+        if (
+          requestCacheGeneration !== tabCacheGeneration
+          || latestRequestByView.get(requestedViewId) !== requestSequence
+        ) {
           return
         }
         attentionListItems = attention.attentionListItems
@@ -859,9 +944,16 @@ export function createOperatorOffersPageModule(
         // Keep prior attention facts on quiet refresh failure.
       }
 
+      if (
+        state.activeViewId !== requestedViewId
+        || latestRequestByView.get(requestedViewId) !== requestSequence
+      ) {
+        return
+      }
       state = {
         ...state,
         loadStatus: "loaded",
+        tabContentStatus: "ready",
         loadError: null,
         lastListResponse: listResponse,
         attentionListItems,
@@ -886,13 +978,25 @@ export function createOperatorOffersPageModule(
       }
       publish()
     } catch {
-      if (generation !== state.listLoadGeneration) {
+      if (
+        requestCacheGeneration !== tabCacheGeneration
+        || latestRequestByView.get(requestedViewId) !== requestSequence
+        || state.activeViewId !== requestedViewId
+      ) {
         return
       }
-      if (options?.quiet !== true) {
+      if (isWarmTabSwitch || options?.quiet === true) {
+        state = {
+          ...state,
+          loadStatus: state.viewModel == null ? state.loadStatus : "loaded",
+          tabContentStatus: "ready",
+        }
+        publish()
+      } else {
         state = {
           ...state,
           loadStatus: "error",
+          tabContentStatus: "ready",
           loadError: OFFERS_LOAD_ERROR_MESSAGE,
           viewModel: null,
           lastListResponse: null,
@@ -919,9 +1023,13 @@ export function createOperatorOffersPageModule(
     clearSearchDebounce()
     const generation = state.loadGeneration + 1
     const listLoadGeneration = state.listLoadGeneration + 1
+    const requestCacheGeneration = tabCacheGeneration
+    const requestedViewId = state.activeViewId
+    const requestSequence = claimLatestRequestForView(requestedViewId)
     state = {
       ...state,
       loadStatus: "loading",
+      tabContentStatus: "loading",
       loadError: null,
       loadGeneration: generation,
       listLoadGeneration,
@@ -933,6 +1041,7 @@ export function createOperatorOffersPageModule(
       state = {
         ...state,
         loadStatus: "idle",
+        tabContentStatus: "ready",
         viewModel: null,
         loadError: null,
         lastListResponse: null,
@@ -954,6 +1063,7 @@ export function createOperatorOffersPageModule(
       state = {
         ...state,
         loadStatus: "error",
+        tabContentStatus: "ready",
         viewModel: null,
         loadError: OFFERS_LOAD_ERROR_MESSAGE,
         lastListResponse: null,
@@ -972,7 +1082,9 @@ export function createOperatorOffersPageModule(
       }
 
       const [listResponse, performanceFacts] = await Promise.all([
-        adapters.listCatalogOffers(buildListParams(location.id)),
+        adapters.listCatalogOffers(
+          buildListParams(location.id, requestedViewId)
+        ),
         loadPerformanceFacts(location.id, state.performanceDateRange).catch(
           () => null
         ),
@@ -989,9 +1101,12 @@ export function createOperatorOffersPageModule(
       if (
         generation !== state.loadGeneration
         || listLoadGeneration !== state.listLoadGeneration
+        || requestCacheGeneration !== tabCacheGeneration
+        || latestRequestByView.get(requestedViewId) !== requestSequence
       ) {
         return
       }
+      tabCache.set(requestedViewId, listResponse)
 
       let activeOffersCount = state.activeOffersCount
       let windowCounts = state.windowCounts
@@ -1010,6 +1125,7 @@ export function createOperatorOffersPageModule(
       state = {
         ...state,
         loadStatus: "loaded",
+        tabContentStatus: "ready",
         loadError: null,
         lastListResponse: listResponse,
         attentionListItems,
@@ -1042,6 +1158,7 @@ export function createOperatorOffersPageModule(
       state = {
         ...state,
         loadStatus: "error",
+        tabContentStatus: "ready",
         loadError: OFFERS_LOAD_ERROR_MESSAGE,
         viewModel: null,
         lastListResponse: null,
@@ -1110,6 +1227,7 @@ export function createOperatorOffersPageModule(
         pendingEditOfferSave: null,
       }
       publish()
+      invalidateTabCache()
       await fetchList({ quiet: true })
       return "updated"
     } catch {
@@ -1189,21 +1307,7 @@ export function createOperatorOffersPageModule(
       activeViewId: viewId,
       page: 1,
     }
-    if (state.viewModel != null) {
-      state = {
-        ...state,
-        viewModel: {
-          ...state.viewModel,
-          list: {
-            ...state.viewModel.list,
-            activeViewId: viewId,
-            currentPage: 1,
-          },
-        },
-      }
-      publish()
-    }
-    await fetchList()
+    await fetchList({ tabSwitch: true })
   }
 
   return {
@@ -1216,9 +1320,15 @@ export function createOperatorOffersPageModule(
         listeners.delete(listener)
       }
     },
+    clearTabCache() {
+      invalidateTabCache()
+    },
     async syncWorkspace(input) {
       const previousLocationId = state.workspace?.selectedLocationId ?? null
       const locationChanged = previousLocationId !== input.selectedLocationId
+      if (locationChanged || input.selectedLocationId == null) {
+        invalidateTabCache()
+      }
       state = {
         ...state,
         workspace: input,
@@ -1273,6 +1383,7 @@ export function createOperatorOffersPageModule(
     },
     setListView,
     setSearchQuery: (query) => {
+      invalidateTabCache()
       state = {
         ...state,
         searchQuery: query,
@@ -1300,6 +1411,7 @@ export function createOperatorOffersPageModule(
         return
       }
       clearSearchDebounce()
+      invalidateTabCache()
       state = {
         ...state,
         sortId: id,
@@ -1312,6 +1424,7 @@ export function createOperatorOffersPageModule(
         return
       }
       clearSearchDebounce()
+      invalidateTabCache()
       state = {
         ...state,
         page: state.page - 1,
@@ -1325,6 +1438,7 @@ export function createOperatorOffersPageModule(
         return
       }
       clearSearchDebounce()
+      invalidateTabCache()
       state = {
         ...state,
         page: state.page + 1,
@@ -1388,6 +1502,7 @@ export function createOperatorOffersPageModule(
     },
     applyFilters: (filters) => {
       clearSearchDebounce()
+      invalidateTabCache()
       state = {
         ...state,
         appliedFilters: filters,
@@ -1399,6 +1514,7 @@ export function createOperatorOffersPageModule(
     },
     removeFilterChip: (chip) => {
       clearSearchDebounce()
+      invalidateTabCache()
       state = {
         ...state,
         appliedFilters: removeAppliedChip(
@@ -1416,6 +1532,7 @@ export function createOperatorOffersPageModule(
         return
       }
       clearSearchDebounce()
+      invalidateTabCache()
       state = {
         ...state,
         searchQuery: "",
@@ -1430,6 +1547,7 @@ export function createOperatorOffersPageModule(
     },
     viewAllOffers: async () => {
       clearSearchDebounce()
+      invalidateTabCache()
       state = {
         ...state,
         activeViewId: "all",
@@ -1495,6 +1613,7 @@ export function createOperatorOffersPageModule(
 
       try {
         await adapter(pending.offerId)
+        invalidateTabCache()
         await fetchList({ quiet: true })
       } catch {
         // Keep list chrome loaded — dialog already closed.
@@ -1668,6 +1787,7 @@ export function createOperatorOffersPageModule(
           createOfferError: null,
         }
         publish()
+        invalidateTabCache()
         await fetchList({ quiet: true })
         return "created"
       } catch {

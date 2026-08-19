@@ -1,15 +1,23 @@
-/** Feedback inbox Filter sheet — Guest response · Issue tags · QR source · Contact · Date. */
+/** Feedback inbox Filter sheet — Workflow status · Guest response · Issue tags · QR source · Contact · Date. */
 
 import { DATE_PRESET_LABELS } from "@/lib/operatorFilterSheet"
 import type {
   FilterSheetSchema,
   SchemaOption,
 } from "@/lib/operatorFilterSheet"
+import { feedbackWorkflowStatusLabel } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import { FEEDBACKS_DETECTED_TAG_OPTIONS } from "@/lib/operatorGuestProfile/guestFeedbacksFilterSheetSchema"
 import {
   CONTACT_LABELS,
   SENTIMENT_LABELS,
 } from "@/lib/operatorGuests/guestsFilterSheetSchema"
+import type { FeedbackWorkflowStatus } from "@/types/dashboard"
+
+const WORKFLOW_STATUS_OPTION_IDS: FeedbackWorkflowStatus[] = [
+  "new",
+  "in_progress",
+  "resolved",
+]
 
 export const FEEDBACK_INBOX_CATALOG_QR_SOURCE_OPTIONS: SchemaOption[] = [
   { id: "CounterCard", label: "Counter card" },
@@ -28,6 +36,16 @@ export function feedbackInboxFilterSheetSchema(catalog: {
 } = {}): FilterSheetSchema {
   return {
     fields: [
+      {
+        id: "workflowStatus",
+        kind: "multi-select",
+        label: "Workflow status",
+        chipKind: "workflow-status",
+        options: WORKFLOW_STATUS_OPTION_IDS.map((id) => ({
+          id,
+          label: feedbackWorkflowStatusLabel(id),
+        })),
+      },
       {
         id: "sentiment",
         kind: "multi-select",

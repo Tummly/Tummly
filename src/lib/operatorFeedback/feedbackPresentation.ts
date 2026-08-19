@@ -91,6 +91,9 @@ export const FEEDBACK_KPI_META_STACK_CLASS =
 export const FEEDBACK_SUMMARY_SUBTITLE_CLASS =
   "m-0 max-w-[449px] text-op-sm font-medium leading-normal text-op-card-subtitle-color"
 
+export const FEEDBACK_PAGE_SUBTITLE_CLASS =
+  "m-0 text-base font-medium leading-normal text-[var(--op-color-gray-550)]"
+
 export const FEEDBACK_PAGE_COPY = {
   title: "Feedback",
   subtitle:
@@ -161,7 +164,37 @@ export const FEEDBACK_HEADER_OVERFLOW_ACTIONS = [
 ] as const
 
 export const FEEDBACK_PAGE_META_CLASS =
-  "m-0 text-op-sm font-medium leading-normal text-muted-foreground"
+  "m-0 text-op-sm font-medium leading-normal text-[var(--op-color-gray-550)]"
+
+export const FEEDBACK_PAGE_META_STACK_CLASS = "flex flex-col gap-1"
+
+/**
+ * Feedback modal surface — light `--op-surface-secondary` (#f8f8f8);
+ * dark `--op-color-gray-1000` (#171717). Matches Capture / Offers / Wizard dialogs.
+ * The shell holds no padding: header / body / footer carry their own inset so the
+ * body scrollbar tracks the dialog edge instead of floating inside the padding.
+ */
+export const FEEDBACK_DIALOG_CONTENT_CLASS =
+  "max-h-[min(90vh,900px)] gap-0 overflow-hidden border-0 bg-op-surface-secondary p-0 text-op-text-primary shadow-lg sm:max-w-[642px] dark:bg-[var(--op-color-gray-1000)]"
+
+/** Title + close row — stays fixed above the scrollable body. */
+export const FEEDBACK_DIALOG_HEADER_ROW_CLASS =
+  "flex shrink-0 items-start gap-[22px] px-8 pt-8"
+
+/** Header row for dialogs that rule off the title block from the fields below. */
+export const FEEDBACK_DIALOG_HEADER_ROW_DIVIDED_CLASS = `${FEEDBACK_DIALOG_HEADER_ROW_CLASS} border-b border-op-border-default pb-[30px]`
+
+/** Scrollable field stack — the only part of a Feedback dialog that overflows. */
+export const FEEDBACK_DIALOG_BODY_CLASS =
+  "flex min-h-0 flex-1 flex-col gap-[30px] overflow-y-auto px-8 py-[30px]"
+
+/** Action row — stays fixed below the scrollable body. */
+export const FEEDBACK_DIALOG_FOOTER_CLASS =
+  "shrink-0 flex-row gap-3 border-t border-op-border-default px-8 pt-[30px] pb-8 sm:justify-start"
+
+/** Dialog subtitle — Figma Main Bg/Subtitle `#7c7c7c` in light and dark. */
+export const FEEDBACK_DIALOG_DESCRIPTION_CLASS =
+  "text-sm font-medium leading-normal text-[var(--op-color-gray-550)] dark:text-[var(--op-color-gray-550)]"
 
 /**
  * Portaled Select menus inside Feedback dialogs — same shell chrome as Account /

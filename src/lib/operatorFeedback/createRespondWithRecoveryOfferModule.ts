@@ -22,7 +22,11 @@ import {
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
 import {
   buildGuestPreviewOfferCoupon,
+  buildGuestPreviewSendTestDialog,
+  emptyGuestPreviewSendTestSession,
+  canOpenGuestPreviewSendTest,
   GUEST_PREVIEW_SEND_TEST_ERROR,
+  type GuestPreviewSendTestDialogViewModel,
 } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import type {
   CompleteRecoveryResult,
@@ -207,12 +211,14 @@ export type RespondWithRecoveryOfferAdapters = {
     feedbackId: number
     subject: string
     body: string
+    toEmail: string
     offer?: {
       title: string
       description: string
       expiryLabel: string
     } | null
   }) => Promise<void>
+  getOperatorAccountEmail?: () => string | null | Promise<string | null>
   completeRecovery: (
     feedbackId: number,
     intent:
@@ -300,6 +306,7 @@ export type RespondWithRecoveryOfferSnapshot = {
   sendError: string | null
   sendTestStatus: "idle" | "sending" | "success" | "error"
   sendTestError: string | null
+  sendTest: GuestPreviewSendTestDialogViewModel | null
   completeStatus: "idle" | "saving" | "error"
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
@@ -375,7 +382,10 @@ export type RespondWithRecoveryOfferModule = {
   editText: () => void
   openGuestPreview: () => void
   closeGuestPreview: () => void
-  sendGuestPreviewTest: () => Promise<void>
+  openSendTestDialog: () => Promise<void>
+  closeSendTestDialog: () => void
+  setSendTestEmail: (value: string) => void
+  confirmSendTest: () => Promise<void>
   openSendConfirm: () => void
   cancelSendConfirm: () => void
   confirmSend: () => Promise<void>
@@ -428,6 +438,8 @@ type SessionState = {
   sendConfirmOpen: boolean
   sendStatus: RespondWithRecoveryOfferSnapshot["sendStatus"]
   sendError: string | null
+  sendTestDialogOpen: boolean
+  sendTestEmail: string
   sendTestStatus: RespondWithRecoveryOfferSnapshot["sendTestStatus"]
   sendTestError: string | null
   completeStatus: RespondWithRecoveryOfferSnapshot["completeStatus"]
@@ -482,8 +494,7 @@ function emptySession(): SessionState {
     sendConfirmOpen: false,
     sendStatus: "idle",
     sendError: null,
-    sendTestStatus: "idle",
-    sendTestError: null,
+    ...emptyGuestPreviewSendTestSession(),
     completeStatus: "idle",
     completeError: null,
     workflowStatus: null,
@@ -543,7 +554,10 @@ function projectSummary(
     ...state.summary,
     purposeLabel: RECOVERY_OFFER_PURPOSE_LABEL,
     toneLabel: labelForRespondToGuestTone(state.draft.tone),
-    offerTitle: state.draft.offer.title.trim() || null,
+    offerTitle:
+      state.attachedOfferTitle?.trim()
+      || state.draft.offer.title.trim()
+      || null,
     offerTypeLabel: labelForRecoveryOfferType(state.draft.offer.offerType),
   }
 }
@@ -720,6 +734,14 @@ function toSnapshot(state: SessionState): RespondWithRecoveryOfferSnapshot {
     sendError: state.sendError,
     sendTestStatus: state.sendTestStatus,
     sendTestError: state.sendTestError,
+    sendTest: buildGuestPreviewSendTestDialog({
+      wizardOpen: state.isOpen,
+      channel: draft.channel,
+      dialogOpen: state.sendTestDialogOpen,
+      email: state.sendTestEmail,
+      status: state.sendTestStatus,
+      error: state.sendTestError,
+    }),
     completeStatus: state.completeStatus,
     completeError: state.completeError,
     workflowStatus: state.workflowStatus,
@@ -1497,7 +1519,12 @@ export function createRespondWithRecoveryOfferModule(
         draft: {
           ...state.draft,
           offerId: item.id,
-          offer: { ...state.draft.offer, offerComplete: false },
+          offer: {
+            ...state.draft.offer,
+            title: item.title,
+            titleTouched: true,
+            offerComplete: false,
+          },
         },
       })
       publish()
@@ -1517,6 +1544,10 @@ export function createRespondWithRecoveryOfferModule(
               attachedOfferTitle: offer.title,
               attachedOfferStatus: offer.status,
               createOfferDraft: catalogOfferDetailToDraft(offer),
+              draft: {
+                ...state.draft,
+                offer: catalogDetailToRecoveryOfferDraft(offer),
+              },
             }
             publish()
           } catch {
@@ -2152,20 +2183,94 @@ export function createRespondWithRecoveryOfferModule(
       }
       publish()
     },
-    async sendGuestPreviewTest() {
+    async openSendTestDialog() {
+      if (
+        !canOpenGuestPreviewSendTest({
+          feedbackId: state.feedbackId,
+          channel: state.draft.channel,
+          step: state.step,
+          sendTestStatus: state.sendTestStatus,
+          aiDraftStatus: state.aiDraftStatus,
+        })
+      ) {
+        return
+      }
+
+      let email = ""
+      if (adapters.getOperatorAccountEmail != null) {
+        try {
+          email = (await adapters.getOperatorAccountEmail()) ?? ""
+        } catch {
+          email = ""
+        }
+      }
+
+      if (
+        !canOpenGuestPreviewSendTest({
+          feedbackId: state.feedbackId,
+          channel: state.draft.channel,
+          step: state.step,
+          sendTestStatus: state.sendTestStatus,
+          aiDraftStatus: state.aiDraftStatus,
+        })
+      ) {
+        return
+      }
+
+      state = {
+        ...state,
+        sendTestDialogOpen: true,
+        sendTestEmail: email,
+        sendTestStatus: "idle",
+        sendTestError: null,
+      }
+      publish()
+    },
+    closeSendTestDialog() {
+      if (!state.sendTestDialogOpen || state.sendTestStatus === "sending") {
+        return
+      }
+      state = {
+        ...state,
+        ...emptyGuestPreviewSendTestSession(),
+      }
+      publish()
+    },
+    setSendTestEmail(value) {
+      if (!state.sendTestDialogOpen) {
+        return
+      }
+      const clearingError = state.sendTestStatus === "error"
+      state = {
+        ...state,
+        sendTestEmail: value,
+        sendTestStatus: clearingError ? "idle" : state.sendTestStatus,
+        sendTestError: clearingError ? null : state.sendTestError,
+      }
+      publish()
+    },
+    async confirmSendTest() {
       if (
         state.feedbackId == null
         || state.draft.channel !== "email"
         || state.step !== "review"
+        || !state.sendTestDialogOpen
         || state.sendTestStatus === "sending"
         || state.aiDraftStatus === "running"
       ) {
         return
       }
 
+      const toEmail = state.sendTestEmail.trim()
       const subject = state.draft.subject.trim()
       const body = state.draft.message.trim()
-      if (subject === "" || body === "") {
+      if (toEmail === "" || subject === "" || body === "") {
+        state = {
+          ...state,
+          sendTestStatus: "error",
+          sendTestError: GUEST_PREVIEW_SEND_TEST_ERROR,
+        }
+        publish()
         return
       }
 
@@ -2185,6 +2290,7 @@ export function createRespondWithRecoveryOfferModule(
           feedbackId,
           subject,
           body,
+          toEmail,
           offer:
             coupon == null
               ? null
@@ -2196,6 +2302,7 @@ export function createRespondWithRecoveryOfferModule(
         })
         state = {
           ...state,
+          sendTestDialogOpen: false,
           sendTestStatus: "success",
           sendTestError: null,
         }

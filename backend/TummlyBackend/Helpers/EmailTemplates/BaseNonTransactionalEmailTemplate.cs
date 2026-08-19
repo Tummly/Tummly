@@ -1,11 +1,13 @@
 using System.Net;
+using TummlyBackend.Helpers;
 
 namespace TummlyBackend.Helpers.EmailTemplates
 {
     /// <summary>
     /// Shared Guest-facing (non-transactional) email chrome — brand header,
     /// ticket, optional offer, legal footer, powered-by.
-    /// Table layout + CID images so Gmail can paint the chrome.
+    /// Table layout. Chrome images are public HTTPS URLs so Resend and
+    /// Gmail can paint them. Offer claim QR is a PNG data URI in the body.
     /// Tokens match Operator primitives: black #141414, gray-950 #2c2c2c,
     /// radius-xl 10px.
     /// </summary>
@@ -13,9 +15,8 @@ namespace TummlyBackend.Helpers.EmailTemplates
     {
         public const string EmptyValue = "—";
 
-        public const string CidLogo = "tummly-logo";
-        public const string CidTopDecoration = "top-decoration";
-        public const string CidOfferQr = "offer-qr";
+        public const string PublicLogoPath = "/email/logo.png";
+        public const string PublicTopDecorationPath = "/email/top-decoration.png";
 
         public const string Font =
             "font-family:Arial,Helvetica,sans-serif;";
@@ -61,6 +62,12 @@ namespace TummlyBackend.Helpers.EmailTemplates
                 : locationAddress.Trim();
             var safeAddress = WebUtility.HtmlEncode(address);
             var baseUrl = frontendBaseUrl.Trim().TrimEnd('/');
+            var topDecorationUrl = WebUtility.HtmlEncode(
+                $"{baseUrl}{PublicTopDecorationPath}"
+            );
+            var poweredByLogoUrl = WebUtility.HtmlEncode(
+                $"{baseUrl}{PublicLogoPath}"
+            );
 
             var subtitleHtml = subtitle == null
                 ? string.Empty
@@ -118,7 +125,7 @@ namespace TummlyBackend.Helpers.EmailTemplates
         <table role='presentation' cellpadding='0' cellspacing='0' border='0' width='600' style='border-collapse:collapse;width:100%;max-width:600px;background-color:{ColorBlack};{Font}'>
           <tr>
             <td data-guest-response-top-decoration='1' align='right' valign='top' style='padding:0;font-size:0;line-height:0;text-align:right;'>
-              <img src='cid:{CidTopDecoration}'
+              <img src='{topDecorationUrl}'
                    alt=''
                    width='{TopDecorationWidthPx}'
                    height='{TopDecorationHeightPx}'
@@ -199,7 +206,7 @@ namespace TummlyBackend.Helpers.EmailTemplates
             <td data-non-transactional-slot='poweredBy' align='center' style='padding:0 0 32px 0;text-align:center;background-color:{ColorBlack};{Font}'>
               <p style='margin:0;font-size:10px;font-weight:500;line-height:normal;color:{ColorWhite};{Font}'>
                 Powered by
-                <img src='cid:{CidLogo}'
+                <img src='{poweredByLogoUrl}'
                      alt='Tummly'
                      height='19'
                      style='display:inline-block;vertical-align:middle;height:19px;width:auto;border:0;margin-left:6px;' />
@@ -280,7 +287,7 @@ namespace TummlyBackend.Helpers.EmailTemplates
                       <table role='presentation' cellpadding='0' cellspacing='0' border='0' align='center' style='border-collapse:collapse;margin:0 auto 24px auto;'>
                         <tr>
                           <td data-guest-response-offer-qr='1' align='center' style='padding:0;font-size:0;line-height:0;'>
-                            <img src='cid:{CidOfferQr}'
+                            <img src='{OfferClaimQr.ToPngDataUri(redemptionCode)}'
                                  alt=''
                                  width='129'
                                  height='129'

@@ -435,11 +435,16 @@ export type HomeLatestActivityFeedbackItem = {
   locationGuestId: number | null;
 } & FeedbackItem;
 
+export type LocationGuestMarketingPreference =
+  | "allowed"
+  | "opted_out"
+  | "not_recorded"
+
 export type HomeLatestActivityGuestJoinedItem = {
   kind: "guest-joined";
   locationGuestId: number;
   guestName: string;
-  offersOptOut: boolean;
+  marketingPreference: LocationGuestMarketingPreference;
   createdAt: string;
 };
 
@@ -483,10 +488,11 @@ export interface FeedbackDetailsResponse {
   /** Derived: Succeeded Negative ∧ ≠ Resolved. Omitted by older fixtures → derive client-side. */
   needsAttention?: boolean;
   /**
-   * Location Guest offers opt-out (current). Omitted by older fixtures → treat as false.
+   * Durable Location Guest marketing preference.
+   * Omitted by older fixtures → treat as allowed.
    * Used to gate Respond with a recovery offer on the Start recovery shell.
    */
-  guestOffersOptOut?: boolean;
+  marketingPreference?: LocationGuestMarketingPreference;
   /** Newest-first Feedback internal notes (may be omitted by older fixtures). */
   internalNotes?: FeedbackInternalNoteItem[];
   /** Derived timeline; may be omitted by older fixtures. */
@@ -646,6 +652,8 @@ export type SendFeedbackGuestResponseRequest = {
 export type SendGuestPreviewTestRequest = {
   subject: string
   body: string
+  /** Nominated destination from Send test email. */
+  toEmail?: string
   /** Offer-wizard send test only — sample code applied server-side. */
   offer?: {
     title: string
@@ -834,11 +842,13 @@ export type GuestProfileContactChannel = "email" | "sms";
 export type GuestProfileContactStatus =
   | "eligible"
   | "unsubscribed"
-  | "not_provided";
+  | "not_provided"
+  | "not_recorded";
 
 export type GuestProfileContactDetailKind =
   | "consent_captured"
-  | "unsubscribed";
+  | "unsubscribed"
+  | "not_recorded";
 
 export interface GuestProfileContactEligibilityRow {
   channel: GuestProfileContactChannel;
@@ -916,6 +926,8 @@ export interface GuestActivityListItem {
   authorDisplayName: string | null;
   sentiment: string | null;
   changedFields: string[] | null;
+  fromPreference: string | null;
+  toPreference: string | null;
 }
 
 export interface GuestActivityListResponse {
@@ -957,13 +969,26 @@ export interface PatchGuestIdentityResponse {
   changedFields: string[];
 }
 
+export interface PatchGuestMarketingPreferenceRequest {
+  preference: LocationGuestMarketingPreference;
+  note?: string;
+}
+
+export interface PatchGuestMarketingPreferenceResponse {
+  success: boolean;
+  preference: LocationGuestMarketingPreference;
+  preferenceChanged: boolean;
+  noteCreated: boolean;
+  noteError: string | null;
+}
+
 export interface GuestProfileResponse {
   success: boolean;
   locationId: number;
   id: number;
   name: string;
   marketingStatus: string;
-  offersOptOut: boolean;
+  marketingPreference: LocationGuestMarketingPreference;
   guestSinceAt: string;
   lastActivityAt: string | null;
   lastInteractionLabel: string;

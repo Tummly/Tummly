@@ -26,6 +26,7 @@ type FeedbackInboxRowActionsMenuProps = {
   workflowStatus: FeedbackWorkflowStatus
   onStartRecovery?: () => void
   onViewFeedback: () => void
+  onReopen: () => void
   onMarkResolved: () => void
   onMarkNoActionNeeded: () => void
 }
@@ -36,6 +37,7 @@ export function FeedbackInboxRowActionsMenu({
   workflowStatus,
   onStartRecovery,
   onViewFeedback,
+  onReopen,
   onMarkResolved,
   onMarkNoActionNeeded,
 }: FeedbackInboxRowActionsMenuProps) {
@@ -50,6 +52,9 @@ export function FeedbackInboxRowActionsMenu({
         break
       case "view-feedback":
         onViewFeedback()
+        break
+      case "reopen":
+        onReopen()
         break
       case "mark-resolved":
         onMarkResolved()

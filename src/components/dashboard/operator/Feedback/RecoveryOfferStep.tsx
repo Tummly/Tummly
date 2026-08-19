@@ -1,48 +1,30 @@
 import type { LucideIcon } from "lucide-react"
-import {
-  BanknoteIcon,
-  RefreshCwIcon,
-  SearchIcon,
-  SquarePenIcon,
-  TagIcon,
-  TicketPercentIcon,
-} from "lucide-react"
+import { SquarePenIcon, TagIcon } from "lucide-react"
 import { useLocation } from "react-router-dom"
 
 import { CreateEditOfferDrawer } from "@/components/dashboard/operator/Offers/CreateEditOfferDrawer"
+import { ExistingOfferPicker } from "@/components/dashboard/operator/Offers/ExistingOfferPicker"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import type { CampaignExistingOfferPickerCard } from "@/lib/operatorCampaigns/campaignExistingOfferPickerPresentation"
-import type {
-  RecoveryExistingOfferPickerViewModel,
-  RespondWithRecoveryOfferSnapshot,
-} from "@/lib/operatorFeedback/createRespondWithRecoveryOfferModule"
+import type { RespondWithRecoveryOfferSnapshot } from "@/lib/operatorFeedback/createRespondWithRecoveryOfferModule"
 import {
   RECOVERY_OFFER_STEP_COPY,
   type RecoveryOfferStanceId,
   type RecoveryOfferStanceOptionViewModel,
 } from "@/lib/operatorFeedback/recoveryOfferPresentation"
 import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorOffers/offerCatalogPresentation"
+import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
 import {
-  operatorDashboardOfferDetailsPath,
-  type OperatorDashboardMode,
-} from "@/lib/operatorHome/operatorDashboardPaths"
+  OPERATOR_WIZARD_SELECTABLE_CARD_CLASS,
+  OPERATOR_WIZARD_SELECTABLE_CARD_DISABLED_CLASS,
+  OPERATOR_WIZARD_SELECTABLE_CARD_IDLE_CLASS,
+  OPERATOR_WIZARD_SELECTABLE_CARD_SELECTED_CLASS,
+  OPERATOR_WIZARD_SELECTABLE_CARD_SURFACE_CLASS,
+} from "@/lib/operatorUi/operatorWizardChromePresentation"
 import { cn } from "@/lib/utils"
 
 const OFFER_STANCE_ICONS: Record<RecoveryOfferStanceId, LucideIcon> = {
   "create-and-select": SquarePenIcon,
   "existing-offer": TagIcon,
-}
-
-const PICKER_TYPE_ICONS: Record<
-  CampaignExistingOfferPickerCard["offerTypeIconId"],
-  LucideIcon
-> = {
-  percentage_discount: TicketPercentIcon,
-  fixed_discount: BanknoteIcon,
-  free_item: TagIcon,
-  replacement_item: RefreshCwIcon,
-  unknown: TagIcon,
 }
 
 type RecoveryOfferStepProps = {
@@ -83,12 +65,13 @@ function OfferStanceCard({
       aria-disabled={option.disabled || undefined}
       disabled={option.disabled}
       className={cn(
-        "h-auto min-h-0 w-full items-center justify-start gap-2.5 rounded-[4px] border px-[18px] py-4 text-left whitespace-normal hover:bg-transparent",
+        OPERATOR_WIZARD_SELECTABLE_CARD_CLASS,
+        "min-h-0 gap-2.5",
         option.disabled
-          ? "cursor-not-allowed border-op-card-border bg-op-background-secondary opacity-70"
+          ? OPERATOR_WIZARD_SELECTABLE_CARD_DISABLED_CLASS
           : option.selected
-            ? "border-[var(--op-color-gray-550)] bg-op-background-primary"
-            : "border-op-card-border bg-op-background-primary hover:border-[var(--op-color-gray-550)]"
+            ? OPERATOR_WIZARD_SELECTABLE_CARD_SELECTED_CLASS
+            : OPERATOR_WIZARD_SELECTABLE_CARD_IDLE_CLASS
       )}
       onClick={onSelect}
     >
@@ -117,7 +100,12 @@ function AttachedOfferSummary({
   disabled?: boolean
 }) {
   return (
-    <div className="flex w-full items-start justify-between gap-3 rounded-[4px] border border-op-card-border bg-op-background-secondary px-4 py-3">
+    <div
+      className={cn(
+        "flex w-full items-center justify-between gap-3 rounded-[4px] border p-4 sm:px-4 sm:py-3",
+        OPERATOR_WIZARD_SELECTABLE_CARD_SURFACE_CLASS
+      )}
+    >
       <div className="flex min-w-0 flex-col gap-1">
         <p className="m-0 text-xs font-medium text-[var(--op-color-gray-550)]">
           Attached offer
@@ -133,161 +121,6 @@ function AttachedOfferSummary({
       >
         {RECOVERY_OFFER_STEP_COPY.attachedSummaryEdit}
       </Button>
-    </div>
-  )
-}
-
-function ExistingOfferPickerCardRow({
-  card,
-  selectLabel,
-  viewDetailsLabel,
-  viewDetailsHref,
-  onSelect,
-  disabled,
-}: {
-  card: CampaignExistingOfferPickerCard
-  selectLabel: string
-  viewDetailsLabel: string
-  viewDetailsHref: string | null
-  onSelect: () => void
-  disabled?: boolean
-}) {
-  const Icon = PICKER_TYPE_ICONS[card.offerTypeIconId]
-
-  return (
-    <div className="flex w-full flex-col gap-3 rounded-[4px] border border-op-card-border bg-op-background-primary px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 items-start gap-2.5">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-[2px] bg-op-background-secondary p-2.5">
-          <Icon className="size-4 text-op-text-primary" aria-hidden />
-        </span>
-        <div className="flex min-w-0 flex-col gap-1">
-          <p className="m-0 text-sm font-medium text-op-text-primary">
-            {card.title}
-          </p>
-          <p className="m-0 text-xs font-medium leading-normal text-[var(--op-color-gray-550)]">
-            {card.metaLine}
-          </p>
-        </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {viewDetailsHref != null ? (
-          <Button asChild variant="op-tertiary" className="h-8 px-3">
-            <a
-              href={viewDetailsHref}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {viewDetailsLabel}
-            </a>
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="op-secondary"
-          className="h-8 px-3"
-          disabled={disabled}
-          onClick={onSelect}
-        >
-          {selectLabel}
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-function ExistingOfferPicker({
-  picker,
-  dashboardMode,
-  locationId,
-  disabled,
-  onSearchChange,
-  onSelect,
-  onRetry,
-}: {
-  picker: RecoveryExistingOfferPickerViewModel
-  dashboardMode: OperatorDashboardMode
-  locationId: number | null
-  disabled?: boolean
-  onSearchChange: (query: string) => void
-  onSelect: (offerId: number) => void
-  onRetry: () => void
-}) {
-  return (
-    <div
-      className="flex w-full flex-col gap-4"
-      data-testid="recovery-existing-offer-picker"
-    >
-      <div className="relative w-full">
-        <SearchIcon
-          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--op-color-gray-550)]"
-          aria-hidden
-        />
-        <Input
-          value={picker.searchQuery}
-          onChange={(event) => {
-            onSearchChange(event.target.value)
-          }}
-          placeholder={picker.searchPlaceholder}
-          className="h-10 border-op-card-border bg-op-background-primary pl-9"
-          aria-label={picker.searchPlaceholder}
-          disabled={disabled}
-        />
-      </div>
-
-      {picker.loadStatus === "loading" ? (
-        <p className="m-0 text-sm font-medium text-[var(--op-color-gray-550)]">
-          Loading offers…
-        </p>
-      ) : null}
-
-      {picker.loadStatus === "error" ? (
-        <div className="flex flex-col gap-3">
-          <p className="m-0 text-sm font-medium leading-5 text-op-text-muted">
-            {picker.error}
-          </p>
-          <Button
-            type="button"
-            variant="op-tertiary"
-            className="w-fit"
-            disabled={disabled}
-            onClick={onRetry}
-          >
-            {picker.retryLabel}
-          </Button>
-        </div>
-      ) : null}
-
-      {picker.loadStatus === "ready" && picker.isEmpty ? (
-        <p className="m-0 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
-          {picker.emptyHelper}
-        </p>
-      ) : null}
-
-      {picker.loadStatus === "ready" && !picker.isEmpty ? (
-        <div className="flex w-full flex-col gap-3">
-          {picker.cards.map((card) => (
-            <ExistingOfferPickerCardRow
-              key={card.id}
-              card={card}
-              selectLabel={picker.selectLabel}
-              viewDetailsLabel={picker.viewDetailsLabel}
-              viewDetailsHref={
-                picker.viewDetailsEnabled && locationId != null
-                  ? operatorDashboardOfferDetailsPath(
-                      dashboardMode,
-                      card.id,
-                      locationId
-                    )
-                  : null
-              }
-              disabled={disabled}
-              onSelect={() => {
-                onSelect(card.id)
-              }}
-            />
-          ))}
-        </div>
-      ) : null}
     </div>
   )
 }
@@ -346,6 +179,7 @@ export function RecoveryOfferStep({
             picker={picker}
             dashboardMode={dashboardMode}
             locationId={snapshot.locationId}
+            testId="recovery-existing-offer-picker"
             disabled={disabled}
             onSearchChange={onExistingOfferSearchChange}
             onSelect={onSelectExistingOffer}

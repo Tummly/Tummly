@@ -79,7 +79,8 @@ export function AccountMenu({
             "dark:hover:bg-white/10 dark:aria-expanded:bg-white/10 dark:data-[state=open]:bg-white/10",
             // Initials-only below md — compact hit area.
             OPERATOR_SHELL_TOUCH_TARGET_CLASS,
-            "justify-center md:size-auto md:min-h-0 md:min-w-0 md:justify-start md:px-2 md:py-1 lg:h-10 lg:px-2.5 lg:py-0"
+            // `md:h-11` keeps the two-line name + role inside the 60px navbar.
+            "justify-center md:size-auto md:h-11 md:min-h-0 md:min-w-0 md:justify-start md:px-2 md:py-0 lg:h-10 lg:px-2.5 lg:py-0"
           )}
           aria-label={`Account menu for ${profileDisplayName}`}
         >

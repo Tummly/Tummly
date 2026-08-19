@@ -12,6 +12,11 @@ import {
   RECOVERY_OFFER_TYPE_OPTIONS,
   type RecoveryOfferTypeId,
 } from "@/lib/operatorFeedback/recoveryOfferPresentation"
+import {
+  OPERATOR_WIZARD_SELECTABLE_CARD_CLASS,
+  OPERATOR_WIZARD_SELECTABLE_CARD_IDLE_CLASS,
+  OPERATOR_WIZARD_SELECTABLE_CARD_SELECTED_CLASS,
+} from "@/lib/operatorUi/operatorWizardChromePresentation"
 import { cn } from "@/lib/utils"
 
 const OFFER_TYPE_ICONS: Record<RecoveryOfferTypeId, LucideIcon> = {
@@ -54,11 +59,11 @@ export function RecoveryOfferTypeCards({
               aria-checked={selected}
               disabled={disabled}
               className={cn(
-                /* Transparent fill — Figma cards match drawer (#171717 / #202020), not a darker surface. */
-                "h-auto w-full items-center justify-start gap-2.5 rounded-[4px] border bg-transparent px-[18px] py-4 text-left whitespace-normal hover:bg-transparent",
+                OPERATOR_WIZARD_SELECTABLE_CARD_CLASS,
+                "gap-2.5",
                 selected
-                  ? "border-op-text-muted"
-                  : "border-op-card-border hover:border-op-text-muted"
+                  ? OPERATOR_WIZARD_SELECTABLE_CARD_SELECTED_CLASS
+                  : OPERATOR_WIZARD_SELECTABLE_CARD_IDLE_CLASS
               )}
               onClick={() => {
                 onValueChange(option.id)

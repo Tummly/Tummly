@@ -345,7 +345,7 @@ namespace TummlyBackend.Tests.Services
                 MasterGuestId = master.Id,
                 RestaurantLocationId = location.Id,
                 Name = "Test Guest",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow,
             };
             _context.LocationGuests.Add(locationGuest);

@@ -323,6 +323,7 @@ namespace TummlyBackend.Controllers
             [FromQuery] string[]? detectedTags = null,
             [FromQuery] string[]? qrSource = null,
             [FromQuery] string[]? contact = null,
+            [FromQuery] string[]? workflowStatus = null,
             [FromQuery] string? datePreset = null,
             [FromQuery] DateTime? dateFrom = null,
             [FromQuery] DateTime? dateTo = null,
@@ -398,6 +399,7 @@ namespace TummlyBackend.Controllers
                         DetectedTags = detectedTags,
                         QrSource = qrSource,
                         Contact = contact,
+                        WorkflowStatus = workflowStatus,
                         DatePreset = datePreset,
                         DateFrom = dateFrom,
                         DateTo = dateTo,
@@ -450,12 +452,14 @@ namespace TummlyBackend.Controllers
             [FromQuery] string scope = "current",
             [FromQuery] string format = "xlsx",
             [FromQuery] bool includeGuestContact = false,
+            [FromQuery] int? feedbackId = null,
             [FromQuery] string tab = "all",
             [FromQuery] string? q = null,
             [FromQuery] string[]? sentiment = null,
             [FromQuery] string[]? detectedTags = null,
             [FromQuery] string[]? qrSource = null,
             [FromQuery] string[]? contact = null,
+            [FromQuery] string[]? workflowStatus = null,
             [FromQuery] string? datePreset = null,
             [FromQuery] DateTime? dateFrom = null,
             [FromQuery] DateTime? dateTo = null,
@@ -526,17 +530,77 @@ namespace TummlyBackend.Controllers
                         Scope = scope,
                         Format = format,
                         IncludeGuestContact = includeGuestContact,
+                        FeedbackId = feedbackId,
                         Tab = tab,
                         Q = q,
                         Sentiment = sentiment,
                         DetectedTags = detectedTags,
                         QrSource = qrSource,
                         Contact = contact,
+                        WorkflowStatus = workflowStatus,
                         DatePreset = datePreset,
                         DateFrom = dateFrom,
                         DateTo = dateTo,
                         Sort = sort,
                         UtcOffsetMinutes = utcOffsetMinutes,
+                    }
+                );
+
+                return File(
+                    result.Content,
+                    result.ContentType,
+                    result.FileName
+                );
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpGet("{feedbackId:int}/export")]
+        public async Task<IActionResult> ExportSingleFeedback(
+            int feedbackId,
+            [FromQuery] int locationId,
+            [FromQuery] string format = "xlsx",
+            [FromQuery] bool includeGuestContact = false
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _inboxList.ExportAsync(
+                    new FeedbackExportQuery
+                    {
+                        LocationId = locationId,
+                        LocationName =
+                            ownedLocation.Location!.LocationName,
+                        FeedbackId = feedbackId,
+                        Format = format,
+                        Scope = "current",
+                        IncludeGuestContact = includeGuestContact,
                     }
                 );
 
@@ -648,13 +712,13 @@ namespace TummlyBackend.Controllers
                     .FirstOrDefaultAsync(q => q.Id == feedback.QrCodeId);
             }
 
-            var guestOffersOptOut = false;
+            var marketingPreference = LocationGuestMarketingPreference.Allowed;
             if (feedback.LocationGuestId is int locationGuestId)
             {
-                guestOffersOptOut = await _context.LocationGuests
+                marketingPreference = await _context.LocationGuests
                     .AsNoTracking()
                     .Where(lg => lg.Id == locationGuestId)
-                    .Select(lg => lg.OffersOptOut)
+                    .Select(lg => lg.MarketingPreference)
                     .FirstOrDefaultAsync();
             }
 
@@ -677,7 +741,7 @@ namespace TummlyBackend.Controllers
                 sentiment = classification.Sentiment,
                 detectedTags = classification.DetectedTags,
                 locationGuestId = feedback.LocationGuestId,
-                guestOffersOptOut,
+                marketingPreference = marketingPreference.ToWireString(),
                 workflowStatus =
                     FeedbackWorkflowStatusMapping.ToWire(
                         feedback.WorkflowStatus
@@ -1566,7 +1630,8 @@ namespace TummlyBackend.Controllers
                     userId,
                     dto.Subject,
                     dto.Body,
-                    dto.Offer
+                    dto.Offer,
+                    dto.ToEmail
                 );
 
                 if (result == null)

@@ -377,6 +377,15 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<LocationGuest>()
                 .HasIndex(lg => new { lg.RestaurantLocationId, lg.CreatedAt });
 
+            modelBuilder.Entity<LocationGuest>()
+                .Property(lg => lg.MarketingPreference)
+                .HasConversion(
+                    v => v.ToWireString(),
+                    v => LocationGuestMarketingPreferenceExtensions.FromWireString(v)
+                )
+                .HasMaxLength(32)
+                .IsRequired();
+
             modelBuilder.Entity<Feedback>()
                 .HasOne(f => f.LocationGuest)
                 .WithMany(lg => lg.Feedbacks)

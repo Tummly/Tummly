@@ -206,6 +206,45 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ExportSingle_ReturnsOnlyRequestedFeedback()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "feedback-export-single"
+            );
+            var requestedId = await AddFeedbackAsync(
+                seeded.LocationId,
+                new DateTime(2026, 7, 12, 10, 0, 0, DateTimeKind.Utc),
+                "Requested feedback",
+                "Alex",
+                ClassificationStatus.Succeeded,
+                FeedbackSentiment.Neutral,
+                FeedbackWorkflowStatus.New
+            );
+            await AddFeedbackAsync(
+                seeded.LocationId,
+                new DateTime(2026, 7, 13, 10, 0, 0, DateTimeKind.Utc),
+                "Other feedback",
+                "Blair",
+                ClassificationStatus.Succeeded,
+                FeedbackSentiment.Positive,
+                FeedbackWorkflowStatus.Resolved
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/feedback/{requestedId}/export"
+                    + $"?locationId={seeded.LocationId}&format=csv",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var csv = await response.Content.ReadAsStringAsync();
+            Assert.Contains("Requested feedback", csv);
+            Assert.DoesNotContain("Other feedback", csv);
+            Assert.Equal(2, SplitCsvLines(csv).Count);
+        }
+
+        [Fact]
         public async Task Export_EmptyScope_Returns400()
         {
             var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
@@ -288,7 +327,8 @@ namespace TummlyBackend.Tests.Integration
             string scope = "current",
             string format = "xlsx",
             string tab = "all",
-            bool includeGuestContact = false
+            bool includeGuestContact = false,
+            int? feedbackId = null
         )
         {
             var builder = new StringBuilder();
@@ -302,6 +342,10 @@ namespace TummlyBackend.Tests.Integration
             if (includeGuestContact)
             {
                 builder.Append("&includeGuestContact=true");
+            }
+            if (feedbackId.HasValue)
+            {
+                builder.Append($"&feedbackId={feedbackId.Value}");
             }
 
             return builder.ToString();
@@ -453,7 +497,7 @@ namespace TummlyBackend.Tests.Integration
             }
         }
 
-        private async Task AddFeedbackAsync(
+        private async Task<int> AddFeedbackAsync(
             int locationId,
             DateTime createdAt,
             string comment,
@@ -475,7 +519,7 @@ namespace TummlyBackend.Tests.Integration
                 .Select(q => q.Id)
                 .FirstAsync();
 
-            context.Feedbacks.Add(new Feedback
+            var feedback = new Feedback
             {
                 RestaurantLocationId = locationId,
                 QrCodeId = qrCodeId,
@@ -492,8 +536,10 @@ namespace TummlyBackend.Tests.Integration
                         ? "[]"
                         : null),
                 WorkflowStatus = workflowStatus,
-            });
+            };
+            context.Feedbacks.Add(feedback);
             await context.SaveChangesAsync();
+            return feedback.Id;
         }
 
         private static async Task<JsonElement> ReadJsonAsync(

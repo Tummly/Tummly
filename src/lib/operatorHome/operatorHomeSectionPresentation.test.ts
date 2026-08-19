@@ -72,9 +72,8 @@ describe("operatorHomeSectionPresentation", () => {
     expect(RECOMMENDED_HEADER_CLASS).toContain("pb-6")
     expect(RECOMMENDED_INNER_PANEL_CLASS).toContain("p-4")
     expect(RECOMMENDED_INNER_PANEL_CLASS).toContain("sm:p-5")
-    expect(RECOMMENDED_INNER_PANEL_CLASS).toContain(
-      "dark:bg-op-background-secondary"
-    )
+    expect(RECOMMENDED_INNER_PANEL_CLASS).toContain("bg-op-background-secondary")
+    expect(RECOMMENDED_INNER_PANEL_CLASS).not.toContain("bg-op-surface-primary")
     expect(RECOMMENDED_EMPTY_COPY).toContain("recommended action")
     expect(NEEDS_ATTENTION_EMPTY_COPY).toBe(
       "Nothing needs attention right now."

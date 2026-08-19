@@ -835,7 +835,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = master.Id,
                 RestaurantLocationId = seeded.LocationId,
                 Name = "Mixed Channels",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow.AddDays(-2),
             };
             context.LocationGuests.Add(locationGuest);
@@ -912,7 +912,7 @@ namespace TummlyBackend.Tests.Integration
                     MasterGuestId = master.Id,
                     RestaurantLocationId = seeded.LocationId,
                     Name = "Both Groups",
-                    OffersOptOut = false,
+                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
                     CreatedAt = DateTime.UtcNow.AddDays(-10),
                 };
                 context.LocationGuests.Add(locationGuest);
@@ -1013,7 +1013,7 @@ namespace TummlyBackend.Tests.Integration
                     MasterGuestId = master.Id,
                     RestaurantLocationId = seeded.LocationId,
                     Name = $"{status} Neg",
-                    OffersOptOut = false,
+                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
                     CreatedAt = DateTime.UtcNow.AddDays(-2),
                 };
                 context.LocationGuests.Add(locationGuest);
@@ -1082,7 +1082,7 @@ namespace TummlyBackend.Tests.Integration
                     MasterGuestId = master.Id,
                     RestaurantLocationId = seeded.LocationId,
                     Name = "Corrected Guest",
-                    OffersOptOut = false,
+                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
                     CreatedAt = DateTime.UtcNow.AddDays(-3),
                 };
                 context.LocationGuests.Add(locationGuest);
@@ -1189,7 +1189,7 @@ namespace TummlyBackend.Tests.Integration
                     MasterGuestId = morganMaster.Id,
                     RestaurantLocationId = seeded.LocationId,
                     Name = "Morgan",
-                    OffersOptOut = false,
+                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
                     CreatedAt = DateTime.UtcNow.AddDays(-200),
                 };
                 var riley = new LocationGuest
@@ -1197,7 +1197,7 @@ namespace TummlyBackend.Tests.Integration
                     MasterGuestId = rileyMaster.Id,
                     RestaurantLocationId = seeded.LocationId,
                     Name = "Riley",
-                    OffersOptOut = false,
+                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
                     CreatedAt = DateTime.UtcNow.AddDays(-150),
                 };
                 context.LocationGuests.AddRange(morgan, riley);
@@ -1319,7 +1319,7 @@ namespace TummlyBackend.Tests.Integration
                     MasterGuestId = master.Id,
                     RestaurantLocationId = seeded.LocationId,
                     Name = "Mixed Sentiment",
-                    OffersOptOut = false,
+                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
                     CreatedAt = DateTime.UtcNow.AddDays(-5),
                 };
                 context.LocationGuests.Add(locationGuest);
@@ -1497,7 +1497,8 @@ namespace TummlyBackend.Tests.Integration
                     MasterGuestId = master.Id,
                     RestaurantLocationId = owner.LocationId,
                     Name = name,
-                    OffersOptOut = offersOptOut,
+                    MarketingPreference = LocationGuestMarketingPreferenceExtensions.FromFeedbackOffersOptOut(offersOptOut),
+
                     CreatedAt = capturedAt,
                 };
                 context.LocationGuests.Add(locationGuest);
@@ -1682,7 +1683,7 @@ namespace TummlyBackend.Tests.Integration
                     MasterGuestId = masterA.Id,
                     RestaurantLocationId = locationA.Id,
                     Name = "Location A Guest",
-                    OffersOptOut = false,
+                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
                     CreatedAt = DateTime.UtcNow.AddDays(-3),
                 },
                 new LocationGuest
@@ -1690,7 +1691,7 @@ namespace TummlyBackend.Tests.Integration
                     MasterGuestId = masterB.Id,
                     RestaurantLocationId = locationB.Id,
                     Name = "Location B Guest",
-                    OffersOptOut = false,
+                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
                     CreatedAt = DateTime.UtcNow.AddDays(-4),
                 }
             );

@@ -1,6 +1,7 @@
 import type {
   FeedbackItem,
   HomeLatestActivityItem,
+  LocationGuestMarketingPreference,
   LocationItem,
 } from "@/types/dashboard"
 import { HOME_PERFORMANCE_DEFAULT_DATE_RANGE_LABEL } from "@/lib/operatorHome/homePerformanceDateRange"
@@ -63,9 +64,15 @@ function buildGuestJoinedHeadline(guestName: string): string {
 }
 
 function buildGuestConsentLabel(
-  offersOptOut: boolean
-): "Opted in" | "Opted out" {
-  return offersOptOut ? "Opted out" : "Opted in"
+  preference: LocationGuestMarketingPreference
+): "Opted in" | "Opted out" | "Not recorded" {
+  if (preference === "opted_out") {
+    return "Opted out"
+  }
+  if (preference === "not_recorded") {
+    return "Not recorded"
+  }
+  return "Opted in"
 }
 
 function mapLatestActivityItems(
@@ -87,7 +94,7 @@ function mapLatestActivityItems(
         initials: getOperatorInitials(item.guestName),
         headline: buildGuestJoinedHeadline(item.guestName),
         joinSourceLabel: GUEST_JOIN_SOURCE_LABEL,
-        consentLabel: buildGuestConsentLabel(item.offersOptOut),
+        consentLabel: buildGuestConsentLabel(item.marketingPreference),
         createdAt: item.createdAt,
         canViewGuest: true,
         canSendOffer: false,

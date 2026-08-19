@@ -5,6 +5,7 @@ import type {
   OperatorGuestProfilePageModule,
   OperatorGuestProfilePageSnapshot,
 } from "@/lib/operatorGuestProfile/createOperatorGuestProfilePageModule"
+import type { ManageMarketingPreferencesSnapshot } from "@/lib/operatorGuests/createManageMarketingPreferencesSessionModule"
 
 export type OperatorGuestProfilePageModuleApi = {
   snapshot: OperatorGuestProfilePageSnapshot
@@ -53,6 +54,12 @@ export type OperatorGuestProfilePageModuleApi = {
   recoveryWizards: OperatorGuestProfilePageModule["recoveryWizards"]
   updateNote: OperatorGuestProfilePageModule["updateNote"]
   softDeleteNote: OperatorGuestProfilePageModule["softDeleteNote"]
+  marketingPreferencesSnapshot: ManageMarketingPreferencesSnapshot
+  openManageMarketingPreferences: OperatorGuestProfilePageModule["openManageMarketingPreferences"]
+  closeManageMarketingPreferences: OperatorGuestProfilePageModule["closeManageMarketingPreferences"]
+  saveManageMarketingPreferences: OperatorGuestProfilePageModule["saveManageMarketingPreferences"]
+  setMarketingPreferenceDraft: OperatorGuestProfilePageModule["marketingPreferences"]["setDraftPreference"]
+  setMarketingPreferenceNote: OperatorGuestProfilePageModule["marketingPreferences"]["setDraftNote"]
 }
 
 export function useGuestProfilePageModule(): OperatorGuestProfilePageModuleApi {
@@ -61,6 +68,11 @@ export function useGuestProfilePageModule(): OperatorGuestProfilePageModuleApi {
     pageModule.subscribe,
     pageModule.getSnapshot,
     pageModule.getSnapshot
+  )
+  const marketingPreferencesSnapshot = useSyncExternalStore(
+    pageModule.marketingPreferences.subscribe,
+    pageModule.marketingPreferences.getSnapshot,
+    pageModule.marketingPreferences.getSnapshot
   )
 
   return {
@@ -110,5 +122,11 @@ export function useGuestProfilePageModule(): OperatorGuestProfilePageModuleApi {
     recoveryWizards: pageModule.recoveryWizards,
     updateNote: pageModule.updateNote,
     softDeleteNote: pageModule.softDeleteNote,
+    marketingPreferencesSnapshot,
+    openManageMarketingPreferences: pageModule.openManageMarketingPreferences,
+    closeManageMarketingPreferences: pageModule.closeManageMarketingPreferences,
+    saveManageMarketingPreferences: pageModule.saveManageMarketingPreferences,
+    setMarketingPreferenceDraft: pageModule.marketingPreferences.setDraftPreference,
+    setMarketingPreferenceNote: pageModule.marketingPreferences.setDraftNote,
   }
 }

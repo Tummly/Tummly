@@ -7,6 +7,7 @@ import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { GuestPreviewPanel } from "@/components/dashboard/operator/Feedback/GuestPreviewPanel"
+import { CampaignSendTestEmailDialog } from "@/components/dashboard/operator/Campaigns/CampaignSendTestEmailDialog"
 import { GuestResponseChooser } from "@/components/dashboard/operator/Feedback/GuestResponseChooser"
 import { GuestResponseWriteFields } from "@/components/dashboard/operator/Feedback/GuestResponseWriteFields"
 import { InternalActionCategoryToggleGroup } from "@/components/dashboard/operator/Feedback/InternalActionCategoryToggleGroup"
@@ -78,7 +79,10 @@ type RespondAndRecordWizardProps = {
   onEditText: () => void
   onOpenGuestPreview: () => void
   onCloseGuestPreview: () => void
-  onSendGuestPreviewTest: () => void
+  onOpenSendTest: () => void
+  onCloseSendTest: () => void
+  onSendTestEmailChange: (value: string) => void
+  onConfirmSendTest: () => void
   onOpenSendConfirm: () => void
   onCancelSendConfirm: () => void
   onConfirmSend: () => void
@@ -128,7 +132,10 @@ export function RespondAndRecordInternalActionWizard({
   onEditText,
   onOpenGuestPreview,
   onCloseGuestPreview,
-  onSendGuestPreviewTest,
+  onOpenSendTest,
+  onCloseSendTest,
+  onSendTestEmailChange,
+  onConfirmSendTest,
   onOpenSendConfirm,
   onCancelSendConfirm,
   onConfirmSend,
@@ -205,6 +212,7 @@ export function RespondAndRecordInternalActionWizard({
           : REVIEW_RESPONSE_STEP_DESCRIPTION
 
   return (
+    <>
     <OperatorWizardShell
       isOpen={snapshot.isOpen}
       onRequestClose={isSuccess ? onKeepInProgress : onSaveAndExit}
@@ -493,7 +501,7 @@ export function RespondAndRecordInternalActionWizard({
               onOpenPreview={onOpenGuestPreview}
               onClosePreview={onCloseGuestPreview}
               onEditText={onEditText}
-              onSendTest={onSendGuestPreviewTest}
+              onSendTest={onOpenSendTest}
               sendTestBusy={snapshot.sendTestStatus === "sending"}
             />
           ) : (
@@ -538,5 +546,18 @@ export function RespondAndRecordInternalActionWizard({
         </div>
       ) : null}
     </OperatorWizardShell>
+      {snapshot.sendTest != null ? (
+        <CampaignSendTestEmailDialog
+          sendTest={snapshot.sendTest}
+          onOpenChange={(open) => {
+            if (!open) {
+              onCloseSendTest()
+            }
+          }}
+          onEmailChange={onSendTestEmailChange}
+          onConfirm={onConfirmSendTest}
+        />
+      ) : null}
+    </>
   )
 }

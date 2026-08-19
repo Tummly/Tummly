@@ -5,6 +5,15 @@ import type {
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
 import { CAMPAIGN_EXISTING_OFFER_PICKER_COPY } from "@/lib/operatorCampaigns/campaignExistingOfferPickerPresentation"
 
+export {
+  EXISTING_OFFER_PICKER_CARD_ACTIONS_CLASS as RECOVERY_EXISTING_OFFER_PICKER_CARD_ACTIONS_CLASS,
+  EXISTING_OFFER_PICKER_CARD_CLASS as RECOVERY_EXISTING_OFFER_PICKER_CARD_CLASS,
+  EXISTING_OFFER_PICKER_CARD_META_CLASS as RECOVERY_EXISTING_OFFER_PICKER_CARD_META_CLASS,
+  EXISTING_OFFER_PICKER_CARD_TITLE_CLASS as RECOVERY_EXISTING_OFFER_PICKER_CARD_TITLE_CLASS,
+  EXISTING_OFFER_PICKER_ICON_WELL_CLASS as RECOVERY_EXISTING_OFFER_PICKER_ICON_WELL_CLASS,
+  EXISTING_OFFER_PICKER_PANEL_CLASS as RECOVERY_EXISTING_OFFER_PICKER_PANEL_CLASS,
+} from "@/lib/operatorCampaigns/campaignExistingOfferPickerPresentation"
+
 /** Fixed purpose for Respond with a recovery offer. */
 export const RECOVERY_OFFER_PURPOSE_ID = "include_a_recovery_offer" as const
 export const RECOVERY_OFFER_PURPOSE_LABEL = "Include a recovery offer"
@@ -52,17 +61,17 @@ export const RECOVERY_OFFER_STEP_COPY = {
 export const RECOVERY_OFFER_STANCE_OPTIONS: readonly RecoveryOfferStanceOption[] =
   [
     {
-      id: "create-and-select",
-      title: "Create and select",
-      description:
-        "Define the benefit, validity and redemption rules, then attach the new catalog offer.",
-      disabled: false,
-    },
-    {
       id: "existing-offer",
       title: "Existing offer",
       description:
         "Best for short, time-sensitive messages and simple offer reminders.",
+      disabled: false,
+    },
+    {
+      id: "create-and-select",
+      title: "Create and select",
+      description:
+        "Define the benefit, validity and redemption rules, then attach the new catalog offer.",
       disabled: false,
     },
   ] as const

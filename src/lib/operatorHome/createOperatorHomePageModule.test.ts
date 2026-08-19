@@ -1717,7 +1717,7 @@ describe("createOperatorHomePageModule", () => {
           kind: "guest-joined" as const,
           locationGuestId: 501,
           guestName: "Jordan Guest",
-          offersOptOut: false,
+          marketingPreference: "allowed" as const,
           createdAt: "2026-07-13T09:00:00.000Z",
         },
         {

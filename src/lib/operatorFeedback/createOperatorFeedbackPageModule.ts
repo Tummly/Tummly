@@ -101,6 +101,7 @@ export type OperatorFeedbackWorkspaceInput = {
 
 export type OperatorFeedbackPageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
+  tabContentStatus: "loading" | "ready" | "refreshing"
   viewModel: OperatorFeedbackPageViewModel | null
   /** Inbox tab target; Review needs attention switches to needs-attention. */
   activeInboxTabId: OperatorFeedbackInboxTabId
@@ -148,6 +149,10 @@ export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   exportFeedback: (
     params: FeedbackExportQueryParams
   ) => Promise<{ blob: Blob; filename: string }>
+  exportSingleFeedback: (params: {
+    feedbackId: number
+    locationId: number
+  }) => Promise<{ blob: Blob; filename: string }>
   triggerBrowserDownload: (blob: Blob, filename: string) => void
   getFeedbackPageDateRange: () => HomePerformanceDateRange
   connectRealtime?: (
@@ -158,6 +163,7 @@ export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   debounceMs?: number
   sendGuestResponse: RespondToGuestAdapters["sendGuestResponse"]
   sendGuestPreviewTest: RespondToGuestAdapters["sendGuestPreviewTest"]
+  getOperatorAccountEmail?: RespondToGuestAdapters["getOperatorAccountEmail"]
   completeRecovery: RespondToGuestAdapters["completeRecovery"]
   prepareRecoveryDraft: RespondToGuestAdapters["prepareRecoveryDraft"]
   recordInternalAction: RecordInternalActionAdapters["recordInternalAction"]
@@ -182,6 +188,7 @@ export type OperatorFeedbackPageModule = {
   syncWorkspace: (input: OperatorFeedbackWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
   reloadForFeedbackPageDateRange: () => Promise<void>
+  clearTabCache: () => void
   reviewNeedsAttention: () => void
   requestOpenDateRange: () => void
   setActiveInboxTabId: (id: OperatorFeedbackInboxTabId) => void
@@ -201,6 +208,7 @@ export type OperatorFeedbackPageModule = {
   setExportFormat: (format: FeedbackExportFormat) => void
   setExportIncludeGuestContact: (include: boolean) => void
   downloadExport: () => Promise<void>
+  exportSingleFeedback: (feedbackId: number) => Promise<boolean>
   openFeedbackDetails: (feedbackId: number) => Promise<void>
   closeFeedbackDetails: () => void
   openPreviousFeedback: () => Promise<void>
@@ -246,7 +254,10 @@ export type OperatorFeedbackPageModule = {
   editRespondToGuestText: () => void
   openRespondToGuestGuestPreview: () => void
   closeRespondToGuestGuestPreview: () => void
-  sendRespondToGuestGuestPreviewTest: () => Promise<void>
+  openRespondToGuestSendTestDialog: () => Promise<void>
+  closeRespondToGuestSendTestDialog: () => void
+  setRespondToGuestSendTestEmail: (value: string) => void
+  confirmRespondToGuestSendTest: () => Promise<void>
   openRespondToGuestSendConfirm: () => void
   cancelRespondToGuestSendConfirm: () => void
   confirmRespondToGuestSend: () => Promise<void>
@@ -311,7 +322,10 @@ export type OperatorFeedbackPageModule = {
   editRespondAndRecordText: () => void
   openRespondAndRecordGuestPreview: () => void
   closeRespondAndRecordGuestPreview: () => void
-  sendRespondAndRecordGuestPreviewTest: () => Promise<void>
+  openRespondAndRecordSendTestDialog: () => Promise<void>
+  closeRespondAndRecordSendTestDialog: () => void
+  setRespondAndRecordSendTestEmail: (value: string) => void
+  confirmRespondAndRecordSendTest: () => Promise<void>
   openRespondAndRecordSendConfirm: () => void
   cancelRespondAndRecordSendConfirm: () => void
   confirmRespondAndRecordSend: () => Promise<void>
@@ -365,7 +379,10 @@ export type OperatorFeedbackPageModule = {
   editRespondWithRecoveryOfferText: () => void
   openRespondWithRecoveryOfferGuestPreview: () => void
   closeRespondWithRecoveryOfferGuestPreview: () => void
-  sendRespondWithRecoveryOfferGuestPreviewTest: () => Promise<void>
+  openRespondWithRecoveryOfferSendTestDialog: () => Promise<void>
+  closeRespondWithRecoveryOfferSendTestDialog: () => void
+  setRespondWithRecoveryOfferSendTestEmail: (value: string) => void
+  confirmRespondWithRecoveryOfferSendTest: () => Promise<void>
   openRespondWithRecoveryOfferSendConfirm: () => void
   cancelRespondWithRecoveryOfferSendConfirm: () => void
   confirmRespondWithRecoveryOfferSend: () => Promise<void>
@@ -408,6 +425,7 @@ export type OperatorFeedbackPageModule = {
 
 type ModuleState = {
   loadStatus: OperatorFeedbackPageSnapshot["loadStatus"]
+  tabContentStatus: OperatorFeedbackPageSnapshot["tabContentStatus"]
   viewModel: OperatorFeedbackPageViewModel | null
   workspace: OperatorFeedbackWorkspaceInput | null
   activeInboxTabId: OperatorFeedbackInboxTabId
@@ -415,7 +433,6 @@ type ModuleState = {
   scrollToInboxRequestId: number
   lastLoadedAtIso: string | null
   pageLoadGeneration: number
-  inboxLoadGeneration: number
   searchQuery: string
   sortId: OperatorFeedbackInboxSortId
   page: number
@@ -542,6 +559,7 @@ export function createOperatorFeedbackPageModule(
     getFeedbackDetails: adapters.getFeedbackDetails,
     sendGuestResponse: adapters.sendGuestResponse,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
+    getOperatorAccountEmail: adapters.getOperatorAccountEmail,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
   })
@@ -556,6 +574,7 @@ export function createOperatorFeedbackPageModule(
     getFeedbackDetails: adapters.getFeedbackDetails,
     sendAndRecord: adapters.sendAndRecord,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
+    getOperatorAccountEmail: adapters.getOperatorAccountEmail,
     completeRecovery:
       adapters.completeRecovery as RespondAndRecordAdapters["completeRecovery"],
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
@@ -576,12 +595,14 @@ export function createOperatorFeedbackPageModule(
     listCatalogOffers: adapters.listCatalogOffers,
     sendAndIssueRecoveryOffer: adapters.sendAndIssueRecoveryOffer,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
+    getOperatorAccountEmail: adapters.getOperatorAccountEmail,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryOfferDraft,
   })
 
   let state: ModuleState = {
     loadStatus: "idle",
+    tabContentStatus: "loading",
     viewModel: null,
     workspace: null,
     activeInboxTabId: "all",
@@ -589,7 +610,6 @@ export function createOperatorFeedbackPageModule(
     scrollToInboxRequestId: 0,
     lastLoadedAtIso: null,
     pageLoadGeneration: 0,
-    inboxLoadGeneration: 0,
     searchQuery: "",
     sortId: DEFAULT_SORT_ID,
     page: 1,
@@ -612,6 +632,7 @@ export function createOperatorFeedbackPageModule(
 
   let snapshot: OperatorFeedbackPageSnapshot = {
     loadStatus: state.loadStatus,
+    tabContentStatus: state.tabContentStatus,
     viewModel: state.viewModel,
     activeInboxTabId: state.activeInboxTabId,
     openDateRangeRequestId: state.openDateRangeRequestId,
@@ -629,12 +650,20 @@ export function createOperatorFeedbackPageModule(
   }
   const listeners = new Set<() => void>()
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+  const inboxTabCache = new Map<
+    OperatorFeedbackInboxTabId,
+    FeedbackInboxListResponse
+  >()
+  const inboxRequestByTab = new Map<OperatorFeedbackInboxTabId, number>()
+  let inboxCacheGeneration = 0
+  let inboxRequestSequence = 0
 
 
 
   const publish = () => {
     snapshot = {
       loadStatus: state.loadStatus,
+      tabContentStatus: state.tabContentStatus,
       viewModel: state.viewModel,
       activeInboxTabId: state.activeInboxTabId,
       openDateRangeRequestId: state.openDateRangeRequestId,
@@ -664,13 +693,22 @@ export function createOperatorFeedbackPageModule(
     }
   }
 
+  const invalidateTabCache = () => {
+    inboxCacheGeneration += 1
+    inboxTabCache.clear()
+    inboxRequestByTab.clear()
+  }
 
 
-  const buildInboxQueryParams = (locationId: number) =>
+
+  const buildInboxQueryParams = (
+    locationId: number,
+    tab: OperatorFeedbackInboxTabId = state.activeInboxTabId
+  ) =>
     buildFeedbackInboxListQueryParams({
       locationId,
       headerDateRange: adapters.getFeedbackPageDateRange(),
-      tab: state.activeInboxTabId,
+      tab,
       q: state.searchQuery,
       sort: state.sortId,
       page: state.page,
@@ -742,6 +780,26 @@ export function createOperatorFeedbackPageModule(
   }
 
 
+
+  const hideInboxContent = () => {
+    if (state.viewModel == null) {
+      return
+    }
+    state = {
+      ...state,
+      viewModel: {
+        ...state.viewModel,
+        inbox: {
+          ...state.viewModel.inbox,
+          tableRows: [],
+          tableEmptyState: null,
+        },
+      },
+      inboxListContextFeedbackIds: [],
+      canGoPreviousFeedback: false,
+      canGoNextFeedback: false,
+    }
+  }
 
   const buildViewModelShell = (
     input: OperatorFeedbackWorkspaceInput,
@@ -839,6 +897,8 @@ export function createOperatorFeedbackPageModule(
     quiet?: boolean
   }): Promise<void> => {
     const generation = ++state.pageLoadGeneration
+    const cacheGeneration = inboxCacheGeneration
+    const requestedTab = state.activeInboxTabId
     const isQuiet = options.quiet === true && state.viewModel != null
 
 
@@ -846,6 +906,7 @@ export function createOperatorFeedbackPageModule(
     state = {
       ...state,
       loadStatus: isQuiet ? state.loadStatus : "loading",
+      tabContentStatus: isQuiet ? "refreshing" : "loading",
       ...(options.isInitialLoad ? { viewModel: null } : {}),
     }
     publish()
@@ -857,7 +918,7 @@ export function createOperatorFeedbackPageModule(
 
 
     const summaryParams = buildSummaryParams(options.locationId)
-    const inboxParams = buildInboxQueryParams(options.locationId)
+    const inboxParams = buildInboxQueryParams(options.locationId, requestedTab)
 
 
 
@@ -884,6 +945,7 @@ export function createOperatorFeedbackPageModule(
       state = {
         ...state,
         loadStatus: "error",
+        tabContentStatus: "ready",
         ...(options.isInitialLoad ? { viewModel: null } : {}),
         workspace: options.workspace,
       }
@@ -894,26 +956,44 @@ export function createOperatorFeedbackPageModule(
 
 
     const loadedAtIso = getNow().toISOString()
+    if (cacheGeneration === inboxCacheGeneration) {
+      inboxTabCache.set(requestedTab, inboxSettled.response)
+    }
+    const nextViewModel = buildViewModelShell(
+      options.workspace,
+      options.locationId,
+      summarySettled.response,
+      loadedAtIso,
+      inboxSettled.response
+    )
+    const requestedTabIsActive = state.activeInboxTabId === requestedTab
     state = {
       ...state,
       loadStatus: "loaded",
-      viewModel: buildViewModelShell(
-        options.workspace,
-        options.locationId,
-        summarySettled.response,
-        loadedAtIso,
-        inboxSettled.response
-      ),
+      tabContentStatus: requestedTabIsActive
+        ? "ready"
+        : state.tabContentStatus,
+      viewModel:
+        requestedTabIsActive || state.viewModel == null
+          ? nextViewModel
+          : { ...nextViewModel, inbox: state.viewModel.inbox },
       lastLoadedAtIso: loadedAtIso,
       workspace: options.workspace,
     }
-    applyInboxListContext(inboxSettled.response)
+    if (requestedTabIsActive) {
+      applyInboxListContext(inboxSettled.response)
+    } else if (state.viewModel === nextViewModel) {
+      hideInboxContent()
+    }
     publish()
   }
 
 
 
-  const fetchInbox = async (options?: { quiet?: boolean }) => {
+  const fetchInbox = async (options?: {
+    tab?: OperatorFeedbackInboxTabId
+    hasCachedContent?: boolean
+  }) => {
     const locationId = state.workspace?.selectedLocationId
     if (locationId == null) {
       return
@@ -921,22 +1001,19 @@ export function createOperatorFeedbackPageModule(
 
 
 
-    const generation = ++state.inboxLoadGeneration
-    const isQuiet = options?.quiet === true && state.viewModel != null
+    const requestedTab = options?.tab ?? state.activeInboxTabId
+    const hasCachedContent =
+      options?.hasCachedContent ?? inboxTabCache.has(requestedTab)
+    const cacheGeneration = inboxCacheGeneration
+    const requestSequence = ++inboxRequestSequence
+    inboxRequestByTab.set(requestedTab, requestSequence)
 
 
 
-    if (!isQuiet) {
-      state = {
-        ...state,
-        loadStatus: "loading",
-      }
-      publish()
-    }
+    const inboxParams = buildInboxQueryParams(locationId, requestedTab)
 
 
 
-    const inboxParams = buildInboxQueryParams(locationId)
 
 
 
@@ -947,17 +1024,21 @@ export function createOperatorFeedbackPageModule(
 
 
 
-    if (generation !== state.inboxLoadGeneration) {
+    if (
+      cacheGeneration !== inboxCacheGeneration
+      || inboxRequestByTab.get(requestedTab) !== requestSequence
+    ) {
       return
     }
 
 
 
     if (!settled.ok) {
-      if (!isQuiet) {
+      if (state.activeInboxTabId === requestedTab) {
         state = {
           ...state,
-          loadStatus: "error",
+          loadStatus: hasCachedContent ? state.loadStatus : "error",
+          tabContentStatus: "ready",
         }
         publish()
       }
@@ -966,7 +1047,11 @@ export function createOperatorFeedbackPageModule(
 
 
 
-    if (state.viewModel == null) {
+    inboxTabCache.set(requestedTab, settled.response)
+    if (
+      state.activeInboxTabId !== requestedTab
+      || state.viewModel == null
+    ) {
       return
     }
 
@@ -975,6 +1060,7 @@ export function createOperatorFeedbackPageModule(
     state = {
       ...state,
       loadStatus: "loaded",
+      tabContentStatus: "ready",
       viewModel: mapInboxIntoViewModel(state.viewModel, settled.response),
     }
     applyInboxListContext(settled.response)
@@ -983,11 +1069,36 @@ export function createOperatorFeedbackPageModule(
 
 
 
+  const selectInboxTab = (id: OperatorFeedbackInboxTabId) => {
+    if (state.page !== 1) {
+      invalidateTabCache()
+    }
+    const cached = inboxTabCache.get(id)
+    state = {
+      ...state,
+      activeInboxTabId: id,
+      page: 1,
+      tabContentStatus: cached == null ? "loading" : "refreshing",
+    }
+    if (cached == null) {
+      hideInboxContent()
+    } else if (state.viewModel != null) {
+      state = {
+        ...state,
+        viewModel: mapInboxIntoViewModel(state.viewModel, cached),
+      }
+      applyInboxListContext(cached)
+    }
+    syncInboxPresentation()
+    publish()
+    void fetchInbox({ tab: id, hasCachedContent: cached != null })
+  }
+
   const scheduleInboxFetch = () => {
     clearSearchDebounce()
     searchDebounceTimer = setTimeout(() => {
       searchDebounceTimer = null
-      void fetchInbox({ quiet: true })
+      void fetchInbox()
     }, debounceMs)
   }
 
@@ -999,6 +1110,7 @@ export function createOperatorFeedbackPageModule(
     if (workspace == null || locationId == null) {
       return
     }
+    invalidateTabCache()
     await fetchPageData({
       workspace,
       locationId,
@@ -1026,12 +1138,12 @@ export function createOperatorFeedbackPageModule(
   ): Promise<void> => {
     const generation = ++state.pageLoadGeneration
     clearSearchDebounce()
+    invalidateTabCache()
     state = {
       ...state,
       loadStatus: "loading",
       viewModel: null,
       workspace: input,
-      activeInboxTabId: "all",
       searchQuery: "",
       sortId: DEFAULT_SORT_ID,
       page: 1,
@@ -1062,6 +1174,7 @@ export function createOperatorFeedbackPageModule(
       state = {
         ...state,
         loadStatus: "loaded",
+        tabContentStatus: "ready",
         viewModel: null,
         workspace: input,
       }
@@ -1148,6 +1261,7 @@ export function createOperatorFeedbackPageModule(
 
 
   const disconnect = async () => {
+    invalidateTabCache()
     const session = realtimeSession
     realtimeSession = null
     if (session != null) {
@@ -1188,21 +1302,27 @@ export function createOperatorFeedbackPageModule(
         ...state,
         page: 1,
       }
+      invalidateTabCache()
       await fetchPageData({
         workspace,
         locationId,
         isInitialLoad: false,
       })
     },
+    clearTabCache() {
+      invalidateTabCache()
+      state = {
+        ...state,
+        tabContentStatus: "ready",
+      }
+      publish()
+    },
     reviewNeedsAttention() {
       state = {
         ...state,
-        activeInboxTabId: "needs-attention",
         scrollToInboxRequestId: state.scrollToInboxRequestId + 1,
-        page: 1,
       }
-      publish()
-      void fetchInbox({ quiet: true })
+      selectInboxTab("needs-attention")
     },
     requestOpenDateRange() {
       state = {
@@ -1212,16 +1332,10 @@ export function createOperatorFeedbackPageModule(
       publish()
     },
     setActiveInboxTabId(id) {
-      state = {
-        ...state,
-        activeInboxTabId: id,
-        page: 1,
-      }
-      syncInboxPresentation()
-      publish()
-      void fetchInbox({ quiet: true })
+      selectInboxTab(id)
     },
     setSearchQuery(query) {
+      invalidateTabCache()
       state = {
         ...state,
         searchQuery: query,
@@ -1232,6 +1346,7 @@ export function createOperatorFeedbackPageModule(
       scheduleInboxFetch()
     },
     setSortId(id) {
+      invalidateTabCache()
       state = {
         ...state,
         sortId: id,
@@ -1239,26 +1354,28 @@ export function createOperatorFeedbackPageModule(
       }
       syncInboxPresentation()
       publish()
-      void fetchInbox({ quiet: true })
+      void fetchInbox()
     },
     goToPreviousPage() {
       if (state.page <= 1) {
         return
       }
+      invalidateTabCache()
       state = {
         ...state,
         page: state.page - 1,
       }
       publish()
-      void fetchInbox({ quiet: true })
+      void fetchInbox()
     },
     goToNextPage() {
+      invalidateTabCache()
       state = {
         ...state,
         page: state.page + 1,
       }
       publish()
-      void fetchInbox({ quiet: true })
+      void fetchInbox()
     },
     openFilters() {
       state = {
@@ -1285,6 +1402,7 @@ export function createOperatorFeedbackPageModule(
       publish()
     },
     applyFilters(filters) {
+      invalidateTabCache()
       state = {
         ...state,
         appliedFilters: filters,
@@ -1295,9 +1413,10 @@ export function createOperatorFeedbackPageModule(
       }
       syncInboxPresentation()
       publish()
-      void fetchInbox({ quiet: true })
+      void fetchInbox()
     },
     removeFilterChip(chip) {
+      invalidateTabCache()
       const appliedFilters = removeAppliedChip(
         INBOX_FILTER_SCHEMA,
         state.appliedFilters,
@@ -1311,9 +1430,10 @@ export function createOperatorFeedbackPageModule(
       }
       syncInboxPresentation()
       publish()
-      void fetchInbox({ quiet: true })
+      void fetchInbox()
     },
     clearSearchAndFilters() {
+      invalidateTabCache()
       const appliedFilters = emptySelection(INBOX_FILTER_SCHEMA)
       state = {
         ...state,
@@ -1324,7 +1444,7 @@ export function createOperatorFeedbackPageModule(
       }
       syncInboxPresentation()
       publish()
-      void fetchInbox({ quiet: true })
+      void fetchInbox()
     },
     openExportDialog() {
       if (state.viewModel == null) {
@@ -1446,6 +1566,23 @@ export function createOperatorFeedbackPageModule(
         publish()
       }
     },
+    async exportSingleFeedback(feedbackId) {
+      const locationId = state.workspace?.selectedLocationId
+      if (locationId == null || feedbackId <= 0) {
+        return false
+      }
+
+      try {
+        const result = await adapters.exportSingleFeedback({
+          feedbackId,
+          locationId,
+        })
+        adapters.triggerBrowserDownload(result.blob, result.filename)
+        return true
+      } catch {
+        return false
+      }
+    },
     async openFeedbackDetails(feedbackId) {
       closeExclusiveAssistantDrawer()
       await feedbackDetails.open(feedbackId)
@@ -1500,14 +1637,12 @@ export function createOperatorFeedbackPageModule(
       }
     },
     async startInboxMarkResolved(feedbackId) {
-      await feedbackDetails.open(feedbackId)
-      refreshListNavigation(feedbackId)
+      await feedbackDetails.loadWithoutOpening(feedbackId)
       publish()
       feedbackDetails.startMarkResolved()
     },
     async startInboxMarkNoActionNeeded(feedbackId) {
-      await feedbackDetails.open(feedbackId)
-      refreshListNavigation(feedbackId)
+      await feedbackDetails.loadWithoutOpening(feedbackId)
       publish()
       feedbackDetails.startCloseOut("mark_no_action_needed")
     },
@@ -1636,8 +1771,13 @@ export function createOperatorFeedbackPageModule(
     editRespondToGuestText: () => respondToGuest.editText(),
     openRespondToGuestGuestPreview: () => respondToGuest.openGuestPreview(),
     closeRespondToGuestGuestPreview: () => respondToGuest.closeGuestPreview(),
-    sendRespondToGuestGuestPreviewTest: () =>
-      respondToGuest.sendGuestPreviewTest(),
+    openRespondToGuestSendTestDialog: () =>
+      respondToGuest.openSendTestDialog(),
+    closeRespondToGuestSendTestDialog: () =>
+      respondToGuest.closeSendTestDialog(),
+    setRespondToGuestSendTestEmail: (value) =>
+      respondToGuest.setSendTestEmail(value),
+    confirmRespondToGuestSendTest: () => respondToGuest.confirmSendTest(),
     openRespondToGuestSendConfirm: () => respondToGuest.openSendConfirm(),
     cancelRespondToGuestSendConfirm: () => respondToGuest.cancelSendConfirm(),
     confirmRespondToGuestSend: () => respondToGuest.confirmSend(),
@@ -1742,8 +1882,14 @@ export function createOperatorFeedbackPageModule(
       respondAndRecord.openGuestPreview(),
     closeRespondAndRecordGuestPreview: () =>
       respondAndRecord.closeGuestPreview(),
-    sendRespondAndRecordGuestPreviewTest: () =>
-      respondAndRecord.sendGuestPreviewTest(),
+    openRespondAndRecordSendTestDialog: () =>
+      respondAndRecord.openSendTestDialog(),
+    closeRespondAndRecordSendTestDialog: () =>
+      respondAndRecord.closeSendTestDialog(),
+    setRespondAndRecordSendTestEmail: (value) =>
+      respondAndRecord.setSendTestEmail(value),
+    confirmRespondAndRecordSendTest: () =>
+      respondAndRecord.confirmSendTest(),
     openRespondAndRecordSendConfirm: () => respondAndRecord.openSendConfirm(),
     cancelRespondAndRecordSendConfirm: () =>
       respondAndRecord.cancelSendConfirm(),
@@ -1826,8 +1972,14 @@ export function createOperatorFeedbackPageModule(
       respondWithRecoveryOffer.openGuestPreview(),
     closeRespondWithRecoveryOfferGuestPreview: () =>
       respondWithRecoveryOffer.closeGuestPreview(),
-    sendRespondWithRecoveryOfferGuestPreviewTest: () =>
-      respondWithRecoveryOffer.sendGuestPreviewTest(),
+    openRespondWithRecoveryOfferSendTestDialog: () =>
+      respondWithRecoveryOffer.openSendTestDialog(),
+    closeRespondWithRecoveryOfferSendTestDialog: () =>
+      respondWithRecoveryOffer.closeSendTestDialog(),
+    setRespondWithRecoveryOfferSendTestEmail: (value) =>
+      respondWithRecoveryOffer.setSendTestEmail(value),
+    confirmRespondWithRecoveryOfferSendTest: () =>
+      respondWithRecoveryOffer.confirmSendTest(),
     openRespondWithRecoveryOfferSendConfirm: () =>
       respondWithRecoveryOffer.openSendConfirm(),
     cancelRespondWithRecoveryOfferSendConfirm: () =>
@@ -1875,9 +2027,27 @@ export function createOperatorFeedbackPageModule(
       feedbackDetails.setCloseOutNoteDraft(value),
     setFeedbackCloseOutAcknowledged: (value) =>
       feedbackDetails.setCloseOutAcknowledged(value),
-    cancelFeedbackCloseOut: () => feedbackDetails.cancelCloseOut(),
-    confirmFeedbackCloseOut: () =>
-      afterListAffectingMutation(() => feedbackDetails.confirmCloseOut()),
+    cancelFeedbackCloseOut: () => {
+      const drawerWasOpen = feedbackDetails.getSnapshot().isOpen
+      feedbackDetails.cancelCloseOut()
+      if (!drawerWasOpen) {
+        feedbackDetails.close()
+        refreshListNavigation(null)
+        publish()
+      }
+    },
+    confirmFeedbackCloseOut: async () => {
+      const drawerWasOpen = feedbackDetails.getSnapshot().isOpen
+      const confirmed = await afterListAffectingMutation(() =>
+        feedbackDetails.confirmCloseOut()
+      )
+      if (confirmed && !drawerWasOpen) {
+        feedbackDetails.close()
+        refreshListNavigation(null)
+        publish()
+      }
+      return confirmed
+    },
     setFeedbackInternalNoteDraft: (value) => feedbackDetails.setNoteDraft(value),
     createFeedbackInternalNote: () =>
       afterListAffectingMutation(() => feedbackDetails.createNote()),

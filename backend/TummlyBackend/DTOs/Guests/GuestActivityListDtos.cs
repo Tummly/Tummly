@@ -23,6 +23,10 @@ namespace TummlyBackend.DTOs.Guests
         public string? Sentiment { get; init; }
 
         public IReadOnlyList<string>? ChangedFields { get; init; }
+
+        public string? FromPreference { get; init; }
+
+        public string? ToPreference { get; init; }
     }
 
     public sealed class GuestActivityListResponse

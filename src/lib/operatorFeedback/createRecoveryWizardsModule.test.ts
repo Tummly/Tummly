@@ -19,7 +19,7 @@ const sampleDetails: FeedbackDetailsResponse = {
   detectedTags: ["FoodQuality"],
   locationGuestId: 501,
   workflowStatus: "in_progress",
-  guestOffersOptOut: false,
+  marketingPreference: "allowed",
   internalNotes: [],
   activityHistory: [],
 }

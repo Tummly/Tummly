@@ -237,6 +237,11 @@ export type FeedbackDetailsModule = {
   getSnapshot: () => FeedbackDetailsSnapshot
   subscribe: (listener: () => void) => () => void
   open: (feedbackId: number) => Promise<void>
+  /**
+   * Load Feedback details without opening the details drawer.
+   * Used by inbox row actions that open a dialog on top of the list.
+   */
+  loadWithoutOpening: (feedbackId: number) => Promise<void>
   retry: () => Promise<void>
   close: () => void
   reset: () => void
@@ -322,7 +327,13 @@ type DetailsState = {
 
 type DetailsAction =
   | { type: "reset" }
-  | { type: "open_started"; generation: number; feedbackId: number }
+  | {
+      type: "open_started"
+      generation: number
+      feedbackId: number
+      /** When false, load details for a dialog without opening the drawer. */
+      openDrawer: boolean
+    }
   | {
       type: "open_succeeded"
       generation: number
@@ -904,7 +915,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
     case "open_started":
       return {
         ...state,
-        isOpen: true,
+        isOpen: action.openDrawer,
         loadStatus: "loading",
         loadGeneration: action.generation,
         feedbackId: action.feedbackId,
@@ -2004,9 +2015,9 @@ export function createFeedbackDetailsModule(
     publish()
   }
 
-  const load = async (feedbackId: number) => {
+  const load = async (feedbackId: number, openDrawer = true) => {
     const generation = state.loadGeneration + 1
-    dispatch({ type: "open_started", generation, feedbackId })
+    dispatch({ type: "open_started", generation, feedbackId, openDrawer })
 
     try {
       const result = await adapters.getFeedbackDetails(feedbackId)
@@ -2067,12 +2078,13 @@ export function createFeedbackDetailsModule(
         listeners.delete(listener)
       }
     },
-    open: (feedbackId) => load(feedbackId),
+    open: (feedbackId) => load(feedbackId, true),
+    loadWithoutOpening: (feedbackId) => load(feedbackId, false),
     retry: async () => {
       if (state.feedbackId == null) {
         return
       }
-      await load(state.feedbackId)
+      await load(state.feedbackId, state.isOpen)
     },
     close: () => {
       dispatch({ type: "reset" })

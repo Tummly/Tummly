@@ -144,7 +144,7 @@ export function useAiAssistantModule(
             workflowStatus,
             contactType: details.contactType,
             guestContact: details.guestContact,
-            guestOffersOptOut: details.guestOffersOptOut === true,
+            marketingPreference: details.marketingPreference,
           })
           if (gate != null) {
             throw new Error(gate)

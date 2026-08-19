@@ -1,4 +1,5 @@
 import {
+  formatMarketingPreferenceActivityBody,
   GUEST_PROFILE_FEEDBACK_SOURCE_LABEL,
   OPERATOR_GUEST_ACTIVITY_SORT_LABELS,
 } from "@/lib/operatorGuestProfile/guestProfilePresentation"
@@ -175,6 +176,17 @@ export function mapGuestActivityItemToRow(
         metaDisplay,
       }
     }
+    case "marketing-preference-changed":
+      return {
+        id: item.id,
+        headline: "Marketing preference changed",
+        body: formatMarketingPreferenceActivityBody({
+          fromPreference: item.fromPreference,
+          toPreference: item.toPreference,
+          authorDisplayName: item.authorDisplayName,
+        }),
+        metaDisplay,
+      }
     default:
       return {
         id: item.id,

@@ -24,6 +24,11 @@ import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils"
 import type { OperatorFeedbackExportDialogSnapshot } from "@/lib/operatorFeedback/createOperatorFeedbackPageModule"
 import {
+  FEEDBACK_DIALOG_BODY_CLASS,
+  FEEDBACK_DIALOG_CONTENT_CLASS,
+  FEEDBACK_DIALOG_DESCRIPTION_CLASS,
+  FEEDBACK_DIALOG_FOOTER_CLASS,
+  FEEDBACK_DIALOG_HEADER_ROW_CLASS,
   FEEDBACK_DIALOG_SELECT_GROUP_CLASS,
   FEEDBACK_DIALOG_SELECT_ITEM_CLASS,
   FEEDBACK_DIALOG_SELECT_MENU_CLASS,
@@ -44,7 +49,7 @@ type FeedbackExportDialogProps = {
 }
 
 const SCOPE_CARD_CLASS =
-  "h-auto w-full flex-col items-start gap-1 rounded-op-md border border-op-border-default bg-transparent px-[18px] py-4 text-left font-normal shadow-none hover:bg-transparent disabled:bg-transparent"
+  "h-auto w-full flex-col items-start gap-1 !rounded-op-md border border-op-border-default bg-transparent px-[18px] py-4 text-left font-normal shadow-none hover:bg-transparent disabled:bg-transparent"
 const SCOPE_CARD_SELECTED_CLASS =
   "border-[var(--op-color-gray-550)]"
 
@@ -78,31 +83,31 @@ export function FeedbackExportDialog({
     >
       <DialogContent
         showCloseButton={false}
-        className="max-h-[min(90vh,900px)] gap-[60px] overflow-y-auto bg-[var(--op-color-gray-995)] p-8 text-op-text-primary sm:max-w-[642px]"
+        className={FEEDBACK_DIALOG_CONTENT_CLASS}
       >
-        <div className="flex flex-col gap-[30px]">
-          <div className="flex items-start gap-[22px]">
-            <DialogHeader className="min-w-0 flex-1 gap-3 text-left">
-              <DialogTitle className="pr-0 text-2xl font-bold tracking-normal text-op-text-primary">
-                {copy.title}
-              </DialogTitle>
-              <DialogDescription className="text-sm font-medium leading-normal text-[var(--op-color-gray-550)]">
-                {copy.subtitle}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogClose asChild>
-              <Button
-                type="button"
-                variant="op-collapse"
-                aria-label="Close"
-                className="shrink-0"
-                disabled={dialog.isPreparing}
-              >
-                <XIcon aria-hidden />
-              </Button>
-            </DialogClose>
-          </div>
+        <div className={FEEDBACK_DIALOG_HEADER_ROW_CLASS}>
+          <DialogHeader className="min-w-0 flex-1 gap-3 text-left">
+            <DialogTitle className="pr-0 text-2xl font-bold tracking-normal text-op-text-primary">
+              {copy.title}
+            </DialogTitle>
+            <DialogDescription className={FEEDBACK_DIALOG_DESCRIPTION_CLASS}>
+              {copy.subtitle}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogClose asChild>
+            <Button
+              type="button"
+              variant="op-collapse"
+              aria-label="Close"
+              className="shrink-0"
+              disabled={dialog.isPreparing}
+            >
+              <XIcon aria-hidden />
+            </Button>
+          </DialogClose>
+        </div>
 
+        <div className={FEEDBACK_DIALOG_BODY_CLASS}>
           <div
             role="radiogroup"
             aria-label="Export scope"
@@ -272,11 +277,9 @@ export function FeedbackExportDialog({
               {dialog.errorMessage}
             </p>
           ) : null}
-
-          <div className={DIVIDER_CLASS} aria-hidden />
         </div>
 
-        <DialogFooter className="flex-row gap-3 sm:justify-start">
+        <DialogFooter className={FEEDBACK_DIALOG_FOOTER_CLASS}>
           <Button
             type="button"
             variant="op-primary"

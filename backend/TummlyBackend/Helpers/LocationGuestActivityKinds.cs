@@ -9,6 +9,8 @@ namespace TummlyBackend.Helpers
         public const string TagApplied = "tag-applied";
         public const string TagRemoved = "tag-removed";
         public const string ProfileEdited = "profile-edited";
+        public const string MarketingPreferenceChanged =
+            "marketing-preference-changed";
         public const string ClassificationSucceeded = "classification-succeeded";
         public const string ClassificationFailed = "classification-failed";
 
@@ -29,6 +31,10 @@ namespace TummlyBackend.Helpers
                 "note" => [NoteAdded, NoteDeleted],
                 "tag" => [TagApplied, TagRemoved],
                 "profile-update" or "profile-edited" => [ProfileEdited],
+                "marketing-preference" or "marketing-preference-changed" =>
+                [
+                    MarketingPreferenceChanged,
+                ],
                 _ => null,
             };
         }

@@ -20,6 +20,7 @@ import {
 type GuestProfileHeaderActionsMenuProps = {
   guestName: string
   onManageTags: () => void
+  onManageMarketingPermissions: () => void
   onExportGuestRecord: () => void
   onDeleteGuestData: () => void
 }
@@ -28,6 +29,7 @@ type GuestProfileHeaderActionsMenuProps = {
 export function GuestProfileHeaderActionsMenu({
   guestName,
   onManageTags,
+  onManageMarketingPermissions,
   onExportGuestRecord,
   onDeleteGuestData,
 }: GuestProfileHeaderActionsMenuProps) {
@@ -59,6 +61,13 @@ export function GuestProfileHeaderActionsMenu({
               >
                 {action.label}
               </DropdownMenuItem>
+            ) : action.id === "manage-marketing-permissions" ? (
+              <DropdownMenuItem
+                className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+                onClick={onManageMarketingPermissions}
+              >
+                {action.label}
+              </DropdownMenuItem>
             ) : action.id === "export-guest-record" ? (
               <DropdownMenuItem
                 className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
@@ -66,17 +75,10 @@ export function GuestProfileHeaderActionsMenu({
               >
                 {action.label}
               </DropdownMenuItem>
-            ) : action.id === "delete-guest-data" ? (
+            ) : (
               <DropdownMenuItem
                 className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
                 onClick={onDeleteGuestData}
-              >
-                {action.label}
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem
-                disabled
-                className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
               >
                 {action.label}
               </DropdownMenuItem>

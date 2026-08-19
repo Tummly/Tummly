@@ -679,7 +679,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = master.Id,
                 RestaurantLocationId = location.Id,
                 Name = guestName,
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow,
             };
             context.LocationGuests.Add(locationGuest);
@@ -771,7 +771,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = master.Id,
                 RestaurantLocationId = primary.Id,
                 Name = "Primary Name",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow,
             };
             var secondaryGuest = new LocationGuest
@@ -779,7 +779,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = master.Id,
                 RestaurantLocationId = secondary.Id,
                 Name = "Other Venue Name",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow,
             };
             context.LocationGuests.AddRange(primaryGuest, secondaryGuest);
@@ -872,7 +872,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = targetMaster.Id,
                 RestaurantLocationId = location.Id,
                 Name = "Target Guest",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow,
             };
             var colliderGuest = new LocationGuest
@@ -880,7 +880,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = colliderMaster.Id,
                 RestaurantLocationId = location.Id,
                 Name = "Collider Guest",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow,
             };
             context.LocationGuests.AddRange(targetGuest, colliderGuest);
@@ -975,7 +975,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = targetMaster.Id,
                 RestaurantLocationId = location.Id,
                 Name = "Target Guest",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow,
             };
             var colliderGuest = new LocationGuest
@@ -983,7 +983,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = colliderMaster.Id,
                 RestaurantLocationId = location.Id,
                 Name = "Collider Guest",
-                OffersOptOut = false,
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
                 CreatedAt = DateTime.UtcNow,
             };
             context.LocationGuests.AddRange(targetGuest, colliderGuest);

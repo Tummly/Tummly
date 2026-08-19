@@ -30,9 +30,16 @@ import {
 
 export function FeedbackPage() {
   const feedback = useFeedbackPageModule()
-  const { snapshot } = feedback
+  const { snapshot, clearTabCache } = feedback
   const { mode, selectedLocationId } =
     useOutletContext<DashboardOutletContext>()
+
+  useEffect(
+    () => () => {
+      clearTabCache()
+    },
+    [clearTabCache]
+  )
   const navigate = useNavigate()
   const inboxRef = useRef<HTMLElement | null>(null)
 
@@ -134,6 +141,7 @@ export function FeedbackPage() {
   return (
     <>
       <FeedbackBody
+        tabContentStatus={snapshot.tabContentStatus}
         viewModel={viewModel}
         activeInboxTabId={snapshot.activeInboxTabId}
         selectedDateRange={feedbackPageDateRange}
@@ -181,6 +189,9 @@ export function FeedbackPage() {
         }}
         onStartInboxRecovery={(feedbackId) => {
           void feedback.startInboxRecovery(feedbackId)
+        }}
+        onReopenInboxFeedback={(feedbackId) => {
+          void feedback.reopenFeedback(feedbackId)
         }}
         onStartInboxMarkResolved={(feedbackId) => {
           void feedback.startInboxMarkResolved(feedbackId)
@@ -232,7 +243,14 @@ export function FeedbackPage() {
         onEditText={feedback.editRespondToGuestText}
         onOpenGuestPreview={feedback.openRespondToGuestGuestPreview}
         onCloseGuestPreview={feedback.closeRespondToGuestGuestPreview}
-        onSendGuestPreviewTest={feedback.sendRespondToGuestGuestPreviewTest}
+        onOpenSendTest={() => {
+          void feedback.openRespondToGuestSendTestDialog()
+        }}
+        onCloseSendTest={feedback.closeRespondToGuestSendTestDialog}
+        onSendTestEmailChange={feedback.setRespondToGuestSendTestEmail}
+        onConfirmSendTest={() => {
+          void feedback.confirmRespondToGuestSendTest()
+        }}
         onOpenSendConfirm={feedback.openRespondToGuestSendConfirm}
         onCancelSendConfirm={feedback.cancelRespondToGuestSendConfirm}
         onConfirmSend={() => {
@@ -303,7 +321,14 @@ export function FeedbackPage() {
         onEditText={feedback.editRespondAndRecordText}
         onOpenGuestPreview={feedback.openRespondAndRecordGuestPreview}
         onCloseGuestPreview={feedback.closeRespondAndRecordGuestPreview}
-        onSendGuestPreviewTest={feedback.sendRespondAndRecordGuestPreviewTest}
+        onOpenSendTest={() => {
+          void feedback.openRespondAndRecordSendTestDialog()
+        }}
+        onCloseSendTest={feedback.closeRespondAndRecordSendTestDialog}
+        onSendTestEmailChange={feedback.setRespondAndRecordSendTestEmail}
+        onConfirmSendTest={() => {
+          void feedback.confirmRespondAndRecordSendTest()
+        }}
         onOpenSendConfirm={feedback.openRespondAndRecordSendConfirm}
         onCancelSendConfirm={feedback.cancelRespondAndRecordSendConfirm}
         onConfirmSend={() => {
@@ -364,9 +389,16 @@ export function FeedbackPage() {
         onEditText={feedback.editRespondWithRecoveryOfferText}
         onOpenGuestPreview={feedback.openRespondWithRecoveryOfferGuestPreview}
         onCloseGuestPreview={feedback.closeRespondWithRecoveryOfferGuestPreview}
-        onSendGuestPreviewTest={
-          feedback.sendRespondWithRecoveryOfferGuestPreviewTest
+        onOpenSendTest={() => {
+          void feedback.openRespondWithRecoveryOfferSendTestDialog()
+        }}
+        onCloseSendTest={feedback.closeRespondWithRecoveryOfferSendTestDialog}
+        onSendTestEmailChange={
+          feedback.setRespondWithRecoveryOfferSendTestEmail
         }
+        onConfirmSendTest={() => {
+          void feedback.confirmRespondWithRecoveryOfferSendTest()
+        }}
         onOpenSendConfirm={feedback.openRespondWithRecoveryOfferSendConfirm}
         onCancelSendConfirm={
           feedback.cancelRespondWithRecoveryOfferSendConfirm
@@ -489,6 +521,12 @@ export function FeedbackPage() {
         onCancelNoteDelete={feedback.cancelFeedbackNoteDelete}
         onConfirmNoteDelete={() => {
           void feedback.confirmFeedbackNoteDelete()
+        }}
+        onExport={() => {
+          const feedbackId = snapshot.feedbackDetails.feedbackId
+          return feedbackId == null
+            ? Promise.resolve(false)
+            : feedback.exportSingleFeedback(feedbackId)
         }}
         canGoPrevious={snapshot.canGoPreviousFeedback}
         canGoNext={snapshot.canGoNextFeedback}

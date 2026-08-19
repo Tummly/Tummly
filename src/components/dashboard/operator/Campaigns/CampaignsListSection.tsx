@@ -3,6 +3,10 @@ import { ChevronDownIcon } from "lucide-react"
 import { CampaignsListEmptyState } from "@/components/dashboard/operator/Campaigns/CampaignsListEmptyState"
 import { CampaignsListTable } from "@/components/dashboard/operator/Campaigns/CampaignsListTable"
 import { GuestsFilterChipRow } from "@/components/dashboard/operator/Guests/GuestsFilterChipRow"
+import {
+  OperatorTableTabPanel,
+  type OperatorTabContentStatus,
+} from "@/components/dashboard/operator/OperatorTableTabPanel"
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { Button } from "@/components/ui/button"
 import {
@@ -50,6 +54,7 @@ import type {
 import { cn } from "@/lib/utils"
 
 type CampaignsListSectionProps = {
+  tabContentStatus: OperatorTabContentStatus
   list: OperatorCampaignsListViewModel
   onViewChange: (viewId: OperatorCampaignsListViewId) => void
   onSearchQueryChange: (query: string) => void
@@ -71,6 +76,7 @@ type CampaignsListSectionProps = {
 
 /** Campaigns list — tabs, Filters/Sort, chips, table, pagination (ticket 28). */
 export function CampaignsListSection({
+  tabContentStatus,
   list,
   onViewChange,
   onSearchQueryChange,
@@ -224,7 +230,10 @@ export function CampaignsListSection({
           </>
         ) : null}
 
-        <div role="tabpanel">
+        <OperatorTableTabPanel
+          status={tabContentStatus}
+          loadingLabel="Loading campaigns"
+        >
           {empty != null ? (
             <CampaignsListEmptyState
               empty={empty}
@@ -239,7 +248,7 @@ export function CampaignsListSection({
               onRowAction={onRowAction}
             />
           ) : null}
-        </div>
+        </OperatorTableTabPanel>
 
         {list.showListChrome ? (
           <div className={GUESTS_PAGINATION_ROW_CLASS}>

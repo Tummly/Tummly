@@ -17,8 +17,14 @@ import {
   GUEST_PREVIEW_OVERLAY_BODY_CLASS,
   GUEST_PREVIEW_OVERLAY_CLASS,
   GUEST_PREVIEW_POWERED_BY_LABEL,
+  GUEST_PREVIEW_RAIL_CLASS,
+  GUEST_PREVIEW_RAIL_HEADING_CLASS,
+  GUEST_PREVIEW_RAIL_SMS_CLASS,
+  GUEST_PREVIEW_RAIL_SMS_TEXT_CLASS,
+  GUEST_PREVIEW_RAIL_VEIL_WASH_CLASS,
   GUEST_PREVIEW_SEND_TEST_LABEL,
   buildGuestPreviewOfferCoupon,
+  buildGuestPreviewSendTestDialog,
   toIssuedGuestOfferCoupon,
   guestPreviewBrandSubtitle,
   guestPreviewBrandTitle,
@@ -41,6 +47,61 @@ describe("guestPreviewPresentation", () => {
     expect(GUEST_PREVIEW_FOOTER_PRIVACY).toBe("Privacy")
     expect(GUEST_PREVIEW_FOOTER_COOKIE).toBe("Cookie settings")
     expect(GUEST_PREVIEW_POWERED_BY_LABEL).toBe("Powered by")
+  })
+
+  it("builds Send test email dialog only for email Guest preview", () => {
+    expect(
+      buildGuestPreviewSendTestDialog({
+        wizardOpen: true,
+        channel: "sms",
+        dialogOpen: true,
+        email: "ops@example.com",
+        status: "idle",
+        error: null,
+      })
+    ).toBeNull()
+
+    expect(
+      buildGuestPreviewSendTestDialog({
+        wizardOpen: true,
+        channel: "email",
+        dialogOpen: true,
+        email: "  ops@example.com  ",
+        status: "idle",
+        error: null,
+      })
+    ).toMatchObject({
+      isOpen: true,
+      email: "  ops@example.com  ",
+      canSubmit: true,
+    })
+
+    expect(
+      buildGuestPreviewSendTestDialog({
+        wizardOpen: true,
+        channel: "email",
+        dialogOpen: true,
+        email: "   ",
+        status: "idle",
+        error: null,
+      })?.canSubmit
+    ).toBe(false)
+  })
+
+  it("uses light-mode wizard card tokens on the Review rail", () => {
+    expect(GUEST_PREVIEW_RAIL_CLASS).toContain("bg-op-color-gray-60")
+    expect(GUEST_PREVIEW_RAIL_CLASS).toContain(
+      "dark:bg-[var(--op-color-gray-1000)]"
+    )
+    expect(GUEST_PREVIEW_RAIL_CLASS).toContain("border-op-divider")
+    expect(GUEST_PREVIEW_RAIL_HEADING_CLASS).toContain("text-op-text-primary")
+    expect(GUEST_PREVIEW_RAIL_HEADING_CLASS).not.toContain(
+      "text-[var(--op-color-white)]"
+    )
+    expect(GUEST_PREVIEW_RAIL_SMS_CLASS).toContain("border-op-divider")
+    expect(GUEST_PREVIEW_RAIL_SMS_CLASS).toContain("bg-op-shell-chrome")
+    expect(GUEST_PREVIEW_RAIL_SMS_TEXT_CLASS).toContain("text-op-text-primary")
+    expect(GUEST_PREVIEW_RAIL_VEIL_WASH_CLASS).toContain("bg-op-shell-chrome/40")
   })
 
   it("matches Operator wizard body border and sits above wizard shell", () => {

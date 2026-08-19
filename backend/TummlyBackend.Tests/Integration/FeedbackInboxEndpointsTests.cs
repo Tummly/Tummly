@@ -200,6 +200,64 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetFeedbackInbox_WorkflowStatusFilter_ReturnsOnlyMatchingStatuses()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerWithLocationAsync(
+                "feedback-inbox-workflow"
+            );
+
+            await AddFeedbackAsync(
+                seeded.LocationId,
+                new DateTime(2026, 7, 12, 10, 0, 0, DateTimeKind.Utc),
+                "New comment",
+                "Alex",
+                ClassificationStatus.Succeeded,
+                FeedbackSentiment.Neutral,
+                FeedbackWorkflowStatus.New
+            );
+            await AddFeedbackAsync(
+                seeded.LocationId,
+                new DateTime(2026, 7, 13, 10, 0, 0, DateTimeKind.Utc),
+                "Resolved comment",
+                "Blair",
+                ClassificationStatus.Succeeded,
+                FeedbackSentiment.Positive,
+                FeedbackWorkflowStatus.Resolved
+            );
+
+            using var request = AuthorizedGet(
+                InboxUrl(
+                    seeded.LocationId,
+                    from,
+                    to,
+                    tab: "all",
+                    workflowStatus: ["resolved"]
+                ),
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(1, body.GetProperty("totalCount").GetInt32());
+            Assert.Equal(
+                "Resolved comment",
+                body.GetProperty("items")[0].GetProperty("comment").GetString()
+            );
+            Assert.Equal(
+                "resolved",
+                body.GetProperty("items")[0]
+                    .GetProperty("workflowStatus")
+                    .GetString()
+            );
+            Assert.Equal(
+                2,
+                body.GetProperty("tabCounts").GetProperty("all").GetInt32()
+            );
+        }
+
+        [Fact]
         public async Task GetFeedbackInbox_Pagination_UsesPageSize25_AndResetsOrderingNewestFirst()
         {
             var from = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -343,6 +401,7 @@ namespace TummlyBackend.Tests.Integration
             string tab = "all",
             string? q = null,
             string[]? sentiment = null,
+            string[]? workflowStatus = null,
             int page = 1,
             string sort = "newest-submitted"
         )
@@ -368,6 +427,14 @@ namespace TummlyBackend.Tests.Integration
                 foreach (var value in sentiment)
                 {
                     url += $"&sentiment={Uri.EscapeDataString(value)}";
+                }
+            }
+
+            if (workflowStatus is { Length: > 0 })
+            {
+                foreach (var value in workflowStatus)
+                {
+                    url += $"&workflowStatus={Uri.EscapeDataString(value)}";
                 }
             }
 
