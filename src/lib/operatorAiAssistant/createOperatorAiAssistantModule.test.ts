@@ -2213,6 +2213,50 @@ describe("Recent, Archive, search, and delete", () => {
     expect(module.getSnapshot().showArchiveFooter).toBe(true)
   })
 
+  it("shows the generated conversation title on Recent after the first complete without a page reload", async () => {
+    const inner = createInMemoryOperatorAiAssistantAdapters({ nowMs: () => now })
+    const sendTurn = inner.sendTurn.bind(inner)
+    inner.sendTurn = async (input) => {
+      const row = await sendTurn(input)
+      row.title = "Bring back Email-eligible guests"
+      return row
+    }
+    const module = createOperatorAiAssistantModule(inner)
+    const ask =
+      "Draft an Email Campaign to bring back all currently Email-eligible guests at Camden"
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.expandDrawer()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(module.getSnapshot().listChromeKind).toBe("empty-recent")
+
+    module.setComposerDraft(ask)
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const snapshot = module.getSnapshot()
+    expect(snapshot.listChromeKind).toBe("rows")
+    expect(snapshot.listRows.map((row) => row.title)).toEqual([
+      "Bring back Email-eligible guests",
+    ])
+    expect(snapshot.recentGroups.flatMap((group) => group.rows).map((row) => row.title)).toEqual(
+      ["Bring back Email-eligible guests"]
+    )
+    expect(snapshot.listRows[0]?.title).not.toBe(ask)
+
+    module.archiveConversation(snapshot.conversationId!)
+    await Promise.resolve()
+    await Promise.resolve()
+    module.openArchive()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(module.getSnapshot().archiveRows.map((row) => row.title)).toEqual([
+      "Bring back Email-eligible guests",
+    ])
+  })
+
   it("archives the open thread and stays on it; Archive is a flat list", async () => {
     const adapters = createInMemoryOperatorAiAssistantAdapters({ nowMs: () => now })
     const module = createOperatorAiAssistantModule(adapters)

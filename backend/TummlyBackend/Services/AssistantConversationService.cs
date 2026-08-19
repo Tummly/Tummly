@@ -825,54 +825,57 @@ namespace TummlyBackend.Services
 
             var assistantNow = DateTime.UtcNow;
             AssistantMessage assistantMessage;
-            if (answer is AssistantLiveAnswerResult.Succeeded succeeded
-                && string.Equals(
-                    succeeded.AssistantTask,
-                    AssistantTask.CreateCampaignDraft,
-                    StringComparison.Ordinal
-                )
-                && !draftComposed
-                && !AssistantAskIntent.IsHelpCentreAsk(userMessage))
+            string? proposedConversationTitle = null;
+            if (answer is AssistantLiveAnswerResult.Succeeded succeeded)
             {
-                var persistLocationId = boundCreateLocationId ?? conversation.OwnedLocationId;
-                var persistLocationName = boundCreateLocationName ?? locationName;
-                var persist = await PersistCreateCampaignDraftAsync(
-                    conversation,
-                    userMessage,
-                    persistLocationId,
-                    persistLocationName,
-                    cancellationToken
-                );
-                conversation.DraftInterviewJson = null;
-                conversation.LastCompareLocationIdsJson = null;
-                if (persist.CreatedCampaignId is int createdCampaignId)
+                proposedConversationTitle = succeeded.ConversationTitle;
+                if (string.Equals(
+                        succeeded.AssistantTask,
+                        AssistantTask.CreateCampaignDraft,
+                        StringComparison.Ordinal
+                    )
+                    && !draftComposed
+                    && !AssistantAskIntent.IsHelpCentreAsk(userMessage))
                 {
-                    conversation.CreatedCampaignId = createdCampaignId;
+                    var persistLocationId = boundCreateLocationId ?? conversation.OwnedLocationId;
+                    var persistLocationName = boundCreateLocationName ?? locationName;
+                    var persist = await PersistCreateCampaignDraftAsync(
+                        conversation,
+                        userMessage,
+                        persistLocationId,
+                        persistLocationName,
+                        cancellationToken
+                    );
+                    conversation.DraftInterviewJson = null;
+                    conversation.LastCompareLocationIdsJson = null;
+                    if (persist.CreatedCampaignId is int createdCampaignId)
+                    {
+                        conversation.CreatedCampaignId = createdCampaignId;
+                    }
+                    assistantMessage = GroundedMessage(
+                        assistantNow,
+                        persist.Title,
+                        persist.Body,
+                        persist.Actions
+                    );
                 }
-                assistantMessage = GroundedMessage(
-                    assistantNow,
-                    persist.Title,
-                    persist.Body,
-                    persist.Actions
-                );
-            }
-            else if (answer is AssistantLiveAnswerResult.Succeeded succeededRetrieve)
-            {
-                var composed =
-                    draftComposed
-                    && succeededRetrieve.Class != AssistantMessageClass.Grounded
-                        ? AssistantLiveAnswerCopy.WithSentences(
-                            AssistantLiveAnswerCopy.GroundedFromEvidence(
-                                userMessage,
-                                locationName,
-                                periodPhrase,
-                                savedEvidence,
-                                suppressMixedRefusal: true
-                            ),
-                            caveat,
-                            droppedUnknown
-                        )
-                        : succeededRetrieve;
+                else
+                {
+                    var composed =
+                        draftComposed
+                        && succeeded.Class != AssistantMessageClass.Grounded
+                            ? AssistantLiveAnswerCopy.WithSentences(
+                                AssistantLiveAnswerCopy.GroundedFromEvidence(
+                                    userMessage,
+                                    locationName,
+                                    periodPhrase,
+                                    savedEvidence,
+                                    suppressMixedRefusal: true
+                                ),
+                                caveat,
+                                droppedUnknown
+                            )
+                            : succeeded;
                 if (draftComposed)
                 {
                     var interviewBody = draftInterviewBody ?? draftTargetChoiceBody!;
@@ -924,6 +927,7 @@ namespace TummlyBackend.Services
                     && !draftComposed
                         ? AssistantCompareTurn.SerializeLocationIds(compareOk.LocationIds)
                         : null;
+                }
             }
             else
             {
@@ -935,7 +939,8 @@ namespace TummlyBackend.Services
                 conversation,
                 assistantMessage,
                 replaceFailure,
-                cancellationToken
+                cancellationToken,
+                proposedConversationTitle
             );
         }
 
@@ -1676,7 +1681,8 @@ namespace TummlyBackend.Services
             AssistantConversation conversation,
             AssistantMessage assistantMessage,
             AssistantMessage? replaceFailure,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken,
+            string? proposedConversationTitle = null
         )
         {
             if (replaceFailure is not null)
@@ -1685,6 +1691,11 @@ namespace TummlyBackend.Services
                 _context.AssistantMessages.Remove(replaceFailure);
             }
 
+            TryApplyGeneratedConversationTitle(
+                conversation,
+                assistantMessage,
+                proposedConversationTitle
+            );
             conversation.Messages.Add(assistantMessage);
             conversation.LastActivityAt = assistantMessage.CreatedAt;
             await _context.SaveChangesAsync(cancellationToken);
@@ -1692,6 +1703,35 @@ namespace TummlyBackend.Services
             return new AssistantTurnOutcome.Ok(
                 AssistantAnalysisScope.ToConversationDto(conversation)
             );
+        }
+
+        private static void TryApplyGeneratedConversationTitle(
+            AssistantConversation conversation,
+            AssistantMessage assistantMessage,
+            string? proposedConversationTitle
+        )
+        {
+            if (assistantMessage.Class == AssistantMessageClass.Failure)
+            {
+                return;
+            }
+
+            var userTurns = conversation.Messages.Count(
+                message => message.Role == AssistantMessageRole.User
+            );
+            if (userTurns != 1)
+            {
+                return;
+            }
+
+            var accepted = AssistantConversationTitle.TryAccept(
+                proposedConversationTitle,
+                assistantMessage.Title
+            );
+            if (accepted is not null)
+            {
+                conversation.Title = accepted;
+            }
         }
 
         private async Task<AssistantConversation?> LoadOwnedConversationAsync(

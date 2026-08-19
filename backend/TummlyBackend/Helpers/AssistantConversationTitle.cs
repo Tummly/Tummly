@@ -1,0 +1,114 @@
+using System.Text.RegularExpressions;
+
+namespace TummlyBackend.Helpers
+{
+    /// <summary>
+    /// Server gates for the generated Assistant conversation title.
+    /// The model emits wording. This helper accepts or rejects. Over-length
+    /// is cut, not rejected. Empty / Markdown / email / phone / live-answer
+    /// title match keep the first-message fallback.
+    /// </summary>
+    public static class AssistantConversationTitle
+    {
+        public const int GeneratedMaxLength = 60;
+
+        private static readonly Regex EmailPattern = new(
+            @"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}",
+            RegexOptions.CultureInvariant | RegexOptions.Compiled
+        );
+
+        private static readonly Regex PhoneShapedPattern = new(
+            @"(?:\+44\s?\d{10}|0\d{10})",
+            RegexOptions.CultureInvariant | RegexOptions.Compiled
+        );
+
+        public static string? TryAccept(
+            string? proposed,
+            string? liveAnswerMessageTitle
+        )
+        {
+            var firstLine = proposed?
+                .Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Split('\n')[0]
+                .Trim()
+                ?? string.Empty;
+            if (firstLine.Length == 0)
+            {
+                return null;
+            }
+
+            if (ContainsMarkdown(firstLine)
+                || ContainsEmail(firstLine)
+                || ContainsPhone(firstLine))
+            {
+                return null;
+            }
+
+            var cut = CutToMax(firstLine);
+            if (liveAnswerMessageTitle is not null
+                && string.Equals(
+                    cut,
+                    liveAnswerMessageTitle.Trim(),
+                    StringComparison.Ordinal
+                ))
+            {
+                return null;
+            }
+
+            return cut;
+        }
+
+        private static string CutToMax(string trimmed)
+        {
+            if (trimmed.Length <= GeneratedMaxLength)
+            {
+                return trimmed;
+            }
+
+            var prefix = trimmed[..GeneratedMaxLength];
+            var lastSpace = prefix.LastIndexOf(' ');
+            if (lastSpace >= 1)
+            {
+                return prefix[..lastSpace].TrimEnd();
+            }
+
+            return prefix;
+        }
+
+        private static bool ContainsMarkdown(string value)
+        {
+            if (value.Contains("**", StringComparison.Ordinal)
+                || value.Contains("__", StringComparison.Ordinal)
+                || value.Contains('`')
+                || value.Contains("](", StringComparison.Ordinal)
+                || value.Contains("![", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (value.StartsWith('#') || value.StartsWith('*') || value.StartsWith('-'))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool ContainsEmail(string value)
+            => EmailPattern.IsMatch(value);
+
+        private static bool ContainsPhone(string value)
+        {
+            if (PhoneShapedPattern.IsMatch(value))
+            {
+                return true;
+            }
+
+            return PhoneNumberHelper.TryNormalizeToE164(
+                value,
+                PhoneNumberHelper.DefaultRegion,
+                out _
+            );
+        }
+    }
+}

@@ -614,13 +614,7 @@ export function createInMemoryOperatorAiAssistantAdapters(
     listConversations: async (archived) => {
       return conversations
         .filter((row) => row.isArchived === archived)
-        .map((row) => ({
-          id: row.id,
-          title: row.title,
-          ownedLocationName: row.analysisScope.ownedLocationName,
-          lastActivityAt: row.lastActivityAt,
-          isArchived: row.isArchived,
-        }))
+        .map((row) => toListItemFromConversation(row))
     },
     archiveConversation: async (conversationId) => {
       const row = conversations.find((item) => item.id === conversationId)
@@ -1120,7 +1114,34 @@ function applyConversation(
     turnInFlight: false,
     waitBody: ASSISTANT_WAIT_BODY,
     turnConversationId: null,
+    listItems: upsertListItem(state.listItems, row, activeListPanel(state)),
   }
+}
+
+function toListItemFromConversation(
+  row: OperatorAiAssistantConversationRow
+): OperatorAiAssistantListItem {
+  return {
+    id: row.id,
+    title: row.title,
+    ownedLocationName: row.analysisScope.ownedLocationName,
+    lastActivityAt: row.lastActivityAt,
+    isArchived: row.isArchived,
+  }
+}
+
+function upsertListItem(
+  items: OperatorAiAssistantListItem[],
+  row: OperatorAiAssistantConversationRow,
+  listPanel: OperatorAiAssistantListPanel
+): OperatorAiAssistantListItem[] {
+  const without = items.filter((item) => item.id !== row.id)
+  const rowIsOnActivePanel =
+    listPanel === "archive" ? row.isArchived : !row.isArchived
+  if (!rowIsOnActivePanel) {
+    return without
+  }
+  return [toListItemFromConversation(row), ...without]
 }
 
 function emptyGreetingState(

@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using TummlyBackend.Helpers;
 
 namespace TummlyBackend.Tests.Helpers
@@ -36,6 +37,42 @@ namespace TummlyBackend.Tests.Helpers
                 prompt,
                 StringComparison.Ordinal
             );
+        }
+
+        [Fact]
+        public void BuildSystemPrompt_RequiresConversationTitleOmitList()
+        {
+            var prompt = AssistantLiveAnswerStructuredOutput.BuildSystemPrompt(
+                "2026-08-16"
+            );
+
+            Assert.Contains(
+                "Emit conversationTitle with assistantTask",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "Omit Owned location, Reporting period",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "Do not copy title",
+                prompt,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public void BuildSchema_RequiresConversationTitle()
+        {
+            var schema = AssistantLiveAnswerStructuredOutput.BuildSchema();
+            var required = schema["required"]!.AsArray()
+                .Select(node => node!.GetValue<string>())
+                .ToArray();
+
+            Assert.Contains("conversationTitle", required);
+            Assert.Contains("assistantTask", required);
         }
 
         [Fact]

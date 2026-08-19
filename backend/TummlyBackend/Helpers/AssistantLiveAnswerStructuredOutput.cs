@@ -78,7 +78,8 @@ namespace TummlyBackend.Helpers
                     "title",
                     "body",
                     "actions",
-                    "assistantTask"
+                    "assistantTask",
+                    "conversationTitle"
                 },
                 ["properties"] = new JsonObject
                 {
@@ -103,6 +104,14 @@ namespace TummlyBackend.Helpers
                         )
                     },
                     ["title"] = new JsonObject
+                    {
+                        ["anyOf"] = new JsonArray
+                        {
+                            new JsonObject { ["type"] = "string" },
+                            new JsonObject { ["type"] = "null" }
+                        }
+                    },
+                    ["conversationTitle"] = new JsonObject
                     {
                         ["anyOf"] = new JsonArray
                         {
@@ -170,6 +179,15 @@ namespace TummlyBackend.Helpers
                 offer-path, recovery-path, or refuse. Do not invent eligible
                 counts. The server binds tools and may overwrite the body on
                 create-campaign-draft.
+
+                Emit conversationTitle with assistantTask: a short task label
+                for the Assistant conversation row (max 60 characters, one line,
+                no Markdown, no ellipsis). Omit Owned location, Reporting period,
+                guest Name / email / phone, Campaign Draft name, the live answer
+                message title, and tool counts. Keep task words from the ask.
+                Do not copy title. The server accepts or rejects this string.
+                Later turns may still emit it; the server ignores it after the
+                first successful complete.
 
                 Every restaurant claim must come from retrieved evidence in the
                 user payload. Re-retrieve is already done. Prior assistant text is
@@ -395,12 +413,23 @@ namespace TummlyBackend.Helpers
                     assistantTask = AssistantTask.Normalize(taskElement.GetString());
                 }
 
+                string? conversationTitle = null;
+                if (root.TryGetProperty("conversationTitle", out var conversationTitleElement)
+                    && conversationTitleElement.ValueKind == JsonValueKind.String)
+                {
+                    var rawConversationTitle = conversationTitleElement.GetString()?.Trim();
+                    conversationTitle = string.IsNullOrEmpty(rawConversationTitle)
+                        ? null
+                        : rawConversationTitle;
+                }
+
                 result = new AssistantLiveAnswerResult.Succeeded(
                     answerClass,
                     title,
                     body,
                     actions,
-                    assistantTask
+                    assistantTask,
+                    conversationTitle
                 );
                 return true;
             }

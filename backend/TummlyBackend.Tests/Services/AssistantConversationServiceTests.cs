@@ -828,6 +828,275 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("Campaign create", answer.Body);
             Assert.Null(ok.Conversation.PendingCampaignDraft);
             Assert.Null(_context.AssistantConversations.Single().CreatedCampaignId);
+            Assert.Equal("Bring back Email-eligible guests", ok.Conversation.Title);
+        }
+
+        [Fact]
+        public async Task SendTurn_GeneratedTitle_ReplacesFallbackOnFirstSuccessfulComplete()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "No facts at Camden for the last 7 days",
+                "There is nothing to summarise.",
+                AssistantTask.Retrieve,
+                "Summarise feedback"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("Summarise feedback", ok.Conversation.Title);
+            Assert.Equal(
+                "No facts at Camden for the last 7 days",
+                ok.Conversation.Messages[^1].Title
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_FailureComplete_KeepsFirstUserMessageFallback()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.Fail();
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("failure", ok.Conversation.Messages[^1].Class);
+            Assert.Equal("Summarise recent feedback", ok.Conversation.Title);
+        }
+
+        [Fact]
+        public async Task RetryTurn_FirstSendFailure_AppliesGeneratedTitle()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.Fail();
+            var failed = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+            var conversationId = Assert.IsType<AssistantTurnOutcome.Ok>(failed).Conversation.Id;
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "No facts at Camden for the last 7 days",
+                "There is nothing to summarise.",
+                AssistantTask.Retrieve,
+                "Summarise feedback"
+            );
+
+            var retried = await _service.RetryTurnAsync(ownerUserId: 7, conversationId);
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(retried);
+            Assert.Equal("grounded", ok.Conversation.Messages[^1].Class);
+            Assert.Equal("Summarise feedback", ok.Conversation.Title);
+        }
+
+        [Theory]
+        [InlineData("")]
+        [InlineData("   ")]
+        [InlineData("**Bold title**")]
+        [InlineData("guest@example.com")]
+        [InlineData("07700900000")]
+        public async Task SendTurn_RejectedGeneratedTitle_KeepsFirstUserMessageFallback(
+            string proposed
+        )
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "No facts at Camden for the last 7 days",
+                "There is nothing to summarise.",
+                AssistantTask.Retrieve,
+                proposed
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("Summarise recent feedback", ok.Conversation.Title);
+        }
+
+        [Fact]
+        public async Task SendTurn_GeneratedTitleMatchingLiveAnswerTitle_KeepsFallback()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            const string liveAnswerTitle = "No facts at Camden for the last 7 days";
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                liveAnswerTitle,
+                "There is nothing to summarise.",
+                AssistantTask.Retrieve,
+                liveAnswerTitle
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("Summarise recent feedback", ok.Conversation.Title);
+            Assert.Equal(liveAnswerTitle, ok.Conversation.Messages[^1].Title);
+        }
+
+        [Fact]
+        public async Task SendTurn_OverLengthGeneratedTitle_CutsAtLastSpaceAndDoesNotFallBack()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "No facts at Camden for the last 7 days",
+                "There is nothing to summarise.",
+                AssistantTask.Retrieve,
+                "Bring back Email-eligible guests during the quiet lunch period this week"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal(
+                "Bring back Email-eligible guests during the quiet lunch",
+                ok.Conversation.Title
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_OverLengthGeneratedTitleWithoutSpace_HardCuts()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "No facts at Camden for the last 7 days",
+                "There is nothing to summarise.",
+                AssistantTask.Retrieve,
+                "BringBackEmailEligibleGuestsWithoutAnySpacesInTheFirstSixtyX more"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal(
+                "BringBackEmailEligibleGuestsWithoutAnySpacesInTheFirstSixtyX",
+                ok.Conversation.Title
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_MultilineGeneratedTitle_UsesFirstLine()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "No facts at Camden for the last 7 days",
+                "There is nothing to summarise.",
+                AssistantTask.Retrieve,
+                "Summarise feedback\nIgnore this second line"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("Summarise feedback", ok.Conversation.Title);
+        }
+
+        [Fact]
+        public async Task SendTurn_LaterSend_DoesNotRetitle()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "No facts at Camden for the last 7 days",
+                "There is nothing to summarise.",
+                AssistantTask.Retrieve,
+                "Summarise feedback"
+            );
+            var first = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Summarise recent feedback")
+                )
+            );
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "No facts at Camden for the last 7 days",
+                "Later body.",
+                AssistantTask.Retrieve,
+                "Later generated title"
+            );
+
+            var later = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Show me Campaign drafts",
+                    first.Conversation.Id
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(later);
+            Assert.Equal("Summarise feedback", ok.Conversation.Title);
+        }
+
+        [Fact]
+        public async Task SendTurn_CanonicalCamdenEmailWinBack_UsesTaskTitleNotRawAsk()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenEmailWinBackAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("Bring back Email-eligible guests", ok.Conversation.Title);
+            Assert.NotEqual(CanonicalCamdenEmailWinBackAsk, ok.Conversation.Title);
+            Assert.True(ok.Conversation.Title.Length <= 60);
+        }
+
+        [Fact]
+        public async Task SendTurn_Refuse_AppliesGeneratedTitle()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Refusal,
+                null,
+                AssistantLiveAnswerCopy.HelpCentreRefusalBody,
+                AssistantTask.Refuse,
+                "Help Centre question"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "How do I create a campaign?")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("refusal", ok.Conversation.Messages[^1].Class);
+            Assert.Equal("Help Centre question", ok.Conversation.Title);
         }
 
         [Fact]

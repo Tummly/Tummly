@@ -22,7 +22,8 @@ namespace TummlyBackend.Services
             AssistantMessageClass answerClass,
             string? title,
             string body,
-            string assistantTask = AssistantTask.Retrieve
+            string assistantTask = AssistantTask.Retrieve,
+            string? conversationTitle = null
         )
         {
             _throwOnComplete = null;
@@ -31,7 +32,8 @@ namespace TummlyBackend.Services
                 title,
                 body,
                 [],
-                assistantTask
+                assistantTask,
+                conversationTitle
             );
         }
 
@@ -86,7 +88,8 @@ namespace TummlyBackend.Services
                     "Campaign Draft",
                     "Create Campaign Draft.",
                     [],
-                    AssistantTask.CreateCampaignDraft
+                    AssistantTask.CreateCampaignDraft,
+                    ConversationTitleForCreateCampaignDraft(input.UserMessage)
                 );
             }
 
@@ -125,6 +128,16 @@ namespace TummlyBackend.Services
                 input.Caveat,
                 input.DroppedUnknownSentence
             ) with { AssistantTask = AssistantTask.Retrieve };
+        }
+
+        private static string ConversationTitleForCreateCampaignDraft(string userMessage)
+        {
+            if (userMessage.Contains("bring back", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Bring back Email-eligible guests";
+            }
+
+            return "Create Campaign Draft";
         }
     }
 }
