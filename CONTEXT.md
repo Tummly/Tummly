@@ -329,8 +329,8 @@ A derived operator signal on one **Feedback**: **AI classification** is Succeede
 _Avoid_: Needs recovery (when meaning Feedback), attention status, priority status, workflow Needs attention
 
 **Feedback recovery**:
-An operator follow-up session on one **Feedback**, entered via **Start recovery**. A multi-step wizard with four entry intents: **Respond to the guest**; **Respond and record an internal action**; **Record an internal action only**; **Respond with a recovery offer**. Records recovery outcomes as facts (guest response, internal action, **recovery offer**) and drives **Feedback workflow status**; not a separate persisted recovery-status enum. Uses the shared **Operator wizard shell** for chrome; intent-specific step bodies stay feature-owned. Distinct from Location Guest **Needs recovery**.
-_Avoid_: Recovery workflow status, Needs recovery (when meaning the Feedback wizard), Start recovery (the CTA alone)
+An operator follow-up wizard on one **Feedback**, entered via **Start recovery** or via **AI Assistant** Review after a completing **Recovery path** **live answer**. Four entry intents: **Respond to the guest**; **Respond and record an internal action**; **Record an internal action only**; **Respond with a recovery offer**. Records recovery outcomes as facts (guest response, internal action, **recovery offer**) and drives **Feedback workflow status**; not a separate persisted recovery-status enum. Uses the shared **Operator wizard shell**; intent-specific step bodies stay feature-owned. The **AI Assistant** may prepare it on that completing turn; it is not a stored Draft and has no **Drafts** list row. Distinct from Location Guest **Needs recovery**.
+_Avoid_: Recovery workflow status, Needs recovery (when meaning the Feedback wizard), Start recovery (the CTA alone), recovery Draft (as a stored entity)
 
 **Operator wizard shell**:
 Shared full-screen Operator wizard chrome used by **Feedback recovery** intents and **Campaign** create: close control, title/description, numbered stepper (omit with null steps for Goal-style step 0), step heading, mid-flow footer (Back · Last saved · Save and exit · primary CTA from the feature), optional Preparing AI overlay, and optional send/schedule confirm dialog. Lives under Operator dashboard components (not Feedback-owned). Does not own step bodies or domain preparing/confirm copy — callers supply those. Distinct from step content and from one-off dialogs outside this chrome.
@@ -381,7 +381,7 @@ _Avoid_: Admin panel, control panel
 
 **AI Assistant**:
 The operator-facing chat surface on the Operator dashboard. Distinct from platform-side AI such as **AI classification**, and from guest-facing AI such as recovery drafts. Distinct from the Help Centre.
-_Avoid_: Copilot, AI copilot, Ask AI
+_Avoid_: Copilot, AI copilot, Ask AI, wizard-in-chat, Draft interview (as the target create path)
 
 **Assistant conversation**:
 One chat thread in the **AI Assistant**, owned by one Operator user. Distinct from a Help Centre query thread. It stays until the operator Deletes it or the Operator user record is removed. There is no time-to-live. Archive is only a hide. Location Guest delete leaves snapshot Name and excerpt in stored messages. Removal of that Operator user record hard-deletes that user's conversations and messages. Linked Campaigns, offers, Feedback, and audit history stay. Sign out, Activation expired, and Soft lock do not wipe conversations. A later Feedback PII-snapshot erase would also erase Assistant quotes; do not add a second erase path.
@@ -399,29 +399,37 @@ _Avoid_: Assistant date range, analysis window (when meaning the whole Analysis 
 The **AI Assistant** dialog that sets **Analysis scope**. Mode `multi` shows **Owned location** and **Reporting period**. Mode `single` shows **Reporting period** only. The header **Change Scope** control opens it.
 _Avoid_: Change context, scope picker, Change Scope (except the header button label)
 
+**Assistant task**:
+The closed set of what one send is for: **Retrieve**, **Create Campaign Draft**, **Offer path**, **Recovery path**, or **Refuse** (send, schedule, issue, Help Centre, and other writes that are not a create path). Distinct from **AI classification**, **Clarify**, **Gap turn**, and **Draft interview**.
+_Avoid_: intent class, copilot plan, phrase-match interview, READ_ONLY (and sibling approval words)
+
 **Compare turn**:
-An **AI Assistant** question that compares, ranks, or contrasts two or more **Owned location**s. Extra locations are read for that turn only; saved **Analysis scope** stays one **Owned location**.
+An **AI Assistant** question that compares, ranks, or contrasts two or more **Owned location**s. Extra locations are read for that turn only; saved **Analysis scope** stays one **Owned location**. Distinct from a **Gap turn**.
 _Avoid_: Location compare (as a screen), multi-location Analysis scope, compare UI
 
 **Live answer**:
-One **AI Assistant** response to a user send in an **Assistant conversation**. Distinct from **AI classification**, recovery drafts, campaign recommendation, and **Help Centre**.
+One **AI Assistant** response to a user send in an **Assistant conversation**. A completing **Create Campaign Draft**, **Offer path**, or **Recovery path** turn may persist or prepare work before this answer is shown; a **Gap turn** does not persist. Distinct from **AI classification**, **Feedback recovery**, campaign recommendation, and **Help Centre**.
 _Avoid_: Copilot reply, chat completion (as the product noun), stream (when meaning this complete message)
 
 **Clarify** (AI Assistant):
-An **AI Assistant** turn that asks the operator to name or narrow **Owned location**s before a **Compare turn** can read them. Distinct from a **Compare turn**, from a **Draft interview**, and from a refusal.
-_Avoid_: Ask-back (as the glossary noun), disambiguation turn
+An **AI Assistant** turn that asks the operator to name or narrow **Owned location**s before a **Compare turn** can read them. Distinct from a **Compare turn**, from a **Gap turn**, from a **Draft interview**, and from a refusal.
+_Avoid_: Ask-back (as the glossary noun), disambiguation turn, Gap turn (when meaning compare), Draft interview, Allowed clarification
+
+**Gap turn**:
+One **AI Assistant** turn that asks one genuine gap on a create or recovery **Assistant task** (create target, Location, **Feedback**, new-Offer terms, Offer title, audience, or channel), with no persist that turn. Distinct from **Clarify**, from a **Compare turn**, from a completing **live answer**, and from a refusal.
+_Avoid_: Clarify (when meaning this), Draft interview, Allowed clarification, Ask-back (as this noun)
 
 **Draft interview**:
-An **AI Assistant** multi-turn ask-back on the current **Assistant conversation** that collects missing fields until one **Draft Action** may appear. Distinct from **Clarify**.
-_Avoid_: Clarify (when meaning this); draft wizard in chat
+Retired create-draft path. Historical name for the shipped multi-turn ask-back that collected fields until a **Draft Action**. Must not start. Remaining questions are a **Gap turn**. Distinct from **Clarify**.
+_Avoid_: Clarify (when meaning this), draft wizard in chat, Gap turn (when meaning the retired interview), target create path
 
 **Action** (AI Assistant):
-A typed control on a live **AI Assistant** answer. Navigate-only **Action**s open an existing Operator dashboard flow. A **Draft Action** persists or opens a draft destination, then closes the **AI Assistant**. Distinct from **Feedback recovery** internal action.
-_Avoid_: Deep link (as the product name), suggested prompt, chip; internal action (when meaning this)
+A typed control on a **live answer**, from a server-owned catalogue. After a completing create turn the rows are Review (`Review campaign draft` / `Review offer draft` / `Review recovery`) and, for a No-Offer **Campaign Draft**, Change audience and Add Offer. Distinct from **Feedback recovery** internal action.
+_Avoid_: Draft Action (as the persist step), Deep link (as the product name), suggested prompt, chip, Send (as an Action row on this spec), internal action (when meaning this)
 
 **Draft Action**:
-The dedicated **Action** that, on click, creates a **Campaign Draft** or a stored **Offers catalog** Draft, or opens **Feedback recovery** on the Review step with fields filled; then closes the **AI Assistant** and lands on the Campaigns or Offers list **Drafts** tab, or the recovery wizard. Does not send, schedule, or issue. Does not open the Campaign wizard, **Campaign Detail**, Create Offer drawer, or **Offer Details**.
-_Avoid_: Create-and-send; auto-send; wizard prefill (when meaning a navigate-only Action); Active-with-zero-attach as the Assistant Offer Draft
+Retired persist-on-click **Action**. Historical name for the control that created a Draft or opened recovery, then closed the **AI Assistant**. Persist is a server tool on the completing **live answer**. Remaining rows are ordinary **Action**s.
+_Avoid_: Create campaign draft (as the persist step), Review campaign draft (when meaning this retired control), persist-on-click (as the target), Create-and-send, auto-send, fake Draft
 
 **Capture**:
 The Operator dashboard destination for managing **QR code**s (UI: **QR placements** and **Digital guest links**), engagement KPIs, and guest-experience summary. Single-location Capture and multi-location nested per-location Capture share one body; multi-location operators also have a **Capture overview** root with **Location performance** across all **Owned location**s.
