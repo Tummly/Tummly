@@ -15,6 +15,7 @@ import {
 import {
   createCampaignDraft,
   createCatalogOfferDraft,
+  getCampaignDraftById,
   getFeedbackDetails,
   setFeedbackWorkflowStatus,
   setFeedbackRecoveryOfferAttach,
@@ -124,6 +125,16 @@ export function useAiAssistantModule(
         navigateAction: (input) => {
           contextRef.current.navigateAction(input)
         },
+        getCampaignDraft: async (campaignId) => {
+          const response = await getCampaignDraftById(campaignId)
+          if (!response.success || response.campaign == null) {
+            return null
+          }
+          return {
+            status: response.campaign.status,
+            locationId: response.campaign.locationId,
+          }
+        },
         createCampaignDraft: async (body) => {
           const response = await createCampaignDraft(body)
           if (!response.success || response.campaign == null) {
@@ -179,6 +190,9 @@ export function useAiAssistantModule(
         clearDraftInterview: clearAssistantDraftInterview,
         notifyDraftError: () => {
           toast.error("Could not create draft. Please try again.")
+        },
+        notifyCampaignDraftOpenError: () => {
+          toast.error("Could not open this campaign draft. Try again.")
         },
         notifyRecoveryDraftError: (message) => {
           toast.error(message)

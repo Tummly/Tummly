@@ -1071,7 +1071,9 @@ namespace TummlyBackend.Services
                 ),
                 AssistantActionCatalog.ValidateReviewCampaign(
                     created.Id,
-                    AssistantMessageClass.Grounded
+                    AssistantMessageClass.Grounded,
+                    created.OfferStance,
+                    created.OfferId
                 ),
                 created.Id
             );

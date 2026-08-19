@@ -193,10 +193,10 @@ export function CampaignsPage() {
   )
 
   useEffect(() => {
-    const previewCampaignId = campaignsIntent?.previewCampaignId
-    if (previewCampaignId == null) {
+    if (campaignsIntent == null || !("previewCampaignId" in campaignsIntent)) {
       return
     }
+    const previewCampaignId = campaignsIntent.previewCampaignId
     setCampaignsIntent(null)
     void campaignDetailPreview.open(previewCampaignId)
   }, [campaignDetailPreview, campaignsIntent, setCampaignsIntent])
@@ -324,7 +324,10 @@ export function CampaignsPage() {
     void templatePicker.open()
   }
 
-  const handleContinueEditing = (campaignId: number) => {
+  const handleContinueEditing = (
+    campaignId: number,
+    startStep?: "audience" | "offer"
+  ) => {
     const viewModel = snapshot.viewModel
     if (viewModel == null) {
       return
@@ -339,12 +342,29 @@ export function CampaignsPage() {
           locationName: viewModel.locationName,
           locationAddress: selectedLocationAddress,
           draft: response.campaign,
+          startStep,
         })
       } catch {
         toast.error("Could not open this campaign draft. Try again.")
       }
     })()
   }
+
+  useEffect(() => {
+    if (
+      campaignsIntent == null
+      || !("continueEditingCampaignId" in campaignsIntent)
+    ) {
+      return
+    }
+    if (snapshot.viewModel == null) {
+      return
+    }
+    const campaignId = campaignsIntent.continueEditingCampaignId
+    const startStep = campaignsIntent.continueEditingStep
+    setCampaignsIntent(null)
+    handleContinueEditing(campaignId, startStep)
+  }, [campaignsIntent, setCampaignsIntent, snapshot.viewModel])
 
   const handlePreviewCampaign = (campaignId: number) => {
     void campaignDetailPreview.open(campaignId)

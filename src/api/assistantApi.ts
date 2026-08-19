@@ -172,6 +172,8 @@ function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessag
 
 const KNOWN_ASSISTANT_ACTION_TYPES = new Set<OperatorAiAssistantActionType>([
   "review-campaign",
+  "change-audience",
+  "add-offer",
   "draft-campaign",
   "draft-offer",
   "open-recovery",

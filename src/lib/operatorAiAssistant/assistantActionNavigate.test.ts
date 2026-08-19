@@ -90,6 +90,48 @@ describe("planAssistantActionNavigate", () => {
     })
   })
 
+  it("maps change-audience to Campaigns Continue editing at Audience, not Drafts", () => {
+    expect(
+      planAssistantActionNavigate({
+        action: {
+          type: "change-audience",
+          label: "Change audience",
+          campaignId: 41,
+        },
+        analysisScope: SCOPE,
+        mode: "multi",
+      })
+    ).toEqual({
+      path: "/multi-dashboard/campaigns?location=11",
+      selectLocationId: 11,
+      campaigns: {
+        continueEditingCampaignId: 41,
+        continueEditingStep: "audience",
+      },
+    })
+  })
+
+  it("maps add-offer to Campaigns Continue editing at Offer, not Drafts", () => {
+    expect(
+      planAssistantActionNavigate({
+        action: {
+          type: "add-offer",
+          label: "Add Offer",
+          campaignId: 41,
+        },
+        analysisScope: SCOPE,
+        mode: "single",
+      })
+    ).toEqual({
+      path: "/single-dashboard/campaigns?location=11",
+      selectLocationId: 11,
+      campaigns: {
+        continueEditingCampaignId: 41,
+        continueEditingStep: "offer",
+      },
+    })
+  })
+
   it("maps draft-offer to Offers Drafts without a view query", () => {
     expect(
       planAssistantActionNavigate({

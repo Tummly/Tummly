@@ -643,6 +643,77 @@ describe("createCampaignWizardModule", () => {
     expect(wizard.getSnapshot().channel?.selectedChannelId).toBe("sms")
   })
 
+  it("Continue editing can open at Audience even when the Draft already has a message", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    await wizard.openFromDraft({
+      locationName: "Camden",
+      startStep: "audience",
+      draft: {
+        id: 55,
+        locationId: 42,
+        status: "draft",
+        name: "Tuesday lunch reminder",
+        goalId: "boost-quieter-time",
+        templateId: null,
+        templateVersion: null,
+        audienceKey: "new-guests",
+        channel: "sms",
+        offerStance: "no-offer",
+        offerId: null,
+        messageSubject: "Lunch",
+        messageBody: "Come for lunch",
+        rowVersion: "AAAAAAAAB9E=",
+        createdAt: "2026-08-07T10:00:00Z",
+        updatedAt: "2026-08-08T10:00:00Z",
+      },
+    })
+
+    expect(wizard.getSnapshot().stepId).toBe("audience")
+    expect(wizard.getSnapshot().audience?.selectedAudienceId).toBe("new-guests")
+    expect(wizard.getSnapshot().commitConfirm?.open).toBe(false)
+  })
+
+  it("Continue editing can open at Offer with No Offer hydrated and Create Offer closed", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    await wizard.openFromDraft({
+      locationName: "Camden",
+      startStep: "offer",
+      draft: {
+        id: 55,
+        locationId: 42,
+        status: "draft",
+        name: "Tuesday lunch reminder",
+        goalId: "boost-quieter-time",
+        templateId: null,
+        templateVersion: null,
+        audienceKey: "new-guests",
+        channel: "sms",
+        offerStance: "no-offer",
+        offerId: null,
+        messageSubject: "Lunch",
+        messageBody: "Come for lunch",
+        rowVersion: "AAAAAAAAB9E=",
+        createdAt: "2026-08-07T10:00:00Z",
+        updatedAt: "2026-08-08T10:00:00Z",
+      },
+    })
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("offer")
+    expect(snapshot.offer?.selectedStanceId).toBe("no-offer")
+    expect(snapshot.offer?.attachedOfferId).toBeNull()
+    expect(snapshot.offer?.createPanelOpen).toBe(false)
+    expect(snapshot.commitConfirm?.open).toBe(false)
+  })
+
   it("Continue editing opens at Goal when Draft has no goalId", async () => {
     const wizard = createCampaignWizardModule({
       ...defaultAudienceAdapters(),

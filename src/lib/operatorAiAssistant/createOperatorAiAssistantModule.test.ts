@@ -980,7 +980,7 @@ describe("first send creates a durable Assistant conversation", () => {
 })
 
 describe("grounded live answers, helpful fill, and Actions", () => {
-  it("shows one Review Action without navigate Actions on a completing answer", async () => {
+  it("shows Review, Change audience, and Add Offer without retrieve Actions on a completing answer", async () => {
     const adapters = createInMemoryOperatorAiAssistantAdapters({
       sendTurn: async (input) => ({
         id: "conv-mixed-ready",
@@ -1004,6 +1004,16 @@ describe("grounded live answers, helpful fill, and Actions", () => {
                 label: "Review campaign draft",
                 campaignId: 41,
               },
+              {
+                type: "change-audience",
+                label: "Change audience",
+                campaignId: 41,
+              },
+              {
+                type: "add-offer",
+                label: "Add Offer",
+                campaignId: 41,
+              },
             ],
           },
         ],
@@ -1023,7 +1033,65 @@ describe("grounded live answers, helpful fill, and Actions", () => {
         campaignId: 41,
         clickable: true,
       }),
+      expect.objectContaining({
+        type: "change-audience",
+        label: "Change audience",
+        campaignId: 41,
+        clickable: true,
+      }),
+      expect.objectContaining({
+        type: "add-offer",
+        label: "Add Offer",
+        campaignId: 41,
+        clickable: true,
+      }),
     ])
+  })
+
+  it("omits Add Offer on a completing answer when the Draft already has an Offer", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-offer-attached",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: null,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Campaign Draft saved",
+            body: "Campaign Draft saved with an Offer.",
+            actions: [
+              {
+                type: "review-campaign",
+                label: "Review campaign draft",
+                campaignId: 41,
+              },
+              {
+                type: "change-audience",
+                label: "Change audience",
+                campaignId: 41,
+              },
+            ],
+          },
+        ],
+      }),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Draft an Email Campaign with Weekend brunch")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const types = (module.getSnapshot().messages.at(-1)?.actions ?? []).map(
+      (action) => action.type
+    )
+    expect(types).toEqual(["review-campaign", "change-audience"])
   })
 
   it("shows one Offer Draft Action without navigate Actions on a completing answer", async () => {
@@ -1220,6 +1288,8 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     const action = module.getSnapshot().messages.at(-1)?.actions?.[0]
     expect(action?.type).toBe("review-campaign")
     module.clickAction(action!)
+    await Promise.resolve()
+    await Promise.resolve()
 
     expect(createCalls).toBe(0)
     expect(module.getSnapshot().drawerOpen).toBe(false)
@@ -1229,6 +1299,474 @@ describe("grounded live answers, helpful fill, and Actions", () => {
       campaignId: 41,
     })
     expect(adapters.lastNavigate?.analysisScope.ownedLocationId).toBe(1)
+  })
+
+  it("closes the Assistant and lands Continue editing at Audience without POSTing create", async () => {
+    let createCalls = 0
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-review",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: null,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Campaign Draft saved",
+            body: "Campaign Draft saved.",
+            actions: [
+              {
+                type: "review-campaign",
+                label: "Review campaign draft",
+                campaignId: 41,
+              },
+              {
+                type: "change-audience",
+                label: "Change audience",
+                campaignId: 41,
+              },
+              {
+                type: "add-offer",
+                label: "Add Offer",
+                campaignId: 41,
+              },
+            ],
+          },
+        ],
+      }),
+      createCampaignDraft: async () => {
+        createCalls += 1
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft(
+      "Draft an Email Campaign to bring back all currently Email-eligible guests at Camden"
+    )
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const action = module
+      .getSnapshot()
+      .messages.at(-1)
+      ?.actions?.find((item) => item.type === "change-audience")
+    expect(action).toBeDefined()
+    module.clickAction(action!)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(createCalls).toBe(0)
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(adapters.lastNavigate?.action).toMatchObject({
+      type: "change-audience",
+      label: "Change audience",
+      campaignId: 41,
+    })
+    expect(adapters.lastNavigate?.analysisScope.ownedLocationId).toBe(1)
+  })
+
+  it("closes the Assistant and lands Continue editing at Offer without POSTing create", async () => {
+    let createCalls = 0
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-review",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: null,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Campaign Draft saved",
+            body: "Campaign Draft saved.",
+            actions: [
+              {
+                type: "review-campaign",
+                label: "Review campaign draft",
+                campaignId: 41,
+              },
+              {
+                type: "change-audience",
+                label: "Change audience",
+                campaignId: 41,
+              },
+              {
+                type: "add-offer",
+                label: "Add Offer",
+                campaignId: 41,
+              },
+            ],
+          },
+        ],
+      }),
+      createCampaignDraft: async () => {
+        createCalls += 1
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft(
+      "Draft an Email Campaign to bring back all currently Email-eligible guests at Camden"
+    )
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const action = module
+      .getSnapshot()
+      .messages.at(-1)
+      ?.actions?.find((item) => item.type === "add-offer")
+    expect(action).toBeDefined()
+    module.clickAction(action!)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(createCalls).toBe(0)
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(adapters.lastNavigate?.action).toMatchObject({
+      type: "add-offer",
+      label: "Add Offer",
+      campaignId: 41,
+    })
+  })
+
+  it("does not make completing Campaign rows clickable while navigate is in flight", async () => {
+    let releaseGet!: (campaign: { status: string; locationId: number }) => void
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-review",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: null,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Campaign Draft saved",
+            body: "Campaign Draft saved.",
+            actions: [
+              {
+                type: "review-campaign",
+                label: "Review campaign draft",
+                campaignId: 41,
+              },
+              {
+                type: "change-audience",
+                label: "Change audience",
+                campaignId: 41,
+              },
+              {
+                type: "add-offer",
+                label: "Add Offer",
+                campaignId: 41,
+              },
+            ],
+          },
+        ],
+      }),
+      getCampaignDraft: () =>
+        new Promise((resolve) => {
+          releaseGet = resolve
+        }),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft(
+      "Draft an Email Campaign to bring back all currently Email-eligible guests at Camden"
+    )
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const action = module
+      .getSnapshot()
+      .messages.at(-1)
+      ?.actions?.find((item) => item.type === "change-audience")
+    module.clickAction(action!)
+    await Promise.resolve()
+
+    const types = (module.getSnapshot().messages.at(-1)?.actions ?? []).map(
+      (item) => [item.type, item.clickable] as const
+    )
+    expect(types).toEqual([
+      ["review-campaign", false],
+      ["change-audience", false],
+      ["add-offer", false],
+    ])
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(adapters.lastNavigate).toBeNull()
+
+    releaseGet({ status: "draft", locationId: 1 })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(adapters.lastNavigate?.action.type).toBe("change-audience")
+  })
+
+  it("keeps completing Campaign rows on an earlier answer clickable while a later answer navigate is in flight", async () => {
+    let turns = 0
+    let releaseGet!: (campaign: { status: string; locationId: number }) => void
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => {
+        turns += 1
+        const first = {
+          id: "a1",
+          role: "assistant" as const,
+          class: "grounded" as const,
+          title: "Campaign Draft saved",
+          body: "Campaign Draft saved.",
+          actions: [
+            {
+              type: "review-campaign" as const,
+              label: "Review campaign draft",
+              campaignId: 41,
+            },
+            {
+              type: "change-audience" as const,
+              label: "Change audience",
+              campaignId: 41,
+            },
+            {
+              type: "add-offer" as const,
+              label: "Add Offer",
+              campaignId: 41,
+            },
+          ],
+        }
+        if (turns === 1) {
+          return {
+            id: "conv-review",
+            title: input.message,
+            analysisScope: input.analysisScope,
+            lastActivityAt: new Date().toISOString(),
+            isArchived: false,
+            pendingCampaignDraft: null,
+            messages: [
+              {
+                id: "u1",
+                role: "user",
+                body: input.message,
+                analysisScope: input.analysisScope,
+              },
+              first,
+            ],
+          }
+        }
+        return {
+          id: "conv-review",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          isArchived: false,
+          pendingCampaignDraft: null,
+          messages: [
+            {
+              id: "u1",
+              role: "user",
+              body: "Draft campaign one",
+              analysisScope: input.analysisScope,
+            },
+            first,
+            {
+              id: "u2",
+              role: "user",
+              body: input.message,
+              analysisScope: input.analysisScope,
+            },
+            {
+              id: "a2",
+              role: "assistant",
+              class: "grounded",
+              title: "Campaign Draft saved",
+              body: "Campaign Draft saved.",
+              actions: [
+                {
+                  type: "review-campaign",
+                  label: "Review campaign draft",
+                  campaignId: 42,
+                },
+                {
+                  type: "change-audience",
+                  label: "Change audience",
+                  campaignId: 42,
+                },
+                {
+                  type: "add-offer",
+                  label: "Add Offer",
+                  campaignId: 42,
+                },
+              ],
+            },
+          ],
+        }
+      },
+      getCampaignDraft: (campaignId) => {
+        if (campaignId === 42) {
+          return new Promise((resolve) => {
+            releaseGet = resolve
+          })
+        }
+        return Promise.resolve({ status: "draft", locationId: 1 })
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Draft campaign one")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+    module.setComposerDraft("Draft campaign two")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const later = module
+      .getSnapshot()
+      .messages.at(-1)
+      ?.actions?.find((item) => item.type === "change-audience")
+    module.clickAction(later!)
+    await Promise.resolve()
+
+    const earlierClickable = module
+      .getSnapshot()
+      .messages
+      .flatMap((message) => message.actions ?? [])
+      .filter((action) => action.campaignId === 41)
+      .map((action) => action.clickable)
+    const laterClickable = module
+      .getSnapshot()
+      .messages.at(-1)
+      ?.actions?.map((action) => [action.type, action.clickable] as const)
+
+    expect(earlierClickable).toEqual([true, true, true])
+    expect(laterClickable).toEqual([
+      ["review-campaign", false],
+      ["change-audience", false],
+      ["add-offer", false],
+    ])
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+
+    releaseGet({ status: "draft", locationId: 1 })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+  })
+
+  it("keeps earlier completing Campaign rows clickable after a later send", async () => {
+    let turns = 0
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => {
+        turns += 1
+        const completing = {
+          id: "a1",
+          role: "assistant" as const,
+          class: "grounded" as const,
+          title: "Campaign Draft saved",
+          body: "Campaign Draft saved.",
+          actions: [
+            {
+              type: "review-campaign" as const,
+              label: "Review campaign draft",
+              campaignId: 41,
+            },
+            {
+              type: "change-audience" as const,
+              label: "Change audience",
+              campaignId: 41,
+            },
+            {
+              type: "add-offer" as const,
+              label: "Add Offer",
+              campaignId: 41,
+            },
+          ],
+        }
+        if (turns === 1) {
+          return {
+            id: "conv-review",
+            title: input.message,
+            analysisScope: input.analysisScope,
+            lastActivityAt: new Date().toISOString(),
+            isArchived: false,
+            pendingCampaignDraft: null,
+            messages: [
+              { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+              completing,
+            ],
+          }
+        }
+        return {
+          id: "conv-review",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          isArchived: false,
+          pendingCampaignDraft: null,
+          messages: [
+            {
+              id: "u1",
+              role: "user",
+              body: "Draft an Email Campaign",
+              analysisScope: input.analysisScope,
+            },
+            completing,
+            { id: "u2", role: "user", body: input.message, analysisScope: input.analysisScope },
+            {
+              id: "a2",
+              role: "assistant",
+              class: "grounded",
+              title: "Feedback",
+              body: "Stub retrieve",
+              actions: [
+                { type: "view-feedback-set", label: "View 1 feedback item", count: 1 },
+              ],
+            },
+          ],
+        }
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Draft an Email Campaign")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const earlier = module
+      .getSnapshot()
+      .messages
+      .flatMap((message) => message.actions ?? [])
+      .filter((action) =>
+        action.type === "review-campaign"
+        || action.type === "change-audience"
+        || action.type === "add-offer"
+      )
+    expect(earlier).toHaveLength(3)
+    expect(earlier.every((action) => action.clickable === true)).toBe(true)
+    expect(earlier.map((action) => action.label)).toEqual([
+      "Review campaign draft",
+      "Change audience",
+      "Add Offer",
+    ])
   })
 
   it("keeps Review clickable after resume from getConversation", async () => {
@@ -1436,14 +1974,118 @@ describe("grounded live answers, helpful fill, and Actions", () => {
 
     const action = module.getSnapshot().messages.at(-1)?.actions?.[0]
     module.clickAction(action!)
+    await Promise.resolve()
+    await Promise.resolve()
 
     expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(adapters.lastNavigate).toBeNull()
     expect(module.getSnapshot().messages.at(-1)?.actions?.[0]).toMatchObject({
       type: "review-campaign",
       label: "Review campaign draft",
       clickable: true,
     })
   })
+
+  it.each([
+    {
+      name: "the Campaign Draft is missing",
+      getCampaignDraft: async () => null,
+    },
+    {
+      name: "the Campaign Draft load fails",
+      getCampaignDraft: async () => {
+        throw new Error("load failed")
+      },
+    },
+    {
+      name: "the Campaign is not Draft",
+      getCampaignDraft: async () => ({ status: "scheduled", locationId: 1 }),
+    },
+    {
+      name: "the Campaign is at the wrong location",
+      getCampaignDraft: async () => ({ status: "draft", locationId: 2 }),
+    },
+  ])(
+    "keeps the Assistant open and Change audience clickable when $name",
+    async ({ getCampaignDraft }) => {
+      let openErrorCalls = 0
+      const adapters = createInMemoryOperatorAiAssistantAdapters({
+        sendTurn: async (input) => ({
+          id: "conv-review",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          isArchived: false,
+          pendingCampaignDraft: null,
+          messages: [
+            {
+              id: "u1",
+              role: "user",
+              body: input.message,
+              analysisScope: input.analysisScope,
+            },
+            {
+              id: "a1",
+              role: "assistant",
+              class: "grounded",
+              title: "Campaign Draft saved",
+              body: "Campaign Draft saved.",
+              actions: [
+                {
+                  type: "review-campaign",
+                  label: "Review campaign draft",
+                  campaignId: 41,
+                },
+                {
+                  type: "change-audience",
+                  label: "Change audience",
+                  campaignId: 41,
+                },
+                {
+                  type: "add-offer",
+                  label: "Add Offer",
+                  campaignId: 41,
+                },
+              ],
+            },
+          ],
+        }),
+        getCampaignDraft,
+        notifyCampaignDraftOpenError: () => {
+          openErrorCalls += 1
+        },
+      })
+      const module = createOperatorAiAssistantModule(adapters)
+      module.openDrawer()
+      module.setComposerDraft(
+        "Draft an Email Campaign to bring back all currently Email-eligible guests at Camden"
+      )
+      module.send()
+      await Promise.resolve()
+      await Promise.resolve()
+
+      const action = module
+        .getSnapshot()
+        .messages.at(-1)
+        ?.actions?.find((item) => item.type === "change-audience")
+      module.clickAction(action!)
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(module.getSnapshot().drawerOpen).toBe(true)
+      expect(adapters.lastNavigate).toBeNull()
+      expect(openErrorCalls).toBe(1)
+      expect(
+        module
+          .getSnapshot()
+          .messages.at(-1)
+          ?.actions?.find((item) => item.type === "change-audience")
+      ).toMatchObject({
+        type: "change-audience",
+        clickable: true,
+      })
+    }
+  )
 
   it("opens Review recovery with prepare + navigate and spends the row", async () => {
     const calls: string[] = []

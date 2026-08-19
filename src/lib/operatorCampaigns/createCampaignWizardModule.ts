@@ -160,6 +160,8 @@ export type CampaignWizardOpenFromDraftInput = {
   locationName: string
   locationAddress?: string | null
   draft: CampaignDraftDetail
+  /** Assistant Change audience / Add Offer land. Default resumes from persisted fields. */
+  startStep?: "audience" | "offer"
 }
 
 export type CampaignWizardOpenFromRecommendationInput = {
@@ -2493,12 +2495,24 @@ export function createCampaignWizardModule(
         (draft.messageBody?.trim().length ?? 0) > 0
         || (draft.messageSubject?.trim().length ?? 0) > 0
       // Resume at first incomplete step from persisted fields (schedule is not stored).
+      // Assistant Change audience / Add Offer may force Audience or Offer.
       const stepId: CampaignWizardStepId =
-        goalId == null
-          ? "goal"
-          : hasMessageContent
-            ? "schedule"
-            : "audience"
+        input.startStep === "audience"
+          ? "audience"
+          : input.startStep === "offer"
+            ? "offer"
+            : goalId == null
+              ? "goal"
+              : hasMessageContent
+                ? "schedule"
+                : "audience"
+
+      const offerStanceId =
+        input.startStep === "offer"
+          ? "no-offer"
+          : resolved.offerStanceId
+      const attachedOfferId =
+        input.startStep === "offer" ? null : draft.offerId
 
       state = {
         ...emptyState(),
@@ -2515,9 +2529,10 @@ export function createCampaignWizardModule(
         openedAt: getNow(),
         audienceId: resolved.audienceId,
         channelId: resolved.channelId,
-        offerStanceId: resolved.offerStanceId,
-        attachedOfferId: draft.offerId,
+        offerStanceId,
+        attachedOfferId,
         attachedOfferTitle: null,
+        createOfferPanelOpen: false,
         messageWriteEntry: hasMessageContent ? "editor" : "chooser",
         messageSubject: draft.messageSubject ?? "",
         messageBody: draft.messageBody ?? "",
@@ -2525,10 +2540,10 @@ export function createCampaignWizardModule(
         saveStatus: "saved",
       }
       publish()
-      if (draft.offerId != null) {
+      if (input.startStep !== "offer" && draft.offerId != null) {
         await hydrateAttachedOffer(draft.offerId)
       }
-      if (stepId === "audience") {
+      if (stepId === "audience" || stepId === "offer") {
         await Promise.all([
           loadAudienceCounts(),
           refreshMessagingBalances(),

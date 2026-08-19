@@ -646,10 +646,15 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(ok.Conversation.PendingCampaignDraft);
             Assert.False(ok.Conversation.DraftInterviewActive);
 
-            var action = Assert.Single(answer.Actions);
-            Assert.Equal("review-campaign", action.Type);
-            Assert.Equal("Review campaign draft", action.Label);
-            Assert.NotNull(action.CampaignId);
+            Assert.Equal(
+                new[] { "review-campaign", "change-audience", "add-offer" },
+                answer.Actions.Select(action => action.Type)
+            );
+            Assert.Equal("Review campaign draft", answer.Actions[0].Label);
+            Assert.Equal("Change audience", answer.Actions[1].Label);
+            Assert.Equal("Add Offer", answer.Actions[2].Label);
+            Assert.All(answer.Actions, action => Assert.NotNull(action.CampaignId));
+            var action = answer.Actions[0];
 
             var campaign = Assert.Single(_context.Campaigns);
             Assert.Equal("draft", campaign.Status);
@@ -685,8 +690,11 @@ namespace TummlyBackend.Tests.Services
             var resumed = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await _service.GetAsync(ownerUserId: 7, ok.Conversation.Id)
             );
-            var resumeAction = Assert.Single(resumed.Conversation.Messages[^1].Actions);
-            Assert.Equal("review-campaign", resumeAction.Type);
+            Assert.Equal(
+                new[] { "review-campaign", "change-audience", "add-offer" },
+                resumed.Conversation.Messages[^1].Actions.Select(item => item.Type)
+            );
+            var resumeAction = resumed.Conversation.Messages[^1].Actions[0];
             Assert.Equal("Review campaign draft", resumeAction.Label);
             Assert.Equal(campaign.Id, resumeAction.CampaignId);
             Assert.Equal("draft", campaign.Status);
@@ -737,8 +745,10 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(1, await _context.Campaigns.CountAsync());
             Assert.DoesNotContain(answer.Actions, action => action.Type == "draft-campaign");
             Assert.DoesNotContain(answer.Actions, action => action.Type == "view-feedback-set");
-            var action = Assert.Single(answer.Actions);
-            Assert.Equal("review-campaign", action.Type);
+            Assert.Equal(
+                new[] { "review-campaign", "change-audience", "add-offer" },
+                answer.Actions.Select(action => action.Type)
+            );
         }
 
         [Fact]
@@ -805,7 +815,10 @@ namespace TummlyBackend.Tests.Services
             var campaign = Assert.Single(_context.Campaigns);
             Assert.Equal("draft", campaign.Status);
             Assert.Contains("Nothing was sent or scheduled", ok.Conversation.Messages[^1].Body);
-            Assert.Equal("review-campaign", Assert.Single(ok.Conversation.Messages[^1].Actions).Type);
+            Assert.Equal(
+                new[] { "review-campaign", "change-audience", "add-offer" },
+                ok.Conversation.Messages[^1].Actions.Select(action => action.Type)
+            );
         }
 
         [Fact]
@@ -824,6 +837,8 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(2, ok.Conversation.Messages.Count);
             Assert.Equal(0, await _context.Campaigns.CountAsync());
             Assert.DoesNotContain("review-campaign", answer.Actions.Select(action => action.Type));
+            Assert.DoesNotContain("change-audience", answer.Actions.Select(action => action.Type));
+            Assert.DoesNotContain("add-offer", answer.Actions.Select(action => action.Type));
             Assert.DoesNotContain("Bring back Email-eligible guests at Camden", answer.Body);
             Assert.Contains("Campaign create", answer.Body);
             Assert.Null(ok.Conversation.PendingCampaignDraft);

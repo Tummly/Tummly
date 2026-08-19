@@ -22,9 +22,16 @@ export type AssistantGuestsIntent = {
   marketingEligible?: boolean
 }
 
-export type AssistantCampaignsIntent = {
-  previewCampaignId: number
-}
+export type AssistantCampaignContinueEditingStep = "audience" | "offer"
+
+export type AssistantCampaignsIntent =
+  | {
+      previewCampaignId: number
+    }
+  | {
+      continueEditingCampaignId: number
+      continueEditingStep: AssistantCampaignContinueEditingStep
+    }
 
 export type AssistantOffersIntent = {
   view: "drafts"
@@ -71,6 +78,20 @@ export function planAssistantActionNavigate(input: {
         campaigns:
           action.campaignId != null
             ? { previewCampaignId: action.campaignId }
+            : undefined,
+      }
+    case "change-audience":
+    case "add-offer":
+      return {
+        path: operatorDashboardNavPath(mode, "campaigns", locationId),
+        selectLocationId: locationId,
+        campaigns:
+          action.campaignId != null
+            ? {
+                continueEditingCampaignId: action.campaignId,
+                continueEditingStep:
+                  action.type === "change-audience" ? "audience" : "offer",
+              }
             : undefined,
       }
     case "draft-campaign":

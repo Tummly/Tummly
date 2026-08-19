@@ -164,6 +164,20 @@ describe("createOperatorDashboardUiStore", () => {
     expect(store.getState().campaignsIntent).toBeNull()
   })
 
+  it("holds a Campaigns Continue editing intent until Campaigns consumes it", () => {
+    const store = createOperatorDashboardUiStore()
+    store.getState().setCampaignsIntent({
+      continueEditingCampaignId: 41,
+      continueEditingStep: "audience",
+    })
+    expect(store.getState().campaignsIntent).toEqual({
+      continueEditingCampaignId: 41,
+      continueEditingStep: "audience",
+    })
+    store.getState().setCampaignsIntent(null)
+    expect(store.getState().campaignsIntent).toBeNull()
+  })
+
   it("holds an Offers Drafts intent until Offers consumes it", () => {
     const store = createOperatorDashboardUiStore()
     store.getState().setOffersIntent({ view: "drafts" })
