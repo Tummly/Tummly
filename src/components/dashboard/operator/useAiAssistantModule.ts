@@ -37,6 +37,7 @@ import {
   RECOVERY_DRAFT_ACTION_TOASTS,
   recoveryDraftActionGateToast,
 } from "@/lib/operatorFeedback/recoveryDraftAction"
+import type { CampaignDraftDetail } from "@/types/operatorCampaigns"
 
 export type OperatorAiAssistantDashboardContext = {
   mode: "single" | "multi"
@@ -47,6 +48,7 @@ export type OperatorAiAssistantDashboardContext = {
     action: OperatorAiAssistantAction
     analysisScope: OperatorAiAssistantAnalysisScope
     recoveryDraft?: RecoveryDraftActionPayload | null
+    campaignDraft?: CampaignDraftDetail | null
   }) => void
   openRecoveryFromDraftAction: (
     payload: RecoveryDraftActionPayload
@@ -130,10 +132,7 @@ export function useAiAssistantModule(
           if (!response.success || response.campaign == null) {
             return null
           }
-          return {
-            status: response.campaign.status,
-            locationId: response.campaign.locationId,
-          }
+          return response.campaign
         },
         createCampaignDraft: async (body) => {
           const response = await createCampaignDraft(body)
@@ -190,9 +189,6 @@ export function useAiAssistantModule(
         clearDraftInterview: clearAssistantDraftInterview,
         notifyDraftError: () => {
           toast.error("Could not create draft. Please try again.")
-        },
-        notifyCampaignDraftOpenError: () => {
-          toast.error("Could not open this campaign draft. Try again.")
         },
         notifyRecoveryDraftError: (message) => {
           toast.error(message)

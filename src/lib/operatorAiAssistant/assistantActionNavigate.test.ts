@@ -111,6 +111,43 @@ describe("planAssistantActionNavigate", () => {
     })
   })
 
+  it("attaches a loaded Campaign Draft on Continue editing land so Campaigns does not fetch again", () => {
+    const campaign = {
+      id: 41,
+      locationId: 11,
+      status: "draft",
+      name: "Win-back",
+      goalId: "re-engage-inactive",
+      templateId: null,
+      templateVersion: null,
+      audienceKey: "all-eligible-guests",
+      channel: "email",
+      offerStance: "no-offer",
+      offerId: null,
+      messageSubject: null,
+      messageBody: null,
+      rowVersion: "1",
+      createdAt: "2026-08-19T00:00:00Z",
+      updatedAt: "2026-08-19T00:00:00Z",
+    }
+    expect(
+      planAssistantActionNavigate({
+        action: {
+          type: "change-audience",
+          label: "Change audience",
+          campaignId: 41,
+        },
+        analysisScope: SCOPE,
+        mode: "multi",
+        campaignDraft: campaign,
+      }).campaigns
+    ).toEqual({
+      continueEditingCampaignId: 41,
+      continueEditingStep: "audience",
+      campaign,
+    })
+  })
+
   it("maps add-offer to Campaigns Continue editing at Offer, not Drafts", () => {
     expect(
       planAssistantActionNavigate({

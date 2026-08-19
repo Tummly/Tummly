@@ -9,6 +9,8 @@ import {
   type OperatorDashboardMode,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
+import type { CampaignWizardContinueEditingStep } from "@/lib/operatorCampaigns/campaignWizardPresentation"
+import type { CampaignDraftDetail } from "@/types/operatorCampaigns"
 import type { OperatorFeedbackInboxTabId } from "@/types/operatorFeedback"
 
 export type AssistantFeedbackInboxIntent = {
@@ -22,15 +24,18 @@ export type AssistantGuestsIntent = {
   marketingEligible?: boolean
 }
 
-export type AssistantCampaignContinueEditingStep = "audience" | "offer"
+export type AssistantCampaignContinueEditingStep =
+  CampaignWizardContinueEditingStep
 
 export type AssistantCampaignsIntent =
   | {
       previewCampaignId: number
+      campaign?: CampaignDraftDetail
     }
   | {
       continueEditingCampaignId: number
       continueEditingStep: AssistantCampaignContinueEditingStep
+      campaign?: CampaignDraftDetail
     }
 
 export type AssistantOffersIntent = {
@@ -66,6 +71,7 @@ export function planAssistantActionNavigate(input: {
   analysisScope: OperatorAiAssistantAnalysisScope
   mode: OperatorDashboardMode
   recoveryDraft?: RecoveryDraftActionPayload | null
+  campaignDraft?: CampaignDraftDetail | null
 }): AssistantActionNavigatePlan {
   const locationId = input.analysisScope.ownedLocationId
   const { action, mode } = input
@@ -77,7 +83,12 @@ export function planAssistantActionNavigate(input: {
         selectLocationId: locationId,
         campaigns:
           action.campaignId != null
-            ? { previewCampaignId: action.campaignId }
+            ? {
+                previewCampaignId: action.campaignId,
+                ...(input.campaignDraft != null
+                  ? { campaign: input.campaignDraft }
+                  : {}),
+              }
             : undefined,
       }
     case "change-audience":
@@ -91,6 +102,9 @@ export function planAssistantActionNavigate(input: {
                 continueEditingCampaignId: action.campaignId,
                 continueEditingStep:
                   action.type === "change-audience" ? "audience" : "offer",
+                ...(input.campaignDraft != null
+                  ? { campaign: input.campaignDraft }
+                  : {}),
               }
             : undefined,
       }

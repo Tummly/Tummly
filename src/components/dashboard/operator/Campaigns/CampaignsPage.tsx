@@ -46,6 +46,7 @@ import { createCampaignDetailPreviewModule } from "@/lib/operatorCampaigns/creat
 import { createCampaignTemplatePickerModule } from "@/lib/operatorCampaigns/createCampaignTemplatePickerModule"
 import { createCampaignTemplatePreviewModule } from "@/lib/operatorCampaigns/createCampaignTemplatePreviewModule"
 import { createCampaignWizardModule } from "@/lib/operatorCampaigns/createCampaignWizardModule"
+import type { CampaignWizardContinueEditingStep } from "@/lib/operatorCampaigns/campaignWizardPresentation"
 import type { CampaignRowActionId } from "@/lib/operatorCampaigns/campaignListPresentation"
 import { loadCampaignMessagingBalances } from "@/lib/operatorCampaigns/loadCampaignMessagingBalances"
 import { prepareCampaignMessageDraft } from "@/lib/operatorCampaigns/prepareCampaignMessageDraft"
@@ -60,8 +61,11 @@ import {
   OPERATOR_GUEST_PAGE_SIZE,
 } from "@/lib/operatorGuests/guestsPresentation"
 import { parseOperatorProfile } from "@/lib/operatorHome/parseOperatorProfile"
-import type { OperatorCampaignsListViewId } from "@/types/operatorCampaigns"
-import type { CampaignRecommendation } from "@/types/operatorCampaigns"
+import type {
+  CampaignDraftDetail,
+  CampaignRecommendation,
+  OperatorCampaignsListViewId,
+} from "@/types/operatorCampaigns"
 import type { OperatorGuestSmartGroupId } from "@/types/operatorGuests"
 
 const GUESTS_SCHEMA = guestsFilterSheetSchema()
@@ -197,7 +201,12 @@ export function CampaignsPage() {
       return
     }
     const previewCampaignId = campaignsIntent.previewCampaignId
+    const loadedCampaign = campaignsIntent.campaign
     setCampaignsIntent(null)
+    if (loadedCampaign != null) {
+      campaignDetailPreview.openLoaded(loadedCampaign)
+      return
+    }
     void campaignDetailPreview.open(previewCampaignId)
   }, [campaignDetailPreview, campaignsIntent, setCampaignsIntent])
 
@@ -326,7 +335,8 @@ export function CampaignsPage() {
 
   const handleContinueEditing = (
     campaignId: number,
-    startStep?: "audience" | "offer"
+    startStep?: CampaignWizardContinueEditingStep,
+    loadedDraft?: CampaignDraftDetail
   ) => {
     const viewModel = snapshot.viewModel
     if (viewModel == null) {
@@ -334,14 +344,18 @@ export function CampaignsPage() {
     }
     void (async () => {
       try {
-        const response = await getCampaignDraftById(campaignId)
-        if (!response.success || response.campaign == null) {
-          throw new Error("Campaign draft load failed.")
+        let draft = loadedDraft
+        if (draft == null) {
+          const response = await getCampaignDraftById(campaignId)
+          if (!response.success || response.campaign == null) {
+            throw new Error("Campaign draft load failed.")
+          }
+          draft = response.campaign
         }
         await campaignWizard.openFromDraft({
           locationName: viewModel.locationName,
           locationAddress: selectedLocationAddress,
-          draft: response.campaign,
+          draft,
           startStep,
         })
       } catch {
@@ -362,8 +376,9 @@ export function CampaignsPage() {
     }
     const campaignId = campaignsIntent.continueEditingCampaignId
     const startStep = campaignsIntent.continueEditingStep
+    const loadedDraft = campaignsIntent.campaign
     setCampaignsIntent(null)
-    handleContinueEditing(campaignId, startStep)
+    handleContinueEditing(campaignId, startStep, loadedDraft)
   }, [campaignsIntent, setCampaignsIntent, snapshot.viewModel])
 
   const handlePreviewCampaign = (campaignId: number) => {

@@ -20,7 +20,6 @@ namespace TummlyBackend.Helpers
             "review-campaign",
             "change-audience",
             "add-offer",
-            "review-offer",
             "open-recovery",
             "draft-campaign",
             "draft-offer",
@@ -327,7 +326,6 @@ namespace TummlyBackend.Helpers
                 "review-campaign" => "Review campaign draft",
                 "change-audience" => "Change audience",
                 "add-offer" => "Add Offer",
-                "review-offer" => "Review offer draft",
                 "draft-campaign" => "Create campaign draft",
                 "draft-offer" => "Create offer draft",
                 "open-recovery" => "Review recovery",
@@ -355,7 +353,6 @@ namespace TummlyBackend.Helpers
             if (raw.Type is "review-campaign"
                 or "change-audience"
                 or "add-offer"
-                or "review-offer"
                 or "draft-campaign"
                 or "draft-offer"
                 or "open-recovery")

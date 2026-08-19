@@ -21,7 +21,10 @@ import {
   type OperatorAiAssistantRecentGroup,
 } from "./assistantConversationList"
 import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
-import type { CreateCampaignDraftRequest } from "@/types/operatorCampaigns"
+import type {
+  CampaignDraftDetail,
+  CreateCampaignDraftRequest,
+} from "@/types/operatorCampaigns"
 import {
   ASSISTANT_ARCHIVE_EMPTY_TITLE,
   ASSISTANT_ARCHIVE_TITLE,
@@ -290,14 +293,13 @@ export type OperatorAiAssistantAdapters = {
     action: OperatorAiAssistantAction
     analysisScope: OperatorAiAssistantAnalysisScope
     recoveryDraft?: RecoveryDraftActionPayload | null
+    campaignDraft?: CampaignDraftDetail | null
   }) => void
   /**
-   * Load Campaign fields needed to gate completing-turn open. Return null when
+   * Load the Campaign Draft to gate completing-turn open. Return null when
    * the Campaign is missing. Throw on load fail.
    */
-  getCampaignDraft: (
-    campaignId: number
-  ) => Promise<{ status: string; locationId: number } | null>
+  getCampaignDraft: (campaignId: number) => Promise<CampaignDraftDetail | null>
   createCampaignDraft: (body: CreateCampaignDraftRequest) => Promise<void>
   createCatalogOfferDraft: (body: CreateCatalogOfferRequestBody) => Promise<void>
   /**
@@ -319,7 +321,6 @@ export type OperatorAiAssistantAdapters = {
   ) => Promise<void>
   clearDraftInterview: (conversationId: string) => Promise<void>
   notifyDraftError: () => void
-  notifyCampaignDraftOpenError: () => void
   notifyRecoveryDraftError: (message: string) => void
   listConversations: (
     archived: boolean
@@ -390,6 +391,31 @@ const EMPTY_BODY =
 const DEFAULT_OWNED_LOCATION: OperatorAiAssistantOwnedLocationOption = {
   id: 1,
   name: "Camden",
+}
+
+export function inMemoryOpenableCampaignDraft(
+  campaignId: number,
+  overrides: Partial<CampaignDraftDetail> = {}
+): CampaignDraftDetail {
+  return {
+    id: campaignId,
+    locationId: DEFAULT_OWNED_LOCATION.id,
+    status: "draft",
+    name: "Campaign Draft",
+    goalId: "re-engage-inactive",
+    templateId: null,
+    templateVersion: null,
+    audienceKey: "all-eligible-guests",
+    channel: "email",
+    offerStance: "no-offer",
+    offerId: null,
+    messageSubject: null,
+    messageBody: null,
+    rowVersion: "1",
+    createdAt: "2026-08-19T00:00:00Z",
+    updatedAt: "2026-08-19T00:00:00Z",
+    ...overrides,
+  }
 }
 
 export function buildAssistantEmptyGreeting(
@@ -531,6 +557,7 @@ export function createInMemoryOperatorAiAssistantAdapters(
   lastNavigate: {
     action: OperatorAiAssistantAction
     analysisScope: OperatorAiAssistantAnalysisScope
+    campaignDraft?: CampaignDraftDetail | null
   } | null
 } {
   const conversations: OperatorAiAssistantConversationRow[] = []
@@ -544,6 +571,7 @@ export function createInMemoryOperatorAiAssistantAdapters(
     lastNavigate: null as {
       action: OperatorAiAssistantAction
       analysisScope: OperatorAiAssistantAnalysisScope
+      campaignDraft?: CampaignDraftDetail | null
     } | null,
   }
 
@@ -553,17 +581,14 @@ export function createInMemoryOperatorAiAssistantAdapters(
     navigateAction: (input) => {
       extras.lastNavigate = input
     },
-    getCampaignDraft: async () => ({
-      status: "draft",
-      locationId: DEFAULT_OWNED_LOCATION.id,
-    }),
+    getCampaignDraft: async (campaignId) =>
+      inMemoryOpenableCampaignDraft(campaignId),
     createCampaignDraft: async () => {},
     createCatalogOfferDraft: async () => {},
     prepareOpenRecovery: async () => {},
     openRecoveryFromDraftAction: async () => {},
     clearDraftInterview: async () => {},
     notifyDraftError: () => {},
-    notifyCampaignDraftOpenError: () => {},
     notifyRecoveryDraftError: () => {},
     sendTurn: async (input) => {
       if (input.signal?.aborted) {
@@ -721,7 +746,7 @@ type AssistantState = {
   pendingCampaignDraft: CreateCampaignDraftRequest | null
   pendingOfferDraft: CreateCatalogOfferRequestBody | null
   pendingRecoveryDraft: RecoveryDraftActionPayload | null
-  draftActionInFlight: boolean
+  actionInFlight: boolean
   /** Completing Campaign id whose Action rows are locked while open is in flight. */
   completingCampaignNavigateId: number | null
   draftActionSpent: boolean
@@ -762,7 +787,7 @@ const INITIAL_STATE: AssistantState = {
   pendingCampaignDraft: null,
   pendingOfferDraft: null,
   pendingRecoveryDraft: null,
-  draftActionInFlight: false,
+  actionInFlight: false,
   completingCampaignNavigateId: null,
   draftActionSpent: false,
   draftInterviewActive: false,
@@ -998,22 +1023,22 @@ function visibleActionsForMessage(
     clickable: isCompletingCampaignAction(action.type)
       ? !(
           state.turnInFlight
-          || (state.draftActionInFlight
+          || (state.actionInFlight
             && state.completingCampaignNavigateId != null
             && action.campaignId === state.completingCampaignNavigateId)
         )
       : action.type === "draft-campaign"
-        ? (!state.draftActionInFlight
+        ? (!state.actionInFlight
           && !state.draftActionSpent
           && state.pendingCampaignDraft != null
           && message === storedMessages.at(-1))
         : action.type === "draft-offer"
-          ? (!state.draftActionInFlight
+          ? (!state.actionInFlight
             && !state.draftActionSpent
             && state.pendingOfferDraft != null
             && message === storedMessages.at(-1))
           : action.type === "open-recovery"
-            ? (!state.draftActionInFlight
+            ? (!state.actionInFlight
               && !state.draftActionSpent
               && state.pendingRecoveryDraft != null
               && message === storedMessages.at(-1))
@@ -1168,7 +1193,7 @@ function applyConversation(
     pendingRecoveryDraft: row.pendingRecoveryDraft ?? null,
     draftInterviewActive: row.draftInterviewActive === true,
     // Per-conversation clickability — do not keep spent/in-flight from another thread.
-    draftActionInFlight: false,
+    actionInFlight: false,
     completingCampaignNavigateId: null,
     draftActionSpent: false,
     turnInFlight: false,
@@ -1223,7 +1248,7 @@ function emptyGreetingState(
     pendingCampaignDraft: null,
     pendingOfferDraft: null,
     pendingRecoveryDraft: null,
-    draftActionInFlight: false,
+    actionInFlight: false,
     completingCampaignNavigateId: null,
     draftActionSpent: false,
     draftInterviewActive: false,
@@ -1980,12 +2005,12 @@ export function createOperatorAiAssistantModule(
       }
       if (isCompletingCampaignAction(action.type)) {
         const campaignId = action.campaignId
-        if (campaignId == null || state.draftActionInFlight) {
+        if (campaignId == null || state.actionInFlight) {
           return
         }
         state = {
           ...state,
-          draftActionInFlight: true,
+          actionInFlight: true,
           completingCampaignNavigateId: campaignId,
         }
         publish()
@@ -2000,17 +2025,20 @@ export function createOperatorAiAssistantModule(
             ) {
               throw new Error("Campaign draft cannot open.")
             }
-            adapters.navigateAction({ action, analysisScope })
+            adapters.navigateAction({
+              action,
+              analysisScope,
+              campaignDraft: campaign,
+            })
             closeDrawer()
           })
           .catch(() => {
             // Open-failure: stay in the Assistant; the row stays clickable.
             state = {
               ...state,
-              draftActionInFlight: false,
+              actionInFlight: false,
               completingCampaignNavigateId: null,
             }
-            adapters.notifyCampaignDraftOpenError()
             publish()
           })
         return
@@ -2022,7 +2050,7 @@ export function createOperatorAiAssistantModule(
         if (
           conversationId == null
           || pendingBody == null
-          || state.draftActionInFlight
+          || state.actionInFlight
           || state.draftActionSpent
           || latest?.role !== "assistant"
           || !latest.actions?.some((item) => item.type === "draft-offer")
@@ -2033,7 +2061,7 @@ export function createOperatorAiAssistantModule(
           ...pendingBody,
           locationId: analysisScope.ownedLocationId,
         }
-        state = { ...state, draftActionInFlight: true }
+        state = { ...state, actionInFlight: true }
         publish()
         void adapters
           .createCatalogOfferDraft(body as CreateCatalogOfferRequestBody)
@@ -2041,7 +2069,7 @@ export function createOperatorAiAssistantModule(
             // Spend before clear so a clear failure cannot unlock a second POST.
             state = {
               ...state,
-              draftActionInFlight: false,
+              actionInFlight: false,
               draftActionSpent: true,
               pendingOfferDraft: null,
             }
@@ -2055,7 +2083,7 @@ export function createOperatorAiAssistantModule(
             adapters.navigateAction({ action, analysisScope })
           })
           .catch(() => {
-            state = { ...state, draftActionInFlight: false }
+            state = { ...state, actionInFlight: false }
             adapters.notifyDraftError()
             publish()
           })
@@ -2068,14 +2096,14 @@ export function createOperatorAiAssistantModule(
         if (
           conversationId == null
           || payload == null
-          || state.draftActionInFlight
+          || state.actionInFlight
           || state.draftActionSpent
           || latest?.role !== "assistant"
           || !latest.actions?.some((item) => item.type === "open-recovery")
         ) {
           return
         }
-        state = { ...state, draftActionInFlight: true }
+        state = { ...state, actionInFlight: true }
         publish()
         void adapters
           .prepareOpenRecovery({
@@ -2088,7 +2116,7 @@ export function createOperatorAiAssistantModule(
             // Spend only after Review hydrate succeeds; failure stays re-clickable.
             state = {
               ...state,
-              draftActionInFlight: false,
+              actionInFlight: false,
               draftActionSpent: true,
               pendingRecoveryDraft: null,
             }
@@ -2102,7 +2130,7 @@ export function createOperatorAiAssistantModule(
             adapters.navigateAction({ action, analysisScope })
           })
           .catch((error: unknown) => {
-            state = { ...state, draftActionInFlight: false }
+            state = { ...state, actionInFlight: false }
             const message =
               error instanceof Error && error.message.trim() !== ""
                 ? error.message

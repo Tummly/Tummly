@@ -664,6 +664,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("re-engage-inactive", campaign.GoalId);
             Assert.Equal("no-offer", campaign.OfferStance);
             Assert.Null(campaign.OfferId);
+            Assert.Empty(_context.CatalogOffers);
             Assert.Equal("Bring back Email-eligible guests at Camden", campaign.Name);
             Assert.Equal(action.CampaignId, campaign.Id);
             Assert.Equal(campaign.Id, _context.AssistantConversations.Single().CreatedCampaignId);

@@ -158,8 +158,8 @@ namespace TummlyBackend.Tests.Helpers
                     "review-campaign",
                     "change-audience",
                     "add-offer",
-                    "review-offer",
                     "open-recovery",
+                    "draft-campaign",
                 },
                 AssistantActionCatalog.CatalogOrder.Take(5)
             );

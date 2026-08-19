@@ -109,6 +109,7 @@ import {
   labelForCampaignGoalId,
   type CampaignGoalId,
   type CampaignGoalOption,
+  type CampaignWizardContinueEditingStep,
   type CampaignWizardStepId,
 } from "@/lib/operatorCampaigns/campaignWizardPresentation"
 import { mapCampaignTemplateSuggestions } from "@/lib/operatorCampaigns/mapCampaignTemplateSuggestions"
@@ -161,7 +162,7 @@ export type CampaignWizardOpenFromDraftInput = {
   locationAddress?: string | null
   draft: CampaignDraftDetail
   /** Assistant Change audience / Add Offer land. Default resumes from persisted fields. */
-  startStep?: "audience" | "offer"
+  startStep?: CampaignWizardContinueEditingStep
 }
 
 export type CampaignWizardOpenFromRecommendationInput = {
@@ -2496,6 +2497,8 @@ export function createCampaignWizardModule(
         || (draft.messageSubject?.trim().length ?? 0) > 0
       // Resume at first incomplete step from persisted fields (schedule is not stored).
       // Assistant Change audience / Add Offer may force Audience or Offer.
+      const forceNoOfferLand =
+        input.startStep === "offer" && draft.offerId == null
       const stepId: CampaignWizardStepId =
         input.startStep === "audience"
           ? "audience"
@@ -2507,12 +2510,10 @@ export function createCampaignWizardModule(
                 ? "schedule"
                 : "audience"
 
-      const offerStanceId =
-        input.startStep === "offer"
-          ? "no-offer"
-          : resolved.offerStanceId
-      const attachedOfferId =
-        input.startStep === "offer" ? null : draft.offerId
+      const offerStanceId = forceNoOfferLand
+        ? "no-offer"
+        : resolved.offerStanceId
+      const attachedOfferId = forceNoOfferLand ? null : draft.offerId
 
       state = {
         ...emptyState(),
@@ -2540,7 +2541,7 @@ export function createCampaignWizardModule(
         saveStatus: "saved",
       }
       publish()
-      if (input.startStep !== "offer" && draft.offerId != null) {
+      if (!forceNoOfferLand && draft.offerId != null) {
         await hydrateAttachedOffer(draft.offerId)
       }
       if (stepId === "audience" || stepId === "offer") {

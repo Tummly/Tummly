@@ -10,10 +10,12 @@ import {
   createInMemoryOperatorAiAssistantAdapters,
   createOperatorAiAssistantModule,
   EMPTY_SUGGESTION_CHIPS,
+  inMemoryOpenableCampaignDraft,
   OPERATOR_ASSISTANT_MIC_ERROR_COPY,
   periodPhraseForReportingPeriod,
   type OperatorAiAssistantConversationRow,
 } from "./createOperatorAiAssistantModule"
+import { planAssistantActionNavigate } from "./assistantActionNavigate"
 
 describe("createOperatorAiAssistantModule", () => {
   it("openDrawer shows the empty greeting at collapsed 620 width with no server row", () => {
@@ -1299,6 +1301,11 @@ describe("grounded live answers, helpful fill, and Actions", () => {
       campaignId: 41,
     })
     expect(adapters.lastNavigate?.analysisScope.ownedLocationId).toBe(1)
+    expect(adapters.lastNavigate?.campaignDraft).toMatchObject({
+      id: 41,
+      status: "draft",
+      locationId: 1,
+    })
   })
 
   it("closes the Assistant and lands Continue editing at Audience without POSTing create", async () => {
@@ -1369,6 +1376,18 @@ describe("grounded live answers, helpful fill, and Actions", () => {
       campaignId: 41,
     })
     expect(adapters.lastNavigate?.analysisScope.ownedLocationId).toBe(1)
+    expect(
+      planAssistantActionNavigate({
+        action: adapters.lastNavigate!.action,
+        analysisScope: adapters.lastNavigate!.analysisScope,
+        mode: "multi",
+        campaignDraft: adapters.lastNavigate!.campaignDraft,
+      }).campaigns
+    ).toEqual({
+      continueEditingCampaignId: 41,
+      continueEditingStep: "audience",
+      campaign: expect.objectContaining({ id: 41, status: "draft" }),
+    })
   })
 
   it("closes the Assistant and lands Continue editing at Offer without POSTing create", async () => {
@@ -1438,10 +1457,22 @@ describe("grounded live answers, helpful fill, and Actions", () => {
       label: "Add Offer",
       campaignId: 41,
     })
+    expect(
+      planAssistantActionNavigate({
+        action: adapters.lastNavigate!.action,
+        analysisScope: adapters.lastNavigate!.analysisScope,
+        mode: "multi",
+        campaignDraft: adapters.lastNavigate!.campaignDraft,
+      }).campaigns
+    ).toEqual({
+      continueEditingCampaignId: 41,
+      continueEditingStep: "offer",
+      campaign: expect.objectContaining({ id: 41, status: "draft" }),
+    })
   })
 
   it("does not make completing Campaign rows clickable while navigate is in flight", async () => {
-    let releaseGet!: (campaign: { status: string; locationId: number }) => void
+    let releaseGet!: (campaign: ReturnType<typeof inMemoryOpenableCampaignDraft>) => void
     const adapters = createInMemoryOperatorAiAssistantAdapters({
       sendTurn: async (input) => ({
         id: "conv-review",
@@ -1510,7 +1541,7 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     expect(module.getSnapshot().drawerOpen).toBe(true)
     expect(adapters.lastNavigate).toBeNull()
 
-    releaseGet({ status: "draft", locationId: 1 })
+    releaseGet(inMemoryOpenableCampaignDraft(41))
     await Promise.resolve()
     await Promise.resolve()
     expect(module.getSnapshot().drawerOpen).toBe(false)
@@ -1519,7 +1550,7 @@ describe("grounded live answers, helpful fill, and Actions", () => {
 
   it("keeps completing Campaign rows on an earlier answer clickable while a later answer navigate is in flight", async () => {
     let turns = 0
-    let releaseGet!: (campaign: { status: string; locationId: number }) => void
+    let releaseGet!: (campaign: ReturnType<typeof inMemoryOpenableCampaignDraft>) => void
     const adapters = createInMemoryOperatorAiAssistantAdapters({
       sendTurn: async (input) => {
         turns += 1
@@ -1620,7 +1651,7 @@ describe("grounded live answers, helpful fill, and Actions", () => {
             releaseGet = resolve
           })
         }
-        return Promise.resolve({ status: "draft", locationId: 1 })
+        return Promise.resolve(inMemoryOpenableCampaignDraft(campaignId))
       },
     })
     const module = createOperatorAiAssistantModule(adapters)
@@ -1660,7 +1691,7 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     ])
     expect(module.getSnapshot().drawerOpen).toBe(true)
 
-    releaseGet({ status: "draft", locationId: 1 })
+    releaseGet(inMemoryOpenableCampaignDraft(42))
     await Promise.resolve()
     await Promise.resolve()
     expect(module.getSnapshot().drawerOpen).toBe(false)
@@ -1999,16 +2030,17 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     },
     {
       name: "the Campaign is not Draft",
-      getCampaignDraft: async () => ({ status: "scheduled", locationId: 1 }),
+      getCampaignDraft: async () =>
+        inMemoryOpenableCampaignDraft(41, { status: "scheduled" }),
     },
     {
       name: "the Campaign is at the wrong location",
-      getCampaignDraft: async () => ({ status: "draft", locationId: 2 }),
+      getCampaignDraft: async () =>
+        inMemoryOpenableCampaignDraft(41, { locationId: 2 }),
     },
   ])(
     "keeps the Assistant open and Change audience clickable when $name",
     async ({ getCampaignDraft }) => {
-      let openErrorCalls = 0
       const adapters = createInMemoryOperatorAiAssistantAdapters({
         sendTurn: async (input) => ({
           id: "conv-review",
@@ -2051,9 +2083,6 @@ describe("grounded live answers, helpful fill, and Actions", () => {
           ],
         }),
         getCampaignDraft,
-        notifyCampaignDraftOpenError: () => {
-          openErrorCalls += 1
-        },
       })
       const module = createOperatorAiAssistantModule(adapters)
       module.openDrawer()
@@ -2074,7 +2103,6 @@ describe("grounded live answers, helpful fill, and Actions", () => {
 
       expect(module.getSnapshot().drawerOpen).toBe(true)
       expect(adapters.lastNavigate).toBeNull()
-      expect(openErrorCalls).toBe(1)
       expect(
         module
           .getSnapshot()

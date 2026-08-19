@@ -75,12 +75,13 @@ function DashboardContent({ mode }: DashboardProps) {
       id: location.id,
       name: location.locationName,
     })),
-    navigateAction: ({ action, analysisScope, recoveryDraft }) => {
+    navigateAction: ({ action, analysisScope, recoveryDraft, campaignDraft }) => {
       const plan = planAssistantActionNavigate({
         action,
         analysisScope,
         mode,
         recoveryDraft,
+        campaignDraft,
       })
       workspace.selectLocation(plan.selectLocationId)
       if (plan.feedbackDateRange) {
