@@ -826,6 +826,41 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.commitConfirm?.open).toBe(false)
   })
 
+  it("later ambiguous schedule land uses schedule-later not send-now", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    await wizard.openFromDraft({
+      locationName: "Camden",
+      startStep: "schedule",
+      draft: {
+        id: 55,
+        locationId: 42,
+        status: "draft",
+        name: "Tuesday lunch reminder",
+        goalId: "boost-quieter-time",
+        templateId: null,
+        templateVersion: null,
+        audienceKey: "new-guests",
+        channel: "sms",
+        offerStance: "no-offer",
+        offerId: null,
+        messageSubject: "Lunch",
+        messageBody: "Come for lunch",
+        rowVersion: "AAAAAAAAB9E=",
+        createdAt: "2026-08-07T10:00:00Z",
+        updatedAt: "2026-08-08T10:00:00Z",
+      },
+    })
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("schedule")
+    expect(snapshot.schedule?.selectedModeId).toBe("schedule-later")
+    expect(snapshot.commitConfirm?.open).toBe(false)
+  })
+
   it("Continue editing at Offer keeps an attached Offer", async () => {
     const wizard = createCampaignWizardModule({
       ...defaultAudienceAdapters(),

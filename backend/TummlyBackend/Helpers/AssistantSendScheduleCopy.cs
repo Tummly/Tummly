@@ -18,11 +18,11 @@ namespace TummlyBackend.Helpers
             => "Nothing was sent. Opening Feedback recovery Review.";
 
         public static string NamedMismatchBody(string storedCampaignName)
-            => $"This conversation has the Campaign Draft {storedCampaignName}. "
+            => $"This Assistant conversation has the Campaign Draft {storedCampaignName}. "
                 + "Should I open that one?";
 
         public static string OtherTypeBody()
-            => "I did not open that stored item. Say send it now for the matching Campaign or recovery work, or use Campaigns and Feedback.";
+            => "I did not open that stored item. Say send it now for the matching Campaign or Feedback recovery, or use Campaigns and Feedback.";
 
         public static string OfferActivateBody()
             => "I cannot activate, issue, or redeem an Offer from the AI Assistant.";

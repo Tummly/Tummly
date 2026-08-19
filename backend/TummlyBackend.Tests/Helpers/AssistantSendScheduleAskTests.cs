@@ -29,6 +29,7 @@ namespace TummlyBackend.Tests.Helpers
         [Theory]
         [InlineData("activate this offer")]
         [InlineData("activate the Offer")]
+        [InlineData("activate it")]
         [InlineData("issue an offer")]
         [InlineData("redeem the offer")]
         public void LooksLikeOfferActivate_IsTrue(string message)
@@ -130,8 +131,31 @@ namespace TummlyBackend.Tests.Helpers
             );
 
             Assert.Equal(AssistantSendScheduleAsk.StepSchedule, landing.Step);
+            Assert.Equal(AssistantSendScheduleAsk.ModeScheduleLater, landing.ScheduleMode);
             Assert.Null(landing.DateLocal);
             Assert.Null(landing.TimeLocal);
+        }
+
+        [Fact]
+        public void Landing_SameDayPastInLondon_IsScheduleWithoutPrefill()
+        {
+            // 12:00 UTC on 19 Aug 2026 is 13:00 in Europe/London (BST).
+            var now = new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc);
+            var pastLondon = AssistantSendScheduleAsk.CampaignLanding(
+                "schedule this campaign for 19 August 2026 at 12:30",
+                now
+            );
+            var futureLondon = AssistantSendScheduleAsk.CampaignLanding(
+                "schedule this campaign for 19 August 2026 at 14:00",
+                now
+            );
+
+            Assert.Equal(AssistantSendScheduleAsk.StepSchedule, pastLondon.Step);
+            Assert.Null(pastLondon.DateLocal);
+            Assert.Null(pastLondon.TimeLocal);
+            Assert.Equal(AssistantSendScheduleAsk.StepReview, futureLondon.Step);
+            Assert.Equal("2026-08-19", futureLondon.DateLocal);
+            Assert.Equal("14:00", futureLondon.TimeLocal);
         }
 
         [Fact]

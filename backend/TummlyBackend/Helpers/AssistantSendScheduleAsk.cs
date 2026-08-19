@@ -46,12 +46,18 @@ namespace TummlyBackend.Helpers
                 "activate this offer",
                 "activate the offer",
                 "activate an offer",
+                "activate it",
+                "activate offer",
                 "issue an offer",
                 "issue the offer",
                 "issue this offer",
+                "issue it",
+                "issue offer",
                 "redeem the offer",
                 "redeem this offer",
-                "redeem an offer"
+                "redeem an offer",
+                "redeem it",
+                "redeem offer"
             );
         }
 
@@ -107,7 +113,7 @@ namespace TummlyBackend.Helpers
             var schedule = HasScheduleWord(lower);
             if (IsAmbiguous(lower, sendNow, schedule))
             {
-                return new CampaignLandingResult(StepSchedule, null, null, null);
+                return new CampaignLandingResult(StepSchedule, ModeScheduleLater, null, null);
             }
 
             if ((sendNow || LooksLikeSendThisCampaign(lower)) && !schedule)
@@ -208,7 +214,7 @@ namespace TummlyBackend.Helpers
                 && DateTime.TryParse(
                     iso.Value,
                     CultureInfo.InvariantCulture,
-                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                    DateTimeStyles.None,
                     out var isoAt
                 ))
             {
@@ -241,21 +247,39 @@ namespace TummlyBackend.Helpers
                 return null;
             }
 
-            return FutureOrNull(DateTime.SpecifyKind(at, DateTimeKind.Utc), nowUtc);
+            return FutureOrNull(at, nowUtc);
         }
 
         private static (string DateLocal, string TimeLocal)? FutureOrNull(
-            DateTime atUtc,
+            DateTime atLocal,
             DateTime nowUtc
         )
         {
-            if (atUtc <= nowUtc)
+            var utc = nowUtc.Kind == DateTimeKind.Utc
+                ? nowUtc
+                : DateTime.SpecifyKind(nowUtc, DateTimeKind.Utc);
+            var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(utc, ScheduleTimeZone);
+            if (atLocal <= nowLocal)
             {
                 return null;
             }
 
-            return (atUtc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                atUtc.ToString("HH:mm", CultureInfo.InvariantCulture));
+            return (atLocal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                atLocal.ToString("HH:mm", CultureInfo.InvariantCulture));
+        }
+
+        private static readonly TimeZoneInfo ScheduleTimeZone = ResolveScheduleTimeZone();
+
+        private static TimeZoneInfo ResolveScheduleTimeZone()
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById("GMT Standard Time");
+            }
         }
 
         private static bool ContainsAny(string lower, params string[] needles)

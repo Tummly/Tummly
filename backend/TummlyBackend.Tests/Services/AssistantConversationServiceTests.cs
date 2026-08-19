@@ -2385,6 +2385,47 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_LaterSendItNowOnResolvedRecovery_StaysAndDoesNotClaimOpen()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest"
+            );
+            _recoveryDrafts.SucceedWith(
+                "Thank you for your feedback. We are looking into this.",
+                "Regarding your recent visit",
+                "email"
+            );
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Prepare a recovery response")
+                )
+            );
+
+            var feedback = await _context.Feedbacks.SingleAsync();
+            feedback.WorkflowStatus = FeedbackWorkflowStatus.Resolved;
+            await _context.SaveChangesAsync();
+
+            var later = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "send it now", started.Conversation.Id)
+                )
+            );
+
+            Assert.Null(later.Conversation.SendScheduleRoute);
+            Assert.Equal("refusal", later.Conversation.Messages[^1].Class);
+            Assert.DoesNotContain(
+                "Opening Feedback recovery Review",
+                later.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
         public async Task SendTurn_MixedRetrieveAndSendItNow_RoutesWithoutRetrieveAnswer()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");

@@ -2642,7 +2642,7 @@ namespace TummlyBackend.Services
         {
             if (AssistantSendScheduleAsk.LooksLikeOfferActivate(userMessage))
             {
-                return await PersistSendScheduleStayAsync(
+                return await PersistSendScheduleTurnAsync(
                     conversation,
                     RefusalMessage(
                         DateTime.UtcNow,
@@ -2663,7 +2663,7 @@ namespace TummlyBackend.Services
             var hasRecovery = recovery is not null;
             if (!hasCampaign && !hasRecovery)
             {
-                return await PersistSendScheduleStayAsync(
+                return await PersistSendScheduleTurnAsync(
                     conversation,
                     RefusalMessage(
                         DateTime.UtcNow,
@@ -2682,7 +2682,7 @@ namespace TummlyBackend.Services
             {
                 if (namesCampaign && !namesRecovery)
                 {
-                    return await PersistSendScheduleStayAsync(
+                    return await PersistSendScheduleTurnAsync(
                         conversation,
                         RefusalMessage(
                             DateTime.UtcNow,
@@ -2695,7 +2695,7 @@ namespace TummlyBackend.Services
 
                 if (timedSchedule)
                 {
-                    return await PersistSendScheduleStayAsync(
+                    return await PersistSendScheduleTurnAsync(
                         conversation,
                         RefusalMessage(
                             DateTime.UtcNow,
@@ -2706,28 +2706,17 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                return await PersistSendScheduleStayAsync(
+                return await PersistRecoverySendRouteAsync(
                     conversation,
-                    GroundedMessage(
-                        DateTime.UtcNow,
-                        AssistantSendScheduleCopy.Title,
-                        AssistantSendScheduleCopy.RecoveryBody(),
-                        []
-                    ),
+                    recovery!,
                     replaceFailure,
-                    cancellationToken,
-                    new AssistantSendScheduleRouteDto
-                    {
-                        Kind = AssistantSendScheduleAsk.KindRecovery,
-                        FeedbackId = recovery!.FeedbackId,
-                        Intent = recovery.Intent,
-                    }
+                    cancellationToken
                 );
             }
 
             if (hasCampaign && namesRecovery && !namesCampaign)
             {
-                return await PersistSendScheduleStayAsync(
+                return await PersistSendScheduleTurnAsync(
                     conversation,
                     RefusalMessage(
                         DateTime.UtcNow,
@@ -2746,7 +2735,7 @@ namespace TummlyBackend.Services
             }
             catch
             {
-                return await PersistSendScheduleStayAsync(
+                return await PersistSendScheduleTurnAsync(
                     conversation,
                     RefusalMessage(
                         DateTime.UtcNow,
@@ -2759,7 +2748,7 @@ namespace TummlyBackend.Services
 
             if (draft is null || draft.LocationId != conversation.OwnedLocationId)
             {
-                return await PersistSendScheduleStayAsync(
+                return await PersistSendScheduleTurnAsync(
                     conversation,
                     RefusalMessage(
                         DateTime.UtcNow,
@@ -2772,7 +2761,7 @@ namespace TummlyBackend.Services
 
             if (AssistantSendScheduleAsk.IsNamedCampaignMismatch(userMessage, draft.Name))
             {
-                return await PersistSendScheduleStayAsync(
+                return await PersistSendScheduleTurnAsync(
                     conversation,
                     GroundedMessage(
                         DateTime.UtcNow,
@@ -2789,7 +2778,7 @@ namespace TummlyBackend.Services
                 userMessage,
                 DateTime.UtcNow
             );
-            return await PersistSendScheduleStayAsync(
+            return await PersistSendScheduleTurnAsync(
                 conversation,
                 GroundedMessage(
                     DateTime.UtcNow,
@@ -2811,7 +2800,88 @@ namespace TummlyBackend.Services
             );
         }
 
-        private async Task<AssistantTurnOutcome> PersistSendScheduleStayAsync(
+        private async Task<AssistantTurnOutcome> PersistRecoverySendRouteAsync(
+            AssistantConversation conversation,
+            AssistantRecoveryWorkState recovery,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken
+        )
+        {
+            Feedback? feedback;
+            try
+            {
+                feedback = await _context.Feedbacks
+                    .Include(item => item.LocationGuest)
+                    .FirstOrDefaultAsync(
+                        item => item.Id == recovery.FeedbackId,
+                        cancellationToken
+                    );
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return await PersistSendScheduleTurnAsync(
+                    conversation,
+                    RefusalMessage(
+                        DateTime.UtcNow,
+                        AssistantSendScheduleCopy.OpenFailureBody()
+                    ),
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
+
+            if (feedback is null
+                || feedback.RestaurantLocationId != conversation.OwnedLocationId)
+            {
+                return await PersistSendScheduleTurnAsync(
+                    conversation,
+                    RefusalMessage(
+                        DateTime.UtcNow,
+                        AssistantSendScheduleCopy.OpenFailureBody()
+                    ),
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
+
+            if (AssistantRecoveryEligibility.Evaluate(feedback, recovery.Intent)
+                is AssistantRecoveryEligibility.Outcome.Blocked)
+            {
+                return await PersistSendScheduleTurnAsync(
+                    conversation,
+                    RefusalMessage(
+                        DateTime.UtcNow,
+                        AssistantSendScheduleCopy.OpenFailureBody()
+                    ),
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
+
+            return await PersistSendScheduleTurnAsync(
+                conversation,
+                GroundedMessage(
+                    DateTime.UtcNow,
+                    AssistantSendScheduleCopy.Title,
+                    AssistantSendScheduleCopy.RecoveryBody(),
+                    []
+                ),
+                replaceFailure,
+                cancellationToken,
+                new AssistantSendScheduleRouteDto
+                {
+                    Kind = AssistantSendScheduleAsk.KindRecovery,
+                    FeedbackId = recovery.FeedbackId,
+                    Intent = recovery.Intent,
+                }
+            );
+        }
+
+        private async Task<AssistantTurnOutcome> PersistSendScheduleTurnAsync(
             AssistantConversation conversation,
             AssistantMessage assistantMessage,
             AssistantMessage? replaceFailure,

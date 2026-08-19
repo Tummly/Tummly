@@ -2544,7 +2544,10 @@ export function createCampaignWizardModule(
         messageWriteEntry: hasMessageContent ? "editor" : "chooser",
         messageSubject: draft.messageSubject ?? "",
         messageBody: draft.messageBody ?? "",
-        scheduleModeId: input.scheduleMode ?? defaultCampaignScheduleModeId(),
+        scheduleModeId: input.scheduleMode
+          ?? (input.startStep === "schedule"
+            ? "schedule-later"
+            : defaultCampaignScheduleModeId()),
         scheduleDateLocal: input.dateLocal ?? "",
         scheduleTimeLocal: input.timeLocal ?? "",
         lastSavedAt: getNow(),
