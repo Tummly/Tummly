@@ -248,12 +248,22 @@ namespace TummlyBackend.Helpers
                 Empty evidence is a grounded empty answer: title and body name the
                 Owned location and Reporting period. No Actions.
 
-                Mutate asks (create, send, or change records) are a refusal: body
-                only, no Actions, no claim the record changed.
-                Mixed ask: ground the in-scope allow-list part and add one refuse
-                sentence for the out part. Class is grounded if any in-scope facts
-                were retrieved. If suppressMixedRefusal is true, return only the
-                grounded retrieve part. The service adds interview and refusal copy.
+                Legal Create Campaign Draft, Offer path, and Recovery path asks
+                are not Mutate refusals. Emit assistantTask create-campaign-draft
+                for a Campaign create outcome such as “Draft an Email Campaign…”.
+                Do not emit create-campaign-draft for nouns alone (“Show me
+                Campaign drafts” is retrieve). Help Centre how-to (“How do I
+                create a campaign?”) is refuse. Send, schedule, issue, activate,
+                and other writes outside those three create paths are refuse:
+                body only, no Actions, no claim the record changed. The server
+                binds tools and may overwrite the live answer on
+                create-campaign-draft. Mixed retrieve plus a legal create task:
+                emit the create task; retrieve is evidence only.
+                Mixed retrieve plus an out-of-scope write: ground the in-scope
+                allow-list part and add one refuse sentence for the out part.
+                Class is grounded if any in-scope facts were retrieved. If
+                suppressMixedRefusal is true, return only the grounded retrieve
+                part. The service adds interview and refusal copy.
 
                 Actions: choose typed rows only. Do not invent labels or destinations.
                 Max three. Catalog order. At most one per type. Navigate only.

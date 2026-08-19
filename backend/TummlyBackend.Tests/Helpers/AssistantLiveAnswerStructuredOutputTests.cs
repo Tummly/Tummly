@@ -32,5 +32,29 @@ namespace TummlyBackend.Tests.Helpers
                 StringComparison.Ordinal
             );
         }
+
+        [Fact]
+        public void BuildSystemPrompt_DoesNotRefuseLegalCreateCampaignDraftAsMutate()
+        {
+            var prompt = AssistantLiveAnswerStructuredOutput.BuildSystemPrompt(
+                "2026-08-16"
+            );
+
+            Assert.Contains(
+                "Legal Create Campaign Draft, Offer path, and Recovery path asks",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "are not Mutate refusals",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                "Mutate asks (create, send, or change records) are a refusal",
+                prompt,
+                StringComparison.Ordinal
+            );
+        }
     }
 }
