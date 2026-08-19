@@ -67,16 +67,17 @@ namespace TummlyBackend.Helpers
         public static string GapBody(IReadOnlyList<AssistantFeedbackEvidenceRow> rows)
         {
             var labels = rows.Select(FormatLabel).Distinct(StringComparer.Ordinal).ToList();
-            return
-                "Which Feedback should I recover: "
-                + AssistantCreateLocationGap.Join(labels)
-                + "?";
+            return WhichFeedbackQuestion(labels);
         }
 
         public static string RepeatGapBody(IReadOnlyList<string> options)
+            => WhichFeedbackQuestion(options)
+                + " Reply with one guest Name and date.";
+
+        private static string WhichFeedbackQuestion(IReadOnlyList<string> labels)
             => "Which Feedback should I recover: "
-                + AssistantCreateLocationGap.Join(options)
-                + "? Reply with one guest Name and date.";
+                + AssistantCreateLocationGap.Join(labels)
+                + "?";
 
         private static bool MentionsRow(string userMessage, AssistantFeedbackEvidenceRow row)
         {

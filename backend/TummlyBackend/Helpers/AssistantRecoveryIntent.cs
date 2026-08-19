@@ -99,6 +99,37 @@ namespace TummlyBackend.Helpers
             return DefaultTone;
         }
 
+        public static bool LooksLikeRecoveryAsk(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            if (LooksLikeInternalOnly(lower))
+            {
+                return true;
+            }
+
+            var directResponseAsk =
+                lower.Contains("respond to the guest", StringComparison.Ordinal)
+                || lower.Contains("respond to these guests", StringComparison.Ordinal)
+                || lower.Contains("respond to those guests", StringComparison.Ordinal)
+                || lower.Contains("respond to feedback", StringComparison.Ordinal)
+                || lower.Contains("reply to the guest", StringComparison.Ordinal)
+                || lower.Contains("reply to these guests", StringComparison.Ordinal)
+                || lower.Contains("reply to those guests", StringComparison.Ordinal)
+                || lower.Contains("reply to feedback", StringComparison.Ordinal);
+            var recoveryish = lower.Contains("recovery", StringComparison.Ordinal)
+                || directResponseAsk
+                || LooksLikeRespondAndRecord(lower)
+                || lower.Contains("internal action", StringComparison.Ordinal)
+                || LooksLikeRecoveryOffer(lower);
+            var draftish = lower.Contains("draft", StringComparison.Ordinal)
+                || lower.Contains("review", StringComparison.Ordinal)
+                || lower.Contains("prepare", StringComparison.Ordinal)
+                || lower.Contains("create", StringComparison.Ordinal)
+                || lower.Contains("start", StringComparison.Ordinal)
+                || lower.Contains("help", StringComparison.Ordinal);
+            return directResponseAsk || (recoveryish && draftish);
+        }
+
         public static bool LooksLikeInternalOnly(string lower)
             => ContainsAny(
                 lower,

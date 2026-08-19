@@ -18,7 +18,7 @@ namespace TummlyBackend.Helpers
         public abstract record Outcome
         {
             public sealed record Allowed(
-                string Channel,
+                string? Channel,
                 AssistantRecoveryEligibilitySnapshot Snapshot
             ) : Outcome;
 
@@ -54,7 +54,7 @@ namespace TummlyBackend.Helpers
             var marketing = feedback.LocationGuest?.MarketingPreference;
             var snapshot = new AssistantRecoveryEligibilitySnapshot
             {
-                WorkflowStatus = WorkflowWire(feedback.WorkflowStatus),
+                WorkflowStatus = FeedbackWorkflowStatusMapping.ToWire(feedback.WorkflowStatus),
                 ContactType = ContactWire(contactType),
                 HasContact = hasContact,
                 MarketingPreference = marketing?.ToWireString(),
@@ -63,7 +63,7 @@ namespace TummlyBackend.Helpers
 
             if (intent == IntentInternalOnly)
             {
-                return new Outcome.Allowed("", snapshot);
+                return new Outcome.Allowed(null, snapshot);
             }
 
             if (!hasContact || channel is null)
@@ -92,14 +92,6 @@ namespace TummlyBackend.Helpers
                 ContactType.Email => "email",
                 ContactType.Phone => "sms",
                 _ => null,
-            };
-
-        private static string WorkflowWire(FeedbackWorkflowStatus status)
-            => status switch
-            {
-                FeedbackWorkflowStatus.InProgress => "in_progress",
-                FeedbackWorkflowStatus.Resolved => "resolved",
-                _ => "new",
             };
 
         private static string ContactWire(ContactType contactType)

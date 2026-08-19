@@ -2917,7 +2917,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_RecoveryDraftAsk_CompletesWithOpenRecoveryAction()
+            public async Task SendTurn_RecoveryPathAsk_CompletesWithReviewRecovery()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             await SeedFeedbackAsync(
@@ -3000,7 +3000,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_MixedRetrieveAndRecoveryDraft_CreateWinsWithReview()
+            public async Task SendTurn_MixedRetrieveAndRecoveryPath_CreateWinsWithReview()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));

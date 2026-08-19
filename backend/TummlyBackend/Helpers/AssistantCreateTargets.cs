@@ -32,7 +32,7 @@ namespace TummlyBackend.Helpers
                 }
             }
 
-            if (AssistantRecoveryDraftInterview.IsRecoveryDraftAsk(message))
+            if (AssistantRecoveryIntent.LooksLikeRecoveryAsk(message))
             {
                 targets.Add(Recovery);
             }

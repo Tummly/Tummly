@@ -1487,24 +1487,6 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (intent == AssistantRecoveryEligibility.IntentRecoveryOffer)
-            {
-                var offerGate = AssistantRecoveryEligibility.Evaluate(
-                    feedback,
-                    AssistantRecoveryEligibility.IntentRecoveryOffer
-                );
-                if (offerGate is AssistantRecoveryEligibility.Outcome.Blocked blockedOffer)
-                {
-                    return new RecoveryPersistTurn(
-                        AssistantRecoveryPersistCopy.FailureTitle,
-                        blockedOffer.Body,
-                        none,
-                        null,
-                        null
-                    );
-                }
-            }
-
             var eligibility = AssistantRecoveryEligibility.Evaluate(feedback, intent);
             if (eligibility is AssistantRecoveryEligibility.Outcome.Blocked blocked)
             {
@@ -1524,27 +1506,15 @@ namespace TummlyBackend.Services
                 {
                     FeedbackId = row.Id,
                     Intent = intent,
-                    Channel = "",
                     IncludeNotes = "",
                     Category = internalCategory,
                     Note = internalNote,
                     EligibilitySnapshot = allowed.Snapshot,
                 };
-                var internalActions = AssistantActionCatalog.ValidateOpenRecovery(
-                    [
-                        new AssistantActionDto
-                        {
-                            Type = "open-recovery",
-                            FeedbackId = row.Id,
-                            Intent = intent,
-                        },
-                    ],
-                    AssistantMessageClass.Grounded
-                );
                 return new RecoveryPersistTurn(
                     AssistantRecoveryPersistCopy.SuccessTitle,
                     AssistantRecoveryPersistCopy.SuccessInternalBody(row.GuestName),
-                    internalActions,
+                    ReviewRecoveryActions(row.Id, intent),
                     internalWork,
                     null
                 );
@@ -1552,12 +1522,13 @@ namespace TummlyBackend.Services
 
             var purpose = AssistantRecoveryIntent.BindPurpose(userMessage, intent);
             var tone = AssistantRecoveryIntent.BindTone(userMessage);
+            var channel = allowed.Channel ?? "";
             PrepareFeedbackRecoveryDraftResultDto? copy;
             try
             {
                 copy = await _recoveryDrafts.PrepareAsync(
                     row.Id,
-                    allowed.Channel,
+                    channel,
                     purpose,
                     tone,
                     includeNotes: null,
@@ -1597,7 +1568,7 @@ namespace TummlyBackend.Services
             {
                 FeedbackId = row.Id,
                 Intent = intent,
-                Channel = allowed.Channel,
+                Channel = channel,
                 Purpose = purpose,
                 Tone = tone,
                 IncludeNotes = "",
@@ -1605,28 +1576,33 @@ namespace TummlyBackend.Services
                 Message = copy.Body,
                 EligibilitySnapshot = allowed.Snapshot,
             };
-            var actions = AssistantActionCatalog.ValidateOpenRecovery(
+            return new RecoveryPersistTurn(
+                AssistantRecoveryPersistCopy.SuccessTitle,
+                AssistantRecoveryPersistCopy.SuccessBody(
+                    row.GuestName,
+                    AssistantRecoveryPersistCopy.ChannelLabel(channel)
+                ),
+                ReviewRecoveryActions(row.Id, intent),
+                work,
+                null
+            );
+        }
+
+        private static IReadOnlyList<AssistantActionDto> ReviewRecoveryActions(
+            int feedbackId,
+            string intent
+        )
+            => AssistantActionCatalog.ValidateOpenRecovery(
                 [
                     new AssistantActionDto
                     {
                         Type = "open-recovery",
-                        FeedbackId = row.Id,
+                        FeedbackId = feedbackId,
                         Intent = intent,
                     },
                 ],
                 AssistantMessageClass.Grounded
             );
-            return new RecoveryPersistTurn(
-                AssistantRecoveryPersistCopy.SuccessTitle,
-                AssistantRecoveryPersistCopy.SuccessBody(
-                    row.GuestName,
-                    AssistantRecoveryPersistCopy.ChannelLabel(allowed.Channel)
-                ),
-                actions,
-                work,
-                null
-            );
-        }
 
         private async Task<AssistantTurnOutcome?> TryFinishOfferTermsGapAsync(
             AssistantConversation conversation,
