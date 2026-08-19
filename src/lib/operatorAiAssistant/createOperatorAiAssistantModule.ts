@@ -66,6 +66,7 @@ export type OperatorAiAssistantMessageClass =
   | "refusal"
   | "failure"
   | "clarify"
+  | "gap"
 
 export type OperatorAiAssistantHelpfulFill = "helpful" | "not-helpful"
 

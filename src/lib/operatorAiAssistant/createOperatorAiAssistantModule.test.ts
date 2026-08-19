@@ -2597,6 +2597,49 @@ describe("clarify vs grounded vs failure chrome", () => {
     expect(snapshot.retryVisible).toBe(false)
   })
 
+  it("gap snapshot has body, no retry, no actions", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => {
+        const row = {
+          id: "conv-gap",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          isArchived: false,
+          messages: [
+            {
+              id: "u1",
+              role: "user" as const,
+              body: input.message,
+              analysisScope: input.analysisScope,
+            },
+            {
+              id: "a1",
+              role: "assistant" as const,
+              class: "gap" as const,
+              body: "Which Owned location should this Campaign Draft use? Name one.",
+            },
+          ],
+        }
+        adapters.conversations.push(row)
+        return row
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Draft an Email Campaign for all locations")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const snapshot = module.getSnapshot()
+    const assistant = snapshot.messages.find((message) => message.role === "assistant")
+    expect(assistant?.class).toBe("gap")
+    expect(assistant?.body).toContain("Name one")
+    expect(assistant?.actions ?? []).toEqual([])
+    expect(snapshot.retryVisible).toBe(false)
+  })
+
   it("grounded snapshot is eligible for helpful chrome", async () => {
     const adapters = createInMemoryOperatorAiAssistantAdapters({
       sendTurn: async (input) => {

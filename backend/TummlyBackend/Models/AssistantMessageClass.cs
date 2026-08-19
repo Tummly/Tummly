@@ -5,7 +5,8 @@ namespace TummlyBackend.Models
         Grounded = 0,
         Refusal = 1,
         Failure = 2,
-        Clarify = 3
+        Clarify = 3,
+        Gap = 4
     }
 
     public static class AssistantMessageClassExtensions
@@ -17,6 +18,7 @@ namespace TummlyBackend.Models
                 AssistantMessageClass.Refusal => "refusal",
                 AssistantMessageClass.Failure => "failure",
                 AssistantMessageClass.Clarify => "clarify",
+                AssistantMessageClass.Gap => "gap",
                 _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
             };
 
@@ -27,6 +29,7 @@ namespace TummlyBackend.Models
                 "refusal" => AssistantMessageClass.Refusal,
                 "failure" => AssistantMessageClass.Failure,
                 "clarify" => AssistantMessageClass.Clarify,
+                "gap" => AssistantMessageClass.Gap,
                 _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
             };
     }

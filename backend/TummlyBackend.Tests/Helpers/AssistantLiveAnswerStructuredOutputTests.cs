@@ -27,6 +27,11 @@ namespace TummlyBackend.Tests.Helpers
                 StringComparison.Ordinal
             );
             Assert.Contains(
+                "The server owns Gap turns",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
                 "Do not put Markdown in title",
                 prompt,
                 StringComparison.Ordinal

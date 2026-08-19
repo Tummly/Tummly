@@ -175,7 +175,9 @@ namespace TummlyBackend.Helpers
                 user payload. Re-retrieve is already done. Prior assistant text is
                 not evidence. Vague time words map to the current Reporting period.
                 Title and body must use periodPhrase for windowed facts. Do not
-                write a hard-coded "this week".
+                write a hard-coded "this week". The server owns Gap turns: do not
+                ask Campaign name, catalogues, extra questions, or Location when
+                the ask plus Analysis scope already name one Owned location.
 
                 Grounded body formatting uses this Markdown allow-list only:
                 short level 2 or level 3 headings (## or ###), bold (**text**),

@@ -151,6 +151,7 @@ function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessag
     || classValue === "refusal"
     || classValue === "failure"
     || classValue === "clarify"
+    || classValue === "gap"
       ? classValue
       : undefined
 

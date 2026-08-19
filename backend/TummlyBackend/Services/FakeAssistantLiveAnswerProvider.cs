@@ -78,7 +78,7 @@ namespace TummlyBackend.Services
                 return _forcedResult;
             }
 
-            var task = ClassifyAssistantTask(input.UserMessage);
+            var task = AssistantTaskClassification.Classify(input.UserMessage);
             if (task == AssistantTask.CreateCampaignDraft)
             {
                 return new AssistantLiveAnswerResult.Succeeded(
@@ -128,76 +128,6 @@ namespace TummlyBackend.Services
         }
 
         public static string ClassifyAssistantTask(string userMessage)
-        {
-            if (AssistantAskIntent.IsHelpCentreAsk(userMessage)
-                && LooksLikeCreateCampaignDraft(userMessage))
-            {
-                return AssistantTask.Refuse;
-            }
-
-            if (LooksLikeCreateCampaignDraft(userMessage))
-            {
-                return AssistantTask.CreateCampaignDraft;
-            }
-
-            if (AssistantAskIntent.IsFullRefusal(AssistantAskIntent.Classify(userMessage)))
-            {
-                return AssistantTask.Refuse;
-            }
-
-            return AssistantTask.Retrieve;
-        }
-
-        private static bool LooksLikeCreateCampaignDraft(string message)
-        {
-            var lower = message.Trim().ToLowerInvariant();
-            if (LooksLikeCampaignRetrieveOnly(lower))
-            {
-                return false;
-            }
-
-            return ContainsAny(
-                lower,
-                "draft an email campaign",
-                "draft a campaign",
-                "create a campaign draft",
-                "create a campaign",
-                "create an email campaign",
-                "prepare a campaign",
-                "make a campaign",
-                "make a draft campaign",
-                "write a campaign"
-            );
-        }
-
-        private static bool LooksLikeCampaignRetrieveOnly(string lower)
-        {
-            var retrieve = ContainsAny(
-                lower,
-                "show me",
-                "show ",
-                "list ",
-                "summarise",
-                "summarize"
-            );
-            var campaignDraftNoun = lower.Contains("campaign draft", StringComparison.Ordinal)
-                || lower.Contains("campaign drafts", StringComparison.Ordinal);
-            if (!retrieve || !campaignDraftNoun)
-            {
-                return false;
-            }
-
-            return !ContainsAny(
-                lower,
-                "create",
-                "prepare",
-                "make a",
-                "draft an",
-                "draft a "
-            );
-        }
-
-        private static bool ContainsAny(string lower, params string[] needles)
-            => needles.Any(needle => lower.Contains(needle, StringComparison.Ordinal));
+            => AssistantTaskClassification.Classify(userMessage);
     }
 }

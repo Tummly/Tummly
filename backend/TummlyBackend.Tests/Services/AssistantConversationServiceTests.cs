@@ -830,6 +830,469 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(_context.AssistantConversations.Single().CreatedCampaignId);
         }
 
+        [Fact]
+        public async Task SendTurn_TwoCreateTargets_IsGapAndPersistsNeither()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Draft an Email Campaign and create an offer draft"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Null(answer.Title);
+            Assert.Empty(answer.Actions);
+            Assert.Contains("Campaign", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Offer", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Feedback recovery", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("###", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Campaign goal catalogue", answer.Body, StringComparison.Ordinal);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.False(ok.Conversation.DraftInterviewActive);
+        }
+
+        [Fact]
+        public async Task SendTurn_UnnamedCreateTargets_ListsCampaignOfferAndRecovery()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "help me draft something")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Contains("Campaign", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Offer", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Feedback recovery", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_MixedRetrieveAndTwoCreateTargets_AsksTargetFirstWithoutRetrieveActions()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Summarise recent feedback, draft an offer, and draft a recovery response"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Contains("Offer", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Feedback recovery", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("1 feedback item", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+            Assert.Empty(_retrieve.Calls);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_TwoCreateTargets_CampaignAnswerPersistsWhenLocationUnique()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com"
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        CanonicalCamdenEmailWinBackAsk + " and create an offer draft"
+                    )
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+
+            var answered = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Campaign", started.Conversation.Id)
+                )
+            );
+            var answer = answered.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal("review-campaign", Assert.Single(answer.Actions).Type);
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_UnnamedCreateWithSeveralOwnedLocations_PersistsAtAnalysisScope()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+            await SeedLinkedGuestAsync(
+                camden,
+                "Eligible Guest",
+                email: "eligible@example.com"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    camden,
+                    "Draft an Email Campaign to bring back all currently Email-eligible guests"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Equal("grounded", ok.Conversation.Messages[^1].Class);
+            Assert.Equal(camden, campaign.RestaurantLocationId);
+        }
+
+        [Fact]
+        public async Task SendTurn_LocationConflict_IsGapAndDoesNotPersist()
+        {
+            var soho = await SeedLocationAsync(ownerUserId: 7, "Soho");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(soho, CanonicalCamdenEmailWinBackAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Contains("Soho", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Camden", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.False(ok.Conversation.DraftInterviewActive);
+        }
+
+        [Fact]
+        public async Task SendTurn_UniqueLocationAnswer_PersistsAndSetsAnalysisScope()
+        {
+            var soho = await SeedLocationAsync(ownerUserId: 7, "Soho");
+            var camden = await SeedSecondLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                camden,
+                "Eligible Guest",
+                email: "eligible@example.com"
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(soho, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+
+            var answered = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(soho, "Camden", started.Conversation.Id)
+                )
+            );
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Equal(camden, campaign.RestaurantLocationId);
+            Assert.Equal(camden, answered.Conversation.AnalysisScope.OwnedLocationId);
+            Assert.Equal("Camden", answered.Conversation.AnalysisScope.OwnedLocationName);
+            Assert.Equal("grounded", answered.Conversation.Messages[^1].Class);
+            Assert.Equal(
+                "review-campaign",
+                Assert.Single(answered.Conversation.Messages[^1].Actions).Type
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_UnknownLocationName_RefusesAndDoesNotPersist()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Draft an Email Campaign to bring back guests at Paris"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("refusal", answer.Class);
+            Assert.Contains("Paris", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Camden", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_AllLocationsCreate_AsksToNameOneWithoutListingEveryLocation()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    camden,
+                    "Draft an Email Campaign for all locations"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Contains("Name one", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Soho", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_CreateWinsOverCompareClarify()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    camden,
+                    "Compare all locations and create a campaign draft"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.NotEqual("clarify", answer.Class);
+            Assert.NotEqual("gap", answer.Class);
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+            Assert.Equal(camden, _context.Campaigns.Single().RestaurantLocationId);
+        }
+
+        [Fact]
+        public async Task SendTurn_RetrieveDuringLocationGap_ReplacesGapAndPersistsNothing()
+        {
+            var soho = await SeedLocationAsync(ownerUserId: 7, "Soho");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Camden");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(soho, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+
+            var replaced = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(soho, "Show me Camden", started.Conversation.Id)
+                )
+            );
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.NotEqual("gap", replaced.Conversation.Messages[^1].Class);
+            Assert.DoesNotContain(
+                replaced.Conversation.Messages[^1].Actions,
+                action => action.Type == "review-campaign"
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_CompareDuringLocationGap_ReplacesGapWithClarify()
+        {
+            var soho = await SeedLocationAsync(ownerUserId: 7, "Soho");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Camden");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(soho, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+
+            var compared = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(soho, "Compare all locations", started.Conversation.Id)
+                )
+            );
+            Assert.Equal("clarify", compared.Conversation.Messages[^1].Class);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+        }
+
+        [Fact]
+        public async Task ApplyScope_DuringLocationGap_DoesNotPersist()
+        {
+            var soho = await SeedLocationAsync(ownerUserId: 7, "Soho");
+            var camden = await SeedSecondLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                camden,
+                "Eligible Guest",
+                email: "eligible@example.com"
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(soho, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+
+            var applied = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.ApplyScopeAsync(
+                    ownerUserId: 7,
+                    started.Conversation.Id,
+                    new ApplyAssistantScopeRequest
+                    {
+                        AnalysisScope = new AssistantAnalysisScopeDto
+                        {
+                            OwnedLocationId = camden,
+                            ReportingPeriod = new AssistantReportingPeriodDto
+                            {
+                                Kind = "preset",
+                                PresetId = "last7",
+                            },
+                        },
+                    }
+                )
+            );
+            Assert.Equal(camden, applied.Conversation.AnalysisScope.OwnedLocationId);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.Equal("gap", applied.Conversation.Messages[^1].Class);
+
+            var continued = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(camden, "ok", started.Conversation.Id)
+                )
+            );
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+            Assert.Equal("grounded", continued.Conversation.Messages[^1].Class);
+            Assert.Equal(camden, _context.Campaigns.Single().RestaurantLocationId);
+        }
+
+        [Fact]
+        public async Task SendTurn_ClearCancel_ClearsLocationGapAndPersistsNothing()
+        {
+            var soho = await SeedLocationAsync(ownerUserId: 7, "Soho");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Camden");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(soho, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+
+            var cancelled = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(soho, "cancel the draft", started.Conversation.Id)
+                )
+            );
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.False(cancelled.Conversation.DraftInterviewActive);
+            Assert.NotEqual("gap", cancelled.Conversation.Messages[^1].Class);
+        }
+
+        [Fact]
+        public async Task SendTurn_NonUniqueLocationAnswer_AsksAgain()
+        {
+            var soho = await SeedLocationAsync(ownerUserId: 7, "Soho");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Camden");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(soho, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+
+            var again = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(soho, "either", started.Conversation.Id)
+                )
+            );
+            Assert.Equal("gap", again.Conversation.Messages[^1].Class);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.Contains("Camden", again.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task SendTurn_TwoCreateTargetsDuringLocationGap_ReplacesGapAndPersistsNeither()
+        {
+            var soho = await SeedLocationAsync(ownerUserId: 7, "Soho");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Camden");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(soho, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+
+            var replaced = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        soho,
+                        "Draft an Email Campaign and create an offer draft",
+                        started.Conversation.Id
+                    )
+                )
+            );
+            var answer = replaced.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Contains("Campaign", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Offer", answer.Body, StringComparison.Ordinal);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.False(replaced.Conversation.DraftInterviewActive);
+        }
+
+        [Fact]
+        public async Task SendTurn_DifferentTask_ReplacesLocationGap()
+        {
+            var soho = await SeedLocationAsync(ownerUserId: 7, "Soho");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Camden");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(soho, CanonicalCamdenEmailWinBackAsk)
+                )
+            );
+
+            var replaced = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(soho, "Create an offer draft", started.Conversation.Id)
+                )
+            );
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.NotEqual("gap", replaced.Conversation.Messages[^1].Class);
+            Assert.Contains("offer type", replaced.Conversation.Messages[^1].Body);
+        }
+
         [Theory]
         [InlineData("Make an offer", "offer type")]
         public async Task SendTurn_GenericDraftRequest_StartsMatchingInterview(
@@ -1132,15 +1595,12 @@ namespace TummlyBackend.Tests.Services
 
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             var answer = ok.Conversation.Messages[^1];
-            Assert.Equal("grounded", answer.Class);
-            Assert.Contains("1 feedback item", answer.Body);
-            Assert.Contains("Which one target", answer.Body);
-            Assert.Contains("### Draft target catalogue", answer.Body);
-            Assert.Contains("- Offer", answer.Body);
-            Assert.Contains("- Feedback recovery", answer.Body);
-            Assert.Contains("one target per interview", answer.Body);
-            Assert.True(ok.Conversation.DraftInterviewActive);
-            Assert.DoesNotContain(answer.Actions, action => action.Type.StartsWith("draft-"));
+            Assert.Equal("gap", answer.Class);
+            Assert.Contains("Offer", answer.Body);
+            Assert.Contains("Feedback recovery", answer.Body);
+            Assert.DoesNotContain("###", answer.Body);
+            Assert.False(ok.Conversation.DraftInterviewActive);
+            Assert.Empty(answer.Actions);
 
             var selected = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await _service.SendTurnAsync(
@@ -1160,17 +1620,14 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_ClarifyWithDraftAsk_DoesNotRetrieveOrStartInterview()
+        public async Task SendTurn_CompareAllLocations_StillClarify()
         {
             var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
             await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
 
             var outcome = await _service.SendTurnAsync(
                 ownerUserId: 7,
-                FirstSendRequest(
-                    camden,
-                    "Compare all locations and create a campaign draft"
-                )
+                FirstSendRequest(camden, "Compare all locations")
             );
 
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);

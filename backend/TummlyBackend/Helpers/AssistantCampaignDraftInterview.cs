@@ -72,41 +72,7 @@ namespace TummlyBackend.Helpers
         }
 
         public static IReadOnlyList<string> DetectDraftTargets(string message)
-        {
-            var lower = message.Trim().ToLowerInvariant();
-            var targets = new List<string>();
-            if (AssistantOfferDraftInterview.IsOfferDraftAsk(message))
-            {
-                targets.Add("Offer");
-            }
-            if (AssistantRecoveryDraftInterview.IsRecoveryDraftAsk(message))
-            {
-                targets.Add("Feedback recovery");
-            }
-
-            if (targets.Count == 0
-                && ContainsAny(
-                    lower,
-                    "help me draft something",
-                    "help me create something",
-                    "help me prepare something",
-                    "what can you draft"
-                ))
-            {
-                targets.AddRange(["Offer", "Feedback recovery"]);
-            }
-            else if (targets.Count == 0
-                && ContainsAny(
-                    lower,
-                    "help me follow up",
-                    "help me reach out"
-                ))
-            {
-                targets.Add("Feedback recovery");
-            }
-
-            return targets;
-        }
+            => AssistantCreateTargets.Detect(message);
 
         public static bool IsClearCancel(string message)
         {

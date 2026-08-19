@@ -122,6 +122,28 @@ namespace TummlyBackend.Helpers
             );
         }
 
+        /// <summary>
+        /// Retrieve or compare that replaces an open Gap turn. Omits "which"
+        /// / "who" so a Location answer is not treated as a new Retrieve task.
+        /// </summary>
+        public static bool HasReplacingRetrieveAsk(string text)
+        {
+            var lower = text.Trim().ToLowerInvariant();
+            return ContainsAny(
+                lower,
+                "summarise",
+                "summarize",
+                "show",
+                "list",
+                "how many",
+                "compare",
+                "overview",
+                "breakdown",
+                "performance",
+                "trend"
+            );
+        }
+
         public static bool LooksLikeReport(string text)
         {
             var lower = text.ToLowerInvariant();
