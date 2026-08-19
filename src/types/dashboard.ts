@@ -926,6 +926,8 @@ export interface GuestActivityListItem {
   authorDisplayName: string | null;
   sentiment: string | null;
   changedFields: string[] | null;
+  fromPreference: string | null;
+  toPreference: string | null;
 }
 
 export interface GuestActivityListResponse {

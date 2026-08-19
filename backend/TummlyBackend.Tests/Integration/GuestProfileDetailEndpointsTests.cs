@@ -588,13 +588,72 @@ namespace TummlyBackend.Tests.Integration
                 "not_recorded",
                 eligibility[0].GetProperty("detailKind").GetString()
             );
-            Assert.Equal(JsonValueKind.Null, eligibility[0].GetProperty("detailAt").ValueKind);
+            Assert.Equal(
+                new DateTime(2026, 6, 1, 9, 30, 0, DateTimeKind.Utc),
+                eligibility[0].GetProperty("detailAt").GetDateTime()
+            );
             Assert.Equal("not_recorded", eligibility[1].GetProperty("status").GetString());
             Assert.Equal(
                 "not_recorded",
                 eligibility[1].GetProperty("detailKind").GetString()
             );
-            Assert.Equal(JsonValueKind.Null, eligibility[1].GetProperty("detailAt").ValueKind);
+            Assert.Equal(
+                new DateTime(2026, 6, 1, 9, 30, 0, DateTimeKind.Utc),
+                eligibility[1].GetProperty("detailAt").GetDateTime()
+            );
+        }
+
+        [Fact]
+        public async Task GetGuestProfile_KeepsConsentDetail_WhenOperatorOptedOutAfterAllowedFeedback()
+        {
+            var consentedAt = new DateTime(2026, 6, 1, 9, 30, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerWithGuestAsync(
+                "guest-profile-op-opt-out-tok",
+                ownerEmail: "guest-profile-op-opt-out@example.com",
+                name: "Operator Opt Out Oli",
+                guestEmail: "oli@example.com",
+                mobile: "07700900458",
+                offersOptOut: false,
+                guestSinceAt: DateTime.UtcNow.AddDays(-10),
+                feedbackCreatedAts: [consentedAt]
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var guest = await context.LocationGuests.SingleAsync(
+                    lg => lg.Id == seeded.LocationGuestId
+                );
+                guest.MarketingPreference =
+                    LocationGuestMarketingPreference.OptedOut;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                GuestUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            var body = await ReadJsonAsync(response);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                "opted_out",
+                body.GetProperty("marketingPreference").GetString()
+            );
+
+            var eligibility = body.GetProperty("contactEligibility")
+                .EnumerateArray()
+                .ToList();
+
+            Assert.Equal("unsubscribed", eligibility[0].GetProperty("status").GetString());
+            Assert.Equal(consentedAt, eligibility[0].GetProperty("detailAt").GetDateTime());
+            Assert.Equal("unsubscribed", eligibility[1].GetProperty("status").GetString());
+            Assert.Equal(consentedAt, eligibility[1].GetProperty("detailAt").GetDateTime());
         }
 
         [Fact]

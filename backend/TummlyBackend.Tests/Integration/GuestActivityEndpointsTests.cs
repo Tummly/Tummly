@@ -302,6 +302,59 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task GetGuestActivity_ReturnsMarketingPreferenceChangeFromToAndActor()
+        {
+            var seeded = await SeedOwnerWithGuestAsync(
+                "activity-mkt-pref-tokenxxxx"
+            );
+            var occurredAt = new DateTime(2026, 8, 18, 11, 0, 0, DateTimeKind.Utc);
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var recorder = scope.ServiceProvider
+                    .GetRequiredService<ILocationGuestActivityRecorder>();
+                recorder.RecordMarketingPreferenceChanged(
+                    seeded.LocationGuestId,
+                    "allowed",
+                    "not_recorded",
+                    "Ada Operator",
+                    occurredAt
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                ActivityUrl(seeded.LocationGuestId, seeded.LocationId)
+                    + "&type=marketing-preference"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            var body = await ReadJsonAsync(response);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(1, body.GetProperty("totalCount").GetInt32());
+            var item = body.GetProperty("items")[0];
+            Assert.Equal(
+                LocationGuestActivityKinds.MarketingPreferenceChanged,
+                item.GetProperty("kind").GetString()
+            );
+            Assert.Equal("allowed", item.GetProperty("fromPreference").GetString());
+            Assert.Equal(
+                "not_recorded",
+                item.GetProperty("toPreference").GetString()
+            );
+            Assert.Equal(
+                "Ada Operator",
+                item.GetProperty("authorDisplayName").GetString()
+            );
+        }
+
         private static string ActivityUrl(int guestId, int locationId)
             => $"/api/guests/{guestId}/activity?locationId={locationId}";
 

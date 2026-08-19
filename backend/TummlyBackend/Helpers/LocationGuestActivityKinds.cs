@@ -31,6 +31,10 @@ namespace TummlyBackend.Helpers
                 "note" => [NoteAdded, NoteDeleted],
                 "tag" => [TagApplied, TagRemoved],
                 "profile-update" or "profile-edited" => [ProfileEdited],
+                "marketing-preference" or "marketing-preference-changed" =>
+                [
+                    MarketingPreferenceChanged,
+                ],
                 _ => null,
             };
         }

@@ -222,6 +222,34 @@ describe("createManageMarketingPreferencesSessionModule", () => {
     expect(snap.saveStatus).toBe("error")
   })
 
+  it("keeps the dialog open with the note draft when a note-only Save fails", async () => {
+    const adapters = createAdapters({
+      patchMarketingPreference: vi.fn(async () => ({
+        success: true,
+        preference: "allowed" as const,
+        preferenceChanged: false,
+        noteCreated: false,
+        noteError: "Could not save the note.",
+      })),
+    })
+    const session = createManageMarketingPreferencesSessionModule(adapters)
+    session.openFromLoaded(sampleProfile())
+    session.setDraftNote("Please suppress.")
+
+    const result = await session.save()
+    const snap = session.getSnapshot()
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Could not save the note.",
+    })
+    expect(snap.isOpen).toBe(true)
+    expect(snap.draftNote).toBe("Please suppress.")
+    expect(snap.draftPreference).toBe("allowed")
+    expect(snap.saveError).toBe("Could not save the note.")
+    expect(snap.saveStatus).toBe("error")
+  })
+
   it("keeps the preference and reports note failure when the note then fails", async () => {
     const adapters = createAdapters({
       patchMarketingPreference: vi.fn(async () => ({

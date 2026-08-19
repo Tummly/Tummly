@@ -314,14 +314,28 @@ export function createManageMarketingPreferencesSessionModule(
               ? { preference: draft, note }
               : { preference: draft },
         })
+        const noteError = (result.noteError ?? "").trim()
+        const noteFailed = noteError.length > 0
+
         if (generation !== state.saveGeneration) {
-          if (result.noteError != null && result.noteError.trim() !== "") {
+          if (noteFailed && result.preferenceChanged) {
             return {
               status: "saved_with_note_error",
-              message: result.noteError,
+              message: noteError,
             }
           }
+          if (noteFailed) {
+            return { status: "error", message: noteError }
+          }
           return { status: "saved" }
+        }
+
+        if (noteFailed && !result.preferenceChanged) {
+          setState({
+            saveStatus: "error",
+            saveError: noteError,
+          })
+          return { status: "error", message: noteError }
         }
 
         setState({
@@ -330,10 +344,10 @@ export function createManageMarketingPreferencesSessionModule(
           saveGeneration: generation,
         })
 
-        if (result.noteError != null && result.noteError.trim() !== "") {
+        if (noteFailed) {
           return {
             status: "saved_with_note_error",
-            message: result.noteError,
+            message: noteError,
           }
         }
         return { status: "saved" }

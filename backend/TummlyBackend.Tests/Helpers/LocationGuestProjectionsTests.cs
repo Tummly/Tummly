@@ -260,19 +260,39 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void ResolveOffersConsentDetailAt_ReturnsNullWhenNotRecorded()
+        public void ResolveOffersConsentDetailAt_KeepsLatestFeedbackStreakWhenNotRecorded()
         {
-            var consentedAt = new DateTime(2026, 5, 12, 10, 0, 0, DateTimeKind.Utc);
+            var firstConsent = new DateTime(2026, 5, 12, 10, 0, 0, DateTimeKind.Utc);
+            var laterAffirmation = new DateTime(2026, 7, 20, 14, 22, 0, DateTimeKind.Utc);
 
-            Assert.Null(
-                LocationGuestProjections.ResolveOffersConsentDetailAt(
-                    LocationGuestMarketingPreference.NotRecorded,
-                    feedbacks:
-                    [
-                        new LocationGuestOffersOptOutFact(consentedAt, OffersOptOut: false),
-                    ]
-                )
+            var detailAt = LocationGuestProjections.ResolveOffersConsentDetailAt(
+                LocationGuestMarketingPreference.NotRecorded,
+                feedbacks:
+                [
+                    new LocationGuestOffersOptOutFact(laterAffirmation, OffersOptOut: false),
+                    new LocationGuestOffersOptOutFact(firstConsent, OffersOptOut: false),
+                ]
             );
+
+            Assert.Equal(firstConsent, detailAt);
+        }
+
+        [Fact]
+        public void ResolveOffersConsentDetailAt_KeepsAllowedStreakWhenOperatorOptedOut()
+        {
+            var firstConsent = new DateTime(2026, 5, 12, 10, 0, 0, DateTimeKind.Utc);
+            var laterAffirmation = new DateTime(2026, 7, 20, 14, 22, 0, DateTimeKind.Utc);
+
+            var detailAt = LocationGuestProjections.ResolveOffersConsentDetailAt(
+                LocationGuestMarketingPreference.OptedOut,
+                feedbacks:
+                [
+                    new LocationGuestOffersOptOutFact(laterAffirmation, OffersOptOut: false),
+                    new LocationGuestOffersOptOutFact(firstConsent, OffersOptOut: false),
+                ]
+            );
+
+            Assert.Equal(firstConsent, detailAt);
         }
 
         [Fact]

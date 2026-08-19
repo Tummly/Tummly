@@ -104,32 +104,37 @@ namespace TummlyBackend.Helpers
         }
 
         /// <summary>
-        /// When the current Location Guest marketing preference began, from
-        /// per-Feedback Offers opt-out audit. Newest contiguous streak matching
-        /// <paramref name="currentPreference"/>; returns the oldest CreatedAt
-        /// in that streak (first consent, or re-opt-in after a prior opt-out).
-        /// <see cref="LocationGuestMarketingPreference.NotRecorded"/> has no
-        /// Feedback mapping and returns null.
+        /// Historical consent evidence from per-Feedback Offers opt-out audit.
+        /// Newest contiguous streak matching <paramref name="currentPreference"/>
+        /// when that maps to Feedback; oldest CreatedAt in that streak (first
+        /// consent, or re-opt-in after a prior opt-out). When preference is
+        /// Not recorded, or an operator change no longer matches the latest
+        /// Feedback, keep that latest Feedback streak so Permission source
+        /// and Recorded on are not wiped.
         /// </summary>
         public static DateTime? ResolveOffersConsentDetailAt(
             LocationGuestMarketingPreference currentPreference,
             IEnumerable<LocationGuestOffersOptOutFact> feedbacks
         )
         {
-            if (currentPreference == LocationGuestMarketingPreference.NotRecorded)
+            var ordered = feedbacks
+                .OrderByDescending(fact => fact.CreatedAt)
+                .ToList();
+
+            if (ordered.Count == 0)
             {
                 return null;
             }
 
-            var currentOffersOptOut =
-                currentPreference == LocationGuestMarketingPreference.OptedOut;
+            var streakOffersOptOut = ResolveConsentStreakPolarity(
+                currentPreference,
+                ordered[0].OffersOptOut
+            );
             DateTime? streakStart = null;
 
-            foreach (
-                var feedback in feedbacks.OrderByDescending(fact => fact.CreatedAt)
-            )
+            foreach (var feedback in ordered)
             {
-                if (feedback.OffersOptOut != currentOffersOptOut)
+                if (feedback.OffersOptOut != streakOffersOptOut)
                 {
                     break;
                 }
@@ -138,6 +143,23 @@ namespace TummlyBackend.Helpers
             }
 
             return streakStart;
+        }
+
+        private static bool ResolveConsentStreakPolarity(
+            LocationGuestMarketingPreference currentPreference,
+            bool newestOffersOptOut
+        )
+        {
+            if (currentPreference == LocationGuestMarketingPreference.NotRecorded)
+            {
+                return newestOffersOptOut;
+            }
+
+            var mappedOptOut =
+                currentPreference == LocationGuestMarketingPreference.OptedOut;
+            return mappedOptOut == newestOffersOptOut
+                ? mappedOptOut
+                : newestOffersOptOut;
         }
 
         public static IReadOnlyList<LocationGuestContactEligibilityRow> BuildContactEligibility(
