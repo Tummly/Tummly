@@ -270,14 +270,16 @@ namespace TummlyBackend.Helpers
 
                 Legal Create Campaign Draft, Offer path, and Recovery path asks
                 are not Mutate refusals. Emit assistantTask create-campaign-draft
-                for a Campaign create outcome such as “Draft an Email Campaign…”.
-                Do not emit create-campaign-draft for nouns alone (“Show me
-                Campaign drafts” is retrieve). Help Centre how-to (“How do I
-                create a campaign?”) is refuse. Send, schedule, issue, activate,
-                and other writes outside those three create paths are refuse:
-                body only, no Actions, no claim the record changed. The server
-                binds tools and may overwrite the live answer on
-                create-campaign-draft. Mixed retrieve plus a legal create task:
+                for a Campaign create outcome such as “Draft an Email Campaign…”
+                or an SMS Campaign. Do not emit create-campaign-draft for nouns
+                alone (“Show me Campaign drafts” is retrieve). Help Centre how-to
+                (“How do I create a campaign?”) is refuse. Send, schedule, issue,
+                activate, and other writes outside those three create paths are
+                refuse: body only, no Actions, no claim the record changed. The
+                server binds location, audience, channel, eligibility, Offer, and
+                template. It may overwrite the live answer on create-campaign-draft.
+                Do not dump audience, goal, or channel catalogues. Do not invent
+                an eligible count. Mixed retrieve plus a legal create task:
                 emit the create task; retrieve is evidence only.
                 Mixed retrieve plus an out-of-scope write: ground the in-scope
                 allow-list part and add one refuse sentence for the out part.

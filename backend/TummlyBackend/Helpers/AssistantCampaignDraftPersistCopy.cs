@@ -13,23 +13,39 @@ namespace TummlyBackend.Helpers
             string locationName,
             string channelLabel,
             string audienceLabel,
-            int? emailEligible,
-            string campaignName
+            int? eligibleCount,
+            string campaignName,
+            string offerLabel = "No Offer",
+            string? offerNote = null
         )
         {
-            var countLine = emailEligible is int count
-                ? $"{audienceLabel} ({count} Email-eligible)"
+            var countQualifier = string.Equals(
+                channelLabel,
+                "SMS",
+                StringComparison.OrdinalIgnoreCase
+            )
+                ? "SMS-eligible"
+                : "Email-eligible";
+            var countLine = eligibleCount is int count
+                ? $"{audienceLabel} ({count} {countQualifier})"
                 : $"{audienceLabel} (eligible count unavailable)";
 
-            return
+            var body =
                 $"I saved a Campaign Draft for {locationName}.\n\n"
                 + $"- **Location:** {locationName}\n"
                 + $"- **Channel:** {channelLabel}\n"
                 + $"- **Audience:** {countLine}\n"
-                + "- **Offer:** No Offer\n"
+                + $"- **Offer:** {offerLabel}\n"
                 + $"- **Name:** {campaignName}\n"
                 + "- **Status:** Draft\n\n"
                 + "Nothing was sent or scheduled.";
+
+            if (!string.IsNullOrWhiteSpace(offerNote))
+            {
+                body += $"\n\n{offerNote}";
+            }
+
+            return body;
         }
 
         public static string FailureBody(string failedStep)

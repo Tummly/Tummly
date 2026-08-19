@@ -9,9 +9,10 @@ namespace TummlyBackend.Helpers
         public const string GoalDefault = "Re-engage inactive guests";
 
         public static string Compose(
-            string userMessage,
+            string goalId,
             string channel,
-            string locationName
+            string locationName,
+            string audienceKey
         )
         {
             if (string.IsNullOrWhiteSpace(locationName))
@@ -19,14 +20,36 @@ namespace TummlyBackend.Helpers
                 return GoalDefault;
             }
 
-            var lower = userMessage.Trim().ToLowerInvariant();
-            if (lower.Contains("bring back", StringComparison.Ordinal)
-                && string.Equals(channel, "email", StringComparison.OrdinalIgnoreCase))
-            {
-                return $"Bring back Email-eligible guests at {locationName.Trim()}";
-            }
+            var place = locationName.Trim();
+            var channelWord = string.Equals(channel, "sms", StringComparison.OrdinalIgnoreCase)
+                ? "SMS"
+                : "Email";
 
-            return GoalDefault;
+            return goalId switch
+            {
+                "re-engage-inactive" when audienceKey
+                    == AssistantCampaignDraftBind.AudienceAllEligible
+                    => $"Bring back {channelWord}-eligible guests at {place}",
+                "re-engage-inactive"
+                    => $"Re-engage {AudiencePhrase(audienceKey)} by {channelWord} at {place}",
+                "thank-recent-guests"
+                    => $"Thank {AudiencePhrase(audienceKey)} by {channelWord} at {place}",
+                "promote-something-new"
+                    => $"Promote something new by {channelWord} at {place}",
+                "boost-quieter-time"
+                    => $"Boost a quieter time by {channelWord} at {place}",
+                "follow-up-completed-recovery"
+                    => $"Follow up after completed recovery by {channelWord} at {place}",
+                _ => GoalDefault,
+            };
         }
+
+        private static string AudiencePhrase(string audienceKey)
+            => AssistantCampaignDraftBind.AudienceLabels.TryGetValue(
+                audienceKey,
+                out var label
+            )
+                ? label.ToLowerInvariant()
+                : "guests";
     }
 }

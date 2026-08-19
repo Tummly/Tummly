@@ -24,6 +24,7 @@ namespace TummlyBackend.Tests.Services
         private readonly ControllableHomeKpiRetrieve _homeRetrieve;
         private readonly ControllableGuestsRetrieve _guestsRetrieve;
         private readonly RecordingAssistantProgressPublisher _progress;
+        private readonly FakeCampaignMessageDraftProvider _messageDrafts;
         private readonly AssistantConversationService _service;
 
         public AssistantConversationServiceTests()
@@ -60,11 +61,13 @@ namespace TummlyBackend.Tests.Services
                 new AssistantGuestsRetrieve(_context)
             );
             _progress = new RecordingAssistantProgressPublisher();
+            _messageDrafts = new FakeCampaignMessageDraftProvider();
             _service = CreateConversationService();
         }
 
         private AssistantConversationService CreateConversationService(
-            ICampaignDraftService? campaignDrafts = null
+            ICampaignDraftService? campaignDrafts = null,
+            ICampaignEligibilityService? eligibility = null
         )
             => new(
                 _context,
@@ -83,8 +86,8 @@ namespace TummlyBackend.Tests.Services
                         new CampaignTemplateCatalogueService(),
                         new OffersCatalogService(_context)
                     ),
-                new CampaignEligibilityService(_context),
-                new CampaignMessageDraftService(new FakeCampaignMessageDraftProvider())
+                eligibility ?? new CampaignEligibilityService(_context),
+                new CampaignMessageDraftService(_messageDrafts)
             );
 
         [Fact]
@@ -705,6 +708,284 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_NamedSmsChannel_PersistsSmsAndSmsEligibleCount()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: null,
+                mobile: "+447700900123"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Draft an SMS Campaign to bring back eligible guests at Camden"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Equal("sms", campaign.Channel);
+            Assert.Null(campaign.MessageSubject);
+            Assert.NotNull(campaign.MessageBody);
+            Assert.Contains("SMS", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.Contains("1 SMS-eligible", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Last 7 days", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task SendTurn_NewGuestsAsk_PersistsNewGuestsAudience()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Draft an Email Campaign to all eligible new guests at Camden"
+                )
+            );
+
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Equal("new-guests", campaign.AudienceKey);
+            Assert.Contains(
+                "New guests",
+                Assert.IsType<AssistantTurnOutcome.Ok>(outcome).Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_UnevaluableAudience_PersistsNothing()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Draft an Email Campaign to guests with no recent Tummly activity at Camden"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.Empty(answer.Actions);
+            Assert.Contains("cannot be evaluated yet", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("catalogue", answer.Body, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task SendTurn_TwoNamedAudiences_IsGapAndPersistsNothing()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Draft an Email Campaign to new guests and dormant guests at Camden"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Empty(answer.Actions);
+            Assert.Contains("New guests", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Dormant guests", answer.Body, StringComparison.Ordinal);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_EmailAndSms_IsChannelGap()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Draft an Email and SMS Campaign to bring back eligible guests at Camden"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("gap", ok.Conversation.Messages[^1].Class);
+            Assert.Contains("Email", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.Contains("SMS", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_UniqueNamedOffer_AttachesAndOmitsAddOffer()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com"
+            );
+            var offerId = await SeedCatalogOfferAsync(locationId, "Weekend brunch");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    CanonicalCamdenEmailWinBackAsk + " with Weekend brunch"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Equal("existing-offer", campaign.OfferStance);
+            Assert.Equal(offerId, campaign.OfferId);
+            Assert.Contains("Weekend brunch", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.Equal(
+                new[] { "review-campaign", "change-audience" },
+                ok.Conversation.Messages[^1].Actions.Select(action => action.Type)
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_TwoMatchingOffers_IsGapThenUniqueTitlePersistsAttach()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com"
+            );
+            var attachedId = await SeedCatalogOfferAsync(locationId, "Weekend brunch");
+            var lunchId = await SeedCatalogOfferAsync(locationId, "Lunch treat");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        CanonicalCamdenEmailWinBackAsk + " with Weekend brunch and Lunch treat"
+                    )
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+
+            var answered = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Lunch treat",
+                        started.Conversation.Id
+                    )
+                )
+            );
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Equal("existing-offer", campaign.OfferStance);
+            Assert.Equal(lunchId, campaign.OfferId);
+            Assert.NotEqual(attachedId, campaign.OfferId);
+            Assert.Equal("grounded", answered.Conversation.Messages[^1].Class);
+        }
+
+        [Fact]
+        public async Task SendTurn_ZeroEligible_PersistsAndStatesZero()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenEmailWinBackAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Single(_context.Campaigns);
+            Assert.Contains("0 Email-eligible", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task SendTurn_EligibilityFailure_PersistsWithUnavailableCount()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var failing = CreateConversationService(
+                eligibility: new ThrowingCampaignEligibilityService()
+            );
+
+            var outcome = await failing.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenEmailWinBackAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Single(_context.Campaigns);
+            Assert.Contains(
+                "eligible count unavailable",
+                ok.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain("Last 7 days", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task SendTurn_CopyGenerateFailure_PersistsEmptyMessageFields()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _messageDrafts.Fail();
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenEmailWinBackAsk)
+            );
+
+            Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Null(campaign.MessageSubject);
+            Assert.Null(campaign.MessageBody);
+        }
+
+        [Fact]
+        public async Task SendTurn_NamedDraftOffer_PersistsNoOfferAndExplains()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com"
+            );
+            await SeedCatalogOfferAsync(
+                locationId,
+                "Weekend brunch",
+                status: CatalogOfferStatus.Draft
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    CanonicalCamdenEmailWinBackAsk + " with Weekend brunch"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Equal("no-offer", campaign.OfferStance);
+            Assert.Null(campaign.OfferId);
+            Assert.Contains("No Offer", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.Contains("Weekend brunch", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.Contains("not attachable", ok.Conversation.Messages[^1].Body, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public async Task SendTurn_ShowMeCampaignDrafts_RetrievesAndDoesNotPersist()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
@@ -1312,7 +1593,10 @@ namespace TummlyBackend.Tests.Services
             );
             var answer = answered.Conversation.Messages[^1];
             Assert.Equal("grounded", answer.Class);
-            Assert.Equal("review-campaign", Assert.Single(answer.Actions).Type);
+            Assert.Equal(
+                new[] { "review-campaign", "change-audience", "add-offer" },
+                answer.Actions.Select(action => action.Type)
+            );
             Assert.Equal(1, await _context.Campaigns.CountAsync());
         }
 
@@ -1426,8 +1710,8 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("Camden", answered.Conversation.AnalysisScope.OwnedLocationName);
             Assert.Equal("grounded", answered.Conversation.Messages[^1].Class);
             Assert.Equal(
-                "review-campaign",
-                Assert.Single(answered.Conversation.Messages[^1].Actions).Type
+                new[] { "review-campaign", "change-audience", "add-offer" },
+                answered.Conversation.Messages[^1].Actions.Select(action => action.Type)
             );
         }
 
@@ -3861,6 +4145,24 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        private sealed class ThrowingCampaignEligibilityService : ICampaignEligibilityService
+        {
+            public Task<CampaignEligibilityDto> EvaluateAsync(
+                int locationId,
+                string audienceKey,
+                CancellationToken cancellationToken = default
+            )
+                => throw new InvalidOperationException("eligibility boom");
+
+            public Task<IReadOnlyList<int>> ListChannelEligibleLocationGuestIdsAsync(
+                int locationId,
+                string audienceKey,
+                string channel,
+                CancellationToken cancellationToken = default
+            )
+                => throw new InvalidOperationException("eligibility boom");
+        }
+
         private sealed class ThrowingCampaignDraftService : ICampaignDraftService
         {
             public Task<CampaignDraftDto> CreateAsync(
@@ -4073,17 +4375,22 @@ namespace TummlyBackend.Tests.Services
             await _context.SaveChangesAsync();
         }
 
-        private async Task<int> SeedCatalogOfferAsync(int locationId, string title)
+        private async Task<int> SeedCatalogOfferAsync(
+            int locationId,
+            string title,
+            string status = CatalogOfferStatus.Active,
+            decimal? discountPercentage = 10m
+        )
         {
             var offer = new CatalogOffer
             {
                 RestaurantLocationId = locationId,
-                Status = CatalogOfferStatus.Active,
+                Status = status,
                 OfferType = CatalogOfferType.PercentageDiscount,
                 Title = title,
                 Description = "Seeded catalog offer",
                 Validity = CatalogOfferValidity.Days14AfterIssue,
-                DiscountPercentage = 10m,
+                DiscountPercentage = discountPercentage,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
             };

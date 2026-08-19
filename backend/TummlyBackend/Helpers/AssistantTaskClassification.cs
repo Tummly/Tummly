@@ -36,13 +36,18 @@ namespace TummlyBackend.Helpers
                 return false;
             }
 
+            if (!lower.Contains("campaign", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
             return ContainsAny(
                 lower,
-                "draft an email campaign",
-                "draft a campaign",
-                "create a campaign draft",
+                "draft an",
+                "draft a ",
                 "create a campaign",
-                "create an email campaign",
+                "create an email",
+                "create an sms",
                 "prepare a campaign",
                 "make a campaign",
                 "make a draft campaign",

@@ -17,6 +17,9 @@ namespace TummlyBackend.Helpers
         public const string Target = "gap";
         public const string KindCreateTarget = "create-target";
         public const string KindLocation = "location";
+        public const string KindOffer = "offer-title";
+        public const string KindAudience = "audience";
+        public const string KindChannel = "channel";
 
         public static AssistantGapState CreateTarget(
             IReadOnlyList<string> options,
@@ -46,6 +49,48 @@ namespace TummlyBackend.Helpers
                 SourceUserMessage = sourceUserMessage,
             };
 
+        public static AssistantGapState CreateOffer(
+            IReadOnlyList<string> options,
+            string sourceUserMessage,
+            string assistantTask
+        )
+            => CreateNamed(KindOffer, options, sourceUserMessage, assistantTask);
+
+        public static AssistantGapState CreateAudience(
+            IReadOnlyList<string> options,
+            string sourceUserMessage,
+            string assistantTask
+        )
+            => CreateNamed(KindAudience, options, sourceUserMessage, assistantTask);
+
+        public static AssistantGapState CreateChannel(
+            IReadOnlyList<string> options,
+            string sourceUserMessage,
+            string assistantTask
+        )
+            => CreateNamed(KindChannel, options, sourceUserMessage, assistantTask);
+
+        private static AssistantGapState CreateNamed(
+            string kind,
+            IReadOnlyList<string> options,
+            string sourceUserMessage,
+            string assistantTask
+        )
+            => new()
+            {
+                Kind = kind,
+                AssistantTask = assistantTask,
+                Options = options.ToList(),
+                SourceUserMessage = sourceUserMessage,
+            };
+
+        public static bool IsBindKind(string kind)
+            => kind is KindOffer or KindAudience or KindChannel;
+
+        private static bool IsKnownKind(string kind)
+            => kind is KindCreateTarget or KindLocation
+                or KindOffer or KindAudience or KindChannel;
+
         public static AssistantGapState? Parse(string? json)
         {
             if (string.IsNullOrWhiteSpace(json))
@@ -58,7 +103,7 @@ namespace TummlyBackend.Helpers
                 var state = JsonSerializer.Deserialize<AssistantGapState>(json);
                 if (state is null
                     || !string.Equals(state.Target, Target, StringComparison.Ordinal)
-                    || (state.Kind != KindCreateTarget && state.Kind != KindLocation))
+                    || !IsKnownKind(state.Kind))
                 {
                     return null;
                 }
@@ -98,5 +143,14 @@ namespace TummlyBackend.Helpers
 
         public static string RepeatLocationBody(AssistantGapState state)
             => AssistantCreateLocationGap.RepeatBody(state.LocationKind, state.Options);
+
+        public static string RepeatBindBody(AssistantGapState state)
+            => state.Kind switch
+            {
+                KindOffer => AssistantCampaignDraftBind.OfferClashBody(state.Options),
+                KindAudience => AssistantCampaignDraftBind.AudienceClashBody(state.Options),
+                KindChannel => AssistantCampaignDraftBind.ChannelClashBody(),
+                _ => RepeatLocationBody(state),
+            };
     }
 }
