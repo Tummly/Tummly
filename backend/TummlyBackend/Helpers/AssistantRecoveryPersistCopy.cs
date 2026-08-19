@@ -8,10 +8,28 @@ namespace TummlyBackend.Helpers
         public const string SuccessTitle = "Feedback recovery prepared";
         public const string FailureTitle = "Feedback recovery not prepared";
 
-        public static string SuccessBody(string guestName, string channelLabel)
+        public static string IntentLabel(string intent)
+            => intent switch
+            {
+                AssistantRecoveryEligibility.IntentRespondToGuest
+                    => "Respond to the guest",
+                AssistantRecoveryEligibility.IntentRespondAndRecord
+                    => "Respond and record an internal action",
+                AssistantRecoveryEligibility.IntentInternalOnly
+                    => "Record an internal action only",
+                AssistantRecoveryEligibility.IntentRecoveryOffer
+                    => "Respond with a recovery offer",
+                _ => intent,
+            };
+
+        public static string SuccessBody(
+            string intent,
+            string guestName,
+            string channelLabel
+        )
             => "I prepared a recovery response for "
                 + $"{guestName} by {channelLabel}.\n\n"
-                + "- **Intent:** Respond to the guest\n"
+                + $"- **Intent:** {IntentLabel(intent)}\n"
                 + $"- **Channel:** {channelLabel}\n"
                 + "- **Status:** not sent\n\n"
                 + "Nothing was sent. Review recovery opens the Feedback wizard.";
@@ -19,7 +37,7 @@ namespace TummlyBackend.Helpers
         public static string SuccessInternalBody(string guestName)
             => "I prepared Record an internal action only for "
                 + $"{guestName}.\n\n"
-                + "- **Intent:** Record an internal action only\n"
+                + $"- **Intent:** {IntentLabel(AssistantRecoveryEligibility.IntentInternalOnly)}\n"
                 + "- **Status:** not sent\n\n"
                 + "Nothing was sent. Review recovery opens the Feedback wizard.";
 

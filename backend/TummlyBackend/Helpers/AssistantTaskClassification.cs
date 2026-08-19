@@ -22,14 +22,14 @@ namespace TummlyBackend.Helpers
                 return AssistantTask.CreateCampaignDraft;
             }
 
-            if (LooksLikeOfferPath(userMessage))
-            {
-                return AssistantTask.OfferPath;
-            }
-
             if (LooksLikeRecoveryPath(userMessage))
             {
                 return AssistantTask.RecoveryPath;
+            }
+
+            if (LooksLikeOfferPath(userMessage))
+            {
+                return AssistantTask.OfferPath;
             }
 
             if (AssistantAskIntent.IsFullRefusal(AssistantAskIntent.Classify(userMessage)))
@@ -44,6 +44,20 @@ namespace TummlyBackend.Helpers
         {
             var lower = message.Trim().ToLowerInvariant();
             if (LooksLikeOfferRetrieveOnly(lower))
+            {
+                return false;
+            }
+
+            if (AssistantRecoveryIntent.LooksLikeRecoveryAsk(message)
+                && !ContainsAny(
+                    lower,
+                    "offer draft",
+                    "offers catalog draft",
+                    "create an offer",
+                    "create a new offer",
+                    "draft an offer",
+                    "draft a offer"
+                ))
             {
                 return false;
             }
@@ -88,15 +102,7 @@ namespace TummlyBackend.Helpers
         }
 
         public static bool LooksLikeRecoveryPath(string message)
-        {
-            var targets = AssistantCreateTargets.Detect(message);
-            return targets.Count == 1
-                && string.Equals(
-                    targets[0],
-                    AssistantCreateTargets.Recovery,
-                    StringComparison.Ordinal
-                );
-        }
+            => AssistantRecoveryIntent.LooksLikeRecoveryAsk(message);
 
         public static bool LooksLikeCreateCampaignDraft(string message)
         {

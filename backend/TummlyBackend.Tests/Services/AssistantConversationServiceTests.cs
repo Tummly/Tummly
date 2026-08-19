@@ -1460,6 +1460,11 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("open-recovery", action.Type);
             Assert.Equal("Review recovery", action.Label);
             Assert.Equal("respond-to-guest", action.Intent);
+            Assert.Contains(
+                "**Intent:** Respond to the guest",
+                answer.Body,
+                StringComparison.Ordinal
+            );
             Assert.NotNull(ok.Conversation.PendingRecoveryDraft);
             Assert.Equal(action.FeedbackId, ok.Conversation.PendingRecoveryDraft!.FeedbackId);
             Assert.Equal("respond-to-guest", ok.Conversation.PendingRecoveryDraft.Intent);
@@ -1647,6 +1652,11 @@ namespace TummlyBackend.Tests.Services
             var action = Assert.Single(answer.Actions);
             Assert.Equal("open-recovery", action.Type);
             Assert.Equal("record-internal-action-only", action.Intent);
+            Assert.Contains(
+                "**Intent:** Record an internal action only",
+                answer.Body,
+                StringComparison.Ordinal
+            );
             Assert.NotNull(ok.Conversation.PendingRecoveryDraft);
             Assert.Equal(
                 "record-internal-action-only",
@@ -1750,6 +1760,11 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("team_briefed", draft.Category);
             Assert.Equal("kitchen delay", draft.Note);
             Assert.True(draft.UseConfirmedActionForGuestResponse);
+            Assert.Contains(
+                "**Intent:** Respond and record an internal action",
+                ok.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
             Assert.Equal(
                 "Thank you for your feedback. We are looking into this.",
                 draft.Message
@@ -1832,6 +1847,11 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(
                 "include_a_recovery_offer",
                 ok.Conversation.PendingRecoveryDraft.Purpose
+            );
+            Assert.Contains(
+                "**Intent:** Respond with a recovery offer",
+                ok.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
             );
             Assert.NotNull(_recoveryDrafts.LastInput);
         }

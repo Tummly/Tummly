@@ -916,25 +916,13 @@ namespace TummlyBackend.Services
                         persist.Actions
                     );
                 }
-                else if (
-                    !draftComposed
-                    && !AssistantAskIntent.IsHelpCentreAsk(userMessage)
-                    && (
-                        string.Equals(
-                            succeeded.AssistantTask,
-                            AssistantTask.RecoveryPath,
-                            StringComparison.Ordinal
-                        )
-                        || (
-                            draftTargets.Count == 1
-                            && string.Equals(
-                                draftTargets[0],
-                                AssistantCreateTargets.Recovery,
-                                StringComparison.Ordinal
-                            )
-                        )
+                else if (string.Equals(
+                        succeeded.AssistantTask,
+                        AssistantTask.RecoveryPath,
+                        StringComparison.Ordinal
                     )
-                )
+                    && !draftComposed
+                    && !AssistantAskIntent.IsHelpCentreAsk(userMessage))
                 {
                     var persist = await PersistPrepareRecoveryAsync(
                         conversation,
@@ -955,13 +943,7 @@ namespace TummlyBackend.Services
                         );
                     }
 
-                    conversation.DraftInterviewJson = null;
-                    conversation.LastCompareLocationIdsJson = null;
-                    if (persist.Work is AssistantRecoveryWorkState work)
-                    {
-                        conversation.RecoveryWorkJson =
-                            AssistantRecoveryWork.Serialize(work);
-                    }
+                    ApplyRecoveryPersist(conversation, persist);
                     assistantMessage = GroundedMessage(
                         assistantNow,
                         persist.Title,
@@ -1382,13 +1364,7 @@ namespace TummlyBackend.Services
                         cancellationToken,
                         one.Row
                     );
-                    conversation.DraftInterviewJson = null;
-                    conversation.LastCompareLocationIdsJson = null;
-                    if (persist.Work is AssistantRecoveryWorkState work)
-                    {
-                        conversation.RecoveryWorkJson =
-                            AssistantRecoveryWork.Serialize(work);
-                    }
+                    ApplyRecoveryPersist(conversation, persist);
                     return await PersistAssistantAsync(
                         conversation,
                         GroundedMessage(
@@ -1623,6 +1599,7 @@ namespace TummlyBackend.Services
             return new RecoveryPersistTurn(
                 AssistantRecoveryPersistCopy.SuccessTitle,
                 AssistantRecoveryPersistCopy.SuccessBody(
+                    intent,
                     row.GuestName,
                     AssistantRecoveryPersistCopy.ChannelLabel(channel)
                 ),
@@ -1630,6 +1607,20 @@ namespace TummlyBackend.Services
                 work,
                 null
             );
+        }
+
+        private static void ApplyRecoveryPersist(
+            AssistantConversation conversation,
+            RecoveryPersistTurn persist
+        )
+        {
+            conversation.DraftInterviewJson = null;
+            conversation.LastCompareLocationIdsJson = null;
+            if (persist.Work is AssistantRecoveryWorkState work)
+            {
+                conversation.RecoveryWorkJson =
+                    AssistantRecoveryWork.Serialize(work);
+            }
         }
 
         private static IReadOnlyList<AssistantActionDto> ReviewRecoveryActions(

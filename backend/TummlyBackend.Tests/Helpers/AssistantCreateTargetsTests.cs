@@ -63,6 +63,23 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void RecoveryOfferAsk_IsRecoveryOnly()
+        {
+            var targets = AssistantCreateTargets.Detect(
+                "Prepare a recovery response with a recovery offer"
+            );
+
+            var target = Assert.Single(targets);
+            Assert.Equal(AssistantCreateTargets.Recovery, target);
+            Assert.Equal(
+                AssistantTask.RecoveryPath,
+                AssistantTaskClassification.Classify(
+                    "Prepare a recovery response with a recovery offer. Weekend brunch"
+                )
+            );
+        }
+
+        [Fact]
         public void Resolve_BindsUniqueTargetName()
         {
             Assert.Equal(
