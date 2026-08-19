@@ -1219,7 +1219,7 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     })
   })
 
-  it("does not POST create on leftover Create offer draft", async () => {
+  it("does not POST create on leftover offer Draft Action", async () => {
     let createCalls = 0
     const adapters = createInMemoryOperatorAiAssistantAdapters({
       sendTurn: async (input) => ({
@@ -1277,7 +1277,7 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     expect(adapters.lastNavigate).toBe(null)
   })
 
-  it("does not POST create on leftover Create campaign draft", async () => {
+  it("does not POST create on leftover campaign Draft Action", async () => {
     let createCalls = 0
     const adapters = createInMemoryOperatorAiAssistantAdapters({
       sendTurn: async (input) => ({

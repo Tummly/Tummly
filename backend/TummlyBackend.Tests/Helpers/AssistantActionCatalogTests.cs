@@ -72,7 +72,7 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void CatalogOrder_OmitsPersistOnClickDraftTypes()
+        public void CatalogOrder_OmitsRetiredDraftActionTypes()
         {
             Assert.DoesNotContain("draft-campaign", AssistantActionCatalog.CatalogOrder);
             Assert.DoesNotContain("draft-offer", AssistantActionCatalog.CatalogOrder);

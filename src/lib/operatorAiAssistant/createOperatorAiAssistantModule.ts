@@ -1027,6 +1027,12 @@ function isCompletingOfferAction(
   return type === "review-offer"
 }
 
+function isRetiredDraftActionType(
+  type: OperatorAiAssistantActionType
+): boolean {
+  return type === "draft-campaign" || type === "draft-offer"
+}
+
 function canOpenStoredDraftFromAssistant(
   row: { status: string; locationId: number } | null,
   analysisScopeLocationId: number
@@ -1049,8 +1055,7 @@ function visibleActionsForMessage(
   }
 
   const raw = message.actions.filter(
-    (action) =>
-      action.type !== "draft-campaign" && action.type !== "draft-offer"
+    (action) => !isRetiredDraftActionType(action.type)
   )
 
   const hasCompletingCampaign = raw.some((action) =>
@@ -2133,7 +2138,7 @@ export function createOperatorAiAssistantModule(
           })
         return
       }
-      if (action.type === "draft-offer" || action.type === "draft-campaign") {
+      if (isRetiredDraftActionType(action.type)) {
         return
       }
       if (action.type === "open-recovery") {

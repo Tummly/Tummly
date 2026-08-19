@@ -720,7 +720,7 @@ namespace TummlyBackend.Tests.Services
         [InlineData("Create a campaign")]
         [InlineData("Draft an offer")]
         [InlineData("Prepare a recovery response")]
-        public async Task SendTurn_FormerPhraseNeedles_DoNotStartDraftInterview(
+        public async Task SendTurn_FormerDraftInterviewAsks_DoNotStartDraftInterview(
             string message
         )
         {
@@ -816,7 +816,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_ModelUnavailable_DoesNotStartPhraseMatchInterview()
+        public async Task SendTurn_ModelUnavailable_DoesNotStartDraftInterview()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             _fake.Fail();

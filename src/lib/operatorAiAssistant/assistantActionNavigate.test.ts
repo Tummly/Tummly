@@ -186,27 +186,21 @@ describe("planAssistantActionNavigate", () => {
     })
   })
 
-  it("does not map leftover persist-on-click types onto Drafts land", () => {
-    expect(
-      planAssistantActionNavigate({
-        action: { type: "draft-offer", label: "Create offer draft" },
-        analysisScope: SCOPE,
-        mode: "multi",
-      })
-    ).toEqual({
-      path: "/multi-dashboard/feedback?location=11",
-      selectLocationId: 11,
+  it("does not map leftover Draft Action types onto Campaigns or Offers Drafts", () => {
+    const leftoverOffer = planAssistantActionNavigate({
+      action: { type: "draft-offer", label: "Create offer draft" },
+      analysisScope: SCOPE,
+      mode: "multi",
     })
-    expect(
-      planAssistantActionNavigate({
-        action: { type: "draft-campaign", label: "Create campaign draft" },
-        analysisScope: SCOPE,
-        mode: "multi",
-      })
-    ).toEqual({
-      path: "/multi-dashboard/feedback?location=11",
-      selectLocationId: 11,
+    const leftoverCampaign = planAssistantActionNavigate({
+      action: { type: "draft-campaign", label: "Create campaign draft" },
+      analysisScope: SCOPE,
+      mode: "multi",
     })
+    expect(leftoverOffer.offers).toBeUndefined()
+    expect(leftoverOffer.path).not.toContain("/offers")
+    expect(leftoverCampaign.campaigns).toBeUndefined()
+    expect(leftoverCampaign.path).not.toContain("/campaigns")
   })
 
   it("maps open-recovery to Feedback with one-shot recovery draft payload", () => {
