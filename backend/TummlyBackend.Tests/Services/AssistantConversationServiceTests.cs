@@ -5,6 +5,7 @@ using TummlyBackend.Data;
 using TummlyBackend.DTOs.Admin;
 using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.DTOs.Campaigns;
+using TummlyBackend.DTOs.Offers;
 using TummlyBackend.DTOs.OwnedLocation;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -67,9 +68,12 @@ namespace TummlyBackend.Tests.Services
 
         private AssistantConversationService CreateConversationService(
             ICampaignDraftService? campaignDrafts = null,
-            ICampaignEligibilityService? eligibility = null
+            ICampaignEligibilityService? eligibility = null,
+            IOffersCatalogService? offersCatalog = null
         )
-            => new(
+        {
+            var catalog = offersCatalog ?? new OffersCatalogService(_context);
+            return new(
                 _context,
                 new OwnedLocationService(_context),
                 _fake,
@@ -84,11 +88,13 @@ namespace TummlyBackend.Tests.Services
                     ?? new CampaignDraftService(
                         _context,
                         new CampaignTemplateCatalogueService(),
-                        new OffersCatalogService(_context)
+                        catalog
                     ),
                 eligibility ?? new CampaignEligibilityService(_context),
-                new CampaignMessageDraftService(_messageDrafts)
+                new CampaignMessageDraftService(_messageDrafts),
+                catalog
             );
+        }
 
         [Fact]
         public async Task SendTurn_PersistsConversationAndStubAnswer_OnFirstSend()
@@ -705,6 +711,325 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("Review campaign draft", resumeAction.Label);
             Assert.Equal(campaign.Id, resumeAction.CampaignId);
             Assert.Equal("draft", campaign.Status);
+        }
+
+        private const string CanonicalCamdenOfferPathAsk =
+            "Create a 25% Offer valid 30 days after issue";
+
+        [Fact]
+        public async Task SendTurn_CanonicalOfferPath_PersistsStoredDraftAndReviewAction()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenOfferPathAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal(2, ok.Conversation.Messages.Count);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Contains("Draft", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("not Active", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Camden", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("25%", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("30 days after issue", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("25% off your next visit", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("not attached", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Nothing was issued", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Nothing was sent", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Offer type catalogue", answer.Body, StringComparison.Ordinal);
+            Assert.False(ok.Conversation.DraftInterviewActive);
+            Assert.Null(ok.Conversation.PendingOfferDraft);
+
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("review-offer", action.Type);
+            Assert.Equal("Review offer draft", action.Label);
+            Assert.NotNull(action.OfferId);
+
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(CatalogOfferStatus.Draft, offer.Status);
+            Assert.Equal(locationId, offer.RestaurantLocationId);
+            Assert.Equal(CatalogOfferType.PercentageDiscount, offer.OfferType);
+            Assert.Equal(25m, offer.DiscountPercentage);
+            Assert.Equal(CatalogOfferValidity.Days30AfterIssue, offer.Validity);
+            Assert.Equal("25% off your next visit", offer.Title);
+            Assert.Null(offer.StaffInstructions);
+            Assert.Null(offer.AdditionalExclusions);
+            Assert.Equal(action.OfferId, offer.Id);
+            Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
+            Assert.Empty(_context.Campaigns);
+
+            var attachable = await new OffersCatalogService(_context).IsActiveForLocationAsync(
+                offer.Id,
+                locationId
+            );
+            Assert.False(attachable);
+
+            Assert.Equal(
+                AssistantTask.OfferPath,
+                AssistantTaskClassification.Classify(CanonicalCamdenOfferPathAsk)
+            );
+
+            var resumed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.GetAsync(ownerUserId: 7, ok.Conversation.Id)
+            );
+            var resumeAction = Assert.Single(resumed.Conversation.Messages[^1].Actions);
+            Assert.Equal("review-offer", resumeAction.Type);
+            Assert.Equal("Review offer draft", resumeAction.Label);
+            Assert.Equal(offer.Id, resumeAction.OfferId);
+        }
+
+        private const string PackAi018OfferPathAsk =
+            "Create a 25% Offer for these guests and make it valid everywhere until the end of the year";
+
+        [Fact]
+        public async Task SendTurn_PackAi018OfferPath_AsksLocationThenPersistsYearEnd()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(camden, PackAi018OfferPathAsk)
+                )
+            );
+            var gap = started.Conversation.Messages[^1];
+            Assert.Equal("gap", gap.Class);
+            Assert.Contains("Name one", gap.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Soho", gap.Body, StringComparison.Ordinal);
+            Assert.Empty(gap.Actions);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+
+            var answered = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(camden, "Camden", started.Conversation.Id)
+                )
+            );
+            var answer = answered.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(CatalogOfferStatus.Draft, offer.Status);
+            Assert.Equal(camden, offer.RestaurantLocationId);
+            Assert.Equal(CatalogOfferValidity.ChooseExpiryDate, offer.Validity);
+            Assert.Equal(new DateOnly(2026, 12, 31), offer.CustomExpiryDate);
+            Assert.Equal("review-offer", Assert.Single(answer.Actions).Type);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferPathMissingValidity_TermsGapThenPersists()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Create a 25% Offer")
+                )
+            );
+            var gap = started.Conversation.Messages[^1];
+            Assert.Equal("gap", gap.Class);
+            Assert.Contains("validity", gap.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Offer type catalogue", gap.Body, StringComparison.Ordinal);
+            Assert.Empty(gap.Actions);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+
+            var answered = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "30 days after issue", started.Conversation.Id)
+                )
+            );
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(CatalogOfferStatus.Draft, offer.Status);
+            Assert.Equal(25m, offer.DiscountPercentage);
+            Assert.Equal(CatalogOfferValidity.Days30AfterIssue, offer.Validity);
+            Assert.Equal("review-offer", Assert.Single(answered.Conversation.Messages[^1].Actions).Type);
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferPathYouChoose_DoesNotPersist()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Create a standard offer")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+            Assert.Contains("will not invent", answer.Body, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferPathConflictingBenefits_AsksWhichBenefit()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Create a 25% Offer and a free dessert")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Contains("authorised benefit", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Which should I create", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Offer type catalogue", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferPathCreateAndActivate_PersistsDraftAndRefusesActivate()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    CanonicalCamdenOfferPathAsk + " and activate it"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(CatalogOfferStatus.Draft, offer.Status);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Contains("Draft", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("did not activate", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Draft only", answer.Body, StringComparison.Ordinal);
+            Assert.Equal("review-offer", Assert.Single(answer.Actions).Type);
+        }
+
+        [Fact]
+        public async Task SendTurn_SimilarActiveOffer_DoesNotBlockNewStoredDraft()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedCatalogOfferAsync(locationId, "25% off your next visit");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenOfferPathAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal(2, await _context.CatalogOffers.CountAsync());
+            Assert.Equal(1, await _context.CatalogOffers.CountAsync(row => row.Status == CatalogOfferStatus.Draft));
+            Assert.DoesNotContain(
+                "did you mean",
+                ok.Conversation.Messages[^1].Body,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.Equal(
+                "review-offer",
+                Assert.Single(ok.Conversation.Messages[^1].Actions).Type
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferPathAudienceWording_DoesNotCreateCampaign()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Create a 25% Offer for these guests valid 30 days after issue"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("grounded", ok.Conversation.Messages[^1].Class);
+            Assert.Single(_context.CatalogOffers);
+            Assert.Empty(_context.Campaigns);
+            Assert.Contains("not attached", ok.Conversation.Messages[^1].Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Nothing was issued", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.Contains("Nothing was sent", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task SendTurn_WhatOffersAreActive_RetrievesAndDoesNotPersist()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "What Offers are Active?")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+            Assert.DoesNotContain(
+                ok.Conversation.Messages[^1].Actions,
+                action => action.Type == "review-offer"
+            );
+            Assert.Null(_context.AssistantConversations.Single().CreatedOfferId);
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferPersistFailure_NamesFailedStepAndDoesNotInventId()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Offers catalog Draft",
+                "Offer path.",
+                AssistantTask.OfferPath,
+                "Create Offer Draft"
+            );
+            var failing = CreateConversationService(offersCatalog: new ThrowingOffersCatalogService());
+
+            var outcome = await failing.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenOfferPathAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal(2, ok.Conversation.Messages.Count);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+            Assert.DoesNotContain("review-offer", answer.Actions.Select(action => action.Type));
+            Assert.Contains("Offer create", answer.Body);
+            Assert.Null(ok.Conversation.PendingOfferDraft);
+            Assert.Null(_context.AssistantConversations.Single().CreatedOfferId);
+            Assert.Equal("Create Offer Draft", ok.Conversation.Title);
+        }
+
+        [Fact]
+        public async Task SendTurn_ForcedRetrieveOnOfferLookingAsk_DoesNotUpgradeToPersist()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Offers at Camden",
+                "Retrieved only.",
+                AssistantTask.Retrieve
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenOfferPathAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+            Assert.DoesNotContain(
+                ok.Conversation.Messages[^1].Actions,
+                action => action.Type == "review-offer"
+            );
         }
 
         [Fact]
@@ -1496,8 +1821,10 @@ namespace TummlyBackend.Tests.Services
             );
 
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
-            Assert.True(ok.Conversation.DraftInterviewActive);
+            Assert.Equal("gap", ok.Conversation.Messages[^1].Class);
+            Assert.False(ok.Conversation.DraftInterviewActive);
             Assert.Equal("Create Offer Draft", ok.Conversation.Title);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
         }
 
         [Fact]
@@ -2118,16 +2445,18 @@ namespace TummlyBackend.Tests.Services
                 )
             );
             Assert.Equal(0, await _context.Campaigns.CountAsync());
-            Assert.NotEqual("gap", replaced.Conversation.Messages[^1].Class);
-            Assert.Contains("offer type", replaced.Conversation.Messages[^1].Body);
+            Assert.Equal("gap", replaced.Conversation.Messages[^1].Class);
+            Assert.DoesNotContain(
+                "Offer type catalogue",
+                replaced.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
         }
 
         [Theory]
-        [InlineData("Make an offer", "offer type")]
-        public async Task SendTurn_GenericDraftRequest_StartsMatchingInterview(
-            string message,
-            string expectedBody
-        )
+        [InlineData("Make an offer")]
+        public async Task SendTurn_GenericOfferAsk_IsTermsGapNotInterview(string message)
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
 
@@ -2138,9 +2467,15 @@ namespace TummlyBackend.Tests.Services
                 )
             );
 
-            Assert.True(outcome.Conversation.DraftInterviewActive);
-            Assert.Contains(expectedBody, outcome.Conversation.Messages[^1].Body);
+            Assert.Equal("gap", outcome.Conversation.Messages[^1].Class);
+            Assert.False(outcome.Conversation.DraftInterviewActive);
+            Assert.DoesNotContain(
+                "Offer type catalogue",
+                outcome.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
             Assert.Empty(outcome.Conversation.Messages[^1].Actions);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
         }
 
         [Fact]
@@ -2172,65 +2507,14 @@ namespace TummlyBackend.Tests.Services
                     FirstSendRequest(locationId, "Create an offer draft")
                 )
             );
-            Assert.Contains("offer type", started.Conversation.Messages[^1].Body);
-            Assert.Contains("### Offer type catalogue", started.Conversation.Messages[^1].Body);
-            Assert.Contains("- Percentage discount", started.Conversation.Messages[^1].Body);
-            Assert.Empty(started.Conversation.Messages[^1].Actions);
+            var gap = started.Conversation.Messages[^1];
+            Assert.Equal("gap", gap.Class);
+            Assert.Contains("type", gap.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Offer type catalogue", gap.Body, StringComparison.Ordinal);
+            Assert.Empty(gap.Actions);
             Assert.Null(started.Conversation.PendingOfferDraft);
-
-            var typed = Assert.IsType<AssistantTurnOutcome.Ok>(
-                await _service.SendTurnAsync(
-                    ownerUserId: 7,
-                    new SendAssistantTurnRequest
-                    {
-                        ConversationId = started.Conversation.Id,
-                        Message = "Percentage discount",
-                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
-                    }
-                )
-            );
-            Assert.Contains("percentage", typed.Conversation.Messages[^1].Body);
-            Assert.Empty(typed.Conversation.Messages[^1].Actions);
-
-            var valued = Assert.IsType<AssistantTurnOutcome.Ok>(
-                await _service.SendTurnAsync(
-                    ownerUserId: 7,
-                    new SendAssistantTurnRequest
-                    {
-                        ConversationId = started.Conversation.Id,
-                        Message = "20 percent",
-                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
-                    }
-                )
-            );
-            Assert.Contains("staff instructions", valued.Conversation.Messages[^1].Body);
-            Assert.Empty(valued.Conversation.Messages[^1].Actions);
-
-            var completed = Assert.IsType<AssistantTurnOutcome.Ok>(
-                await _service.SendTurnAsync(
-                    ownerUserId: 7,
-                    new SendAssistantTurnRequest
-                    {
-                        ConversationId = started.Conversation.Id,
-                        Message = "Draft it now",
-                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
-                    }
-                )
-            );
-
-            var answer = completed.Conversation.Messages[^1];
-            var action = Assert.Single(answer.Actions);
-            Assert.Equal("grounded", answer.Class);
-            Assert.Contains("**Offer type:** Percentage discount", answer.Body);
-            Assert.Equal("draft-offer", action.Type);
-            Assert.Equal("Create offer draft", action.Label);
-            Assert.NotNull(completed.Conversation.PendingOfferDraft);
-            Assert.Equal(locationId, completed.Conversation.PendingOfferDraft!.LocationId);
-            Assert.Equal("percentage_discount", completed.Conversation.PendingOfferDraft.OfferType);
-            Assert.Equal(20m, completed.Conversation.PendingOfferDraft.DiscountPercentage);
-            Assert.Equal("7_days_after_issue", completed.Conversation.PendingOfferDraft.Validity);
-            Assert.False(string.IsNullOrWhiteSpace(completed.Conversation.PendingOfferDraft.Title));
-            Assert.False(string.IsNullOrWhiteSpace(completed.Conversation.PendingOfferDraft.Description));
+            Assert.False(started.Conversation.DraftInterviewActive);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
         }
 
         [Fact]
@@ -2243,6 +2527,8 @@ namespace TummlyBackend.Tests.Services
                     FirstSendRequest(locationId, "Create an offer draft")
                 )
             );
+
+            Assert.Equal("gap", offer.Conversation.Messages[^1].Class);
 
             var recovery = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await _service.SendTurnAsync(
@@ -2269,8 +2555,13 @@ namespace TummlyBackend.Tests.Services
                     }
                 )
             );
-            Assert.Contains("offer type", offerAgain.Conversation.Messages[^1].Body);
+            Assert.Equal("gap", offerAgain.Conversation.Messages[^1].Class);
             Assert.Null(offerAgain.Conversation.PendingRecoveryDraft);
+            Assert.DoesNotContain(
+                "Offer type catalogue",
+                offerAgain.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
         }
 
         [Fact]
@@ -2377,12 +2668,11 @@ namespace TummlyBackend.Tests.Services
 
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             var answer = ok.Conversation.Messages[^1];
-            Assert.Equal("grounded", answer.Class);
-            Assert.True(ok.Conversation.DraftInterviewActive);
-            Assert.Contains("1 feedback item", answer.Body);
-            Assert.Contains("offer type", answer.Body);
-            Assert.DoesNotContain(answer.Actions, action => action.Type == "draft-offer");
-            Assert.True(answer.Actions.Count <= 3);
+            Assert.Equal("gap", answer.Class);
+            Assert.False(ok.Conversation.DraftInterviewActive);
+            Assert.DoesNotContain("Offer type catalogue", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
         }
 
         [Fact]
@@ -2443,9 +2733,11 @@ namespace TummlyBackend.Tests.Services
                 )
             );
             var selectedAnswer = selected.Conversation.Messages[^1];
-            Assert.True(selected.Conversation.DraftInterviewActive);
-            Assert.Contains("offer type", selectedAnswer.Body);
+            Assert.Equal("gap", selectedAnswer.Class);
+            Assert.False(selected.Conversation.DraftInterviewActive);
+            Assert.DoesNotContain("Offer type catalogue", selectedAnswer.Body, StringComparison.Ordinal);
             Assert.DoesNotContain("feedback item", selectedAnswer.Body);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
         }
 
         [Fact]
@@ -4218,6 +4510,80 @@ namespace TummlyBackend.Tests.Services
             public Task<CampaignDraftWriteResult> PatchAsync(
                 int campaignId,
                 PatchCampaignDraftRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+        }
+
+        private sealed class ThrowingOffersCatalogService : IOffersCatalogService
+        {
+            public Task<CatalogOfferDto> CreateActiveAsync(
+                CreateCatalogOfferRequest request,
+                int? createdByUserId = null,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+
+            public Task<CatalogOfferDto> CreateDraftAsync(
+                CreateCatalogOfferRequest request,
+                int? createdByUserId = null,
+                CancellationToken cancellationToken = default
+            )
+                => throw new InvalidOperationException("Offer create failed.");
+
+            public Task<CatalogOfferLifecycleResult> UpdateAsync(
+                int offerId,
+                CreateCatalogOfferRequest request,
+                int utcOffsetMinutes = 0,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+
+            public Task<CatalogOfferDto?> GetByIdAsync(
+                int offerId,
+                int utcOffsetMinutes = 0,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult<CatalogOfferDto?>(null);
+
+            public Task<bool> IsActiveForLocationAsync(
+                int offerId,
+                int locationId,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult(false);
+
+            public Task<CatalogOffersListResponse> ListAsync(
+                CatalogOffersListQuery query,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+
+            public Task<CatalogOfferLifecycleResult> PauseAsync(
+                int offerId,
+                int utcOffsetMinutes = 0,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+
+            public Task<CatalogOfferLifecycleResult> ResumeAsync(
+                int offerId,
+                int utcOffsetMinutes = 0,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+
+            public Task<CatalogOfferLifecycleResult> ArchiveAsync(
+                int offerId,
+                int utcOffsetMinutes = 0,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+
+            public Task<CatalogOfferLifecycleResult> DuplicateAsync(
+                int offerId,
+                int? createdByUserId = null,
+                int utcOffsetMinutes = 0,
                 CancellationToken cancellationToken = default
             )
                 => throw new NotImplementedException();

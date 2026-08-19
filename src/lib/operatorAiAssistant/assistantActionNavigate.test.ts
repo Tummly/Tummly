@@ -169,7 +169,24 @@ describe("planAssistantActionNavigate", () => {
     })
   })
 
-  it("maps draft-offer to Offers Drafts without a view query", () => {
+  it("maps review-offer to Offer Details without Drafts view or list dates", () => {
+    expect(
+      planAssistantActionNavigate({
+        action: {
+          type: "review-offer",
+          label: "Review offer draft",
+          offerId: 55,
+        },
+        analysisScope: SCOPE,
+        mode: "multi",
+      })
+    ).toEqual({
+      path: "/multi-dashboard/offers/55?location=11",
+      selectLocationId: 11,
+    })
+  })
+
+  it("maps leftover draft-offer to Offers Drafts without a view query", () => {
     expect(
       planAssistantActionNavigate({
         action: { type: "draft-offer", label: "Create offer draft" },

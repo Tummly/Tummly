@@ -22,7 +22,7 @@ namespace TummlyBackend.Helpers
                 targets.Add(Campaign);
             }
 
-            if (AssistantOfferDraftInterview.IsOfferDraftAsk(message)
+            if (AssistantTaskClassification.LooksLikeOfferPath(message)
                 || (targets.Contains(Campaign)
                     && LooksLikeNewOfferBesideCampaign(lower)))
             {

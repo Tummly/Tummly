@@ -70,7 +70,8 @@ namespace TummlyBackend.Tests.Services
                         new OffersCatalogService(_context)
                     ),
                     new CampaignEligibilityService(_context),
-                    new CampaignMessageDraftService(new FakeCampaignMessageDraftProvider())
+                    new CampaignMessageDraftService(new FakeCampaignMessageDraftProvider()),
+                    new OffersCatalogService(_context)
                 )
             );
         }

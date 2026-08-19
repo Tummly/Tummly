@@ -5,12 +5,13 @@ namespace TummlyBackend.Helpers
     /// Persist still requires the live-answer Assistant task; this must not
     /// upgrade Retrieve or Refuse to a stored Draft.
     /// </summary>
-    public static class AssistantTaskClassification
+    public static partial class AssistantTaskClassification
     {
         public static string Classify(string userMessage)
         {
             if (AssistantAskIntent.IsHelpCentreAsk(userMessage)
-                && LooksLikeCreateCampaignDraft(userMessage))
+                && (LooksLikeCreateCampaignDraft(userMessage)
+                    || LooksLikeOfferPath(userMessage)))
             {
                 return AssistantTask.Refuse;
             }
@@ -20,12 +21,64 @@ namespace TummlyBackend.Helpers
                 return AssistantTask.CreateCampaignDraft;
             }
 
+            if (LooksLikeOfferPath(userMessage))
+            {
+                return AssistantTask.OfferPath;
+            }
+
             if (AssistantAskIntent.IsFullRefusal(AssistantAskIntent.Classify(userMessage)))
             {
                 return AssistantTask.Refuse;
             }
 
             return AssistantTask.Retrieve;
+        }
+
+        public static bool LooksLikeOfferPath(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            if (LooksLikeOfferRetrieveOnly(lower))
+            {
+                return false;
+            }
+
+            return OfferPathOutcomeRegex().IsMatch(lower)
+                || ContainsAny(
+                    lower,
+                    "offer draft",
+                    "offers catalog draft"
+                );
+        }
+
+        public static bool LooksLikeOfferRetrieveOnly(string lower)
+        {
+            var retrieve = ContainsAny(
+                lower,
+                "show me",
+                "show ",
+                "list ",
+                "summarise",
+                "summarize",
+                "what "
+            );
+            var offerNoun = ContainsAny(lower, "offer", "offers");
+            if (!retrieve || !offerNoun)
+            {
+                return false;
+            }
+
+            return !ContainsAny(
+                lower,
+                "create",
+                "prepare",
+                "make a",
+                "make an",
+                "draft an",
+                "draft a ",
+                "build",
+                "set up",
+                "write"
+            );
         }
 
         public static bool LooksLikeCreateCampaignDraft(string message)
@@ -94,7 +147,8 @@ namespace TummlyBackend.Helpers
 
             return AssistantAskIntent.HasReplacingRetrieveAsk(message)
                 && AssistantCreateTargets.Detect(message).Count == 0
-                && !LooksLikeCreateCampaignDraft(message);
+                && !LooksLikeCreateCampaignDraft(message)
+                && !LooksLikeOfferPath(message);
         }
 
         public static string ForCreateTargetGap(
@@ -144,5 +198,13 @@ namespace TummlyBackend.Helpers
 
         private static bool ContainsAny(string lower, params string[] needles)
             => needles.Any(needle => lower.Contains(needle, StringComparison.Ordinal));
+
+        [System.Text.RegularExpressions.GeneratedRegex(
+            @"\b(?:create|draft|prepare|make|build|set\s+up|write)\b.{0,120}?\boffers?\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            | System.Text.RegularExpressions.RegexOptions.Singleline
+            | System.Text.RegularExpressions.RegexOptions.CultureInvariant
+        )]
+        private static partial System.Text.RegularExpressions.Regex OfferPathOutcomeRegex();
     }
 }

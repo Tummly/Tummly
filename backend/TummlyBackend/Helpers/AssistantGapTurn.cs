@@ -10,6 +10,7 @@ namespace TummlyBackend.Helpers
         public List<string> Options { get; set; } = [];
         public string SourceUserMessage { get; set; } = string.Empty;
         public string? LocationKind { get; set; }
+        public string? OfferTermsJson { get; set; }
     }
 
     public static class AssistantGapTurn
@@ -20,6 +21,7 @@ namespace TummlyBackend.Helpers
         public const string KindOffer = "offer-title";
         public const string KindAudience = "audience";
         public const string KindChannel = "channel";
+        public const string KindOfferTerms = "offer-terms";
 
         public static AssistantGapState CreateTarget(
             IReadOnlyList<string> options,
@@ -38,7 +40,8 @@ namespace TummlyBackend.Helpers
             string locationKind,
             IReadOnlyList<string> options,
             string sourceUserMessage,
-            string assistantTask
+            string assistantTask,
+            string? offerTermsJson = null
         )
             => new()
             {
@@ -47,6 +50,19 @@ namespace TummlyBackend.Helpers
                 AssistantTask = assistantTask,
                 Options = options.ToList(),
                 SourceUserMessage = sourceUserMessage,
+                OfferTermsJson = offerTermsJson,
+            };
+
+        public static AssistantGapState CreateOfferTerms(
+            string sourceUserMessage,
+            string? offerTermsJson
+        )
+            => new()
+            {
+                Kind = KindOfferTerms,
+                AssistantTask = AssistantTask.OfferPath,
+                SourceUserMessage = sourceUserMessage,
+                OfferTermsJson = offerTermsJson,
             };
 
         public static AssistantGapState CreateOffer(
@@ -105,7 +121,8 @@ namespace TummlyBackend.Helpers
 
         private static bool IsKnownKind(string kind)
             => kind is KindCreateTarget or KindLocation
-                or KindOffer or KindAudience or KindChannel;
+                or KindOffer or KindAudience or KindChannel
+                or KindOfferTerms;
 
         public static AssistantGapState? Parse(string? json)
         {
@@ -158,7 +175,11 @@ namespace TummlyBackend.Helpers
         }
 
         public static string RepeatLocationBody(AssistantGapState state)
-            => AssistantCreateLocationGap.RepeatBody(state.LocationKind, state.Options);
+            => AssistantCreateLocationGap.RepeatBody(
+                state.LocationKind,
+                state.Options,
+                LocationDraftNoun(state.AssistantTask)
+            );
 
         public static string RepeatBindBody(AssistantGapState state)
             => state.Kind switch
@@ -168,5 +189,14 @@ namespace TummlyBackend.Helpers
                 KindChannel => AssistantCampaignDraftBind.ChannelClashBody(),
                 _ => RepeatLocationBody(state),
             };
+
+        public static string LocationDraftNoun(string? assistantTask)
+            => string.Equals(
+                assistantTask,
+                AssistantTask.OfferPath,
+                StringComparison.Ordinal
+            )
+                ? "Offers catalog Draft"
+                : "Campaign Draft";
     }
 }

@@ -20,6 +20,7 @@ namespace TummlyBackend.Helpers
             "review-campaign",
             "change-audience",
             "add-offer",
+            "review-offer",
             "open-recovery",
             "draft-campaign",
             "draft-offer",
@@ -149,6 +150,27 @@ namespace TummlyBackend.Helpers
             }
 
             return actions;
+        }
+
+        public static IReadOnlyList<AssistantActionDto> ValidateReviewOffer(
+            int? offerId,
+            AssistantMessageClass answerClass
+        )
+        {
+            if (answerClass != AssistantMessageClass.Grounded || offerId is null)
+            {
+                return [];
+            }
+
+            return
+            [
+                new AssistantActionDto
+                {
+                    Type = "review-offer",
+                    Label = LabelFor(new AssistantActionDto { Type = "review-offer" }),
+                    OfferId = offerId,
+                },
+            ];
         }
 
         public static IReadOnlyList<AssistantActionDto> ValidateOfferDraft(
@@ -326,6 +348,7 @@ namespace TummlyBackend.Helpers
                 "review-campaign" => "Review campaign draft",
                 "change-audience" => "Change audience",
                 "add-offer" => "Add Offer",
+                "review-offer" => "Review offer draft",
                 "draft-campaign" => "Create campaign draft",
                 "draft-offer" => "Create offer draft",
                 "open-recovery" => "Review recovery",
@@ -353,6 +376,7 @@ namespace TummlyBackend.Helpers
             if (raw.Type is "review-campaign"
                 or "change-audience"
                 or "add-offer"
+                or "review-offer"
                 or "draft-campaign"
                 or "draft-offer"
                 or "open-recovery")

@@ -178,7 +178,7 @@ namespace TummlyBackend.Helpers
                 Emit exactly one assistantTask: retrieve, create-campaign-draft,
                 offer-path, recovery-path, or refuse. Do not invent eligible
                 counts. The server binds tools and may overwrite the body on
-                create-campaign-draft.
+                create-campaign-draft and offer-path.
 
                 Emit conversationTitle with assistantTask: a short task label
                 for the Assistant conversation row (max 60 characters, one line,
@@ -277,9 +277,9 @@ namespace TummlyBackend.Helpers
                 activate, and other writes outside those three create paths are
                 refuse: body only, no Actions, no claim the record changed. The
                 server binds location, audience, channel, eligibility, Offer, and
-                template. It may overwrite the live answer on create-campaign-draft.
-                Do not dump audience, goal, or channel catalogues. Do not invent
-                an eligible count. Mixed retrieve plus a legal create task:
+                template. It may overwrite the live answer on create-campaign-draft
+                and offer-path. Do not dump audience, goal, or channel catalogues.
+                Do not invent an eligible count. Mixed retrieve plus a legal create task:
                 emit the create task; retrieve is evidence only.
                 Mixed retrieve plus an out-of-scope write: ground the in-scope
                 allow-list part and add one refuse sentence for the out part.

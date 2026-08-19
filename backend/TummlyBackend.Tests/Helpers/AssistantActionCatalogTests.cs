@@ -35,6 +35,26 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void ValidateReviewOffer_AttachesReviewOnly()
+        {
+            var actions = AssistantActionCatalog.ValidateReviewOffer(
+                9,
+                AssistantMessageClass.Grounded
+            );
+
+            var action = Assert.Single(actions);
+            Assert.Equal("review-offer", action.Type);
+            Assert.Equal("Review offer draft", action.Label);
+            Assert.Equal(9, action.OfferId);
+            Assert.Empty(
+                AssistantActionCatalog.ValidateReviewOffer(
+                    null,
+                    AssistantMessageClass.Grounded
+                )
+            );
+        }
+
+        [Fact]
         public void ValidateReviewCampaign_OmitsAddOffer_WhenOfferIsAttached()
         {
             var actions = AssistantActionCatalog.ValidateReviewCampaign(
@@ -133,6 +153,7 @@ namespace TummlyBackend.Tests.Helpers
                     new AssistantActionDto { Type = "review-campaign", CampaignId = 41 },
                     new AssistantActionDto { Type = "change-audience", CampaignId = 41 },
                     new AssistantActionDto { Type = "add-offer", CampaignId = 41 },
+                    new AssistantActionDto { Type = "review-offer", OfferId = 9 },
                     new AssistantActionDto { Type = "draft-campaign" },
                     new AssistantActionDto { Type = "draft-offer" },
                     new AssistantActionDto
@@ -158,10 +179,11 @@ namespace TummlyBackend.Tests.Helpers
                     "review-campaign",
                     "change-audience",
                     "add-offer",
+                    "review-offer",
                     "open-recovery",
                     "draft-campaign",
                 },
-                AssistantActionCatalog.CatalogOrder.Take(5)
+                AssistantActionCatalog.CatalogOrder.Take(6)
             );
             Assert.Equal("Review campaign draft", AssistantActionCatalog.LabelFor(
                 new AssistantActionDto { Type = "review-campaign" }
@@ -171,6 +193,9 @@ namespace TummlyBackend.Tests.Helpers
             ));
             Assert.Equal("Add Offer", AssistantActionCatalog.LabelFor(
                 new AssistantActionDto { Type = "add-offer" }
+            ));
+            Assert.Equal("Review offer draft", AssistantActionCatalog.LabelFor(
+                new AssistantActionDto { Type = "review-offer" }
             ));
             Assert.Equal("Create offer draft", AssistantActionCatalog.LabelFor(
                 new AssistantActionDto { Type = "draft-offer" }

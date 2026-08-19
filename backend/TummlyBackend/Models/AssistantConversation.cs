@@ -56,6 +56,13 @@ namespace TummlyBackend.Models
         /// </summary>
         public int? CreatedCampaignId { get; set; }
 
+        /// <summary>
+        /// Offer id stored on a completing Offer path turn.
+        /// Null when this conversation has not persisted an Offers catalog Draft.
+        /// Distinct from Draft interview JSON.
+        /// </summary>
+        public int? CreatedOfferId { get; set; }
+
         public ICollection<AssistantMessage> Messages { get; set; }
             = new List<AssistantMessage>();
     }

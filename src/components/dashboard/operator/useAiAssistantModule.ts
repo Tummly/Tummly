@@ -16,6 +16,7 @@ import {
   createCampaignDraft,
   createCatalogOfferDraft,
   getCampaignDraftById,
+  getCatalogOfferById,
   getFeedbackDetails,
   setFeedbackWorkflowStatus,
   setFeedbackRecoveryOfferAttach,
@@ -37,7 +38,7 @@ import {
   RECOVERY_DRAFT_ACTION_TOASTS,
   recoveryDraftActionGateToast,
 } from "@/lib/operatorFeedback/recoveryDraftAction"
-import type { CampaignDraftDetail } from "@/types/operatorCampaigns"
+import type { CampaignDraftDetail, CatalogOfferDetail } from "@/types/operatorCampaigns"
 
 export type OperatorAiAssistantDashboardContext = {
   mode: "single" | "multi"
@@ -49,6 +50,7 @@ export type OperatorAiAssistantDashboardContext = {
     analysisScope: OperatorAiAssistantAnalysisScope
     recoveryDraft?: RecoveryDraftActionPayload | null
     campaignDraft?: CampaignDraftDetail | null
+    catalogOffer?: CatalogOfferDetail | null
   }) => void
   openRecoveryFromDraftAction: (
     payload: RecoveryDraftActionPayload
@@ -133,6 +135,13 @@ export function useAiAssistantModule(
             return null
           }
           return response.campaign
+        },
+        getCatalogOffer: async (offerId) => {
+          const response = await getCatalogOfferById(offerId)
+          if (!response.success || response.offer == null) {
+            return null
+          }
+          return response.offer
         },
         createCampaignDraft: async (body) => {
           const response = await createCampaignDraft(body)

@@ -28,7 +28,6 @@ import {
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
 import { resolveOperatorSidebarActiveId } from "@/lib/operatorHome/operatorDashboardPaths"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
-import { toast } from "sonner"
 
 type DashboardProps = {
   mode: "single" | "multi"
@@ -113,9 +112,6 @@ function DashboardContent({ mode }: DashboardProps) {
           ? { recoveryDraft: plan.recoveryDraft }
           : undefined,
       })
-      if (action.type === "draft-offer") {
-        toast.success("Offer draft created.")
-      }
     },
     openRecoveryFromDraftAction: (payload) =>
       feedbackPage.openFromDraftAction(payload),

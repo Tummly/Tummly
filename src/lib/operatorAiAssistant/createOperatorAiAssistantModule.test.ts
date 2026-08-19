@@ -11,6 +11,7 @@ import {
   createOperatorAiAssistantModule,
   EMPTY_SUGGESTION_CHIPS,
   inMemoryOpenableCampaignDraft,
+  inMemoryOpenableCatalogOffer,
   OPERATOR_ASSISTANT_MIC_ERROR_COPY,
   periodPhraseForReportingPeriod,
   type OperatorAiAssistantConversationRow,
@@ -1096,7 +1097,8 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     expect(types).toEqual(["review-campaign", "change-audience"])
   })
 
-  it("shows one Offer Draft Action without navigate Actions on a completing answer", async () => {
+  it("shows only Review offer draft on a completing Offer answer and keeps the Assistant open", async () => {
+    let createCalls = 0
     const adapters = createInMemoryOperatorAiAssistantAdapters({
       sendTurn: async (input) => ({
         id: "conv-offer-ready",
@@ -1104,45 +1106,329 @@ describe("grounded live answers, helpful fill, and Actions", () => {
         analysisScope: input.analysisScope,
         lastActivityAt: new Date().toISOString(),
         isArchived: false,
-        pendingOfferDraft: {
-          locationId: input.analysisScope.ownedLocationId,
-          offerType: "percentage_discount",
-          discountPercentage: 20,
-          validity: "7_days_after_issue",
-          title: "20% off",
-          description: "Save 20%",
-        },
+        pendingOfferDraft: null,
         messages: [
           { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
           {
             id: "a1",
             role: "assistant",
             class: "grounded",
-            title: "Feedback and Offer draft",
-            body: "1 feedback item.\n\n- **Offer type:** Percentage discount",
+            title: "Offers catalog Draft saved",
+            body: "Offers catalog Draft saved. Status Draft (not Active).",
             actions: [
               { type: "view-feedback-set", label: "View 1 feedback item", count: 1 },
-              { type: "draft-offer", label: "Create offer draft" },
+              {
+                type: "review-offer",
+                label: "Review offer draft",
+                offerId: 55,
+              },
             ],
           },
         ],
       }),
+      createCatalogOfferDraft: async () => {
+        createCalls += 1
+      },
     })
     const module = createOperatorAiAssistantModule(adapters)
     module.openDrawer()
-    module.setComposerDraft("Summarise feedback and draft an Offer")
+    module.setComposerDraft("Create a 25% Offer valid 30 days after issue")
     module.send()
     await Promise.resolve()
     await Promise.resolve()
 
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(createCalls).toBe(0)
     expect(module.getSnapshot().messages.at(-1)?.actions).toEqual([
       expect.objectContaining({
-        type: "draft-offer",
-        label: "Create offer draft",
+        type: "review-offer",
+        label: "Review offer draft",
+        offerId: 55,
         clickable: true,
       }),
     ])
   })
+
+  it("closes the Assistant on Review offer draft without creating a catalog Draft", async () => {
+    let createCalls = 0
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-offer-review",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingOfferDraft: null,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Offers catalog Draft saved",
+            body: "Offers catalog Draft saved.",
+            actions: [
+              {
+                type: "review-offer",
+                label: "Review offer draft",
+                offerId: 55,
+              },
+            ],
+          },
+        ],
+      }),
+      createCatalogOfferDraft: async () => {
+        createCalls += 1
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Create a 25% Offer valid 30 days after issue")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const action = module.getSnapshot().messages.at(-1)?.actions?.[0]
+    expect(action?.type).toBe("review-offer")
+    module.clickAction(action!)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(createCalls).toBe(0)
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(adapters.lastNavigate?.action).toMatchObject({
+      type: "review-offer",
+      label: "Review offer draft",
+      offerId: 55,
+    })
+    expect(adapters.lastNavigate?.analysisScope.ownedLocationId).toBe(1)
+    expect(adapters.lastNavigate?.catalogOffer).toMatchObject({
+      id: 55,
+      status: "draft",
+      locationId: 1,
+    })
+    expect(
+      planAssistantActionNavigate({
+        action: adapters.lastNavigate!.action,
+        analysisScope: adapters.lastNavigate!.analysisScope,
+        mode: "multi",
+      })
+    ).toEqual({
+      path: "/multi-dashboard/offers/55?location=1",
+      selectLocationId: 1,
+    })
+  })
+
+  it("does not make Review offer draft clickable while navigate is in flight", async () => {
+    let releaseGet!: (offer: ReturnType<typeof inMemoryOpenableCatalogOffer>) => void
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-offer-review",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingOfferDraft: null,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Offers catalog Draft saved",
+            body: "Offers catalog Draft saved.",
+            actions: [
+              {
+                type: "review-offer",
+                label: "Review offer draft",
+                offerId: 55,
+              },
+            ],
+          },
+        ],
+      }),
+      getCatalogOffer: () =>
+        new Promise((resolve) => {
+          releaseGet = resolve
+        }),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Create a 25% Offer valid 30 days after issue")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const action = module.getSnapshot().messages.at(-1)?.actions?.[0]
+    module.clickAction(action!)
+    await Promise.resolve()
+
+    expect(module.getSnapshot().messages.at(-1)?.actions).toEqual([
+      expect.objectContaining({
+        type: "review-offer",
+        clickable: false,
+      }),
+    ])
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(adapters.lastNavigate).toBeNull()
+
+    releaseGet(inMemoryOpenableCatalogOffer(55))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(adapters.lastNavigate?.action.type).toBe("review-offer")
+  })
+
+  it("keeps Review offer draft clickable after resume from getConversation", async () => {
+    const reviewRow: OperatorAiAssistantConversationRow = {
+      id: "conv-offer-review",
+      title: "Create a 25% Offer valid 30 days after issue",
+      analysisScope: {
+        ownedLocationId: 1,
+        ownedLocationName: "Camden",
+        reportingPeriod: { kind: "preset" as const, presetId: "last7" },
+      },
+      lastActivityAt: new Date().toISOString(),
+      isArchived: false,
+      pendingOfferDraft: null,
+      messages: [
+        {
+          id: "u1",
+          role: "user" as const,
+          body: "Create a 25% Offer valid 30 days after issue",
+          analysisScope: {
+            ownedLocationId: 1,
+            ownedLocationName: "Camden",
+            reportingPeriod: { kind: "preset" as const, presetId: "last7" },
+          },
+        },
+        {
+          id: "a1",
+          role: "assistant" as const,
+          class: "grounded" as const,
+          title: "Offers catalog Draft saved",
+          body: "Offers catalog Draft saved.",
+          actions: [
+            {
+              type: "review-offer" as const,
+              label: "Review offer draft",
+              offerId: 55,
+            },
+          ],
+        },
+      ],
+    }
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async () => reviewRow,
+      getConversation: async (conversationId) =>
+        conversationId === "conv-offer-review" ? reviewRow : null,
+      createCatalogOfferDraft: async () => {
+        throw new Error("createCatalogOfferDraft must not run")
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Create a 25% Offer")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+    module.closeDrawer()
+
+    module.openDrawer()
+    module.openConversation("conv-offer-review")
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().conversationId).toBe("conv-offer-review")
+    expect(module.getSnapshot().messages.at(-1)?.actions?.[0]).toMatchObject({
+      type: "review-offer",
+      label: "Review offer draft",
+      offerId: 55,
+      clickable: true,
+    })
+  })
+
+  it.each([
+    {
+      name: "the Offer is missing",
+      getCatalogOffer: async () => null,
+    },
+    {
+      name: "the Offer load fails",
+      getCatalogOffer: async () => {
+        throw new Error("load failed")
+      },
+    },
+    {
+      name: "the Offer is not Draft",
+      getCatalogOffer: async () =>
+        inMemoryOpenableCatalogOffer(55, { status: "active" }),
+    },
+    {
+      name: "the Offer is at the wrong location",
+      getCatalogOffer: async () =>
+        inMemoryOpenableCatalogOffer(55, { locationId: 2 }),
+    },
+  ])(
+    "keeps the Assistant open and Review offer draft clickable when $name",
+    async ({ getCatalogOffer }) => {
+      const adapters = createInMemoryOperatorAiAssistantAdapters({
+        sendTurn: async (input) => ({
+          id: "conv-offer-review",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          isArchived: false,
+          pendingOfferDraft: null,
+          messages: [
+            {
+              id: "u1",
+              role: "user",
+              body: input.message,
+              analysisScope: input.analysisScope,
+            },
+            {
+              id: "a1",
+              role: "assistant",
+              class: "grounded",
+              title: "Offers catalog Draft saved",
+              body: "Offers catalog Draft saved.",
+              actions: [
+                {
+                  type: "review-offer",
+                  label: "Review offer draft",
+                  offerId: 55,
+                },
+              ],
+            },
+          ],
+        }),
+        getCatalogOffer,
+        createCatalogOfferDraft: async () => {
+          throw new Error("createCatalogOfferDraft must not run")
+        },
+      })
+      const module = createOperatorAiAssistantModule(adapters)
+      module.openDrawer()
+      module.setComposerDraft("Create a 25% Offer valid 30 days after issue")
+      module.send()
+      await Promise.resolve()
+      await Promise.resolve()
+
+      const action = module.getSnapshot().messages.at(-1)?.actions?.[0]
+      module.clickAction(action!)
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(module.getSnapshot().drawerOpen).toBe(true)
+      expect(adapters.lastNavigate).toBeNull()
+      expect(module.getSnapshot().messages.at(-1)?.actions?.[0]).toMatchObject({
+        type: "review-offer",
+        label: "Review offer draft",
+        clickable: true,
+      })
+    }
+  )
 
   it("shows one open-recovery Action without navigate Actions on a completing answer", async () => {
     const adapters = createInMemoryOperatorAiAssistantAdapters({

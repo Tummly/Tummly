@@ -40,7 +40,8 @@ namespace TummlyBackend.Helpers
             int analysisScopeLocationId,
             string analysisScopeLocationName,
             IReadOnlyList<AssistantGapLocation> ownedLocations,
-            bool uniqueNameIsChoice = false
+            bool uniqueNameIsChoice = false,
+            string draftNoun = "Campaign Draft"
         )
         {
             var text = userMessage.Trim();
@@ -55,7 +56,7 @@ namespace TummlyBackend.Helpers
                 return new AssistantLocationGapOutcome.Gap(
                     KindAll,
                     [],
-                    "Which Owned location should this Campaign Draft use? Name one."
+                    AllLocationsBody(draftNoun)
                 );
             }
 
@@ -82,7 +83,7 @@ namespace TummlyBackend.Helpers
                     names,
                     kind == KindAmbiguous
                         ? AmbiguousBody(text, names)
-                        : TwoNamedBody(names)
+                        : TwoNamedBody(names, draftNoun)
                 );
             }
 
@@ -101,7 +102,7 @@ namespace TummlyBackend.Helpers
                 return new AssistantLocationGapOutcome.Gap(
                     KindConflict,
                     options,
-                    ConflictBody(analysisScopeLocationName, named.Name)
+                    ConflictBody(analysisScopeLocationName, named.Name, draftNoun)
                 );
             }
 
@@ -124,11 +125,21 @@ namespace TummlyBackend.Helpers
             return $"More than one Owned location matches {token}. Which one: {Join(names)}?";
         }
 
-        private static string ConflictBody(string analysisScopeName, string namedName)
-            => $"Analysis scope is {analysisScopeName}. This Campaign Draft names {namedName}. Which Owned location should I use: {Join([analysisScopeName, namedName])}?";
+        private static string ConflictBody(
+            string analysisScopeName,
+            string namedName,
+            string draftNoun = "Campaign Draft"
+        )
+            => $"Analysis scope is {analysisScopeName}. This {draftNoun} names {namedName}. Which Owned location should I use: {Join([analysisScopeName, namedName])}?";
 
-        private static string TwoNamedBody(IReadOnlyList<string> names)
-            => $"This Campaign Draft names {Join(names)}. Which Owned location should I use: {Join(names)}?";
+        private static string TwoNamedBody(
+            IReadOnlyList<string> names,
+            string draftNoun = "Campaign Draft"
+        )
+            => $"This {draftNoun} names {Join(names)}. Which Owned location should I use: {Join(names)}?";
+
+        public static string AllLocationsBody(string draftNoun)
+            => $"Which Owned location should this {draftNoun} use? Name one.";
 
         public static string Join(IReadOnlyList<string> names)
         {
@@ -145,13 +156,21 @@ namespace TummlyBackend.Helpers
             return string.Join(", ", names);
         }
 
-        public static string RepeatBody(string? locationKind, IReadOnlyList<string> options)
+        public static string RepeatBody(
+            string? locationKind,
+            IReadOnlyList<string> options,
+            string draftNoun = "Campaign Draft"
+        )
             => locationKind switch
             {
                 KindAmbiguous => AmbiguousRepeat(options),
-                KindConflict when options.Count >= 2 => ConflictBody(options[0], options[1]),
-                KindTwoNamed => TwoNamedBody(options),
-                _ => "Which Owned location should this Campaign Draft use? Name one.",
+                KindConflict when options.Count >= 2 => ConflictBody(
+                    options[0],
+                    options[1],
+                    draftNoun
+                ),
+                KindTwoNamed => TwoNamedBody(options, draftNoun),
+                _ => AllLocationsBody(draftNoun),
             };
 
         private static string AmbiguousRepeat(IReadOnlyList<string> options)

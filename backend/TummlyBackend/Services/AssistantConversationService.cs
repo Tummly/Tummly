@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.DTOs.Campaigns;
+using TummlyBackend.DTOs.Offers;
 using TummlyBackend.DTOs.OwnedLocation;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -27,6 +28,7 @@ namespace TummlyBackend.Services
         private readonly ICampaignDraftService _campaignDrafts;
         private readonly ICampaignEligibilityService _campaignEligibility;
         private readonly ICampaignMessageDraftService _campaignMessageDrafts;
+        private readonly IOffersCatalogService _offersCatalog;
 
         public AssistantConversationService(
             ApplicationDbContext context,
@@ -41,7 +43,8 @@ namespace TummlyBackend.Services
             IAssistantProgressPublisher progress,
             ICampaignDraftService campaignDrafts,
             ICampaignEligibilityService campaignEligibility,
-            ICampaignMessageDraftService campaignMessageDrafts
+            ICampaignMessageDraftService campaignMessageDrafts,
+            IOffersCatalogService offersCatalog
         )
         {
             _context = context;
@@ -57,6 +60,7 @@ namespace TummlyBackend.Services
             _campaignDrafts = campaignDrafts;
             _campaignEligibility = campaignEligibility;
             _campaignMessageDrafts = campaignMessageDrafts;
+            _offersCatalog = offersCatalog;
         }
 
         public async Task<AssistantTurnOutcome> SendTurnAsync(
@@ -437,6 +441,12 @@ namespace TummlyBackend.Services
             {
                 conversation.DraftInterviewJson = null;
             }
+
+            if (AssistantOfferDraftInterview.Parse(conversation.DraftInterviewJson)
+                is not null)
+            {
+                conversation.DraftInterviewJson = null;
+            }
             var offerDraftState = AssistantOfferDraftInterview.Parse(
                 conversation.DraftInterviewJson
             );
@@ -554,15 +564,28 @@ namespace TummlyBackend.Services
                 );
             }
             else if (
-                AssistantTaskClassification.LooksLikeCreateCampaignDraft(userMessage)
+                (
+                    AssistantTaskClassification.LooksLikeCreateCampaignDraft(userMessage)
+                    || AssistantTaskClassification.LooksLikeOfferPath(userMessage)
+                )
                 && !AssistantAskIntent.IsHelpCentreAsk(userMessage)
             )
             {
+                var createTask = AssistantTaskClassification.LooksLikeCreateCampaignDraft(
+                    userMessage
+                )
+                    ? AssistantTask.CreateCampaignDraft
+                    : AssistantTask.OfferPath;
+                var offerTerms = createTask == AssistantTask.OfferPath
+                    ? AssistantOfferPathTerms.Parse(userMessage)
+                    : null;
                 var locationOutcome = ResolveCreateLocation(
                     userMessage,
                     conversation,
                     locationName,
-                    ownedLocations
+                    ownedLocations,
+                    uniqueNameIsChoice: false,
+                    createTask
                 );
                 var locationTurn = await TryFinishLocationOutcomeAsync(
                     conversation,
@@ -570,7 +593,9 @@ namespace TummlyBackend.Services
                     locationName,
                     locationOutcome,
                     replaceFailure,
-                    cancellationToken
+                    cancellationToken,
+                    createTask,
+                    offerTerms
                 );
                 if (locationTurn.Outcome is not null)
                 {
@@ -579,23 +604,40 @@ namespace TummlyBackend.Services
 
                 boundCreateLocationId = locationTurn.LocationId;
                 boundCreateLocationName = locationTurn.LocationName;
-                preparedCampaignBind = await BindCampaignAsync(
-                    userMessage,
-                    boundCreateLocationId ?? conversation.OwnedLocationId,
-                    boundCreateLocationName ?? locationName,
-                    ownedLocationIds,
-                    cancellationToken
-                );
-                var bindAbort = await TryFinishBindOutcomeAsync(
-                    conversation,
-                    userMessage,
-                    preparedCampaignBind,
-                    replaceFailure,
-                    cancellationToken
-                );
-                if (bindAbort is not null)
+                if (createTask == AssistantTask.CreateCampaignDraft)
                 {
-                    return bindAbort;
+                    preparedCampaignBind = await BindCampaignAsync(
+                        userMessage,
+                        boundCreateLocationId ?? conversation.OwnedLocationId,
+                        boundCreateLocationName ?? locationName,
+                        ownedLocationIds,
+                        cancellationToken
+                    );
+                    var bindAbort = await TryFinishBindOutcomeAsync(
+                        conversation,
+                        userMessage,
+                        preparedCampaignBind,
+                        replaceFailure,
+                        cancellationToken
+                    );
+                    if (bindAbort is not null)
+                    {
+                        return bindAbort;
+                    }
+                }
+                else if (offerTerms is not null)
+                {
+                    var termsGap = await TryFinishOfferTermsGapAsync(
+                        conversation,
+                        userMessage,
+                        offerTerms,
+                        replaceFailure,
+                        cancellationToken
+                    );
+                    if (termsGap is not null)
+                    {
+                        return termsGap;
+                    }
                 }
             }
             var hasActiveDraftInterview =
@@ -704,9 +746,6 @@ namespace TummlyBackend.Services
             }
 
             var askKind = AssistantAskIntent.Classify(userMessage);
-            var isOfferDraftAsk =
-                AssistantOfferDraftInterview.IsOfferDraftAsk(userMessage)
-                && askKind != AssistantAskKind.Mixed;
             var isRecoveryDraftAsk =
                 AssistantRecoveryDraftInterview.IsRecoveryDraftAsk(userMessage)
                 && askKind != AssistantAskKind.Mixed;
@@ -720,16 +759,11 @@ namespace TummlyBackend.Services
 
             if (!cancelDraft)
             {
-                var namedOffer =
-                    draftTargets.Contains("Offer", StringComparer.Ordinal)
-                    || isOfferDraftAsk;
                 var namedRecovery =
                     draftTargets.Contains("Feedback recovery", StringComparer.Ordinal)
                     || isRecoveryDraftAsk;
                 var continuingInterview =
-                    (offerDraftState is not null
-                        || recoveryDraftState is not null)
-                    && !namedOffer
+                    recoveryDraftState is not null
                     && !namedRecovery;
                 // Skip field Apply only when the send is retrieve-only after stripping retrieve clauses.
                 var applyMessage = continuingInterview
@@ -743,8 +777,7 @@ namespace TummlyBackend.Services
                         : userMessage;
 
                 if (namedRecovery
-                    || (recoveryDraftState is not null
-                        && !namedOffer))
+                    || (recoveryDraftState is not null))
                 {
                     var current = namedRecovery ? null : recoveryDraftState;
                     var draftTurn = AssistantRecoveryDraftInterview.Apply(
@@ -768,28 +801,6 @@ namespace TummlyBackend.Services
                                     Intent = draftTurn.State.Intent,
                                 },
                             ],
-                            AssistantMessageClass.Grounded
-                        )
-                        : [];
-                    draftComposed = true;
-                }
-                else if (namedOffer
-                    || (offerDraftState is not null
-                        && !namedRecovery))
-                {
-                    var current = namedOffer ? null : offerDraftState;
-                    var draftTurn = AssistantOfferDraftInterview.Apply(
-                        current,
-                        applyMessage
-                    );
-                    conversation.DraftInterviewJson =
-                        AssistantOfferDraftInterview.Serialize(draftTurn.State);
-                    draftInterviewTitle = draftTurn.Title;
-                    draftInterviewBody = draftTurn.Body;
-                    draftInterviewReady = draftTurn.IsReady;
-                    draftReadyActions = draftTurn.IsReady
-                        ? AssistantActionCatalog.ValidateOfferDraft(
-                            [new AssistantActionDto { Type = "draft-offer" }],
                             AssistantMessageClass.Grounded
                         )
                         : [];
@@ -891,6 +902,37 @@ namespace TummlyBackend.Services
                         conversation.CreatedCampaignId = createdCampaignId;
                     }
                     assistantMessage = PersistTurnMessage(assistantNow, persist);
+                }
+                else if (string.Equals(
+                        succeeded.AssistantTask,
+                        AssistantTask.OfferPath,
+                        StringComparison.Ordinal
+                    )
+                    && !draftComposed
+                    && !AssistantAskIntent.IsHelpCentreAsk(userMessage))
+                {
+                    var persistLocationId = boundCreateLocationId ?? conversation.OwnedLocationId;
+                    var persistLocationName = boundCreateLocationName ?? locationName;
+                    var persist = await PersistCreateOfferDraftAsync(
+                        conversation,
+                        userMessage,
+                        persistLocationId,
+                        persistLocationName,
+                        priorTerms: null,
+                        cancellationToken
+                    );
+                    conversation.DraftInterviewJson = null;
+                    conversation.LastCompareLocationIdsJson = null;
+                    if (persist.CreatedOfferId is int createdOfferId)
+                    {
+                        conversation.CreatedOfferId = createdOfferId;
+                    }
+                    assistantMessage = GroundedMessage(
+                        assistantNow,
+                        persist.Title,
+                        persist.Body,
+                        persist.Actions
+                    );
                 }
                 else
                 {
@@ -1182,6 +1224,100 @@ namespace TummlyBackend.Services
             );
         }
 
+        private sealed record CreateOfferDraftPersistTurn(
+            string Title,
+            string Body,
+            IReadOnlyList<AssistantActionDto> Actions,
+            int? CreatedOfferId
+        );
+
+        private async Task<CreateOfferDraftPersistTurn> PersistCreateOfferDraftAsync(
+            AssistantConversation conversation,
+            string userMessage,
+            int locationId,
+            string locationName,
+            AssistantOfferPathTermsState? priorTerms,
+            CancellationToken cancellationToken
+        )
+        {
+            var terms = AssistantOfferPathTerms.Merge(priorTerms, userMessage);
+            AssistantOfferPathTerms.ProposeCopy(terms);
+            if (!AssistantOfferPathTerms.IsComplete(terms))
+            {
+                return new CreateOfferDraftPersistTurn(
+                    AssistantOfferPathPersistCopy.FailureTitle,
+                    AssistantOfferPathPersistCopy.FailureBody("Offer create"),
+                    [],
+                    null
+                );
+            }
+
+            CatalogOfferDto created;
+            try
+            {
+                created = await _offersCatalog.CreateDraftAsync(
+                    AssistantOfferPathTerms.ToCreateRequest(terms, locationId),
+                    conversation.OwnerUserId,
+                    cancellationToken
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return new CreateOfferDraftPersistTurn(
+                    AssistantOfferPathPersistCopy.FailureTitle,
+                    AssistantOfferPathPersistCopy.FailureBody("Offer create"),
+                    [],
+                    null
+                );
+            }
+
+            return new CreateOfferDraftPersistTurn(
+                AssistantOfferPathPersistCopy.SuccessTitle,
+                AssistantOfferPathPersistCopy.SuccessBody(
+                    locationName,
+                    AssistantOfferPathTerms.TypeLabel(terms.OfferType),
+                    AssistantOfferPathTerms.ValueLabel(terms),
+                    AssistantOfferPathTerms.ValidityLabel(terms),
+                    created.Title,
+                    terms.WantsActivate
+                ),
+                AssistantActionCatalog.ValidateReviewOffer(
+                    created.Id,
+                    AssistantMessageClass.Grounded
+                ),
+                created.Id
+            );
+        }
+
+        private async Task<AssistantTurnOutcome?> TryFinishOfferTermsGapAsync(
+            AssistantConversation conversation,
+            string sourceUserMessage,
+            AssistantOfferPathTermsState terms,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken
+        )
+        {
+            if (AssistantOfferPathTerms.IsComplete(terms))
+            {
+                return null;
+            }
+
+            return await FinishGapTurnAsync(
+                conversation,
+                AssistantGapTurn.CreateOfferTerms(
+                    sourceUserMessage,
+                    AssistantOfferPathTerms.Serialize(terms)
+                ),
+                AssistantOfferPathTerms.GapBody(terms),
+                replaceFailure,
+                cancellationToken
+            );
+        }
+
         private sealed record GapResume(
             AssistantTurnOutcome? Outcome,
             IReadOnlyList<string>? DraftTargets
@@ -1335,7 +1471,8 @@ namespace TummlyBackend.Services
             AssistantConversation conversation,
             string analysisScopeLocationName,
             IReadOnlyList<OwnedLocationRow> ownedLocations,
-            bool uniqueNameIsChoice = false
+            bool uniqueNameIsChoice = false,
+            string? assistantTask = null
         )
             => AssistantCreateLocationGap.Resolve(
                 userMessage,
@@ -1344,8 +1481,18 @@ namespace TummlyBackend.Services
                     ? analysisScopeLocationName
                     : conversation.OwnedLocationName,
                 ToGapLocations(ownedLocations),
-                uniqueNameIsChoice
+                uniqueNameIsChoice,
+                AssistantGapTurn.LocationDraftNoun(assistantTask)
             );
+
+        private static string? CreateTargetForTask(string? assistantTask)
+            => assistantTask switch
+            {
+                AssistantTask.CreateCampaignDraft => AssistantCreateTargets.Campaign,
+                AssistantTask.OfferPath => AssistantCreateTargets.Offer,
+                AssistantTask.RecoveryPath => AssistantCreateTargets.Recovery,
+                _ => null,
+            };
 
         private async Task<GapResume> TryResumeGapAsync(
             AssistantConversation conversation,
@@ -1379,10 +1526,27 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var gapTarget = CreateTargetForTask(gapState.AssistantTask);
             if (detected.Count == 1
-                && gapState.Kind == AssistantGapTurn.KindLocation
-                && detected[0] != AssistantCreateTargets.Campaign)
+                && gapTarget is not null
+                && !string.Equals(detected[0], gapTarget, StringComparison.Ordinal))
             {
+                if (detected[0] == AssistantCreateTargets.Offer)
+                {
+                    return await ResumeOfferPathAsync(
+                        conversation,
+                        userMessage,
+                        userMessage,
+                        analysisScopeLocationName,
+                        ownedLocations,
+                        AssistantOfferPathTerms.Parse(userMessage),
+                        uniqueNameIsChoice: false,
+                        updateScope: false,
+                        replaceFailure,
+                        cancellationToken
+                    );
+                }
+
                 conversation.DraftInterviewJson = null;
                 return new GapResume(null, detected);
             }
@@ -1390,7 +1554,8 @@ namespace TummlyBackend.Services
             if (detected.Count == 1
                 && gapState.Kind == AssistantGapTurn.KindCreateTarget
                 && !gapState.Options.Contains(detected[0], StringComparer.Ordinal)
-                && detected[0] != AssistantCreateTargets.Campaign)
+                && detected[0] != AssistantCreateTargets.Campaign
+                && detected[0] != AssistantCreateTargets.Offer)
             {
                 conversation.DraftInterviewJson = null;
                 return new GapResume(null, detected);
@@ -1423,18 +1588,15 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                if (resolved == AssistantCreateTargets.Campaign
-                    && string.Equals(
-                        gapState.AssistantTask,
-                        AssistantTask.CreateCampaignDraft,
-                        StringComparison.Ordinal
-                    ))
+                if (resolved == AssistantCreateTargets.Campaign)
                 {
                     var locationOutcome = ResolveCreateLocation(
                         gapState.SourceUserMessage,
                         conversation,
                         analysisScopeLocationName,
-                        ownedLocations
+                        ownedLocations,
+                        uniqueNameIsChoice: false,
+                        AssistantTask.CreateCampaignDraft
                     );
                     var finished = await TryFinishLocationOutcomeAsync(
                         conversation,
@@ -1442,7 +1604,8 @@ namespace TummlyBackend.Services
                         analysisScopeLocationName,
                         locationOutcome,
                         replaceFailure,
-                        cancellationToken
+                        cancellationToken,
+                        AssistantTask.CreateCampaignDraft
                     );
                     if (finished.Outcome is not null)
                     {
@@ -1461,6 +1624,23 @@ namespace TummlyBackend.Services
                         ownedLocations.Select(location => location.Id).ToList()
                     );
                     return new GapResume(persist, null);
+                }
+
+                if (resolved == AssistantCreateTargets.Offer)
+                {
+                    return await ResumeOfferPathAsync(
+                        conversation,
+                        gapState.SourceUserMessage,
+                        userMessage,
+                        analysisScopeLocationName,
+                        ownedLocations,
+                        AssistantOfferPathTerms.FromJson(gapState.OfferTermsJson)
+                            ?? AssistantOfferPathTerms.Parse(gapState.SourceUserMessage),
+                        uniqueNameIsChoice: false,
+                        updateScope: false,
+                        replaceFailure,
+                        cancellationToken
+                    );
                 }
 
                 conversation.DraftInterviewJson = null;
@@ -1516,9 +1696,27 @@ namespace TummlyBackend.Services
                     replaceFailure,
                     cancellationToken,
                     ownedLocations.Select(location => location.Id).ToList(),
-                    AssistantCampaignDraftBindChoice.FromGapKind(gapState.Kind, choice)
+                    choice: AssistantCampaignDraftBindChoice.FromGapKind(gapState.Kind, choice)
                 );
                 return new GapResume(resumed, null);
+            }
+
+            if (gapState.Kind == AssistantGapTurn.KindOfferTerms)
+            {
+                var prior = AssistantOfferPathTerms.FromJson(gapState.OfferTermsJson)
+                    ?? AssistantOfferPathTerms.Parse(gapState.SourceUserMessage);
+                return await ResumeOfferPathAsync(
+                    conversation,
+                    gapState.SourceUserMessage,
+                    userMessage,
+                    analysisScopeLocationName,
+                    ownedLocations,
+                    prior,
+                    uniqueNameIsChoice: true,
+                    updateScope: false,
+                    replaceFailure,
+                    cancellationToken
+                );
             }
 
             if (AssistantAskIntent.HasExplicitRetrieveAsk(userMessage)
@@ -1539,7 +1737,8 @@ namespace TummlyBackend.Services
                 conversation,
                 analysisScopeLocationName,
                 ownedLocations,
-                uniqueNameIsChoice: true
+                uniqueNameIsChoice: true,
+                gapState.AssistantTask
             );
             if (answerOutcome is AssistantLocationGapOutcome.Unnamed)
             {
@@ -1561,7 +1760,9 @@ namespace TummlyBackend.Services
                     gapState.SourceUserMessage,
                     conversation,
                     analysisScopeLocationName,
-                    ownedLocations
+                    ownedLocations,
+                    uniqueNameIsChoice: false,
+                    gapState.AssistantTask
                 );
             }
 
@@ -1570,10 +1771,32 @@ namespace TummlyBackend.Services
                     AssistantTask.CreateCampaignDraft,
                     StringComparison.Ordinal
                 )
+                && !string.Equals(
+                    gapState.AssistantTask,
+                    AssistantTask.OfferPath,
+                    StringComparison.Ordinal
+                )
                 && answerOutcome is AssistantLocationGapOutcome.Unique)
             {
                 conversation.DraftInterviewJson = null;
                 return new GapResume(null, null);
+            }
+
+            var rememberedTerms = AssistantOfferPathTerms.FromJson(gapState.OfferTermsJson)
+                ?? (string.Equals(
+                    gapState.AssistantTask,
+                    AssistantTask.OfferPath,
+                    StringComparison.Ordinal
+                )
+                    ? AssistantOfferPathTerms.Parse(gapState.SourceUserMessage)
+                    : null);
+            if (string.Equals(
+                    gapState.AssistantTask,
+                    AssistantTask.OfferPath,
+                    StringComparison.Ordinal
+                ))
+            {
+                rememberedTerms = AssistantOfferPathTerms.Merge(rememberedTerms, userMessage);
             }
 
             var locationFinish = await TryFinishLocationOutcomeAsync(
@@ -1582,11 +1805,33 @@ namespace TummlyBackend.Services
                 analysisScopeLocationName,
                 answerOutcome,
                 replaceFailure,
-                cancellationToken
+                cancellationToken,
+                gapState.AssistantTask,
+                rememberedTerms
             );
             if (locationFinish.Outcome is not null)
             {
                 return new GapResume(locationFinish.Outcome, null);
+            }
+
+            if (string.Equals(
+                    gapState.AssistantTask,
+                    AssistantTask.OfferPath,
+                    StringComparison.Ordinal
+                )
+                && rememberedTerms is not null)
+            {
+                var termsGap = await TryFinishOfferTermsGapAsync(
+                    conversation,
+                    gapState.SourceUserMessage,
+                    rememberedTerms,
+                    replaceFailure,
+                    cancellationToken
+                );
+                if (termsGap is not null)
+                {
+                    return new GapResume(termsGap, null);
+                }
             }
 
             conversation.DraftInterviewJson = null;
@@ -1598,9 +1843,90 @@ namespace TummlyBackend.Services
                 updateScope: true,
                 replaceFailure,
                 cancellationToken,
-                ownedLocations.Select(location => location.Id).ToList()
+                ownedLocations.Select(location => location.Id).ToList(),
+                gapState.AssistantTask,
+                rememberedTerms
             );
             return new GapResume(persisted, null);
+        }
+
+        private async Task<GapResume> ResumeOfferPathAsync(
+            AssistantConversation conversation,
+            string sourceUserMessage,
+            string userMessage,
+            string analysisScopeLocationName,
+            IReadOnlyList<OwnedLocationRow> ownedLocations,
+            AssistantOfferPathTermsState priorTerms,
+            bool uniqueNameIsChoice,
+            bool updateScope,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken
+        )
+        {
+            var terms = AssistantOfferPathTerms.Merge(priorTerms, userMessage);
+            var locationMessage = uniqueNameIsChoice ? userMessage : sourceUserMessage;
+            var locationOutcome = ResolveCreateLocation(
+                locationMessage,
+                conversation,
+                analysisScopeLocationName,
+                ownedLocations,
+                uniqueNameIsChoice,
+                AssistantTask.OfferPath
+            );
+            if (locationOutcome is AssistantLocationGapOutcome.Unnamed
+                && uniqueNameIsChoice)
+            {
+                locationOutcome = ResolveCreateLocation(
+                    sourceUserMessage,
+                    conversation,
+                    analysisScopeLocationName,
+                    ownedLocations,
+                    uniqueNameIsChoice: false,
+                    AssistantTask.OfferPath
+                );
+            }
+
+            var finished = await TryFinishLocationOutcomeAsync(
+                conversation,
+                sourceUserMessage,
+                analysisScopeLocationName,
+                locationOutcome,
+                replaceFailure,
+                cancellationToken,
+                AssistantTask.OfferPath,
+                terms
+            );
+            if (finished.Outcome is not null)
+            {
+                return new GapResume(finished.Outcome, null);
+            }
+
+            var termsGap = await TryFinishOfferTermsGapAsync(
+                conversation,
+                sourceUserMessage,
+                terms,
+                replaceFailure,
+                cancellationToken
+            );
+            if (termsGap is not null)
+            {
+                return new GapResume(termsGap, null);
+            }
+
+            conversation.DraftInterviewJson = null;
+            var persist = await PersistCreateAndStoreAsync(
+                conversation,
+                sourceUserMessage,
+                finished.LocationId ?? conversation.OwnedLocationId,
+                finished.LocationName ?? analysisScopeLocationName,
+                updateScope,
+                replaceFailure,
+                cancellationToken,
+                ownedLocations.Select(location => location.Id).ToList(),
+                AssistantTask.OfferPath,
+                terms
+            );
+            return new GapResume(persist, null);
         }
 
         private async Task<LocationFinish> TryFinishLocationOutcomeAsync(
@@ -1609,7 +1935,9 @@ namespace TummlyBackend.Services
             string analysisScopeLocationName,
             AssistantLocationGapOutcome locationOutcome,
             AssistantMessage? replaceFailure,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken,
+            string assistantTask = AssistantTask.CreateCampaignDraft,
+            AssistantOfferPathTermsState? offerTerms = null
         )
         {
             switch (locationOutcome)
@@ -1622,7 +1950,10 @@ namespace TummlyBackend.Services
                                 gap.Kind,
                                 gap.Options,
                                 sourceUserMessage,
-                                AssistantTask.CreateCampaignDraft
+                                assistantTask,
+                                offerTerms is null
+                                    ? null
+                                    : AssistantOfferPathTerms.Serialize(offerTerms)
                             ),
                             gap.Body,
                             replaceFailure,
@@ -1666,6 +1997,8 @@ namespace TummlyBackend.Services
             AssistantMessage? replaceFailure,
             CancellationToken cancellationToken,
             IReadOnlyList<int> ownedLocationIds,
+            string assistantTask = AssistantTask.CreateCampaignDraft,
+            AssistantOfferPathTermsState? offerTerms = null,
             AssistantCampaignDraftBindChoice? choice = null
         )
         {
@@ -1677,6 +2010,40 @@ namespace TummlyBackend.Services
                     conversation,
                     scope,
                     locationName
+                );
+            }
+
+            conversation.DraftInterviewJson = null;
+            conversation.LastCompareLocationIdsJson = null;
+            if (string.Equals(
+                    assistantTask,
+                    AssistantTask.OfferPath,
+                    StringComparison.Ordinal
+                ))
+            {
+                var offerPersist = await PersistCreateOfferDraftAsync(
+                    conversation,
+                    sourceUserMessage,
+                    locationId,
+                    locationName,
+                    offerTerms,
+                    cancellationToken
+                );
+                if (offerPersist.CreatedOfferId is int createdOfferId)
+                {
+                    conversation.CreatedOfferId = createdOfferId;
+                }
+
+                return await PersistAssistantAsync(
+                    conversation,
+                    GroundedMessage(
+                        DateTime.UtcNow,
+                        offerPersist.Title,
+                        offerPersist.Body,
+                        offerPersist.Actions
+                    ),
+                    replaceFailure,
+                    cancellationToken
                 );
             }
 

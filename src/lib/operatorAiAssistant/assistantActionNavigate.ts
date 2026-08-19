@@ -113,6 +113,14 @@ export function planAssistantActionNavigate(input: {
         path: operatorDashboardNavPath(mode, "campaigns", locationId),
         selectLocationId: locationId,
       }
+    case "review-offer":
+      return {
+        path:
+          action.offerId != null
+            ? operatorDashboardOfferDetailsPath(mode, action.offerId, locationId)
+            : operatorDashboardNavPath(mode, "offers", locationId),
+        selectLocationId: locationId,
+      }
     case "draft-offer":
       return {
         path: operatorDashboardNavPath(mode, "offers", locationId),

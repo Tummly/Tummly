@@ -92,6 +92,17 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (task == AssistantTask.OfferPath)
+            {
+                return new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Offers catalog Draft",
+                    "Offer path.",
+                    [],
+                    AssistantTask.OfferPath
+                );
+            }
+
             if (task == AssistantTask.Refuse)
             {
                 var refuseKind = AssistantAskIntent.IsHelpCentreAsk(input.UserMessage)
