@@ -1,3 +1,6 @@
+using System.Text.RegularExpressions;
+using TummlyBackend.Models;
+
 namespace TummlyBackend.Helpers
 {
     /// <summary>
@@ -44,6 +47,13 @@ namespace TummlyBackend.Helpers
             ("staff_follow_up_completed", ["staff follow-up completed"]),
             ("other_action", ["other action"]),
         ];
+
+        private static readonly Regex IncludeNotesRegex = new(
+            @"include[- ]notes\s*:\s*(?<notes>[^\n;]+)",
+            RegexOptions.IgnoreCase
+                | RegexOptions.CultureInvariant
+                | RegexOptions.Compiled
+        );
 
         public static string Bind(string userMessage)
         {
@@ -102,7 +112,7 @@ namespace TummlyBackend.Helpers
         public static bool LooksLikeRecoveryAsk(string message)
         {
             var lower = message.Trim().ToLowerInvariant();
-            if (LooksLikeInternalOnly(lower))
+            if (LooksLikeInternalOnly(lower) || LooksLikeRespondAndRecord(lower))
             {
                 return true;
             }
@@ -160,6 +170,39 @@ namespace TummlyBackend.Helpers
                 "respond and log",
                 "reply and log"
             );
+
+        public static string BindIncludeNotes(string userMessage)
+        {
+            var match = IncludeNotesRegex.Match(userMessage);
+            if (!match.Success)
+            {
+                return "";
+            }
+
+            return match.Groups["notes"].Value.Trim();
+        }
+
+        public static int? BindOfferId(
+            string userMessage,
+            IReadOnlyList<AssistantOfferCatalogRow> catalog
+        )
+        {
+            var named = catalog
+                .Where(row =>
+                    string.Equals(
+                        row.Status,
+                        CatalogOfferStatus.Active,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                    && !string.IsNullOrWhiteSpace(row.Title)
+                    && userMessage.Contains(
+                        row.Title,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+                .ToList();
+            return named.Count == 1 ? named[0].Id : null;
+        }
 
         public static (string? Category, string? Note) BindInternalFields(string userMessage)
         {

@@ -761,6 +761,7 @@ namespace TummlyBackend.Services
                     openFeedbackGap,
                     userMessage,
                     savedEvidence.Feedback,
+                    savedEvidence.Offers,
                     replaceFailure,
                     cancellationToken
                 );
@@ -939,6 +940,7 @@ namespace TummlyBackend.Services
                         conversation,
                         userMessage,
                         savedEvidence.Feedback,
+                        savedEvidence.Offers,
                         cancellationToken
                     );
                     if (persist.Gap is AssistantGapState feedbackGap)
@@ -1339,6 +1341,7 @@ namespace TummlyBackend.Services
             AssistantGapState gapState,
             string userMessage,
             AssistantFeedbackEvidence feedbackEvidence,
+            AssistantOffersEvidence offersEvidence,
             AssistantMessage? replaceFailure,
             CancellationToken cancellationToken
         )
@@ -1375,6 +1378,7 @@ namespace TummlyBackend.Services
                         conversation,
                         gapState.SourceUserMessage,
                         feedbackEvidence,
+                        offersEvidence,
                         cancellationToken,
                         one.Row
                     );
@@ -1411,6 +1415,7 @@ namespace TummlyBackend.Services
             AssistantConversation conversation,
             string userMessage,
             AssistantFeedbackEvidence feedbackEvidence,
+            AssistantOffersEvidence offersEvidence,
             CancellationToken cancellationToken,
             AssistantFeedbackEvidenceRow? boundRow = null
         )
@@ -1419,7 +1424,8 @@ namespace TummlyBackend.Services
             var intent = AssistantRecoveryIntent.Bind(userMessage);
             string? internalCategory = null;
             string? internalNote = null;
-            if (intent == AssistantRecoveryEligibility.IntentInternalOnly)
+            if (intent == AssistantRecoveryEligibility.IntentInternalOnly
+                || intent == AssistantRecoveryEligibility.IntentRespondAndRecord)
             {
                 (internalCategory, internalNote) =
                     AssistantRecoveryIntent.BindInternalFields(userMessage);
@@ -1500,13 +1506,33 @@ namespace TummlyBackend.Services
             }
 
             var allowed = (AssistantRecoveryEligibility.Outcome.Allowed)eligibility;
+            int? offerId = null;
+            if (intent == AssistantRecoveryEligibility.IntentRecoveryOffer)
+            {
+                offerId = AssistantRecoveryIntent.BindOfferId(
+                    userMessage,
+                    offersEvidence.Catalog
+                );
+                if (offerId is null)
+                {
+                    return new RecoveryPersistTurn(
+                        AssistantRecoveryPersistCopy.FailureTitle,
+                        AssistantRecoveryPersistCopy.OfferUnboundBody(),
+                        none,
+                        null,
+                        null
+                    );
+                }
+            }
+
+            var includeNotes = AssistantRecoveryIntent.BindIncludeNotes(userMessage);
             if (intent == AssistantRecoveryEligibility.IntentInternalOnly)
             {
                 var internalWork = new AssistantRecoveryWorkState
                 {
                     FeedbackId = row.Id,
                     Intent = intent,
-                    IncludeNotes = "",
+                    IncludeNotes = includeNotes,
                     Category = internalCategory,
                     Note = internalNote,
                     EligibilitySnapshot = allowed.Snapshot,
@@ -1523,6 +1549,17 @@ namespace TummlyBackend.Services
             var purpose = AssistantRecoveryIntent.BindPurpose(userMessage, intent);
             var tone = AssistantRecoveryIntent.BindTone(userMessage);
             var channel = allowed.Channel ?? "";
+            var prepareNotes = string.IsNullOrWhiteSpace(includeNotes)
+                ? null
+                : includeNotes;
+            var recordCategory =
+                intent == AssistantRecoveryEligibility.IntentRespondAndRecord
+                    ? internalCategory
+                    : null;
+            var recordNote =
+                intent == AssistantRecoveryEligibility.IntentRespondAndRecord
+                    ? internalNote
+                    : null;
             PrepareFeedbackRecoveryDraftResultDto? copy;
             try
             {
@@ -1531,10 +1568,12 @@ namespace TummlyBackend.Services
                     channel,
                     purpose,
                     tone,
-                    includeNotes: null,
+                    includeNotes: prepareNotes,
                     mode: "prepare",
                     currentBody: null,
                     currentSubject: null,
+                    confirmedInternalActionCategory: recordCategory,
+                    confirmedInternalActionNote: recordNote,
                     cancellationToken: cancellationToken
                 );
             }
@@ -1571,9 +1610,14 @@ namespace TummlyBackend.Services
                 Channel = channel,
                 Purpose = purpose,
                 Tone = tone,
-                IncludeNotes = "",
+                IncludeNotes = includeNotes,
                 Subject = copy.Subject,
                 Message = copy.Body,
+                Category = recordCategory,
+                Note = recordNote,
+                OfferId = offerId,
+                UseConfirmedActionForGuestResponse =
+                    intent == AssistantRecoveryEligibility.IntentRespondAndRecord,
                 EligibilitySnapshot = allowed.Snapshot,
             };
             return new RecoveryPersistTurn(

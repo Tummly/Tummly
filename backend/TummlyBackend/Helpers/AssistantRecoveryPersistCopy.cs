@@ -52,9 +52,14 @@ namespace TummlyBackend.Helpers
                 + "No recovery work was stored.";
 
         public static string InternalUnboundBody()
-            => "I did not prepare Record an internal action only. Name the "
+            => "I did not prepare that recovery intent. Name the "
                 + "action category and a note, or use Feedback recovery. "
                 + "I will not default that category.";
+
+        public static string OfferUnboundBody()
+            => "I did not prepare Respond with a recovery offer. Name the "
+                + "Offer to attach, or use Feedback recovery. "
+                + "No recovery work was stored.";
 
         public static string ChannelLabel(string channel)
             => string.Equals(channel, "sms", StringComparison.OrdinalIgnoreCase)

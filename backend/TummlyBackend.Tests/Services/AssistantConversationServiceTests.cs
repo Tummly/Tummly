@@ -1491,6 +1491,10 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.Equal("warm_and_apologetic", _recoveryDrafts.LastInput.Tone);
             Assert.Equal("prepare", _recoveryDrafts.LastInput.Mode);
+            Assert.Null(_recoveryDrafts.LastInput.IncludeNotes);
+            Assert.False(
+                ok.Conversation.PendingRecoveryDraft.UseConfirmedActionForGuestResponse
+            );
 
             var resumed = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await _service.GetAsync(ownerUserId: 7, ok.Conversation.Id)
@@ -1656,6 +1660,253 @@ namespace TummlyBackend.Tests.Services
                 (await _context.Feedbacks.SingleAsync()).WorkflowStatus
             );
             Assert.Null(_recoveryDrafts.LastInput);
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoveryResponse_NamedIncludeNotes_PassThroughToPrepare()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest"
+            );
+            _recoveryDrafts.SucceedWith(
+                "Thank you for your feedback. We are looking into this.",
+                "Regarding your recent visit",
+                "email"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Prepare a recovery response. Include-notes: kitchen delay"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal(
+                "kitchen delay",
+                ok.Conversation.PendingRecoveryDraft!.IncludeNotes
+            );
+            Assert.Equal("kitchen delay", _recoveryDrafts.LastInput!.IncludeNotes);
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoveryResponse_RespondAndRecordUnbound_PersistsNothing()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Respond and record")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Empty(answer.Actions);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+            Assert.Contains(
+                "category",
+                answer.Body,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.Null(_recoveryDrafts.LastInput);
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoveryResponse_RespondAndRecordBound_StoresGuestCopyAndAction()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest"
+            );
+            _recoveryDrafts.SucceedWith(
+                "Thank you for your feedback. We are looking into this.",
+                "Regarding your recent visit",
+                "email"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Respond and record. Team briefed. Note: kitchen delay"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var draft = ok.Conversation.PendingRecoveryDraft;
+            Assert.NotNull(draft);
+            Assert.Equal("respond-and-record-internal-action", draft!.Intent);
+            Assert.Equal("team_briefed", draft.Category);
+            Assert.Equal("kitchen delay", draft.Note);
+            Assert.True(draft.UseConfirmedActionForGuestResponse);
+            Assert.Equal(
+                "Thank you for your feedback. We are looking into this.",
+                draft.Message
+            );
+            Assert.Equal("team_briefed", _recoveryDrafts.LastInput!.ConfirmedInternalActionCategory);
+            Assert.Equal("kitchen delay", _recoveryDrafts.LastInput.ConfirmedInternalActionNote);
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoveryResponse_OfferUnbound_PersistsNothing()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var guestId = await SeedLocationGuestAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2)
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest",
+                locationGuestId: guestId
+            );
+            await SeedCatalogOfferAsync(locationId, "Weekend brunch");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Prepare a recovery response with a recovery offer"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Empty(answer.Actions);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+            Assert.Contains("Offer", answer.Body, StringComparison.Ordinal);
+            Assert.Null(_recoveryDrafts.LastInput);
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoveryResponse_OfferBound_StoresOfferIdAndReview()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var guestId = await SeedLocationGuestAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2)
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest",
+                locationGuestId: guestId
+            );
+            var offerId = await SeedCatalogOfferAsync(locationId, "Weekend brunch");
+            _recoveryDrafts.SucceedWith(
+                "Thank you for your feedback. We are looking into this.",
+                "Regarding your recent visit",
+                "email"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Prepare a recovery response with a recovery offer. Weekend brunch"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var action = Assert.Single(ok.Conversation.Messages[^1].Actions);
+            Assert.Equal("open-recovery", action.Type);
+            Assert.Equal("respond-with-recovery-offer", action.Intent);
+            Assert.Equal(
+                "respond-with-recovery-offer",
+                ok.Conversation.PendingRecoveryDraft!.Intent
+            );
+            Assert.Equal(offerId, ok.Conversation.PendingRecoveryDraft.OfferId);
+            Assert.Equal("email", ok.Conversation.PendingRecoveryDraft.Channel);
+            Assert.Equal(
+                "include_a_recovery_offer",
+                ok.Conversation.PendingRecoveryDraft.Purpose
+            );
+            Assert.NotNull(_recoveryDrafts.LastInput);
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoveryResponse_NamedGuestMiss_ExplainsWithoutDump()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-3),
+                guestName: "Alex Guest",
+                guestContact: "alex@example.com"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Prepare a recovery response for Mehmet"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Empty(answer.Actions);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+            Assert.DoesNotContain("Pat Guest", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Alex Guest", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("could not match", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Null(_recoveryDrafts.LastInput);
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoveryResponse_NamedFirstName_BindsThatGuest()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-3),
+                guestName: "Alex Guest",
+                guestContact: "alex@example.com"
+            );
+            _recoveryDrafts.SucceedWith(
+                "Thank you for your feedback. We are looking into this.",
+                "Regarding your recent visit",
+                "email"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Prepare a recovery response for Pat"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("grounded", ok.Conversation.Messages[^1].Class);
+            Assert.Equal(
+                "Pat Guest",
+                (await _context.Feedbacks.SingleAsync(
+                    row => row.Id == ok.Conversation.PendingRecoveryDraft!.FeedbackId
+                )).GuestName
+            );
         }
 
         [Fact]

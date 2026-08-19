@@ -93,6 +93,10 @@ namespace TummlyBackend.Tests.Integration
                 body.GetProperty("locationGuestId").ValueKind
             );
             Assert.Equal(
+                "not_recorded",
+                body.GetProperty("marketingPreference").GetString()
+            );
+            Assert.Equal(
                 "Smart Guest",
                 body.GetProperty("qrSource").GetString()
             );
@@ -174,6 +178,10 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(
                 seeded.LocationGuestId,
                 body.GetProperty("locationGuestId").GetInt32()
+            );
+            Assert.Equal(
+                "allowed",
+                body.GetProperty("marketingPreference").GetString()
             );
         }
 
