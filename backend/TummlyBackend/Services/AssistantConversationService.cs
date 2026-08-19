@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.DTOs.Campaigns;
+using TummlyBackend.DTOs.Feedback;
 using TummlyBackend.DTOs.Offers;
 using TummlyBackend.DTOs.OwnedLocation;
 using TummlyBackend.Helpers;
@@ -29,6 +30,7 @@ namespace TummlyBackend.Services
         private readonly ICampaignEligibilityService _campaignEligibility;
         private readonly ICampaignMessageDraftService _campaignMessageDrafts;
         private readonly IOffersCatalogService _offersCatalog;
+        private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
 
         public AssistantConversationService(
             ApplicationDbContext context,
@@ -44,7 +46,8 @@ namespace TummlyBackend.Services
             ICampaignDraftService campaignDrafts,
             ICampaignEligibilityService campaignEligibility,
             ICampaignMessageDraftService campaignMessageDrafts,
-            IOffersCatalogService offersCatalog
+            IOffersCatalogService offersCatalog,
+            IFeedbackRecoveryDraftsService recoveryDrafts
         )
         {
             _context = context;
@@ -61,6 +64,7 @@ namespace TummlyBackend.Services
             _campaignEligibility = campaignEligibility;
             _campaignMessageDrafts = campaignMessageDrafts;
             _offersCatalog = offersCatalog;
+            _recoveryDrafts = recoveryDrafts;
         }
 
         public async Task<AssistantTurnOutcome> SendTurnAsync(
@@ -746,9 +750,21 @@ namespace TummlyBackend.Services
             }
 
             var askKind = AssistantAskIntent.Classify(userMessage);
-            var isRecoveryDraftAsk =
-                AssistantRecoveryDraftInterview.IsRecoveryDraftAsk(userMessage)
-                && askKind != AssistantAskKind.Mixed;
+
+            if (gapState is not null
+                && gapState.Kind == AssistantGapTurn.KindFeedback
+                && AssistantGapTurn.Parse(conversation.DraftInterviewJson)
+                    is { Kind: AssistantGapTurn.KindFeedback } openFeedbackGap)
+            {
+                return await ResumeFeedbackGapAsync(
+                    conversation,
+                    openFeedbackGap,
+                    userMessage,
+                    savedEvidence.Feedback,
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
 
             string? draftTargetChoiceBody = null;
             string? draftInterviewTitle = null;
@@ -759,54 +775,6 @@ namespace TummlyBackend.Services
 
             if (!cancelDraft)
             {
-                var namedRecovery =
-                    draftTargets.Contains("Feedback recovery", StringComparer.Ordinal)
-                    || isRecoveryDraftAsk;
-                var continuingInterview =
-                    recoveryDraftState is not null
-                    && !namedRecovery;
-                // Skip field Apply only when the send is retrieve-only after stripping retrieve clauses.
-                var applyMessage = continuingInterview
-                    && hasRetrieveAsk
-                    && string.IsNullOrWhiteSpace(
-                        AssistantCampaignDraftInterview.InterviewAnswerPortion(
-                            userMessage
-                        )
-                    )
-                        ? string.Empty
-                        : userMessage;
-
-                if (namedRecovery
-                    || (recoveryDraftState is not null))
-                {
-                    var current = namedRecovery ? null : recoveryDraftState;
-                    var draftTurn = AssistantRecoveryDraftInterview.Apply(
-                        current,
-                        applyMessage,
-                        savedEvidence.Feedback,
-                        savedEvidence.Offers
-                    );
-                    conversation.DraftInterviewJson =
-                        AssistantRecoveryDraftInterview.Serialize(draftTurn.State);
-                    draftInterviewTitle = draftTurn.Title;
-                    draftInterviewBody = draftTurn.Body;
-                    draftInterviewReady = draftTurn.IsReady;
-                    draftReadyActions = draftTurn.IsReady
-                        ? AssistantActionCatalog.ValidateOpenRecovery(
-                            [
-                                new AssistantActionDto
-                                {
-                                    Type = "open-recovery",
-                                    FeedbackId = draftTurn.State.FeedbackId,
-                                    Intent = draftTurn.State.Intent,
-                                },
-                            ],
-                            AssistantMessageClass.Grounded
-                        )
-                        : [];
-                    draftComposed = true;
-                }
-
                 if (draftComposed && !hasRetrieveAsk && draftTargetChoiceBody is null)
                 {
                     conversation.LastCompareLocationIdsJson = null;
@@ -939,6 +907,58 @@ namespace TummlyBackend.Services
                     if (persist.CreatedOfferId is int createdOfferId)
                     {
                         conversation.CreatedOfferId = createdOfferId;
+                    }
+                    assistantMessage = GroundedMessage(
+                        assistantNow,
+                        persist.Title,
+                        persist.Body,
+                        persist.Actions
+                    );
+                }
+                else if (
+                    !draftComposed
+                    && !AssistantAskIntent.IsHelpCentreAsk(userMessage)
+                    && (
+                        string.Equals(
+                            succeeded.AssistantTask,
+                            AssistantTask.RecoveryPath,
+                            StringComparison.Ordinal
+                        )
+                        || (
+                            draftTargets.Count == 1
+                            && string.Equals(
+                                draftTargets[0],
+                                AssistantCreateTargets.Recovery,
+                                StringComparison.Ordinal
+                            )
+                        )
+                    )
+                )
+                {
+                    var persist = await PersistPrepareRecoveryAsync(
+                        conversation,
+                        userMessage,
+                        savedEvidence.Feedback,
+                        cancellationToken
+                    );
+                    if (persist.Gap is AssistantGapState feedbackGap)
+                    {
+                        return await FinishGapTurnAsync(
+                            conversation,
+                            feedbackGap,
+                            persist.Body,
+                            replaceFailure,
+                            cancellationToken,
+                            liveAnswerAlreadyCompleted: true
+                        );
+                    }
+
+                    conversation.DraftInterviewJson = null;
+                    conversation.LastCompareLocationIdsJson = null;
+                    if (persist.Work is AssistantRecoveryWorkState work)
+                    {
+                        conversation.RecoveryWorkJson =
+                            AssistantRecoveryWork.Serialize(work);
                     }
                     assistantMessage = GroundedMessage(
                         assistantNow,
@@ -1306,6 +1326,308 @@ namespace TummlyBackend.Services
             );
         }
 
+        private sealed record RecoveryPersistTurn(
+            string Title,
+            string Body,
+            IReadOnlyList<AssistantActionDto> Actions,
+            AssistantRecoveryWorkState? Work,
+            AssistantGapState? Gap
+        );
+
+        private async Task<AssistantTurnOutcome> ResumeFeedbackGapAsync(
+            AssistantConversation conversation,
+            AssistantGapState gapState,
+            string userMessage,
+            AssistantFeedbackEvidence feedbackEvidence,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken
+        )
+        {
+            var match = AssistantRecoveryIdentity.Resolve(
+                userMessage,
+                feedbackEvidence.Rows
+            );
+            switch (match)
+            {
+                case AssistantRecoveryIdentity.Match.Many many:
+                    return await FinishGapTurnAsync(
+                        conversation,
+                        AssistantGapTurn.CreateFeedback(
+                            many.Rows.Select(AssistantRecoveryIdentity.FormatLabel).ToList(),
+                            gapState.SourceUserMessage
+                        ),
+                        AssistantRecoveryIdentity.RepeatGapBody(
+                            many.Rows.Select(AssistantRecoveryIdentity.FormatLabel).ToList()
+                        ),
+                        replaceFailure,
+                        cancellationToken
+                    );
+                case AssistantRecoveryIdentity.Match.None:
+                    return await FinishGapTurnAsync(
+                        conversation,
+                        gapState,
+                        AssistantRecoveryIdentity.RepeatGapBody(gapState.Options),
+                        replaceFailure,
+                        cancellationToken
+                    );
+                case AssistantRecoveryIdentity.Match.One one:
+                    var persist = await PersistPrepareRecoveryAsync(
+                        conversation,
+                        gapState.SourceUserMessage,
+                        feedbackEvidence,
+                        cancellationToken,
+                        one.Row
+                    );
+                    conversation.DraftInterviewJson = null;
+                    conversation.LastCompareLocationIdsJson = null;
+                    if (persist.Work is AssistantRecoveryWorkState work)
+                    {
+                        conversation.RecoveryWorkJson =
+                            AssistantRecoveryWork.Serialize(work);
+                    }
+                    return await PersistAssistantAsync(
+                        conversation,
+                        GroundedMessage(
+                            DateTime.UtcNow,
+                            persist.Title,
+                            persist.Body,
+                            persist.Actions
+                        ),
+                        replaceFailure,
+                        cancellationToken
+                    );
+                default:
+                    return await FinishGapTurnAsync(
+                        conversation,
+                        gapState,
+                        AssistantRecoveryIdentity.RepeatGapBody(gapState.Options),
+                        replaceFailure,
+                        cancellationToken
+                    );
+            }
+        }
+
+        private async Task<RecoveryPersistTurn> PersistPrepareRecoveryAsync(
+            AssistantConversation conversation,
+            string userMessage,
+            AssistantFeedbackEvidence feedbackEvidence,
+            CancellationToken cancellationToken,
+            AssistantFeedbackEvidenceRow? boundRow = null
+        )
+        {
+            IReadOnlyList<AssistantActionDto> none = [];
+            var intent = AssistantRecoveryIntent.Bind(userMessage);
+            string? internalCategory = null;
+            string? internalNote = null;
+            if (intent == AssistantRecoveryEligibility.IntentInternalOnly)
+            {
+                (internalCategory, internalNote) =
+                    AssistantRecoveryIntent.BindInternalFields(userMessage);
+                if (internalCategory is null || internalNote is null)
+                {
+                    return new RecoveryPersistTurn(
+                        AssistantRecoveryPersistCopy.FailureTitle,
+                        AssistantRecoveryPersistCopy.InternalUnboundBody(),
+                        none,
+                        null,
+                        null
+                    );
+                }
+            }
+
+            var match = boundRow is not null
+                ? new AssistantRecoveryIdentity.Match.One(boundRow)
+                : AssistantRecoveryIdentity.Resolve(
+                    userMessage,
+                    feedbackEvidence.Rows
+                );
+            switch (match)
+            {
+                case AssistantRecoveryIdentity.Match.None:
+                    return new RecoveryPersistTurn(
+                        AssistantRecoveryPersistCopy.FailureTitle,
+                        AssistantRecoveryPersistCopy.ZeroMatchBody(),
+                        none,
+                        null,
+                        null
+                    );
+                case AssistantRecoveryIdentity.Match.Many many:
+                    var labels = many.Rows
+                        .Select(AssistantRecoveryIdentity.FormatLabel)
+                        .ToList();
+                    return new RecoveryPersistTurn(
+                        "",
+                        AssistantRecoveryIdentity.GapBody(many.Rows),
+                        none,
+                        null,
+                        AssistantGapTurn.CreateFeedback(labels, userMessage)
+                    );
+            }
+
+            var row = ((AssistantRecoveryIdentity.Match.One)match).Row;
+            Feedback? feedback;
+            try
+            {
+                feedback = await _context.Feedbacks
+                    .Include(item => item.LocationGuest)
+                    .FirstOrDefaultAsync(item => item.Id == row.Id, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return new RecoveryPersistTurn(
+                    AssistantRecoveryPersistCopy.FailureTitle,
+                    AssistantRecoveryPersistCopy.UnavailableBody(),
+                    none,
+                    null,
+                    null
+                );
+            }
+
+            if (intent == AssistantRecoveryEligibility.IntentRecoveryOffer)
+            {
+                var offerGate = AssistantRecoveryEligibility.Evaluate(
+                    feedback,
+                    AssistantRecoveryEligibility.IntentRecoveryOffer
+                );
+                if (offerGate is AssistantRecoveryEligibility.Outcome.Blocked blockedOffer)
+                {
+                    return new RecoveryPersistTurn(
+                        AssistantRecoveryPersistCopy.FailureTitle,
+                        blockedOffer.Body,
+                        none,
+                        null,
+                        null
+                    );
+                }
+            }
+
+            var eligibility = AssistantRecoveryEligibility.Evaluate(feedback, intent);
+            if (eligibility is AssistantRecoveryEligibility.Outcome.Blocked blocked)
+            {
+                return new RecoveryPersistTurn(
+                    AssistantRecoveryPersistCopy.FailureTitle,
+                    blocked.Body,
+                    none,
+                    null,
+                    null
+                );
+            }
+
+            var allowed = (AssistantRecoveryEligibility.Outcome.Allowed)eligibility;
+            if (intent == AssistantRecoveryEligibility.IntentInternalOnly)
+            {
+                var internalWork = new AssistantRecoveryWorkState
+                {
+                    FeedbackId = row.Id,
+                    Intent = intent,
+                    Channel = "",
+                    IncludeNotes = "",
+                    Category = internalCategory,
+                    Note = internalNote,
+                    EligibilitySnapshot = allowed.Snapshot,
+                };
+                var internalActions = AssistantActionCatalog.ValidateOpenRecovery(
+                    [
+                        new AssistantActionDto
+                        {
+                            Type = "open-recovery",
+                            FeedbackId = row.Id,
+                            Intent = intent,
+                        },
+                    ],
+                    AssistantMessageClass.Grounded
+                );
+                return new RecoveryPersistTurn(
+                    AssistantRecoveryPersistCopy.SuccessTitle,
+                    AssistantRecoveryPersistCopy.SuccessInternalBody(row.GuestName),
+                    internalActions,
+                    internalWork,
+                    null
+                );
+            }
+
+            var purpose = AssistantRecoveryIntent.BindPurpose(userMessage, intent);
+            var tone = AssistantRecoveryIntent.BindTone(userMessage);
+            PrepareFeedbackRecoveryDraftResultDto? copy;
+            try
+            {
+                copy = await _recoveryDrafts.PrepareAsync(
+                    row.Id,
+                    allowed.Channel,
+                    purpose,
+                    tone,
+                    includeNotes: null,
+                    mode: "prepare",
+                    currentBody: null,
+                    currentSubject: null,
+                    cancellationToken: cancellationToken
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return new RecoveryPersistTurn(
+                    AssistantRecoveryPersistCopy.FailureTitle,
+                    AssistantRecoveryPersistCopy.FailureBody("copy prepare"),
+                    none,
+                    null,
+                    null
+                );
+            }
+
+            if (copy is null || !copy.Success)
+            {
+                return new RecoveryPersistTurn(
+                    AssistantRecoveryPersistCopy.FailureTitle,
+                    AssistantRecoveryPersistCopy.FailureBody("copy prepare"),
+                    none,
+                    null,
+                    null
+                );
+            }
+
+            var work = new AssistantRecoveryWorkState
+            {
+                FeedbackId = row.Id,
+                Intent = intent,
+                Channel = allowed.Channel,
+                Purpose = purpose,
+                Tone = tone,
+                IncludeNotes = "",
+                Subject = copy.Subject,
+                Message = copy.Body,
+                EligibilitySnapshot = allowed.Snapshot,
+            };
+            var actions = AssistantActionCatalog.ValidateOpenRecovery(
+                [
+                    new AssistantActionDto
+                    {
+                        Type = "open-recovery",
+                        FeedbackId = row.Id,
+                        Intent = intent,
+                    },
+                ],
+                AssistantMessageClass.Grounded
+            );
+            return new RecoveryPersistTurn(
+                AssistantRecoveryPersistCopy.SuccessTitle,
+                AssistantRecoveryPersistCopy.SuccessBody(
+                    row.GuestName,
+                    AssistantRecoveryPersistCopy.ChannelLabel(allowed.Channel)
+                ),
+                actions,
+                work,
+                null
+            );
+        }
+
         private async Task<AssistantTurnOutcome?> TryFinishOfferTermsGapAsync(
             AssistantConversation conversation,
             string sourceUserMessage,
@@ -1537,6 +1859,18 @@ namespace TummlyBackend.Services
                     ),
                     null
                 );
+            }
+
+            if (gapState.Kind == AssistantGapTurn.KindFeedback)
+            {
+                if (detected.Count == 1
+                    && detected[0] != AssistantCreateTargets.Recovery)
+                {
+                    conversation.DraftInterviewJson = null;
+                    return new GapResume(null, detected);
+                }
+
+                return new GapResume(null, null);
             }
 
             var gapTarget = CreateTargetForTask(gapState.AssistantTask);
@@ -2091,7 +2425,8 @@ namespace TummlyBackend.Services
             AssistantGapState state,
             string body,
             AssistantMessage? replaceFailure,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken,
+            bool liveAnswerAlreadyCompleted = false
         )
         {
             conversation.DraftInterviewJson = AssistantGapTurn.Serialize(state);
@@ -2100,7 +2435,8 @@ namespace TummlyBackend.Services
                 conversation,
                 GapMessage(DateTime.UtcNow, body),
                 replaceFailure,
-                cancellationToken
+                cancellationToken,
+                liveAnswerAlreadyCompleted: liveAnswerAlreadyCompleted
             );
         }
 

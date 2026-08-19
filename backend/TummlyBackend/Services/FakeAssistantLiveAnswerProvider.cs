@@ -103,6 +103,17 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (task == AssistantTask.RecoveryPath)
+            {
+                return new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Feedback recovery",
+                    "Prepare Feedback recovery.",
+                    [],
+                    AssistantTask.RecoveryPath
+                );
+            }
+
             if (task == AssistantTask.Refuse)
             {
                 var refuseKind = AssistantAskIntent.IsHelpCentreAsk(input.UserMessage)

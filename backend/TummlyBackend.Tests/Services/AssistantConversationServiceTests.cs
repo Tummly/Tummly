@@ -26,6 +26,7 @@ namespace TummlyBackend.Tests.Services
         private readonly ControllableGuestsRetrieve _guestsRetrieve;
         private readonly RecordingAssistantProgressPublisher _progress;
         private readonly FakeCampaignMessageDraftProvider _messageDrafts;
+        private readonly FakeFeedbackRecoveryDraftProvider _recoveryDrafts;
         private readonly AssistantConversationService _service;
 
         public AssistantConversationServiceTests()
@@ -63,6 +64,7 @@ namespace TummlyBackend.Tests.Services
             );
             _progress = new RecordingAssistantProgressPublisher();
             _messageDrafts = new FakeCampaignMessageDraftProvider();
+            _recoveryDrafts = new FakeFeedbackRecoveryDraftProvider();
             _service = CreateConversationService();
         }
 
@@ -92,7 +94,8 @@ namespace TummlyBackend.Tests.Services
                     ),
                 eligibility ?? new CampaignEligibilityService(_context),
                 new CampaignMessageDraftService(_messageDrafts),
-                catalog
+                catalog,
+                new FeedbackRecoveryDraftsService(_context, _recoveryDrafts)
             );
         }
 
@@ -1427,6 +1430,287 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_PrepareRecoveryResponse_EligibleGuestMessage_StoresWorkAndReview()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest"
+            );
+            _recoveryDrafts.SucceedWith(
+                "Thank you for your feedback. We are looking into this.",
+                "Regarding your recent visit",
+                "email"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Prepare a recovery response")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.False(ok.Conversation.DraftInterviewActive);
+            Assert.DoesNotContain("###", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Intent catalogue", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Purpose catalogue", answer.Body, StringComparison.Ordinal);
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("open-recovery", action.Type);
+            Assert.Equal("Review recovery", action.Label);
+            Assert.Equal("respond-to-guest", action.Intent);
+            Assert.NotNull(ok.Conversation.PendingRecoveryDraft);
+            Assert.Equal(action.FeedbackId, ok.Conversation.PendingRecoveryDraft!.FeedbackId);
+            Assert.Equal("respond-to-guest", ok.Conversation.PendingRecoveryDraft.Intent);
+            Assert.Equal("email", ok.Conversation.PendingRecoveryDraft.Channel);
+            Assert.Equal(
+                "apologise_and_confirm_follow_up",
+                ok.Conversation.PendingRecoveryDraft.Purpose
+            );
+            Assert.Equal("warm_and_apologetic", ok.Conversation.PendingRecoveryDraft.Tone);
+            Assert.Equal("", ok.Conversation.PendingRecoveryDraft.IncludeNotes);
+            Assert.Equal(
+                "Regarding your recent visit",
+                ok.Conversation.PendingRecoveryDraft.Subject
+            );
+            Assert.Equal(
+                "Thank you for your feedback. We are looking into this.",
+                ok.Conversation.PendingRecoveryDraft.Message
+            );
+            Assert.Equal(
+                FeedbackWorkflowStatus.New,
+                (await _context.Feedbacks.SingleAsync()).WorkflowStatus
+            );
+            Assert.Empty(_context.FeedbackRecoveryOffers);
+            Assert.NotNull(_recoveryDrafts.LastInput);
+            Assert.Equal("email", _recoveryDrafts.LastInput!.Channel);
+            Assert.Equal(
+                "apologise_and_confirm_follow_up",
+                _recoveryDrafts.LastInput.Purpose
+            );
+            Assert.Equal("warm_and_apologetic", _recoveryDrafts.LastInput.Tone);
+            Assert.Equal("prepare", _recoveryDrafts.LastInput.Mode);
+
+            var resumed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.GetAsync(ownerUserId: 7, ok.Conversation.Id)
+            );
+            Assert.Equal("open-recovery", resumed.Conversation.Messages[^1].Actions[0].Type);
+            Assert.NotNull(resumed.Conversation.PendingRecoveryDraft);
+            Assert.Equal(
+                ok.Conversation.PendingRecoveryDraft.FeedbackId,
+                resumed.Conversation.PendingRecoveryDraft!.FeedbackId
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoveryResponse_Resolved_RefusesWithNoReview()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                workflow: FeedbackWorkflowStatus.Resolved,
+                guestName: "Pat Guest"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Prepare a recovery response")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Empty(answer.Actions);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+            Assert.False(ok.Conversation.DraftInterviewActive);
+            Assert.Contains("resolved", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("reopen", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Null(_recoveryDrafts.LastInput);
+            Assert.Equal(
+                FeedbackWorkflowStatus.Resolved,
+                (await _context.Feedbacks.SingleAsync()).WorkflowStatus
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoveryResponse_NoContact_NamesInternalAlternative()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest",
+                guestContact: "",
+                contactType: ContactType.Unknown
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Prepare a recovery response")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Empty(answer.Actions);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+            Assert.Contains(
+                "Record an internal action only",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Null(_recoveryDrafts.LastInput);
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoveryResponse_CopyPrepareFail_HasNoReview()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest"
+            );
+            _recoveryDrafts.Fail();
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Prepare a recovery response")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Empty(answer.Actions);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+            Assert.Contains("copy prepare", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(
+                FeedbackWorkflowStatus.New,
+                (await _context.Feedbacks.SingleAsync()).WorkflowStatus
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoveryResponse_InternalUnbound_PersistsNothing()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Record an internal action only"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Empty(answer.Actions);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+            Assert.Contains(
+                "category",
+                answer.Body,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.DoesNotContain("other_action", answer.Body, StringComparison.Ordinal);
+            Assert.Null(_recoveryDrafts.LastInput);
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoveryResponse_InternalBound_StoresWorkAndReview()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Record an internal action only. Team briefed. Note: kitchen delay"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("open-recovery", action.Type);
+            Assert.Equal("record-internal-action-only", action.Intent);
+            Assert.NotNull(ok.Conversation.PendingRecoveryDraft);
+            Assert.Equal(
+                "record-internal-action-only",
+                ok.Conversation.PendingRecoveryDraft!.Intent
+            );
+            Assert.Equal("team_briefed", ok.Conversation.PendingRecoveryDraft.Category);
+            Assert.Equal("kitchen delay", ok.Conversation.PendingRecoveryDraft.Note);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft.Message);
+            Assert.Equal(
+                FeedbackWorkflowStatus.New,
+                (await _context.Feedbacks.SingleAsync()).WorkflowStatus
+            );
+            Assert.Null(_recoveryDrafts.LastInput);
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoveryResponse_TwoMatches_IsFeedbackGap()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-3),
+                guestName: "Alex Guest",
+                guestContact: "alex@example.com"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Prepare a recovery response")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Empty(answer.Actions);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+            Assert.Contains("Pat Guest", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Alex Guest", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Intent catalogue", answer.Body, StringComparison.Ordinal);
+            Assert.Null(_recoveryDrafts.LastInput);
+        }
+
+        [Fact]
+        public async Task SendTurn_PrepareRecoveryResponse_ZeroMatches_ExplainsWithoutDump()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Prepare a recovery response")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Empty(answer.Actions);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+            Assert.False(ok.Conversation.DraftInterviewActive);
+            Assert.Contains("could not match", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("###", answer.Body, StringComparison.Ordinal);
+            Assert.Null(_recoveryDrafts.LastInput);
+        }
+
+        [Fact]
         public async Task SendTurn_MixedRetrieveAndCanonicalCreate_PersistsOneAnswerWithoutRetrieveActions()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
@@ -1912,7 +2196,7 @@ namespace TummlyBackend.Tests.Services
             );
 
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
-            Assert.True(ok.Conversation.DraftInterviewActive);
+            Assert.False(ok.Conversation.DraftInterviewActive);
             Assert.Equal("Prepare recovery reply", ok.Conversation.Title);
         }
 
@@ -2546,7 +2830,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_GenericResponseRequest_StartsRecoveryInterview()
+        public async Task SendTurn_GenericResponseRequest_CompletesWithReview()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
@@ -2558,9 +2842,9 @@ namespace TummlyBackend.Tests.Services
                 )
             );
 
-            Assert.True(outcome.Conversation.DraftInterviewActive);
-            Assert.Contains("Feedback", outcome.Conversation.Messages[^1].Body);
-            Assert.Empty(outcome.Conversation.Messages[^1].Actions);
+            Assert.False(outcome.Conversation.DraftInterviewActive);
+            Assert.Equal("open-recovery", Assert.Single(outcome.Conversation.Messages[^1].Actions).Type);
+            Assert.NotNull(outcome.Conversation.PendingRecoveryDraft);
         }
 
         [Fact]
@@ -2610,6 +2894,7 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.Contains("Feedback", recovery.Conversation.Messages[^1].Body);
             Assert.Null(recovery.Conversation.PendingOfferDraft);
+            Assert.False(recovery.Conversation.DraftInterviewActive);
 
             var offerAgain = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await _service.SendTurnAsync(
@@ -2632,7 +2917,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_RecoveryDraftInterview_CompletesWithOpenRecoveryAction()
+        public async Task SendTurn_RecoveryDraftAsk_CompletesWithOpenRecoveryAction()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             await SeedFeedbackAsync(
@@ -2641,44 +2926,16 @@ namespace TummlyBackend.Tests.Services
                 guestName: "Pat Guest"
             );
 
-            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+            var completed = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await _service.SendTurnAsync(
                     ownerUserId: 7,
                     FirstSendRequest(locationId, "Draft a recovery response")
                 )
             );
-            Assert.Equal("grounded", started.Conversation.Messages[^1].Class);
-            Assert.Empty(started.Conversation.Messages[^1].Actions);
-            Assert.True(started.Conversation.DraftInterviewActive);
-            Assert.Null(started.Conversation.PendingRecoveryDraft);
-
-            var locked = Assert.IsType<AssistantTurnOutcome.Ok>(
-                await _service.SendTurnAsync(
-                    ownerUserId: 7,
-                    new SendAssistantTurnRequest
-                    {
-                        ConversationId = started.Conversation.Id,
-                        Message = "Pat Guest; Respond to the guest",
-                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
-                    }
-                )
-            );
-            Assert.Empty(locked.Conversation.Messages[^1].Actions);
-
-            var completed = Assert.IsType<AssistantTurnOutcome.Ok>(
-                await _service.SendTurnAsync(
-                    ownerUserId: 7,
-                    new SendAssistantTurnRequest
-                    {
-                        ConversationId = started.Conversation.Id,
-                        Message =
-                            "Acknowledge the feedback; Warm and apologetic; no notes; message: Thanks for telling us",
-                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
-                    }
-                )
-            );
 
             var answer = completed.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.False(completed.Conversation.DraftInterviewActive);
             var action = Assert.Single(answer.Actions);
             Assert.Equal("open-recovery", action.Type);
             Assert.Equal("Review recovery", action.Label);
@@ -2695,7 +2952,7 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.Equal("email", completed.Conversation.PendingRecoveryDraft.Channel);
             Assert.Equal(
-                "Thanks for telling us",
+                "Thank you for your feedback. We are looking into this.",
                 completed.Conversation.PendingRecoveryDraft.Message
             );
             Assert.Null(completed.Conversation.PendingCampaignDraft);
@@ -2743,7 +3000,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_MixedRetrieveAndRecoveryDraft_GroundsThenStartsOneInterview()
+        public async Task SendTurn_MixedRetrieveAndRecoveryDraft_CreateWinsWithReview()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
@@ -2759,10 +3016,9 @@ namespace TummlyBackend.Tests.Services
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             var answer = ok.Conversation.Messages[^1];
             Assert.Equal("grounded", answer.Class);
-            Assert.True(ok.Conversation.DraftInterviewActive);
-            Assert.Contains("1 feedback item", answer.Body);
-            Assert.DoesNotContain(answer.Actions, action => action.Type == "open-recovery");
-            Assert.True(answer.Actions.Count <= 3);
+            Assert.False(ok.Conversation.DraftInterviewActive);
+            Assert.Equal("open-recovery", Assert.Single(answer.Actions).Type);
+            Assert.NotNull(ok.Conversation.PendingRecoveryDraft);
         }
 
         [Fact]
@@ -4815,7 +5071,8 @@ namespace TummlyBackend.Tests.Services
             string guestName = "Pat Guest",
             string guestContact = "pat@example.com",
             string comment = "Slow service at dinner",
-            int qrCodeId = 0
+            int qrCodeId = 0,
+            ContactType contactType = ContactType.Email
         )
         {
             _context.Feedbacks.Add(
@@ -4826,7 +5083,7 @@ namespace TummlyBackend.Tests.Services
                     QrCodeId = qrCodeId,
                     GuestName = guestName,
                     GuestContact = guestContact,
-                    ContactType = ContactType.Email,
+                    ContactType = contactType,
                     Comment = comment,
                     OffersOptOut = false,
                     CreatedAt = createdAt,

@@ -79,6 +79,11 @@ namespace TummlyBackend.Helpers
         public static bool IsRecoveryDraftAsk(string message)
         {
             var lower = message.Trim().ToLowerInvariant();
+            if (AssistantRecoveryIntent.LooksLikeInternalOnly(lower))
+            {
+                return true;
+            }
+
             var directResponseAsk =
                 lower.Contains("respond to the guest", StringComparison.Ordinal)
                 || lower.Contains("respond to these guests", StringComparison.Ordinal)

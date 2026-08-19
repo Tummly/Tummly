@@ -11,7 +11,8 @@ namespace TummlyBackend.Helpers
         {
             if (AssistantAskIntent.IsHelpCentreAsk(userMessage)
                 && (LooksLikeCreateCampaignDraft(userMessage)
-                    || LooksLikeOfferPath(userMessage)))
+                    || LooksLikeOfferPath(userMessage)
+                    || LooksLikeRecoveryPath(userMessage)))
             {
                 return AssistantTask.Refuse;
             }
@@ -24,6 +25,11 @@ namespace TummlyBackend.Helpers
             if (LooksLikeOfferPath(userMessage))
             {
                 return AssistantTask.OfferPath;
+            }
+
+            if (LooksLikeRecoveryPath(userMessage))
+            {
+                return AssistantTask.RecoveryPath;
             }
 
             if (AssistantAskIntent.IsFullRefusal(AssistantAskIntent.Classify(userMessage)))
@@ -79,6 +85,17 @@ namespace TummlyBackend.Helpers
                 "set up",
                 "write"
             );
+        }
+
+        public static bool LooksLikeRecoveryPath(string message)
+        {
+            var targets = AssistantCreateTargets.Detect(message);
+            return targets.Count == 1
+                && string.Equals(
+                    targets[0],
+                    AssistantCreateTargets.Recovery,
+                    StringComparison.Ordinal
+                );
         }
 
         public static bool LooksLikeCreateCampaignDraft(string message)
@@ -148,7 +165,8 @@ namespace TummlyBackend.Helpers
             return AssistantAskIntent.HasReplacingRetrieveAsk(message)
                 && AssistantCreateTargets.Detect(message).Count == 0
                 && !LooksLikeCreateCampaignDraft(message)
-                && !LooksLikeOfferPath(message);
+                && !LooksLikeOfferPath(message)
+                && !LooksLikeRecoveryPath(message);
         }
 
         public static string ForCreateTargetGap(

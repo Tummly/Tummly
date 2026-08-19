@@ -22,6 +22,7 @@ namespace TummlyBackend.Helpers
         public const string KindAudience = "audience";
         public const string KindChannel = "channel";
         public const string KindOfferTerms = "offer-terms";
+        public const string KindFeedback = "feedback";
 
         public static AssistantGapState CreateTarget(
             IReadOnlyList<string> options,
@@ -102,6 +103,18 @@ namespace TummlyBackend.Helpers
                 ),
             };
 
+        public static AssistantGapState CreateFeedback(
+            IReadOnlyList<string> options,
+            string sourceUserMessage
+        )
+            => new()
+            {
+                Kind = KindFeedback,
+                AssistantTask = AssistantTask.RecoveryPath,
+                Options = options.ToList(),
+                SourceUserMessage = sourceUserMessage,
+            };
+
         private static AssistantGapState CreateNamed(
             string kind,
             IReadOnlyList<string> options,
@@ -122,7 +135,7 @@ namespace TummlyBackend.Helpers
         private static bool IsKnownKind(string kind)
             => kind is KindCreateTarget or KindLocation
                 or KindOffer or KindAudience or KindChannel
-                or KindOfferTerms;
+                or KindOfferTerms or KindFeedback;
 
         public static AssistantGapState? Parse(string? json)
         {

@@ -2461,7 +2461,7 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     }
   )
 
-  it("opens Review recovery with prepare + navigate and spends the row", async () => {
+  it("opens Review recovery with hydrate navigate and keeps the row", async () => {
     const calls: string[] = []
     const recoveryDraft = {
       feedbackId: 42,
@@ -2511,12 +2511,6 @@ describe("grounded live answers, helpful fill, and Actions", () => {
       openRecoveryFromDraftAction: async () => {
         calls.push("open")
       },
-      clearDraftInterview: async () => {
-        calls.push("clear")
-      },
-      navigateAction: () => {
-        calls.push("land")
-      },
     })
     const module = createOperatorAiAssistantModule(adapters)
     module.openDrawer()
@@ -2533,11 +2527,12 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(calls).toEqual(["prepare", "open", "clear", "land"])
+    expect(calls).toEqual(["prepare", "open"])
     expect(module.getSnapshot().drawerOpen).toBe(false)
-    expect(module.getSnapshot().messages.at(-1)?.actions?.[0]).toMatchObject({
+    expect(adapters.lastNavigate?.recoveryDraft).toEqual(recoveryDraft)
+    expect(adapters.lastNavigate?.action).toMatchObject({
+      type: "open-recovery",
       label: "Review recovery",
-      clickable: false,
     })
   })
 

@@ -311,8 +311,8 @@ export type OperatorAiAssistantAdapters = {
   createCampaignDraft: (body: CreateCampaignDraftRequest) => Promise<void>
   createCatalogOfferDraft: (body: CreateCatalogOfferRequestBody) => Promise<void>
   /**
-   * Gate Resolved / No contact / opt-out before hydrate. Throws Error with
-   * toast message. Durable status/attach runs after hydrate succeeds.
+   * Recheck eligibility, then New → In progress and offer attach.
+   * Throws Error with a shipped toast. Does not prepare copy.
    */
   prepareOpenRecovery: (input: {
     feedbackId: number
@@ -320,9 +320,8 @@ export type OperatorAiAssistantAdapters = {
     offerId: number | null
   }) => Promise<void>
   /**
-   * Hydrate Feedback Review from the Draft Action while the Assistant is still
-   * open, then apply status/attach. Throws on failure so the row stays
-   * re-clickable.
+   * Hydrate Feedback Review from stored conversation fields.
+   * Throws on failure so the row stays re-clickable.
    */
   openRecoveryFromDraftAction: (
     payload: RecoveryDraftActionPayload
@@ -590,13 +589,14 @@ export function createInMemoryOperatorAiAssistantAdapters(
 ): OperatorAiAssistantAdapters & {
   conversations: OperatorAiAssistantConversationRow[]
   online: boolean
-    lastNavigate: {
-      action: OperatorAiAssistantAction
-      analysisScope: OperatorAiAssistantAnalysisScope
-      campaignDraft?: CampaignDraftDetail | null
-      catalogOffer?: CatalogOfferDetail | null
-    } | null
-  } {
+  lastNavigate: {
+    action: OperatorAiAssistantAction
+    analysisScope: OperatorAiAssistantAnalysisScope
+    campaignDraft?: CampaignDraftDetail | null
+    catalogOffer?: CatalogOfferDetail | null
+    recoveryDraft?: RecoveryDraftActionPayload | null
+  } | null
+} {
   const conversations: OperatorAiAssistantConversationRow[] = []
   const ownedLocations: OperatorAiAssistantOwnedLocationOption[] = [
     DEFAULT_OWNED_LOCATION,
@@ -610,6 +610,7 @@ export function createInMemoryOperatorAiAssistantAdapters(
       analysisScope: OperatorAiAssistantAnalysisScope
       campaignDraft?: CampaignDraftDetail | null
       catalogOffer?: CatalogOfferDetail | null
+      recoveryDraft?: RecoveryDraftActionPayload | null
     } | null,
   }
 
@@ -1095,10 +1096,11 @@ function visibleActionsForMessage(
         : action.type === "draft-offer"
           ? false
           : action.type === "open-recovery"
-            ? (!state.actionInFlight
-              && !state.draftActionSpent
-              && state.pendingRecoveryDraft != null
-              && message === storedMessages.at(-1))
+            ? !(
+                state.turnInFlight
+                || state.actionInFlight
+                || state.pendingRecoveryDraft == null
+              )
             : true,
   }))
 }
@@ -2146,14 +2148,11 @@ export function createOperatorAiAssistantModule(
         return
       }
       if (action.type === "open-recovery") {
-        const conversationId = state.conversationId
         const payload = state.pendingRecoveryDraft
         const latest = state.messages.at(-1)
         if (
-          conversationId == null
-          || payload == null
+          payload == null
           || state.actionInFlight
-          || state.draftActionSpent
           || latest?.role !== "assistant"
           || !latest.actions?.some((item) => item.type === "open-recovery")
         ) {
@@ -2168,22 +2167,18 @@ export function createOperatorAiAssistantModule(
             offerId: payload.offerId ?? null,
           })
           .then(() => adapters.openRecoveryFromDraftAction(payload))
-          .then(async () => {
-            // Spend only after Review hydrate succeeds; failure stays re-clickable.
+          .then(() => {
             state = {
               ...state,
               actionInFlight: false,
-              draftActionSpent: true,
-              pendingRecoveryDraft: null,
             }
             publish()
-            try {
-              await adapters.clearDraftInterview(conversationId)
-            } catch {
-              // Hydrate already succeeded; keep the row spent.
-            }
             closeDrawer()
-            adapters.navigateAction({ action, analysisScope })
+            adapters.navigateAction({
+              action,
+              analysisScope,
+              recoveryDraft: payload,
+            })
           })
           .catch((error: unknown) => {
             state = { ...state, actionInFlight: false }

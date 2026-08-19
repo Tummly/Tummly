@@ -63,6 +63,14 @@ namespace TummlyBackend.Models
         /// </summary>
         public int? CreatedOfferId { get; set; }
 
+        /// <summary>
+        /// Feedback recovery work stored on a completing Recovery path turn.
+        /// JSON: Feedback id + intent + eligibility snapshot + prepared fields.
+        /// Null when this conversation has not prepared recovery work.
+        /// Distinct from Draft interview JSON.
+        /// </summary>
+        public string? RecoveryWorkJson { get; set; }
+
         public ICollection<AssistantMessage> Messages { get; set; }
             = new List<AssistantMessage>();
     }

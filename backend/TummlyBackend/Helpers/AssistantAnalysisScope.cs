@@ -152,6 +152,7 @@ namespace TummlyBackend.Helpers
             var draftTargetChoiceState = AssistantDraftTargetChoice.Parse(
                 conversation.DraftInterviewJson
             );
+            var recoveryWork = AssistantRecoveryWork.Parse(conversation.RecoveryWorkJson);
 
             return new AssistantConversationDto
             {
@@ -180,10 +181,9 @@ namespace TummlyBackend.Helpers
                             conversation.OwnedLocationId
                         )
                         : null,
-                PendingRecoveryDraft = recoveryDraftState is not null
-                    && AssistantRecoveryDraftInterview.IsReady(recoveryDraftState)
-                        ? AssistantRecoveryDraftInterview.ToPayload(recoveryDraftState)
-                        : null,
+                PendingRecoveryDraft = recoveryWork is not null
+                    ? AssistantRecoveryWork.ToPayload(recoveryWork)
+                    : null,
             };
         }
 
