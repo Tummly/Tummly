@@ -115,7 +115,7 @@ namespace TummlyBackend.Helpers
             return new AssistantLocationGapOutcome.Unnamed();
         }
 
-        public static string AmbiguousBody(
+        private static string AmbiguousBody(
             string userMessage,
             IReadOnlyList<string> names
         )
@@ -124,10 +124,10 @@ namespace TummlyBackend.Helpers
             return $"More than one Owned location matches {token}. Which one: {Join(names)}?";
         }
 
-        public static string ConflictBody(string analysisScopeName, string namedName)
+        private static string ConflictBody(string analysisScopeName, string namedName)
             => $"Analysis scope is {analysisScopeName}. This Campaign Draft names {namedName}. Which Owned location should I use: {Join([analysisScopeName, namedName])}?";
 
-        public static string TwoNamedBody(IReadOnlyList<string> names)
+        private static string TwoNamedBody(IReadOnlyList<string> names)
             => $"This Campaign Draft names {Join(names)}. Which Owned location should I use: {Join(names)}?";
 
         public static string Join(IReadOnlyList<string> names)
@@ -143,6 +143,21 @@ namespace TummlyBackend.Helpers
             }
 
             return string.Join(", ", names);
+        }
+
+        public static string RepeatBody(string? locationKind, IReadOnlyList<string> options)
+            => locationKind switch
+            {
+                KindAmbiguous => AmbiguousRepeat(options),
+                KindConflict when options.Count >= 2 => ConflictBody(options[0], options[1]),
+                KindTwoNamed => TwoNamedBody(options),
+                _ => "Which Owned location should this Campaign Draft use? Name one.",
+            };
+
+        private static string AmbiguousRepeat(IReadOnlyList<string> options)
+        {
+            var token = options.Count == 0 ? "that name" : options[0];
+            return $"More than one Owned location matches {token}. Which one: {Join(options)}?";
         }
 
         private static List<AssistantGapLocation> FindNamedMatches(

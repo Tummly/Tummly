@@ -71,9 +71,6 @@ namespace TummlyBackend.Helpers
                 );
         }
 
-        public static IReadOnlyList<string> DetectDraftTargets(string message)
-            => AssistantCreateTargets.Detect(message);
-
         public static bool IsClearCancel(string message)
         {
             var lower = message.Trim().ToLowerInvariant();

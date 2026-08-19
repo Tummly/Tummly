@@ -276,7 +276,9 @@ namespace TummlyBackend.Helpers
                 "mark this resolved",
                 "mark as resolved",
                 "write a reply and send",
-                "send the recovery"
+                "send the recovery",
+                "send it now",
+                "send now"
             );
         }
 

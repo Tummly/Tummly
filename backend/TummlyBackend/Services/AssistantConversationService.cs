@@ -471,9 +471,7 @@ namespace TummlyBackend.Services
                 gapState = null;
             }
             else if (gapState is not null
-                && AssistantAskIntent.HasReplacingRetrieveAsk(userMessage)
-                && AssistantCreateTargets.Detect(userMessage).Count == 0
-                && !AssistantTaskClassification.LooksLikeCreateCampaignDraft(userMessage))
+                && AssistantTaskClassification.LooksLikeReplacingTask(userMessage))
             {
                 conversation.DraftInterviewJson = null;
                 gapState = null;
@@ -541,7 +539,10 @@ namespace TummlyBackend.Services
                     AssistantGapTurn.CreateTarget(
                         draftTargets,
                         userMessage,
-                        AssistantTaskClassification.Classify(userMessage)
+                        AssistantTaskClassification.ForCreateTargetGap(
+                            draftTargets,
+                            userMessage
+                        )
                     ),
                     AssistantGapTurn.CreateTargetBody(draftTargets),
                     replaceFailure,
@@ -692,21 +693,7 @@ namespace TummlyBackend.Services
             IReadOnlyList<AssistantActionDto> draftReadyActions = [];
             var draftComposed = false;
 
-            if (!cancelDraft && draftTargets.Count > 1)
-            {
-                return await FinishGapTurnAsync(
-                    conversation,
-                    AssistantGapTurn.CreateTarget(
-                        draftTargets,
-                        userMessage,
-                        AssistantTaskClassification.Classify(userMessage)
-                    ),
-                    AssistantGapTurn.CreateTargetBody(draftTargets),
-                    replaceFailure,
-                    cancellationToken
-                );
-            }
-            else if (!cancelDraft)
+            if (!cancelDraft)
             {
                 var namedOffer =
                     draftTargets.Contains("Offer", StringComparer.Ordinal)
@@ -1139,7 +1126,10 @@ namespace TummlyBackend.Services
                         AssistantGapTurn.CreateTarget(
                             detected,
                             userMessage,
-                            AssistantTaskClassification.Classify(userMessage)
+                            AssistantTaskClassification.ForCreateTargetGap(
+                                detected,
+                                userMessage
+                            )
                         ),
                         AssistantGapTurn.CreateTargetBody(detected),
                         replaceFailure,
@@ -1193,7 +1183,12 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                if (resolved == AssistantCreateTargets.Campaign)
+                if (resolved == AssistantCreateTargets.Campaign
+                    && string.Equals(
+                        gapState.AssistantTask,
+                        AssistantTask.CreateCampaignDraft,
+                        StringComparison.Ordinal
+                    ))
                 {
                     var locationOutcome = ResolveCreateLocation(
                         gapState.SourceUserMessage,
@@ -1253,12 +1248,37 @@ namespace TummlyBackend.Services
             );
             if (answerOutcome is AssistantLocationGapOutcome.Unnamed)
             {
+                if (!AssistantGapTurn.LooksLikeContinueAnswer(userMessage))
+                {
+                    return new GapResume(
+                        await FinishGapTurnAsync(
+                            conversation,
+                            gapState,
+                            AssistantGapTurn.RepeatLocationBody(gapState),
+                            replaceFailure,
+                            cancellationToken
+                        ),
+                        null
+                    );
+                }
+
                 answerOutcome = ResolveCreateLocation(
                     gapState.SourceUserMessage,
                     conversation,
                     analysisScopeLocationName,
                     ownedLocations
                 );
+            }
+
+            if (!string.Equals(
+                    gapState.AssistantTask,
+                    AssistantTask.CreateCampaignDraft,
+                    StringComparison.Ordinal
+                )
+                && answerOutcome is AssistantLocationGapOutcome.Unique)
+            {
+                conversation.DraftInterviewJson = null;
+                return new GapResume(null, null);
             }
 
             var locationFinish = await TryFinishLocationOutcomeAsync(

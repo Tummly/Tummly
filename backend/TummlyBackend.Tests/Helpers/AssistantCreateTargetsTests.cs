@@ -79,5 +79,16 @@ namespace TummlyBackend.Tests.Helpers
                 )
             );
         }
+
+        [Fact]
+        public void Resolve_HelpCentreHowTo_DoesNotBindCampaign()
+        {
+            Assert.Null(
+                AssistantCreateTargets.Resolve(
+                    AssistantCreateTargets.UnnamedOptions,
+                    "How do I create a campaign?"
+                )
+            );
+        }
     }
 }

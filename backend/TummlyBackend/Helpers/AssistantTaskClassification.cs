@@ -80,6 +80,63 @@ namespace TummlyBackend.Helpers
         public static bool LooksLikeCreateTurn(string message)
             => AssistantCreateTargets.Detect(message).Count > 0;
 
+        public static bool LooksLikeReplacingTask(string message)
+        {
+            if (Classify(message) == AssistantTask.Refuse)
+            {
+                return true;
+            }
+
+            return AssistantAskIntent.HasReplacingRetrieveAsk(message)
+                && AssistantCreateTargets.Detect(message).Count == 0
+                && !LooksLikeCreateCampaignDraft(message);
+        }
+
+        public static string ForCreateTargetGap(
+            IReadOnlyList<string> options,
+            string sourceMessage
+        )
+        {
+            var classified = Classify(sourceMessage);
+            if (classified is AssistantTask.CreateCampaignDraft
+                or AssistantTask.OfferPath
+                or AssistantTask.RecoveryPath)
+            {
+                return classified;
+            }
+
+            if (options.Count == 1)
+            {
+                return ForCreateTarget(options[0]);
+            }
+
+            if (options.Contains(AssistantCreateTargets.Campaign, StringComparer.Ordinal))
+            {
+                return AssistantTask.CreateCampaignDraft;
+            }
+
+            if (options.Contains(AssistantCreateTargets.Offer, StringComparer.Ordinal))
+            {
+                return AssistantTask.OfferPath;
+            }
+
+            if (options.Contains(AssistantCreateTargets.Recovery, StringComparer.Ordinal))
+            {
+                return AssistantTask.RecoveryPath;
+            }
+
+            return classified;
+        }
+
+        private static string ForCreateTarget(string target)
+            => target switch
+            {
+                AssistantCreateTargets.Campaign => AssistantTask.CreateCampaignDraft,
+                AssistantCreateTargets.Offer => AssistantTask.OfferPath,
+                AssistantCreateTargets.Recovery => AssistantTask.RecoveryPath,
+                _ => AssistantTask.Retrieve,
+            };
+
         private static bool ContainsAny(string lower, params string[] needles)
             => needles.Any(needle => lower.Contains(needle, StringComparison.Ordinal));
     }

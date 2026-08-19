@@ -126,8 +126,5 @@ namespace TummlyBackend.Services
                 input.DroppedUnknownSentence
             ) with { AssistantTask = AssistantTask.Retrieve };
         }
-
-        public static string ClassifyAssistantTask(string userMessage)
-            => AssistantTaskClassification.Classify(userMessage);
     }
 }
