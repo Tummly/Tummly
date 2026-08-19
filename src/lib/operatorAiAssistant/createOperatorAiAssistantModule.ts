@@ -1026,30 +1026,17 @@ function isCompletingOfferAction(
   return type === "review-offer"
 }
 
-function canOpenCampaignDraftFromAssistant(
-  campaign: { status: string; locationId: number } | null,
+function canOpenStoredDraftFromAssistant(
+  row: { status: string; locationId: number } | null,
   analysisScopeLocationId: number
 ): boolean {
-  if (campaign == null) {
+  if (row == null) {
     return false
   }
-  if (campaign.status.toLowerCase() !== "draft") {
+  if (row.status.toLowerCase() !== "draft") {
     return false
   }
-  return campaign.locationId === analysisScopeLocationId
-}
-
-function canOpenCatalogOfferFromAssistant(
-  offer: { status: string; locationId: number } | null,
-  analysisScopeLocationId: number
-): boolean {
-  if (offer == null) {
-    return false
-  }
-  if (offer.status.toLowerCase() !== "draft") {
-    return false
-  }
-  return offer.locationId === analysisScopeLocationId
+  return row.locationId === analysisScopeLocationId
 }
 
 function visibleActionsForMessage(
@@ -1100,16 +1087,13 @@ function visibleActionsForMessage(
               && state.completingOfferNavigateId != null
               && action.offerId === state.completingOfferNavigateId)
           )
-      : action.type === "draft-campaign"
+        : action.type === "draft-campaign"
         ? (!state.actionInFlight
           && !state.draftActionSpent
           && state.pendingCampaignDraft != null
           && message === storedMessages.at(-1))
         : action.type === "draft-offer"
-          ? (!state.actionInFlight
-            && !state.draftActionSpent
-            && state.pendingOfferDraft != null
-            && message === storedMessages.at(-1))
+          ? false
           : action.type === "open-recovery"
             ? (!state.actionInFlight
               && !state.draftActionSpent
@@ -2093,7 +2077,7 @@ export function createOperatorAiAssistantModule(
           .getCampaignDraft(campaignId)
           .then((campaign) => {
             if (
-              !canOpenCampaignDraftFromAssistant(
+              !canOpenStoredDraftFromAssistant(
                 campaign,
                 analysisScope.ownedLocationId
               )
@@ -2133,7 +2117,7 @@ export function createOperatorAiAssistantModule(
           .getCatalogOffer(offerId)
           .then((offer) => {
             if (
-              !canOpenCatalogOfferFromAssistant(
+              !canOpenStoredDraftFromAssistant(
                 offer,
                 analysisScope.ownedLocationId
               )
@@ -2159,49 +2143,6 @@ export function createOperatorAiAssistantModule(
         return
       }
       if (action.type === "draft-offer") {
-        const conversationId = state.conversationId
-        const pendingBody = state.pendingOfferDraft
-        const latest = state.messages.at(-1)
-        if (
-          conversationId == null
-          || pendingBody == null
-          || state.actionInFlight
-          || state.draftActionSpent
-          || latest?.role !== "assistant"
-          || !latest.actions?.some((item) => item.type === "draft-offer")
-        ) {
-          return
-        }
-        const body = {
-          ...pendingBody,
-          locationId: analysisScope.ownedLocationId,
-        }
-        state = { ...state, actionInFlight: true }
-        publish()
-        void adapters
-          .createCatalogOfferDraft(body as CreateCatalogOfferRequestBody)
-          .then(async () => {
-            // Spend before clear so a clear failure cannot unlock a second POST.
-            state = {
-              ...state,
-              actionInFlight: false,
-              draftActionSpent: true,
-              pendingOfferDraft: null,
-            }
-            publish()
-            try {
-              await adapters.clearDraftInterview(conversationId)
-            } catch {
-              // Create already succeeded; keep the row spent.
-            }
-            closeDrawer()
-            adapters.navigateAction({ action, analysisScope })
-          })
-          .catch(() => {
-            state = { ...state, actionInFlight: false }
-            adapters.notifyDraftError()
-            publish()
-          })
         return
       }
       if (action.type === "open-recovery") {

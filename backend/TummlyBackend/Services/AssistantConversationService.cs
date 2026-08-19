@@ -913,12 +913,25 @@ namespace TummlyBackend.Services
                 {
                     var persistLocationId = boundCreateLocationId ?? conversation.OwnedLocationId;
                     var persistLocationName = boundCreateLocationName ?? locationName;
+                    var terms = AssistantOfferPathTerms.Parse(userMessage);
+                    var termsGap = await TryFinishOfferTermsGapAsync(
+                        conversation,
+                        userMessage,
+                        terms,
+                        replaceFailure,
+                        cancellationToken
+                    );
+                    if (termsGap is not null)
+                    {
+                        return termsGap;
+                    }
+
                     var persist = await PersistCreateOfferDraftAsync(
                         conversation,
                         userMessage,
                         persistLocationId,
                         persistLocationName,
-                        priorTerms: null,
+                        terms,
                         cancellationToken
                     );
                     conversation.DraftInterviewJson = null;
@@ -1240,7 +1253,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            var terms = AssistantOfferPathTerms.Merge(priorTerms, userMessage);
+            var terms = priorTerms ?? AssistantOfferPathTerms.Parse(userMessage);
             AssistantOfferPathTerms.ProposeCopy(terms);
             if (!AssistantOfferPathTerms.IsComplete(terms))
             {

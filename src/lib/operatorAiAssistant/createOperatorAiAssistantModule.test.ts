@@ -1219,6 +1219,66 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     })
   })
 
+  it("does not POST create on leftover Create offer draft", async () => {
+    let createCalls = 0
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-leftover-offer",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingOfferDraft: {
+          locationId: 1,
+          offerType: "percentage_discount",
+          title: "25% off",
+          description: "Save 25%.",
+          validity: "30_days_after_issue",
+          discountPercentage: 25,
+        },
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Offer Draft",
+            body: "Create offer draft.",
+            actions: [
+              {
+                type: "draft-offer",
+                label: "Create offer draft",
+              },
+            ],
+          },
+        ],
+      }),
+      createCatalogOfferDraft: async () => {
+        createCalls += 1
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Create an offer draft")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const action = module.getSnapshot().messages.at(-1)?.actions?.[0]
+    expect(action).toMatchObject({
+      type: "draft-offer",
+      label: "Create offer draft",
+      clickable: false,
+    })
+    module.clickAction(action!)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(createCalls).toBe(0)
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(adapters.lastNavigate).toBe(null)
+  })
+
   it("does not make Review offer draft clickable while navigate is in flight", async () => {
     let releaseGet!: (offer: ReturnType<typeof inMemoryOpenableCatalogOffer>) => void
     const adapters = createInMemoryOperatorAiAssistantAdapters({

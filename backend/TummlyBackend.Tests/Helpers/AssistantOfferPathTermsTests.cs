@@ -19,7 +19,10 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal(25m, state.DiscountPercentage);
             Assert.Equal("30_days_after_issue", state.Validity);
             AssistantOfferPathTerms.ProposeCopy(state);
-            Assert.Equal("25% off your next visit", state.Title);
+            Assert.Equal("25% off", state.Title);
+            Assert.Equal("Save 25%.", state.Description);
+            Assert.DoesNotContain("visit", state.Title, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("order", state.Description, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
@@ -59,6 +62,24 @@ namespace TummlyBackend.Tests.Helpers
                 AssistantOfferPathTerms.GapBody(state),
                 StringComparison.OrdinalIgnoreCase
             );
+        }
+
+        [Fact]
+        public void Merge_ConflictingThenNamesOneBenefit_IsComplete()
+        {
+            var prior = AssistantOfferPathTerms.Parse(
+                "Create a 25% Offer and a free dessert valid 30 days after issue",
+                Utc2026
+            );
+
+            var merged = AssistantOfferPathTerms.Merge(prior, "25%", Utc2026);
+
+            Assert.True(AssistantOfferPathTerms.IsComplete(merged));
+            Assert.Equal("percentage_discount", merged.OfferType);
+            Assert.Equal(25m, merged.DiscountPercentage);
+            Assert.Null(merged.FreeItemText);
+            Assert.Equal("30_days_after_issue", merged.Validity);
+            Assert.Empty(merged.ConflictingBenefits);
         }
     }
 }

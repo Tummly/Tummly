@@ -195,16 +195,16 @@ namespace TummlyBackend.Helpers
 
             state.Title ??= state.OfferType switch
             {
-                "percentage_discount" => $"{state.DiscountPercentage:0.##}% off your next visit",
-                "fixed_discount" => $"£{state.DiscountAmount:0.##} off your next order",
+                "percentage_discount" => $"{state.DiscountPercentage:0.##}% off",
+                "fixed_discount" => $"£{state.DiscountAmount:0.##} off",
                 "free_item" => $"Enjoy a free {state.FreeItemText}",
                 _ => $"Replacement {state.ReplacementItemText}",
             };
             state.Description ??= state.OfferType switch
             {
-                "percentage_discount" => $"Save {state.DiscountPercentage:0.##}% on your next visit.",
-                "fixed_discount" => $"Save £{state.DiscountAmount:0.##} on your next order.",
-                "free_item" => $"Enjoy a free {state.FreeItemText} on your next visit.",
+                "percentage_discount" => $"Save {state.DiscountPercentage:0.##}%.",
+                "fixed_discount" => $"Save £{state.DiscountAmount:0.##}.",
+                "free_item" => $"Enjoy a free {state.FreeItemText}.",
                 _ => $"Receive a replacement {state.ReplacementItemText}.",
             };
         }
@@ -378,8 +378,13 @@ namespace TummlyBackend.Helpers
 
             if (distinct.Count == 1)
             {
+                var resolvingConflict = state.ConflictingBenefits.Count >= 2;
                 state.OfferType = distinct[0];
                 state.ConflictingBenefits = [];
+                if (resolvingConflict)
+                {
+                    ClearOtherBenefitFields(state);
+                }
             }
         }
 
@@ -454,6 +459,33 @@ namespace TummlyBackend.Helpers
             else if (ContainsAny(lower, "any purchase", "buy anything", "any order"))
             {
                 state.PurchaseRequirement = "with_any_purchase";
+            }
+        }
+
+        private static void ClearOtherBenefitFields(AssistantOfferPathTermsState state)
+        {
+            switch (state.OfferType)
+            {
+                case "percentage_discount":
+                    state.DiscountAmount = null;
+                    state.FreeItemText = null;
+                    state.ReplacementItemText = null;
+                    break;
+                case "fixed_discount":
+                    state.DiscountPercentage = null;
+                    state.FreeItemText = null;
+                    state.ReplacementItemText = null;
+                    break;
+                case "free_item":
+                    state.DiscountPercentage = null;
+                    state.DiscountAmount = null;
+                    state.ReplacementItemText = null;
+                    break;
+                case "replacement_item":
+                    state.DiscountPercentage = null;
+                    state.DiscountAmount = null;
+                    state.FreeItemText = null;
+                    break;
             }
         }
 
