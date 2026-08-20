@@ -29,12 +29,13 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import {
   assistantComposerDockClass,
-  assistantConversationColumnClass,
+  assistantComposerRailClass,
   assistantConversationStageClass,
   assistantDrawerContentClass,
   assistantDrawerMountsOverlay,
   assistantDrawerOverlayClass,
   assistantThreadBodyClass,
+  assistantThreadRailClass,
   assistantThreadStickAnchor,
   paintsAssistantExpand,
   stickAssistantThreadToBottom,
@@ -626,11 +627,11 @@ export function AiAssistantDrawer({
             </DrawerDescription>
 
             <div className={assistantConversationStageClass(paintExpanded)}>
-            <div className={assistantConversationColumnClass(paintExpanded)}>
             <div
               ref={threadBodyRef}
               className={assistantThreadBodyClass(paintExpanded)}
             >
+              <div className={assistantThreadRailClass(paintExpanded)}>
               {showGreeting ? (
                 <div className="mt-auto flex flex-col items-center gap-4 pb-[60px]">
                   <AiIcon size={48} />
@@ -661,9 +662,11 @@ export function AiAssistantDrawer({
                   ))}
                 </div>
               )}
+              </div>
             </div>
 
             <div className={assistantComposerDockClass(paintExpanded)}>
+              <div className={assistantComposerRailClass(paintExpanded)}>
               <div className={assistantComposerShellClass(composerFocused)}>
                 <div className="overflow-hidden rounded-[8px]">
                   <AiAssistantCreditsBar

@@ -63,50 +63,54 @@ export function assistantDrawerContentClass(input: {
   return `${ASSISTANT_DRAWER_CHROME_CLASS} ${OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS}`
 }
 
-/** Figma 3444:52355 — 30px gutters around the Expand conversation column. */
-export const ASSISTANT_EXPAND_CONVERSATION_STAGE_CLASS =
-  "px-[30px] pb-[50px]"
-
 /** Figma 3444:52355 — conversation + composer cap at 800px, centered. */
-export const ASSISTANT_EXPAND_CONVERSATION_COLUMN_CLASS =
-  "mx-auto w-full max-w-[800px]"
+export const ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS =
+  "mx-auto w-full max-w-[800px] px-[30px]"
 
 /**
- * Gutter around the Expand conversation column.
- * Collapsed keeps padding on the thread and composer dock.
+ * Expand stage is full pane width so the thread scrollbar sits on the
+ * right bleed. 30px sits between the thread and the composer. 16px sits
+ * under the composer.
  */
 export function assistantConversationStageClass(expanded: boolean): string {
   return expanded
-    ? `flex min-h-0 flex-1 flex-col ${ASSISTANT_EXPAND_CONVERSATION_STAGE_CLASS}`
-    : "flex min-h-0 flex-1 flex-col"
-}
-
-/** Conversation + composer column. Expand centers an 800px rail. */
-export function assistantConversationColumnClass(expanded: boolean): string {
-  return expanded
-    ? `flex min-h-0 flex-1 flex-col ${ASSISTANT_EXPAND_CONVERSATION_COLUMN_CLASS}`
+    ? "flex min-h-0 flex-1 flex-col gap-[30px] pb-4"
     : "flex min-h-0 flex-1 flex-col"
 }
 
 /**
- * Scrollable thread. Bottom padding keeps space above the composer when
- * the conversation overflows.
+ * Scrollable thread. Expand is full pane width so the scrollbar sits on
+ * the right bleed. Collapsed keeps 30px gutters on the scroll box.
  */
 export function assistantThreadBodyClass(expanded: boolean): string {
   return [
     OPERATOR_RIGHT_DRAWER_BODY_CLASS,
-    "flex flex-col pb-[30px]",
-    expanded ? "" : "px-[30px]",
+    "flex flex-col",
+    expanded ? "" : "px-[30px] pb-[30px]",
   ]
     .filter((part) => part.length > 0)
     .join(" ")
 }
 
+/** Inner chat rail. Expand centers 800px; collapsed is full thread width. */
+export function assistantThreadRailClass(expanded: boolean): string {
+  return expanded
+    ? `flex min-h-full w-full flex-col ${ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS}`
+    : "flex min-h-full w-full flex-1 flex-col"
+}
+
 /** Composer + chips dock. Expand inherits stage padding. */
 export function assistantComposerDockClass(expanded: boolean): string {
   return expanded
-    ? "flex w-full shrink-0 flex-col gap-8"
-    : "flex w-full shrink-0 flex-col gap-8 px-[30px] pb-[30px]"
+    ? "flex w-full shrink-0 flex-col"
+    : "flex w-full shrink-0 flex-col gap-8 px-[30px] pb-4"
+}
+
+/** Inner composer rail. Expand matches the 800px chat column. */
+export function assistantComposerRailClass(expanded: boolean): string {
+  return expanded
+    ? `flex w-full shrink-0 flex-col gap-8 ${ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS}`
+    : "contents"
 }
 
 /**

@@ -2,17 +2,17 @@ import { describe, expect, it } from "vitest"
 
 import {
   ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS,
-  ASSISTANT_EXPAND_CONVERSATION_COLUMN_CLASS,
-  ASSISTANT_EXPAND_CONVERSATION_STAGE_CLASS,
+  ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS,
   OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS,
   OPERATOR_SIDENAV_COLLAPSED_PX,
   assistantComposerDockClass,
-  assistantConversationColumnClass,
+  assistantComposerRailClass,
   assistantConversationStageClass,
   assistantDrawerContentClass,
   assistantDrawerMountsOverlay,
   assistantDrawerOverlayClass,
   assistantThreadBodyClass,
+  assistantThreadRailClass,
   assistantThreadStickAnchor,
   paintsAssistantExpand,
   stickAssistantThreadToBottom,
@@ -121,29 +121,38 @@ describe("assistantDrawerPresentation", () => {
     ).toBe(false)
   })
 
-  it("centers an 800px conversation column with 30px gutters in Expand", () => {
-    expect(ASSISTANT_EXPAND_CONVERSATION_STAGE_CLASS).toContain("px-[30px]")
-    expect(ASSISTANT_EXPAND_CONVERSATION_STAGE_CLASS).toContain("pb-[50px]")
-    expect(ASSISTANT_EXPAND_CONVERSATION_COLUMN_CLASS).toContain("max-w-[800px]")
-    expect(ASSISTANT_EXPAND_CONVERSATION_COLUMN_CLASS).toContain("mx-auto")
+  it("puts the Expand thread scrollbar on the pane bleed and centers an 800px rail", () => {
+    expect(ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS).toContain("max-w-[800px]")
+    expect(ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS).toContain("mx-auto")
+    expect(ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS).toContain("px-[30px]")
 
     const expandedStage = assistantConversationStageClass(true)
-    expect(expandedStage).toContain("px-[30px]")
-    expect(expandedStage).toContain("pb-[50px]")
-    expect(assistantConversationStageClass(false)).not.toContain("px-[30px]")
-    expect(assistantConversationStageClass(false)).not.toContain("pb-[50px]")
+    expect(expandedStage).toContain("gap-[30px]")
+    expect(expandedStage).toContain("pb-4")
+    expect(expandedStage).not.toContain("px-[30px]")
+    expect(expandedStage).not.toContain("pb-[50px]")
+    expect(assistantConversationStageClass(false)).not.toContain("gap-[30px]")
+    expect(assistantConversationStageClass(false)).not.toContain("pb-4")
 
-    expect(assistantConversationColumnClass(true)).toContain("max-w-[800px]")
-    expect(assistantConversationColumnClass(false)).not.toContain("max-w-[800px]")
+    expect(assistantThreadBodyClass(true)).toContain("overflow-y-auto")
+    expect(assistantThreadBodyClass(true)).not.toContain("px-[30px]")
+    expect(assistantThreadBodyClass(true)).not.toContain("max-w-[800px]")
+    expect(assistantThreadBodyClass(false)).toContain("px-[30px]")
+    expect(assistantThreadBodyClass(false)).toContain("pb-[30px]")
+
+    expect(assistantThreadRailClass(true)).toContain("max-w-[800px]")
+    expect(assistantThreadRailClass(true)).toContain("px-[30px]")
+    expect(assistantThreadRailClass(true)).not.toContain("flex-1")
+    expect(assistantThreadRailClass(false)).not.toContain("max-w-[800px]")
 
     expect(assistantComposerDockClass(true)).not.toContain("px-[30px]")
     expect(assistantComposerDockClass(false)).toContain("px-[30px]")
-    expect(assistantComposerDockClass(false)).toContain("pb-[30px]")
+    expect(assistantComposerDockClass(false)).toContain("pb-4")
+    expect(assistantComposerDockClass(false)).not.toContain("pb-[30px]")
 
-    expect(assistantThreadBodyClass(true)).toContain("pb-[30px]")
-    expect(assistantThreadBodyClass(true)).not.toContain("px-[30px]")
-    expect(assistantThreadBodyClass(false)).toContain("px-[30px]")
-    expect(assistantThreadBodyClass(false)).toContain("pb-[30px]")
+    expect(assistantComposerRailClass(true)).toContain("max-w-[800px]")
+    expect(assistantComposerRailClass(true)).toContain("px-[30px]")
+    expect(assistantComposerRailClass(false)).toBe("contents")
   })
 
   it("sticks the thread to the latest user, wait, or assistant row", () => {

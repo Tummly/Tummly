@@ -48,12 +48,10 @@ const ASSISTANT_COMPOSER_FIELD_BASE_CLASS = [
 
 /**
  * Outer credits + field shell — rest vs focus.
- * Focus uses the same `border-ring` + ring as Input / Textarea, not primary text.
+ * Focus keeps the rest border. Do not paint a ring.
  */
-export function assistantComposerBorderClass(focused: boolean): string {
-  return focused
-    ? "border-ring ring-3 ring-ring/50"
-    : "border-op-assistant-composer-border"
+export function assistantComposerBorderClass(_focused: boolean): string {
+  return "border-op-assistant-composer-border"
 }
 
 export function assistantComposerShellClass(focused: boolean): string {

@@ -54,14 +54,14 @@ describe("assistantCreditsPresentation", () => {
       "border-op-assistant-composer-border"
     )
     expect(assistantComposerBorderClass(true)).toBe(
-      "border-ring ring-3 ring-ring/50"
-    )
-    expect(assistantComposerShellClass(false)).toContain(
       "border-op-assistant-composer-border"
     )
-    expect(assistantComposerShellClass(true)).toContain("border-ring")
-    expect(assistantComposerShellClass(true)).toContain("ring-3")
-    expect(assistantComposerShellClass(true)).toContain("ring-ring/50")
+    expect(assistantComposerShellClass(true)).toContain(
+      "border-op-assistant-composer-border"
+    )
+    expect(assistantComposerShellClass(true)).not.toContain("ring-3")
+    expect(assistantComposerShellClass(true)).not.toContain("ring-ring/50")
+    expect(assistantComposerShellClass(true)).not.toContain("border-ring")
     expect(assistantComposerShellClass(true)).not.toContain(
       "border-op-text-primary"
     )
@@ -69,7 +69,6 @@ describe("assistantCreditsPresentation", () => {
     expect(assistantComposerFieldClass("mic")).not.toContain(
       "border-op-assistant-composer-border"
     )
-    expect(assistantComposerFieldClass("mic")).not.toContain("border-ring")
   })
 
   it("uses a shorter composer field below md and Figma 144px from md", () => {
