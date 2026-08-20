@@ -124,6 +124,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("Camden", ok.Conversation.Messages[1].Title);
             Assert.Contains("the last 7 days", ok.Conversation.Messages[1].Body);
             Assert.Contains("nothing to summarise", ok.Conversation.Messages[1].Body);
+            Assert.Contains("Change Scope", ok.Conversation.Messages[1].Body);
             Assert.Empty(ok.Conversation.Messages[1].Actions);
             Assert.NotNull(_fake.LastInput);
             Assert.Equal("Summarise recent feedback", _fake.LastInput!.UserMessage);
@@ -575,6 +576,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("Camden", answer.Title);
             Assert.Contains("the last 7 days", answer.Body);
             Assert.Contains("nothing to summarise", answer.Body);
+            Assert.Contains("Change Scope", answer.Body);
             Assert.Empty(answer.Actions);
         }
 
@@ -1192,6 +1194,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(0, await _context.CatalogOffers.CountAsync());
             Assert.DoesNotContain("review-offer", answer.Actions.Select(action => action.Type));
             Assert.Contains("Offer create", answer.Body);
+            Assert.Contains("Change Scope", answer.Body);
             Assert.Null(ok.Conversation.PendingOfferDraft);
             Assert.Null(_context.AssistantConversations.Single().CreatedOfferId);
             Assert.Equal("Create Offer Draft", ok.Conversation.Title);
@@ -1711,6 +1714,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(answer.Actions);
             Assert.Null(ok.Conversation.PendingRecoveryDraft);
             Assert.Contains("copy prepare", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Change Scope", answer.Body, StringComparison.Ordinal);
             Assert.Equal(
                 FeedbackWorkflowStatus.New,
                 (await _context.Feedbacks.SingleAsync()).WorkflowStatus
@@ -2095,8 +2099,73 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(answer.Actions);
             Assert.Null(ok.Conversation.PendingRecoveryDraft);
             Assert.False(ok.Conversation.DraftInterviewActive);
-            Assert.Contains("could not match", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Camden", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("last 7 days", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Change Scope", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("could not match", answer.Body, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("###", answer.Body, StringComparison.Ordinal);
+            Assert.Null(_recoveryDrafts.LastInput);
+        }
+
+        [Fact]
+        public async Task SendTurn_LastNegativeRecoveryAsk_WithNoNegative_NamesLocationAndPeriod()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                sentiment: FeedbackSentiment.Positive,
+                guestName: "Pat Guest"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Create a recovery offer for the last negative feedback we recieved on this location"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Empty(answer.Actions);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+            Assert.Contains("negative", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Camden", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("last 7 days", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Change Scope", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("could not match", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Pat Guest", answer.Body, StringComparison.Ordinal);
+            Assert.Null(_recoveryDrafts.LastInput);
+        }
+
+        [Fact]
+        public async Task SendTurn_LastNegativeRecoveryAsk_WhenOnlyResolvedNegative_NamesResolvedGuest()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                workflow: FeedbackWorkflowStatus.Resolved,
+                guestName: "Pat Guest"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Create a recovery offer for the last negative feedback we recieved on this location"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Empty(answer.Actions);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+            Assert.Contains("resolved", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("reopen", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Pat Guest", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("could not match", answer.Body, StringComparison.OrdinalIgnoreCase);
             Assert.Null(_recoveryDrafts.LastInput);
         }
 
@@ -2490,6 +2559,7 @@ namespace TummlyBackend.Tests.Services
             Assert.DoesNotContain("add-offer", answer.Actions.Select(action => action.Type));
             Assert.DoesNotContain("Bring back Email-eligible guests at Camden", answer.Body);
             Assert.Contains("Campaign create", answer.Body);
+            Assert.Contains("Change Scope", answer.Body);
             Assert.Null(ok.Conversation.PendingCampaignDraft);
             Assert.Null(_context.AssistantConversations.Single().CreatedCampaignId);
             Assert.Equal(CanonicalGeneratedConversationTitle, ok.Conversation.Title);

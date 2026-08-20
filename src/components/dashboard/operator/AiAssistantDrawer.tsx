@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import {
   ArrowUpIcon,
   HistoryIcon,
@@ -28,13 +28,20 @@ import {
 } from "@/components/ui/drawer"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  assistantComposerDockClass,
+  assistantConversationColumnClass,
+  assistantConversationStageClass,
   assistantDrawerContentClass,
   assistantDrawerMountsOverlay,
   assistantDrawerOverlayClass,
+  assistantThreadBodyClass,
+  assistantThreadStickAnchor,
   paintsAssistantExpand,
+  stickAssistantThreadToBottom,
 } from "@/lib/operatorAiAssistant/assistantDrawerPresentation"
 import {
-  ASSISTANT_COMPOSER_CIRCLE_CLASS,
+  ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS,
+  ASSISTANT_COMPOSER_SEND_ICON_CLASS,
   assistantComposerFieldClass,
   assistantComposerShellClass,
   assistantComposerTextareaClass,
@@ -51,7 +58,6 @@ import type {
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudioLevel"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
-import { OPERATOR_RIGHT_DRAWER_BODY_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 
 type AiAssistantDrawerProps = {
@@ -432,32 +438,25 @@ export function AiAssistantDrawer({
     snapshot.drawerOpen,
   ])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (showList || showGreeting) {
+      lastScrolledThreadKeyRef.current = null
       return
     }
-    const last = snapshot.messages.at(-1)
-    if (last == null) {
+    const key = assistantThreadStickAnchor({
+      showList,
+      showGreeting,
+      messages: snapshot.messages,
+    })
+    if (key == null || lastScrolledThreadKeyRef.current === key) {
       return
     }
-    const key = `${snapshot.messages.length}:${last.id}:${last.role}`
-    if (lastScrolledThreadKeyRef.current === key) {
+    const body = threadBodyRef.current
+    if (body == null) {
       return
     }
-    const previousWasWait =
-      lastScrolledThreadKeyRef.current?.endsWith(":wait") === true
-    const shouldScroll =
-      last.role === "wait" || (last.role === "assistant" && previousWasWait)
     lastScrolledThreadKeyRef.current = key
-    if (!shouldScroll) {
-      return
-    }
-    const row = threadBodyRef.current?.querySelector(
-      `[data-assistant-thread-row="${CSS.escape(last.id)}"]`
-    )
-    if (row instanceof HTMLElement) {
-      row.scrollIntoView({ block: "nearest", inline: "nearest" })
-    }
+    stickAssistantThreadToBottom(body)
   }, [showGreeting, showList, snapshot.messages])
 
   return (
@@ -626,12 +625,11 @@ export function AiAssistantDrawer({
               Ask about feedback, guests, offers, campaigns or performance.
             </DrawerDescription>
 
+            <div className={assistantConversationStageClass(paintExpanded)}>
+            <div className={assistantConversationColumnClass(paintExpanded)}>
             <div
               ref={threadBodyRef}
-              className={cn(
-                OPERATOR_RIGHT_DRAWER_BODY_CLASS,
-                "flex flex-col px-[30px]"
-              )}
+              className={assistantThreadBodyClass(paintExpanded)}
             >
               {showGreeting ? (
                 <div className="mt-auto flex flex-col items-center gap-4 pb-[60px]">
@@ -649,7 +647,7 @@ export function AiAssistantDrawer({
                   </p>
                 </div>
               ) : (
-                <div className="flex flex-1 flex-col gap-[30px] py-2">
+                <div className="flex flex-1 flex-col gap-[30px] pt-2">
                   {snapshot.messages.map((message) => (
                     <ThreadMessage
                       key={message.id}
@@ -665,16 +663,17 @@ export function AiAssistantDrawer({
               )}
             </div>
 
-            <div className="flex w-full shrink-0 flex-col gap-8 px-[30px] pb-[30px]">
+            <div className={assistantComposerDockClass(paintExpanded)}>
               <div className={assistantComposerShellClass(composerFocused)}>
-                <AiAssistantCreditsBar
-                  remainingLine={snapshot.creditsRemainingLine}
-                  viewUsageLabel={snapshot.viewUsageLabel}
-                  addCreditsLabel={snapshot.addCreditsLabel}
-                  onViewUsage={onViewUsage}
-                  onAddCredits={onAddCredits}
-                />
-                <div className={assistantComposerFieldClass(snapshot.micChrome)}>
+                <div className="overflow-hidden rounded-[8px]">
+                  <AiAssistantCreditsBar
+                    remainingLine={snapshot.creditsRemainingLine}
+                    viewUsageLabel={snapshot.viewUsageLabel}
+                    addCreditsLabel={snapshot.addCreditsLabel}
+                    onViewUsage={onViewUsage}
+                    onAddCredits={onAddCredits}
+                  />
+                  <div className={assistantComposerFieldClass(snapshot.micChrome)}>
                   <Textarea
                     ref={composerRef}
                     id="ai-assistant-composer"
@@ -739,12 +738,16 @@ export function AiAssistantDrawer({
                         disabled={!canSend}
                         aria-label="Send"
                         onClick={onSend}
-                        className={ASSISTANT_COMPOSER_CIRCLE_CLASS}
+                        className={ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS}
                       >
-                        <ArrowUpIcon className="size-6" aria-hidden />
+                        <ArrowUpIcon
+                          className={ASSISTANT_COMPOSER_SEND_ICON_CLASS}
+                          aria-hidden
+                        />
                       </Button>
                     )}
                   </div>
+                </div>
                 </div>
               </div>
 
@@ -768,6 +771,8 @@ export function AiAssistantDrawer({
                   ))}
                 </div>
               ) : null}
+            </div>
+            </div>
             </div>
               </>
             )}

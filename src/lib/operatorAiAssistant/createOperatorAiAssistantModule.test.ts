@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   createInMemoryOperatorNotificationsAdapters,
@@ -6,6 +6,7 @@ import {
 } from "@/lib/operatorNotifications/createOperatorNotificationsModule"
 
 import {
+  ASSISTANT_FAILURE_BODY,
   buildEmptyComposerPlaceholders,
   createInMemoryOperatorAiAssistantAdapters,
   createOperatorAiAssistantModule,
@@ -17,6 +18,15 @@ import {
   type OperatorAiAssistantConversationRow,
 } from "./createOperatorAiAssistantModule"
 import { planAssistantActionNavigate, planAssistantSendScheduleRoute } from "./assistantActionNavigate"
+import { ASSISTANT_NEXT_TRY_SCOPE_SENTENCE } from "./assistantNextTryCopy"
+import {
+  ASSISTANT_WAIT_GERUND_INTERVAL_MS,
+  ASSISTANT_WAIT_PREPARING_BODY,
+  ASSISTANT_WAIT_RETRIEVING_BODY,
+  assistantWaitGerundAt,
+  formatAssistantWaitGerund,
+  isAssistantCheckingWaitBody,
+} from "./assistantWaitGerunds"
 
 describe("createOperatorAiAssistantModule", () => {
   it("openDrawer shows the empty greeting at collapsed 620 width with no server row", () => {
@@ -665,17 +675,20 @@ describe("first send creates a durable Assistant conversation", () => {
         .getSnapshot()
         .messages.find((message) => message.role === "wait")?.body
 
-    expect(waitBody()).toBe("Checking your question…")
+    expect(isAssistantCheckingWaitBody(waitBody() ?? "")).toBe(true)
 
     module.onTurnProgress({ conversationId: "conv-1", step: "checking" })
     module.onTurnProgress({ conversationId: "conv-other", step: "retrieving" })
-    expect(waitBody()).toBe("Checking your question…")
+    expect(isAssistantCheckingWaitBody(waitBody() ?? "")).toBe(true)
 
     module.onTurnProgress({ conversationId: "conv-1", step: "retrieving" })
-    expect(waitBody()).toBe("Retrieving data…")
+    expect(waitBody()).toBe(ASSISTANT_WAIT_RETRIEVING_BODY)
+
+    module.onTurnProgress({ conversationId: "conv-1", step: "checking" })
+    expect(waitBody()).toBe(ASSISTANT_WAIT_RETRIEVING_BODY)
 
     module.onTurnProgress({ conversationId: "conv-1", step: "preparing" })
-    expect(waitBody()).toBe("Preparing answer…")
+    expect(waitBody()).toBe(ASSISTANT_WAIT_PREPARING_BODY)
 
     release({
       id: "conv-1",
@@ -691,6 +704,60 @@ describe("first send creates a durable Assistant conversation", () => {
     expect(waitBody()).toBeUndefined()
     module.onTurnProgress({ conversationId: "conv-1", step: "retrieving" })
     expect(waitBody()).toBeUndefined()
+  })
+
+  it("rotates checking wait gerunds until retrieving", async () => {
+    vi.useFakeTimers()
+    try {
+      let release!: (
+        row: ReturnType<
+          typeof createInMemoryOperatorAiAssistantAdapters
+        >["conversations"][number]
+      ) => void
+      const pending = new Promise<
+        ReturnType<
+          typeof createInMemoryOperatorAiAssistantAdapters
+        >["conversations"][number]
+      >((resolve) => {
+        release = resolve
+      })
+      const adapters = createInMemoryOperatorAiAssistantAdapters({
+        nowMs: () => 0,
+        sendTurn: () => pending,
+      })
+      const module = createOperatorAiAssistantModule(adapters)
+
+      module.openDrawer({ operatorFirstName: "Mohamed" })
+      module.setComposerDraft("Summarise recent feedback")
+      module.send()
+
+      const waitBody = () =>
+        module
+          .getSnapshot()
+          .messages.find((message) => message.role === "wait")?.body
+
+      expect(waitBody()).toBe(formatAssistantWaitGerund(assistantWaitGerundAt(0)))
+      vi.advanceTimersByTime(ASSISTANT_WAIT_GERUND_INTERVAL_MS)
+      expect(waitBody()).toBe(formatAssistantWaitGerund(assistantWaitGerundAt(1)))
+
+      module.onTurnProgress({ conversationId: "conv-1", step: "retrieving" })
+      expect(waitBody()).toBe(ASSISTANT_WAIT_RETRIEVING_BODY)
+      vi.advanceTimersByTime(ASSISTANT_WAIT_GERUND_INTERVAL_MS)
+      expect(waitBody()).toBe(ASSISTANT_WAIT_RETRIEVING_BODY)
+
+      release({
+        id: "conv-1",
+        title: "Summarise recent feedback",
+        analysisScope: module.getSnapshot().analysisScope!,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        messages: [],
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("first send creates an Assistant conversation and replaces wait with a stub live answer", async () => {
@@ -732,6 +799,7 @@ describe("first send creates a durable Assistant conversation", () => {
           role: "assistant",
           class: "grounded",
           title: "No feedback at Camden for the last 7 days",
+          body: `There is nothing to summarise or list at Camden over the last 7 days. ${ASSISTANT_NEXT_TRY_SCOPE_SENTENCE}`,
         }),
       ])
     )
@@ -3266,7 +3334,7 @@ describe("grounded live answers, helpful fill, and Actions", () => {
               id: "a1",
               role: "assistant" as const,
               class: "failure" as const,
-              body: "The answer could not be completed. Retry this turn.",
+              body: ASSISTANT_FAILURE_BODY,
             },
           ],
         }
@@ -3284,14 +3352,16 @@ describe("grounded live answers, helpful fill, and Actions", () => {
 
     expect(module.getSnapshot().retryVisible).toBe(true)
     module.retry()
-    expect(module.getSnapshot().messages.at(-1)).toMatchObject({
-      role: "wait",
-      body: "Checking your question…",
-    })
+    expect(module.getSnapshot().messages.at(-1)?.role).toBe("wait")
+    expect(
+      isAssistantCheckingWaitBody(
+        module.getSnapshot().messages.at(-1)?.body ?? ""
+      )
+    ).toBe(true)
     module.onTurnProgress({ conversationId: "conv-1", step: "retrieving" })
     expect(module.getSnapshot().messages.at(-1)).toMatchObject({
       role: "wait",
-      body: "Retrieving data…",
+      body: ASSISTANT_WAIT_RETRIEVING_BODY,
     })
     await Promise.resolve()
     await Promise.resolve()
@@ -3325,7 +3395,7 @@ describe("grounded live answers, helpful fill, and Actions", () => {
               id: "a1",
               role: "assistant" as const,
               class: "failure" as const,
-              body: "The answer could not be completed. Retry this turn.",
+              body: ASSISTANT_FAILURE_BODY,
             },
           ],
         }
@@ -4022,7 +4092,7 @@ describe("clarify vs grounded vs failure chrome", () => {
               id: "a1",
               role: "assistant" as const,
               class: "failure" as const,
-              body: "The answer could not be completed. Retry this turn.",
+              body: ASSISTANT_FAILURE_BODY,
             },
           ],
         }

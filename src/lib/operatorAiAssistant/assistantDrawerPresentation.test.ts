@@ -2,12 +2,20 @@ import { describe, expect, it } from "vitest"
 
 import {
   ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS,
+  ASSISTANT_EXPAND_CONVERSATION_COLUMN_CLASS,
+  ASSISTANT_EXPAND_CONVERSATION_STAGE_CLASS,
   OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS,
   OPERATOR_SIDENAV_COLLAPSED_PX,
+  assistantComposerDockClass,
+  assistantConversationColumnClass,
+  assistantConversationStageClass,
   assistantDrawerContentClass,
   assistantDrawerMountsOverlay,
   assistantDrawerOverlayClass,
+  assistantThreadBodyClass,
+  assistantThreadStickAnchor,
   paintsAssistantExpand,
+  stickAssistantThreadToBottom,
 } from "./assistantDrawerPresentation"
 
 describe("assistantDrawerPresentation", () => {
@@ -111,5 +119,96 @@ describe("assistantDrawerPresentation", () => {
         viewportAtLeastLg: true,
       })
     ).toBe(false)
+  })
+
+  it("centers an 800px conversation column with 30px gutters in Expand", () => {
+    expect(ASSISTANT_EXPAND_CONVERSATION_STAGE_CLASS).toContain("px-[30px]")
+    expect(ASSISTANT_EXPAND_CONVERSATION_STAGE_CLASS).toContain("pb-[50px]")
+    expect(ASSISTANT_EXPAND_CONVERSATION_COLUMN_CLASS).toContain("max-w-[800px]")
+    expect(ASSISTANT_EXPAND_CONVERSATION_COLUMN_CLASS).toContain("mx-auto")
+
+    const expandedStage = assistantConversationStageClass(true)
+    expect(expandedStage).toContain("px-[30px]")
+    expect(expandedStage).toContain("pb-[50px]")
+    expect(assistantConversationStageClass(false)).not.toContain("px-[30px]")
+    expect(assistantConversationStageClass(false)).not.toContain("pb-[50px]")
+
+    expect(assistantConversationColumnClass(true)).toContain("max-w-[800px]")
+    expect(assistantConversationColumnClass(false)).not.toContain("max-w-[800px]")
+
+    expect(assistantComposerDockClass(true)).not.toContain("px-[30px]")
+    expect(assistantComposerDockClass(false)).toContain("px-[30px]")
+    expect(assistantComposerDockClass(false)).toContain("pb-[30px]")
+
+    expect(assistantThreadBodyClass(true)).toContain("pb-[30px]")
+    expect(assistantThreadBodyClass(true)).not.toContain("px-[30px]")
+    expect(assistantThreadBodyClass(false)).toContain("px-[30px]")
+    expect(assistantThreadBodyClass(false)).toContain("pb-[30px]")
+  })
+
+  it("sticks the thread to the latest user, wait, or assistant row", () => {
+    expect(
+      assistantThreadStickAnchor({
+        showList: true,
+        showGreeting: false,
+        messages: [{ id: "1", role: "user", body: "Hi" }],
+      })
+    ).toBeNull()
+    expect(
+      assistantThreadStickAnchor({
+        showList: false,
+        showGreeting: true,
+        messages: [],
+      })
+    ).toBeNull()
+
+    const afterSend = assistantThreadStickAnchor({
+      showList: false,
+      showGreeting: false,
+      messages: [{ id: "u1", role: "user", body: "What needs attention?" }],
+    })
+    expect(afterSend).toBe("1:u1:user:What needs attention?")
+
+    const whileWait = assistantThreadStickAnchor({
+      showList: false,
+      showGreeting: false,
+      messages: [
+        { id: "u1", role: "user", body: "What needs attention?" },
+        { id: "w1", role: "wait", body: "Retrieving data…" },
+      ],
+    })
+    expect(whileWait).toBe("2:w1:wait:Retrieving data…")
+
+    const waitProgress = assistantThreadStickAnchor({
+      showList: false,
+      showGreeting: false,
+      messages: [
+        { id: "u1", role: "user", body: "What needs attention?" },
+        { id: "w1", role: "wait", body: "Preparing answer…" },
+      ],
+    })
+    expect(waitProgress).not.toBe(whileWait)
+
+    const afterAnswer = assistantThreadStickAnchor({
+      showList: false,
+      showGreeting: false,
+      messages: [
+        { id: "u1", role: "user", body: "What needs attention?" },
+        {
+          id: "a1",
+          role: "assistant",
+          body: "Slow service is the main issue.",
+        },
+      ],
+    })
+    expect(afterAnswer).toBe(
+      "2:a1:assistant:Slow service is the main issue."
+    )
+  })
+
+  it("sets the thread scrollTop to the end of the body", () => {
+    const body = { scrollTop: 120, scrollHeight: 960 }
+    stickAssistantThreadToBottom(body as HTMLElement)
+    expect(body.scrollTop).toBe(960)
   })
 })

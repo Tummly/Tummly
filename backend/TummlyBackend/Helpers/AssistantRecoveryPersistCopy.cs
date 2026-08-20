@@ -44,11 +44,45 @@ namespace TummlyBackend.Helpers
         public static string FailureBody(string failedStep)
             => "I could not prepare this recovery response. "
                 + $"The {failedStep} step failed. "
-                + "Retry this send, or use Feedback recovery.";
+                + AssistantNextTryCopy.Sentence
+                + " Retry this send, or use Feedback recovery.";
 
-        public static string ResolvedBody()
-            => "This Feedback is resolved. Reopen it before I can prepare a "
+        public static string ResolvedBody(string? guestName = null)
+        {
+            var subject = string.IsNullOrWhiteSpace(guestName)
+                ? "This Feedback"
+                : $"This Feedback for {guestName}";
+            return subject
+                + " is resolved. Reopen it before I can prepare a "
                 + "recovery response. No recovery work was stored.";
+        }
+
+        public static string EmptyScopeBody(string locationName, string periodPhrase)
+            => "There is no Feedback "
+                + ScopeWhere(locationName, periodPhrase)
+                + ". No recovery work was stored. "
+                + AssistantNextTryCopy.Sentence;
+
+        public static string NoNegativeBody(string locationName, string periodPhrase)
+            => "There is no negative Feedback "
+                + ScopeWhere(locationName, periodPhrase)
+                + ". No recovery work was stored. "
+                + AssistantNextTryCopy.Sentence;
+
+        public static string ZeroMatchBody(string reason, string locationName, string periodPhrase)
+            => reason switch
+            {
+                AssistantRecoveryIdentity.ReasonNoNegative
+                    => NoNegativeBody(locationName, periodPhrase),
+                AssistantRecoveryIdentity.ReasonEmpty
+                    => EmptyScopeBody(locationName, periodPhrase),
+                _ => ZeroMatchBody(),
+            };
+
+        private static string ScopeWhere(string locationName, string periodPhrase)
+            => string.IsNullOrWhiteSpace(locationName)
+                ? $"in {periodPhrase}"
+                : $"at {locationName} in {periodPhrase}";
 
         public static string NoContactBody()
             => "This guest has no Email or SMS contact. I did not prepare a "
@@ -62,12 +96,16 @@ namespace TummlyBackend.Helpers
 
         public static string UnavailableBody()
             => "I could not check follow-up eligibility for this Feedback. "
-                + "No recovery work was stored. Retry this send, or Record an "
-                + "internal action only in Feedback recovery.";
+                + "No recovery work was stored. "
+                + AssistantNextTryCopy.Sentence
+                + " Retry this send, or Record an internal action only in "
+                + "Feedback recovery.";
 
         public static string ZeroMatchBody()
             => "I could not match Feedback for this recovery ask. "
-                + "No recovery work was stored.";
+                + "Name the guest. "
+                + AssistantNextTryCopy.Sentence
+                + " No recovery work was stored.";
 
         public static string InternalUnboundBody()
             => "I did not prepare that recovery intent. Name the "
@@ -77,7 +115,8 @@ namespace TummlyBackend.Helpers
         public static string OfferUnboundBody()
             => "I did not prepare Respond with a recovery offer. Name the "
                 + "Offer to attach, or use Feedback recovery. "
-                + "No recovery work was stored.";
+                + AssistantNextTryCopy.Sentence
+                + " No recovery work was stored.";
 
         public static string ChannelLabel(string channel)
             => string.Equals(channel, "sms", StringComparison.OrdinalIgnoreCase)

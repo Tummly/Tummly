@@ -49,6 +49,15 @@ import {
   ASSISTANT_VIEW_USAGE_LABEL,
 } from "./assistantCreditsPresentation"
 import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCatalogPresentation"
+import { ASSISTANT_NEXT_TRY_SCOPE_SENTENCE } from "./assistantNextTryCopy"
+import {
+  ASSISTANT_WAIT_BODY,
+  ASSISTANT_WAIT_GERUND_INTERVAL_MS,
+  ASSISTANT_WAIT_PREPARING_BODY,
+  ASSISTANT_WAIT_RETRIEVING_BODY,
+  assistantWaitGerundAt,
+  formatAssistantWaitGerund,
+} from "./assistantWaitGerunds"
 
 export type OperatorAiAssistantWidthMode = "collapsed" | "expanded"
 
@@ -156,10 +165,10 @@ export type OperatorAiAssistantAnalysisScope = {
 }
 
 export const CHANGE_ANALYSIS_SCOPE_TITLE = "Change analysis scope"
-export const ASSISTANT_WAIT_BODY = "Checking your question…"
+export { ASSISTANT_WAIT_BODY }
 export const ASSISTANT_COMPOSER_PLACEHOLDER = "Ask AI Assistant..."
 export const ASSISTANT_FAILURE_BODY =
-  "The answer could not be completed. Retry this turn."
+  `The answer could not be completed. Retry this send. ${ASSISTANT_NEXT_TRY_SCOPE_SENTENCE}`
 
 export const OPERATOR_ASSISTANT_MIC_ERROR_COPY = {
   permission:
@@ -575,7 +584,7 @@ function groundedAnswerForScope(
     role: "assistant",
     class: "grounded",
     title: `No feedback at ${scope.ownedLocationName} for ${period}`,
-    body: `There is nothing to summarise or list at ${scope.ownedLocationName} over ${period}.`,
+    body: `There is nothing to summarise or list at ${scope.ownedLocationName} over ${period}. ${ASSISTANT_NEXT_TRY_SCOPE_SENTENCE}`,
     actions: [],
   }
 }
@@ -1341,6 +1350,39 @@ export function createOperatorAiAssistantModule(
   let sendGeneration = 0
   let listGeneration = 0
   let inflight: AbortController | null = null
+  let waitTimer: ReturnType<typeof setInterval> | null = null
+  let waitGerundIndex = 0
+  let waitPipeline: "checking" | "retrieving" | "preparing" = "checking"
+
+  const stopCheckingWaitRotation = () => {
+    if (waitTimer != null) {
+      clearInterval(waitTimer)
+      waitTimer = null
+    }
+  }
+
+  const startCheckingWaitRotation = () => {
+    stopCheckingWaitRotation()
+    waitPipeline = "checking"
+    waitGerundIndex = adapters.nowMs()
+    const waitBody = formatAssistantWaitGerund(
+      assistantWaitGerundAt(waitGerundIndex)
+    )
+    waitTimer = setInterval(() => {
+      if (!state.turnInFlight || waitPipeline !== "checking") {
+        return
+      }
+      waitGerundIndex += 1
+      state = {
+        ...state,
+        waitBody: formatAssistantWaitGerund(
+          assistantWaitGerundAt(waitGerundIndex)
+        ),
+      }
+      publish()
+    }, ASSISTANT_WAIT_GERUND_INTERVAL_MS)
+    return waitBody
+  }
 
   const mic = createGuestMicSttModule(
     {
@@ -1417,6 +1459,7 @@ export function createOperatorAiAssistantModule(
     sendGeneration += 1
     inflight?.abort()
     inflight = null
+    stopCheckingWaitRotation()
   }
 
   const showEmptyGreeting = (operatorFirstName?: string) => {
@@ -1664,13 +1707,14 @@ export function createOperatorAiAssistantModule(
           },
         ]
 
+    const waitBody = startCheckingWaitRotation()
     state = {
       ...state,
       view: "thread",
       composerDraft: "",
       messages: storedMessages,
       turnInFlight: true,
-      waitBody: ASSISTANT_WAIT_BODY,
+      waitBody,
       turnConversationId: state.conversationId,
       changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
     }
@@ -1695,6 +1739,7 @@ export function createOperatorAiAssistantModule(
           return
         }
         inflight = null
+        stopCheckingWaitRotation()
         state = {
           ...applyConversation(state, row),
           composerDraft: "",
@@ -1707,6 +1752,7 @@ export function createOperatorAiAssistantModule(
           return
         }
         inflight = null
+        stopCheckingWaitRotation()
         if (isAbortError(error)) {
           state = {
             ...state,
@@ -2133,11 +2179,20 @@ export function createOperatorAiAssistantModule(
       ) {
         return
       }
+      if (signal.step === "checking" && waitPipeline !== "checking") {
+        return
+      }
       const waitBody = {
-        checking: "Checking your question…",
-        retrieving: "Retrieving data…",
-        preparing: "Preparing answer…",
+        checking: formatAssistantWaitGerund(
+          assistantWaitGerundAt(waitGerundIndex)
+        ),
+        retrieving: ASSISTANT_WAIT_RETRIEVING_BODY,
+        preparing: ASSISTANT_WAIT_PREPARING_BODY,
       }[signal.step]
+      if (signal.step === "retrieving" || signal.step === "preparing") {
+        waitPipeline = signal.step
+        stopCheckingWaitRotation()
+      }
       state = {
         ...state,
         waitBody,

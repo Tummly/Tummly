@@ -1,4 +1,7 @@
-import { OPERATOR_RIGHT_DRAWER_WIDTH_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
+import {
+  OPERATOR_RIGHT_DRAWER_BODY_CLASS,
+  OPERATOR_RIGHT_DRAWER_WIDTH_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 
 import type { OperatorAiAssistantWidthMode } from "./createOperatorAiAssistantModule"
 
@@ -58,4 +61,75 @@ export function assistantDrawerContentClass(input: {
   }
 
   return `${ASSISTANT_DRAWER_CHROME_CLASS} ${OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS}`
+}
+
+/** Figma 3444:52355 — 30px gutters around the Expand conversation column. */
+export const ASSISTANT_EXPAND_CONVERSATION_STAGE_CLASS =
+  "px-[30px] pb-[50px]"
+
+/** Figma 3444:52355 — conversation + composer cap at 800px, centered. */
+export const ASSISTANT_EXPAND_CONVERSATION_COLUMN_CLASS =
+  "mx-auto w-full max-w-[800px]"
+
+/**
+ * Gutter around the Expand conversation column.
+ * Collapsed keeps padding on the thread and composer dock.
+ */
+export function assistantConversationStageClass(expanded: boolean): string {
+  return expanded
+    ? `flex min-h-0 flex-1 flex-col ${ASSISTANT_EXPAND_CONVERSATION_STAGE_CLASS}`
+    : "flex min-h-0 flex-1 flex-col"
+}
+
+/** Conversation + composer column. Expand centers an 800px rail. */
+export function assistantConversationColumnClass(expanded: boolean): string {
+  return expanded
+    ? `flex min-h-0 flex-1 flex-col ${ASSISTANT_EXPAND_CONVERSATION_COLUMN_CLASS}`
+    : "flex min-h-0 flex-1 flex-col"
+}
+
+/**
+ * Scrollable thread. Bottom padding keeps space above the composer when
+ * the conversation overflows.
+ */
+export function assistantThreadBodyClass(expanded: boolean): string {
+  return [
+    OPERATOR_RIGHT_DRAWER_BODY_CLASS,
+    "flex flex-col pb-[30px]",
+    expanded ? "" : "px-[30px]",
+  ]
+    .filter((part) => part.length > 0)
+    .join(" ")
+}
+
+/** Composer + chips dock. Expand inherits stage padding. */
+export function assistantComposerDockClass(expanded: boolean): string {
+  return expanded
+    ? "flex w-full shrink-0 flex-col gap-8"
+    : "flex w-full shrink-0 flex-col gap-8 px-[30px] pb-[30px]"
+}
+
+/**
+ * Stick-to-end key for the conversation thread.
+ * Null while the list or empty greeting is painted.
+ * Wait body is in the key so progress lines keep the end in view.
+ */
+export function assistantThreadStickAnchor(input: {
+  showList: boolean
+  showGreeting: boolean
+  messages: readonly { id: string; role: string; body: string }[]
+}): string | null {
+  if (input.showList || input.showGreeting) {
+    return null
+  }
+  const last = input.messages.at(-1)
+  if (last == null) {
+    return null
+  }
+  return `${input.messages.length}:${last.id}:${last.role}:${last.body}`
+}
+
+/** Scroll the thread body so the latest row sits at the end. */
+export function stickAssistantThreadToBottom(body: HTMLElement): void {
+  body.scrollTop = body.scrollHeight
 }

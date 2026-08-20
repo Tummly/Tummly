@@ -8,7 +8,8 @@ namespace TummlyBackend.Helpers
     public static class AssistantAnalysisScope
     {
         public const string FailureBody =
-            "The answer could not be completed. Retry this turn.";
+            "The answer could not be completed. Retry this send. "
+            + AssistantNextTryCopy.Sentence;
 
         public static string TitleFromFirstUserMessage(string message)
         {

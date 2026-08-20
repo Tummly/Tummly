@@ -11,11 +11,15 @@ namespace TummlyBackend.Helpers
     /// </summary>
     public static class AssistantRecoveryIdentity
     {
+        public const string ReasonEmpty = "empty";
+        public const string ReasonNoNegative = "no-negative";
+        public const string ReasonNamedMiss = "named-miss";
+
         public abstract record Match
         {
             public sealed record One(AssistantFeedbackEvidenceRow Row) : Match;
 
-            public sealed record None : Match;
+            public sealed record None(string Reason) : Match;
 
             public sealed record Many(
                 IReadOnlyList<AssistantFeedbackEvidenceRow> Rows
@@ -37,19 +41,48 @@ namespace TummlyBackend.Helpers
             var named = rows
                 .Where(row => MentionsRow(userMessage, row))
                 .ToList();
+            var namedGuest = false;
             if (named.Count == 0 && TrySpecificWho(userMessage, out var who))
             {
                 named = rows.Where(row => MentionsWho(row, who)).ToList();
+                namedGuest = true;
                 if (named.Count == 0)
                 {
-                    return new Match.None();
+                    return new Match.None(ReasonNamedMiss);
                 }
             }
 
             var pool = named.Count > 0 ? named : rows.ToList();
+            var asksNegative = AsksNegative(userMessage);
+            if (asksNegative)
+            {
+                pool = pool.Where(IsNegative).ToList();
+            }
+
             if (pool.Count == 0)
             {
-                return new Match.None();
+                if (namedGuest && !asksNegative)
+                {
+                    return new Match.None(ReasonNamedMiss);
+                }
+
+                if (asksNegative && rows.Count > 0)
+                {
+                    return new Match.None(ReasonNoNegative);
+                }
+
+                return new Match.None(
+                    rows.Count == 0 ? ReasonEmpty : ReasonNamedMiss
+                );
+            }
+
+            if (AsksLast(userMessage))
+            {
+                var latest = pool
+                    .OrderByDescending(row => row.CreatedAt)
+                    .ThenByDescending(row => row.Id)
+                    .First();
+                return new Match.One(latest);
             }
 
             if (pool.Count == 1)
@@ -57,22 +90,7 @@ namespace TummlyBackend.Helpers
                 return new Match.One(pool[0]);
             }
 
-            if (named.Count == 0)
-            {
-                return new Match.Many(pool);
-            }
-
-            var uniqueByLabel = named
-                .GroupBy(FormatLabel, StringComparer.OrdinalIgnoreCase)
-                .Where(group => group.Count() == 1)
-                .Select(group => group.First())
-                .ToList();
-            if (uniqueByLabel.Count == 1 && named.Count == 1)
-            {
-                return new Match.One(named[0]);
-            }
-
-            return new Match.Many(named);
+            return new Match.Many(pool);
         }
 
         public static string FormatLabel(AssistantFeedbackEvidenceRow row)
@@ -145,11 +163,23 @@ namespace TummlyBackend.Helpers
                 return true;
             }
 
+            if (lower.Contains("feedback", StringComparison.Ordinal)
+                || lower.Contains("location", StringComparison.Ordinal)
+                || lower.Contains("negative", StringComparison.Ordinal)
+                || lower.Contains("recovery", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
             return lower.StartsWith("this ", StringComparison.Ordinal)
+                || lower.StartsWith("the last", StringComparison.Ordinal)
+                || lower.StartsWith("the latest", StringComparison.Ordinal)
                 || lower.StartsWith("the guest", StringComparison.Ordinal)
                 || lower.StartsWith("that guest", StringComparison.Ordinal)
                 || lower.StartsWith("these ", StringComparison.Ordinal)
-                || lower.StartsWith("those ", StringComparison.Ordinal);
+                || lower.StartsWith("those ", StringComparison.Ordinal)
+                || lower.StartsWith("last ", StringComparison.Ordinal)
+                || lower.StartsWith("latest ", StringComparison.Ordinal);
         }
 
         private static bool MentionsWho(AssistantFeedbackEvidenceRow row, string who)
@@ -176,5 +206,28 @@ namespace TummlyBackend.Helpers
                 RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
             );
         }
+
+        private static bool AsksNegative(string userMessage)
+            => userMessage.Contains("negative", StringComparison.OrdinalIgnoreCase);
+
+        private static bool AsksLast(string userMessage)
+        {
+            var lower = userMessage.Trim().ToLowerInvariant();
+            var lastish = lower.Contains("last ", StringComparison.Ordinal)
+                || lower.Contains("latest", StringComparison.Ordinal)
+                || lower.Contains("most recent", StringComparison.Ordinal)
+                || lower.Contains("newest", StringComparison.Ordinal);
+            if (!lastish)
+            {
+                return false;
+            }
+
+            return lower.Contains("feedback", StringComparison.Ordinal)
+                || lower.Contains("negative", StringComparison.Ordinal)
+                || lower.Contains("guest", StringComparison.Ordinal);
+        }
+
+        private static bool IsNegative(AssistantFeedbackEvidenceRow row)
+            => string.Equals(row.Sentiment, "negative", StringComparison.OrdinalIgnoreCase);
     }
 }

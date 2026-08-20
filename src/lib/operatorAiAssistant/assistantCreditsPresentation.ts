@@ -20,28 +20,45 @@ export const ASSISTANT_CREDITS_STUB_REMAINING_LINE =
     ASSISTANT_CREDITS_STUB_ALLOWANCE
   )
 
-/** Mic / Send circle — Figma Main Bg/Colour fill, primary glyph. */
-export const ASSISTANT_COMPOSER_CIRCLE_CLASS = [
-  "size-10 min-h-11 min-w-11 shrink-0 rounded-full p-2 shadow-none",
+/** Shared Mic / Send circle fill — Figma Main Bg/Colour, primary glyph. */
+const ASSISTANT_COMPOSER_CIRCLE_CHROME_CLASS = [
+  "shrink-0 rounded-full shadow-none",
   "bg-op-assistant-credits-background text-op-text-primary",
   "hover:bg-op-assistant-credits-background hover:text-op-text-primary",
-  "md:min-h-10 md:min-w-10",
 ].join(" ")
+
+/** Mic circle — 40px, 44px hit below md. */
+export const ASSISTANT_COMPOSER_CIRCLE_CLASS = [
+  ASSISTANT_COMPOSER_CIRCLE_CHROME_CLASS,
+  "size-10 min-h-11 min-w-11 p-2 md:min-h-10 md:min-w-10",
+].join(" ")
+
+/** Send circle — smaller than mic. */
+export const ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS = [
+  ASSISTANT_COMPOSER_CIRCLE_CHROME_CLASS,
+  "size-8 min-h-8 min-w-8 p-2",
+].join(" ")
+
+export const ASSISTANT_COMPOSER_SEND_ICON_CLASS = "size-4"
 
 const ASSISTANT_COMPOSER_FIELD_BASE_CLASS = [
-  "flex min-h-[144px] flex-col justify-between border-0 p-[21px]",
+  "flex min-h-[112px] flex-col justify-between border-0 p-4",
+  "md:min-h-[144px] md:p-[21px]",
 ].join(" ")
 
-/** Outer credits + field shell — rest vs focus border. */
+/**
+ * Outer credits + field shell — rest vs focus.
+ * Focus uses the same `border-ring` + ring as Input / Textarea, not primary text.
+ */
 export function assistantComposerBorderClass(focused: boolean): string {
   return focused
-    ? "border-op-text-primary"
+    ? "border-ring ring-3 ring-ring/50"
     : "border-op-assistant-composer-border"
 }
 
 export function assistantComposerShellClass(focused: boolean): string {
   return [
-    "overflow-hidden rounded-[8px] border",
+    "rounded-[8px] border transition-colors",
     assistantComposerBorderClass(focused),
   ].join(" ")
 }

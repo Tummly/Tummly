@@ -111,6 +111,10 @@ namespace TummlyBackend.Tests.Integration
                 messages[1].GetProperty("body").GetString()
             );
             Assert.Contains(
+                "Change Scope",
+                messages[1].GetProperty("body").GetString()
+            );
+            Assert.Contains(
                 "Camden",
                 messages[1].GetProperty("title").GetString()
             );

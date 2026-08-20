@@ -51,6 +51,7 @@ namespace TummlyBackend.Helpers
         public static string FailureBody(string failedStep)
             => "I could not save this Campaign Draft. "
                 + $"The {failedStep} step failed. "
-                + "Retry this send, or create the Campaign in Campaigns.";
+                + AssistantNextTryCopy.Sentence
+                + " Retry this send, or create the Campaign in Campaigns.";
     }
 }

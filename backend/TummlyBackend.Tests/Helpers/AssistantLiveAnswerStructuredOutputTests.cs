@@ -98,5 +98,24 @@ namespace TummlyBackend.Tests.Helpers
                 StringComparison.Ordinal
             );
         }
+
+        [Fact]
+        public void BuildSystemPrompt_EmptyEvidenceTellsOperatorToChangeScope()
+        {
+            var prompt = AssistantLiveAnswerStructuredOutput.BuildSystemPrompt(
+                "2026-08-16"
+            );
+
+            Assert.Contains(
+                "Change Scope to pick another Owned location or Reporting period",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "send a more specific ask",
+                prompt,
+                StringComparison.Ordinal
+            );
+        }
     }
 }

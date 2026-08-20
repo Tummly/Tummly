@@ -30,7 +30,8 @@ namespace TummlyBackend.Helpers
             => new(
                 AssistantMessageClass.Grounded,
                 $"No facts at {ownedLocationName} for {periodPhrase}",
-                $"There is nothing to summarise or list at {ownedLocationName} over {periodPhrase}.",
+                $"There is nothing to summarise or list at {ownedLocationName} over {periodPhrase}. "
+                    + AssistantNextTryCopy.Sentence,
                 []
             );
 
@@ -439,7 +440,8 @@ namespace TummlyBackend.Helpers
 
             if (parts.Count == 0)
             {
-                return $"There is nothing to summarise or list at {ownedLocationName} over {periodPhrase}.";
+                return $"There is nothing to summarise or list at {ownedLocationName} over {periodPhrase}. "
+                    + AssistantNextTryCopy.Sentence;
             }
 
             return string.Join(" ", parts);

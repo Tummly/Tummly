@@ -77,6 +77,12 @@ namespace TummlyBackend.Tests.Helpers
                     "Prepare a recovery response with a recovery offer. Weekend brunch"
                 )
             );
+            Assert.Equal(
+                AssistantTask.RecoveryPath,
+                AssistantTaskClassification.Classify(
+                    "Recover feedback of the last negative feedback recieved"
+                )
+            );
         }
 
         [Fact]

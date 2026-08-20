@@ -42,7 +42,7 @@ namespace TummlyBackend.Helpers
             {
                 return new Outcome.Blocked(
                     "resolved",
-                    AssistantRecoveryPersistCopy.ResolvedBody()
+                    AssistantRecoveryPersistCopy.ResolvedBody(feedback.GuestName)
                 );
             }
 

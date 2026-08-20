@@ -266,7 +266,9 @@ namespace TummlyBackend.Helpers
                 sample.
 
                 Empty evidence is a grounded empty answer: title and body name the
-                Owned location and Reporting period. No Actions.
+                Owned location and Reporting period. Tell the operator to use
+                Change Scope to pick another Owned location or Reporting period,
+                or to send a more specific ask. No Actions. Do not invent facts.
 
                 Legal Create Campaign Draft, Offer path, and Recovery path asks
                 are not Mutate refusals. Emit assistantTask create-campaign-draft

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import {
   ASSISTANT_ADD_CREDITS_LABEL,
+  ASSISTANT_COMPOSER_CIRCLE_CLASS,
+  ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS,
+  ASSISTANT_COMPOSER_SEND_ICON_CLASS,
   ASSISTANT_CREDITS_STUB_ALLOWANCE,
   ASSISTANT_CREDITS_STUB_REMAINING,
   ASSISTANT_CREDITS_STUB_REMAINING_LINE,
@@ -46,22 +49,43 @@ describe("assistantCreditsPresentation", () => {
     )
   })
 
-  it("puts rest and focus border on the outer composer shell, not the field", () => {
+  it("puts rest and focus chrome on the outer composer shell, not the field", () => {
     expect(assistantComposerBorderClass(false)).toBe(
       "border-op-assistant-composer-border"
     )
-    expect(assistantComposerBorderClass(true)).toBe("border-op-text-primary")
+    expect(assistantComposerBorderClass(true)).toBe(
+      "border-ring ring-3 ring-ring/50"
+    )
     expect(assistantComposerShellClass(false)).toContain(
       "border-op-assistant-composer-border"
     )
-    expect(assistantComposerShellClass(true)).toContain("border-op-text-primary")
+    expect(assistantComposerShellClass(true)).toContain("border-ring")
+    expect(assistantComposerShellClass(true)).toContain("ring-3")
+    expect(assistantComposerShellClass(true)).toContain("ring-ring/50")
+    expect(assistantComposerShellClass(true)).not.toContain(
+      "border-op-text-primary"
+    )
     expect(assistantComposerFieldClass("mic")).toContain("border-0")
     expect(assistantComposerFieldClass("mic")).not.toContain(
       "border-op-assistant-composer-border"
     )
-    expect(assistantComposerFieldClass("mic")).not.toContain(
-      "border-op-text-primary"
-    )
+    expect(assistantComposerFieldClass("mic")).not.toContain("border-ring")
+  })
+
+  it("uses a shorter composer field below md and Figma 144px from md", () => {
+    const className = assistantComposerFieldClass("mic")
+
+    expect(className).toContain("min-h-[112px]")
+    expect(className).toContain("p-4")
+    expect(className).toContain("md:min-h-[144px]")
+    expect(className).toContain("md:p-[21px]")
+  })
+
+  it("paints Send smaller than the mic circle", () => {
+    expect(ASSISTANT_COMPOSER_CIRCLE_CLASS).toContain("size-10")
+    expect(ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS).toContain("size-8")
+    expect(ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS).not.toContain("size-10")
+    expect(ASSISTANT_COMPOSER_SEND_ICON_CLASS).toBe("size-4")
   })
 
   it("uses primary typed text, muted placeholder text, and no inner focus chrome", () => {

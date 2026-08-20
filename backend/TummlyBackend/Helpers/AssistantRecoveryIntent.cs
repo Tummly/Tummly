@@ -126,7 +126,13 @@ namespace TummlyBackend.Helpers
                 || lower.Contains("reply to these guests", StringComparison.Ordinal)
                 || lower.Contains("reply to those guests", StringComparison.Ordinal)
                 || lower.Contains("reply to feedback", StringComparison.Ordinal);
+            var recoverVerb = Regex.IsMatch(
+                lower,
+                @"\brecover\b",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+            );
             var recoveryish = lower.Contains("recovery", StringComparison.Ordinal)
+                || recoverVerb
                 || directResponseAsk
                 || LooksLikeRespondAndRecord(lower)
                 || lower.Contains("internal action", StringComparison.Ordinal)
@@ -136,8 +142,9 @@ namespace TummlyBackend.Helpers
                 || lower.Contains("prepare", StringComparison.Ordinal)
                 || lower.Contains("create", StringComparison.Ordinal)
                 || lower.Contains("start", StringComparison.Ordinal)
-                || lower.Contains("help", StringComparison.Ordinal);
-            return directResponseAsk || (recoveryish && draftish);
+                || lower.Contains("help", StringComparison.Ordinal)
+                || recoverVerb;
+            return directResponseAsk || recoverVerb || (recoveryish && draftish);
         }
 
         public static bool LooksLikeInternalOnly(string lower)

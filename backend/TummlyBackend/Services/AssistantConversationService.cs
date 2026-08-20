@@ -922,11 +922,12 @@ namespace TummlyBackend.Services
                 }
                 else
                 {
+                    var groundedAsk = AssistantAskIntent.ClassifyGrounded(userMessage);
                     var actions = AssistantActionCatalog.Validate(
                         succeeded.Actions,
                         succeeded.Class,
                         savedEvidence,
-                        AssistantAskIntent.ClassifyGrounded(userMessage)
+                        groundedAsk
                     );
                     var redactionTokens = savedEvidence.Feedback.ContactRedactionTokens
                         .Concat(savedEvidence.Guests.ContactRedactionTokens)
@@ -942,6 +943,19 @@ namespace TummlyBackend.Services
                         succeeded.Body,
                         redactionTokens
                     );
+                    if (succeeded.Class == AssistantMessageClass.Grounded
+                        && savedEvidence.IsEmpty
+                        && groundedAsk != AssistantGroundedAsk.ListGuests
+                        && compareEvidence is not { Count: >= 2 })
+                    {
+                        var empty = AssistantLiveAnswerCopy.EmptyGrounded(
+                            locationName,
+                            periodPhrase
+                        );
+                        title = empty.Title;
+                        body = empty.Body;
+                        actions = empty.Actions;
+                    }
                     assistantMessage = new AssistantMessage
                     {
                         Role = AssistantMessageRole.Assistant,
@@ -1362,10 +1376,15 @@ namespace TummlyBackend.Services
                 );
             switch (match)
             {
-                case AssistantRecoveryIdentity.Match.None:
+                case AssistantRecoveryIdentity.Match.None miss:
+                    var scope = AssistantAnalysisScope.FromConversation(conversation);
                     return new RecoveryPersistTurn(
                         AssistantRecoveryPersistCopy.FailureTitle,
-                        AssistantRecoveryPersistCopy.ZeroMatchBody(),
+                        AssistantRecoveryPersistCopy.ZeroMatchBody(
+                            miss.Reason,
+                            conversation.OwnedLocationName,
+                            AssistantAnalysisScope.PeriodPhrase(scope.ReportingPeriod)
+                        ),
                         none,
                         null,
                         null
