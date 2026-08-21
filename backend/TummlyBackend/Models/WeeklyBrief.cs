@@ -29,11 +29,17 @@ namespace TummlyBackend.Models
 
         public DateTime GeneratedAtUtc { get; set; }
 
-        /// <summary>Structured brief body JSON (schema owned by later tickets).</summary>
+        /// <summary>
+        /// Structured brief body JSON (
+        /// <see cref="WeeklyBriefBody"/> / <c>WeeklyBriefStructuredOutput</c> schema v1).
+        /// </summary>
         [Required]
         public string BodyJson { get; set; } = string.Empty;
 
-        /// <summary>Echoed aggregate metrics JSON fed into / returned with generation.</summary>
+        /// <summary>
+        /// Echoed aggregate metrics JSON (
+        /// <see cref="WeeklyBriefMetrics"/>) fed into / returned with generation.
+        /// </summary>
         [Required]
         public string MetricsJson { get; set; } = string.Empty;
 
