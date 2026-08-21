@@ -12,6 +12,8 @@ export type OperatorHomePageModuleApi = {
   syncWorkspace: OperatorHomePageModule["syncWorkspace"]
   retryLoad: OperatorHomePageModule["retryLoad"]
   reloadForHomePerformanceDateRange: OperatorHomePageModule["reloadForHomePerformanceDateRange"]
+  retryRecommendation: OperatorHomePageModule["retryRecommendation"]
+  dismissRecommendation: OperatorHomePageModule["dismissRecommendation"]
   previewGuestForm: OperatorHomePageModule["previewGuestForm"]
   copySmartGuestLink: () => void
   openFeedbackDetails: OperatorHomePageModule["openFeedbackDetails"]
@@ -63,6 +65,8 @@ export function useHomePageModule(): OperatorHomePageModuleApi {
     retryLoad: pageModule.retryLoad,
     reloadForHomePerformanceDateRange:
       pageModule.reloadForHomePerformanceDateRange,
+    retryRecommendation: pageModule.retryRecommendation,
+    dismissRecommendation: pageModule.dismissRecommendation,
     previewGuestForm: pageModule.previewGuestForm,
     copySmartGuestLink: () => {
       void pageModule.copySmartGuestLink().then((result) => {

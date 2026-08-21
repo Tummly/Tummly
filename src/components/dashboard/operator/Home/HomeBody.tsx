@@ -9,6 +9,7 @@ import { HomeRecommendedNextStep } from "@/components/dashboard/operator/Home/Ho
 import { HomeWeeklyBriefSection } from "@/components/dashboard/operator/Home/HomeWeeklyBriefSection"
 import { HomeSetupChecklist } from "@/components/dashboard/operator/Home/HomeSetupChecklist"
 import { Button } from "@/components/ui/button"
+import type { OperatorHomeRecommendationViewModel } from "@/lib/operatorHome/createOperatorHomePageModule"
 import { OPERATOR_HOME_CARD_CLASS } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod"
 import type { FeedbackDetailsSnapshot } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
@@ -22,7 +23,10 @@ import {
 } from "@/lib/operatorHome/performanceOverviewPresentation"
 import type { FeedbackSentiment, FeedbackWorkflowStatus } from "@/types/dashboard"
 import type { FeedbackClassificationCorrectionReason } from "@/lib/operatorFeedback/feedbackClassificationCorrectionPresentation"
-import type { OperatorHomeViewModel } from "@/types/operatorHome"
+import type {
+  HomeRecommendation,
+  OperatorHomeViewModel,
+} from "@/types/operatorHome"
 
 type HomeBodyProps = {
   viewModel: OperatorHomeViewModel
@@ -39,6 +43,10 @@ type HomeBodyProps = {
   onCreateOffer?: () => void
   onCreateCampaign?: () => void
   onCopySmartGuestLink?: () => void
+  recommendation: OperatorHomeRecommendationViewModel
+  onRetryRecommendation?: () => void
+  onRecommendationPrimaryAction?: (recommendation: HomeRecommendation) => void
+  onDismissRecommendation?: () => void
   feedbackDetails: FeedbackDetailsSnapshot
   onViewFeedback?: (feedbackId: number) => void
   onViewGuest?: (locationGuestId: number) => void
@@ -95,6 +103,10 @@ export function HomeBody({
   onCreateOffer,
   onCreateCampaign,
   onCopySmartGuestLink,
+  recommendation,
+  onRetryRecommendation,
+  onRecommendationPrimaryAction,
+  onDismissRecommendation,
   feedbackDetails,
   onViewFeedback,
   onViewGuest,
@@ -183,7 +195,20 @@ export function HomeBody({
 
       <HomeLiveOffersSection />
 
-      <HomeRecommendedNextStep />
+      <HomeRecommendedNextStep
+        recommendation={recommendation}
+        locationName={viewModel.selectedLocationName}
+        dateRangeLabel={viewModel.dateRangeLabel}
+        onRetry={() => {
+          onRetryRecommendation?.()
+        }}
+        onPrimaryAction={(payload) => {
+          onRecommendationPrimaryAction?.(payload)
+        }}
+        onNotNow={() => {
+          onDismissRecommendation?.()
+        }}
+      />
 
       {feedbackState === "loading" ? (
         <div

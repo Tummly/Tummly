@@ -5,8 +5,14 @@ import {
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
 import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod"
+import { isHomeRecommendationCampaignType } from "@/lib/operatorHome/homeRecommendationPresentation"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
-import { operatorDashboardGuestProfilePath, operatorDashboardNavPath } from "@/lib/operatorHome/operatorDashboardPaths"
+import {
+  operatorDashboardGuestProfilePath,
+  operatorDashboardNavPath,
+  operatorDashboardOfferDetailsPath,
+} from "@/lib/operatorHome/operatorDashboardPaths"
+import type { HomeRecommendation } from "@/types/operatorHome"
 import { useNavigate, useOutletContext } from "react-router-dom"
 
 type HomePageProps = {
@@ -35,6 +41,77 @@ export function HomePage({
         selectedLocationId
       )
     )
+  }
+
+  const handleRecommendationPrimaryAction = (
+    recommendation: HomeRecommendation
+  ) => {
+    if (isHomeRecommendationCampaignType(recommendation.type)) {
+      // Ticket 06 wires wizard openFromRecommendation; navigate to Campaigns for now.
+      navigate(
+        operatorDashboardNavPath(mode, "campaigns", selectedLocationId)
+      )
+      return
+    }
+
+    const action = recommendation.action
+    if (action == null) {
+      switch (recommendation.type) {
+        case "review-open-feedback":
+          navigate(
+            operatorDashboardNavPath(mode, "feedback", selectedLocationId)
+          )
+          return
+        case "thank-or-follow-guest":
+          navigate(
+            operatorDashboardNavPath(mode, "guests", selectedLocationId)
+          )
+          return
+        case "promote-or-fix-offer":
+          navigate(
+            operatorDashboardNavPath(mode, "offers", selectedLocationId)
+          )
+          return
+        default:
+          return
+      }
+    }
+
+    switch (action.kind) {
+      case "open-feedback":
+        if (action.feedbackId != null) {
+          void home.openFeedbackDetails(action.feedbackId)
+        } else {
+          navigate(
+            operatorDashboardNavPath(mode, "feedback", selectedLocationId)
+          )
+        }
+        return
+      case "open-guest":
+        if (action.locationGuestId != null) {
+          navigateToGuestProfile(action.locationGuestId)
+        } else {
+          navigate(
+            operatorDashboardNavPath(mode, "guests", selectedLocationId)
+          )
+        }
+        return
+      case "open-offer":
+        if (action.offerId != null) {
+          navigate(
+            operatorDashboardOfferDetailsPath(
+              mode,
+              action.offerId,
+              selectedLocationId
+            )
+          )
+        } else {
+          navigate(
+            operatorDashboardNavPath(mode, "offers", selectedLocationId)
+          )
+        }
+        return
+    }
   }
 
   const viewModel = home.snapshot.viewModel
@@ -103,6 +180,14 @@ export function HomePage({
           )
         }}
         onCopySmartGuestLink={home.copySmartGuestLink}
+        recommendation={home.snapshot.recommendation}
+        onRetryRecommendation={() => {
+          void home.retryRecommendation()
+        }}
+        onRecommendationPrimaryAction={handleRecommendationPrimaryAction}
+        onDismissRecommendation={() => {
+          home.dismissRecommendation()
+        }}
         feedbackDetails={home.snapshot.feedbackDetails}
         onViewFeedback={(feedbackId) => {
           void home.openFeedbackDetails(feedbackId)
