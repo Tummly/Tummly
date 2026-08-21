@@ -65,7 +65,7 @@ describe("liveOffersSectionPresentation", () => {
     expect(LIVE_OFFERS_CARD_CLASS).toContain("max-h-[257px]")
     expect(LIVE_OFFERS_CARD_PREVIEW_CLASS).toContain("overflow-hidden")
     expect(LIVE_OFFERS_CARD_PREVIEW_CLASS).toContain("items-start")
-    expect(LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS).toContain("78%")
+    expect(LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS).toContain("88%")
     expect(LIVE_OFFERS_CARD_META_CLASS).toContain(
       "bg-op-live-card-meta-background"
     )
