@@ -136,7 +136,6 @@ describe("buildLiveOffersSectionCards", () => {
       rowVersion: "AAAA",
     })
     expect(cards[0]?.kind === "campaign" && cards[0].metricParts).toEqual([
-      `Sent to ${LIVE_OFFERS_METRIC_DASH} guests`,
       "80% delivered",
       "3 offer claims",
     ])

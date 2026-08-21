@@ -56,10 +56,10 @@ export const LIVE_OFFERS_CARD_PREVIEW_SCALE_CLASS =
 
 /**
  * Wash + Preview CTA above guest chrome (email uses internal z-10).
- * Black opacity stays visible on the full-width dark email canvas.
+ * Token black opacity stays visible on the full-width dark email canvas.
  */
 export const LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS =
-  "absolute inset-0 z-10 flex items-center justify-center bg-[linear-gradient(to_bottom,rgb(0_0_0_/_0.55)_0%,rgb(0_0_0_/_0.82)_100%)]"
+  "absolute inset-0 z-10 flex items-center justify-center bg-[linear-gradient(to_bottom,color-mix(in_srgb,var(--op-color-black)_55%,transparent)_0%,color-mix(in_srgb,var(--op-color-black)_82%,transparent)_100%)]"
 
 export const LIVE_OFFERS_CARD_META_CLASS =
   "flex min-w-0 flex-1 flex-col justify-between gap-6 bg-op-background-secondary p-5 sm:p-6"

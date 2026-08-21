@@ -2269,8 +2269,81 @@ describe("createOperatorHomePageModule", () => {
     const paused = await home.pauseLiveCampaign(2)
     expect(paused).toBe(true)
     expect(pauseCampaign).toHaveBeenCalledWith(2, { rowVersion: "rv-2" })
+    expect(home.getSnapshot().liveOffersLoadStatus).toBe("loaded")
     await vi.waitFor(() => {
       expect(home.getSnapshot().liveCards).toEqual([])
     })
+    expect(home.getSnapshot().liveOffersLoadStatus).toBe("loaded")
+  })
+
+  it("pause refresh keeps section loaded while lists reload", async () => {
+    let resolveCampaigns: ((value: unknown[]) => void) | null = null
+    const pauseCampaign = vi.fn(async () => ({
+      success: true,
+      campaign: {
+        id: 2,
+        locationId: 1,
+        status: "paused",
+        name: "Thank-you campaign",
+        scheduleMode: null,
+        scheduledAtUtc: null,
+        scheduleTimeZone: null,
+        billingReservationRef: null,
+        reservedEstimate: null,
+        frozenRecipientCount: 0,
+        rowVersion: "rv-3",
+        updatedAt: "2026-08-21T13:00:00.000Z",
+      },
+    }))
+    const listLiveCampaigns = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          id: 2,
+          name: "Thank-you campaign",
+          status: "sending",
+          goalId: null,
+          locationId: 1,
+          locationName: "First Venue",
+          channel: "email",
+          audienceKey: null,
+          offerStance: null,
+          updatedAt: "2026-08-21T12:00:00.000Z",
+          rowVersion: "rv-2",
+          sendDate: null,
+          delivery: null,
+          engagement: null,
+          redemptions: null,
+        },
+      ])
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveCampaigns = resolve
+          })
+      )
+    const home = createOperatorHomePageModule(
+      createAdapters({ listLiveCampaigns, pauseCampaign })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().liveOffersLoadStatus).toBe("loaded")
+    })
+
+    const pausePromise = home.pauseLiveCampaign(2)
+    await vi.waitFor(() => {
+      expect(listLiveCampaigns).toHaveBeenCalledTimes(2)
+    })
+    expect(home.getSnapshot().liveOffersLoadStatus).toBe("loaded")
+    expect(home.getSnapshot().liveCards[0]).toMatchObject({
+      kind: "campaign",
+      id: 2,
+    })
+
+    resolveCampaigns?.([])
+    await expect(pausePromise).resolves.toBe(true)
+    expect(home.getSnapshot().liveCards).toEqual([])
+    expect(home.getSnapshot().liveOffersLoadStatus).toBe("loaded")
   })
 })

@@ -103,8 +103,8 @@ function mapCampaignCard(item: CampaignsListItem): OperatorHomeLiveCampaignCard 
     channel: item.channel,
     messageSubject: null,
     messageBody: null,
+    // List wire has no guest-count field — only delivery + redemptions.
     metricParts: [
-      `Sent to ${LIVE_OFFERS_METRIC_DASH} guests`,
       delivery === LIVE_OFFERS_METRIC_DASH
         ? `${LIVE_OFFERS_METRIC_DASH} delivered`
         : delivery.toLowerCase().includes("delivered")

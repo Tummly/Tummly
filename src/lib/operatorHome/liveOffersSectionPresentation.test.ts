@@ -67,7 +67,10 @@ describe("liveOffersSectionPresentation", () => {
     expect(LIVE_OFFERS_CARD_PREVIEW_CLASS).toContain("items-start")
     expect(LIVE_OFFERS_CARD_PREVIEW_CLASS).toContain("justify-start")
     expect(LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS).toContain("z-10")
-    expect(LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS).toContain("0.82")
+    expect(LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS).toContain(
+      "var(--op-color-black)"
+    )
+    expect(LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS).toContain("_82%")
     expect(LIVE_OFFERS_CARD_META_CLASS).toContain(
       "bg-op-background-secondary"
     )

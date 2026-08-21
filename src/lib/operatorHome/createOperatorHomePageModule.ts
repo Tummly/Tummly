@@ -278,7 +278,12 @@ type HomeAction =
       viewModel: OperatorHomeViewModel | null
     }
   | { type: "performance_load_failed"; generation: number }
-  | { type: "live_offers_load_started"; generation: number }
+  | {
+      type: "live_offers_load_started"
+      generation: number
+      /** Keep prior cards visible (pause refresh) — do not flip to loading. */
+      keepVisible?: boolean
+    }
   | {
       type: "live_offers_load_succeeded"
       generation: number
@@ -448,14 +453,17 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         return state
       }
       return { ...state, performanceLoadStatus: "error" }
-    case "live_offers_load_started":
+    case "live_offers_load_started": {
+      const keepVisible =
+        action.keepVisible === true && state.liveOffersLoadStatus === "loaded"
       return {
         ...state,
-        liveOffersLoadStatus: "loading",
+        liveOffersLoadStatus: keepVisible ? "loaded" : "loading",
         liveOffersLoadGeneration: action.generation,
-        liveOffersError: null,
-        liveOffersPauseBusy: false,
+        liveOffersError: keepVisible ? state.liveOffersError : null,
+        ...(keepVisible ? {} : { liveOffersPauseBusy: false }),
       }
+    }
     case "live_offers_load_succeeded":
       if (action.generation !== state.liveOffersLoadGeneration) {
         return state
@@ -858,15 +866,22 @@ export function createOperatorHomePageModule(
     )
   }
 
-  const fetchLiveOffersForSelectedLocation = async () => {
+  const fetchLiveOffersForSelectedLocation = async (options?: {
+    keepVisible?: boolean
+  }) => {
     const workspace = state.workspace
     const selectedLocationId = workspace?.selectedLocationId
     if (workspace == null || selectedLocationId == null) {
       return
     }
 
+    const keepVisible = options?.keepVisible === true
     const generation = state.liveOffersLoadGeneration + 1
-    dispatch({ type: "live_offers_load_started", generation })
+    dispatch({
+      type: "live_offers_load_started",
+      generation,
+      keepVisible,
+    })
 
     try {
       const [offers, campaigns] = await Promise.all([
@@ -892,6 +907,14 @@ export function createOperatorHomePageModule(
       })
     } catch {
       if (generation !== state.liveOffersLoadGeneration) {
+        return
+      }
+      if (keepVisible && state.liveOffersLoadStatus === "loaded") {
+        dispatch({
+          type: "action_error",
+          error:
+            "Could not refresh live offers and campaigns. Please try again.",
+        })
         return
       }
       dispatch({
@@ -1327,7 +1350,7 @@ export function createOperatorHomePageModule(
         await adapters.pauseCampaign(campaignId, {
           rowVersion: card.rowVersion,
         })
-        await fetchLiveOffersForSelectedLocation()
+        await fetchLiveOffersForSelectedLocation({ keepVisible: true })
         return true
       } catch (error) {
         const message =
