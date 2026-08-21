@@ -1131,6 +1131,30 @@ static async Task InitializeDatabaseAsync(
 
     initState.MarkSucceeded();
     logger.LogInformation("Database initialized successfully.");
+
+    if (configuration.GetValue<bool>(
+            WeeklyBriefOneTimeGenerateCommand.OneTimeGenerateOnStartupConfigKey
+        ))
+    {
+        try
+        {
+            var weeklyBriefJob = scope.ServiceProvider
+                .GetRequiredService<IWeeklyBriefMondayJob>();
+            await WeeklyBriefOneTimeGenerateCommand.RunOnceAfterDeployAsync(
+                context,
+                weeklyBriefJob,
+                logger,
+                DateTime.UtcNow
+            );
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Weekly brief one-time generate after deploy failed; will retry on next start"
+            );
+        }
+    }
 }
 
 static void FailDatabaseInitExit(IServiceProvider services)

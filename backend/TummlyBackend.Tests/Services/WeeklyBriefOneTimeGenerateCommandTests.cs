@@ -164,6 +164,86 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task RunOnceAfterDeployAsync_WhenMarkerSet_SkipsGenerate()
+        {
+            await SeedLocationAsync("Harbour Kitchen");
+            _context.DataMigrationMarkers.Add(
+                new DataMigrationMarker
+                {
+                    Id = DataMigrationMarkerIds.WeeklyBriefClosedWeekBackfill,
+                    CompletedAt = LondonMondayMidnightUtc,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var completed =
+                await WeeklyBriefOneTimeGenerateCommand.RunOnceAfterDeployAsync(
+                    _context,
+                    _job,
+                    NullLogger.Instance,
+                    LondonMondayMidnightUtc
+                );
+
+            Assert.True(completed);
+            Assert.Equal(0, _provider.CallCount);
+            Assert.Empty(_notifier.Calls);
+        }
+
+        [Fact]
+        public async Task RunOnceAfterDeployAsync_WhenNotComplete_GeneratesThenSetsMarker()
+        {
+            var locationId = await SeedLocationAsync("Harbour Kitchen");
+
+            var completed =
+                await WeeklyBriefOneTimeGenerateCommand.RunOnceAfterDeployAsync(
+                    _context,
+                    _job,
+                    NullLogger.Instance,
+                    LondonMondayMidnightUtc
+                );
+
+            Assert.True(completed);
+            Assert.Equal(1, _provider.CallCount);
+            Assert.Single(_notifier.Calls);
+            Assert.Equal(locationId, _notifier.Calls[0].LocationId);
+            Assert.True(
+                await _context.DataMigrationMarkers.AnyAsync(row =>
+                    row.Id
+                    == DataMigrationMarkerIds.WeeklyBriefClosedWeekBackfill
+                )
+            );
+        }
+
+        [Fact]
+        public async Task RunOnceAfterDeployAsync_WhenGenerateFails_DoesNotSetMarker()
+        {
+            var failingId = await SeedLocationAsync("Fails");
+            var mixed = new MixedGenerateService(_generate, failingId);
+            var job = new WeeklyBriefMondayJob(
+                _context,
+                mixed,
+                _notifier,
+                NullLogger<WeeklyBriefMondayJob>.Instance
+            );
+
+            var completed =
+                await WeeklyBriefOneTimeGenerateCommand.RunOnceAfterDeployAsync(
+                    _context,
+                    job,
+                    NullLogger.Instance,
+                    LondonMondayMidnightUtc
+                );
+
+            Assert.False(completed);
+            Assert.False(
+                await _context.DataMigrationMarkers.AnyAsync(row =>
+                    row.Id
+                    == DataMigrationMarkerIds.WeeklyBriefClosedWeekBackfill
+                )
+            );
+        }
+
         public void Dispose()
         {
             _context.Dispose();

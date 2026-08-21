@@ -1,5 +1,8 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Services
 {
@@ -12,6 +15,14 @@ namespace TummlyBackend.Services
     public static class WeeklyBriefOneTimeGenerateCommand
     {
         public const string ArgumentName = "--generate-weekly-briefs";
+
+        /// <summary>
+        /// When true, the API runs <see cref="RunOnceAfterDeployAsync"/> after
+        /// database init succeeds. QA deploy sets this so the next revision
+        /// generates missing closed-week briefs once.
+        /// </summary>
+        public const string OneTimeGenerateOnStartupConfigKey =
+            "WeeklyBrief:OneTimeGenerateOnStartup";
 
         public static bool IsRequested(IEnumerable<string> args)
         {
@@ -62,6 +73,62 @@ namespace TummlyBackend.Services
                 logger,
                 cancellationToken
             );
+        }
+
+        /// <summary>
+        /// Idempotent post-deploy backfill. Skips when the watermark row
+        /// exists. Writes the watermark only after a batch with zero
+        /// location failures so a partial run retries on the next start.
+        /// </summary>
+        public static async Task<bool> RunOnceAfterDeployAsync(
+            ApplicationDbContext context,
+            IWeeklyBriefMondayJob job,
+            ILogger logger,
+            DateTime utcNow,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var alreadyComplete = await context.DataMigrationMarkers
+                .AsNoTracking()
+                .AnyAsync(
+                    marker =>
+                        marker.Id
+                        == DataMigrationMarkerIds.WeeklyBriefClosedWeekBackfill,
+                    cancellationToken
+                );
+
+            if (alreadyComplete)
+            {
+                logger.LogInformation(
+                    "Weekly brief one-time generate already complete; skipping"
+                );
+                return true;
+            }
+
+            var exitCode = await ExecuteAsync(
+                job,
+                utcNow,
+                logger,
+                cancellationToken
+            );
+
+            if (exitCode != 0)
+            {
+                logger.LogWarning(
+                    "Weekly brief one-time generate had location failures; watermark not written"
+                );
+                return false;
+            }
+
+            context.DataMigrationMarkers.Add(
+                new DataMigrationMarker
+                {
+                    Id = DataMigrationMarkerIds.WeeklyBriefClosedWeekBackfill,
+                    CompletedAt = utcNow,
+                }
+            );
+            await context.SaveChangesAsync(cancellationToken);
+            return true;
         }
     }
 }
