@@ -75,9 +75,7 @@
   --color-op-color-gray-60: var(--op-color-gray-60);
   --color-op-color-gray-70: var(--op-color-gray-70);
   --color-op-color-gray-85: var(--op-color-gray-85);
-  --color-op-color-gray-750: var(--op-color-gray-750);
   --color-op-color-gray-950: var(--op-color-gray-950);
-  --color-op-live-card-meta-background: var(--op-live-card-meta-background);
   --color-op-assistant-credits-background: var(--op-assistant-credits-background);
   --color-op-assistant-composer-background: var(--op-assistant-composer-background);
   --color-op-assistant-composer-recording-background: var(--op-assistant-composer-recording-background);
@@ -432,8 +430,6 @@ html.op {
   --op-card-background: var(--op-surface-secondary);
   --op-card-border: var(--op-border-default);
   --op-card-radius: var(--op-radius-lg);
-  /* Live offers card meta pane — light counterpart to gray-750 (#4e4e4e) dark */
-  --op-live-card-meta-background: var(--op-color-gray-150);
   --op-card-title-color: var(--op-text-primary);
   --op-card-title-size: var(--op-font-size-lg);
   --op-card-subtitle-color: var(--op-text-secondary);
@@ -573,8 +569,6 @@ html.op.dark {
   --op-background-secondary: var(--op-color-gray-990);
   --op-surface-primary: var(--op-color-gray-1000);
   --op-surface-secondary: var(--op-color-black);
-  /* Figma Live offers meta pane fill #4e4e4e */
-  --op-live-card-meta-background: var(--op-color-gray-750);
   /* Header + SideNav chrome — was #141414 before token migration. */
   --op-shell-chrome: var(--op-color-black);
   --op-border-default: var(--op-color-gray-980);

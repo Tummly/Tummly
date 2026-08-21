@@ -58,7 +58,7 @@ export const LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS =
   "absolute inset-0 flex items-center justify-center bg-[linear-gradient(to_bottom,color-mix(in_srgb,var(--op-color-black)_55%,transparent)_0%,color-mix(in_srgb,var(--op-color-black)_88%,transparent)_100%)]"
 
 export const LIVE_OFFERS_CARD_META_CLASS =
-  "flex min-w-0 flex-1 flex-col justify-between gap-6 bg-op-live-card-meta-background p-5 sm:p-6"
+  "flex min-w-0 flex-1 flex-col justify-between gap-6 bg-op-background-secondary p-5 sm:p-6"
 
 export const LIVE_OFFERS_CARD_META_TOP_CLASS = "flex flex-col items-start gap-3"
 

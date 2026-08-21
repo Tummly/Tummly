@@ -67,7 +67,7 @@ describe("liveOffersSectionPresentation", () => {
     expect(LIVE_OFFERS_CARD_PREVIEW_CLASS).toContain("items-start")
     expect(LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS).toContain("88%")
     expect(LIVE_OFFERS_CARD_META_CLASS).toContain(
-      "bg-op-live-card-meta-background"
+      "bg-op-background-secondary"
     )
   })
 })
