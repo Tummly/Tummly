@@ -62,12 +62,6 @@ namespace TummlyBackend.Helpers
             return "none";
         }
 
-        /// <summary>
-        /// Pre-AI quiet gate: true when no Home-native or campaign domain has signal.
-        /// </summary>
-        public static bool ShouldEmitNone(HomeRecommendationMetrics metrics)
-            => SelectType(metrics) == "none";
-
         private static bool HasReviewOpenFeedbackSignal(HomeRecommendationMetrics metrics)
             => metrics.OpenFeedbackCount > 0 || metrics.NeedsAttentionCount > 0;
 
