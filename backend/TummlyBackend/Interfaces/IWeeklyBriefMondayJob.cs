@@ -24,8 +24,8 @@ namespace TummlyBackend.Interfaces
     }
 
     /// <summary>
-    /// Stub until ticket 07 wires <c>weekly-brief-ready</c> ProduceAsync.
-    /// Called only after a successful first-write generate.
+    /// Produces <c>weekly-brief-ready</c> after a successful first-write generate
+    /// (Monday job, lazy Home, or one-time backfill). Dedupe key is location + week.
     /// </summary>
     public interface IWeeklyBriefReadyNotifier
     {

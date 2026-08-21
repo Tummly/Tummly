@@ -181,9 +181,9 @@ namespace TummlyBackend.Tests.Services
                 Type = "weekly-brief-ready",
                 Title = "Weekly brief ready",
                 Body = "Your weekly summary is ready.",
-                CtaLabel = "Open brief",
-                CtaHref = "/weekly-brief/2026-W28",
-                DedupeKey = "2026-W28"
+                CtaLabel = "View Home",
+                CtaHref = "/single-dashboard?location=1",
+                DedupeKey = "1:2026-W28"
             };
 
             var first = await _service.ProduceAsync(request);

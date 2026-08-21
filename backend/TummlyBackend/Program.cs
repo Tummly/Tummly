@@ -389,7 +389,7 @@ builder.Services.AddScoped<
 >();
 builder.Services.AddScoped<
     IWeeklyBriefReadyNotifier,
-    NoOpWeeklyBriefReadyNotifier
+    WeeklyBriefReadyNotifier
 >();
 builder.Services.AddScoped<
     ICampaignMessageDraftService,

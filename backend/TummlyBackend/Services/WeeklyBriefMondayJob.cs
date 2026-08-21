@@ -9,7 +9,7 @@ namespace TummlyBackend.Services
     /// <summary>
     /// Hourly Monday job: for each Owned location, if the closed prior week
     /// in the location timezone has no succeeded brief, call generate.
-    /// Notify on first-write success (stub until ticket 07).
+    /// Notify on first-write success via <see cref="IWeeklyBriefReadyNotifier"/>.
     /// Per-location failures are logged; the batch continues.
     /// </summary>
     public sealed class WeeklyBriefMondayJob : IWeeklyBriefMondayJob

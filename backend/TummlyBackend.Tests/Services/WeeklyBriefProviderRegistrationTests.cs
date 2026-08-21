@@ -45,7 +45,7 @@ namespace TummlyBackend.Tests.Services
 
             var notifier = scope.ServiceProvider
                 .GetRequiredService<IWeeklyBriefReadyNotifier>();
-            Assert.IsType<NoOpWeeklyBriefReadyNotifier>(notifier);
+            Assert.IsType<WeeklyBriefReadyNotifier>(notifier);
 
             Assert.Contains(
                 _factory.Services.GetServices<IHostedService>(),
