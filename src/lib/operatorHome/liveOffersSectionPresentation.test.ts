@@ -66,7 +66,8 @@ describe("liveOffersSectionPresentation", () => {
     expect(LIVE_OFFERS_CARD_PREVIEW_CLASS).toContain("overflow-hidden")
     expect(LIVE_OFFERS_CARD_PREVIEW_CLASS).toContain("items-start")
     expect(LIVE_OFFERS_CARD_PREVIEW_CLASS).toContain("justify-start")
-    expect(LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS).toContain("88%")
+    expect(LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS).toContain("z-10")
+    expect(LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS).toContain("0.82")
     expect(LIVE_OFFERS_CARD_META_CLASS).toContain(
       "bg-op-background-secondary"
     )
@@ -79,6 +80,7 @@ describe("liveOffersSectionPresentation preview width", () => {
       "./liveOffersSectionPresentation"
     )
     expect(LIVE_OFFERS_CARD_PREVIEW_SCALE_CLASS).toContain("w-full")
+    expect(LIVE_OFFERS_CARD_PREVIEW_SCALE_CLASS).toContain("z-0")
     expect(LIVE_OFFERS_CARD_PREVIEW_SCALE_CLASS).not.toContain("scale-[")
   })
 })
