@@ -1,30 +1,18 @@
-import type { CampaignWizardOpenFromRecommendationInput } from "@/lib/operatorCampaigns/createCampaignWizardModule"
 import { isHomeRecommendationCampaignType } from "@/lib/operatorHome/homeRecommendationPresentation"
+import type { CampaignRecommendationDraftPrefill } from "@/types/operatorCampaigns"
 import type { HomeRecommendation } from "@/types/operatorHome"
 
 /**
- * Build Campaign wizard `openFromRecommendation` input from a Home campaign-type
- * recommendation (ticket 06). Returns null when type is not campaign or draft is missing.
+ * Draft prefill for Campaign wizard `openFromRecommendation` from a Home
+ * campaign-type recommendation (ticket 06). Null when type is not campaign
+ * or draft is missing. Campaigns page supplies location when opening the wizard.
  */
-export function buildHomeCampaignWizardHandoff(input: {
-  locationId: number
-  locationName: string
-  locationAddress?: string | null
+export function homeCampaignRecommendationDraftPrefill(
   recommendation: HomeRecommendation
-}): CampaignWizardOpenFromRecommendationInput | null {
-  if (!isHomeRecommendationCampaignType(input.recommendation.type)) {
+): CampaignRecommendationDraftPrefill | null {
+  if (!isHomeRecommendationCampaignType(recommendation.type)) {
     return null
   }
 
-  const draftPrefill = input.recommendation.draftPrefill
-  if (draftPrefill == null) {
-    return null
-  }
-
-  return {
-    locationId: input.locationId,
-    locationName: input.locationName,
-    locationAddress: input.locationAddress,
-    draftPrefill,
-  }
+  return recommendation.draftPrefill ?? null
 }

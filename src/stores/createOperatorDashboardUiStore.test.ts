@@ -178,7 +178,7 @@ describe("createOperatorDashboardUiStore", () => {
     expect(store.getState().campaignsIntent).toBeNull()
   })
 
-  it("holds a Home Review campaign draft intent until Campaigns consumes it", () => {
+  it("holds a Home Recommended next step campaign draft intent until Campaigns consumes it", () => {
     const store = createOperatorDashboardUiStore()
     const draftPrefill = {
       goalId: "follow-up-completed-recovery",

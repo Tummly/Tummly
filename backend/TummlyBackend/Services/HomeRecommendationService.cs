@@ -200,10 +200,20 @@ namespace TummlyBackend.Services
         /// echoed counts, and channel. Does not call the Home Azure schema.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// Date window: Home performance presets (<c>last7</c> | <c>last30</c> |
         /// <c>thisMonth</c> | <c>custom</c>) map 1:1 into the Campaigns request
-        /// with the same resolved from/to. Home has no <c>all-time</c>; Campaigns
-        /// <c>all-time</c> is never passed from this path.
+        /// with the same resolved from/to via
+        /// <see cref="HomeRecommendationContract.NormalizePreset"/>. Home has no
+        /// <c>all-time</c>; Campaigns <c>all-time</c> is never passed from this path.
+        /// </para>
+        /// <para>
+        /// Type selection note: Home domain router only gates “show a campaign-family
+        /// recommendation”. Payload type + draft come from full
+        /// <see cref="ICampaignRecommendationService.RecommendAsync"/> (Campaigns
+        /// allow-list pick). Campaigns type may differ from Home <paramref name="selectedType"/>;
+        /// forcing Home’s type would need a typed complete API on Campaigns.
+        /// </para>
         /// </remarks>
         private async Task<HomeRecommendationServiceResult> CompleteCampaignRecommendationAsync(
             int operatorUserId,
@@ -220,7 +230,7 @@ namespace TummlyBackend.Services
             var campaignRequest = new CampaignRecommendationRequest
             {
                 LocationId = request.LocationId,
-                OverviewDatePreset = MapHomePresetToCampaignPreset(
+                OverviewDatePreset = HomeRecommendationContract.NormalizePreset(
                     request.OverviewDatePreset
                 ),
                 From = request.From,
@@ -262,14 +272,6 @@ namespace TummlyBackend.Services
             await CacheRecommendationAsync(cacheKey, homeDto, cancellationToken);
             return new HomeRecommendationServiceResult.Ok(homeDto);
         }
-
-        /// <summary>
-        /// Home performance presets pass through; default matches Home (<c>last7</c>).
-        /// Campaigns default is <c>last30</c> when its own overview omits a preset —
-        /// that path is not used here.
-        /// </summary>
-        private static string MapHomePresetToCampaignPreset(string? homePreset)
-            => HomeRecommendationContract.NormalizePreset(homePreset);
 
         private HomeRecommendationDto MapCampaignRecommendationToHome(
             CampaignRecommendationDto campaign,

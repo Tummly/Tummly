@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { buildHomeCampaignWizardHandoff } from "@/lib/operatorHome/buildHomeCampaignWizardHandoff"
+import { homeCampaignRecommendationDraftPrefill } from "@/lib/operatorHome/buildHomeCampaignWizardHandoff"
 import type { HomeRecommendation } from "@/types/operatorHome"
 
 const campaignRecommendation: HomeRecommendation = {
@@ -17,45 +17,27 @@ const campaignRecommendation: HomeRecommendation = {
   },
 }
 
-describe("buildHomeCampaignWizardHandoff", () => {
-  it("builds openFromRecommendation input for campaign types with draftPrefill", () => {
+describe("homeCampaignRecommendationDraftPrefill", () => {
+  it("returns draftPrefill for campaign types", () => {
     expect(
-      buildHomeCampaignWizardHandoff({
-        locationId: 12,
-        locationName: "Main",
-        locationAddress: "1 High Street",
-        recommendation: campaignRecommendation,
-      })
-    ).toEqual({
-      locationId: 12,
-      locationName: "Main",
-      locationAddress: "1 High Street",
-      draftPrefill: campaignRecommendation.draftPrefill,
-    })
+      homeCampaignRecommendationDraftPrefill(campaignRecommendation)
+    ).toEqual(campaignRecommendation.draftPrefill)
   })
 
   it("returns null for Home-native types", () => {
     expect(
-      buildHomeCampaignWizardHandoff({
-        locationId: 12,
-        locationName: "Main",
-        recommendation: {
-          type: "review-open-feedback",
-          title: "Review open feedback",
-        },
+      homeCampaignRecommendationDraftPrefill({
+        type: "review-open-feedback",
+        title: "Review open feedback",
       })
     ).toBeNull()
   })
 
   it("returns null when campaign type lacks draftPrefill", () => {
     expect(
-      buildHomeCampaignWizardHandoff({
-        locationId: 12,
-        locationName: "Main",
-        recommendation: {
-          type: "thank-recent-guests",
-          title: "Thank recent guests",
-        },
+      homeCampaignRecommendationDraftPrefill({
+        type: "thank-recent-guests",
+        title: "Thank recent guests",
       })
     ).toBeNull()
   })

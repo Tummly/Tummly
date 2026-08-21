@@ -46,7 +46,7 @@ export type AssistantCampaignsIntent =
       campaign?: CampaignDraftDetail
     }
   | {
-      /** Home Recommended Review campaign draft (ticket 06). */
+      /** Home Recommended next step — Review campaign draft (ticket 06). */
       openFromRecommendation: {
         draftPrefill: CampaignRecommendationDraftPrefill
       }

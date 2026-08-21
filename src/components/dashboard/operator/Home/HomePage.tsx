@@ -5,7 +5,7 @@ import {
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
 import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod"
-import { buildHomeCampaignWizardHandoff } from "@/lib/operatorHome/buildHomeCampaignWizardHandoff"
+import { homeCampaignRecommendationDraftPrefill } from "@/lib/operatorHome/buildHomeCampaignWizardHandoff"
 import { isHomeRecommendationCampaignType } from "@/lib/operatorHome/homeRecommendationPresentation"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
@@ -58,20 +58,11 @@ export function HomePage({
     recommendation: HomeRecommendation
   ) => {
     if (isHomeRecommendationCampaignType(recommendation.type)) {
-      const selectedLocation = locations.find(
-        (location) => location.id === selectedLocationId
-      )
-      const handoff = buildHomeCampaignWizardHandoff({
-        locationId: selectedLocationId,
-        locationName: selectedLocation?.locationName ?? "",
-        locationAddress: selectedLocation?.address ?? null,
-        recommendation,
-      })
-      if (handoff != null) {
+      const draftPrefill =
+        homeCampaignRecommendationDraftPrefill(recommendation)
+      if (draftPrefill != null) {
         setCampaignsIntent({
-          openFromRecommendation: {
-            draftPrefill: handoff.draftPrefill,
-          },
+          openFromRecommendation: { draftPrefill },
         })
       }
       navigate(
