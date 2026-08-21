@@ -88,8 +88,7 @@ export type HomeNeedsAttentionProjection = {
   isEmpty: boolean
 }
 
-const FEEDBACK_BODY =
-  "Negative feedback that is not resolved has not been reviewed yet."
+const FEEDBACK_BODY = "Negative feedback is not Resolved."
 
 function feedbackTitle(count: number): string {
   return count === 1
@@ -246,9 +245,10 @@ function mapOfferRow(input: {
   fact: HomeNeedsAttentionOfferFact
   locationName: string
   nowMs: number
-}): HomeNeedsAttentionOfferItem | null {
+}): HomeNeedsAttentionOfferItem {
   const openVoid = input.fact.openVoid
   const expiry = input.fact.expiry
+  const claimsBody = `${quoteTitle(input.fact.title)} has ${claimRedeemCopy(input.fact.lifetimeClaims, input.fact.lifetimeRedeemed)}`
 
   let title: string
   let body: string
@@ -257,9 +257,10 @@ function mapOfferRow(input: {
     body = voidBody(input.fact.title, openVoid.pendingCount)
   } else if (expiry != null) {
     title = expiryTitle(expiry.daysUntilExpiry)
-    body = `${quoteTitle(input.fact.title)} has ${claimRedeemCopy(input.fact.lifetimeClaims, input.fact.lifetimeRedeemed)} before expiry.`
+    body = `${claimsBody} before expiry.`
   } else {
-    return null
+    title = input.fact.title
+    body = `${claimsBody}.`
   }
 
   return {
@@ -328,14 +329,13 @@ export function buildHomeNeedsAttention(input: {
 
   const offers = sortByMetaTimeDesc(input.offers ?? [], offerMetaAt)
   for (const fact of offers) {
-    const offerRow = mapOfferRow({
-      fact,
-      locationName: input.locationName,
-      nowMs,
-    })
-    if (offerRow != null) {
-      rows.push(offerRow)
-    }
+    rows.push(
+      mapOfferRow({
+        fact,
+        locationName: input.locationName,
+        nowMs,
+      })
+    )
   }
 
   return toProjection(rows)

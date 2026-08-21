@@ -40,7 +40,7 @@ describe("buildHomeNeedsAttention", () => {
       sourceKind: "feedback",
       id: "feedback",
       title: "3 feedback items need attention",
-      body: "Negative feedback that is not resolved has not been reviewed yet.",
+      body: "Negative feedback is not Resolved.",
       metaKind: "warning",
       metaLine: "Warning · 12 minutes ago · Manchester",
       ctas: [{ kind: "review-feedback", label: "Review feedback" }],
@@ -264,6 +264,40 @@ describe("buildHomeNeedsAttention", () => {
       offerId: 90,
       metaKind: "ai",
       metaLine: "AI · 10 minutes ago · Manchester",
+    })
+  })
+
+  it("emits one named Offer row for an Offers AI attention member with no Void or expiry", () => {
+    const nowMs = Date.parse("2026-08-21T12:00:00.000Z")
+    const result = buildHomeNeedsAttention({
+      locationName: "Manchester",
+      nowMs,
+      offers: [
+        {
+          id: 33,
+          title: "Lunch deal",
+          lifetimeClaims: 4,
+          lifetimeRedeemed: 1,
+          attentionKind: "ai",
+          openVoid: null,
+          expiry: null,
+        },
+      ],
+    })
+
+    expect(result.visibleRows).toHaveLength(1)
+    expect(result.visibleRows[0]).toMatchObject({
+      sourceKind: "offer",
+      id: "offer-33",
+      offerId: 33,
+      title: "Lunch deal",
+      body: "“Lunch deal” has 4 claims and 1 redemption.",
+      metaKind: "ai",
+      metaLine: "AI · Manchester",
+      ctas: [
+        { kind: "manage-offer", label: "Manage offer" },
+        { kind: "view-redemptions", label: "View redemptions" },
+      ],
     })
   })
 })
