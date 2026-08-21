@@ -293,6 +293,10 @@ export function HomePage({
         onDismissRecommendation={() => {
           home.dismissRecommendation()
         }}
+        weeklyBrief={home.snapshot.weeklyBrief}
+        onRetryWeeklyBrief={() => {
+          void home.retryWeeklyBrief()
+        }}
         feedbackDetails={home.snapshot.feedbackDetails}
         onViewFeedback={(feedbackId) => {
           void home.openFeedbackDetails(feedbackId)

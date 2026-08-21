@@ -20,7 +20,10 @@ import type {
   HomeNeedsAttentionProjection,
 } from "@/lib/operatorHome/buildHomeNeedsAttention"
 import type { HomeNeedsAttentionLoadStatus } from "@/lib/operatorHome/homeNeedsAttentionSectionPresentation"
-import type { OperatorHomeRecommendationViewModel } from "@/lib/operatorHome/createOperatorHomePageModule"
+import type {
+  OperatorHomeRecommendationViewModel,
+  OperatorHomeWeeklyBriefViewModel,
+} from "@/lib/operatorHome/createOperatorHomePageModule"
 import {
   LIVE_OFFERS_PAUSE_CONFIRM_DESCRIPTION,
   LIVE_OFFERS_PAUSE_CONFIRM_LABEL,
@@ -64,6 +67,8 @@ type HomeBodyProps = {
   onRetryRecommendation?: () => void
   onRecommendationPrimaryAction?: (recommendation: HomeRecommendation) => void
   onDismissRecommendation?: () => void
+  weeklyBrief: OperatorHomeWeeklyBriefViewModel
+  onRetryWeeklyBrief?: () => void
   liveOffersLoadStatus?: "idle" | "loading" | "loaded" | "error"
   liveCards?: readonly OperatorHomeLiveCard[]
   liveOffersError?: string | null
@@ -146,6 +151,8 @@ export function HomeBody({
   onRetryRecommendation,
   onRecommendationPrimaryAction,
   onDismissRecommendation,
+  weeklyBrief,
+  onRetryWeeklyBrief,
   liveOffersLoadStatus = "idle",
   liveCards = [],
   liveOffersError = null,
@@ -332,7 +339,12 @@ export function HomeBody({
         />
       )}
 
-      <HomeWeeklyBriefSection />
+      <HomeWeeklyBriefSection
+        weeklyBrief={weeklyBrief}
+        onRetry={() => {
+          onRetryWeeklyBrief?.()
+        }}
+      />
 
       <OffersConfirmDialog
         open={pauseCampaignId != null}

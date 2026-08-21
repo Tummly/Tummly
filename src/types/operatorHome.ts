@@ -228,3 +228,68 @@ export type HomeRecommendationNative = HomeRecommendation & {
 export type HomeRecommendationCampaign = HomeRecommendation & {
   type: HomeRecommendationCampaignType;
 };
+
+/** One domain section in a Weekly brief body (capture / feedback / offers / campaigns). */
+export type WeeklyBriefSection = {
+  hasData: boolean;
+  summary: string;
+  echoedCounts?: Record<string, number> | null;
+};
+
+/** Structured Weekly brief body (schema v1). */
+export type WeeklyBriefBody = {
+  headline: string;
+  capture: WeeklyBriefSection;
+  feedback: WeeklyBriefSection;
+  offers: WeeklyBriefSection;
+  campaigns: WeeklyBriefSection;
+  watchNext: string[];
+};
+
+export type WeeklyBriefMetrics = {
+  guestsJoined: number;
+  qrScanEvents: number;
+  feedbackCount: number;
+  positiveFeedbackCount: number;
+  neutralFeedbackCount: number;
+  negativeFeedbackCount: number;
+  needsAttentionCount: number;
+  detectedTagCounts: Record<string, number>;
+  activeOffers: number;
+  claimsInWeek: number;
+  redemptionsInWeek: number;
+  campaignsSentInWeek: number;
+  campaignRecipientsReached: number;
+};
+
+export type WeeklyBriefNotReadyResponse = {
+  success: true;
+  ready: false;
+  locationId: number;
+  week: string;
+};
+
+export type WeeklyBriefReadyResponse = {
+  success: true;
+  ready: true;
+  locationId: number;
+  week: string;
+  status: string;
+  generatedAtUtc: string;
+  body: WeeklyBriefBody;
+  metrics: WeeklyBriefMetrics;
+};
+
+export type WeeklyBriefGetResponse =
+  | WeeklyBriefNotReadyResponse
+  | WeeklyBriefReadyResponse;
+
+export type WeeklyBriefGenerateFailureResponse = {
+  success: false;
+  message: string;
+  retryable?: boolean;
+};
+
+export type WeeklyBriefGenerateResponse =
+  | WeeklyBriefReadyResponse
+  | WeeklyBriefGenerateFailureResponse;

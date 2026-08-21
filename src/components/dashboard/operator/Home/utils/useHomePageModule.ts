@@ -14,6 +14,7 @@ export type OperatorHomePageModuleApi = {
   reloadForHomePerformanceDateRange: OperatorHomePageModule["reloadForHomePerformanceDateRange"]
   retryRecommendation: OperatorHomePageModule["retryRecommendation"]
   dismissRecommendation: OperatorHomePageModule["dismissRecommendation"]
+  retryWeeklyBrief: OperatorHomePageModule["retryWeeklyBrief"]
   retryLiveOffers: OperatorHomePageModule["retryLiveOffers"]
   retryNeedsAttention: OperatorHomePageModule["retryNeedsAttention"]
   pauseLiveCampaign: OperatorHomePageModule["pauseLiveCampaign"]
@@ -71,6 +72,7 @@ export function useHomePageModule(): OperatorHomePageModuleApi {
       pageModule.reloadForHomePerformanceDateRange,
     retryRecommendation: pageModule.retryRecommendation,
     dismissRecommendation: pageModule.dismissRecommendation,
+    retryWeeklyBrief: pageModule.retryWeeklyBrief,
     retryLiveOffers: pageModule.retryLiveOffers,
     retryNeedsAttention: pageModule.retryNeedsAttention,
     pauseLiveCampaign: pageModule.pauseLiveCampaign,

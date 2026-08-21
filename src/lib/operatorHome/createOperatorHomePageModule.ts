@@ -53,6 +53,9 @@ import type {
   HomeRecommendationResponse,
   OperatorHomeChecklistAcks,
   OperatorHomeViewModel,
+  WeeklyBriefBody,
+  WeeklyBriefGenerateResponse,
+  WeeklyBriefGetResponse,
 } from "@/types/operatorHome"
 
 export type OperatorHomeWorkspaceInput = {
@@ -68,6 +71,9 @@ export const HOME_RECOMMENDATION_LOAD_ERROR_MESSAGE =
 export const HOME_NEEDS_ATTENTION_LOAD_ERROR_MESSAGE =
   NEEDS_ATTENTION_LOAD_ERROR
 
+export const HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE =
+  "Could not load your weekly brief. Please try again."
+
 export type OperatorHomeRecommendationStatus =
   | "idle"
   | "loading"
@@ -81,6 +87,20 @@ export type OperatorHomeRecommendationViewModel = {
   recommendation: HomeRecommendation | null
   /** True when status is ready and type is none. */
   isNone: boolean
+  errorMessage: string | null
+  errorRetryable: boolean
+}
+
+export type OperatorHomeWeeklyBriefStatus =
+  | "empty"
+  | "loading"
+  | "ready"
+  | "error"
+
+export type OperatorHomeWeeklyBriefViewModel = {
+  status: OperatorHomeWeeklyBriefStatus
+  week: string | null
+  body: WeeklyBriefBody | null
   errorMessage: string | null
   errorRetryable: boolean
 }
@@ -102,6 +122,8 @@ export type OperatorHomePageSnapshot = {
   feedbackDetails: FeedbackDetailsSnapshot
   /** Home Recommended next step — not on OperatorHomeViewModel (ticket 04). */
   recommendation: OperatorHomeRecommendationViewModel
+  /** Weekly brief — not on OperatorHomeViewModel (ticket 06). */
+  weeklyBrief: OperatorHomeWeeklyBriefViewModel
 }
 
 export type ClassificationTerminalSignal = {
@@ -132,6 +154,10 @@ export type OperatorHomePageAdapters = {
   loadHomeRecommendation: (input: {
     request: HomeRecommendationRequest
   }) => Promise<HomeRecommendationResponse>
+  getWeeklyBrief: (locationId: number) => Promise<WeeklyBriefGetResponse>
+  generateWeeklyBrief: (
+    locationId: number
+  ) => Promise<WeeklyBriefGenerateResponse>
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
   correctClassification: FeedbackDetailsAdapters["correctClassification"]
   updateDetectedTags: FeedbackDetailsAdapters["updateDetectedTags"]
@@ -210,6 +236,8 @@ export type OperatorHomePageModule = {
   retryRecommendation: () => Promise<void>
   /** Session hide only — does not write server dismiss/cache. */
   dismissRecommendation: () => void
+  /** Retry Weekly brief (GET; generate again only if still missing). */
+  retryWeeklyBrief: () => Promise<void>
   retryLiveOffers: () => Promise<void>
   retryNeedsAttention: () => Promise<void>
   pauseLiveCampaign: (campaignId: number) => Promise<boolean>
@@ -618,6 +646,41 @@ function idleRecommendation(): OperatorHomeRecommendationViewModel {
   }
 }
 
+function emptyWeeklyBrief(): OperatorHomeWeeklyBriefViewModel {
+  return {
+    status: "empty",
+    week: null,
+    body: null,
+    errorMessage: null,
+    errorRetryable: false,
+  }
+}
+
+function mapReadyWeeklyBrief(
+  response: Extract<WeeklyBriefGetResponse, { ready: true }>
+): OperatorHomeWeeklyBriefViewModel {
+  return {
+    status: "ready",
+    week: response.week,
+    body: response.body,
+    errorMessage: null,
+    errorRetryable: false,
+  }
+}
+
+function weeklyBriefErrorFrom(
+  message: string | null | undefined,
+  retryable: boolean
+): OperatorHomeWeeklyBriefViewModel {
+  return {
+    status: "error",
+    week: null,
+    body: null,
+    errorMessage: message?.trim() || HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE,
+    errorRetryable: retryable,
+  }
+}
+
 /**
  * Client soft-cache key — location + Home performance selection identity.
  * Do not use resolved `from`/`to` timestamps: preset windows bind `to` to `now`,
@@ -719,6 +782,7 @@ export function createOperatorHomePageModule(
     actionError: null,
     feedbackDetails: feedbackDetails.getSnapshot(),
     recommendation: idleRecommendation(),
+    weeklyBrief: emptyWeeklyBrief(),
   }
 
   const listeners = new Set<() => void>()
@@ -736,6 +800,8 @@ export function createOperatorHomePageModule(
   let recommendation: OperatorHomeRecommendationViewModel = idleRecommendation()
   let recommendationGeneration = 0
   let needsAttentionDuplicateBusy = false
+  let weeklyBrief: OperatorHomeWeeklyBriefViewModel = emptyWeeklyBrief()
+  let weeklyBriefGeneration = 0
 
   const emit = () => {
     for (const listener of listeners) {
@@ -769,6 +835,7 @@ export function createOperatorHomePageModule(
       actionError: ackSnapshot.acknowledgeError ?? state.actionError,
       feedbackDetails: feedbackDetails.getSnapshot(),
       recommendation,
+      weeklyBrief,
     }
     emit()
   }
@@ -821,6 +888,150 @@ export function createOperatorHomePageModule(
     }
     recommendation = next
     publish()
+  }
+
+  const patchWeeklyBrief = (next: OperatorHomeWeeklyBriefViewModel) => {
+    weeklyBrief = next
+    publish()
+  }
+
+  const loadWeeklyBrief = async () => {
+    const workspace = state.workspace
+    const selectedLocationId = workspace?.selectedLocationId
+    if (workspace == null || selectedLocationId == null) {
+      return
+    }
+
+    const generation = weeklyBriefGeneration + 1
+    weeklyBriefGeneration = generation
+    patchWeeklyBrief({
+      ...emptyWeeklyBrief(),
+      status: "loading",
+    })
+
+    try {
+      const first = await adapters.getWeeklyBrief(selectedLocationId)
+      if (generation !== weeklyBriefGeneration) {
+        return
+      }
+
+      if (first.success && first.ready) {
+        patchWeeklyBrief(mapReadyWeeklyBrief(first))
+        return
+      }
+
+      // Soft loading while lazy generate runs — keep status loading.
+      const generated = await adapters.generateWeeklyBrief(selectedLocationId)
+      if (generation !== weeklyBriefGeneration) {
+        return
+      }
+
+      if (!generated.success) {
+        patchWeeklyBrief(
+          weeklyBriefErrorFrom(
+            generated.message,
+            generated.retryable !== false
+          )
+        )
+        return
+      }
+
+      const second = await adapters.getWeeklyBrief(selectedLocationId)
+      if (generation !== weeklyBriefGeneration) {
+        return
+      }
+
+      if (second.success && second.ready) {
+        patchWeeklyBrief(mapReadyWeeklyBrief(second))
+        return
+      }
+
+      // Generate claimed success but re-GET still missing — use generate body if ready.
+      if (generated.ready) {
+        patchWeeklyBrief(mapReadyWeeklyBrief(generated))
+        return
+      }
+
+      patchWeeklyBrief(
+        weeklyBriefErrorFrom(HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE, true)
+      )
+    } catch {
+      if (generation !== weeklyBriefGeneration) {
+        return
+      }
+      patchWeeklyBrief(
+        weeklyBriefErrorFrom(HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE, true)
+      )
+    }
+  }
+
+  const retryWeeklyBrief = async () => {
+    const workspace = state.workspace
+    const selectedLocationId = workspace?.selectedLocationId
+    if (workspace == null || selectedLocationId == null) {
+      return
+    }
+
+    const generation = weeklyBriefGeneration + 1
+    weeklyBriefGeneration = generation
+    patchWeeklyBrief({
+      ...emptyWeeklyBrief(),
+      status: "loading",
+    })
+
+    try {
+      const first = await adapters.getWeeklyBrief(selectedLocationId)
+      if (generation !== weeklyBriefGeneration) {
+        return
+      }
+
+      if (first.success && first.ready) {
+        patchWeeklyBrief(mapReadyWeeklyBrief(first))
+        return
+      }
+
+      // Still missing — generate again, then re-GET.
+      const generated = await adapters.generateWeeklyBrief(selectedLocationId)
+      if (generation !== weeklyBriefGeneration) {
+        return
+      }
+
+      if (!generated.success) {
+        patchWeeklyBrief(
+          weeklyBriefErrorFrom(
+            generated.message,
+            generated.retryable !== false
+          )
+        )
+        return
+      }
+
+      const second = await adapters.getWeeklyBrief(selectedLocationId)
+      if (generation !== weeklyBriefGeneration) {
+        return
+      }
+
+      if (second.success && second.ready) {
+        patchWeeklyBrief(mapReadyWeeklyBrief(second))
+        return
+      }
+
+      if (generated.ready) {
+        patchWeeklyBrief(mapReadyWeeklyBrief(generated))
+        return
+      }
+
+      patchWeeklyBrief(
+        weeklyBriefErrorFrom(HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE, true)
+      )
+    } catch {
+      if (generation !== weeklyBriefGeneration) {
+        return
+      }
+      patchWeeklyBrief(
+        weeklyBriefErrorFrom(HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE, true)
+      )
+    }
   }
 
   const loadRecommendation = async (options?: { refresh?: boolean }) => {
@@ -1211,6 +1422,7 @@ export function createOperatorHomePageModule(
     dispatch({ type: "load_started", generation })
     void fetchLiveOffersForSelectedLocation()
     void fetchNeedsAttentionForSelectedLocation()
+    void loadWeeklyBrief()
 
     let feedback: { total: number; recent: FeedbackResponse["recent"] }
     let latestActivity: HomeLatestActivityItem[]
@@ -1242,6 +1454,8 @@ export function createOperatorHomePageModule(
         return
       }
       recommendation = idleRecommendation()
+      weeklyBriefGeneration += 1
+      weeklyBrief = emptyWeeklyBrief()
       dispatch({ type: "load_failed", generation })
       return
     }
@@ -1406,6 +1620,8 @@ export function createOperatorHomePageModule(
         softCachedRecommendation = null
         recommendationGeneration += 1
         recommendation = idleRecommendation()
+        weeklyBriefGeneration += 1
+        weeklyBrief = emptyWeeklyBrief()
         dispatch({ type: "workspace_cleared" })
         acks.reset()
         feedbackDetails.reset()
@@ -1420,6 +1636,8 @@ export function createOperatorHomePageModule(
         softCachedRecommendation = null
         recommendationGeneration += 1
         recommendation = idleRecommendation()
+        weeklyBriefGeneration += 1
+        weeklyBrief = emptyWeeklyBrief()
         feedbackDetails.reset()
         const emptyAcks: OperatorHomeChecklistAcks = {
           guestFormPreviewed: false,
@@ -1497,6 +1715,7 @@ export function createOperatorHomePageModule(
         status: "dismissed",
       })
     },
+    retryWeeklyBrief: () => retryWeeklyBrief(),
     retryLiveOffers: () => fetchLiveOffersForSelectedLocation(),
     retryNeedsAttention: () => fetchNeedsAttentionForSelectedLocation(),
     pauseLiveCampaign: async (campaignId) => {

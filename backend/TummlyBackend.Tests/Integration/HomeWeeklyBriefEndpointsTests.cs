@@ -152,6 +152,120 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
 
+        [Fact]
+        public async Task GenerateWeeklyBrief_MissingRow_CreatesReadyEnvelope()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-gen-create");
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                DateTime.UtcNow
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeWeeklyBriefProvider>();
+            fake.UseDefaultFixtures();
+            fake.ResetCallCount();
+
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("success").GetBoolean());
+            Assert.True(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(seeded.LocationId, json.GetProperty("locationId").GetInt32());
+            Assert.Equal(closed.WeekKey, json.GetProperty("week").GetString());
+            Assert.Equal(
+                "succeeded",
+                json.GetProperty("status").GetString()
+            );
+            Assert.True(
+                json.GetProperty("body").TryGetProperty("headline", out _)
+            );
+            Assert.Equal(1, fake.CallCount);
+
+            using var getRequest = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var getResponse = await _client.SendAsync(getRequest);
+            Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+            var getJson = await ReadJsonAsync(getResponse);
+            Assert.True(getJson.GetProperty("ready").GetBoolean());
+            Assert.Equal(1, fake.CallCount);
+        }
+
+        [Fact]
+        public async Task GenerateWeeklyBrief_SecondCall_IsIdempotentWithoutReProvider()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-gen-idem");
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeWeeklyBriefProvider>();
+            fake.UseDefaultFixtures();
+            fake.ResetCallCount();
+
+            using var first = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var firstResponse = await _client.SendAsync(first);
+            Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+            Assert.Equal(1, fake.CallCount);
+
+            using var second = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var secondResponse = await _client.SendAsync(second);
+            Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+
+            var json = await ReadJsonAsync(secondResponse);
+            Assert.True(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(1, fake.CallCount);
+        }
+
+        [Fact]
+        public async Task GenerateWeeklyBrief_Returns403_ForNonOwnedLocation()
+        {
+            var owner = await SeedOwnerWithLocationAsync("wb-gen-owner-a");
+            var other = await SeedOwnerWithLocationAsync("wb-gen-owner-b");
+
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={other.LocationId}",
+                owner.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetWeeklyBrief_StillDoesNotGenerate()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-get-no-gen");
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeWeeklyBriefProvider>();
+            fake.ResetCallCount();
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.False(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(0, fake.CallCount);
+        }
+
         private async Task SeedSucceededBriefAsync(
             int locationId,
             string weekKey,
@@ -199,6 +313,14 @@ namespace TummlyBackend.Tests.Integration
         private static HttpRequestMessage AuthorizedGet(string url, string jwt)
         {
             var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+            return request;
+        }
+
+        private static HttpRequestMessage AuthorizedPost(string url, string jwt)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, url);
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", jwt);
             return request;

@@ -98,6 +98,31 @@ export const WEEKLY_BRIEF_EMPTY_TITLE_CLASS =
 export const WEEKLY_BRIEF_EMPTY_HELPER_CLASS =
   "m-0 text-op-sm font-normal leading-normal text-op-card-subtitle-color"
 
+export const WEEKLY_BRIEF_BODY_CLASS =
+  "flex flex-col gap-5 px-4 sm:px-5 md:px-6"
+
+export const WEEKLY_BRIEF_HEADLINE_CLASS =
+  "m-0 text-base font-semibold leading-normal text-op-card-title-color"
+
+export const WEEKLY_BRIEF_DOMAIN_BLOCK_CLASS = "flex flex-col gap-1.5"
+
+export const WEEKLY_BRIEF_DOMAIN_LABEL_CLASS =
+  "m-0 text-sm font-medium leading-5 text-op-card-title-color"
+
+export const WEEKLY_BRIEF_DOMAIN_SUMMARY_CLASS =
+  "m-0 text-op-sm font-normal leading-5 text-op-card-subtitle-color"
+
+export const WEEKLY_BRIEF_WATCH_LIST_CLASS =
+  "m-0 list-disc space-y-0.5 pl-[21px] text-op-sm font-normal leading-5 text-op-card-subtitle-color"
+
+export const WEEKLY_BRIEF_STATUS_SHELL_CLASS =
+  "flex min-h-[120px] flex-col items-center justify-center gap-3 px-4 sm:px-5 md:px-6"
+
+export const WEEKLY_BRIEF_ERROR_COPY_CLASS =
+  "m-0 text-center text-op-sm font-normal leading-5 text-op-card-subtitle-color"
+
+export const WEEKLY_BRIEF_RETRY_LABEL = "Retry"
+
 /** Recommended next step — node 3353:42550 (header + inner panel). */
 export const RECOMMENDED_SECTION_CLASS = `${OPERATOR_HOME_WHITE_CARD_CLASS} gap-5`
 

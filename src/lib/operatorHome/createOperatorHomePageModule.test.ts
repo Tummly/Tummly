@@ -7,7 +7,73 @@ import {
   type OperatorHomePageAdapters,
 } from "./createOperatorHomePageModule"
 import type { FeedbackItem, LocationItem } from "@/types/dashboard"
-import type { HomeRecommendationResponse } from "@/types/operatorHome"
+import type {
+  HomeRecommendationResponse,
+  WeeklyBriefBody,
+  WeeklyBriefGenerateResponse,
+  WeeklyBriefGetResponse,
+  WeeklyBriefMetrics,
+} from "@/types/operatorHome"
+
+const emptyWeeklyBriefSection = {
+  hasData: false,
+  summary: "No activity this week.",
+  echoedCounts: null,
+}
+
+const weeklyBriefBodyFixture: WeeklyBriefBody = {
+  headline: "Steady week across capture and feedback.",
+  capture: emptyWeeklyBriefSection,
+  feedback: { hasData: true, summary: "2 feedback submissions.", echoedCounts: null },
+  offers: emptyWeeklyBriefSection,
+  campaigns: emptyWeeklyBriefSection,
+  watchNext: [
+    "Watch feedback Needs attention volume next week.",
+    "Keep an eye on offer claim-to-redemption rate.",
+  ],
+}
+
+const weeklyBriefMetricsFixture: WeeklyBriefMetrics = {
+  guestsJoined: 0,
+  qrScanEvents: 0,
+  feedbackCount: 2,
+  positiveFeedbackCount: 1,
+  neutralFeedbackCount: 1,
+  negativeFeedbackCount: 0,
+  needsAttentionCount: 0,
+  detectedTagCounts: {},
+  activeOffers: 0,
+  claimsInWeek: 0,
+  redemptionsInWeek: 0,
+  campaignsSentInWeek: 0,
+  campaignRecipientsReached: 0,
+}
+
+function readyWeeklyBriefResponse(
+  locationId: number
+): Extract<WeeklyBriefGetResponse, { ready: true }> {
+  return {
+    success: true,
+    ready: true,
+    locationId,
+    week: "2026-W33",
+    status: "succeeded",
+    generatedAtUtc: "2026-08-18T09:00:00.000Z",
+    body: weeklyBriefBodyFixture,
+    metrics: weeklyBriefMetricsFixture,
+  }
+}
+
+function notReadyWeeklyBriefResponse(
+  locationId: number
+): Extract<WeeklyBriefGetResponse, { ready: false }> {
+  return {
+    success: true,
+    ready: false,
+    locationId,
+    week: "2026-W33",
+  }
+}
 
 const locations: LocationItem[] = [
   {
@@ -217,6 +283,8 @@ function createAdapters(overrides: {
   hasCreatedOffer?: (locationId: number) => Promise<boolean>
   hasCreatedCampaign?: (locationId: number) => Promise<boolean>
   loadHomeRecommendation?: OperatorHomePageAdapters["loadHomeRecommendation"]
+  getWeeklyBrief?: OperatorHomePageAdapters["getWeeklyBrief"]
+  generateWeeklyBrief?: OperatorHomePageAdapters["generateWeeklyBrief"]
   copyText?: (
     text: string
   ) => Promise<{ ok: true } | { ok: false; error: string }>
@@ -235,6 +303,8 @@ function createAdapters(overrides: {
   duplicateCampaign?: OperatorHomePageAdapters["duplicateCampaign"]
   getCampaignDraftById?: OperatorHomePageAdapters["getCampaignDraftById"]
 } = {}): OperatorHomePageAdapters {
+  let defaultWeeklyBriefGenerated = false
+
   return {
     getFeedback:
       overrides.getFeedback ??
@@ -272,6 +342,20 @@ function createAdapters(overrides: {
         success: true,
         recommendation: { type: "none" },
       })),
+    getWeeklyBrief:
+      overrides.getWeeklyBrief
+      ?? (async (locationId: number): Promise<WeeklyBriefGetResponse> => {
+        if (!defaultWeeklyBriefGenerated) {
+          return notReadyWeeklyBriefResponse(locationId)
+        }
+        return readyWeeklyBriefResponse(locationId)
+      }),
+    generateWeeklyBrief:
+      overrides.generateWeeklyBrief
+      ?? (async (locationId: number): Promise<WeeklyBriefGenerateResponse> => {
+        defaultWeeklyBriefGenerated = true
+        return readyWeeklyBriefResponse(locationId)
+      }),
     getFeedbackDetails:
       overrides.getFeedbackDetails ??
       (async (feedbackId: number) => ({
@@ -2686,5 +2770,118 @@ describe("createOperatorHomePageModule", () => {
       ok: false,
       error: "This campaign was updated elsewhere. Reload and try again.",
     })
+  })
+
+  it("weekly brief starts empty before workspace sync", () => {
+    const home = createOperatorHomePageModule(createAdapters())
+    expect(home.getSnapshot().weeklyBrief.status).toBe("empty")
+    expect(home.getSnapshot().viewModel).toBeNull()
+  })
+
+  it("loads a ready weekly brief without calling generate", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) =>
+      readyWeeklyBriefResponse(locationId)
+    )
+    const generateWeeklyBrief = vi.fn(async () => {
+      throw new Error("generate should not run")
+    })
+    const home = createOperatorHomePageModule(
+      createAdapters({ getWeeklyBrief, generateWeeklyBrief })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().weeklyBrief.status).toBe("ready")
+    })
+
+    expect(generateWeeklyBrief).not.toHaveBeenCalled()
+    expect(home.getSnapshot().weeklyBrief.body?.headline).toBe(
+      "Steady week across capture and feedback."
+    )
+    expect(home.getSnapshot().weeklyBrief.week).toBe("2026-W33")
+    expect(home.getSnapshot().viewModel).not.toHaveProperty("weeklyBrief")
+  })
+
+  it("lazy-generates when GET is not ready then settles ready", async () => {
+    let generated = false
+    const getWeeklyBrief = vi.fn(async (locationId: number) => {
+      if (!generated) {
+        return notReadyWeeklyBriefResponse(locationId)
+      }
+      return readyWeeklyBriefResponse(locationId)
+    })
+    const generateWeeklyBrief = vi.fn(async (locationId: number) => {
+      generated = true
+      return readyWeeklyBriefResponse(locationId)
+    })
+    const home = createOperatorHomePageModule(
+      createAdapters({ getWeeklyBrief, generateWeeklyBrief })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().weeklyBrief.status).toBe("ready")
+    })
+
+    expect(generateWeeklyBrief).toHaveBeenCalledTimes(1)
+    expect(getWeeklyBrief.mock.calls.length).toBeGreaterThanOrEqual(2)
+    expect(home.getSnapshot().weeklyBrief.body?.watchNext).toHaveLength(2)
+  })
+
+  it("surfaces lazy generate failure then retry succeeds", async () => {
+    let generated = false
+    let generateAttempts = 0
+    const getWeeklyBrief = vi.fn(async (locationId: number) => {
+      if (!generated) {
+        return notReadyWeeklyBriefResponse(locationId)
+      }
+      return readyWeeklyBriefResponse(locationId)
+    })
+    const generateWeeklyBrief = vi.fn(async (locationId: number) => {
+      generateAttempts += 1
+      if (generateAttempts === 1) {
+        return {
+          success: false as const,
+          message: "Provider down",
+          retryable: true,
+        }
+      }
+      generated = true
+      return readyWeeklyBriefResponse(locationId)
+    })
+    const home = createOperatorHomePageModule(
+      createAdapters({ getWeeklyBrief, generateWeeklyBrief })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().weeklyBrief.status).toBe("error")
+    })
+    expect(home.getSnapshot().weeklyBrief.errorRetryable).toBe(true)
+    expect(home.getSnapshot().weeklyBrief.errorMessage).toBe("Provider down")
+    expect(generateWeeklyBrief).toHaveBeenCalledTimes(1)
+
+    await home.retryWeeklyBrief()
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().weeklyBrief.status).toBe("ready")
+    })
+    expect(generateWeeklyBrief).toHaveBeenCalledTimes(2)
+  })
+
+  it("home load still succeeds when weekly brief adapters throw", async () => {
+    const getWeeklyBrief = vi.fn(async () => {
+      throw new Error("brief boom")
+    })
+    const home = createOperatorHomePageModule(
+      createAdapters({ getWeeklyBrief })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    expect(home.getSnapshot().loadStatus).toBe("loaded")
+    expect(home.getSnapshot().viewModel).not.toBeNull()
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().weeklyBrief.status).toBe("error")
+    })
+    expect(home.getSnapshot().viewModel).not.toHaveProperty("weeklyBrief")
   })
 })

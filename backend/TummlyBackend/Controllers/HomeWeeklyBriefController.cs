@@ -10,7 +10,8 @@ using TummlyBackend.Models;
 namespace TummlyBackend.Controllers
 {
     /// <summary>
-    /// Read-only Weekly brief GET. Does not generate — lazy generate is a separate seam.
+    /// Weekly brief GET (read-only) and lazy POST generate for Operator Home.
+    /// GET must not generate.
     /// </summary>
     [ApiController]
     [Route("api/home/weekly-brief")]
@@ -19,14 +20,20 @@ namespace TummlyBackend.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IOwnedLocationService _ownedLocation;
+        private readonly IWeeklyBriefGenerateService _generate;
+        private readonly IWeeklyBriefReadyNotifier _notifier;
 
         public HomeWeeklyBriefController(
             ApplicationDbContext context,
-            IOwnedLocationService ownedLocation
+            IOwnedLocationService ownedLocation,
+            IWeeklyBriefGenerateService generate,
+            IWeeklyBriefReadyNotifier notifier
         )
         {
             _context = context;
             _ownedLocation = ownedLocation;
+            _generate = generate;
+            _notifier = notifier;
         }
 
         [HttpGet]
@@ -64,26 +71,9 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
-            string weekKey;
-            if (string.IsNullOrWhiteSpace(week))
+            if (!TryResolveWeekKey(week, out var weekKey, out var weekError))
             {
-                weekKey = WeeklyBriefWeekKey
-                    .ForClosedPriorWeek(
-                        WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
-                        DateTime.UtcNow
-                    )
-                    .WeekKey;
-            }
-            else if (
-                !WeeklyBriefWeekKey.TryNormalizeWeekKey(week, out weekKey)
-            )
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message =
-                        "week must be an ISO week key in the form yyyy-Www.",
-                });
+                return weekError!;
             }
 
             var row = await _context.WeeklyBriefs
@@ -107,6 +97,211 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            return ReadyEnvelopeOrStoreError(locationId, weekKey, row);
+        }
+
+        /// <summary>
+        /// Lazy generate for the closed prior week (Home). Optional <c>week</c>
+        /// must match the current closed prior week key when provided.
+        /// </summary>
+        [HttpPost("generate")]
+        public async Task<IActionResult> GenerateWeeklyBrief(
+            [FromQuery] int locationId,
+            [FromQuery] string? week = null,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (locationId <= 0)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "locationId is required.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            if (
+                !TryResolveClosedWeekForGenerate(
+                    week,
+                    out var closedWeek,
+                    out var weekError
+                )
+            )
+            {
+                return weekError!;
+            }
+
+            var result = await _generate.GenerateAsync(
+                locationId,
+                closedWeek,
+                cancellationToken
+            );
+
+            if (result is WeeklyBriefGenerateResult.Failed failed)
+            {
+                return StatusCode(
+                    StatusCodes.Status502BadGateway,
+                    new
+                    {
+                        success = false,
+                        message = failed.Message,
+                        retryable = failed.Retryable,
+                    }
+                );
+            }
+
+            if (
+                result
+                is not WeeklyBriefGenerateResult.Succeeded succeeded
+            )
+            {
+                return StatusCode(
+                    StatusCodes.Status502BadGateway,
+                    new
+                    {
+                        success = false,
+                        message =
+                            "Could not generate a weekly brief. Please try again.",
+                        retryable = true,
+                    }
+                );
+            }
+
+            if (succeeded.Created)
+            {
+                await _notifier.NotifyGeneratedAsync(
+                    locationId,
+                    closedWeek,
+                    cancellationToken
+                );
+            }
+
+            return ReadyEnvelopeOrStoreError(
+                locationId,
+                closedWeek.WeekKey,
+                succeeded.Brief
+            );
+        }
+
+        /// <summary>
+        /// Resolve ISO week key for GET — any valid key, or closed prior when omitted.
+        /// </summary>
+        private static bool TryResolveWeekKey(
+            string? week,
+            out string weekKey,
+            out IActionResult? error
+        )
+        {
+            weekKey = string.Empty;
+            error = null;
+
+            if (string.IsNullOrWhiteSpace(week))
+            {
+                weekKey = WeeklyBriefWeekKey
+                    .ForClosedPriorWeek(
+                        WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                        DateTime.UtcNow
+                    )
+                    .WeekKey;
+                return true;
+            }
+
+            if (!WeeklyBriefWeekKey.TryNormalizeWeekKey(week, out weekKey))
+            {
+                error = new BadRequestObjectResult(new
+                {
+                    success = false,
+                    message =
+                        "week must be an ISO week key in the form yyyy-Www.",
+                });
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// POST generate: omitted week → closed prior; explicit week must match
+        /// that closed prior key (MVP — Home never passes week).
+        /// </summary>
+        private static bool TryResolveClosedWeekForGenerate(
+            string? week,
+            out WeeklyBriefClosedWeek closedWeek,
+            out IActionResult? error
+        )
+        {
+            error = null;
+            closedWeek = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                DateTime.UtcNow
+            );
+
+            if (string.IsNullOrWhiteSpace(week))
+            {
+                return true;
+            }
+
+            if (
+                !WeeklyBriefWeekKey.TryNormalizeWeekKey(
+                    week,
+                    out var weekKey
+                )
+            )
+            {
+                error = new BadRequestObjectResult(new
+                {
+                    success = false,
+                    message =
+                        "week must be an ISO week key in the form yyyy-Www.",
+                });
+                return false;
+            }
+
+            if (
+                !string.Equals(
+                    weekKey,
+                    closedWeek.WeekKey,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                error = new BadRequestObjectResult(new
+                {
+                    success = false,
+                    message =
+                        "week must be the current closed prior week.",
+                });
+                return false;
+            }
+
+            return true;
+        }
+
+        private IActionResult ReadyEnvelopeOrStoreError(
+            int locationId,
+            string weekKey,
+            WeeklyBrief row
+        )
+        {
             WeeklyBriefBody? body;
             WeeklyBriefMetrics? metrics;
             try

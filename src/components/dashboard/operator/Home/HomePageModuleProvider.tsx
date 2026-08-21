@@ -15,6 +15,8 @@ import {
   getHomeLatestActivity,
   getHomePerformance,
   getHomeRecommendation,
+  getWeeklyBrief,
+  generateWeeklyBrief,
   listCatalogOffers,
   listOpenVoidAttention,
   pauseCampaign,
@@ -66,6 +68,8 @@ export function HomePageModuleProvider({
         dashboardUiStore.getState().homePerformanceDateRange,
       loadHomeRecommendation: async ({ request }) =>
         getHomeRecommendation(request),
+      getWeeklyBrief,
+      generateWeeklyBrief,
       getFeedbackDetails,
       correctClassification: async (feedbackId, input) => {
         const trimmedNote = input.noteBody?.trim() ?? ""

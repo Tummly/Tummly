@@ -128,6 +128,8 @@ import type {
 import type {
   HomeRecommendationRequest,
   HomeRecommendationResponse,
+  WeeklyBriefGenerateResponse,
+  WeeklyBriefGetResponse,
 } from "@/types/operatorHome"
 
 export const getLocations = async (): Promise<LocationsResponse> => {
@@ -1102,6 +1104,37 @@ export const getHomeRecommendation = async (
   } catch (error) {
     if (isAxiosError(error) && error.response?.data != null) {
       const data = error.response.data as HomeRecommendationResponse
+      if (typeof data.success === "boolean") {
+        return data
+      }
+    }
+    throw error
+  }
+}
+
+export const getWeeklyBrief = async (
+  locationId: number
+): Promise<WeeklyBriefGetResponse> => {
+  const response = await axiosInstance.get<WeeklyBriefGetResponse>(
+    "/home/weekly-brief",
+    { params: { locationId } }
+  )
+  return response.data
+}
+
+export const generateWeeklyBrief = async (
+  locationId: number
+): Promise<WeeklyBriefGenerateResponse> => {
+  try {
+    const response = await axiosInstance.post<WeeklyBriefGenerateResponse>(
+      "/home/weekly-brief/generate",
+      null,
+      { params: { locationId } }
+    )
+    return response.data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data != null) {
+      const data = error.response.data as WeeklyBriefGenerateResponse
       if (typeof data.success === "boolean") {
         return data
       }
