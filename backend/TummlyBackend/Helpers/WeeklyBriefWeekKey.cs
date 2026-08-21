@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace TummlyBackend.Helpers
 {
@@ -34,6 +35,42 @@ namespace TummlyBackend.Helpers
         /// (same UK default as campaign / recovery schedule helpers).
         /// </summary>
         public const string DefaultLocationTimeZoneId = "Europe/London";
+
+        private static readonly Regex WeekKeyPattern = new(
+            @"^\d{4}-W\d{2}$",
+            RegexOptions.CultureInvariant | RegexOptions.Compiled
+        );
+
+        /// <summary>
+        /// True when <paramref name="weekKey"/> matches ISO week key form
+        /// <c>yyyy-Www</c> (after trim).
+        /// </summary>
+        public static bool IsValidWeekKey(string? weekKey)
+            => TryNormalizeWeekKey(weekKey, out _);
+
+        /// <summary>
+        /// Trim and accept an ISO week key <c>yyyy-Www</c>.
+        /// </summary>
+        public static bool TryNormalizeWeekKey(
+            string? weekKey,
+            out string normalized
+        )
+        {
+            normalized = string.Empty;
+            if (string.IsNullOrWhiteSpace(weekKey))
+            {
+                return false;
+            }
+
+            var trimmed = weekKey.Trim();
+            if (!WeekKeyPattern.IsMatch(trimmed))
+            {
+                return false;
+            }
+
+            normalized = trimmed;
+            return true;
+        }
 
         /// <summary>
         /// Resolve the closed prior week for <paramref name="utcNow"/> in

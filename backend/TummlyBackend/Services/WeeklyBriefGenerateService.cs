@@ -17,12 +17,6 @@ namespace TummlyBackend.Services
         private static readonly string FailMessage =
             "Could not generate a weekly brief. Please try again.";
 
-        private static readonly JsonSerializerOptions StoreJsonOptions = new()
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = false,
-        };
-
         private readonly ApplicationDbContext _context;
         private readonly IWeeklyBriefProvider _provider;
         private readonly ILogger<WeeklyBriefGenerateService> _logger;
@@ -145,8 +139,8 @@ namespace TummlyBackend.Services
                 WeekKey = closedWeek.WeekKey,
                 Status = WeeklyBriefStatus.Succeeded,
                 GeneratedAtUtc = generatedAtUtc,
-                BodyJson = JsonSerializer.Serialize(body, StoreJsonOptions),
-                MetricsJson = JsonSerializer.Serialize(metrics, StoreJsonOptions),
+                BodyJson = JsonSerializer.Serialize(body, WeeklyBriefStoreJson.Options),
+                MetricsJson = JsonSerializer.Serialize(metrics, WeeklyBriefStoreJson.Options),
                 ErrorInfo = null,
             };
 

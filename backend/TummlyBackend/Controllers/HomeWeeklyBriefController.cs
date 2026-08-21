@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,17 +17,6 @@ namespace TummlyBackend.Controllers
     [Authorize]
     public class HomeWeeklyBriefController : ControllerBase
     {
-        private static readonly Regex WeekKeyPattern = new(
-            @"^\d{4}-W\d{2}$",
-            RegexOptions.CultureInvariant | RegexOptions.Compiled
-        );
-
-        private static readonly JsonSerializerOptions StoreJsonOptions = new()
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            PropertyNameCaseInsensitive = true,
-        };
-
         private readonly ApplicationDbContext _context;
         private readonly IOwnedLocationService _ownedLocation;
 
@@ -86,18 +74,16 @@ namespace TummlyBackend.Controllers
                     )
                     .WeekKey;
             }
-            else
+            else if (
+                !WeeklyBriefWeekKey.TryNormalizeWeekKey(week, out weekKey)
+            )
             {
-                weekKey = week.Trim();
-                if (!WeekKeyPattern.IsMatch(weekKey))
+                return BadRequest(new
                 {
-                    return BadRequest(new
-                    {
-                        success = false,
-                        message =
-                            "week must be an ISO week key in the form yyyy-Www.",
-                    });
-                }
+                    success = false,
+                    message =
+                        "week must be an ISO week key in the form yyyy-Www.",
+                });
             }
 
             var row = await _context.WeeklyBriefs
@@ -127,11 +113,11 @@ namespace TummlyBackend.Controllers
             {
                 body = JsonSerializer.Deserialize<WeeklyBriefBody>(
                     row.BodyJson,
-                    StoreJsonOptions
+                    WeeklyBriefStoreJson.Options
                 );
                 metrics = JsonSerializer.Deserialize<WeeklyBriefMetrics>(
                     row.MetricsJson,
-                    StoreJsonOptions
+                    WeeklyBriefStoreJson.Options
                 );
             }
             catch (JsonException)

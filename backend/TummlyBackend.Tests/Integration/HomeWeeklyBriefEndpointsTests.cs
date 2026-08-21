@@ -19,12 +19,6 @@ namespace TummlyBackend.Tests.Integration
     {
         private const string ExplicitWeek = "2026-W33";
 
-        private static readonly JsonSerializerOptions StoreJsonOptions = new()
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = false,
-        };
-
         private readonly TummlyWebApplicationFactory _factory;
         private readonly HttpClient _client;
 
@@ -177,8 +171,8 @@ namespace TummlyBackend.Tests.Integration
                     WeekKey = weekKey,
                     Status = WeeklyBriefStatus.Succeeded,
                     GeneratedAtUtc = generatedAtUtc,
-                    BodyJson = JsonSerializer.Serialize(body, StoreJsonOptions),
-                    MetricsJson = JsonSerializer.Serialize(metrics, StoreJsonOptions),
+                    BodyJson = JsonSerializer.Serialize(body, WeeklyBriefStoreJson.Options),
+                    MetricsJson = JsonSerializer.Serialize(metrics, WeeklyBriefStoreJson.Options),
                     ErrorInfo = null,
                 }
             );

@@ -95,5 +95,41 @@ namespace TummlyBackend.Tests.Helpers
                 () => WeeklyBriefWeekKey.ForClosedPriorWeek(London, unspecified)
             );
         }
+
+        [Theory]
+        [InlineData("2026-W33", true)]
+        [InlineData("2026-W01", true)]
+        [InlineData(" 2026-W33 ", true)]
+        [InlineData("2026-W3", false)]
+        [InlineData("2026-w33", false)]
+        [InlineData("26-W33", false)]
+        [InlineData("", false)]
+        [InlineData(null, false)]
+        [InlineData("not-a-week", false)]
+        public void IsValidWeekKey_MatchesIsoYyyyWwwForm(
+            string? candidate,
+            bool expected
+        )
+        {
+            Assert.Equal(expected, WeeklyBriefWeekKey.IsValidWeekKey(candidate));
+        }
+
+        [Fact]
+        public void TryNormalizeWeekKey_TrimsValidKey()
+        {
+            Assert.True(
+                WeeklyBriefWeekKey.TryNormalizeWeekKey(" 2026-W33 ", out var weekKey)
+            );
+            Assert.Equal("2026-W33", weekKey);
+        }
+
+        [Fact]
+        public void TryNormalizeWeekKey_RejectsInvalidKey()
+        {
+            Assert.False(
+                WeeklyBriefWeekKey.TryNormalizeWeekKey("2026-W3", out var weekKey)
+            );
+            Assert.Equal(string.Empty, weekKey);
+        }
     }
 }
