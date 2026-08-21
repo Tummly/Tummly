@@ -3,18 +3,26 @@ namespace TummlyBackend.DTOs.OperatorHome
     /// <summary>
     /// POST /api/home/recommendation request (ticket 01 contract).
     /// Home performance window as preset + resolved from/to; optional refresh.
+    /// From/To are required for every Home preset (no all-time); validated via
+    /// <see cref="Helpers.HomeRecommendationContract.EnsureResolvedWindow"/>.
     /// </summary>
     public sealed class HomeRecommendationRequest
     {
         public int LocationId { get; init; }
 
         /// <summary>
-        /// Home performance preset wire value (e.g. last7, last30, thisMonth, custom).
+        /// Home performance preset: last7 | last30 | thisMonth | custom.
         /// </summary>
         public string OverviewDatePreset { get; init; } = "last7";
 
+        /// <summary>
+        /// Resolved window start (UTC). Required for all Home presets.
+        /// </summary>
         public DateTime? From { get; init; }
 
+        /// <summary>
+        /// Resolved window end (UTC). Required for all Home presets.
+        /// </summary>
         public DateTime? To { get; init; }
 
         /// <summary>
@@ -26,8 +34,9 @@ namespace TummlyBackend.DTOs.OperatorHome
     /// <summary>
     /// Domain primary CTA for Home-native recommendation types.
     /// Null entity id means the domain list / create destination.
+    /// Kind must be in <see cref="Helpers.HomeRecommendationContract.AllowedDomainActionKinds"/>.
     /// </summary>
-    public sealed class HomeRecommendationActionDto
+    public sealed class HomeRecommendationDomainActionDto
     {
         /// <summary>
         /// open-feedback | open-guest | open-offer
@@ -55,7 +64,7 @@ namespace TummlyBackend.DTOs.OperatorHome
 
         public IReadOnlyList<string>? WhyBullets { get; init; }
 
-        public HomeRecommendationActionDto? Action { get; init; }
+        public HomeRecommendationDomainActionDto? Action { get; init; }
 
         /// <summary>
         /// Server metrics only. Campaign types reuse CampaignRecommendationEchoedCountsDto shape.

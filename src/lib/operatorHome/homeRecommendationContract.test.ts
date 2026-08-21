@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest"
 
 import {
   HOME_RECOMMENDATION_CACHE_TTL_MINUTES,
+  HOME_RECOMMENDATION_DOMAIN_ACTION_KINDS,
+  HOME_RECOMMENDATION_OVERVIEW_DATE_PRESETS,
   HOME_RECOMMENDATION_TYPES,
   buildHomeRecommendationCacheKey,
+  isHomeRecommendationDomainActionKind,
+  isHomeRecommendationOverviewDatePreset,
   isHomeRecommendationType,
 } from "./homeRecommendationContract"
 
@@ -26,6 +30,29 @@ describe("homeRecommendationContract allow-list", () => {
     expect(isHomeRecommendationType("weekly-brief-ready")).toBe(false)
     expect(isHomeRecommendationType("setup-checklist")).toBe(false)
     expect(isHomeRecommendationType("quiet-time")).toBe(false)
+  })
+
+  it("locks overviewDatePreset to Home performance presets plus custom", () => {
+    expect([...HOME_RECOMMENDATION_OVERVIEW_DATE_PRESETS]).toEqual([
+      "last7",
+      "last30",
+      "thisMonth",
+      "custom",
+    ])
+    expect(isHomeRecommendationOverviewDatePreset("last7")).toBe(true)
+    expect(isHomeRecommendationOverviewDatePreset("all-time")).toBe(false)
+  })
+
+  it("locks domain action kinds to the CTA table", () => {
+    expect([...HOME_RECOMMENDATION_DOMAIN_ACTION_KINDS]).toEqual([
+      "open-feedback",
+      "open-guest",
+      "open-offer",
+    ])
+    expect(isHomeRecommendationDomainActionKind("open-feedback")).toBe(true)
+    expect(isHomeRecommendationDomainActionKind("open-campaign-draft")).toBe(
+      false
+    )
   })
 })
 

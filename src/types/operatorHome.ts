@@ -5,7 +5,9 @@ import type {
 import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod";
 import type {
   HomeRecommendationCampaignType,
+  HomeRecommendationDomainActionKind,
   HomeRecommendationNativeType,
+  HomeRecommendationOverviewDatePreset,
   HomeRecommendationType,
 } from "@/lib/operatorHome/homeRecommendationContract";
 import type {
@@ -17,7 +19,9 @@ export type { OperatorSidebarActiveId, OperatorSidebarNavModel };
 export type { OperatorSidebarNavId } from "@/lib/operatorHome/sidebarNav";
 export type {
   HomeRecommendationCampaignType,
+  HomeRecommendationDomainActionKind,
   HomeRecommendationNativeType,
+  HomeRecommendationOverviewDatePreset,
   HomeRecommendationType,
 } from "@/lib/operatorHome/homeRecommendationContract";
 
@@ -171,9 +175,10 @@ export interface OperatorShellPresentation {
 export type HomeRecommendationRequest = {
   locationId: number;
   /** Home performance preset id, or `custom`. */
-  overviewDatePreset: string;
-  from: string | null;
-  to: string | null;
+  overviewDatePreset: HomeRecommendationOverviewDatePreset;
+  /** Resolved ISO UTC bounds — always present (Home has no all-time). */
+  from: string;
+  to: string;
   refresh?: boolean;
 };
 
@@ -182,9 +187,9 @@ export type HomeRecommendationRequest = {
  * Null entity id means the domain list / create destination.
  */
 export type HomeRecommendationDomainAction =
-  | { kind: "open-feedback"; feedbackId: number | null }
-  | { kind: "open-guest"; locationGuestId: number | null }
-  | { kind: "open-offer"; offerId: number | null };
+  | { kind: Extract<HomeRecommendationDomainActionKind, "open-feedback">; feedbackId: number | null }
+  | { kind: Extract<HomeRecommendationDomainActionKind, "open-guest">; locationGuestId: number | null }
+  | { kind: Extract<HomeRecommendationDomainActionKind, "open-offer">; offerId: number | null };
 
 /**
  * Home Recommended next step payload.

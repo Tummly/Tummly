@@ -26,6 +26,43 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void AllowedOverviewDatePresets_MatchHomePerformanceWindow()
+        {
+            Assert.Equal(
+                new HashSet<string>(StringComparer.Ordinal)
+                {
+                    "last7",
+                    "last30",
+                    "thisMonth",
+                    "custom",
+                },
+                HomeRecommendationContract.AllowedOverviewDatePresets
+            );
+            Assert.False(
+                HomeRecommendationContract.IsAllowedOverviewDatePreset("all-time")
+            );
+        }
+
+        [Fact]
+        public void AllowedDomainActionKinds_MatchCtaTable()
+        {
+            Assert.Equal(
+                new HashSet<string>(StringComparer.Ordinal)
+                {
+                    "open-feedback",
+                    "open-guest",
+                    "open-offer",
+                },
+                HomeRecommendationContract.AllowedDomainActionKinds
+            );
+            Assert.False(
+                HomeRecommendationContract.IsAllowedDomainActionKind(
+                    "open-campaign-draft"
+                )
+            );
+        }
+
+        [Fact]
         public void CacheTtl_IsThirtyMinutes_MatchingCampaigns()
         {
             Assert.Equal(TimeSpan.FromMinutes(30), HomeRecommendationContract.CacheTtl);
@@ -55,6 +92,32 @@ namespace TummlyBackend.Tests.Helpers
                 toUtc: new DateTime(2026, 7, 18, 22, 45, 0, DateTimeKind.Utc)
             );
             Assert.Equal("home-recommendation:7:42:custom:2026-07-12:2026-07-18", key);
+        }
+
+        [Fact]
+        public void EnsureResolvedWindow_RequiresFromAndTo()
+        {
+            var ex = Assert.Throws<ArgumentException>(() =>
+                HomeRecommendationContract.EnsureResolvedWindow(
+                    "last7",
+                    fromUtc: null,
+                    toUtc: null
+                )
+            );
+            Assert.Contains("from and to are required", ex.Message);
+        }
+
+        [Fact]
+        public void EnsureResolvedWindow_RejectsUnknownPreset()
+        {
+            var ex = Assert.Throws<ArgumentException>(() =>
+                HomeRecommendationContract.EnsureResolvedWindow(
+                    "all-time",
+                    fromUtc: new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc),
+                    toUtc: new DateTime(2026, 8, 21, 0, 0, 0, DateTimeKind.Utc)
+                )
+            );
+            Assert.Contains("allow-list", ex.Message);
         }
 
         [Theory]
