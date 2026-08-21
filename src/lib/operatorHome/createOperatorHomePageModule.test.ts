@@ -232,6 +232,7 @@ function createAdapters(overrides: {
   listNeedsAttentionOffers?: OperatorHomePageAdapters["listNeedsAttentionOffers"]
   listOpenVoidAttention?: OperatorHomePageAdapters["listOpenVoidAttention"]
   pauseCampaign?: OperatorHomePageAdapters["pauseCampaign"]
+  duplicateCampaign?: OperatorHomePageAdapters["duplicateCampaign"]
   getCampaignDraftById?: OperatorHomePageAdapters["getCampaignDraftById"]
 } = {}): OperatorHomePageAdapters {
   return {
@@ -393,6 +394,11 @@ function createAdapters(overrides: {
       overrides.pauseCampaign
       ?? (async () => {
         throw new Error("pauseCampaign not stubbed")
+      }),
+    duplicateCampaign:
+      overrides.duplicateCampaign
+      ?? (async () => {
+        throw new Error("duplicateCampaign not stubbed")
       }),
     getCampaignDraftById: overrides.getCampaignDraftById,
   }
@@ -2586,5 +2592,99 @@ describe("createOperatorHomePageModule", () => {
 
     await home.reloadForHomePerformanceDateRange()
     expect(getNeedsAttentionFeedback).toHaveBeenCalledTimes(1)
+  })
+
+  it("duplicates a Failed Needs attention campaign as a Draft and returns the new id", async () => {
+    const duplicateCampaign = vi.fn(async () => ({
+      success: true,
+      campaign: {
+        id: 99,
+        locationId: 1,
+        status: "draft",
+        name: "Weekend SMS blast - Draft",
+        scheduleMode: null,
+        scheduledAtUtc: null,
+        scheduleTimeZone: null,
+        billingReservationRef: null,
+        reservedEstimate: null,
+        frozenRecipientCount: 0,
+        rowVersion: "rv-99",
+        updatedAt: "2026-08-21T13:00:00.000Z",
+      },
+    }))
+    const listNeedsAttentionCampaigns = vi.fn(async () => [
+      {
+        id: 41,
+        name: "Weekend SMS blast",
+        status: "failed",
+        goalId: null,
+        locationId: 1,
+        locationName: "First Venue",
+        channel: "sms",
+        audienceKey: null,
+        offerStance: null,
+        updatedAt: "2026-08-21T11:00:00.000Z",
+        rowVersion: "rv-41",
+        sendDate: null,
+        delivery: null,
+        engagement: null,
+        redemptions: null,
+      },
+    ])
+    const home = createOperatorHomePageModule(
+      createAdapters({ listNeedsAttentionCampaigns, duplicateCampaign })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().needsAttentionLoadStatus).toBe("loaded")
+    })
+
+    const result = await home.duplicateNeedsAttentionCampaign(41)
+
+    expect(duplicateCampaign).toHaveBeenCalledWith(41, { rowVersion: "rv-41" })
+    expect(result).toEqual({ ok: true, campaignId: 99 })
+  })
+
+  it("returns an error when Duplicate as Draft cannot write the new Draft", async () => {
+    const duplicateCampaign = vi.fn(async () => {
+      throw new Error(
+        "This campaign was updated elsewhere. Reload and try again."
+      )
+    })
+    const listNeedsAttentionCampaigns = vi.fn(async () => [
+      {
+        id: 41,
+        name: "Weekend SMS blast",
+        status: "failed",
+        goalId: null,
+        locationId: 1,
+        locationName: "First Venue",
+        channel: "sms",
+        audienceKey: null,
+        offerStance: null,
+        updatedAt: "2026-08-21T11:00:00.000Z",
+        rowVersion: "rv-41",
+        sendDate: null,
+        delivery: null,
+        engagement: null,
+        redemptions: null,
+      },
+    ])
+    const home = createOperatorHomePageModule(
+      createAdapters({ listNeedsAttentionCampaigns, duplicateCampaign })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().needsAttentionLoadStatus).toBe("loaded")
+    })
+
+    const result = await home.duplicateNeedsAttentionCampaign(41)
+
+    expect(result).toEqual({
+      ok: false,
+      error: "This campaign was updated elsewhere. Reload and try again.",
+    })
   })
 })

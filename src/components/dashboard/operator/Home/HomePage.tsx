@@ -16,9 +16,11 @@ import {
   operatorDashboardOfferDetailsPath,
   operatorDashboardOfferPreviewPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
+import { NEEDS_ATTENTION_DUPLICATE_DRAFT_TOAST } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import { planHomeNeedsAttentionCta } from "@/lib/operatorHome/planHomeNeedsAttentionCta"
 import type { HomeRecommendation } from "@/types/operatorHome"
 import { useNavigate, useOutletContext } from "react-router-dom"
+import { toast } from "sonner"
 
 type HomePageProps = {
   activationPeriodBadge: ActivationPeriodBadgeCopy | null
@@ -244,6 +246,24 @@ export function HomePage({
             mode,
             locationId,
           })
+          if (plan.kind === "duplicate-as-draft") {
+            void (async () => {
+              const result = await home.duplicateNeedsAttentionCampaign(
+                plan.campaignId
+              )
+              if (!result.ok) {
+                toast.error(result.error)
+                return
+              }
+              toast.success(NEEDS_ATTENTION_DUPLICATE_DRAFT_TOAST)
+              setCampaignsIntent({
+                continueEditingCampaignId: result.campaignId,
+                continueEditingStep: "review",
+              })
+              navigate(plan.campaignsPath)
+            })()
+            return
+          }
           if (plan.feedbackInbox != null) {
             setFeedbackInboxIntent(plan.feedbackInbox)
           }

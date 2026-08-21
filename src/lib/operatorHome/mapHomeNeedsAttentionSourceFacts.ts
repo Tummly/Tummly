@@ -67,6 +67,7 @@ function mapCampaign(
     name: item.name,
     status: item.status,
     updatedAt: item.updatedAt,
+    rowVersion: item.rowVersion,
   }
 }
 

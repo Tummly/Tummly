@@ -58,6 +58,7 @@ describe("buildHomeNeedsAttention", () => {
           name: "Weekend SMS blast",
           status: "failed",
           updatedAt: "2026-08-21T11:00:00.000Z",
+          rowVersion: "rv-41",
         },
       ],
       offers: [],
@@ -73,6 +74,7 @@ describe("buildHomeNeedsAttention", () => {
       body: "This campaign failed.",
       metaKind: "warning",
       metaLine: "Warning · 1 hour ago · Manchester",
+      rowVersion: "rv-41",
       ctas: [
         { kind: "preview-campaign", label: "Preview" },
         { kind: "duplicate-as-draft", label: "Duplicate as Draft" },
@@ -227,6 +229,7 @@ describe("buildHomeNeedsAttention", () => {
           name: "Retry lunch",
           status: "partially-sent",
           updatedAt: "2026-08-21T10:00:00.000Z",
+          rowVersion: "rv-7",
         },
       ],
       offers: [

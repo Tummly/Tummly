@@ -367,6 +367,7 @@ namespace TummlyBackend.Tests.Services
                 result
             );
             Assert.Equal(CampaignLifecycleService.DraftStatus, duplicated.Campaign.Status);
+            Assert.Equal("Lifecycle campaign - Draft", duplicated.Campaign.Name);
             Assert.Equal("Recover this", duplicated.Campaign.MessageBody);
             Assert.NotEqual(seeded.CampaignId, duplicated.Campaign.Id);
             Assert.Equal(
@@ -394,6 +395,24 @@ namespace TummlyBackend.Tests.Services
             );
 
             Assert.IsType<CampaignLifecycleResult.InvalidStatus>(result);
+        }
+
+        [Fact]
+        public void BuildDuplicateName_AppendsDraftSuffix()
+        {
+            Assert.Equal(
+                "Weekend SMS blast - Draft",
+                CampaignLifecycleService.BuildDuplicateName("Weekend SMS blast")
+            );
+        }
+
+        [Fact]
+        public void BuildDuplicateName_TruncatesToMax()
+        {
+            var original = new string('a', CampaignLifecycleService.NameMaxLength);
+            var copy = CampaignLifecycleService.BuildDuplicateName(original);
+            Assert.Equal(CampaignLifecycleService.NameMaxLength, copy.Length);
+            Assert.EndsWith(CampaignLifecycleService.DuplicateNameSuffix, copy);
         }
 
         private async Task<(

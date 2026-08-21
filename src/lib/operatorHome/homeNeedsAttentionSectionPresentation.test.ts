@@ -66,6 +66,7 @@ describe("resolveHomeNeedsAttentionSectionBody", () => {
         name: `Campaign ${id}`,
         status: "failed" as const,
         updatedAt: `2026-08-21T11:0${id}:00.000Z`,
+        rowVersion: `rv-${id}`,
       })),
     })
     expect(projection.showViewAll).toBe(true)

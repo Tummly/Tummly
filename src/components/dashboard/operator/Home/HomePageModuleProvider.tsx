@@ -5,6 +5,7 @@ import {
   closeOutFeedback,
   correctFeedbackClassification,
   createFeedbackInternalNote,
+  duplicateCampaignAsDraft,
   getCampaignDraftById,
   getCampaignsList,
   getChecklistAcks,
@@ -214,6 +215,7 @@ export function HomePageModuleProvider({
         return response.items
       },
       pauseCampaign,
+      duplicateCampaign: duplicateCampaignAsDraft,
       getCampaignDraftById,
     })
   )

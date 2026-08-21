@@ -17,6 +17,7 @@ export type OperatorHomePageModuleApi = {
   retryLiveOffers: OperatorHomePageModule["retryLiveOffers"]
   retryNeedsAttention: OperatorHomePageModule["retryNeedsAttention"]
   pauseLiveCampaign: OperatorHomePageModule["pauseLiveCampaign"]
+  duplicateNeedsAttentionCampaign: OperatorHomePageModule["duplicateNeedsAttentionCampaign"]
   previewGuestForm: OperatorHomePageModule["previewGuestForm"]
   copySmartGuestLink: () => void
   openFeedbackDetails: OperatorHomePageModule["openFeedbackDetails"]
@@ -73,6 +74,7 @@ export function useHomePageModule(): OperatorHomePageModuleApi {
     retryLiveOffers: pageModule.retryLiveOffers,
     retryNeedsAttention: pageModule.retryNeedsAttention,
     pauseLiveCampaign: pageModule.pauseLiveCampaign,
+    duplicateNeedsAttentionCampaign: pageModule.duplicateNeedsAttentionCampaign,
     previewGuestForm: pageModule.previewGuestForm,
     copySmartGuestLink: () => {
       void pageModule.copySmartGuestLink().then((result) => {

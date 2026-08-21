@@ -4,6 +4,8 @@ import type { HomeNeedsAttentionProjection } from "@/lib/operatorHome/buildHomeN
 import { NEEDS_ATTENTION_LOAD_ERROR } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 
 export {
+  NEEDS_ATTENTION_DUPLICATE_DRAFT_ERROR,
+  NEEDS_ATTENTION_DUPLICATE_DRAFT_TOAST,
   NEEDS_ATTENTION_EMPTY_COPY,
   NEEDS_ATTENTION_LOAD_ERROR,
   NEEDS_ATTENTION_VIEW_ALL_LABEL,

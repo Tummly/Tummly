@@ -32,6 +32,8 @@ export type HomeNeedsAttentionCampaignFact = {
   name: string
   status: "failed" | "partially-sent"
   updatedAt: string
+  /** Base64 SQL rowversion for Duplicate as Draft. */
+  rowVersion: string
 }
 
 export type HomeNeedsAttentionOfferFact = {
@@ -68,6 +70,7 @@ export type HomeNeedsAttentionCampaignItem = HomeNeedsAttentionItemBase & {
   sourceKind: "campaign"
   id: string
   campaignId: number
+  rowVersion: string
 }
 
 export type HomeNeedsAttentionOfferItem = HomeNeedsAttentionItemBase & {
@@ -179,6 +182,7 @@ function mapCampaignRow(input: {
     sourceKind: "campaign",
     id: `campaign-${input.fact.id}`,
     campaignId: input.fact.id,
+    rowVersion: input.fact.rowVersion,
     title: input.fact.name,
     body: campaignBody(input.fact.status),
     metaKind: "warning",

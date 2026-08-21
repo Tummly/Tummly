@@ -12,10 +12,21 @@ import {
   type OperatorDashboardMode,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 
-export type HomeNeedsAttentionCtaPlan = {
+export type HomeNeedsAttentionNavigatePlan = {
+  kind: "navigate"
   path: string
   feedbackInbox?: AssistantFeedbackInboxIntent
 }
+
+export type HomeNeedsAttentionDuplicateDraftPlan = {
+  kind: "duplicate-as-draft"
+  campaignId: number
+  campaignsPath: string
+}
+
+export type HomeNeedsAttentionCtaPlan =
+  | HomeNeedsAttentionNavigatePlan
+  | HomeNeedsAttentionDuplicateDraftPlan
 
 function campaignIdOf(item: HomeNeedsAttentionItem): number | null {
   return item.sourceKind === "campaign" ? item.campaignId : null
@@ -25,6 +36,15 @@ function offerIdOf(item: HomeNeedsAttentionItem): number | null {
   return item.sourceKind === "offer" ? item.offerId : null
 }
 
+function navigatePlan(
+  path: string,
+  extra?: Pick<HomeNeedsAttentionNavigatePlan, "feedbackInbox">
+): HomeNeedsAttentionNavigatePlan {
+  return extra == null
+    ? { kind: "navigate", path }
+    : { kind: "navigate", path, ...extra }
+}
+
 export function planHomeNeedsAttentionCta(input: {
   item: HomeNeedsAttentionItem
   ctaKind: HomeNeedsAttentionCtaKind
@@ -32,46 +52,52 @@ export function planHomeNeedsAttentionCta(input: {
   locationId: number
 }): HomeNeedsAttentionCtaPlan {
   const { mode, locationId } = input
+  const campaignsPath = operatorDashboardNavPath(mode, "campaigns", locationId)
 
   switch (input.ctaKind) {
     case "review-feedback":
-      return {
-        path: operatorDashboardNavPath(mode, "feedback", locationId),
-        feedbackInbox: { tab: "needs-attention" },
-      }
+      return navigatePlan(
+        operatorDashboardNavPath(mode, "feedback", locationId),
+        { feedbackInbox: { tab: "needs-attention" } }
+      )
     case "preview-campaign": {
       const campaignId = campaignIdOf(input.item)
-      return {
-        path:
-          campaignId != null
-            ? operatorDashboardCampaignDetailsPath(mode, campaignId, locationId)
-            : operatorDashboardNavPath(mode, "campaigns", locationId),
-      }
+      return navigatePlan(
+        campaignId != null
+          ? operatorDashboardCampaignDetailsPath(mode, campaignId, locationId)
+          : campaignsPath
+      )
     }
     case "retry-remaining":
-    case "duplicate-as-draft":
-      return {
-        path: operatorDashboardNavPath(mode, "campaigns", locationId),
+      return navigatePlan(campaignsPath)
+    case "duplicate-as-draft": {
+      const campaignId = campaignIdOf(input.item)
+      if (campaignId == null) {
+        return navigatePlan(campaignsPath)
       }
+      return {
+        kind: "duplicate-as-draft",
+        campaignId,
+        campaignsPath,
+      }
+    }
     case "manage-offer": {
       const offerId = offerIdOf(input.item)
-      return {
-        path:
-          offerId != null
-            ? operatorDashboardOfferDetailsPath(mode, offerId, locationId)
-            : operatorDashboardNavPath(mode, "offers", locationId),
-      }
+      return navigatePlan(
+        offerId != null
+          ? operatorDashboardOfferDetailsPath(mode, offerId, locationId)
+          : operatorDashboardNavPath(mode, "offers", locationId)
+      )
     }
     case "view-redemptions": {
       const offerId = offerIdOf(input.item)
-      return {
-        path:
-          offerId != null
-            ? operatorDashboardOfferDetailsPath(mode, offerId, locationId, {
-                tab: "redemptions",
-              })
-            : operatorDashboardNavPath(mode, "offers", locationId),
-      }
+      return navigatePlan(
+        offerId != null
+          ? operatorDashboardOfferDetailsPath(mode, offerId, locationId, {
+              tab: "redemptions",
+            })
+          : operatorDashboardNavPath(mode, "offers", locationId)
+      )
     }
     default: {
       const _exhaustive: never = input.ctaKind

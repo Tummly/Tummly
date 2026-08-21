@@ -16,7 +16,10 @@ import {
 import { createFinishSettingUpAcksModule } from "@/lib/operatorHome/createFinishSettingUpAcksModule"
 import { buildOperatorHomeViewModel } from "@/lib/operatorHome/buildHomeViewModel"
 import { mapHomeNeedsAttentionSourceFacts } from "@/lib/operatorHome/mapHomeNeedsAttentionSourceFacts"
-import { NEEDS_ATTENTION_LOAD_ERROR } from "@/lib/operatorHome/operatorHomeSectionPresentation"
+import {
+  NEEDS_ATTENTION_DUPLICATE_DRAFT_ERROR,
+  NEEDS_ATTENTION_LOAD_ERROR,
+} from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import { buildHomeRecommendationRequest } from "@/lib/operatorHome/buildHomeRecommendationRequest"
 import {
   labelForHomePerformanceDateRange,
@@ -183,8 +186,16 @@ export type OperatorHomePageAdapters = {
     campaignId: number,
     body: CampaignLifecycleActionRequest
   ) => Promise<CampaignLifecycleActionResponse>
+  duplicateCampaign: (
+    campaignId: number,
+    body: CampaignLifecycleActionRequest
+  ) => Promise<CampaignLifecycleActionResponse>
   getCampaignDraftById?: (campaignId: number) => Promise<CampaignDraftResponse>
 }
+
+export type DuplicateNeedsAttentionCampaignResult =
+  | { ok: true; campaignId: number }
+  | { ok: false; error: string }
 
 export type OperatorHomePageModule = {
   getSnapshot: () => OperatorHomePageSnapshot
@@ -202,6 +213,9 @@ export type OperatorHomePageModule = {
   retryLiveOffers: () => Promise<void>
   retryNeedsAttention: () => Promise<void>
   pauseLiveCampaign: (campaignId: number) => Promise<boolean>
+  duplicateNeedsAttentionCampaign: (
+    campaignId: number
+  ) => Promise<DuplicateNeedsAttentionCampaignResult>
   previewGuestForm: () => void
   copySmartGuestLink: () => Promise<CopySmartGuestLinkResult>
   openFeedbackDetails: (feedbackId: number) => Promise<void>
@@ -721,6 +735,7 @@ export function createOperatorHomePageModule(
   } | null = null
   let recommendation: OperatorHomeRecommendationViewModel = idleRecommendation()
   let recommendationGeneration = 0
+  let needsAttentionDuplicateBusy = false
 
   const emit = () => {
     for (const listener of listeners) {
@@ -1508,6 +1523,36 @@ export function createOperatorHomePageModule(
         return false
       } finally {
         dispatch({ type: "live_offers_pause_busy", busy: false })
+      }
+    },
+    duplicateNeedsAttentionCampaign: async (campaignId) => {
+      const row = state.needsAttention?.allRows.find(
+        (item) =>
+          item.sourceKind === "campaign" && item.campaignId === campaignId
+      )
+      if (
+        row == null
+        || row.sourceKind !== "campaign"
+        || needsAttentionDuplicateBusy
+      ) {
+        return { ok: false, error: NEEDS_ATTENTION_DUPLICATE_DRAFT_ERROR }
+      }
+
+      needsAttentionDuplicateBusy = true
+      try {
+        const response = await adapters.duplicateCampaign(campaignId, {
+          rowVersion: row.rowVersion,
+        })
+        return { ok: true, campaignId: response.campaign.id }
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message.trim().length > 0
+            ? error.message.trim()
+            : NEEDS_ATTENTION_DUPLICATE_DRAFT_ERROR
+        dispatch({ type: "action_error", error: message })
+        return { ok: false, error: message }
+      } finally {
+        needsAttentionDuplicateBusy = false
       }
     },
     previewGuestForm: () => {

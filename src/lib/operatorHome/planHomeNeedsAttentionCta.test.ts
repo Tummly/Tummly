@@ -25,6 +25,7 @@ describe("planHomeNeedsAttentionCta", () => {
         locationId,
       })
     ).toEqual({
+      kind: "navigate",
       path: "/single-dashboard/feedback?location=7",
       feedbackInbox: { tab: "needs-attention" },
     })
@@ -40,6 +41,7 @@ describe("planHomeNeedsAttentionCta", () => {
           name: "Weekend SMS blast",
           status: "partially-sent",
           updatedAt: "2026-08-21T11:00:00.000Z",
+          rowVersion: "rv-41",
         },
       ],
     })
@@ -54,6 +56,7 @@ describe("planHomeNeedsAttentionCta", () => {
         locationId,
       })
     ).toEqual({
+      kind: "navigate",
       path: "/multi-dashboard/campaigns/41?location=7",
     })
     expect(
@@ -64,11 +67,12 @@ describe("planHomeNeedsAttentionCta", () => {
         locationId,
       })
     ).toEqual({
+      kind: "navigate",
       path: "/multi-dashboard/campaigns?location=7",
     })
   })
 
-  it("opens Campaigns for Duplicate as Draft on a Failed Campaign", () => {
+  it("plans Duplicate as Draft as a create-then-open-draft action", () => {
     const projection = buildHomeNeedsAttention({
       locationName: "Manchester",
       nowMs: Date.parse("2026-08-21T12:00:00.000Z"),
@@ -78,6 +82,7 @@ describe("planHomeNeedsAttentionCta", () => {
           name: "Weekend SMS blast",
           status: "failed",
           updatedAt: "2026-08-21T11:00:00.000Z",
+          rowVersion: "rv-41",
         },
       ],
     })
@@ -90,7 +95,9 @@ describe("planHomeNeedsAttentionCta", () => {
         locationId,
       })
     ).toEqual({
-      path: "/single-dashboard/campaigns?location=7",
+      kind: "duplicate-as-draft",
+      campaignId: 41,
+      campaignsPath: "/single-dashboard/campaigns?location=7",
     })
   })
 
@@ -124,6 +131,7 @@ describe("planHomeNeedsAttentionCta", () => {
         locationId,
       })
     ).toEqual({
+      kind: "navigate",
       path: "/single-dashboard/offers/88?location=7",
     })
     expect(
@@ -134,6 +142,7 @@ describe("planHomeNeedsAttentionCta", () => {
         locationId,
       })
     ).toEqual({
+      kind: "navigate",
       path: "/single-dashboard/offers/88?location=7&tab=redemptions",
     })
   })
