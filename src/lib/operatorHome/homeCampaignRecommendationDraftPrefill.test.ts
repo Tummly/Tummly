@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { homeCampaignRecommendationDraftPrefill } from "@/lib/operatorHome/buildHomeCampaignWizardHandoff"
+import { homeCampaignRecommendationDraftPrefill } from "@/lib/operatorHome/homeCampaignRecommendationDraftPrefill"
 import type { HomeRecommendation } from "@/types/operatorHome"
 
 const campaignRecommendation: HomeRecommendation = {

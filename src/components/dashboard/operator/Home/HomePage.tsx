@@ -5,7 +5,7 @@ import {
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
 import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod"
-import { homeCampaignRecommendationDraftPrefill } from "@/lib/operatorHome/buildHomeCampaignWizardHandoff"
+import { homeCampaignRecommendationDraftPrefill } from "@/lib/operatorHome/homeCampaignRecommendationDraftPrefill"
 import { isHomeRecommendationCampaignType } from "@/lib/operatorHome/homeRecommendationPresentation"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
