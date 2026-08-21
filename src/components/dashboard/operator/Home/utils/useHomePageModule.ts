@@ -15,6 +15,7 @@ export type OperatorHomePageModuleApi = {
   retryRecommendation: OperatorHomePageModule["retryRecommendation"]
   dismissRecommendation: OperatorHomePageModule["dismissRecommendation"]
   retryLiveOffers: OperatorHomePageModule["retryLiveOffers"]
+  retryNeedsAttention: OperatorHomePageModule["retryNeedsAttention"]
   pauseLiveCampaign: OperatorHomePageModule["pauseLiveCampaign"]
   previewGuestForm: OperatorHomePageModule["previewGuestForm"]
   copySmartGuestLink: () => void
@@ -70,6 +71,7 @@ export function useHomePageModule(): OperatorHomePageModuleApi {
     retryRecommendation: pageModule.retryRecommendation,
     dismissRecommendation: pageModule.dismissRecommendation,
     retryLiveOffers: pageModule.retryLiveOffers,
+    retryNeedsAttention: pageModule.retryNeedsAttention,
     pauseLiveCampaign: pageModule.pauseLiveCampaign,
     previewGuestForm: pageModule.previewGuestForm,
     copySmartGuestLink: () => {

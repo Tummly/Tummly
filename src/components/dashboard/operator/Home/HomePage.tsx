@@ -16,6 +16,7 @@ import {
   operatorDashboardOfferDetailsPath,
   operatorDashboardOfferPreviewPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
+import { planHomeNeedsAttentionCta } from "@/lib/operatorHome/planHomeNeedsAttentionCta"
 import type { HomeRecommendation } from "@/types/operatorHome"
 import { useNavigate, useOutletContext } from "react-router-dom"
 
@@ -42,6 +43,9 @@ export function HomePage({
   )
   const setCampaignsIntent = useDashboardUiStore(
     (state) => state.setCampaignsIntent
+  )
+  const setFeedbackInboxIntent = useDashboardUiStore(
+    (state) => state.setFeedbackInboxIntent
   )
 
   const navigateToGuestProfile = (locationGuestId: number) => {
@@ -227,6 +231,24 @@ export function HomePage({
           )
         }}
         onPauseLiveCampaign={(campaignId) => home.pauseLiveCampaign(campaignId)}
+        needsAttentionLoadStatus={home.snapshot.needsAttentionLoadStatus}
+        needsAttention={home.snapshot.needsAttention}
+        needsAttentionError={home.snapshot.needsAttentionError}
+        onRetryNeedsAttention={() => {
+          void home.retryNeedsAttention()
+        }}
+        onNeedsAttentionCta={(item, ctaKind) => {
+          const plan = planHomeNeedsAttentionCta({
+            item,
+            ctaKind,
+            mode,
+            locationId,
+          })
+          if (plan.feedbackInbox != null) {
+            setFeedbackInboxIntent(plan.feedbackInbox)
+          }
+          navigate(plan.path)
+        }}
         onRetryFeedback={() => {
           void home.retryLoad()
         }}

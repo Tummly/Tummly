@@ -118,3 +118,9 @@ export const NEEDS_ATTENTION_EMPTY_COPY = "Nothing needs attention right now."
 
 export const NEEDS_ATTENTION_LOAD_ERROR =
   "Could not load Needs attention. Please try again."
+
+/** Figma warning row — main-bg #202020 → op-background-secondary (3498:9980). */
+export const WARNING_ROW_CLASS =
+  "flex w-full flex-col gap-4 overflow-clip rounded-[4px] bg-op-background-secondary py-5 pl-[30px] pr-5 sm:flex-row sm:items-center sm:gap-[14px]"
+
+export const NEEDS_ATTENTION_VIEW_ALL_LABEL = "View all"

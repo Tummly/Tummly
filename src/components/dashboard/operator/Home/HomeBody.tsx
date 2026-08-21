@@ -14,6 +14,12 @@ import { HomeSetupChecklist } from "@/components/dashboard/operator/Home/HomeSet
 import { OffersConfirmDialog } from "@/components/dashboard/operator/Offers/OffersConfirmDialog"
 import { Button } from "@/components/ui/button"
 import type { OperatorHomeLiveCard } from "@/lib/operatorHome/buildLiveOffersSectionCards"
+import type {
+  HomeNeedsAttentionCtaKind,
+  HomeNeedsAttentionItem,
+  HomeNeedsAttentionProjection,
+} from "@/lib/operatorHome/buildHomeNeedsAttention"
+import type { HomeNeedsAttentionLoadStatus } from "@/lib/operatorHome/homeNeedsAttentionSectionPresentation"
 import type { OperatorHomeRecommendationViewModel } from "@/lib/operatorHome/createOperatorHomePageModule"
 import {
   LIVE_OFFERS_PAUSE_CONFIRM_DESCRIPTION,
@@ -70,6 +76,14 @@ type HomeBodyProps = {
   onViewLiveOffer?: (offerId: number) => void
   onViewLiveOfferRedemptions?: (offerId: number) => void
   onPauseLiveCampaign?: (campaignId: number) => Promise<boolean> | boolean
+  needsAttentionLoadStatus?: HomeNeedsAttentionLoadStatus
+  needsAttention?: HomeNeedsAttentionProjection | null
+  needsAttentionError?: string | null
+  onRetryNeedsAttention?: () => void
+  onNeedsAttentionCta?: (
+    item: HomeNeedsAttentionItem,
+    ctaKind: HomeNeedsAttentionCtaKind
+  ) => void
   feedbackDetails: FeedbackDetailsSnapshot
   onViewFeedback?: (feedbackId: number) => void
   onViewGuest?: (locationGuestId: number) => void
@@ -144,6 +158,11 @@ export function HomeBody({
   onViewLiveOffer,
   onViewLiveOfferRedemptions,
   onPauseLiveCampaign,
+  needsAttentionLoadStatus = "idle",
+  needsAttention = null,
+  needsAttentionError = null,
+  onRetryNeedsAttention,
+  onNeedsAttentionCta,
   feedbackDetails,
   onViewFeedback,
   onViewGuest,
@@ -230,7 +249,16 @@ export function HomeBody({
         />
       </section>
 
-      <HomeNeedsAttentionSection />
+      <HomeNeedsAttentionSection
+        key={viewModel.selectedLocationId}
+        loadStatus={needsAttentionLoadStatus}
+        projection={needsAttention}
+        errorMessage={needsAttentionError}
+        onRetry={onRetryNeedsAttention}
+        onCta={(item, ctaKind) => {
+          onNeedsAttentionCta?.(item, ctaKind)
+        }}
+      />
 
       <HomeLiveOffersSection
         loadStatus={liveOffersLoadStatus}

@@ -20,15 +20,12 @@ import {
   OPERATOR_HOME_HEADER_COPY_CLASS,
   OPERATOR_HOME_HEADER_ROW_CLASS,
   OPERATOR_HOME_SUBTITLE_CLASS,
+  WARNING_ROW_CLASS,
 } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import { GUESTS_PAGE_SECONDARY_BUTTON_CLASS } from "@/lib/operatorGuests/guestsPresentation"
 import { cn } from "@/lib/utils"
 
 const NEEDS_ATTENTION_ACCORDION_VALUE = "needs-attention"
-
-/** Figma warning row — main-bg #202020 → op-background-secondary (3498:9980). */
-const WARNING_ROW_CLASS =
-  "flex w-full flex-col gap-4 overflow-clip rounded-[4px] bg-op-background-secondary py-5 pl-[30px] pr-5 sm:flex-row sm:items-center sm:gap-[14px]"
 
 type OffersNeedsAttentionSectionProps = {
   needsAttention: OperatorOffersNeedsAttentionView
