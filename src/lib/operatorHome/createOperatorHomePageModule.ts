@@ -7,6 +7,7 @@ import {
 import { closeExclusiveAssistantDrawer } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import { createFinishSettingUpAcksModule } from "@/lib/operatorHome/createFinishSettingUpAcksModule"
 import { buildOperatorHomeViewModel } from "@/lib/operatorHome/buildHomeViewModel"
+import { buildHomeRecommendationRequest } from "@/lib/operatorHome/buildHomeRecommendationRequest"
 import {
   labelForHomePerformanceDateRange,
   resolveHomePerformanceWindow,
@@ -26,6 +27,9 @@ import type {
   UpdateChecklistAcksRequest,
 } from "@/types/dashboard"
 import type {
+  HomeRecommendation,
+  HomeRecommendationRequest,
+  HomeRecommendationResponse,
   OperatorHomeChecklistAcks,
   OperatorHomeViewModel,
 } from "@/types/operatorHome"
@@ -37,6 +41,26 @@ export type OperatorHomeWorkspaceInput = {
 
 export type CopySmartGuestLinkResult = "copied" | "failed" | "noop"
 
+export const HOME_RECOMMENDATION_LOAD_ERROR_MESSAGE =
+  "Could not load a recommendation. Please try again."
+
+export type OperatorHomeRecommendationStatus =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "error"
+  | "dismissed"
+
+export type OperatorHomeRecommendationViewModel = {
+  status: OperatorHomeRecommendationStatus
+  /** Present when status is ready and type is not none. */
+  recommendation: HomeRecommendation | null
+  /** True when status is ready and type is none. */
+  isNone: boolean
+  errorMessage: string | null
+  errorRetryable: boolean
+}
+
 export type OperatorHomePageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
   performanceLoadStatus: "idle" | "loading" | "loaded" | "error"
@@ -44,6 +68,8 @@ export type OperatorHomePageSnapshot = {
   previewBusy: boolean
   actionError: string | null
   feedbackDetails: FeedbackDetailsSnapshot
+  /** Home Recommended next step — not on OperatorHomeViewModel (ticket 04). */
+  recommendation: OperatorHomeRecommendationViewModel
 }
 
 export type ClassificationTerminalSignal = {
@@ -71,6 +97,9 @@ export type OperatorHomePageAdapters = {
     to: string
   ) => Promise<HomePerformanceResponse>
   getHomePerformanceDateRange: () => HomePerformanceDateRange
+  loadHomeRecommendation: (input: {
+    request: HomeRecommendationRequest
+  }) => Promise<HomeRecommendationResponse>
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
   correctClassification: FeedbackDetailsAdapters["correctClassification"]
   updateDetectedTags: FeedbackDetailsAdapters["updateDetectedTags"]
@@ -117,6 +146,10 @@ export type OperatorHomePageModule = {
   retryLoad: () => Promise<void>
   /** Re-load Home using the current Home performance date range from adapters. */
   reloadForHomePerformanceDateRange: () => Promise<void>
+  /** Explicit recommendation retry / refresh (bypasses server cache). */
+  retryRecommendation: () => Promise<void>
+  /** Session hide only — does not write server dismiss/cache. */
+  dismissRecommendation: () => void
   previewGuestForm: () => void
   copySmartGuestLink: () => Promise<CopySmartGuestLinkResult>
   openFeedbackDetails: (feedbackId: number) => Promise<void>
@@ -389,6 +422,55 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
   }
 }
 
+function idleRecommendation(): OperatorHomeRecommendationViewModel {
+  return {
+    status: "idle",
+    recommendation: null,
+    isNone: false,
+    errorMessage: null,
+    errorRetryable: false,
+  }
+}
+
+/**
+ * Client soft-cache key — location + Home performance selection identity.
+ * Do not use resolved `from`/`to` timestamps: preset windows bind `to` to `now`,
+ * so ISO strings change every call even when the operator selection is unchanged.
+ */
+function recommendationSoftCacheKey(
+  locationId: number,
+  dateRange: HomePerformanceDateRange
+): string {
+  if (dateRange.kind === "preset") {
+    return `${locationId}:preset:${dateRange.presetId}`
+  }
+  return `${locationId}:custom:${dateRange.startDate}:${dateRange.endDate}`
+}
+
+function mapRecommendationResponse(
+  response: HomeRecommendationResponse
+): OperatorHomeRecommendationViewModel {
+  if (!response.success || response.recommendation == null) {
+    return {
+      status: "error",
+      recommendation: null,
+      isNone: false,
+      errorMessage:
+        response.message ?? HOME_RECOMMENDATION_LOAD_ERROR_MESSAGE,
+      errorRetryable: response.retryable !== false,
+    }
+  }
+
+  const isNone = response.recommendation.type === "none"
+  return {
+    status: "ready",
+    recommendation: isNone ? null : response.recommendation,
+    isNone,
+    errorMessage: null,
+    errorRetryable: false,
+  }
+}
+
 export function createOperatorHomePageModule(
   adapters: OperatorHomePageAdapters
 ): OperatorHomePageModule {
@@ -434,9 +516,23 @@ export function createOperatorHomePageModule(
     previewBusy: false,
     actionError: null,
     feedbackDetails: feedbackDetails.getSnapshot(),
+    recommendation: idleRecommendation(),
   }
 
   const listeners = new Set<() => void>()
+  /** Session-only Not now — survives recommendation reloads until location change. */
+  let recommendationDismissedForSession = false
+  /**
+   * Last ready recommendation for the current soft-cache key.
+   * Keeps return visits / remount reloads from flashing an empty loading card
+   * when the Home performance window key is unchanged.
+   */
+  let softCachedRecommendation: {
+    cacheKey: string
+    viewModel: OperatorHomeRecommendationViewModel
+  } | null = null
+  let recommendation: OperatorHomeRecommendationViewModel = idleRecommendation()
+  let recommendationGeneration = 0
 
   const emit = () => {
     for (const listener of listeners) {
@@ -462,6 +558,7 @@ export function createOperatorHomePageModule(
       previewBusy: ackSnapshot.acknowledgeBusy,
       actionError: ackSnapshot.acknowledgeError ?? state.actionError,
       feedbackDetails: feedbackDetails.getSnapshot(),
+      recommendation,
     }
     emit()
   }
@@ -473,6 +570,104 @@ export function createOperatorHomePageModule(
 
   const currentDateRangeLabel = () =>
     labelForHomePerformanceDateRange(adapters.getHomePerformanceDateRange())
+
+  const rememberSoftCachedRecommendation = (
+    cacheKey: string,
+    next: OperatorHomeRecommendationViewModel
+  ) => {
+    if (next.status !== "ready") {
+      return
+    }
+    softCachedRecommendation = {
+      cacheKey,
+      viewModel: { ...next },
+    }
+  }
+
+  const recommendationForSoftLoad = (input: {
+    refresh: boolean
+    cacheKey: string
+  }): OperatorHomeRecommendationViewModel => {
+    if (recommendationDismissedForSession) {
+      return { ...idleRecommendation(), status: "dismissed" }
+    }
+    if (
+      !input.refresh
+      && softCachedRecommendation != null
+      && softCachedRecommendation.cacheKey === input.cacheKey
+      && softCachedRecommendation.viewModel.status === "ready"
+    ) {
+      return softCachedRecommendation.viewModel
+    }
+    return { ...idleRecommendation(), status: "loading" }
+  }
+
+  const patchRecommendation = (
+    next: OperatorHomeRecommendationViewModel,
+    options?: { softCacheKey?: string }
+  ) => {
+    if (options?.softCacheKey != null) {
+      rememberSoftCachedRecommendation(options.softCacheKey, next)
+    }
+    recommendation = next
+    publish()
+  }
+
+  const loadRecommendation = async (options?: { refresh?: boolean }) => {
+    const workspace = state.workspace
+    const selectedLocationId = workspace?.selectedLocationId
+    if (workspace == null || selectedLocationId == null) {
+      return
+    }
+    if (recommendationDismissedForSession) {
+      return
+    }
+
+    const performanceDateRange = adapters.getHomePerformanceDateRange()
+    const request = buildHomeRecommendationRequest({
+      locationId: selectedLocationId,
+      performanceDateRange,
+      refresh: options?.refresh === true,
+    })
+    const cacheKey = recommendationSoftCacheKey(
+      selectedLocationId,
+      performanceDateRange
+    )
+    const generation = recommendationGeneration + 1
+    recommendationGeneration = generation
+    recommendation = recommendationForSoftLoad({
+      refresh: options?.refresh === true,
+      cacheKey,
+    })
+    publish()
+
+    try {
+      const response = await adapters.loadHomeRecommendation({ request })
+      if (generation !== recommendationGeneration) {
+        return
+      }
+      if (recommendationDismissedForSession) {
+        return
+      }
+      patchRecommendation(mapRecommendationResponse(response), {
+        softCacheKey: cacheKey,
+      })
+    } catch {
+      if (generation !== recommendationGeneration) {
+        return
+      }
+      if (recommendationDismissedForSession) {
+        return
+      }
+      patchRecommendation({
+        status: "error",
+        recommendation: null,
+        isNone: false,
+        errorMessage: HOME_RECOMMENDATION_LOAD_ERROR_MESSAGE,
+        errorRetryable: true,
+      })
+    }
+  }
 
   const assembleCurrent = (
     workspace: OperatorHomeWorkspaceInput,
@@ -649,6 +844,18 @@ export function createOperatorHomePageModule(
     }
 
     const generation = state.loadGeneration + 1
+    const performanceDateRange = adapters.getHomePerformanceDateRange()
+    const recommendationCacheKey = recommendationSoftCacheKey(
+      selectedLocationId,
+      performanceDateRange
+    )
+    const nextRecommendation = recommendationForSoftLoad({
+      refresh: false,
+      cacheKey: recommendationCacheKey,
+    })
+    recommendationGeneration += 1
+    const thisRecommendationGeneration = recommendationGeneration
+    recommendation = nextRecommendation
     dispatch({ type: "load_started", generation })
 
     let feedback: { total: number; recent: FeedbackResponse["recent"] }
@@ -680,6 +887,7 @@ export function createOperatorHomePageModule(
       if (generation !== state.loadGeneration) {
         return
       }
+      recommendation = idleRecommendation()
       dispatch({ type: "load_failed", generation })
       return
     }
@@ -719,6 +927,46 @@ export function createOperatorHomePageModule(
     })
 
     await fetchPerformanceForSelectedLocation()
+
+    if (thisRecommendationGeneration !== recommendationGeneration) {
+      return
+    }
+    if (recommendationDismissedForSession) {
+      return
+    }
+
+    try {
+      const response = await adapters.loadHomeRecommendation({
+        request: buildHomeRecommendationRequest({
+          locationId: selectedLocationId,
+          performanceDateRange,
+          refresh: false,
+        }),
+      })
+      if (thisRecommendationGeneration !== recommendationGeneration) {
+        return
+      }
+      if (recommendationDismissedForSession) {
+        return
+      }
+      patchRecommendation(mapRecommendationResponse(response), {
+        softCacheKey: recommendationCacheKey,
+      })
+    } catch {
+      if (thisRecommendationGeneration !== recommendationGeneration) {
+        return
+      }
+      if (recommendationDismissedForSession) {
+        return
+      }
+      patchRecommendation({
+        status: "error",
+        recommendation: null,
+        isNone: false,
+        errorMessage: HOME_RECOMMENDATION_LOAD_ERROR_MESSAGE,
+        errorRetryable: true,
+      })
+    }
   }
 
   const refreshOpenFeedbackDetails = () => {
@@ -800,6 +1048,10 @@ export function createOperatorHomePageModule(
     disconnect,
     syncWorkspace: async (input) => {
       if (input.selectedLocationId == null) {
+        recommendationDismissedForSession = false
+        softCachedRecommendation = null
+        recommendationGeneration += 1
+        recommendation = idleRecommendation()
         dispatch({ type: "workspace_cleared" })
         acks.reset()
         feedbackDetails.reset()
@@ -810,6 +1062,10 @@ export function createOperatorHomePageModule(
       const locationChanged = previousLocationId !== input.selectedLocationId
 
       if (locationChanged) {
+        recommendationDismissedForSession = false
+        softCachedRecommendation = null
+        recommendationGeneration += 1
+        recommendation = idleRecommendation()
         feedbackDetails.reset()
         const emptyAcks: OperatorHomeChecklistAcks = {
           guestFormPreviewed: false,
@@ -875,6 +1131,17 @@ export function createOperatorHomePageModule(
         })
       }
       await fetchPerformanceForSelectedLocation()
+      // Window change may invalidate soft-cache key — reload without refresh.
+      await loadRecommendation()
+    },
+    retryRecommendation: () => loadRecommendation({ refresh: true }),
+    dismissRecommendation: () => {
+      recommendationDismissedForSession = true
+      softCachedRecommendation = null
+      patchRecommendation({
+        ...idleRecommendation(),
+        status: "dismissed",
+      })
     },
     previewGuestForm: () => {
       const viewModel = state.viewModel

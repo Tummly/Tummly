@@ -4,8 +4,10 @@ import type { FeedbackDetailsAdapters } from "@/lib/operatorFeedback/createFeedb
 import {
   createOperatorHomePageModule,
   type FeedbackHomeRealtimeHandlers,
+  type OperatorHomePageAdapters,
 } from "./createOperatorHomePageModule"
 import type { FeedbackItem, LocationItem } from "@/types/dashboard"
+import type { HomeRecommendationResponse } from "@/types/operatorHome"
 
 const locations: LocationItem[] = [
   {
@@ -217,6 +219,7 @@ function createAdapters(overrides: {
   }>
   hasCreatedOffer?: (locationId: number) => Promise<boolean>
   hasCreatedCampaign?: (locationId: number) => Promise<boolean>
+  loadHomeRecommendation?: OperatorHomePageAdapters["loadHomeRecommendation"]
   copyText?: (
     text: string
   ) => Promise<{ ok: true } | { ok: false; error: string }>
@@ -256,6 +259,12 @@ function createAdapters(overrides: {
       (() => ({
         kind: "preset" as const,
         presetId: "last7" as const,
+      })),
+    loadHomeRecommendation:
+      overrides.loadHomeRecommendation
+      ?? (async (): Promise<HomeRecommendationResponse> => ({
+        success: true,
+        recommendation: { type: "none" },
       })),
     getFeedbackDetails:
       overrides.getFeedbackDetails ??
@@ -365,7 +374,7 @@ function createAdapters(overrides: {
       overrides.connectRealtime
       ?? (async () => ({ stop: async () => {} })),
     onPerformanceLoadError: overrides.onPerformanceLoadError,
-  }
+  } as OperatorHomePageAdapters
 }
 
 describe("createOperatorHomePageModule", () => {
@@ -1764,5 +1773,285 @@ describe("createOperatorHomePageModule", () => {
       expect.objectContaining({ kind: "guest-joined", locationGuestId: 501 }),
       expect.objectContaining({ kind: "feedback", feedbackId: 10 }),
     ])
+  })
+
+  it("loads a success recommendation onto the module snapshot", async () => {
+    const loadHomeRecommendation = vi.fn(async () => ({
+      success: true,
+      recommendation: {
+        type: "review-open-feedback" as const,
+        title: "Review open feedback",
+        opportunity: "Guests left feedback that still needs a response.",
+        whyBullets: ["Open feedback is waiting"],
+        action: { kind: "open-feedback" as const, feedbackId: 10 },
+      },
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ loadHomeRecommendation })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+
+    expect(loadHomeRecommendation).toHaveBeenCalledWith({
+      request: expect.objectContaining({
+        locationId: 1,
+        overviewDatePreset: "last7",
+        refresh: false,
+      }),
+    })
+    const recommendation = home.getSnapshot().recommendation
+    expect(recommendation.status).toBe("ready")
+    expect(recommendation.isNone).toBe(false)
+    expect(recommendation.recommendation?.title).toBe("Review open feedback")
+    expect(home.getSnapshot().viewModel).not.toHaveProperty("recommendation")
+  })
+
+  it("maps type none to the empty recommendation card state", async () => {
+    const loadHomeRecommendation = vi.fn(async () => ({
+      success: true,
+      recommendation: { type: "none" as const },
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ loadHomeRecommendation })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+
+    const recommendation = home.getSnapshot().recommendation
+    expect(recommendation.status).toBe("ready")
+    expect(recommendation.isNone).toBe(true)
+    expect(recommendation.recommendation).toBeNull()
+  })
+
+  it("fail then retryRecommendation sets refresh and recovers", async () => {
+    const loadHomeRecommendation = vi
+      .fn()
+      .mockResolvedValueOnce({
+        success: false,
+        message: "Azure timed out",
+        retryable: true,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        recommendation: {
+          type: "thank-or-follow-guest" as const,
+          title: "Thank a recent guest",
+          opportunity: "A guest joined recently.",
+          whyBullets: ["New guest joined"],
+          action: { kind: "open-guest" as const, locationGuestId: 501 },
+        },
+      })
+    const home = createOperatorHomePageModule(
+      createAdapters({ loadHomeRecommendation })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+
+    let recommendation = home.getSnapshot().recommendation
+    expect(recommendation.status).toBe("error")
+    expect(recommendation.errorRetryable).toBe(true)
+
+    await home.retryRecommendation()
+
+    recommendation = home.getSnapshot().recommendation
+    expect(recommendation.status).toBe("ready")
+    expect(recommendation.recommendation?.type).toBe("thank-or-follow-guest")
+    expect(loadHomeRecommendation).toHaveBeenLastCalledWith({
+      request: expect.objectContaining({
+        locationId: 1,
+        refresh: true,
+      }),
+    })
+  })
+
+  it("reload with same cache key keeps last ready recommendation visible (soft refresh)", async () => {
+    const successResponse = {
+      success: true as const,
+      recommendation: {
+        type: "review-open-feedback" as const,
+        title: "Review open feedback",
+        opportunity: "Guests left feedback that still needs a response.",
+        whyBullets: ["Open feedback is waiting"],
+        action: { kind: "open-feedback" as const, feedbackId: 10 },
+      },
+    }
+    const softRefreshGate: {
+      resolve: ((value: typeof successResponse) => void) | null
+    } = { resolve: null }
+    const loadHomeRecommendation = vi
+      .fn()
+      .mockResolvedValueOnce(successResponse)
+      .mockImplementationOnce(
+        () =>
+          new Promise<typeof successResponse>((resolve) => {
+            softRefreshGate.resolve = resolve
+          })
+      )
+
+    const home = createOperatorHomePageModule(
+      createAdapters({ loadHomeRecommendation })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    expect(home.getSnapshot().recommendation.status).toBe("ready")
+
+    const reloadPromise = home.retryLoad()
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().loadStatus).toBe("loaded")
+    })
+
+    const midReload = home.getSnapshot().recommendation
+    expect(midReload.status).toBe("ready")
+    expect(midReload.recommendation?.title).toBe("Review open feedback")
+    expect(midReload.recommendation).not.toBeNull()
+
+    const resolveSoftRefresh = softRefreshGate.resolve
+    if (resolveSoftRefresh == null) {
+      throw new Error("Expected deferred soft-refresh recommendation load.")
+    }
+    resolveSoftRefresh(successResponse)
+    await reloadPromise
+
+    expect(loadHomeRecommendation).toHaveBeenCalledTimes(2)
+    expect(loadHomeRecommendation).toHaveBeenLastCalledWith({
+      request: expect.objectContaining({
+        locationId: 1,
+        refresh: false,
+      }),
+    })
+    expect(home.getSnapshot().recommendation.status).toBe("ready")
+  })
+
+  it("retryRecommendation may show loading and sets refresh", async () => {
+    const successResponse = {
+      success: true as const,
+      recommendation: {
+        type: "review-open-feedback" as const,
+        title: "Review open feedback",
+        opportunity: "Guests left feedback that still needs a response.",
+        whyBullets: ["Open feedback is waiting"],
+        action: { kind: "open-feedback" as const, feedbackId: 10 },
+      },
+    }
+    const retryGate: {
+      resolve: ((value: typeof successResponse) => void) | null
+    } = { resolve: null }
+    const loadHomeRecommendation = vi
+      .fn()
+      .mockResolvedValueOnce(successResponse)
+      .mockImplementationOnce(
+        () =>
+          new Promise<typeof successResponse>((resolve) => {
+            retryGate.resolve = resolve
+          })
+      )
+
+    const home = createOperatorHomePageModule(
+      createAdapters({ loadHomeRecommendation })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    expect(home.getSnapshot().recommendation.status).toBe("ready")
+
+    const retryPromise = home.retryRecommendation()
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().recommendation.status).toBe("loading")
+    })
+
+    const resolveRetry = retryGate.resolve
+    if (resolveRetry == null) {
+      throw new Error("Expected deferred recommendation retry load.")
+    }
+    resolveRetry(successResponse)
+    await retryPromise
+
+    expect(loadHomeRecommendation).toHaveBeenLastCalledWith({
+      request: expect.objectContaining({
+        refresh: true,
+      }),
+    })
+    expect(home.getSnapshot().recommendation.status).toBe("ready")
+  })
+
+  it("Not now hides the recommendation for the session without calling the API again", async () => {
+    const loadHomeRecommendation = vi.fn(async () => ({
+      success: true,
+      recommendation: {
+        type: "promote-or-fix-offer" as const,
+        title: "Promote a live offer",
+        opportunity: "An offer is ready to promote.",
+        whyBullets: ["Offer is live"],
+        action: { kind: "open-offer" as const, offerId: 9 },
+      },
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ loadHomeRecommendation })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    expect(home.getSnapshot().recommendation.status).toBe("ready")
+    expect(loadHomeRecommendation).toHaveBeenCalledTimes(1)
+
+    home.dismissRecommendation()
+
+    const recommendation = home.getSnapshot().recommendation
+    expect(recommendation.status).toBe("dismissed")
+    expect(recommendation.recommendation).toBeNull()
+
+    await home.retryLoad()
+    expect(loadHomeRecommendation).toHaveBeenCalledTimes(1)
+    expect(home.getSnapshot().recommendation.status).toBe("dismissed")
+  })
+
+  it("date range change loads recommendation for the new soft-cache key", async () => {
+    let dateRange:
+      | { kind: "preset"; presetId: "last7" | "last30" | "thisMonth" }
+      | { kind: "custom"; startDate: string; endDate: string } = {
+      kind: "preset",
+      presetId: "last7",
+    }
+    const loadHomeRecommendation = vi
+      .fn()
+      .mockResolvedValueOnce({
+        success: true,
+        recommendation: {
+          type: "review-open-feedback" as const,
+          title: "Review open feedback",
+          whyBullets: ["Open feedback"],
+        },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        recommendation: {
+          type: "thank-or-follow-guest" as const,
+          title: "Thank a recent guest",
+          whyBullets: ["New guest"],
+        },
+      })
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        loadHomeRecommendation,
+        getHomePerformanceDateRange: () => dateRange,
+      })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    expect(home.getSnapshot().recommendation.recommendation?.title).toBe(
+      "Review open feedback"
+    )
+
+    dateRange = { kind: "preset", presetId: "last30" }
+    await home.reloadForHomePerformanceDateRange()
+
+    expect(loadHomeRecommendation).toHaveBeenCalledTimes(2)
+    expect(loadHomeRecommendation).toHaveBeenLastCalledWith({
+      request: expect.objectContaining({
+        overviewDatePreset: "last30",
+        refresh: false,
+      }),
+    })
+    expect(home.getSnapshot().recommendation.recommendation?.title).toBe(
+      "Thank a recent guest"
+    )
   })
 })

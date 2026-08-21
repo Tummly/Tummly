@@ -11,6 +11,7 @@ import {
   getFeedbackDetails,
   getHomeLatestActivity,
   getHomePerformance,
+  getHomeRecommendation,
   listCatalogOffers,
   setChecklistAcks,
   setFeedbackWorkflowStatus,
@@ -56,6 +57,8 @@ export function HomePageModuleProvider({
       getHomePerformance,
       getHomePerformanceDateRange: () =>
         dashboardUiStore.getState().homePerformanceDateRange,
+      loadHomeRecommendation: async ({ request }) =>
+        getHomeRecommendation(request),
       getFeedbackDetails,
       correctClassification: async (feedbackId, input) => {
         const trimmedNote = input.noteBody?.trim() ?? ""

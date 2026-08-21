@@ -125,6 +125,10 @@ import type {
   SendAndIssueFeedbackRecoveryOfferRequest,
   SendAndIssueFeedbackRecoveryOfferResponse,
 } from "../types/dashboard"
+import type {
+  HomeRecommendationRequest,
+  HomeRecommendationResponse,
+} from "@/types/operatorHome"
 
 export const getLocations = async (): Promise<LocationsResponse> => {
   const response = await axiosInstance.get<LocationsResponse>(
@@ -1082,6 +1086,28 @@ export const getHomePerformance = async (
     { params: { locationId, from, to } }
   )
   return response.data
+}
+
+export const getHomeRecommendation = async (
+  body: HomeRecommendationRequest,
+  signal?: AbortSignal
+): Promise<HomeRecommendationResponse> => {
+  try {
+    const response = await axiosInstance.post<HomeRecommendationResponse>(
+      "/home/recommendation",
+      body,
+      { signal }
+    )
+    return response.data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data != null) {
+      const data = error.response.data as HomeRecommendationResponse
+      if (typeof data.success === "boolean") {
+        return data
+      }
+    }
+    throw error
+  }
 }
 
 export const getCaptureLocationSnapshot = async (
