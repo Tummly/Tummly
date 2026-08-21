@@ -49,4 +49,68 @@ namespace TummlyBackend.Models
         Succeeded = 0,
         Failed = 1,
     }
+
+    public static class WeeklyBriefStatusExtensions
+    {
+        public const string SucceededWire = "succeeded";
+        public const string FailedWire = "failed";
+
+        public static string ToWireString(this WeeklyBriefStatus status) =>
+            status switch
+            {
+                WeeklyBriefStatus.Succeeded => SucceededWire,
+                WeeklyBriefStatus.Failed => FailedWire,
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(status),
+                    status,
+                    "Unknown Weekly brief status."
+                ),
+            };
+
+        public static WeeklyBriefStatus FromWireString(string stored)
+        {
+            if (!TryFromWireString(stored, out var status))
+            {
+                if (string.IsNullOrWhiteSpace(stored))
+                {
+                    throw new ArgumentException(
+                        "Weekly brief status is required.",
+                        nameof(stored)
+                    );
+                }
+
+                throw new ArgumentOutOfRangeException(
+                    nameof(stored),
+                    stored,
+                    "Unknown Weekly brief status."
+                );
+            }
+
+            return status;
+        }
+
+        public static bool TryFromWireString(
+            string? stored,
+            out WeeklyBriefStatus status
+        )
+        {
+            status = default;
+            if (string.IsNullOrWhiteSpace(stored))
+            {
+                return false;
+            }
+
+            switch (stored.Trim())
+            {
+                case SucceededWire:
+                    status = WeeklyBriefStatus.Succeeded;
+                    return true;
+                case FailedWire:
+                    status = WeeklyBriefStatus.Failed;
+                    return true;
+                default:
+                    return false;
+            }
+        }
+    }
 }

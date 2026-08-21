@@ -74,10 +74,16 @@ namespace TummlyBackend.Helpers
             return TimeZoneInfo.ConvertTimeToUtc(localStart, timeZone);
         }
 
-        private static DateTime EnsureUtc(DateTime utcNow)
-            => utcNow.Kind == DateTimeKind.Utc
-                ? utcNow
-                : DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
+        private static DateTime EnsureUtc(DateTime utcNow) =>
+            utcNow.Kind switch
+            {
+                DateTimeKind.Utc => utcNow,
+                DateTimeKind.Local => utcNow.ToUniversalTime(),
+                _ => throw new ArgumentException(
+                    "utcNow must be DateTimeKind.Utc (or Local, which is converted).",
+                    nameof(utcNow)
+                ),
+            };
 
         private static TimeZoneInfo ResolveTimeZone(string ianaTimeZoneId)
         {

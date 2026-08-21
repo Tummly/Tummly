@@ -65,5 +65,35 @@ namespace TummlyBackend.Tests.Helpers
 
             Assert.Equal("2026-W01", closed.WeekKey);
         }
+
+        [Fact]
+        public void ForClosedPriorWeek_LocalKind_ConvertsToUtcBeforeResolving()
+        {
+            // Same instant as AtMondayLocalMidnight test: 2026-08-16 23:00 UTC
+            var localNow = new DateTime(2026, 8, 16, 23, 0, 0, DateTimeKind.Utc)
+                .ToLocalTime();
+
+            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(London, localNow);
+
+            Assert.Equal("2026-W33", closed.WeekKey);
+        }
+
+        [Fact]
+        public void ForClosedPriorWeek_UnspecifiedKind_Throws()
+        {
+            var unspecified = new DateTime(
+                2026,
+                8,
+                16,
+                23,
+                0,
+                0,
+                DateTimeKind.Unspecified
+            );
+
+            Assert.Throws<ArgumentException>(
+                () => WeeklyBriefWeekKey.ForClosedPriorWeek(London, unspecified)
+            );
+        }
     }
 }

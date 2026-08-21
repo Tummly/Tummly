@@ -1254,7 +1254,10 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<WeeklyBrief>()
                 .Property(row => row.Status)
-                .HasConversion<string>()
+                .HasConversion(
+                    v => v.ToWireString(),
+                    v => WeeklyBriefStatusExtensions.FromWireString(v)
+                )
                 .HasMaxLength(32);
         }
 
