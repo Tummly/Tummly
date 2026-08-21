@@ -3,9 +3,23 @@ import type {
   OperatorSidebarNavModel,
 } from "@/lib/operatorHome/sidebarNav";
 import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod";
+import type {
+  HomeRecommendationCampaignType,
+  HomeRecommendationNativeType,
+  HomeRecommendationType,
+} from "@/lib/operatorHome/homeRecommendationContract";
+import type {
+  CampaignRecommendationDraftPrefill,
+  CampaignRecommendationEchoedCounts,
+} from "@/types/operatorCampaigns";
 
 export type { OperatorSidebarActiveId, OperatorSidebarNavModel };
 export type { OperatorSidebarNavId } from "@/lib/operatorHome/sidebarNav";
+export type {
+  HomeRecommendationCampaignType,
+  HomeRecommendationNativeType,
+  HomeRecommendationType,
+} from "@/lib/operatorHome/homeRecommendationContract";
 
 /**
  * Client-facing Operator Home body contract for the selected Owned location.
@@ -152,3 +166,60 @@ export interface OperatorShellPresentation {
     options: OperatorHomeLocationOption[];
   };
 }
+
+/** POST /home/recommendation — Home performance window (ticket 01). */
+export type HomeRecommendationRequest = {
+  locationId: number;
+  /** Home performance preset id, or `custom`. */
+  overviewDatePreset: string;
+  from: string | null;
+  to: string | null;
+  refresh?: boolean;
+};
+
+/**
+ * Domain primary CTA payload for Home-native types.
+ * Null entity id means the domain list / create destination.
+ */
+export type HomeRecommendationDomainAction =
+  | { kind: "open-feedback"; feedbackId: number | null }
+  | { kind: "open-guest"; locationGuestId: number | null }
+  | { kind: "open-offer"; offerId: number | null };
+
+/**
+ * Home Recommended next step payload.
+ * Not typed as CampaignRecommendation — Home-native types use domain actions;
+ * campaign types may carry the same draftPrefill + audience fields as Campaigns.
+ */
+export type HomeRecommendation = {
+  type: HomeRecommendationType;
+  title?: string | null;
+  opportunity?: string | null;
+  whyBullets?: string[] | null;
+  /** Present for Home-native types when a primary CTA is available. */
+  action?: HomeRecommendationDomainAction | null;
+  /** Server metrics only; shape varies by type. Campaign types reuse Campaigns counts. */
+  echoedCounts?: CampaignRecommendationEchoedCounts | null;
+  /** Campaign types only — same as Campaigns recommendation. */
+  eligibleAudience?: string | null;
+  suggestedChannel?: "email" | "sms" | null;
+  estimatedUsage?: string | null;
+  draftPrefill?: CampaignRecommendationDraftPrefill | null;
+  locationName?: string | null;
+};
+
+export type HomeRecommendationResponse = {
+  success: boolean;
+  recommendation?: HomeRecommendation;
+  message?: string;
+  retryable?: boolean;
+};
+
+/** Narrow helpers for Home-native vs campaign allow-list members. */
+export type HomeRecommendationNative = HomeRecommendation & {
+  type: HomeRecommendationNativeType;
+};
+
+export type HomeRecommendationCampaign = HomeRecommendation & {
+  type: HomeRecommendationCampaignType;
+};
