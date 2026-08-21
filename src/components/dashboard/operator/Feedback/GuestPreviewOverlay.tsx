@@ -55,6 +55,8 @@ export type GuestPreviewEmailChromeProps = {
   offerCoupon?: ReactNode
   device?: GuestPreviewDevice
   className?: string
+  /** Overrides the device-based email max width when set. */
+  maxWidthClass?: string
 }
 
 /**
@@ -70,6 +72,7 @@ export function GuestPreviewEmailChrome({
   offerCoupon,
   device = GUEST_PREVIEW_DEVICE.desktop,
   className,
+  maxWidthClass,
 }: GuestPreviewEmailChromeProps) {
   const isMobile = device === GUEST_PREVIEW_DEVICE.mobile
 
@@ -82,7 +85,10 @@ export function GuestPreviewEmailChrome({
       message={message}
       offer={offerCoupon}
       className={className}
-      maxWidthClass={isMobile ? "max-w-[393px]" : "max-w-[600px]"}
+      maxWidthClass={
+        maxWidthClass
+        ?? (isMobile ? "max-w-[393px]" : "max-w-[600px]")
+      }
     />
   )
 }

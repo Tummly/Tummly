@@ -48,10 +48,11 @@ export const LIVE_OFFERS_CARD_CLASS =
   "flex h-[257px] max-h-[257px] w-full flex-col overflow-hidden rounded-op-lg border border-op-card-border bg-op-card-background sm:flex-row"
 
 export const LIVE_OFFERS_CARD_PREVIEW_CLASS =
-  "relative flex h-[140px] max-h-[257px] w-full shrink-0 items-start justify-center overflow-hidden border-b border-op-card-border bg-op-background-secondary sm:h-full sm:w-[min(50%,360px)] sm:border-b-0 sm:border-r"
+  "relative flex h-[140px] max-h-[257px] w-full shrink-0 items-start justify-start overflow-hidden border-b border-op-card-border bg-op-background-secondary sm:h-full sm:w-[min(50%,360px)] sm:border-b-0 sm:border-r"
 
+/** Full-width peek of guest chrome; height is clipped by the pane. */
 export const LIVE_OFFERS_CARD_PREVIEW_SCALE_CLASS =
-  "pointer-events-none origin-top pt-3 scale-[0.72] sm:scale-[0.78]"
+  "pointer-events-none w-full origin-top"
 
 /** Stronger wash so only a cropped peek of the guest preview reads. */
 export const LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS =

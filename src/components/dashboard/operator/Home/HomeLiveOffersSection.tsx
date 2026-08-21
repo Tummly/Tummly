@@ -109,9 +109,11 @@ function LiveCardPreview({
               card.messageBody?.trim()
               || "Campaign message preview is not available."
             }
+            className="w-full"
+            maxWidthClass="max-w-none"
           />
         ) : coupon != null ? (
-          <div className="w-[320px]">
+          <div className="w-full">
             <GuestPreviewOfferCoupon coupon={coupon} />
           </div>
         ) : null}
