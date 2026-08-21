@@ -115,3 +115,6 @@ export const RECOMMENDED_EMPTY_COPY_CLASS =
 
 /** Needs attention — node 3360:66297. */
 export const NEEDS_ATTENTION_EMPTY_COPY = "Nothing needs attention right now."
+
+export const NEEDS_ATTENTION_LOAD_ERROR =
+  "Could not load Needs attention. Please try again."

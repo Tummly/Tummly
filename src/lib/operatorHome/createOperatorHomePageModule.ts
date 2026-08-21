@@ -6,11 +6,17 @@ import {
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import { closeExclusiveAssistantDrawer } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import {
+  buildHomeNeedsAttention,
+  type HomeNeedsAttentionProjection,
+} from "@/lib/operatorHome/buildHomeNeedsAttention"
+import {
   buildLiveOffersSectionCards,
   type OperatorHomeLiveCard,
 } from "@/lib/operatorHome/buildLiveOffersSectionCards"
 import { createFinishSettingUpAcksModule } from "@/lib/operatorHome/createFinishSettingUpAcksModule"
 import { buildOperatorHomeViewModel } from "@/lib/operatorHome/buildHomeViewModel"
+import { mapHomeNeedsAttentionSourceFacts } from "@/lib/operatorHome/mapHomeNeedsAttentionSourceFacts"
+import { NEEDS_ATTENTION_LOAD_ERROR } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import { buildHomeRecommendationRequest } from "@/lib/operatorHome/buildHomeRecommendationRequest"
 import {
   labelForHomePerformanceDateRange,
@@ -36,6 +42,7 @@ import type {
   CampaignLifecycleActionResponse,
   CampaignsListItem,
   CatalogOffersListItem,
+  OpenVoidAttentionOfferApi,
 } from "@/types/operatorCampaigns"
 import type {
   HomeRecommendation,
@@ -54,6 +61,9 @@ export type CopySmartGuestLinkResult = "copied" | "failed" | "noop"
 
 export const HOME_RECOMMENDATION_LOAD_ERROR_MESSAGE =
   "Could not load a recommendation. Please try again."
+
+export const HOME_NEEDS_ATTENTION_LOAD_ERROR_MESSAGE =
+  NEEDS_ATTENTION_LOAD_ERROR
 
 export type OperatorHomeRecommendationStatus =
   | "idle"
@@ -79,6 +89,10 @@ export type OperatorHomePageSnapshot = {
   liveCards: OperatorHomeLiveCard[]
   liveOffersError: string | null
   liveOffersPauseBusy: boolean
+  /** Home Needs attention — not on OperatorHomeViewModel (ticket 02). */
+  needsAttentionLoadStatus: "idle" | "loading" | "loaded" | "error"
+  needsAttention: HomeNeedsAttentionProjection | null
+  needsAttentionError: string | null
   viewModel: OperatorHomeViewModel | null
   previewBusy: boolean
   actionError: string | null
@@ -152,6 +166,19 @@ export type OperatorHomePageAdapters = {
   onPerformanceLoadError?: (message: string) => void
   listLiveOffers: (locationId: number) => Promise<CatalogOffersListItem[]>
   listLiveCampaigns: (locationId: number) => Promise<CampaignsListItem[]>
+  getNeedsAttentionFeedback: (locationId: number) => Promise<{
+    count: number
+    newestSubmittedAt: string | null
+  }>
+  listNeedsAttentionCampaigns: (
+    locationId: number
+  ) => Promise<CampaignsListItem[]>
+  listNeedsAttentionOffers: (
+    locationId: number
+  ) => Promise<CatalogOffersListItem[]>
+  listOpenVoidAttention: (
+    locationId: number
+  ) => Promise<OpenVoidAttentionOfferApi[]>
   pauseCampaign: (
     campaignId: number,
     body: CampaignLifecycleActionRequest
@@ -173,6 +200,7 @@ export type OperatorHomePageModule = {
   /** Session hide only — does not write server dismiss/cache. */
   dismissRecommendation: () => void
   retryLiveOffers: () => Promise<void>
+  retryNeedsAttention: () => Promise<void>
   pauseLiveCampaign: (campaignId: number) => Promise<boolean>
   previewGuestForm: () => void
   copySmartGuestLink: () => Promise<CopySmartGuestLinkResult>
@@ -218,6 +246,9 @@ type HomeState = {
   liveCards: OperatorHomeLiveCard[]
   liveOffersError: string | null
   liveOffersPauseBusy: boolean
+  needsAttentionLoadStatus: OperatorHomePageSnapshot["needsAttentionLoadStatus"]
+  needsAttention: HomeNeedsAttentionProjection | null
+  needsAttentionError: string | null
   workspace: OperatorHomeWorkspaceInput | null
   feedback: { total: number; recent: FeedbackResponse["recent"] } | null
   latestActivity: HomeLatestActivityItem[] | null
@@ -234,6 +265,7 @@ type HomeState = {
   loadGeneration: number
   performanceLoadGeneration: number
   liveOffersLoadGeneration: number
+  needsAttentionLoadGeneration: number
 }
 
 type HomeAction =
@@ -297,6 +329,20 @@ type HomeAction =
   | {
       type: "live_offers_pause_busy"
       busy: boolean
+    }
+  | {
+      type: "needs_attention_load_started"
+      generation: number
+    }
+  | {
+      type: "needs_attention_load_succeeded"
+      generation: number
+      projection: HomeNeedsAttentionProjection
+    }
+  | {
+      type: "needs_attention_load_failed"
+      generation: number
+      error: string
     }
   | {
       type: "view_model_updated"
@@ -364,6 +410,9 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         liveCards: [],
         liveOffersError: null,
         liveOffersPauseBusy: false,
+        needsAttentionLoadStatus: "idle",
+        needsAttention: null,
+        needsAttentionError: null,
         workspace: null,
         feedback: null,
         latestActivity: null,
@@ -388,6 +437,9 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         liveCards: [],
         liveOffersError: null,
         liveOffersPauseBusy: false,
+        needsAttentionLoadStatus: "idle",
+        needsAttention: null,
+        needsAttentionError: null,
         viewModel: action.viewModel,
         actionError: null,
       }
@@ -489,6 +541,33 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         ...state,
         liveOffersPauseBusy: action.busy,
       }
+    case "needs_attention_load_started":
+      return {
+        ...state,
+        needsAttentionLoadStatus: "loading",
+        needsAttentionLoadGeneration: action.generation,
+        needsAttentionError: null,
+      }
+    case "needs_attention_load_succeeded":
+      if (action.generation !== state.needsAttentionLoadGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        needsAttentionLoadStatus: "loaded",
+        needsAttention: action.projection,
+        needsAttentionError: null,
+      }
+    case "needs_attention_load_failed":
+      if (action.generation !== state.needsAttentionLoadGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        needsAttentionLoadStatus: "error",
+        needsAttention: null,
+        needsAttentionError: action.error,
+      }
     case "view_model_updated":
       return {
         ...state,
@@ -589,6 +668,9 @@ export function createOperatorHomePageModule(
     liveCards: [],
     liveOffersError: null,
     liveOffersPauseBusy: false,
+    needsAttentionLoadStatus: "idle",
+    needsAttention: null,
+    needsAttentionError: null,
     workspace: null,
     feedback: null,
     latestActivity: null,
@@ -605,6 +687,7 @@ export function createOperatorHomePageModule(
     loadGeneration: 0,
     performanceLoadGeneration: 0,
     liveOffersLoadGeneration: 0,
+    needsAttentionLoadGeneration: 0,
   }
 
   let snapshot: OperatorHomePageSnapshot = {
@@ -614,6 +697,9 @@ export function createOperatorHomePageModule(
     liveCards: state.liveCards,
     liveOffersError: state.liveOffersError,
     liveOffersPauseBusy: state.liveOffersPauseBusy,
+    needsAttentionLoadStatus: state.needsAttentionLoadStatus,
+    needsAttention: state.needsAttention,
+    needsAttentionError: state.needsAttentionError,
     viewModel: state.viewModel,
     previewBusy: false,
     actionError: null,
@@ -660,6 +746,9 @@ export function createOperatorHomePageModule(
       liveCards: state.liveCards,
       liveOffersError: state.liveOffersError,
       liveOffersPauseBusy: state.liveOffersPauseBusy,
+      needsAttentionLoadStatus: state.needsAttentionLoadStatus,
+      needsAttention: state.needsAttention,
+      needsAttentionError: state.needsAttentionError,
       viewModel: state.viewModel,
       previewBusy: ackSnapshot.acknowledgeBusy,
       actionError: ackSnapshot.acknowledgeError ?? state.actionError,
@@ -925,6 +1014,62 @@ export function createOperatorHomePageModule(
     }
   }
 
+  const fetchNeedsAttentionForSelectedLocation = async () => {
+    const workspace = state.workspace
+    const selectedLocationId = workspace?.selectedLocationId
+    if (workspace == null || selectedLocationId == null) {
+      return
+    }
+
+    const location = workspace.locations.find(
+      (entry) => entry.id === selectedLocationId
+    )
+    const locationName = location?.locationName ?? ""
+    const generation = state.needsAttentionLoadGeneration + 1
+    dispatch({ type: "needs_attention_load_started", generation })
+
+    try {
+      const [feedback, campaigns, offers, openVoids] = await Promise.all([
+        adapters.getNeedsAttentionFeedback(selectedLocationId),
+        adapters.listNeedsAttentionCampaigns(selectedLocationId),
+        adapters.listNeedsAttentionOffers(selectedLocationId),
+        adapters.listOpenVoidAttention(selectedLocationId),
+      ])
+
+      if (generation !== state.needsAttentionLoadGeneration) {
+        return
+      }
+
+      const facts = mapHomeNeedsAttentionSourceFacts({
+        feedback,
+        campaigns,
+        offers,
+        openVoids,
+      })
+      const projection = buildHomeNeedsAttention({
+        locationName,
+        feedback: facts.feedback,
+        campaigns: facts.campaigns,
+        offers: facts.offers,
+      })
+
+      dispatch({
+        type: "needs_attention_load_succeeded",
+        generation,
+        projection,
+      })
+    } catch {
+      if (generation !== state.needsAttentionLoadGeneration) {
+        return
+      }
+      dispatch({
+        type: "needs_attention_load_failed",
+        generation,
+        error: HOME_NEEDS_ATTENTION_LOAD_ERROR_MESSAGE,
+      })
+    }
+  }
+
   const fetchPerformanceForSelectedLocation = async () => {
     const workspace = state.workspace
     const selectedLocationId = workspace?.selectedLocationId
@@ -1050,6 +1195,7 @@ export function createOperatorHomePageModule(
     recommendation = nextRecommendation
     dispatch({ type: "load_started", generation })
     void fetchLiveOffersForSelectedLocation()
+    void fetchNeedsAttentionForSelectedLocation()
 
     let feedback: { total: number; recent: FeedbackResponse["recent"] }
     let latestActivity: HomeLatestActivityItem[]
@@ -1337,6 +1483,7 @@ export function createOperatorHomePageModule(
       })
     },
     retryLiveOffers: () => fetchLiveOffersForSelectedLocation(),
+    retryNeedsAttention: () => fetchNeedsAttentionForSelectedLocation(),
     pauseLiveCampaign: async (campaignId) => {
       const card = state.liveCards.find(
         (item) => item.kind === "campaign" && item.id === campaignId

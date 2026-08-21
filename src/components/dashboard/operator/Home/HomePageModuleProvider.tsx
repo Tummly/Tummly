@@ -10,10 +10,12 @@ import {
   getChecklistAcks,
   getFeedback,
   getFeedbackDetails,
+  getFeedbackInbox,
   getHomeLatestActivity,
   getHomePerformance,
   getHomeRecommendation,
   listCatalogOffers,
+  listOpenVoidAttention,
   pauseCampaign,
   setChecklistAcks,
   setFeedbackWorkflowStatus,
@@ -23,6 +25,8 @@ import {
 } from "@/api/dashboardApi"
 import { homePageModuleContext } from "@/components/dashboard/operator/Home/utils/homePageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
+import { CAMPAIGNS_PAGE_SIZE } from "@/lib/operatorCampaigns/campaignsPresentation"
+import { FEEDBACK_INBOX_PAGE_SIZE } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
 import { connectFeedbackHomeHub } from "@/lib/operatorHome/connectFeedbackHomeHub"
 import {
   createOperatorHomePageModule,
@@ -166,6 +170,47 @@ export function HomePageModuleProvider({
           pageSize: 20,
           utcOffsetMinutes: -new Date().getTimezoneOffset(),
         })
+        return response.items
+      },
+      getNeedsAttentionFeedback: async (locationId) => {
+        const response = await getFeedbackInbox({
+          locationId,
+          from: "2000-01-01T00:00:00.000Z",
+          to: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          tab: "needs-attention",
+          q: "",
+          sort: "newest-submitted",
+          page: 1,
+          pageSize: FEEDBACK_INBOX_PAGE_SIZE,
+        })
+        return {
+          count: response.tabCounts.needsAttention,
+          newestSubmittedAt: response.items[0]?.createdAt ?? null,
+        }
+      },
+      listNeedsAttentionCampaigns: async (locationId) => {
+        const response = await getCampaignsList({
+          locationId,
+          view: "needs-attention",
+          sort: "recent-activity",
+          page: 1,
+          pageSize: CAMPAIGNS_PAGE_SIZE,
+        })
+        return response.items
+      },
+      listNeedsAttentionOffers: async (locationId) => {
+        const response = await listCatalogOffers({
+          locationId,
+          view: "needs-attention",
+          sort: "recent-activity",
+          page: 1,
+          pageSize: 100,
+          utcOffsetMinutes: -new Date().getTimezoneOffset(),
+        })
+        return response.items
+      },
+      listOpenVoidAttention: async (locationId) => {
+        const response = await listOpenVoidAttention({ locationId })
         return response.items
       },
       pauseCampaign,

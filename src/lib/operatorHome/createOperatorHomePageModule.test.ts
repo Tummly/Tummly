@@ -227,6 +227,10 @@ function createAdapters(overrides: {
   onPerformanceLoadError?: (message: string) => void
   listLiveOffers?: OperatorHomePageAdapters["listLiveOffers"]
   listLiveCampaigns?: OperatorHomePageAdapters["listLiveCampaigns"]
+  getNeedsAttentionFeedback?: OperatorHomePageAdapters["getNeedsAttentionFeedback"]
+  listNeedsAttentionCampaigns?: OperatorHomePageAdapters["listNeedsAttentionCampaigns"]
+  listNeedsAttentionOffers?: OperatorHomePageAdapters["listNeedsAttentionOffers"]
+  listOpenVoidAttention?: OperatorHomePageAdapters["listOpenVoidAttention"]
   pauseCampaign?: OperatorHomePageAdapters["pauseCampaign"]
   getCampaignDraftById?: OperatorHomePageAdapters["getCampaignDraftById"]
 } = {}): OperatorHomePageAdapters {
@@ -377,6 +381,14 @@ function createAdapters(overrides: {
     onPerformanceLoadError: overrides.onPerformanceLoadError,
     listLiveOffers: overrides.listLiveOffers ?? (async () => []),
     listLiveCampaigns: overrides.listLiveCampaigns ?? (async () => []),
+    getNeedsAttentionFeedback:
+      overrides.getNeedsAttentionFeedback
+      ?? (async () => ({ count: 0, newestSubmittedAt: null })),
+    listNeedsAttentionCampaigns:
+      overrides.listNeedsAttentionCampaigns ?? (async () => []),
+    listNeedsAttentionOffers:
+      overrides.listNeedsAttentionOffers ?? (async () => []),
+    listOpenVoidAttention: overrides.listOpenVoidAttention ?? (async () => []),
     pauseCampaign:
       overrides.pauseCampaign
       ?? (async () => {
@@ -2345,5 +2357,234 @@ describe("createOperatorHomePageModule", () => {
     await expect(pausePromise).resolves.toBe(true)
     expect(home.getSnapshot().liveCards).toEqual([])
     expect(home.getSnapshot().liveOffersLoadStatus).toBe("loaded")
+  })
+
+  it("loads an empty Needs attention projection when all sources succeed empty", async () => {
+    const home = createOperatorHomePageModule(createAdapters())
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().needsAttentionLoadStatus).toBe("loaded")
+    })
+
+    expect(home.getSnapshot().needsAttention).toMatchObject({
+      isEmpty: true,
+      allRows: [],
+      visibleRows: [],
+      showViewAll: false,
+    })
+    expect(home.getSnapshot().needsAttentionError).toBeNull()
+  })
+
+  it("assembles mixed Needs attention kinds from parallel source adapters", async () => {
+    const getNeedsAttentionFeedback = vi.fn(async () => ({
+      count: 2,
+      newestSubmittedAt: "2026-08-21T11:48:00.000Z",
+    }))
+    const listNeedsAttentionCampaigns = vi.fn(async () => [
+      {
+        id: 41,
+        name: "Weekend SMS blast",
+        status: "failed",
+        goalId: null,
+        locationId: 1,
+        locationName: "First Venue",
+        channel: "sms",
+        audienceKey: null,
+        offerStance: null,
+        updatedAt: "2026-08-21T11:00:00.000Z",
+        rowVersion: "rv-41",
+        sendDate: null,
+        delivery: null,
+        engagement: null,
+        redemptions: null,
+      },
+    ])
+    const listNeedsAttentionOffers = vi.fn(async () => [
+      {
+        id: 10,
+        locationId: 1,
+        title: "Lunch deal",
+        status: "active" as const,
+        offerType: "percentage-discount",
+        validity: "custom-date",
+        expiryDate: "2026-08-26",
+        attachKinds: ["campaign"],
+        lifetimeClaims: 4,
+        lifetimeRedeemed: 1,
+        createdAt: "2026-08-01T12:00:00.000Z",
+        updatedAt: "2026-08-21T09:00:00.000Z",
+      },
+    ])
+    const listOpenVoidAttention = vi.fn(async () => [
+      {
+        offerId: 10,
+        offerTitle: "Lunch deal",
+        pendingCount: 1,
+      },
+    ])
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        getNeedsAttentionFeedback,
+        listNeedsAttentionCampaigns,
+        listNeedsAttentionOffers,
+        listOpenVoidAttention,
+      })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().needsAttentionLoadStatus).toBe("loaded")
+    })
+
+    expect(getNeedsAttentionFeedback).toHaveBeenCalledWith(1)
+    expect(listNeedsAttentionCampaigns).toHaveBeenCalledWith(1)
+    expect(listNeedsAttentionOffers).toHaveBeenCalledWith(1)
+    expect(listOpenVoidAttention).toHaveBeenCalledWith(1)
+
+    const rows = home.getSnapshot().needsAttention?.allRows ?? []
+    expect(rows.map((row) => row.sourceKind)).toEqual([
+      "feedback",
+      "campaign",
+      "offer",
+    ])
+    expect(rows[0]).toMatchObject({
+      sourceKind: "feedback",
+      title: "2 feedback items need attention",
+    })
+    expect(rows[1]).toMatchObject({
+      sourceKind: "campaign",
+      campaignId: 41,
+      title: "Weekend SMS blast",
+    })
+    expect(rows[2]).toMatchObject({
+      sourceKind: "offer",
+      offerId: 10,
+      title: "Open void request",
+    })
+  })
+
+  it("fails Needs attention when one source fails and Retry re-fetches sources", async () => {
+    const getFeedback = vi.fn(async () => ({
+      success: true,
+      total: recentFeedback.length,
+      recent: recentFeedback,
+    }))
+    const listNeedsAttentionCampaigns = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("campaigns down"))
+      .mockResolvedValueOnce([])
+    const home = createOperatorHomePageModule(
+      createAdapters({ getFeedback, listNeedsAttentionCampaigns })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().loadStatus).toBe("loaded")
+    })
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().needsAttentionLoadStatus).toBe("error")
+    })
+
+    expect(home.getSnapshot().needsAttention).toBeNull()
+    expect(home.getSnapshot().needsAttentionError).toMatch(
+      /Could not load Needs attention/
+    )
+    expect(getFeedback).toHaveBeenCalledTimes(1)
+
+    await home.retryNeedsAttention()
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().needsAttentionLoadStatus).toBe("loaded")
+    })
+    expect(getFeedback).toHaveBeenCalledTimes(1)
+    expect(listNeedsAttentionCampaigns).toHaveBeenCalledTimes(2)
+    expect(home.getSnapshot().needsAttention?.isEmpty).toBe(true)
+  })
+
+  it("reloads Needs attention when the selected Owned location changes", async () => {
+    const getNeedsAttentionFeedback = vi.fn(async (locationId: number) => ({
+      count: locationId === 1 ? 3 : 0,
+      newestSubmittedAt:
+        locationId === 1 ? "2026-08-21T11:48:00.000Z" : null,
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ getNeedsAttentionFeedback })
+    )
+
+    await home.syncWorkspace(workspaceInput({ selectedLocationId: 1 }))
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().needsAttention?.allRows[0]).toMatchObject({
+        sourceKind: "feedback",
+        title: "3 feedback items need attention",
+      })
+    })
+
+    await home.syncWorkspace(workspaceInput({ selectedLocationId: 2 }))
+    await vi.waitFor(() => {
+      expect(getNeedsAttentionFeedback).toHaveBeenLastCalledWith(2)
+      expect(home.getSnapshot().needsAttentionLoadStatus).toBe("loaded")
+    })
+    expect(home.getSnapshot().needsAttention?.isEmpty).toBe(true)
+  })
+
+  it("ignores a stale Needs attention load after the selected location changes", async () => {
+    const firstFeedback = Promise.withResolvers<{
+      count: number
+      newestSubmittedAt: string | null
+    }>()
+    const getNeedsAttentionFeedback = vi.fn((locationId: number) => {
+      if (locationId === 1) {
+        return firstFeedback.promise
+      }
+      return Promise.resolve({ count: 0, newestSubmittedAt: null })
+    })
+    const home = createOperatorHomePageModule(
+      createAdapters({ getNeedsAttentionFeedback })
+    )
+
+    const firstLoad = home.syncWorkspace(
+      workspaceInput({ selectedLocationId: 1 })
+    )
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().loadStatus).toBe("loaded")
+    })
+
+    await home.syncWorkspace(workspaceInput({ selectedLocationId: 2 }))
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().needsAttentionLoadStatus).toBe("loaded")
+    })
+    expect(home.getSnapshot().needsAttention?.isEmpty).toBe(true)
+
+    firstFeedback.resolve({
+      count: 9,
+      newestSubmittedAt: "2026-08-21T11:48:00.000Z",
+    })
+    await firstLoad
+
+    expect(home.getSnapshot().needsAttention?.isEmpty).toBe(true)
+    expect(
+      home.getSnapshot().needsAttention?.allRows.some(
+        (row) => row.sourceKind === "feedback"
+      )
+    ).toBe(false)
+  })
+
+  it("does not reload Needs attention when the Home performance date range changes", async () => {
+    const getNeedsAttentionFeedback = vi.fn(async () => ({
+      count: 0,
+      newestSubmittedAt: null,
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ getNeedsAttentionFeedback })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().needsAttentionLoadStatus).toBe("loaded")
+    })
+    expect(getNeedsAttentionFeedback).toHaveBeenCalledTimes(1)
+
+    await home.reloadForHomePerformanceDateRange()
+    expect(getNeedsAttentionFeedback).toHaveBeenCalledTimes(1)
   })
 })
