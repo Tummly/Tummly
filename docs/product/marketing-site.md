@@ -147,7 +147,7 @@ Most tiles exceed **Shipped** operator workspace — see Claims register rows fo
 
 ### Copy claims
 
-Single card: "one starter offer and a weekly brief" — **Overstated**.  
+Single card: "one starter offer and a weekly brief" — **Overstated** for starter offer; weekly brief **Partial** (see Claims register / `CONTEXT.md` **Weekly brief**).  
 Multi card: "team roles and shared reporting" — **Partial** / **Planned**.
 
 ---
@@ -211,7 +211,7 @@ None.
 | No app for guests | Accurate — web form at `/scan/:token` |
 | No POS change required | Accurate |
 | After request | Accurate — matches trial flow |
-| Guided trial inclusion | **Overstated** — guest list, offers, campaigns, weekly brief, starter QR |
+| Guided trial inclusion | **Overstated** — guest list, offers, campaigns, starter QR (weekly brief **Partial**; see Claims register) |
 | No charge on request | Accurate |
 | Public reviews | Accurate policy copy — do not gate public reviews |
 
@@ -306,7 +306,7 @@ Marketing claims audited against **Shipped** product (2026.07.01).
 | Guest list / opt-in on feedback form | Services, FAQ, About | **Overstated** | Feedback captures contact; no guest list CRM | **Hard** for "guest list" promises |
 | Issue tags on feedback | Services, About | **Overstated** | Comment field only | Soft |
 | Offers, campaigns, templates | Services, GuidedTrial, Setup | **Overstated** | No operator UI | **Hard** if marketed as trial inclusion |
-| AI weekly brief | Services, GuidedTrial | **Overstated** | No brief feature | Soft |
+| AI weekly brief | Services, GuidedTrial | **Partial** | Operator Home **Weekly brief** (`CONTEXT.md`): closed prior week, Monday location-TZ generate, durable week row, `weekly-brief-ready` notify + Home CTA. One-time all-locations backfill is ops only. Home live section may still lag empty chrome until module wiring ships. | Soft |
 | Email/SMS campaigns with credits | Services, GuidedTrial | **Overstated** | SMS OTP for operators only | Soft |
 | Team roles / shared reporting (multi) | Setup, Hospitality | **Partial** | Multi dashboard basic; no roles | Soft |
 | "One starter offer" (single setup card) | Setup | **Overstated** | None | **Hard** |
