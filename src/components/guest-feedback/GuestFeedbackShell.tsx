@@ -10,12 +10,15 @@ type GuestFeedbackShellProps = {
   children: ReactNode
   className?: string
   contentClassName?: string
+  /** Forwarded to the back pattern — phone preview only. */
+  accentPatternFade?: "none" | "phone"
 }
 
 export function GuestFeedbackShell({
   children,
   className,
   contentClassName,
+  accentPatternFade = "none",
 }: GuestFeedbackShellProps) {
   return (
     <div
@@ -24,7 +27,7 @@ export function GuestFeedbackShell({
         className
       )}
     >
-      <GuestFeedbackAccent />
+      <GuestFeedbackAccent patternFade={accentPatternFade} />
       <GuestFeedbackBottomEdge />
 
       <main
