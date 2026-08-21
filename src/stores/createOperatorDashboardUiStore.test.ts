@@ -178,6 +178,27 @@ describe("createOperatorDashboardUiStore", () => {
     expect(store.getState().campaignsIntent).toBeNull()
   })
 
+  it("holds a Home Review campaign draft intent until Campaigns consumes it", () => {
+    const store = createOperatorDashboardUiStore()
+    const draftPrefill = {
+      goalId: "follow-up-completed-recovery",
+      audienceKey: "completed-recovery-follow-up",
+      channel: "email" as const,
+      offerStance: "no-offer" as const,
+      campaignName: "Recovery follow-up",
+      messageSubject: "We want to make this right",
+      messageBody: "Thanks for your feedback.",
+    }
+    store.getState().setCampaignsIntent({
+      openFromRecommendation: { draftPrefill },
+    })
+    expect(store.getState().campaignsIntent).toEqual({
+      openFromRecommendation: { draftPrefill },
+    })
+    store.getState().setCampaignsIntent(null)
+    expect(store.getState().campaignsIntent).toBeNull()
+  })
+
   it("holds an Offers Drafts intent until Offers consumes it", () => {
     const store = createOperatorDashboardUiStore()
     store.getState().setOffersIntent({ view: "drafts" })

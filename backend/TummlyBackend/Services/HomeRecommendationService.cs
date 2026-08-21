@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Campaigns;
 using TummlyBackend.DTOs.OperatorHome;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -12,8 +13,8 @@ namespace TummlyBackend.Services
     /// <summary>
     /// Home recommendation orchestrator — ownership is at the controller;
     /// this service loads metrics, routes type, caches, and fills Home-native copy.
-    /// Campaign allow-list types hand off via <see cref="CompleteCampaignRecommendationAsync"/>
-    /// (ticket 06 wires CampaignRecommendationService). Free call — no credit debit.
+    /// Campaign allow-list types complete via <see cref="ICampaignRecommendationService"/>
+    /// (ticket 06). Free call — no credit debit.
     /// </summary>
     public sealed class HomeRecommendationService : IHomeRecommendationService
     {
@@ -25,18 +26,21 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IHomeRecommendationProvider _provider;
+        private readonly ICampaignRecommendationService _campaignRecommendation;
         private readonly IDistributedCache _cache;
         private readonly ILogger<HomeRecommendationService> _logger;
 
         public HomeRecommendationService(
             ApplicationDbContext context,
             IHomeRecommendationProvider provider,
+            ICampaignRecommendationService campaignRecommendation,
             IDistributedCache cache,
             ILogger<HomeRecommendationService> logger
         )
         {
             _context = context;
             _provider = provider;
+            _campaignRecommendation = campaignRecommendation;
             _cache = cache;
             _logger = logger;
         }
@@ -191,10 +195,17 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// Ticket 06 replaces this with CampaignRecommendationService reuse.
-        /// Until then campaign-type selection fails retryably (no invented campaign copy).
+        /// Completes a Home-selected campaign allow-list type via
+        /// <see cref="ICampaignRecommendationService"/> — same draft prefill,
+        /// echoed counts, and channel. Does not call the Home Azure schema.
         /// </summary>
-        private Task<HomeRecommendationServiceResult> CompleteCampaignRecommendationAsync(
+        /// <remarks>
+        /// Date window: Home performance presets (<c>last7</c> | <c>last30</c> |
+        /// <c>thisMonth</c> | <c>custom</c>) map 1:1 into the Campaigns request
+        /// with the same resolved from/to. Home has no <c>all-time</c>; Campaigns
+        /// <c>all-time</c> is never passed from this path.
+        /// </remarks>
+        private async Task<HomeRecommendationServiceResult> CompleteCampaignRecommendationAsync(
             int operatorUserId,
             HomeRecommendationRequest request,
             string selectedType,
@@ -204,17 +215,111 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            _ = (operatorUserId, request, selectedType, metrics, locationName, cacheKey, cancellationToken);
-            _logger.LogInformation(
-                "Home campaign-type handoff not wired yet (type {Type}); ticket 06.",
-                selectedType
+            _ = metrics;
+
+            var campaignRequest = new CampaignRecommendationRequest
+            {
+                LocationId = request.LocationId,
+                OverviewDatePreset = MapHomePresetToCampaignPreset(
+                    request.OverviewDatePreset
+                ),
+                From = request.From,
+                To = request.To,
+                Refresh = request.Refresh,
+            };
+
+            var campaignResult = await _campaignRecommendation.RecommendAsync(
+                operatorUserId,
+                campaignRequest,
+                cancellationToken
             );
-            return Task.FromResult<HomeRecommendationServiceResult>(
-                new HomeRecommendationServiceResult.Failed(
+
+            if (campaignResult is CampaignRecommendationServiceResult.Failed failed)
+            {
+                return new HomeRecommendationServiceResult.Failed(
+                    FailMessage,
+                    failed.Retryable
+                );
+            }
+
+            if (
+                campaignResult
+                is not CampaignRecommendationServiceResult.Ok ok
+            )
+            {
+                return new HomeRecommendationServiceResult.Failed(
                     FailMessage,
                     Retryable: true
-                )
+                );
+            }
+
+            var homeDto = MapCampaignRecommendationToHome(
+                ok.Recommendation,
+                selectedType,
+                locationName
             );
+
+            await CacheRecommendationAsync(cacheKey, homeDto, cancellationToken);
+            return new HomeRecommendationServiceResult.Ok(homeDto);
+        }
+
+        /// <summary>
+        /// Home performance presets pass through; default matches Home (<c>last7</c>).
+        /// Campaigns default is <c>last30</c> when its own overview omits a preset —
+        /// that path is not used here.
+        /// </summary>
+        private static string MapHomePresetToCampaignPreset(string? homePreset)
+            => HomeRecommendationContract.NormalizePreset(homePreset);
+
+        private HomeRecommendationDto MapCampaignRecommendationToHome(
+            CampaignRecommendationDto campaign,
+            string selectedType,
+            string locationName
+        )
+        {
+            if (string.Equals(campaign.Type, "none", StringComparison.Ordinal))
+            {
+                return BuildNoneDto(
+                    string.IsNullOrWhiteSpace(campaign.LocationName)
+                        ? locationName
+                        : campaign.LocationName
+                );
+            }
+
+            if (!HomeRecommendationContract.IsCampaignType(campaign.Type))
+            {
+                _logger.LogWarning(
+                    "Campaign recommendation returned non-campaign type {Type} after Home selected {SelectedType}",
+                    campaign.Type,
+                    selectedType
+                );
+                return BuildNoneDto(locationName);
+            }
+
+            if (!string.Equals(campaign.Type, selectedType, StringComparison.Ordinal))
+            {
+                _logger.LogInformation(
+                    "Campaign recommendation type {Type} differs from Home selected {SelectedType}; using Campaigns payload",
+                    campaign.Type,
+                    selectedType
+                );
+            }
+
+            return new HomeRecommendationDto
+            {
+                Type = campaign.Type,
+                Title = campaign.Title,
+                Opportunity = campaign.Opportunity,
+                WhyBullets = campaign.WhyBullets,
+                EligibleAudience = campaign.EligibleAudience,
+                SuggestedChannel = campaign.SuggestedChannel,
+                EstimatedUsage = campaign.EstimatedUsage,
+                EchoedCounts = campaign.EchoedCounts,
+                DraftPrefill = campaign.DraftPrefill,
+                LocationName = string.IsNullOrWhiteSpace(campaign.LocationName)
+                    ? locationName
+                    : campaign.LocationName,
+            };
         }
 
         private async Task<HomeRecommendationMetrics> LoadMetricsAsync(

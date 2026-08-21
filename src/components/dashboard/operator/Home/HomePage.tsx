@@ -5,6 +5,7 @@ import {
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
 import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod"
+import { buildHomeCampaignWizardHandoff } from "@/lib/operatorHome/buildHomeCampaignWizardHandoff"
 import { isHomeRecommendationCampaignType } from "@/lib/operatorHome/homeRecommendationPresentation"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
@@ -39,6 +40,9 @@ export function HomePage({
   const setHomePerformanceDateRange = useDashboardUiStore(
     (state) => state.setHomePerformanceDateRange
   )
+  const setCampaignsIntent = useDashboardUiStore(
+    (state) => state.setCampaignsIntent
+  )
 
   const navigateToGuestProfile = (locationGuestId: number) => {
     navigate(
@@ -54,7 +58,22 @@ export function HomePage({
     recommendation: HomeRecommendation
   ) => {
     if (isHomeRecommendationCampaignType(recommendation.type)) {
-      // Ticket 06 wires wizard openFromRecommendation; navigate to Campaigns for now.
+      const selectedLocation = locations.find(
+        (location) => location.id === selectedLocationId
+      )
+      const handoff = buildHomeCampaignWizardHandoff({
+        locationId: selectedLocationId,
+        locationName: selectedLocation?.locationName ?? "",
+        locationAddress: selectedLocation?.address ?? null,
+        recommendation,
+      })
+      if (handoff != null) {
+        setCampaignsIntent({
+          openFromRecommendation: {
+            draftPrefill: handoff.draftPrefill,
+          },
+        })
+      }
       navigate(
         operatorDashboardNavPath(mode, "campaigns", selectedLocationId)
       )

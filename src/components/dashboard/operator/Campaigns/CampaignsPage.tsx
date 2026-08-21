@@ -395,6 +395,33 @@ export function CampaignsPage() {
     handleContinueEditing(campaignId, startStep, loadedDraft, scheduleLand)
   }, [campaignsIntent, setCampaignsIntent, snapshot.viewModel])
 
+  useEffect(() => {
+    if (
+      campaignsIntent == null
+      || !("openFromRecommendation" in campaignsIntent)
+    ) {
+      return
+    }
+    const viewModel = snapshot.viewModel
+    if (viewModel == null) {
+      return
+    }
+    const draftPrefill = campaignsIntent.openFromRecommendation.draftPrefill
+    setCampaignsIntent(null)
+    void campaignWizard.openFromRecommendation({
+      locationId: viewModel.locationId,
+      locationName: viewModel.locationName,
+      locationAddress: selectedLocationAddress,
+      draftPrefill,
+    })
+  }, [
+    campaignWizard,
+    campaignsIntent,
+    selectedLocationAddress,
+    setCampaignsIntent,
+    snapshot.viewModel,
+  ])
+
   const handlePreviewCampaign = (campaignId: number) => {
     void campaignDetailPreview.open(campaignId)
   }

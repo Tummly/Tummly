@@ -11,7 +11,10 @@ import {
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import type { CampaignWizardContinueEditingStep } from "@/lib/operatorCampaigns/campaignWizardPresentation"
-import type { CampaignDraftDetail } from "@/types/operatorCampaigns"
+import type {
+  CampaignDraftDetail,
+  CampaignRecommendationDraftPrefill,
+} from "@/types/operatorCampaigns"
 import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import type { OperatorFeedbackInboxTabId } from "@/types/operatorFeedback"
 
@@ -41,6 +44,12 @@ export type AssistantCampaignsIntent =
       dateLocal?: string
       timeLocal?: string
       campaign?: CampaignDraftDetail
+    }
+  | {
+      /** Home Recommended Review campaign draft (ticket 06). */
+      openFromRecommendation: {
+        draftPrefill: CampaignRecommendationDraftPrefill
+      }
     }
 
 export type AssistantOffersIntent = {

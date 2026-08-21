@@ -274,6 +274,128 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(1, fake.CallCount);
         }
 
+        [Fact]
+        public async Task PostRecommendation_CampaignType_ReturnsDraftPrefillViaCampaignsService()
+        {
+            var seeded = await SeedOwnerWithRecoveryGuestAsync(
+                "home-rec-campaign"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var homeFake = scope.ServiceProvider
+                .GetRequiredService<FakeHomeRecommendationProvider>();
+            var campaignFake = scope.ServiceProvider
+                .GetRequiredService<FakeCampaignRecommendationProvider>();
+            homeFake.ResetCallCount();
+            campaignFake.ResetCallCount();
+            campaignFake.SucceedWith(
+                new CampaignRecommendationModelOutput(
+                    Type: "recovery-follow-up",
+                    Title: "Follow up on recovery guests",
+                    Opportunity:
+                        "Guests who left negative feedback are ready for recovery.",
+                    EligibleAudience:
+                        "Guests with negative feedback who need recovery.",
+                    WhyBullets:
+                    [
+                        "Have negative feedback on file",
+                        "Are eligible for a recovery follow-up",
+                    ],
+                    SuggestedChannel: "email",
+                    EstimatedUsage: "About 1 email",
+                    DraftPrefill: new CampaignRecommendationDraftPrefillOutput(
+                        GoalId: "follow-up-completed-recovery",
+                        AudienceKey: "completed-recovery-follow-up",
+                        Channel: "email",
+                        OfferStance: "no-offer",
+                        CampaignName: "Recovery follow-up",
+                        MessageSubject: "We want to make this right",
+                        MessageBody: "Thanks for your feedback — we would love to help."
+                    )
+                )
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/home/recommendation",
+                seeded.Jwt,
+                Last7Body(seeded.LocationId)
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            var recommendation = body.GetProperty("recommendation");
+            Assert.Equal(
+                "recovery-follow-up",
+                recommendation.GetProperty("type").GetString()
+            );
+            Assert.Equal(
+                "Follow up on recovery guests",
+                recommendation.GetProperty("title").GetString()
+            );
+            Assert.Equal(
+                "email",
+                recommendation.GetProperty("suggestedChannel").GetString()
+            );
+
+            var draft = recommendation.GetProperty("draftPrefill");
+            Assert.Equal(
+                "follow-up-completed-recovery",
+                draft.GetProperty("goalId").GetString()
+            );
+            Assert.Equal(
+                "completed-recovery-follow-up",
+                draft.GetProperty("audienceKey").GetString()
+            );
+            Assert.Equal("email", draft.GetProperty("channel").GetString());
+            Assert.Equal(
+                "Recovery follow-up",
+                draft.GetProperty("campaignName").GetString()
+            );
+
+            var echoed = recommendation.GetProperty("echoedCounts");
+            Assert.True(echoed.TryGetProperty("needsRecovery", out _));
+            Assert.True(echoed.TryGetProperty("marketingEligible", out _));
+
+            Assert.Equal(0, homeFake.CallCount);
+            Assert.Equal(1, campaignFake.CallCount);
+            Assert.NotNull(campaignFake.LastInput);
+            Assert.Equal("last7", campaignFake.LastInput!.OverviewDatePreset);
+        }
+
+        [Fact]
+        public async Task PostRecommendation_HomeNative_DoesNotCallCampaignsProvider()
+        {
+            var seeded = await SeedOwnerWithOpenFeedbackAsync(
+                "home-rec-native-no-campaign"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var homeFake = scope.ServiceProvider
+                .GetRequiredService<FakeHomeRecommendationProvider>();
+            var campaignFake = scope.ServiceProvider
+                .GetRequiredService<FakeCampaignRecommendationProvider>();
+            homeFake.ResetCallCount();
+            campaignFake.ResetCallCount();
+            homeFake.SucceedWith(
+                FakeHomeRecommendationProvider.FixtureFor("review-open-feedback")
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/home/recommendation",
+                seeded.Jwt,
+                Last7Body(seeded.LocationId)
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            Assert.Equal(1, homeFake.CallCount);
+            Assert.Equal(0, campaignFake.CallCount);
+        }
+
         private static Dictionary<string, object?> Last7Body(
             int locationId,
             string from = "2026-08-15T00:00:00.000Z",
@@ -398,6 +520,64 @@ namespace TummlyBackend.Tests.Integration
                     Comment = "Great food",
                     WorkflowStatus = FeedbackWorkflowStatus.New,
                     CreatedAt = DateTime.Parse("2026-08-18T12:00:00Z").ToUniversalTime(),
+                }
+            );
+            await context.SaveChangesAsync();
+
+            return seeded;
+        }
+
+        /// <summary>
+        /// Seeds a NeedsRecovery guest without Home-native signals so the domain
+        /// router selects <c>recovery-follow-up</c> (ticket 06 campaign handoff).
+        /// Guest is not marketing-eligible; feedback is Resolved so it does not
+        /// inflate open / needs-attention Home counts.
+        /// </summary>
+        private async Task<(
+            string Jwt,
+            int LocationId
+        )> SeedOwnerWithRecoveryGuestAsync(string emailLocalPart)
+        {
+            var seeded = await SeedOwnerWithLocationAsync(emailLocalPart);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var master = new MasterGuest
+            {
+                Email = "recovery@example.com",
+                Mobile = "07700900888",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
+
+            // Outside Last7Body window so GuestsJoinedInWindow stays 0.
+            var locationGuest = new LocationGuest
+            {
+                MasterGuestId = master.Id,
+                RestaurantLocationId = seeded.LocationId,
+                Name = "Recovery Guest",
+                MarketingPreference = LocationGuestMarketingPreference.NotRecorded,
+                CreatedAt = DateTime.Parse("2026-07-01T12:00:00Z").ToUniversalTime(),
+            };
+            context.LocationGuests.Add(locationGuest);
+            await context.SaveChangesAsync();
+
+            context.Feedbacks.Add(
+                new Feedback
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    LocationGuestId = locationGuest.Id,
+                    GuestName = "Recovery Guest",
+                    GuestContact = "recovery@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "Cold food",
+                    ClassificationStatus = ClassificationStatus.Succeeded,
+                    Sentiment = FeedbackSentiment.Negative,
+                    WorkflowStatus = FeedbackWorkflowStatus.Resolved,
+                    CreatedAt = DateTime.Parse("2026-07-15T12:00:00Z").ToUniversalTime(),
                 }
             );
             await context.SaveChangesAsync();
