@@ -376,6 +376,10 @@ builder.Services.AddScoped<
     CampaignRecommendationService
 >();
 builder.Services.AddScoped<
+    IHomeRecommendationService,
+    HomeRecommendationService
+>();
+builder.Services.AddScoped<
     ICampaignMessageDraftService,
     CampaignMessageDraftService
 >();
@@ -542,6 +546,10 @@ if (useFakeFeedbackClassification)
     builder.Services.AddSingleton<ICampaignRecommendationProvider>(sp =>
         sp.GetRequiredService<FakeCampaignRecommendationProvider>()
     );
+    builder.Services.AddSingleton<FakeHomeRecommendationProvider>();
+    builder.Services.AddSingleton<IHomeRecommendationProvider>(sp =>
+        sp.GetRequiredService<FakeHomeRecommendationProvider>()
+    );
     builder.Services.AddSingleton<FakeCampaignMessageDraftProvider>();
     builder.Services.AddSingleton<ICampaignMessageDraftProvider>(sp =>
         sp.GetRequiredService<FakeCampaignMessageDraftProvider>()
@@ -562,6 +570,10 @@ else
         AzureOpenAICampaignRecommendationProvider
     >();
     builder.Services.AddSingleton<
+        IHomeRecommendationProvider,
+        AzureOpenAIHomeRecommendationProvider
+    >();
+    builder.Services.AddSingleton<
         ICampaignMessageDraftProvider,
         AzureOpenAICampaignMessageDraftProvider
     >();
@@ -573,6 +585,22 @@ else
 
 builder.Services.AddHttpClient(
     CampaignRecommendationStructuredOutput.HttpClientName,
+    client =>
+    {
+        var endpoint = builder.Configuration[
+            $"{FeedbackClassificationSettings.SectionName}:Endpoint"
+        ];
+        if (!string.IsNullOrWhiteSpace(endpoint))
+        {
+            client.BaseAddress = new Uri(endpoint.TrimEnd('/') + "/");
+        }
+
+        client.Timeout = TimeSpan.FromSeconds(60);
+    }
+);
+
+builder.Services.AddHttpClient(
+    HomeRecommendationStructuredOutput.HttpClientName,
     client =>
     {
         var endpoint = builder.Configuration[
