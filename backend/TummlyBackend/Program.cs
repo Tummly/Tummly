@@ -384,6 +384,14 @@ builder.Services.AddScoped<
     WeeklyBriefGenerateService
 >();
 builder.Services.AddScoped<
+    IWeeklyBriefMondayJob,
+    WeeklyBriefMondayJob
+>();
+builder.Services.AddScoped<
+    IWeeklyBriefReadyNotifier,
+    NoOpWeeklyBriefReadyNotifier
+>();
+builder.Services.AddScoped<
     ICampaignMessageDraftService,
     CampaignMessageDraftService
 >();
@@ -807,6 +815,8 @@ builder.Services.AddHostedService<
 >();
 
 builder.Services.AddHostedService<ActivationNotificationBackgroundService>();
+
+builder.Services.AddHostedService<WeeklyBriefMondayBackgroundService>();
 
 /*
  =========================================

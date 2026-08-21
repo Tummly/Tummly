@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Services;
 using TummlyBackend.Tests.Integration;
@@ -32,6 +33,24 @@ namespace TummlyBackend.Tests.Services
             var generate = scope.ServiceProvider
                 .GetRequiredService<IWeeklyBriefGenerateService>();
             Assert.IsType<WeeklyBriefGenerateService>(generate);
+        }
+
+        [Fact]
+        public void WeeklyBriefMondayJob_IsRegistered_WithHourlyHostedService()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var job = scope.ServiceProvider
+                .GetRequiredService<IWeeklyBriefMondayJob>();
+            Assert.IsType<WeeklyBriefMondayJob>(job);
+
+            var notifier = scope.ServiceProvider
+                .GetRequiredService<IWeeklyBriefReadyNotifier>();
+            Assert.IsType<NoOpWeeklyBriefReadyNotifier>(notifier);
+
+            Assert.Contains(
+                _factory.Services.GetServices<IHostedService>(),
+                hosted => hosted is WeeklyBriefMondayBackgroundService
+            );
         }
     }
 }
