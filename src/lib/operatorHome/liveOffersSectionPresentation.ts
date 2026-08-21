@@ -45,19 +45,20 @@ export const LIVE_OFFERS_CARDS_STACK_CLASS =
   "flex flex-col gap-4 lg:flex-row lg:gap-5"
 
 export const LIVE_OFFERS_CARD_CLASS =
-  "flex min-h-[257px] w-full flex-col overflow-hidden rounded-op-lg border border-op-card-border bg-op-card-background sm:flex-row"
+  "flex h-[257px] max-h-[257px] w-full flex-col overflow-hidden rounded-op-lg border border-op-card-border bg-op-card-background sm:flex-row"
 
 export const LIVE_OFFERS_CARD_PREVIEW_CLASS =
-  "relative flex min-h-[200px] w-full items-center justify-center overflow-hidden border-b border-op-card-border bg-op-background-secondary sm:min-h-0 sm:w-[min(50%,360px)] sm:shrink-0 sm:border-b-0 sm:border-r"
+  "relative flex h-[140px] max-h-[257px] w-full shrink-0 items-start justify-center overflow-hidden border-b border-op-card-border bg-op-background-secondary sm:h-full sm:w-[min(50%,360px)] sm:border-b-0 sm:border-r"
 
 export const LIVE_OFFERS_CARD_PREVIEW_SCALE_CLASS =
-  "pointer-events-none origin-top scale-[0.42] sm:scale-[0.48]"
+  "pointer-events-none origin-top pt-4 scale-[0.48] sm:scale-[0.52]"
 
+/** Stronger wash so only a cropped peek of the guest preview reads. */
 export const LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS =
-  "absolute inset-0 flex items-center justify-center bg-[color-mix(in_srgb,var(--op-color-black)_35%,transparent)]"
+  "absolute inset-0 flex items-center justify-center bg-[linear-gradient(to_bottom,color-mix(in_srgb,var(--op-color-black)_48%,transparent)_0%,color-mix(in_srgb,var(--op-color-black)_78%,transparent)_100%)]"
 
 export const LIVE_OFFERS_CARD_META_CLASS =
-  "flex min-w-0 flex-1 flex-col justify-between gap-6 p-5 sm:p-6"
+  "flex min-w-0 flex-1 flex-col justify-between gap-6 bg-op-live-card-meta-background p-5 sm:p-6"
 
 export const LIVE_OFFERS_CARD_META_TOP_CLASS = "flex flex-col items-start gap-3"
 
