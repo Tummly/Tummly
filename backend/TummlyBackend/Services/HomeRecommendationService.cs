@@ -350,10 +350,13 @@ namespace TummlyBackend.Services
                 return false;
             }
 
+            // Router already short-circuits none. Provider none after a Home-native
+            // selection is a mismatch — do not cache it as success.
             if (string.Equals(output.Type, "none", StringComparison.Ordinal))
             {
-                dto = BuildNoneDto(locationName);
-                return true;
+                error =
+                    $"Provider returned none after selected type '{selectedType}'.";
+                return false;
             }
 
             if (!string.Equals(output.Type, selectedType, StringComparison.Ordinal))

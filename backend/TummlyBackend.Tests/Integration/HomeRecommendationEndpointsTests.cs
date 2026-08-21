@@ -131,6 +131,36 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PostRecommendation_ProviderNoneAfterNativeSelect_ReturnsRetryableFailure()
+        {
+            var seeded = await SeedOwnerWithOpenFeedbackAsync(
+                "home-rec-provider-none"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeHomeRecommendationProvider>();
+            fake.ResetCallCount();
+            fake.SucceedWith(
+                FakeHomeRecommendationProvider.FixtureFor("none")
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/home/recommendation",
+                seeded.Jwt,
+                Last7Body(seeded.LocationId)
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.True(body.GetProperty("retryable").GetBoolean());
+            Assert.Equal(1, fake.CallCount);
+        }
+
+        [Fact]
         public async Task PostRecommendation_CachesByOperatorLocationWindow_RefreshBypasses()
         {
             var seeded = await SeedOwnerWithOpenFeedbackAsync("home-rec-cache");
