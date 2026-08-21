@@ -106,12 +106,15 @@ namespace TummlyBackend.Tests.Helpers
         [InlineData("", false)]
         [InlineData(null, false)]
         [InlineData("not-a-week", false)]
-        public void IsValidWeekKey_MatchesIsoYyyyWwwForm(
+        public void TryNormalizeWeekKey_MatchesIsoYyyyWwwForm(
             string? candidate,
             bool expected
         )
         {
-            Assert.Equal(expected, WeeklyBriefWeekKey.IsValidWeekKey(candidate));
+            Assert.Equal(
+                expected,
+                WeeklyBriefWeekKey.TryNormalizeWeekKey(candidate, out _)
+            );
         }
 
         [Fact]

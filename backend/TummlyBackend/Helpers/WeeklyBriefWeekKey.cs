@@ -42,13 +42,6 @@ namespace TummlyBackend.Helpers
         );
 
         /// <summary>
-        /// True when <paramref name="weekKey"/> matches ISO week key form
-        /// <c>yyyy-Www</c> (after trim).
-        /// </summary>
-        public static bool IsValidWeekKey(string? weekKey)
-            => TryNormalizeWeekKey(weekKey, out _);
-
-        /// <summary>
         /// Trim and accept an ISO week key <c>yyyy-Www</c>.
         /// </summary>
         public static bool TryNormalizeWeekKey(
