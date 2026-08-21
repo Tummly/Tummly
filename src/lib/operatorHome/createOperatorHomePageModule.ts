@@ -5,6 +5,10 @@ import {
   type FeedbackDetailsSnapshot,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import { closeExclusiveAssistantDrawer } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
+import {
+  buildLiveOffersSectionCards,
+  type OperatorHomeLiveCard,
+} from "@/lib/operatorHome/buildLiveOffersSectionCards"
 import { createFinishSettingUpAcksModule } from "@/lib/operatorHome/createFinishSettingUpAcksModule"
 import { buildOperatorHomeViewModel } from "@/lib/operatorHome/buildHomeViewModel"
 import { buildHomeRecommendationRequest } from "@/lib/operatorHome/buildHomeRecommendationRequest"
@@ -26,6 +30,13 @@ import type {
   LocationItem,
   UpdateChecklistAcksRequest,
 } from "@/types/dashboard"
+import type {
+  CampaignDraftResponse,
+  CampaignLifecycleActionRequest,
+  CampaignLifecycleActionResponse,
+  CampaignsListItem,
+  CatalogOffersListItem,
+} from "@/types/operatorCampaigns"
 import type {
   HomeRecommendation,
   HomeRecommendationRequest,
@@ -64,6 +75,10 @@ export type OperatorHomeRecommendationViewModel = {
 export type OperatorHomePageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
   performanceLoadStatus: "idle" | "loading" | "loaded" | "error"
+  liveOffersLoadStatus: "idle" | "loading" | "loaded" | "error"
+  liveCards: OperatorHomeLiveCard[]
+  liveOffersError: string | null
+  liveOffersPauseBusy: boolean
   viewModel: OperatorHomeViewModel | null
   previewBusy: boolean
   actionError: string | null
@@ -135,6 +150,13 @@ export type OperatorHomePageAdapters = {
     handlers: FeedbackHomeRealtimeHandlers
   ) => Promise<FeedbackHomeRealtimeSession>
   onPerformanceLoadError?: (message: string) => void
+  listLiveOffers: (locationId: number) => Promise<CatalogOffersListItem[]>
+  listLiveCampaigns: (locationId: number) => Promise<CampaignsListItem[]>
+  pauseCampaign: (
+    campaignId: number,
+    body: CampaignLifecycleActionRequest
+  ) => Promise<CampaignLifecycleActionResponse>
+  getCampaignDraftById?: (campaignId: number) => Promise<CampaignDraftResponse>
 }
 
 export type OperatorHomePageModule = {
@@ -150,6 +172,8 @@ export type OperatorHomePageModule = {
   retryRecommendation: () => Promise<void>
   /** Session hide only — does not write server dismiss/cache. */
   dismissRecommendation: () => void
+  retryLiveOffers: () => Promise<void>
+  pauseLiveCampaign: (campaignId: number) => Promise<boolean>
   previewGuestForm: () => void
   copySmartGuestLink: () => Promise<CopySmartGuestLinkResult>
   openFeedbackDetails: (feedbackId: number) => Promise<void>
@@ -190,6 +214,10 @@ export type OperatorHomePageModule = {
 type HomeState = {
   loadStatus: OperatorHomePageSnapshot["loadStatus"]
   performanceLoadStatus: OperatorHomePageSnapshot["performanceLoadStatus"]
+  liveOffersLoadStatus: OperatorHomePageSnapshot["liveOffersLoadStatus"]
+  liveCards: OperatorHomeLiveCard[]
+  liveOffersError: string | null
+  liveOffersPauseBusy: boolean
   workspace: OperatorHomeWorkspaceInput | null
   feedback: { total: number; recent: FeedbackResponse["recent"] } | null
   latestActivity: HomeLatestActivityItem[] | null
@@ -205,6 +233,7 @@ type HomeState = {
   actionError: string | null
   loadGeneration: number
   performanceLoadGeneration: number
+  liveOffersLoadGeneration: number
 }
 
 type HomeAction =
@@ -249,6 +278,21 @@ type HomeAction =
       viewModel: OperatorHomeViewModel | null
     }
   | { type: "performance_load_failed"; generation: number }
+  | { type: "live_offers_load_started"; generation: number }
+  | {
+      type: "live_offers_load_succeeded"
+      generation: number
+      liveCards: OperatorHomeLiveCard[]
+    }
+  | {
+      type: "live_offers_load_failed"
+      generation: number
+      error: string
+    }
+  | {
+      type: "live_offers_pause_busy"
+      busy: boolean
+    }
   | {
       type: "view_model_updated"
       viewModel: OperatorHomeViewModel | null
@@ -311,6 +355,10 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         ...state,
         loadStatus: "idle",
         performanceLoadStatus: "idle",
+        liveOffersLoadStatus: "idle",
+        liveCards: [],
+        liveOffersError: null,
+        liveOffersPauseBusy: false,
         workspace: null,
         feedback: null,
         latestActivity: null,
@@ -331,6 +379,10 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         workspace: action.workspace,
         feedback: null,
         latestActivity: null,
+        liveOffersLoadStatus: "idle",
+        liveCards: [],
+        liveOffersError: null,
+        liveOffersPauseBusy: false,
         viewModel: action.viewModel,
         actionError: null,
       }
@@ -396,6 +448,39 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         return state
       }
       return { ...state, performanceLoadStatus: "error" }
+    case "live_offers_load_started":
+      return {
+        ...state,
+        liveOffersLoadStatus: "loading",
+        liveOffersLoadGeneration: action.generation,
+        liveOffersError: null,
+        liveOffersPauseBusy: false,
+      }
+    case "live_offers_load_succeeded":
+      if (action.generation !== state.liveOffersLoadGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        liveOffersLoadStatus: "loaded",
+        liveCards: action.liveCards,
+        liveOffersError: null,
+      }
+    case "live_offers_load_failed":
+      if (action.generation !== state.liveOffersLoadGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        liveOffersLoadStatus: "error",
+        liveCards: [],
+        liveOffersError: action.error,
+      }
+    case "live_offers_pause_busy":
+      return {
+        ...state,
+        liveOffersPauseBusy: action.busy,
+      }
     case "view_model_updated":
       return {
         ...state,
@@ -492,6 +577,10 @@ export function createOperatorHomePageModule(
   let state: HomeState = {
     loadStatus: "idle",
     performanceLoadStatus: "idle",
+    liveOffersLoadStatus: "idle",
+    liveCards: [],
+    liveOffersError: null,
+    liveOffersPauseBusy: false,
     workspace: null,
     feedback: null,
     latestActivity: null,
@@ -507,11 +596,16 @@ export function createOperatorHomePageModule(
     actionError: null,
     loadGeneration: 0,
     performanceLoadGeneration: 0,
+    liveOffersLoadGeneration: 0,
   }
 
   let snapshot: OperatorHomePageSnapshot = {
     loadStatus: state.loadStatus,
     performanceLoadStatus: state.performanceLoadStatus,
+    liveOffersLoadStatus: state.liveOffersLoadStatus,
+    liveCards: state.liveCards,
+    liveOffersError: state.liveOffersError,
+    liveOffersPauseBusy: state.liveOffersPauseBusy,
     viewModel: state.viewModel,
     previewBusy: false,
     actionError: null,
@@ -554,6 +648,10 @@ export function createOperatorHomePageModule(
     snapshot = {
       loadStatus: state.loadStatus,
       performanceLoadStatus: state.performanceLoadStatus,
+      liveOffersLoadStatus: state.liveOffersLoadStatus,
+      liveCards: state.liveCards,
+      liveOffersError: state.liveOffersError,
+      liveOffersPauseBusy: state.liveOffersPauseBusy,
       viewModel: state.viewModel,
       previewBusy: ackSnapshot.acknowledgeBusy,
       actionError: ackSnapshot.acknowledgeError ?? state.actionError,
@@ -733,6 +831,77 @@ export function createOperatorHomePageModule(
     publish()
   })
 
+  const enrichLiveCardsWithCampaignMessages = async (
+    cards: OperatorHomeLiveCard[]
+  ): Promise<OperatorHomeLiveCard[]> => {
+    const getDraft = adapters.getCampaignDraftById
+    if (getDraft == null) {
+      return cards
+    }
+
+    return Promise.all(
+      cards.map(async (card) => {
+        if (card.kind !== "campaign") {
+          return card
+        }
+        try {
+          const response = await getDraft(card.id)
+          return {
+            ...card,
+            messageSubject: response.campaign.messageSubject,
+            messageBody: response.campaign.messageBody,
+          }
+        } catch {
+          return card
+        }
+      })
+    )
+  }
+
+  const fetchLiveOffersForSelectedLocation = async () => {
+    const workspace = state.workspace
+    const selectedLocationId = workspace?.selectedLocationId
+    if (workspace == null || selectedLocationId == null) {
+      return
+    }
+
+    const generation = state.liveOffersLoadGeneration + 1
+    dispatch({ type: "live_offers_load_started", generation })
+
+    try {
+      const [offers, campaigns] = await Promise.all([
+        adapters.listLiveOffers(selectedLocationId),
+        adapters.listLiveCampaigns(selectedLocationId),
+      ])
+
+      if (generation !== state.liveOffersLoadGeneration) {
+        return
+      }
+
+      const cards = buildLiveOffersSectionCards({ campaigns, offers })
+      const enrichedCards = await enrichLiveCardsWithCampaignMessages(cards)
+
+      if (generation !== state.liveOffersLoadGeneration) {
+        return
+      }
+
+      dispatch({
+        type: "live_offers_load_succeeded",
+        generation,
+        liveCards: enrichedCards,
+      })
+    } catch {
+      if (generation !== state.liveOffersLoadGeneration) {
+        return
+      }
+      dispatch({
+        type: "live_offers_load_failed",
+        generation,
+        error: "Could not load live offers and campaigns. Please try again.",
+      })
+    }
+  }
+
   const fetchPerformanceForSelectedLocation = async () => {
     const workspace = state.workspace
     const selectedLocationId = workspace?.selectedLocationId
@@ -857,6 +1026,7 @@ export function createOperatorHomePageModule(
     const thisRecommendationGeneration = recommendationGeneration
     recommendation = nextRecommendation
     dispatch({ type: "load_started", generation })
+    void fetchLiveOffersForSelectedLocation()
 
     let feedback: { total: number; recent: FeedbackResponse["recent"] }
     let latestActivity: HomeLatestActivityItem[]
@@ -1142,6 +1312,33 @@ export function createOperatorHomePageModule(
         ...idleRecommendation(),
         status: "dismissed",
       })
+    },
+    retryLiveOffers: () => fetchLiveOffersForSelectedLocation(),
+    pauseLiveCampaign: async (campaignId) => {
+      const card = state.liveCards.find(
+        (item) => item.kind === "campaign" && item.id === campaignId
+      )
+      if (card == null || card.kind !== "campaign" || state.liveOffersPauseBusy) {
+        return false
+      }
+
+      dispatch({ type: "live_offers_pause_busy", busy: true })
+      try {
+        await adapters.pauseCampaign(campaignId, {
+          rowVersion: card.rowVersion,
+        })
+        await fetchLiveOffersForSelectedLocation()
+        return true
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message.trim().length > 0
+            ? error.message.trim()
+            : "Could not pause this campaign. Please try again."
+        dispatch({ type: "action_error", error: message })
+        return false
+      } finally {
+        dispatch({ type: "live_offers_pause_busy", busy: false })
+      }
     },
     previewGuestForm: () => {
       const viewModel = state.viewModel

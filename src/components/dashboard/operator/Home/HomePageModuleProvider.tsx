@@ -5,6 +5,7 @@ import {
   closeOutFeedback,
   correctFeedbackClassification,
   createFeedbackInternalNote,
+  getCampaignDraftById,
   getCampaignsList,
   getChecklistAcks,
   getFeedback,
@@ -13,6 +14,7 @@ import {
   getHomePerformance,
   getHomeRecommendation,
   listCatalogOffers,
+  pauseCampaign,
   setChecklistAcks,
   setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
@@ -143,6 +145,31 @@ export function HomePageModuleProvider({
       onPerformanceLoadError: (message) => {
         toast.error(message)
       },
+      listLiveOffers: async (locationId) => {
+        const response = await listCatalogOffers({
+          locationId,
+          view: "in-flight",
+          sort: "recent-activity",
+          page: 1,
+          pageSize: 20,
+          utcOffsetMinutes: -new Date().getTimezoneOffset(),
+        })
+        return response.items
+      },
+      listLiveCampaigns: async (locationId) => {
+        const response = await getCampaignsList({
+          locationId,
+          view: "in-flight",
+          status: ["scheduled", "sending"],
+          sort: "recent-activity",
+          page: 1,
+          pageSize: 20,
+          utcOffsetMinutes: -new Date().getTimezoneOffset(),
+        })
+        return response.items
+      },
+      pauseCampaign,
+      getCampaignDraftById,
     })
   )
 

@@ -126,6 +126,36 @@ export function operatorDashboardOfferDetailsPath(
   return `${root}/offers/${offerId}?${params.toString()}`
 }
 
+/** Thin Campaign detail for one campaign at the selected location. */
+export function operatorDashboardCampaignDetailsPath(
+  mode: OperatorDashboardMode,
+  campaignId: number | string,
+  locationId: number
+): string {
+  const root = operatorDashboardRootPath(mode)
+  return `${root}/campaigns/${campaignId}?location=${locationId}`
+}
+
+/** Full-page Guest Preview for a campaign message. */
+export function operatorDashboardCampaignPreviewPath(
+  mode: OperatorDashboardMode,
+  campaignId: number | string,
+  locationId: number
+): string {
+  const root = operatorDashboardRootPath(mode)
+  return `${root}/campaigns/${campaignId}/preview?location=${locationId}`
+}
+
+/** Full-page Guest Preview for a catalog offer coupon. */
+export function operatorDashboardOfferPreviewPath(
+  mode: OperatorDashboardMode,
+  offerId: number | string,
+  locationId: number
+): string {
+  const root = operatorDashboardRootPath(mode)
+  return `${root}/offers/${offerId}/preview?location=${locationId}`
+}
+
 /**
  * Campaigns list with optional catalog offerId query for Share-in-campaign CTA
  * (Offer Details Claims empty — ticket 24). Does not open wizard prefill.

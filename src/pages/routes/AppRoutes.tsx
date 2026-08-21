@@ -35,6 +35,9 @@ import { FeedbackRoute } from "@/components/dashboard/operator/Feedback/Feedback
 import { OffersRoute } from "@/components/dashboard/operator/Offers/OffersRoute"
 import { OfferDetailsPageModuleProvider } from "@/components/dashboard/operator/Offers/OfferDetailsPageModuleProvider"
 import { OfferDetailsRoute } from "@/components/dashboard/operator/Offers/OfferDetailsRoute"
+import { OfferGuestPreviewRoute } from "@/components/dashboard/operator/Offers/OfferGuestPreviewRoute"
+import { CampaignDetailsRoute } from "@/components/dashboard/operator/Campaigns/CampaignDetailsRoute"
+import { CampaignGuestPreviewRoute } from "@/components/dashboard/operator/Campaigns/CampaignGuestPreviewRoute"
 import { OffersRedemptionLogPageModuleProvider } from "@/components/dashboard/operator/Offers/OffersRedemptionLogPageModuleProvider"
 import { OffersRedemptionLogRoute } from "@/components/dashboard/operator/Offers/OffersRedemptionLogRoute";
 import { GuestEditRoute } from "@/components/dashboard/operator/GuestProfile/GuestEditRoute";
@@ -149,6 +152,14 @@ function AppRoutes() {
                 />
                 <Route path="feedback" element={<FeedbackRoute />} />
                 <Route path="campaigns" element={<CampaignsRoute />} />
+                <Route
+                  path="campaigns/:campaignId"
+                  element={<CampaignDetailsRoute />}
+                />
+                <Route
+                  path="campaigns/:campaignId/preview"
+                  element={<CampaignGuestPreviewRoute />}
+                />
                 <Route path="offers" element={<OffersRoute />} />
                 <Route
                   path="offers/redemption-log"
@@ -157,6 +168,10 @@ function AppRoutes() {
                       <OffersRedemptionLogRoute />
                     </OffersRedemptionLogPageModuleProvider>
                   }
+                />
+                <Route
+                  path="offers/:offerId/preview"
+                  element={<OfferGuestPreviewRoute />}
                 />
                 <Route
                   path="offers/:offerId"
@@ -190,6 +205,14 @@ function AppRoutes() {
                 />
                 <Route path="feedback" element={<FeedbackRoute />} />
                 <Route path="campaigns" element={<CampaignsRoute />} />
+                <Route
+                  path="campaigns/:campaignId"
+                  element={<CampaignDetailsRoute />}
+                />
+                <Route
+                  path="campaigns/:campaignId/preview"
+                  element={<CampaignGuestPreviewRoute />}
+                />
                 <Route path="offers" element={<OffersRoute />} />
                 <Route
                   path="offers/redemption-log"
@@ -198,6 +221,10 @@ function AppRoutes() {
                       <OffersRedemptionLogRoute />
                     </OffersRedemptionLogPageModuleProvider>
                   }
+                />
+                <Route
+                  path="offers/:offerId/preview"
+                  element={<OfferGuestPreviewRoute />}
                 />
                 <Route
                   path="offers/:offerId"

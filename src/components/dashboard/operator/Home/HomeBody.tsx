@@ -1,3 +1,6 @@
+import { useState } from "react"
+import { toast } from "sonner"
+
 import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
 import { HomeHero } from "@/components/dashboard/operator/Home/HomeHero"
 import { HomeKpiStrip } from "@/components/dashboard/operator/Home/HomeKpiStrip"
@@ -8,8 +11,16 @@ import { HomePerformanceDateRangeControl } from "@/components/dashboard/operator
 import { HomeRecommendedNextStep } from "@/components/dashboard/operator/Home/HomeRecommendedNextStep"
 import { HomeWeeklyBriefSection } from "@/components/dashboard/operator/Home/HomeWeeklyBriefSection"
 import { HomeSetupChecklist } from "@/components/dashboard/operator/Home/HomeSetupChecklist"
+import { OffersConfirmDialog } from "@/components/dashboard/operator/Offers/OffersConfirmDialog"
 import { Button } from "@/components/ui/button"
+import type { OperatorHomeLiveCard } from "@/lib/operatorHome/buildLiveOffersSectionCards"
 import type { OperatorHomeRecommendationViewModel } from "@/lib/operatorHome/createOperatorHomePageModule"
+import {
+  LIVE_OFFERS_PAUSE_CONFIRM_DESCRIPTION,
+  LIVE_OFFERS_PAUSE_CONFIRM_LABEL,
+  LIVE_OFFERS_PAUSE_CONFIRM_TITLE,
+  type LiveOffersEmptyActionId,
+} from "@/lib/operatorHome/liveOffersSectionPresentation"
 import { OPERATOR_HOME_CARD_CLASS } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod"
 import type { FeedbackDetailsSnapshot } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
@@ -47,6 +58,18 @@ type HomeBodyProps = {
   onRetryRecommendation?: () => void
   onRecommendationPrimaryAction?: (recommendation: HomeRecommendation) => void
   onDismissRecommendation?: () => void
+  liveOffersLoadStatus?: "idle" | "loading" | "loaded" | "error"
+  liveCards?: readonly OperatorHomeLiveCard[]
+  liveOffersError?: string | null
+  liveOffersPauseBusy?: boolean
+  brandName?: string | null
+  onLiveOffersEmptyAction?: (actionId: LiveOffersEmptyActionId) => void
+  onRetryLiveOffers?: () => void
+  onLiveOfferPreview?: (card: OperatorHomeLiveCard) => void
+  onViewLiveCampaign?: (campaignId: number) => void
+  onViewLiveOffer?: (offerId: number) => void
+  onViewLiveOfferRedemptions?: (offerId: number) => void
+  onPauseLiveCampaign?: (campaignId: number) => Promise<boolean> | boolean
   feedbackDetails: FeedbackDetailsSnapshot
   onViewFeedback?: (feedbackId: number) => void
   onViewGuest?: (locationGuestId: number) => void
@@ -55,7 +78,9 @@ type HomeBodyProps = {
   onRetryFeedbackDetails?: () => void
   onStartClassificationCorrection?: () => void
   onClassificationDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
-  onClassificationDraftReasonChange?: (reason: FeedbackClassificationCorrectionReason) => void
+  onClassificationDraftReasonChange?: (
+    reason: FeedbackClassificationCorrectionReason
+  ) => void
   onClassificationDraftNoteChange?: (value: string) => void
   onCancelClassificationCorrection?: () => void
   onSaveClassificationCorrection?: () => void
@@ -107,6 +132,18 @@ export function HomeBody({
   onRetryRecommendation,
   onRecommendationPrimaryAction,
   onDismissRecommendation,
+  liveOffersLoadStatus = "idle",
+  liveCards = [],
+  liveOffersError = null,
+  liveOffersPauseBusy = false,
+  brandName = null,
+  onLiveOffersEmptyAction,
+  onRetryLiveOffers,
+  onLiveOfferPreview,
+  onViewLiveCampaign,
+  onViewLiveOffer,
+  onViewLiveOfferRedemptions,
+  onPauseLiveCampaign,
   feedbackDetails,
   onViewFeedback,
   onViewGuest,
@@ -125,7 +162,7 @@ export function HomeBody({
   onEditTagsSentimentChange,
   onCancelEditTags,
   onApplyEditTags,
-  onFeedbackWorkflowStatusChange,
+  onFeedbackWorkflowStatusChange: _onFeedbackWorkflowStatusChange,
   onReopenFeedback,
   onStartFeedbackMarkResolved,
   onMarkFeedbackNoActionNeeded,
@@ -144,6 +181,8 @@ export function HomeBody({
   onCancelFeedbackNoteDelete,
   onConfirmFeedbackNoteDelete,
 }: HomeBodyProps) {
+  const [pauseCampaignId, setPauseCampaignId] = useState<number | null>(null)
+
   return (
     <div className="flex flex-col gap-5">
       <HomeHero
@@ -193,7 +232,24 @@ export function HomeBody({
 
       <HomeNeedsAttentionSection />
 
-      <HomeLiveOffersSection />
+      <HomeLiveOffersSection
+        loadStatus={liveOffersLoadStatus}
+        cards={liveCards}
+        errorMessage={liveOffersError}
+        pauseBusy={liveOffersPauseBusy}
+        brandName={brandName}
+        locationName={guestFormPreviewLocationName}
+        locationAddress={guestFormPreviewAddress}
+        onEmptyAction={onLiveOffersEmptyAction}
+        onRetry={onRetryLiveOffers}
+        onPreview={onLiveOfferPreview}
+        onViewCampaign={onViewLiveCampaign}
+        onViewOffer={onViewLiveOffer}
+        onViewRedemptions={onViewLiveOfferRedemptions}
+        onPauseCampaign={(campaignId) => {
+          setPauseCampaignId(campaignId)
+        }}
+      />
 
       <HomeRecommendedNextStep
         recommendation={recommendation}
@@ -250,6 +306,31 @@ export function HomeBody({
 
       <HomeWeeklyBriefSection />
 
+      <OffersConfirmDialog
+        open={pauseCampaignId != null}
+        title={LIVE_OFFERS_PAUSE_CONFIRM_TITLE}
+        description={LIVE_OFFERS_PAUSE_CONFIRM_DESCRIPTION}
+        confirmLabel={LIVE_OFFERS_PAUSE_CONFIRM_LABEL}
+        busy={liveOffersPauseBusy}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPauseCampaignId(null)
+          }
+        }}
+        onConfirm={() => {
+          if (pauseCampaignId == null || onPauseLiveCampaign == null) {
+            return
+          }
+          const campaignId = pauseCampaignId
+          void Promise.resolve(onPauseLiveCampaign(campaignId)).then((ok) => {
+            if (ok) {
+              toast.success("Campaign paused.")
+              setPauseCampaignId(null)
+            }
+          })
+        }}
+      />
+
       <FeedbackDetailsDrawer
         snapshot={feedbackDetails}
         onOpenChange={(open) => {
@@ -292,4 +373,3 @@ export function HomeBody({
     </div>
   )
 }
-

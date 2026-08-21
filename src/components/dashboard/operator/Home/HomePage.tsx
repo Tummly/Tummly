@@ -8,15 +8,22 @@ import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPer
 import { isHomeRecommendationCampaignType } from "@/lib/operatorHome/homeRecommendationPresentation"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
+  operatorDashboardCampaignDetailsPath,
+  operatorDashboardCampaignPreviewPath,
   operatorDashboardGuestProfilePath,
   operatorDashboardNavPath,
   operatorDashboardOfferDetailsPath,
+  operatorDashboardOfferPreviewPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { HomeRecommendation } from "@/types/operatorHome"
 import { useNavigate, useOutletContext } from "react-router-dom"
 
 type HomePageProps = {
   activationPeriodBadge: ActivationPeriodBadgeCopy | null
+}
+
+function openInNewTab(path: string): void {
+  window.open(path, "_blank", "noopener,noreferrer")
 }
 
 export function HomePage({
@@ -148,6 +155,8 @@ export function HomePage({
     )
   }
 
+  const locationId = selectedLocationId ?? locations[0]?.id ?? 0
+
   return (
     <>
       {home.snapshot.actionError ? (
@@ -164,6 +173,50 @@ export function HomePage({
         performanceLoading={home.snapshot.performanceLoadStatus === "loading"}
         guestFormPreviewLocationName={viewModel.selectedLocationName}
         guestFormPreviewAddress={selectedLocation?.address ?? ""}
+        brandName={viewModel.selectedLocationName}
+        liveOffersLoadStatus={home.snapshot.liveOffersLoadStatus}
+        liveCards={home.snapshot.liveCards}
+        liveOffersError={home.snapshot.liveOffersError}
+        liveOffersPauseBusy={home.snapshot.liveOffersPauseBusy}
+        onLiveOffersEmptyAction={(actionId) => {
+          if (actionId === "create-offer") {
+            navigate(operatorDashboardNavPath(mode, "offers", locationId))
+            return
+          }
+          navigate(operatorDashboardNavPath(mode, "campaigns", locationId))
+        }}
+        onRetryLiveOffers={() => {
+          void home.retryLiveOffers()
+        }}
+        onLiveOfferPreview={(card) => {
+          if (card.kind === "campaign") {
+            openInNewTab(
+              operatorDashboardCampaignPreviewPath(mode, card.id, locationId)
+            )
+            return
+          }
+          openInNewTab(
+            operatorDashboardOfferPreviewPath(mode, card.id, locationId)
+          )
+        }}
+        onViewLiveCampaign={(campaignId) => {
+          openInNewTab(
+            operatorDashboardCampaignDetailsPath(mode, campaignId, locationId)
+          )
+        }}
+        onViewLiveOffer={(offerId) => {
+          openInNewTab(
+            operatorDashboardOfferDetailsPath(mode, offerId, locationId)
+          )
+        }}
+        onViewLiveOfferRedemptions={(offerId) => {
+          openInNewTab(
+            operatorDashboardOfferDetailsPath(mode, offerId, locationId, {
+              tab: "redemptions",
+            })
+          )
+        }}
+        onPauseLiveCampaign={(campaignId) => home.pauseLiveCampaign(campaignId)}
         onRetryFeedback={() => {
           void home.retryLoad()
         }}

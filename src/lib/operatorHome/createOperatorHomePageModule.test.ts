@@ -67,10 +67,7 @@ function createAdapters(overrides: {
     total: number
     recent: FeedbackItem[]
   }>
-  getHomeLatestActivity?: (locationId: number) => Promise<{
-    success: boolean
-    items: ReturnType<typeof asLatestActivityItems>
-  }>
+  getHomeLatestActivity?: OperatorHomePageAdapters["getHomeLatestActivity"]
   getHomePerformance?: (
     locationId: number,
     from: string,
@@ -228,7 +225,11 @@ function createAdapters(overrides: {
     handlers: FeedbackHomeRealtimeHandlers
   ) => Promise<{ stop: () => Promise<void> }>
   onPerformanceLoadError?: (message: string) => void
-} = {}) {
+  listLiveOffers?: OperatorHomePageAdapters["listLiveOffers"]
+  listLiveCampaigns?: OperatorHomePageAdapters["listLiveCampaigns"]
+  pauseCampaign?: OperatorHomePageAdapters["pauseCampaign"]
+  getCampaignDraftById?: OperatorHomePageAdapters["getCampaignDraftById"]
+} = {}): OperatorHomePageAdapters {
   return {
     getFeedback:
       overrides.getFeedback ??
@@ -285,9 +286,9 @@ function createAdapters(overrides: {
       })),
     correctClassification:
       overrides.correctClassification
-      ?? (async (_feedbackId, sentiment) => ({
+      ?? (async (_feedbackId, input) => ({
         classificationStatus: "Succeeded" as const,
-        sentiment,
+        sentiment: input.sentiment,
         detectedTags: [] as string[],
       })),
     updateDetectedTags:
@@ -374,7 +375,15 @@ function createAdapters(overrides: {
       overrides.connectRealtime
       ?? (async () => ({ stop: async () => {} })),
     onPerformanceLoadError: overrides.onPerformanceLoadError,
-  } as OperatorHomePageAdapters
+    listLiveOffers: overrides.listLiveOffers ?? (async () => []),
+    listLiveCampaigns: overrides.listLiveCampaigns ?? (async () => []),
+    pauseCampaign:
+      overrides.pauseCampaign
+      ?? (async () => {
+        throw new Error("pauseCampaign not stubbed")
+      }),
+    getCampaignDraftById: overrides.getCampaignDraftById,
+  }
 }
 
 describe("createOperatorHomePageModule", () => {
@@ -1698,9 +1707,11 @@ describe("createOperatorHomePageModule", () => {
     const beforeBadge = home
       .getSnapshot()
       .viewModel?.activityByTab.feedback.find(
-        (item) => item.feedbackId === 10
+        (item) => item.kind === "feedback" && item.feedbackId === 10
       )
-    expect(beforeBadge?.sentiment).toBe("negative")
+    expect(beforeBadge?.kind === "feedback" ? beforeBadge.sentiment : null).toBe(
+      "negative"
+    )
 
     home.startClassificationCorrection()
     home.setClassificationDraftSentiment("positive")
@@ -1717,9 +1728,11 @@ describe("createOperatorHomePageModule", () => {
     const afterBadge = home
       .getSnapshot()
       .viewModel?.activityByTab.feedback.find(
-        (item) => item.feedbackId === 10
+        (item) => item.kind === "feedback" && item.feedbackId === 10
       )
-    expect(afterBadge?.sentiment).toBe("positive")
+    expect(afterBadge?.kind === "feedback" ? afterBadge.sentiment : null).toBe(
+      "positive"
+    )
   })
 
   it("loads merged Latest activity with guest-joined rows on Guests tab only", async () => {
@@ -1774,6 +1787,7 @@ describe("createOperatorHomePageModule", () => {
       expect.objectContaining({ kind: "feedback", feedbackId: 10 }),
     ])
   })
+
 
   it("loads a success recommendation onto the module snapshot", async () => {
     const loadHomeRecommendation = vi.fn(async () => ({
@@ -2053,5 +2067,210 @@ describe("createOperatorHomePageModule", () => {
     expect(home.getSnapshot().recommendation.recommendation?.title).toBe(
       "Thank a recent guest"
     )
+  })
+
+
+  it("loads live offer and campaign cards in parallel with home feedback", async () => {
+    const listLiveOffers = vi.fn(async () => [
+      {
+        id: 11,
+        locationId: 1,
+        title: "10% off your next visit",
+        status: "active" as const,
+        offerType: "percentage-discount",
+        validity: "custom-date",
+        expiryDate: "2026-07-31",
+        attachKinds: ["campaign"],
+        lifetimeClaims: 5,
+        lifetimeRedeemed: 2,
+        createdAt: "2026-08-01T12:00:00.000Z",
+        updatedAt: "2026-08-21T12:00:00.000Z",
+      },
+    ])
+    const listLiveCampaigns = vi.fn(async () => [
+      {
+        id: 2,
+        name: "Thank-you campaign",
+        status: "sending",
+        goalId: null,
+        locationId: 1,
+        locationName: "First Venue",
+        channel: "email",
+        audienceKey: null,
+        offerStance: null,
+        updatedAt: "2026-08-21T12:00:00.000Z",
+        rowVersion: "rv-2",
+        sendDate: null,
+        delivery: "80%",
+        engagement: null,
+        redemptions: "3",
+      },
+    ])
+    const getCampaignDraftById = vi.fn(async () => ({
+      success: true,
+      campaign: {
+        id: 2,
+        locationId: 1,
+        status: "sending",
+        name: "Thank-you campaign",
+        goalId: null,
+        templateId: null,
+        templateVersion: null,
+        audienceKey: null,
+        channel: "email",
+        offerStance: null,
+        offerId: 11,
+        messageSubject: "Thanks for visiting",
+        messageBody: "We would love to see you again.",
+        rowVersion: "rv-2",
+        createdAt: "2026-08-01T12:00:00.000Z",
+        updatedAt: "2026-08-21T12:00:00.000Z",
+      },
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        listLiveOffers,
+        listLiveCampaigns,
+        getCampaignDraftById,
+      })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().liveOffersLoadStatus).toBe("loaded")
+    })
+
+    expect(listLiveOffers).toHaveBeenCalledWith(1)
+    expect(listLiveCampaigns).toHaveBeenCalledWith(1)
+    expect(home.getSnapshot().liveCards).toHaveLength(2)
+    expect(home.getSnapshot().liveCards[0]).toMatchObject({
+      kind: "campaign",
+      id: 2,
+      messageSubject: "Thanks for visiting",
+      messageBody: "We would love to see you again.",
+    })
+    expect(home.getSnapshot().liveCards[1]).toMatchObject({
+      kind: "offer",
+      id: 11,
+    })
+  })
+
+  it("exposes empty live cards when both live lists succeed empty", async () => {
+    const home = createOperatorHomePageModule(createAdapters())
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().liveOffersLoadStatus).toBe("loaded")
+    })
+
+    expect(home.getSnapshot().liveCards).toEqual([])
+    expect(home.getSnapshot().liveOffersError).toBeNull()
+  })
+
+  it("sets live offers error and keeps empty cards when a live list fails", async () => {
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        listLiveOffers: async () => {
+          throw new Error("offers down")
+        },
+      })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().liveOffersLoadStatus).toBe("error")
+    })
+
+    expect(home.getSnapshot().liveCards).toEqual([])
+    expect(home.getSnapshot().liveOffersError).toMatch(/Could not load live/)
+  })
+
+  it("retries live offers without reloading feedback", async () => {
+    const getFeedback = vi.fn(async () => ({
+      success: true,
+      total: recentFeedback.length,
+      recent: recentFeedback,
+    }))
+    const listLiveOffers = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce([])
+    const home = createOperatorHomePageModule(
+      createAdapters({ getFeedback, listLiveOffers })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().liveOffersLoadStatus).toBe("error")
+    })
+    expect(getFeedback).toHaveBeenCalledTimes(1)
+
+    await home.retryLiveOffers()
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().liveOffersLoadStatus).toBe("loaded")
+    })
+    expect(getFeedback).toHaveBeenCalledTimes(1)
+    expect(listLiveOffers).toHaveBeenCalledTimes(2)
+  })
+
+  it("pauses a live campaign with rowVersion then refreshes the section", async () => {
+    const pauseCampaign = vi.fn(async () => ({
+      success: true,
+      campaign: {
+        id: 2,
+        locationId: 1,
+        status: "paused",
+        name: "Thank-you campaign",
+        scheduleMode: null,
+        scheduledAtUtc: null,
+        scheduleTimeZone: null,
+        billingReservationRef: null,
+        reservedEstimate: null,
+        frozenRecipientCount: 0,
+        rowVersion: "rv-3",
+        updatedAt: "2026-08-21T13:00:00.000Z",
+      },
+    }))
+    const listLiveCampaigns = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          id: 2,
+          name: "Thank-you campaign",
+          status: "sending",
+          goalId: null,
+          locationId: 1,
+          locationName: "First Venue",
+          channel: "email",
+          audienceKey: null,
+          offerStance: null,
+          updatedAt: "2026-08-21T12:00:00.000Z",
+          rowVersion: "rv-2",
+          sendDate: null,
+          delivery: null,
+          engagement: null,
+          redemptions: null,
+        },
+      ])
+      .mockResolvedValueOnce([])
+    const home = createOperatorHomePageModule(
+      createAdapters({ listLiveCampaigns, pauseCampaign })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().liveOffersLoadStatus).toBe("loaded")
+    })
+    expect(home.getSnapshot().liveCards[0]).toMatchObject({
+      kind: "campaign",
+      id: 2,
+    })
+
+    const paused = await home.pauseLiveCampaign(2)
+    expect(paused).toBe(true)
+    expect(pauseCampaign).toHaveBeenCalledWith(2, { rowVersion: "rv-2" })
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().liveCards).toEqual([])
+    })
   })
 })
