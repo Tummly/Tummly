@@ -30,6 +30,12 @@ namespace TummlyBackend.Helpers
     public static class WeeklyBriefWeekKey
     {
         /// <summary>
+        /// MVP default IANA timezone when a location has no stored timezone field yet
+        /// (same UK default as campaign / recovery schedule helpers).
+        /// </summary>
+        public const string DefaultLocationTimeZoneId = "Europe/London";
+
+        /// <summary>
         /// Resolve the closed prior week for <paramref name="utcNow"/> in
         /// <paramref name="ianaTimeZoneId"/>.
         /// At Monday local midnight the week that just ended becomes the closed week;
