@@ -6,7 +6,7 @@ import type { DashboardOutletContext } from "@/components/dashboard/operator/Das
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
 import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
-import { operatorDashboardGuestProfilePath } from "@/lib/operatorHome/operatorDashboardPaths"
+import { operatorDashboardGuestProfilePath, operatorDashboardNavPath } from "@/lib/operatorHome/operatorDashboardPaths"
 import { useNavigate, useOutletContext } from "react-router-dom"
 
 type HomePageProps = {
@@ -92,6 +92,16 @@ export function HomePage({
         }}
         previewBusy={home.snapshot.previewBusy}
         onPreviewGuestForm={home.previewGuestForm}
+        onCreateOffer={() => {
+          navigate(
+            operatorDashboardNavPath(mode, "offers", selectedLocationId)
+          )
+        }}
+        onCreateCampaign={() => {
+          navigate(
+            operatorDashboardNavPath(mode, "campaigns", selectedLocationId)
+          )
+        }}
         onCopySmartGuestLink={home.copySmartGuestLink}
         feedbackDetails={home.snapshot.feedbackDetails}
         onViewFeedback={(feedbackId) => {

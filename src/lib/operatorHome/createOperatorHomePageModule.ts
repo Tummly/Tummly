@@ -94,6 +94,10 @@ export type OperatorHomePageAdapters = {
     locationId: number,
     body: UpdateChecklistAcksRequest
   ) => Promise<ChecklistAcksResponse>
+  /** Lightweight “has any catalog offer” probe for setup checklist. */
+  hasCreatedOffer: (locationId: number) => Promise<boolean>
+  /** Lightweight “has any campaign” probe for setup checklist. */
+  hasCreatedCampaign: (locationId: number) => Promise<boolean>
   copyText: (
     text: string
   ) => Promise<{ ok: true } | { ok: false; error: string }>
@@ -162,6 +166,8 @@ type HomeState = {
   guestsJoinedPrevious: number | null
   qrScans: number | null
   qrScansPrevious: number | null
+  hasCreatedOffer: boolean
+  hasCreatedCampaign: boolean
   viewModel: OperatorHomeViewModel | null
   actionError: string | null
   loadGeneration: number
@@ -192,6 +198,8 @@ type HomeAction =
       guestsJoinedPrevious: number | null
       qrScans: number | null
       qrScansPrevious: number | null
+      hasCreatedOffer: boolean
+      hasCreatedCampaign: boolean
       viewModel: OperatorHomeViewModel | null
     }
   | { type: "load_failed"; generation: number }
@@ -237,7 +245,9 @@ function assembleViewModel(
   guestsJoinedPrevious: number | null,
   qrScans: number | null,
   qrScansPrevious: number | null,
-  dateRangeLabel: string
+  dateRangeLabel: string,
+  hasCreatedOffer: boolean,
+  hasCreatedCampaign: boolean
 ): OperatorHomeViewModel | null {
   if (workspace.selectedLocationId == null) {
     return null
@@ -256,6 +266,8 @@ function assembleViewModel(
     qrScansPrevious,
     dateRangeLabel,
     checklistAcks,
+    hasCreatedOffer,
+    hasCreatedCampaign,
   })
 }
 
@@ -275,6 +287,8 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         guestsJoinedPrevious: null,
         qrScans: null,
         qrScansPrevious: null,
+        hasCreatedOffer: false,
+        hasCreatedCampaign: false,
         viewModel: null,
         actionError: null,
       }
@@ -314,6 +328,8 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         guestsJoinedPrevious: action.guestsJoinedPrevious,
         qrScans: action.qrScans,
         qrScansPrevious: action.qrScansPrevious,
+        hasCreatedOffer: action.hasCreatedOffer,
+        hasCreatedCampaign: action.hasCreatedCampaign,
         viewModel: action.viewModel,
       }
     case "load_failed":
@@ -403,6 +419,8 @@ export function createOperatorHomePageModule(
     guestsJoinedPrevious: null,
     qrScans: null,
     qrScansPrevious: null,
+    hasCreatedOffer: false,
+    hasCreatedCampaign: false,
     viewModel: null,
     actionError: null,
     loadGeneration: 0,
@@ -456,6 +474,37 @@ export function createOperatorHomePageModule(
   const currentDateRangeLabel = () =>
     labelForHomePerformanceDateRange(adapters.getHomePerformanceDateRange())
 
+  const assembleCurrent = (
+    workspace: OperatorHomeWorkspaceInput,
+    checklistAcks: OperatorHomeChecklistAcks,
+    feedback: HomeState["feedback"],
+    latestActivity: HomeState["latestActivity"],
+    feedbackSubmitted: number | null,
+    guestsJoined: number | null,
+    feedbackSubmittedPrevious: number | null,
+    guestsJoinedPrevious: number | null,
+    qrScans: number | null,
+    qrScansPrevious: number | null,
+    dateRangeLabel: string,
+    hasCreatedOffer: boolean = state.hasCreatedOffer,
+    hasCreatedCampaign: boolean = state.hasCreatedCampaign
+  ) =>
+    assembleViewModel(
+      workspace,
+      checklistAcks,
+      feedback,
+      latestActivity,
+      feedbackSubmitted,
+      guestsJoined,
+      feedbackSubmittedPrevious,
+      guestsJoinedPrevious,
+      qrScans,
+      qrScansPrevious,
+      dateRangeLabel,
+      hasCreatedOffer,
+      hasCreatedCampaign
+    )
+
   const refreshViewModelFromAcks = () => {
     const workspace = state.workspace
     if (workspace == null) {
@@ -465,7 +514,7 @@ export function createOperatorHomePageModule(
 
     dispatch({
       type: "view_model_updated",
-      viewModel: assembleViewModel(
+      viewModel: assembleCurrent(
         workspace,
         currentAcks(),
         state.feedback,
@@ -523,7 +572,7 @@ export function createOperatorHomePageModule(
         guestsJoinedPrevious: performanceResult.guestsJoinedPrevious,
         qrScans: performanceResult.qrScans,
         qrScansPrevious: performanceResult.qrScansPrevious,
-        viewModel: assembleViewModel(
+        viewModel: assembleCurrent(
           workspace,
           currentAcks(),
           state.feedback,
@@ -573,7 +622,7 @@ export function createOperatorHomePageModule(
         type: "activity_patched",
         feedback,
         latestActivity,
-        viewModel: assembleViewModel(
+        viewModel: assembleCurrent(
           workspace,
           currentAcks(),
           feedback,
@@ -604,17 +653,28 @@ export function createOperatorHomePageModule(
 
     let feedback: { total: number; recent: FeedbackResponse["recent"] }
     let latestActivity: HomeLatestActivityItem[]
+    let hasCreatedOffer = false
+    let hasCreatedCampaign = false
 
     try {
-      const [feedbackResult, latestActivityResult] = await Promise.all([
+      const [
+        feedbackResult,
+        latestActivityResult,
+        offerPresence,
+        campaignPresence,
+      ] = await Promise.all([
         adapters.getFeedback(selectedLocationId),
         adapters.getHomeLatestActivity(selectedLocationId),
+        adapters.hasCreatedOffer(selectedLocationId).catch(() => false),
+        adapters.hasCreatedCampaign(selectedLocationId).catch(() => false),
       ])
       feedback = {
         total: feedbackResult.total,
         recent: feedbackResult.recent,
       }
       latestActivity = latestActivityResult.items
+      hasCreatedOffer = offerPresence
+      hasCreatedCampaign = campaignPresence
       await acks.load(selectedLocationId)
     } catch {
       if (generation !== state.loadGeneration) {
@@ -639,7 +699,9 @@ export function createOperatorHomePageModule(
       guestsJoinedPrevious: state.guestsJoinedPrevious,
       qrScans: state.qrScans,
       qrScansPrevious: state.qrScansPrevious,
-      viewModel: assembleViewModel(
+      hasCreatedOffer,
+      hasCreatedCampaign,
+      viewModel: assembleCurrent(
         workspace,
         currentAcks(),
         feedback,
@@ -650,7 +712,9 @@ export function createOperatorHomePageModule(
         state.guestsJoinedPrevious,
         state.qrScans,
         state.qrScansPrevious,
-        currentDateRangeLabel()
+        currentDateRangeLabel(),
+        hasCreatedOffer,
+        hasCreatedCampaign
       ),
     })
 
@@ -752,7 +816,7 @@ export function createOperatorHomePageModule(
           qrPlacementGuideViewed: false,
           logoUploaded: false,
         }
-        const viewModel = assembleViewModel(
+        const viewModel = assembleCurrent(
           input,
           emptyAcks,
           null,
@@ -774,7 +838,7 @@ export function createOperatorHomePageModule(
       dispatch({
         type: "workspace_fields_updated",
         workspace: input,
-        viewModel: assembleViewModel(
+        viewModel: assembleCurrent(
           input,
           currentAcks(),
           state.feedback,
@@ -795,7 +859,7 @@ export function createOperatorHomePageModule(
       if (workspace != null) {
         dispatch({
           type: "view_model_updated",
-          viewModel: assembleViewModel(
+          viewModel: assembleCurrent(
             workspace,
             currentAcks(),
             state.feedback,
@@ -902,7 +966,7 @@ export function createOperatorHomePageModule(
         type: "feedback_patched",
         feedback,
         latestActivity,
-        viewModel: assembleViewModel(
+        viewModel: assembleCurrent(
           state.workspace,
           currentAcks(),
           feedback,

@@ -67,12 +67,18 @@ namespace TummlyBackend.Services
 
             if (offerId is null)
             {
+                var previousOfferId = location.ThankYouCatalogOfferId;
                 location.ThankYouCatalogOfferId = null;
                 await _context.SaveChangesAsync(cancellationToken);
+                await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
+                    previousOfferId,
+                    nextOfferId: null,
+                    cancellationToken
+                );
                 return new CaptureThankYouOfferSetResult.Ok(Empty());
             }
 
-            var attachable = await _offers.IsActiveForLocationAsync(
+            var attachable = await _offers.IsAttachableForLocationAsync(
                 offerId.Value,
                 locationId,
                 cancellationToken
@@ -80,12 +86,18 @@ namespace TummlyBackend.Services
             if (!attachable)
             {
                 return new CaptureThankYouOfferSetResult.InvalidOffer(
-                    "Offer must be Active and belong to this location."
+                    "Offer must be an attachable Draft or Active catalog offer for this location."
                 );
             }
 
+            var replacedOfferId = location.ThankYouCatalogOfferId;
             location.ThankYouCatalogOfferId = offerId.Value;
             await _context.SaveChangesAsync(cancellationToken);
+            await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
+                replacedOfferId,
+                offerId.Value,
+                cancellationToken
+            );
 
             var dto = await BuildDtoAsync(
                 locationId,

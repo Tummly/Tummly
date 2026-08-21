@@ -886,7 +886,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
             Assert.Empty(_context.Campaigns);
 
-            var attachable = await new OffersCatalogService(_context).IsActiveForLocationAsync(
+            var attachable = await new OffersCatalogService(_context).IsAttachableForLocationAsync(
                 offer.Id,
                 locationId
             );
@@ -5594,12 +5594,25 @@ namespace TummlyBackend.Tests.Services
             )
                 => Task.FromResult<CatalogOfferDto?>(null);
 
-            public Task<bool> IsActiveForLocationAsync(
+            public Task<bool> IsAttachableForLocationAsync(
                 int offerId,
                 int locationId,
                 CancellationToken cancellationToken = default
             )
                 => Task.FromResult(false);
+
+            public Task SyncInFlightStoredStatusAsync(
+                int offerId,
+                CancellationToken cancellationToken = default
+            )
+                => Task.CompletedTask;
+
+            public Task SyncInFlightStoredStatusForAttachChangeAsync(
+                int? previousOfferId,
+                int? nextOfferId,
+                CancellationToken cancellationToken = default
+            )
+                => Task.CompletedTask;
 
             public Task<CatalogOffersListResponse> ListAsync(
                 CatalogOffersListQuery query,

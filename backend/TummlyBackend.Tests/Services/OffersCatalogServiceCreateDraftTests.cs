@@ -33,7 +33,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task CreateDraftAsync_PersistsStoredDraft_NotAttachable()
+        public async Task CreateDraftAsync_PersistsStoredDraft_Attachable()
         {
             var locationId = await SeedLocationAsync();
             var request = SampleCreateRequest(locationId, "Draft lunch deal");
@@ -46,24 +46,24 @@ namespace TummlyBackend.Tests.Services
             var entity = await _context.CatalogOffers.SingleAsync();
             Assert.Equal(CatalogOfferStatus.Draft, entity.Status);
 
-            var attachable = await _service.IsActiveForLocationAsync(
+            var attachable = await _service.IsAttachableForLocationAsync(
                 dto.Id,
                 locationId
             );
-            Assert.False(attachable);
+            Assert.True(attachable);
         }
 
         [Fact]
-        public async Task CreateActiveAsync_StillPersistsActive_Attachable()
+        public async Task CreateActiveAsync_PersistsDraftUntilLiveAttach()
         {
             var locationId = await SeedLocationAsync();
             var request = SampleCreateRequest(locationId, "Active lunch deal");
 
             var dto = await _service.CreateActiveAsync(request, createdByUserId: 1);
 
-            Assert.Equal(CatalogOfferStatus.Active, dto.Status);
+            Assert.Equal(CatalogOfferStatus.Draft, dto.Status);
 
-            var attachable = await _service.IsActiveForLocationAsync(
+            var attachable = await _service.IsAttachableForLocationAsync(
                 dto.Id,
                 locationId
             );

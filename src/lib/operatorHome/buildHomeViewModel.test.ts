@@ -191,10 +191,10 @@ describe("buildOperatorHomeViewModel", () => {
       },
     ])
     expect(withoutPreview?.setupSteps[5]?.actions).toEqual([
-      { id: "create-offer", label: "Create offer", available: false },
+      { id: "create-offer", label: "Create offer", available: true },
     ])
     expect(withoutPreview?.setupSteps[6]?.actions).toEqual([
-      { id: "create-campaign", label: "Create campaign", available: false },
+      { id: "create-campaign", label: "Create campaign", available: true },
     ])
 
     const afterPreviewAndFeedback = buildOperatorHomeViewModel({
@@ -219,6 +219,32 @@ describe("buildOperatorHomeViewModel", () => {
       ["first-offer", "incomplete"],
       ["first-campaign", "incomplete"],
     ])
+    expect(afterPreviewAndFeedback?.setupSteps[2]?.actions).toEqual([])
+    expect(afterPreviewAndFeedback?.setupSteps[3]?.actions).toEqual([])
+  })
+
+  it("marks first offer and first campaign complete when created", () => {
+    const withPresence = buildOperatorHomeViewModel({
+      locations,
+      selectedLocationId: 1,
+      feedback: { total: 0, recent: [] },
+      hasCreatedOffer: true,
+      hasCreatedCampaign: true,
+    })
+
+    expect(
+      withPresence?.setupSteps.map((step) => [step.id, step.status])
+    ).toEqual([
+      ["account-ready", "complete"],
+      ["upload-logo", "partial"],
+      ["guest-form", "partial"],
+      ["first-response", "partial"],
+      ["qr-placement", "incomplete"],
+      ["first-offer", "complete"],
+      ["first-campaign", "complete"],
+    ])
+    expect(withPresence?.setupSteps[5]?.actions).toEqual([])
+    expect(withPresence?.setupSteps[6]?.actions).toEqual([])
   })
 
   it("counts only complete steps for setup progress and marks logo complete when acknowledged", () => {

@@ -771,15 +771,15 @@ Reusable offer definitions operators create and manage on the Operator **Offers*
 _Avoid_: Recovery offer (when meaning a reusable catalog definition); live offers on Home (empty until catalog browse ships); changing offer type via Edit (use Duplicate)
 
 **Campaign offer attach**:
-Binding of one **Offers catalog** definition to a **Campaign** / **Campaign Draft** via stored `OfferId` (plus offer stance). Paths: **No offer**, create-and-select, or **Existing offer** (inline browse of Active/attachable catalog Offers — not stored Draft, not Sent; Select sets `OfferId`; View details opens **Offer Details** in a new tab when that route is live). Switching to **No offer** clears `OfferId`. Continue on the Offer step requires a live attach when stance is Existing or Create. Product lock: `.scratch/offers/issues/11-existing-offer-unlock-campaigns.md`.
+Binding of one **Offers catalog** definition to a **Campaign** / **Campaign Draft** via stored `OfferId` (plus offer stance). Paths: **No offer**, create-and-select, or **Existing offer** (inline browse of attachable catalog Offers — stored **Draft** or **Active**, not Sent; Select sets `OfferId`; View details opens **Offer Details** in a new tab when that route is live). Switching to **No offer** clears `OfferId`. Continue on the Offer step requires a live attach when stance is Existing or Create. First live attach promotes Draft → Active. Product lock: `.scratch/offers/issues/11-existing-offer-unlock-campaigns.md`.
 _Avoid_: offerStance alone as the attached offer; Feedback recovery-offers API (when meaning Campaign attach); In flight-only as the Existing picker filter
 
 **Recovery offer attach**:
-Durable binding of one **Offers catalog** definition to a **Feedback recovery** draft/session via stored `OfferId` (same idea as **Campaign offer attach**). Create-and-select or **Existing offer**; Continue requires an Active attach. Counts toward **Offers list In flight** from attach alone; **Offer issue** only on successful Send. Product lock: `.scratch/recovery-catalog-offers/PRD.md`; implement: `.scratch/recovery-catalog-offers/IMPLEMENT.md`.
+Durable binding of one **Offers catalog** definition to a **Feedback recovery** draft/session via stored `OfferId` (same idea as **Campaign offer attach**). Create-and-select or **Existing offer**; Continue requires an attachable Draft or Active attach. Counts toward **Offers list In flight** from attach alone (promotes stored status to Active); **Offer issue** only on successful Send. Product lock: `.scratch/recovery-catalog-offers/PRD.md`; implement: `.scratch/recovery-catalog-offers/IMPLEMENT.md`.
 _Avoid_: FeedbackRecoveryOffer one-off row (pre-cutover); Campaign offer attach (when meaning Recovery)
 
 **Guest form thank-you attach**:
-Binding of one optional **Offers catalog** definition to the Guest form thank-you surface for an **Owned location** (own attach type — not a Recovery subtype). Null = no thank-you Issue. Live Active attach counts toward **Offers list In flight**; Issue on successful form submit when the guest is not opted out. Operator sets it from Capture Guest experience. Product lock: `.scratch/recovery-catalog-offers/PRD.md`; implement: `.scratch/recovery-catalog-offers/IMPLEMENT.md`.
+Binding of one optional **Offers catalog** definition to the Guest form thank-you surface for an **Owned location** (own attach type — not a Recovery subtype). Null = no thank-you Issue. Live Active attach (after promote from Draft) counts toward **Offers list In flight**; Issue on successful form submit when the guest is not opted out. Operator sets it from Capture Guest experience. Product lock: `.scratch/recovery-catalog-offers/PRD.md`; implement: `.scratch/recovery-catalog-offers/IMPLEMENT.md`.
 _Avoid_: Recovery offer attach; Guest Loop free-text offer strings (as the catalog attach)
 
 **Offer Claim code**:
@@ -811,19 +811,19 @@ List tab for every **Offers catalog** definition in location scope (union of Dra
 _Avoid_: Campaigns All (when meaning Offers)
 
 **Offers list In flight**:
-Derived list tab for **Offers catalog** definitions that are not stored Draft, not closed (paused / expired / archived), and have ≥1 live attach **now** (**Campaign offer attach**, **Recovery offer attach**, or **Guest form thank-you attach**). Attach is required. Row badge may still say Active while this tab is selected. Target attach rules: `.scratch/recovery-catalog-offers/PRD.md`.
-_Avoid_: Campaign In flight (send state); Active (as a substitute tab name when the product tab is In flight)
+Derived list tab for **Offers catalog** definitions that are not stored Draft, not closed (paused / expired / archived), and have ≥1 live attach **now** (**Campaign offer attach**, **Recovery offer attach**, or **Guest form thank-you attach**). Attach is required. Stored status **Active** and the row badge **Active** mean the same as this tab (in-flight). Target attach rules: `.scratch/recovery-catalog-offers/PRD.md`.
+_Avoid_: Campaign In flight (send state)
 
 **Offers list Draft**:
-Derived list tab (UI label **Drafts**) for Offer definitions that are not yet live on a path: stored Draft, **or** not closed and zero live attaches. Includes Active-but-attachable Offers with no attach; clearing the last attach while still attachable returns the Offer here (may re-attach). Draft with an attach stays here until the Offer is live/Active.
+Derived list tab (UI label **Drafts**) for Offer definitions that are not yet live on a path: stored **Draft** (create / duplicate / last attach cleared), **or** not closed and zero live attaches. Clearing the last live attach demotes stored status to Draft when the Offer is still open. Draft and Active are both attachable; the first live attach promotes Draft → Active (In flight).
 _Avoid_: Campaign Draft (when meaning an Offer definition)
 
 **Offers list Sent**:
-Derived list tab for closed **Offers catalog** definitions only: paused, expired, or archived — so they no longer issue new passes. Paused is Sent here (unlike Campaigns, where Paused is In flight). **Expired** means a catalog fixed end-of-validity date has passed (venue timezone when known); per-pass claim windows and “N days after issue” validity do not auto-move the catalog Offer here. Resume from Paused: ≥1 live attach → In flight; zero → Drafts.
+Derived list tab for closed **Offers catalog** definitions only: paused, expired, or archived — so they no longer issue new passes. Paused is Sent here (unlike Campaigns, where Paused is In flight). **Expired** means a catalog fixed end-of-validity date has passed (venue timezone when known); per-pass claim windows and “N days after issue” validity do not auto-move the catalog Offer here. Pause/Resume only from stored **Active**. Resume from Paused: ≥1 live attach → Active / In flight; zero → Draft / Drafts.
 _Avoid_: Campaign Sent (email/SMS send complete)
 
 **Offers list Needs attention**:
-List tab and main-page overview seam for **Offers catalog** definitions that need operator review. Membership: open **rule warning** or open **AI** attention signal that is not session-dismissed; may overlap other Offers list tabs — its count is not added into Drafts+In flight+Sent = All. Main-page rows use one chrome; meta distinguishes Warning vs AI. MVP rule warnings: catalog offer end-of-validity within rolling **7 local venue days**; open **Void request**. Section stays when empty (honest empty shell); collapse is session UI; rule rows do not dismiss; AI Not now is session-only. Queue CTAs switch the list to this tab (optional warning-type scope). Distinct from Feedback Needs attention, Campaigns list Needs attention, and **Offer recommendation**.
+List tab and main-page overview seam for **Offers catalog** definitions that need operator review. Membership: open **rule warning** or open **AI** attention signal that is not session-dismissed on **in-flight** (effective Active with ≥1 live attach) Offers; may overlap other Offers list tabs — its count is not added into Drafts+In flight+Sent = All. Main-page rows use one chrome; meta distinguishes Warning vs AI. MVP rule warnings: catalog offer end-of-validity within rolling **7 local venue days**; open **Void request**. Section stays when empty (honest empty shell); collapse is session UI; rule rows do not dismiss; AI Not now is session-only. Queue CTAs switch the list to this tab (optional warning-type scope). Distinct from Feedback Needs attention, Campaigns list Needs attention, and **Offer recommendation**.
 _Avoid_: Campaign recommendation (when meaning this Offers seam); Feedback Needs attention; Campaigns Failed/Partially sent tab
 
 **Offers page**:
@@ -831,7 +831,7 @@ Operator dashboard surface for the location’s **Offers catalog**: header CTAs 
 _Avoid_: Offer Details (single Offer); Campaigns page
 
 **Offers Performance**:
-Main **Offers page** KPI strip. Date presets: Last 7 days / Last 30 days / This month / Custom (deliberately different from Offer Details’ 7 / 30 / 90 / Custom). **Active offers** is a now-snapshot of catalog Offers with stored status **Active** at the location (includes Active with no live attach) and ignores the date control; **Offers issued**, **Claims**, **Redemptions**, and **Claim-to-redemption rate** (Redemptions ÷ Claims; **—** when Claims = 0) are window-scoped. Distinct from Home **Performance overview** and Capture performance KPIs.
+Main **Offers page** KPI strip. Date presets: Last 7 days / Last 30 days / This month / Custom (deliberately different from Offer Details’ 7 / 30 / 90 / Custom). **Active offers** is a now-snapshot of catalog Offers with stored status **Active** at the location (in-flight only — Active means ≥1 live attach) and ignores the date control; **Offers issued**, **Claims**, **Redemptions**, and **Claim-to-redemption rate** (Redemptions ÷ Claims; **—** when Claims = 0) are window-scoped. Distinct from Home **Performance overview** and Capture performance KPIs.
 _Avoid_: Offer Details Overview KPIs (when meaning the main strip); Capture Offer claims
 
 **Offer redemption log**:

@@ -109,6 +109,7 @@ namespace TummlyBackend.Tests.Services
                 .FirstAsync(row => row.Id == seeded.LocationId);
             location.ThankYouCatalogOfferId = null;
             await _context.SaveChangesAsync();
+            await _service.SyncInFlightStoredStatusAsync(seeded.OfferId);
 
             var inFlightAfter = await _service.ListAsync(
                 new CatalogOffersListQuery
@@ -134,6 +135,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(1, drafts.TabCounts.Drafts);
             Assert.Single(drafts.Items);
             Assert.Equal(seeded.OfferId, drafts.Items[0].Id);
+            Assert.Equal(CatalogOfferStatus.Draft, drafts.Items[0].Status);
         }
 
         [Fact]
@@ -272,6 +274,7 @@ namespace TummlyBackend.Tests.Services
                 .FirstAsync(row => row.RecoveryOfferId == seeded.OfferId);
             feedback.RecoveryOfferId = null;
             await _context.SaveChangesAsync();
+            await _service.SyncInFlightStoredStatusAsync(seeded.OfferId);
 
             var after = await _service.ListAsync(
                 new CatalogOffersListQuery
@@ -286,6 +289,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(1, after.TabCounts.Drafts);
             Assert.Single(after.Items);
             Assert.Equal(seeded.OfferId, after.Items[0].Id);
+            Assert.Equal(CatalogOfferStatus.Draft, after.Items[0].Status);
         }
 
         private async Task AttachThankYouAsync(int locationId, int offerId)

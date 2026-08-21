@@ -5,11 +5,13 @@ import {
   closeOutFeedback,
   correctFeedbackClassification,
   createFeedbackInternalNote,
+  getCampaignsList,
   getChecklistAcks,
   getFeedback,
   getFeedbackDetails,
   getHomeLatestActivity,
   getHomePerformance,
+  listCatalogOffers,
   setChecklistAcks,
   setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
@@ -114,6 +116,24 @@ export function HomePageModuleProvider({
       },
       getChecklistAcks,
       setChecklistAcks,
+      hasCreatedOffer: async (locationId) => {
+        const response = await listCatalogOffers({
+          locationId,
+          view: "all",
+          page: 1,
+          pageSize: 1,
+        })
+        return response.tabCounts.all > 0 || response.totalCount > 0
+      },
+      hasCreatedCampaign: async (locationId) => {
+        const response = await getCampaignsList({
+          locationId,
+          view: "all",
+          page: 1,
+          pageSize: 1,
+        })
+        return response.tabCounts.all > 0 || response.totalCount > 0
+      },
       copyText,
       openSmartGuestLink,
       connectRealtime: connectFeedbackHomeHub,

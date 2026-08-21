@@ -53,8 +53,14 @@ namespace TummlyBackend.Services
 
             if (offerId is null)
             {
+                var previousOfferId = feedback.RecoveryOfferId;
                 feedback.RecoveryOfferId = null;
                 await _context.SaveChangesAsync(cancellationToken);
+                await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
+                    previousOfferId,
+                    nextOfferId: null,
+                    cancellationToken
+                );
                 return;
             }
 
@@ -63,7 +69,7 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("offerId is invalid.");
             }
 
-            var ok = await _offers.IsActiveForLocationAsync(
+            var ok = await _offers.IsAttachableForLocationAsync(
                 offerId.Value,
                 feedback.RestaurantLocationId,
                 cancellationToken
@@ -71,12 +77,18 @@ namespace TummlyBackend.Services
             if (!ok)
             {
                 throw new ArgumentException(
-                    "offerId must reference an Active Offers catalog definition for this location."
+                    "offerId must reference an attachable Draft or Active Offers catalog definition for this location."
                 );
             }
 
+            var replacedOfferId = feedback.RecoveryOfferId;
             feedback.RecoveryOfferId = offerId.Value;
             await _context.SaveChangesAsync(cancellationToken);
+            await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
+                replacedOfferId,
+                offerId.Value,
+                cancellationToken
+            );
         }
     }
 }

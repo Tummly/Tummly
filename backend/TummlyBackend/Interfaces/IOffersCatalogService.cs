@@ -4,6 +4,11 @@ namespace TummlyBackend.Interfaces
 {
     public interface IOffersCatalogService
     {
+        /// <summary>
+        /// Persist a finished Offer create. Same as <see cref="CreateDraftAsync"/> —
+        /// stored Draft until the first live attach. Name kept for
+        /// <c>POST /offers</c> wire compatibility.
+        /// </summary>
         Task<CatalogOfferDto> CreateActiveAsync(
             CreateCatalogOfferRequest request,
             int? createdByUserId = null,
@@ -11,8 +16,8 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
-        /// Persist a stored Offers catalog Draft (not Active). Not attachable until Active.
-        /// Separate from <see cref="CreateActiveAsync"/> — do not reuse the live Active create path.
+        /// Persist a stored Offers catalog Draft. Same stored outcome as
+        /// <see cref="CreateActiveAsync"/> until a live attach promotes status.
         /// </summary>
         Task<CatalogOfferDto> CreateDraftAsync(
             CreateCatalogOfferRequest request,
@@ -38,12 +43,32 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
-        /// True when the offer exists, is effectively Active, and belongs to the location.
-        /// Expired-by-fixed-date offers are not attachable.
+        /// True when the offer exists at the location and may receive a live attach
+        /// (stored Draft or Active, not past fixed expiry / paused / archived).
         /// </summary>
-        Task<bool> IsActiveForLocationAsync(
+        Task<bool> IsAttachableForLocationAsync(
             int offerId,
             int locationId,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
+        /// Promote Draft → Active when ≥1 live attach exists; demote Active → Draft
+        /// when the last attach is cleared. No-op for paused / archived /
+        /// expired-effective rows.
+        /// </summary>
+        Task SyncInFlightStoredStatusAsync(
+            int offerId,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
+        /// After an attach FK change: sync <paramref name="nextOfferId"/> then
+        /// <paramref name="previousOfferId"/> when they differ.
+        /// </summary>
+        Task SyncInFlightStoredStatusForAttachChangeAsync(
+            int? previousOfferId,
+            int? nextOfferId,
             CancellationToken cancellationToken = default
         );
 

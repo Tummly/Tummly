@@ -41,6 +41,29 @@ export function shouldShowSetupStatusMarker(
 
 export const hasSetupStepTintedRow = shouldShowSetupStatusMarker
 
+/** Figma complete row tint vs partial gray wash (3238:28140 / 5509:85044). */
+export function resolveSetupStepRowSurfaceClass(
+  status: OperatorHomeSetupStepStatus
+): string {
+  if (status === "complete") {
+    return "rounded bg-op-color-green-600-muted"
+  }
+  if (status === "partial") {
+    return "rounded bg-[#ebebeb] dark:bg-[#202020]"
+  }
+  return "rounded"
+}
+
+export function setupRequiredProgressPercent(
+  completeCount: number,
+  totalSteps: number
+): number {
+  if (totalSteps <= 0) {
+    return 0
+  }
+  return Math.min(100, Math.round((completeCount / totalSteps) * 100))
+}
+
 /** Incomplete rows spread text and CTAs to opposite edges; partial rows keep CTAs adjacent. */
 export function shouldSpreadSetupStepActions(
   status: OperatorHomeSetupStepStatus,
@@ -159,6 +182,16 @@ export const SETUP_CHECKLIST_ACCORDION_TRIGGER_CLASS =
 export const SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS =
   "flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-op-sm bg-op-button-collapse-background text-foreground hover:bg-op-button-collapse-hover md:size-[42px]"
 
+/** Figma header progress — 12px under subtitle, 6px track, 383px max (5513:87627). */
+export const SETUP_CHECKLIST_PROGRESS_GROUP_CLASS =
+  "flex w-full max-w-[383px] flex-col gap-3"
+
+export const SETUP_CHECKLIST_PROGRESS_TRACK_CLASS =
+  "relative h-1.5 w-full overflow-hidden rounded-op-md bg-[#ebebeb] dark:bg-[#272727]"
+
+export const SETUP_CHECKLIST_PROGRESS_FILL_CLASS =
+  "absolute top-0 left-0 h-full rounded-op-md bg-op-color-green-600 transition-[width] duration-300 ease-out motion-reduce:transition-none"
+
 export const SETUP_CHECKLIST_STEP_CLASS =
   "relative flex items-start py-4 pr-4 pl-4 sm:items-center sm:py-5 sm:pr-5 sm:pl-[30px]"
 
@@ -172,3 +205,10 @@ export const SETUP_CHECKLIST_STEP_ACTIONS_CLASS =
   "flex w-full shrink-0 flex-wrap items-center gap-[18px] sm:w-auto"
 
 export const SETUP_CHECKLIST_STEP_ACTIONS_SPREAD_CLASS = "sm:justify-between"
+
+/** Figma “Step completed” — check + label (5512:87308). */
+export const SETUP_CHECKLIST_STEP_COMPLETED_CLASS =
+  "flex shrink-0 items-center gap-1.5 text-sm font-normal text-foreground"
+
+export const SETUP_CHECKLIST_STEP_COMPLETED_ICON_CLASS =
+  "size-2.5 shrink-0 text-primary"

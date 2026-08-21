@@ -51,6 +51,10 @@ export interface BuildOperatorHomeViewModelInput {
   dateRangeLabel?: string
   /** Per–Owned location Finish-setting-up acknowledgements; defaults to none. */
   checklistAcks?: OperatorHomeChecklistAcks | null
+  /** True when the location has at least one catalog offer. */
+  hasCreatedOffer?: boolean
+  /** True when the location has at least one campaign. */
+  hasCreatedCampaign?: boolean
 }
 
 const ACTIVITY_EMPTY_COPY = "No activity yet"
@@ -204,12 +208,18 @@ function buildSetupSteps(input: {
   guestFormPreviewed: boolean
   qrPlacementGuideViewed: boolean
   feedbackTotal: number | null
+  hasCreatedOffer: boolean
+  hasCreatedCampaign: boolean
 }): OperatorHomeSetupStep[] {
   const hasFirstResponse = (input.feedbackTotal ?? 0) > 0
   const logoStatus = input.logoUploaded ? "complete" : "partial"
   const guestFormStatus = input.guestFormPreviewed ? "complete" : "partial"
   const firstResponseStatus = hasFirstResponse ? "complete" : "partial"
   const qrPlacementStatus = input.qrPlacementGuideViewed
+    ? "complete"
+    : "incomplete"
+  const firstOfferStatus = input.hasCreatedOffer ? "complete" : "incomplete"
+  const firstCampaignStatus = input.hasCreatedCampaign
     ? "complete"
     : "incomplete"
 
@@ -244,7 +254,7 @@ function buildSetupSteps(input: {
       description:
         "Check the default questions, contact fields, consent wording and thank-you screen before sharing it with guests.",
       status: guestFormStatus,
-      actions: [previewFormAction],
+      actions: guestFormStatus === "complete" ? [] : [previewFormAction],
     },
     {
       id: "first-response",
@@ -253,7 +263,7 @@ function buildSetupSteps(input: {
       description:
         "Waiting for the first valid guest submission from your QR code or Smart Guest Link.",
       status: firstResponseStatus,
-      actions: [previewFormAction],
+      actions: firstResponseStatus === "complete" ? [] : [previewFormAction],
     },
     {
       id: "qr-placement",
@@ -262,18 +272,21 @@ function buildSetupSteps(input: {
       description:
         "Place your QR code where guests are likely to see it, such as at the counter, on receipts, in delivery bags or on packaging.",
       status: qrPlacementStatus,
-      actions: [
-        {
-          id: "view-placement-guide",
-          label: "View placement guide",
-          available: false,
-        },
-        {
-          id: "order-qr-materials",
-          label: "Order QR materials",
-          available: false,
-        },
-      ],
+      actions:
+        qrPlacementStatus === "complete"
+          ? []
+          : [
+              {
+                id: "view-placement-guide",
+                label: "View placement guide",
+                available: false,
+              },
+              {
+                id: "order-qr-materials",
+                label: "Order QR materials",
+                available: false,
+              },
+            ],
     },
     {
       id: "first-offer",
@@ -281,10 +294,11 @@ function buildSetupSteps(input: {
       title: "Create your first offer",
       description:
         "Create a simple return-visit offer with an expiry date and redemption controls.",
-      status: "incomplete",
-      actions: [
-        { id: "create-offer", label: "Create offer", available: false },
-      ],
+      status: firstOfferStatus,
+      actions:
+        firstOfferStatus === "complete"
+          ? []
+          : [{ id: "create-offer", label: "Create offer", available: true }],
     },
     {
       id: "first-campaign",
@@ -292,14 +306,17 @@ function buildSetupSteps(input: {
       title: "Send your first campaign",
       description:
         "Available when at least one guest has valid marketing consent and a reachable email address or phone number.",
-      status: "incomplete",
-      actions: [
-        {
-          id: "create-campaign",
-          label: "Create campaign",
-          available: false,
-        },
-      ],
+      status: firstCampaignStatus,
+      actions:
+        firstCampaignStatus === "complete"
+          ? []
+          : [
+              {
+                id: "create-campaign",
+                label: "Create campaign",
+                available: true,
+              },
+            ],
     },
   ]
 }
@@ -358,6 +375,8 @@ export function buildOperatorHomeViewModel(
       guestFormPreviewed: checklistAcks.guestFormPreviewed,
       qrPlacementGuideViewed: checklistAcks.qrPlacementGuideViewed,
       feedbackTotal,
+      hasCreatedOffer: input.hasCreatedOffer === true,
+      hasCreatedCampaign: input.hasCreatedCampaign === true,
     }),
     kpis: buildKpis(
       feedbackSubmitted,

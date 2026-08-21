@@ -102,6 +102,14 @@ namespace TummlyBackend.Services
 
             _context.Campaigns.Add(entity);
             await _context.SaveChangesAsync(cancellationToken);
+            if (offerId is int attachedOfferId)
+            {
+                await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
+                    previousOfferId: null,
+                    attachedOfferId,
+                    cancellationToken
+                );
+            }
             return ToDto(entity);
         }
 
@@ -164,6 +172,8 @@ namespace TummlyBackend.Services
                 return new CampaignDraftWriteResult.Conflict();
             }
 
+            var previousOfferId = entity.OfferId;
+
             ApplyPatch(entity, request);
             await ApplyOfferAttachAsync(entity, request, cancellationToken);
             entity.Status = DraftStatus;
@@ -177,6 +187,12 @@ namespace TummlyBackend.Services
             {
                 return new CampaignDraftWriteResult.Conflict();
             }
+
+            await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
+                previousOfferId,
+                entity.OfferId,
+                cancellationToken
+            );
 
             return new CampaignDraftWriteResult.Ok { Campaign = ToDto(entity) };
         }
@@ -328,7 +344,7 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("offerId is invalid.");
             }
 
-            var ok = await _offers.IsActiveForLocationAsync(
+            var ok = await _offers.IsAttachableForLocationAsync(
                 offerId,
                 entity.RestaurantLocationId,
                 cancellationToken
@@ -336,7 +352,7 @@ namespace TummlyBackend.Services
             if (!ok)
             {
                 throw new ArgumentException(
-                    "offerId must reference an Active Offers catalog definition for this location."
+                    "offerId must reference an attachable Draft or Active Offers catalog definition for this location."
                 );
             }
 
@@ -366,7 +382,7 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("offerId is invalid.");
             }
 
-            var ok = await _offers.IsActiveForLocationAsync(
+            var ok = await _offers.IsAttachableForLocationAsync(
                 offerId,
                 locationId,
                 cancellationToken
@@ -374,7 +390,7 @@ namespace TummlyBackend.Services
             if (!ok)
             {
                 throw new ArgumentException(
-                    "offerId must reference an Active Offers catalog definition for this location."
+                    "offerId must reference an attachable Draft or Active Offers catalog definition for this location."
                 );
             }
 

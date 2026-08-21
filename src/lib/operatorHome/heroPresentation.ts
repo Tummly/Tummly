@@ -18,16 +18,16 @@ export const OPERATOR_HOME_HERO_PHONE_CLASS =
 
 /** Light bezel uses gray-750; dark keeps gray-950. */
 export const OPERATOR_HOME_HERO_PHONE_SHELL_CLASS =
-  "relative size-full rounded-[13%/7%] bg-[var(--op-color-gray-750)] p-[3%] dark:bg-op-color-gray-950"
+  "relative size-full rounded-[28px] bg-[var(--op-color-gray-750)] p-[3%] dark:bg-op-color-gray-950"
 
 export const OPERATOR_HOME_HERO_PHONE_SCREEN_CLASS =
-  "relative size-full overflow-hidden rounded-[10%/5.5%] bg-guest-feedback-bg"
+  "relative size-full overflow-hidden rounded-[20px] bg-guest-feedback-bg"
 
 export const OPERATOR_HOME_HERO_PHONE_CANVAS_CLASS =
   "pointer-events-none absolute top-0 left-0 w-[393px] origin-top-left select-none"
 
 export const OPERATOR_HOME_HERO_PHONE_GUEST_SHELL_CLASS =
-  "!min-h-[1000px] w-[393px] [&_form]:!transform-none [&_form]:!opacity-100 [&_form>*]:!transform-none [&_form>*]:!opacity-100"
+  "!min-h-[1000px] w-[393px] [&_form]:!transform-none [&_form]:!opacity-100 [&_form>*]:!transform-none [&_form>*]:!opacity-100 [&_h1]:!text-xl"
 
 export const OPERATOR_HOME_HERO_PHONE_GUEST_CONTENT_CLASS =
   "!max-w-[393px] !px-[30px] !pt-[24px]"

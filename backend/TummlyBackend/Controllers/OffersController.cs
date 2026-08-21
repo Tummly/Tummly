@@ -160,8 +160,9 @@ namespace TummlyBackend.Controllers
         }
 
         /// <summary>
-        /// Persist a stored Offers catalog Draft (badge Draft, not attachable until Active).
-        /// Distinct from <see cref="CreateOffer"/> which always creates Active.
+        /// Persist a stored Offers catalog Draft until the first live attach
+        /// promotes it to Active (in-flight). Distinct from
+        /// <see cref="CreateOffer"/> only by route; both store Draft.
         /// </summary>
         [HttpPost("draft")]
         public async Task<IActionResult> CreateOfferDraft(

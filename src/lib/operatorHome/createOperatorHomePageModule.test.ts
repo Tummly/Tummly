@@ -215,6 +215,8 @@ function createAdapters(overrides: {
     qrPlacementGuideViewedAt: string | null
     logoUploadedAt: string | null
   }>
+  hasCreatedOffer?: (locationId: number) => Promise<boolean>
+  hasCreatedCampaign?: (locationId: number) => Promise<boolean>
   copyText?: (
     text: string
   ) => Promise<{ ok: true } | { ok: false; error: string }>
@@ -355,6 +357,8 @@ function createAdapters(overrides: {
         qrPlacementGuideViewedAt: null,
         logoUploadedAt: body.logoUploaded ? "2026-07-14T12:00:00.000Z" : null,
       })),
+    hasCreatedOffer: overrides.hasCreatedOffer ?? (async () => false),
+    hasCreatedCampaign: overrides.hasCreatedCampaign ?? (async () => false),
     copyText: overrides.copyText ?? (async () => ({ ok: true as const })),
     openSmartGuestLink: overrides.openSmartGuestLink ?? vi.fn(),
     connectRealtime:

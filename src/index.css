@@ -70,6 +70,7 @@
   --color-op-color-green-500: var(--op-color-green-500);
   --color-op-color-green-500-muted: var(--op-color-green-500-muted);
   --color-op-color-green-600: var(--op-color-green-600);
+  --color-op-color-green-600-muted: var(--op-color-green-600-muted);
   --color-op-color-blue-600: var(--op-color-blue-600);
   --color-op-color-gray-60: var(--op-color-gray-60);
   --color-op-color-gray-70: var(--op-color-gray-70);
@@ -369,6 +370,8 @@ html.op {
   --op-color-green-500-muted: rgba(20, 167, 74, 0.16);
   /* Figma AI Assistant headline gradient start rgb(20, 169, 70) (3454:56046) */
   --op-color-green-600: #14a946;
+  /* Figma setup checklist completed row fill rgba(20, 169, 70, 0.04) (3238:28140) */
+  --op-color-green-600-muted: rgba(20, 169, 70, 0.04);
   /* Figma AI Assistant headline gradient end rgb(19, 90, 204) (3454:56046) */
   --op-color-blue-600: #135acc;
   --op-color-green-700: #00892c;

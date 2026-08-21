@@ -6,15 +6,22 @@ import {
   getSetupStepIllustration,
   hasSetupStepTintedRow,
   resolveSetupActionButtonVariant,
+  resolveSetupStepRowSurfaceClass,
   SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS,
+  SETUP_CHECKLIST_PROGRESS_FILL_CLASS,
+  SETUP_CHECKLIST_PROGRESS_GROUP_CLASS,
+  SETUP_CHECKLIST_PROGRESS_TRACK_CLASS,
   SETUP_CHECKLIST_SECTION_CLASS,
   SETUP_CHECKLIST_STEP_ACTIONS_CLASS,
   SETUP_CHECKLIST_STEP_CLASS,
+  SETUP_CHECKLIST_STEP_COMPLETED_CLASS,
+  SETUP_CHECKLIST_STEP_COMPLETED_ICON_CLASS,
   SETUP_CHECKLIST_STEP_CONTENT_CLASS,
   SETUP_CHECKLIST_STEP_BODY_CLASS,
   SETUP_STEP_COPY_GAP_CLASS,
   SETUP_STEP_DESCRIPTION_CLASS,
   SETUP_STEP_TITLE_CLASS,
+  setupRequiredProgressPercent,
   shouldShowSetupStatusMarker,
   shouldSpreadSetupStepActions,
 } from "./setupChecklistPresentation"
@@ -91,6 +98,35 @@ describe("setupChecklistPresentation", () => {
     expect(hasSetupStepTintedRow("complete")).toBe(true)
     expect(hasSetupStepTintedRow("partial")).toBe(true)
     expect(hasSetupStepTintedRow("incomplete")).toBe(false)
+  })
+
+  it("uses green muted fill for complete rows and gray wash for partial", () => {
+    expect(resolveSetupStepRowSurfaceClass("complete")).toContain(
+      "bg-op-color-green-600-muted"
+    )
+    expect(resolveSetupStepRowSurfaceClass("partial")).toContain("bg-[#ebebeb]")
+    expect(resolveSetupStepRowSurfaceClass("incomplete")).toBe("rounded")
+  })
+
+  it("maps required progress counts to a percent fill", () => {
+    expect(setupRequiredProgressPercent(0, 4)).toBe(0)
+    expect(setupRequiredProgressPercent(3, 4)).toBe(75)
+    expect(setupRequiredProgressPercent(4, 4)).toBe(100)
+    expect(setupRequiredProgressPercent(1, 0)).toBe(0)
+  })
+
+  it("exposes Figma setup progress bar metrics (6px, 12px gap, 383px max)", () => {
+    expect(SETUP_CHECKLIST_PROGRESS_GROUP_CLASS).toContain("gap-3")
+    expect(SETUP_CHECKLIST_PROGRESS_GROUP_CLASS).toContain("max-w-[383px]")
+    expect(SETUP_CHECKLIST_PROGRESS_TRACK_CLASS).toContain("h-1.5")
+    expect(SETUP_CHECKLIST_PROGRESS_FILL_CLASS).toContain(
+      "bg-op-color-green-600"
+    )
+  })
+
+  it("exposes Figma Step completed chrome classes", () => {
+    expect(SETUP_CHECKLIST_STEP_COMPLETED_CLASS).toContain("gap-1.5")
+    expect(SETUP_CHECKLIST_STEP_COMPLETED_ICON_CLASS).toContain("text-primary")
   })
 
   it("maps checklist CTA ids to operator button variants", () => {
