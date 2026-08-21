@@ -69,6 +69,25 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void TryParseModelContent_RejectsCrossSectionEmptySummary()
+        {
+            var content = ValidBodyJson(
+                watchNext: ["Watch wait times."],
+                feedbackSummary: WeeklyBriefStructuredOutput.EmptyCaptureSummary
+            );
+
+            var ok = WeeklyBriefStructuredOutput.TryParseModelContent(
+                content,
+                out var body,
+                out var invalid
+            );
+
+            Assert.False(ok);
+            Assert.True(invalid);
+            Assert.Null(body);
+        }
+
+        [Fact]
         public void BuildSystemPrompt_RequiresAggregatesOnlyPrivacyRules()
         {
             var prompt = WeeklyBriefStructuredOutput.BuildSystemPrompt("2026-08-21");
@@ -79,7 +98,7 @@ namespace TummlyBackend.Tests.Helpers
                 StringComparison.Ordinal
             );
             Assert.Contains(
-                "aggregate metrics and theme rollups",
+                "aggregate metrics and Detected Tag rollups",
                 prompt,
                 StringComparison.Ordinal
             );
@@ -93,6 +112,11 @@ namespace TummlyBackend.Tests.Helpers
                 prompt,
                 StringComparison.Ordinal
             );
+            Assert.Contains(
+                WeeklyBriefStructuredOutput.PromptSchemaRevision,
+                prompt,
+                StringComparison.Ordinal
+            );
         }
 
         [Fact]
@@ -100,13 +124,13 @@ namespace TummlyBackend.Tests.Helpers
         {
             var metrics = new WeeklyBriefMetrics(
                 GuestsJoined: 12,
-                CaptureEvents: 20,
+                QrScanEvents: 20,
                 FeedbackCount: 5,
                 PositiveFeedbackCount: 3,
                 NeutralFeedbackCount: 1,
                 NegativeFeedbackCount: 1,
                 NeedsAttentionCount: 1,
-                FeedbackThemeCounts: new Dictionary<string, int>
+                DetectedTagCounts: new Dictionary<string, int>
                 {
                     ["Service"] = 2,
                     ["Wait time"] = 1,
@@ -143,9 +167,16 @@ namespace TummlyBackend.Tests.Helpers
             var payload = JsonNode.Parse(userContent)!.AsObject();
             var metricsNode = payload["metrics"]!.AsObject();
 
-            Assert.Equal(WeeklyBriefStructuredOutput.SchemaVersion, payload["schemaVersion"]!.GetValue<string>());
+            Assert.Equal(
+                WeeklyBriefStructuredOutput.SchemaVersion,
+                payload["schemaVersion"]!.GetValue<string>()
+            );
             Assert.Equal(12, metricsNode["guestsJoined"]!.GetValue<int>());
-            Assert.Equal(2, metricsNode["feedbackThemeCounts"]!["Service"]!.GetValue<int>());
+            Assert.Equal(20, metricsNode["qrScanEvents"]!.GetValue<int>());
+            Assert.Equal(
+                2,
+                metricsNode["detectedTagCounts"]!["Service"]!.GetValue<int>()
+            );
             Assert.Equal(40, metricsNode["campaignRecipientsReached"]!.GetValue<int>());
 
             Assert.False(metricsNode.ContainsKey("guestName"));
@@ -153,6 +184,8 @@ namespace TummlyBackend.Tests.Helpers
             Assert.False(metricsNode.ContainsKey("phone"));
             Assert.False(metricsNode.ContainsKey("comment"));
             Assert.False(metricsNode.ContainsKey("feedbackComment"));
+            Assert.False(metricsNode.ContainsKey("feedbackThemeCounts"));
+            Assert.False(metricsNode.ContainsKey("captureEvents"));
             Assert.DoesNotContain("Jane", userContent, StringComparison.Ordinal);
             Assert.DoesNotContain("@", userContent, StringComparison.Ordinal);
         }

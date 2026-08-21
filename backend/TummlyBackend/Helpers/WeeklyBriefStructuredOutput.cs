@@ -20,7 +20,7 @@ namespace TummlyBackend.Helpers
         /// </summary>
         public const string SchemaVersion = "v1";
 
-        public const string PromptSchemaRevision = "2026-08-21";
+        public const string PromptSchemaRevision = "2026-08-21b";
 
         public const int WatchNextMinLength = 1;
 
@@ -37,15 +37,6 @@ namespace TummlyBackend.Helpers
 
         public const string EmptyCampaignsSummary =
             "No campaign activity this week.";
-
-        private static readonly HashSet<string> EmptySectionSummaries =
-            new(StringComparer.Ordinal)
-            {
-                EmptyCaptureSummary,
-                EmptyFeedbackSummary,
-                EmptyOffersSummary,
-                EmptyCampaignsSummary,
-            };
 
         private static readonly JsonSerializerOptions RequestJsonOptions = new()
         {
@@ -122,6 +113,7 @@ namespace TummlyBackend.Helpers
                         .ToArray()
                 );
 
+                // Re-check after sanitize: empty lines may drop the list below bounds.
                 if (body.Headline.Length == 0
                     || body.WatchNext.Count < WatchNextMinLength
                     || body.WatchNext.Count > WatchNextMaxLength)
@@ -174,17 +166,17 @@ namespace TummlyBackend.Helpers
                 Revision: {PromptSchemaRevision}.
 
                 Return Structured Outputs only.
-                Use only the fed aggregate metrics and theme rollups — never invent counts.
+                Use only the fed aggregate metrics and Detected Tag rollups — never invent counts.
                 Do not include guest names, emails, phones, or feedback comment bodies.
                 Do not include Home Recommended next-step types.
                 watchNext must have {WatchNextMinLength} to {WatchNextMaxLength} short
                 advisory lines (text only).
-                For each section with no signal: set hasData false and use the matching
-                empty summary from the allow-list:
-                "{EmptyCaptureSummary}"
-                "{EmptyFeedbackSummary}"
-                "{EmptyOffersSummary}"
-                "{EmptyCampaignsSummary}"
+                For each section with no signal: set hasData false and use that section's
+                empty summary exactly:
+                capture → "{EmptyCaptureSummary}"
+                feedback → "{EmptyFeedbackSummary}"
+                offers → "{EmptyOffersSummary}"
+                campaigns → "{EmptyCampaignsSummary}"
                 When hasData is true, summarise that domain from the metrics bag.
                 Set echoedCounts to null; the server attaches echoed counts from metrics.
                 """;
@@ -196,10 +188,10 @@ namespace TummlyBackend.Helpers
         )
         {
             var metrics = input.Metrics;
-            var themeCounts = new JsonObject();
-            foreach (var pair in metrics.FeedbackThemeCounts)
+            var detectedTagCounts = new JsonObject();
+            foreach (var pair in metrics.DetectedTagCounts)
             {
-                themeCounts[pair.Key] = pair.Value;
+                detectedTagCounts[pair.Key] = pair.Value;
             }
 
             var userPayload = new JsonObject
@@ -213,13 +205,13 @@ namespace TummlyBackend.Helpers
                 ["metrics"] = new JsonObject
                 {
                     ["guestsJoined"] = metrics.GuestsJoined,
-                    ["captureEvents"] = metrics.CaptureEvents,
+                    ["qrScanEvents"] = metrics.QrScanEvents,
                     ["feedbackCount"] = metrics.FeedbackCount,
                     ["positiveFeedbackCount"] = metrics.PositiveFeedbackCount,
                     ["neutralFeedbackCount"] = metrics.NeutralFeedbackCount,
                     ["negativeFeedbackCount"] = metrics.NegativeFeedbackCount,
                     ["needsAttentionCount"] = metrics.NeedsAttentionCount,
-                    ["feedbackThemeCounts"] = themeCounts,
+                    ["detectedTagCounts"] = detectedTagCounts,
                     ["activeOffers"] = metrics.ActiveOffers,
                     ["claimsInWeek"] = metrics.ClaimsInWeek,
                     ["redemptionsInWeek"] = metrics.RedemptionsInWeek,
@@ -269,8 +261,34 @@ namespace TummlyBackend.Helpers
                 out content
             );
 
-        public static bool IsAllowedEmptySectionSummary(string summary)
-            => EmptySectionSummaries.Contains(summary);
+        public static bool IsAllowedEmptySectionSummary(
+            string sectionName,
+            string summary
+        )
+            => sectionName switch
+            {
+                "capture" => string.Equals(
+                    summary,
+                    EmptyCaptureSummary,
+                    StringComparison.Ordinal
+                ),
+                "feedback" => string.Equals(
+                    summary,
+                    EmptyFeedbackSummary,
+                    StringComparison.Ordinal
+                ),
+                "offers" => string.Equals(
+                    summary,
+                    EmptyOffersSummary,
+                    StringComparison.Ordinal
+                ),
+                "campaigns" => string.Equals(
+                    summary,
+                    EmptyCampaignsSummary,
+                    StringComparison.Ordinal
+                ),
+                _ => false,
+            };
 
         private static WeeklyBriefSection SanitizeSection(WeeklyBriefSection section)
             => section with
@@ -313,7 +331,7 @@ namespace TummlyBackend.Helpers
                 return false;
             }
 
-            if (!hasData && !IsAllowedEmptySectionSummary(summary))
+            if (!hasData && !IsAllowedEmptySectionSummary(name, summary))
             {
                 return false;
             }
@@ -421,15 +439,4 @@ namespace TummlyBackend.Helpers
                 },
             };
     }
-
-    /// <summary>
-    /// Provider input for Weekly brief Structured Outputs (ticket 03 wires the caller).
-    /// </summary>
-    public sealed record WeeklyBriefProviderInput(
-        string LocationName,
-        string WeekKey,
-        DateTime CoverageStartUtc,
-        DateTime CoverageEndUtcExclusive,
-        WeeklyBriefMetrics Metrics
-    );
 }
