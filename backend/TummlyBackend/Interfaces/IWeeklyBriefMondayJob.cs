@@ -5,6 +5,7 @@ namespace TummlyBackend.Interfaces
     /// <summary>
     /// Monday hourly job seam: select Owned locations that need a closed-week
     /// brief, call generate, notify on first-write success. Ticket 05.
+    /// Ticket 08 one-shot ops command reuses this same batch.
     /// </summary>
     public interface IWeeklyBriefMondayJob
     {

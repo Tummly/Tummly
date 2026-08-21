@@ -955,6 +955,20 @@ app.Lifetime.ApplicationStarted.Register(() =>
     );
 });
 
+if (WeeklyBriefOneTimeGenerateCommand.IsRequested(args))
+{
+    app.Logger.LogInformation(
+        "Weekly brief one-time generate starting (ticket 08)"
+    );
+    Environment.ExitCode =
+        await WeeklyBriefOneTimeGenerateCommand.ExecuteAsync(
+            app.Services,
+            DateTime.UtcNow,
+            app.Logger
+        );
+    return;
+}
+
 app.Run();
 
 static async Task InitializeDatabaseAsync(
