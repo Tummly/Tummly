@@ -50,4 +50,39 @@ namespace TummlyBackend.Models
         DateTime CoverageEndUtcExclusive,
         WeeklyBriefMetrics Metrics
     );
+
+    /// <summary>
+    /// Result of Weekly brief provider (Azure or Fake).
+    /// </summary>
+    public abstract record WeeklyBriefProviderResult
+    {
+        private WeeklyBriefProviderResult()
+        {
+        }
+
+        public sealed record Succeeded(WeeklyBriefBody Body)
+            : WeeklyBriefProviderResult;
+
+        public sealed record Failed(bool Retryable = true)
+            : WeeklyBriefProviderResult;
+    }
+
+    /// <summary>
+    /// Result of <c>IWeeklyBriefGenerateService.GenerateAsync</c>.
+    /// </summary>
+    public abstract record WeeklyBriefGenerateResult
+    {
+        private WeeklyBriefGenerateResult()
+        {
+        }
+
+        /// <param name="Created">
+        /// True when this call persisted a new row; false when an existing row was returned.
+        /// </param>
+        public sealed record Succeeded(WeeklyBrief Brief, bool Created)
+            : WeeklyBriefGenerateResult;
+
+        public sealed record Failed(string Message, bool Retryable = true)
+            : WeeklyBriefGenerateResult;
+    }
 }
