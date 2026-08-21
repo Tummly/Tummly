@@ -325,8 +325,8 @@ The canonical operator follow-up lifecycle of one **Feedback**. Three persisted 
 _Avoid_: Feedback status (alone), review status, ticket status, Needs attention (as a stored status)
 
 **Needs attention** (Feedback):
-A derived operator signal on one **Feedback**: **AI classification** is Succeeded with Negative sentiment **and** **Feedback workflow status** is not **Resolved**. Not persisted. Surfaces as an inbox tab/filter, header CTA count, and a badge on **Feedback details** — never as a **Feedback workflow status** value. Distinct from Location Guest **Needs recovery**.
-_Avoid_: Needs recovery (when meaning Feedback), attention status, priority status, workflow Needs attention
+A derived operator signal on one **Feedback**: **AI classification** is Succeeded with Negative sentiment **and** **Feedback workflow status** is not **Resolved**. Not persisted. Surfaces as an inbox tab/filter, header CTA count, and a badge on **Feedback details** — never as a **Feedback workflow status** value. Distinct from Location Guest **Needs recovery**. A first-cut source for **Home Needs attention**.
+_Avoid_: Needs recovery (when meaning Feedback), attention status, priority status, workflow Needs attention, Home Needs attention (when meaning this Feedback signal alone)
 
 **Feedback recovery**:
 An operator follow-up wizard on one **Feedback**, entered via **Start recovery** or via **AI Assistant** Review after a completing **Recovery path** **live answer**. Four entry intents: **Respond to the guest**; **Respond and record an internal action**; **Record an internal action only**; **Respond with a recovery offer**. Records recovery outcomes as facts (guest response, internal action, **recovery offer**) and drives **Feedback workflow status**; not a separate persisted recovery-status enum. Uses the shared **Operator wizard shell**; intent-specific step bodies stay feature-owned. The **AI Assistant** may prepare it on that completing turn; it is not a stored Draft and has no **Drafts** list row. Distinct from Location Guest **Needs recovery**.
@@ -537,7 +537,7 @@ _Avoid_: Contactable, opted in, eligible count (as the metric name); Currently e
 
 **Needs recovery**:
 The derived membership of a **Location Guest** that has at least one **Feedback** whose **Succeeded** **AI classification** sentiment is currently Negative — the temporary stand-in for “unresolved negative feedback” until a recovery-exit domain exists. Not “latest sentiment is Negative” alone (a later Positive Feedback does not clear membership). Membership recomputes from current sentiment: an operator **classification correction** that leaves no Succeeded Negative Feedbacks clears membership. The **Needs recovery** Smart Group lists all members in location scope (independent of **Guest overview date range**) and is not mutually exclusive with **Positive feedback** (a guest can match both). The Guest overview **Needs recovery** KPI is special-cased: All time = count of members; with a preset/custom window = count of Location Guests that have ≥1 currently Succeeded Negative Feedback whose **submission time** falls in that window (first-captured may be outside the window). Other entry reasons, open recovery actions, and explicit resolve/exit are deferred.
-_Avoid_: Recovery queue, negative guests (as the metric name); Positive feedback (the Smart Group — different membership rule)
+_Avoid_: Recovery queue, negative guests (as the metric name); Positive feedback (the Smart Group — different membership rule); Home Needs attention (Guests is not a first-cut source)
 
 **Settings nav group**:
 A disclosure in the Operator SideNav that groups future management destinations. It is not itself a destination or landing page.
@@ -560,16 +560,32 @@ The shell-scoped module for one Operator dashboard visit. Owns bootstrap of Owne
 _Avoid_: Operator Home session, dashboard controller, auth store
 
 **Operator Home page module**:
-The Home-scoped module for the Operator dashboard Home body. Depends on the Operator workspace session’s selected Owned location. Owns Home location-scoped loads (feedback snapshot; **Performance overview** KPI counts for the **Home performance date range**; Finish-setting-up acknowledgements via an internal ack module), Latest activity Feedback details via an internal Feedback details module, a narrowed Home body view-model (selected venue, Smart Guest Link caps, setup steps, KPIs, activity — not shell chrome or static empty-shell section props), Preview guest form (Smart Guest Link, then acknowledge on the ack module), and Copy Smart Guest Link (clipboard copy of the selected location’s Smart Guest Link; toast on success). Does not own Download QR. Static empty shells (Needs attention, Live offers, Recommended, Weekly brief) are owned by section components. Swappable later for other page modules without tearing down the shell or workspace session.
+The Home-scoped module for the Operator dashboard Home body. Depends on the Operator workspace session’s selected Owned location. Owns Home location-scoped loads (feedback snapshot; **Performance overview** KPI counts for the **Home performance date range**; Finish-setting-up acknowledgements via an internal ack module; **Home Needs attention** assembly from source queues; **Home Recommended next step** load, retry, session dismiss, and soft cache), Latest activity Feedback details via an internal Feedback details module, a narrowed Home body view-model (selected venue, Smart Guest Link caps, setup steps, KPIs, activity — not shell chrome), Preview guest form (Smart Guest Link, then acknowledge on the ack module), and Copy Smart Guest Link (clipboard copy of the selected location’s Smart Guest Link; toast on success). Does not own Download QR. **Weekly brief** empty chrome stays section-owned until that slice wires. Swappable later for other page modules without tearing down the shell or workspace session.
 _Avoid_: Operator Home session (when meaning shared shell state), Home controller as the owner of locations/profile
+
+**Home Needs attention**:
+The Operator Home section that lists derived attention items from other Operator dashboard queues for the selected Owned location. It is a now-queue and a pooled projection: Home does not store an attention status and does not invent extra membership. Location-owned rows follow the location switcher (meta scope is the location name, never All locations). The list shows 5 rows then View all expands in the accordion. Kind order: Feedback aggregate, then Campaigns, then Offers; recency sorts inside a kind. The section stays when empty (honest empty shell); collapse is session UI. Offers, Campaigns, and Feedback keep their own Needs attention queues.
+_Avoid_: Unified inbox, alert feed, attention hub, attention changes, stored Home attention status, Needs recovery (when meaning this section), restaurant-wide Home attention
+
+**Home Needs attention item**:
+A projection row in **Home Needs attention** with title, body, meta (kind · relative time · scope), and one or two CTAs that open the source. It leaves when source membership leaves; there is no Home-only dismiss. Feedback is one aggregate count of **Needs attention** (Feedback) (meta time = newest Feedback submission time in that set; CTA opens the Feedback inbox Needs attention tab). Campaigns are one named row per **Failed** or **Partially sent** Campaign (Preview plus Retry remaining or Duplicate as Draft). Offers are one named Offer per **Offers list Needs attention** member; **Void request** wins over expiry when both are open (Manage offer, View redemptions). A later account-scoped kind is a low **AI credit**, **Email credit**, or **SMS credit** pool (Billing owns membership; meta scope Account-wide; sits after Feedback in kind order; also creates a **Notification**). Distinct from **Needs recovery**.
+_Avoid_: Needs recovery row (when meaning this Home row); Notification (when meaning a Home row); credit push; Offers overview aggregate (when meaning a Home Offer row); All locations (as Home meta scope)
 
 **Performance overview**:
 The Operator Home section that shows guest-engagement KPIs for the selected Owned location (QR scans, Feedback submitted, Guests joined, Offer redemptions) and the date-range control that scopes live KPI counts. Distinct from Guest overview on the Guests page.
 _Avoid_: Stats strip, Home analytics, KPI dashboard (when meaning this section)
 
 **Home performance date range**:
-The operator-selected time window that scopes **Performance overview** live KPI counts for the current Operator dashboard visit. Stored as `homePerformanceDateRange` on the visit-scoped dashboard UI store. Defaults to Last 7 days on first land of a dashboard visit; not persisted across visits or in `localStorage`. Does not filter Latest activity.
+The operator-selected time window that scopes **Performance overview** live KPI counts for the current Operator dashboard visit. Also the window on the **Home Recommended next step** request and cache key. Stored as `homePerformanceDateRange` on the visit-scoped dashboard UI store. Defaults to Last 7 days on first land of a dashboard visit; not persisted across visits or in `localStorage`. Does not filter Latest activity.
 _Avoid_: dashboardDateRange, KPI filter (as the store key), all-time stats window
+
+**Home Recommended next step**:
+The live Operator Home AI card for one next action at the selected Owned location, driven by recent guest activity in the **Home performance date range**. Allow-list domains: Guests, Feedback, Offers, Campaigns. Types: `review-open-feedback`, `thank-or-follow-guest`, `promote-or-fix-offer`, `thank-recent-guests`, `re-engage`, `recovery-follow-up`, or `none`. Rules pick the type. Azure writes Home-native copy. Campaign types reuse the Campaigns **Campaign recommendation** service for draft prefill and echoed counts. `POST /api/home/recommendation`. Server cache: operator + location + date window, TTL 30 min; client soft cache; session Not now. Free call (no **AI credit** debit, no credit UI). Owned by the **Operator Home page module** on the module snapshot, not the Home view-model. Distinct from **Campaign recommendation**, **Offer recommendation**, and **Weekly brief**. Does not approve, schedule, or send. Reports and setup-checklist types are out of v1.
+_Avoid_: Campaign recommendation (when meaning this Home card); Offer recommendation; Weekly brief; empty shell until a shared pipeline; Recommended next step (unqualified)
+
+**Weekly brief**:
+Operator Home section for a Monday AI summary of the closed prior week. Empty chrome only until its own slice; not a live Home card. Distinct from **Home Recommended next step** and **Campaign recommendation**. Preference **Weekly brief reminders** and type `weekly-brief-ready` already exist; generate, week cache, notify, and Home wiring stay deferred.
+_Avoid_: Home Recommended next step; Campaign recommendation; Offer recommendation; live weekly brief
 
 **Capture performance**:
 The Capture section that shows location-level engagement KPIs for the selected **Owned location** (Guest form opens — UI label for QR-scan counts — Form starts, Feedback submitted, Marketing opt-ins, Offer claims) scoped by the **Capture performance date range**. Totals sum across all **QR type**s at that location; the **QR placements** and **Digital guest links** tables break the same window down per code. Distinct from Home **Performance overview**.
@@ -739,7 +755,7 @@ The catalogue picker **Preview** drawer for one **Campaign template** (S6). Same
 _Avoid_: Campaign Detail / Campaign Preview (when meaning a list Campaign); Guest preview (wizard message overlay); live eligibility Preview
 
 **Campaign status**:
-The stored lifecycle of one **Campaign**. MVP set (no approval): **Draft**, **Scheduled**, **Sending**, **Sent**, **Partially sent**, **Paused**, **Failed**, **Cancelled**. **Archived** and **Awaiting approval** stay out of MVP. **Needs attention** for Campaigns is a derived view (Failed or Partially sent) — not a stored **Campaign status**. List tabs: Needs attention / Drafts / In flight (Scheduled, Sending, Paused) / Sent (Sent, Partially sent) / All. Operators may pause from Scheduled or Sending; resume from Paused after revalidation; Partially sent continues via Retry remaining (not via Paused); Scheduled may return to Draft (unschedule) or Cancelled; cancel remaining while Sending yields Partially sent or Cancelled.
+The stored lifecycle of one **Campaign**. MVP set (no approval): **Draft**, **Scheduled**, **Sending**, **Sent**, **Partially sent**, **Paused**, **Failed**, **Cancelled**. **Archived** and **Awaiting approval** stay out of MVP. **Needs attention** for Campaigns is a derived view (Failed or Partially sent) — not a stored **Campaign status**. A first-cut source for **Home Needs attention** (one named Home row per matching Campaign). List tabs: Needs attention / Drafts / In flight (Scheduled, Sending, Paused) / Sent (Sent, Partially sent) / All. Operators may pause from Scheduled or Sending; resume from Paused after revalidation; Partially sent continues via Retry remaining (not via Paused); Scheduled may return to Draft (unschedule) or Cancelled; cancel remaining while Sending yields Partially sent or Cancelled.
 _Avoid_: Feedback workflow status (when meaning a Campaign); Needs attention (as a stored Campaign status); Awaiting approval (MVP)
 
 **Campaign schedule commit**:
@@ -823,8 +839,8 @@ Derived list tab for closed **Offers catalog** definitions only: paused, expired
 _Avoid_: Campaign Sent (email/SMS send complete)
 
 **Offers list Needs attention**:
-List tab and main-page overview seam for **Offers catalog** definitions that need operator review. Membership: open **rule warning** or open **AI** attention signal that is not session-dismissed on **in-flight** (effective Active with ≥1 live attach) Offers; may overlap other Offers list tabs — its count is not added into Drafts+In flight+Sent = All. Main-page rows use one chrome; meta distinguishes Warning vs AI. MVP rule warnings: catalog offer end-of-validity within rolling **7 local venue days**; open **Void request**. Section stays when empty (honest empty shell); collapse is session UI; rule rows do not dismiss; AI Not now is session-only. Queue CTAs switch the list to this tab (optional warning-type scope). Distinct from Feedback Needs attention, Campaigns list Needs attention, and **Offer recommendation**.
-_Avoid_: Campaign recommendation (when meaning this Offers seam); Feedback Needs attention; Campaigns Failed/Partially sent tab
+List tab and main-page overview seam for **Offers catalog** definitions that need operator review. Membership: open **rule warning** or open **AI** attention signal that is not session-dismissed on **in-flight** (effective Active with ≥1 live attach) Offers; may overlap other Offers list tabs — its count is not added into Drafts+In flight+Sent = All. Main-page rows use one chrome; meta distinguishes Warning vs AI. MVP rule warnings: catalog offer end-of-validity within rolling **7 local venue days**; open **Void request**. Section stays when empty (honest empty shell); collapse is session UI; rule rows do not dismiss; AI Not now is session-only. Queue CTAs switch the list to this tab (optional warning-type scope). Distinct from **Needs attention** (Feedback), Campaigns **Needs attention**, **Home Needs attention**, and **Offer recommendation**. A first-cut source for **Home Needs attention**.
+_Avoid_: Campaign recommendation (when meaning this Offers seam); Needs attention (Feedback); Campaigns Failed/Partially sent tab; Home Needs attention (when meaning this Offers queue alone)
 
 **Offers page**:
 Operator dashboard surface for the location’s **Offers catalog**: header CTAs (**Create offer**, **Open staff redeem**, **View redemption log**), **Offers Performance** strip, **Offers list Needs attention** overview, and the Offers table (tabs, search, filters, slim row ⋮). Product lock: `.scratch/offers/issues/14-main-offers-page-surface.md`.
@@ -844,8 +860,8 @@ _Avoid_: Campaign detail; Guest details; Offers page list; Cancelled as a catalo
 
 
 **Offer recommendation**:
-Per-offer AI **Recommended next step** on Offer Details Overview. Distinct from the main Offers **Needs attention** queue and from **Campaign recommendation**. First Offers build ships card chrome with honest empty / none; when live, CTAs such as Create reminder campaign may open Campaign create with draft prefill. Does not approve, schedule, or send.
-_Avoid_: Campaign recommendation; Offers list Needs attention (main-page queue); Weekly brief; Home Recommended next step (empty shell)
+Per-offer AI **Recommended next step** on Offer Details Overview. Distinct from the main Offers **Needs attention** queue, from **Campaign recommendation**, and from **Home Recommended next step**. First Offers build ships card chrome with honest empty / none; when live, CTAs such as Create reminder campaign may open Campaign create with draft prefill. Does not approve, schedule, or send.
+_Avoid_: Campaign recommendation; Offers list Needs attention (main-page queue); Weekly brief; Home Recommended next step
 
 
 **Dormant guests**:
@@ -861,8 +877,8 @@ Operator-chosen saved guest group or CRM-style list as a Campaign audience. **Ou
 _Avoid_: Smart Group (when meaning operator-saved lists); mock Weekday regulars / VIP as product capability
 
 **Campaign recommendation**:
-An AI-suggested next **Campaign** for the Campaigns overview, built from fed live metrics (or none when signals are too weak). May prepare a **Campaign Draft** the operator owns. Does not approve, schedule, or send.
-_Avoid_: Weekly brief (when meaning this Campaigns card); Recommended next step on Home (empty shell until a shared pipeline); autonomous campaign
+An AI-suggested next **Campaign** for the Campaigns overview, built from fed live metrics (or none when signals are too weak). May prepare a **Campaign Draft** the operator owns. Does not approve, schedule, or send. Distinct from **Home Recommended next step**, which may reuse this service only for campaign allow-list types.
+_Avoid_: Weekly brief (when meaning this Campaigns card); Home Recommended next step; Offer recommendation; autonomous campaign
 
 **Campaign send test**:
 An operator-only transactional Resend of the current Campaign Email draft to a nominated Email address chosen in the **Send test email** dialog (operator account email prefilled; editable). Does not burn Email credits, does not use the Campaign Email adapter, and does not create a Campaign or guest send fact. Email channel only in MVP — SMS Send test stays unavailable. When the draft includes an offer, the test mail shows the offer block with a sample code only. Failures are synchronous only. Subject to the same QA redirect rules as other Resend mail. Distinct from **Guest preview send test** (Recovery → signed-in operator account email with no address dialog).
