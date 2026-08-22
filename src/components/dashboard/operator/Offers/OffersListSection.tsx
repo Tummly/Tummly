@@ -1,6 +1,6 @@
 import { OffersListEmptyState } from "@/components/dashboard/operator/Offers/OffersListEmptyState"
 import { OffersListTable } from "@/components/dashboard/operator/Offers/OffersListTable"
-import { GuestsRemovableChip } from "@/components/dashboard/operator/Guests/GuestsRemovableChip"
+import { GuestsFilterChipRow } from "@/components/dashboard/operator/Guests/GuestsFilterChipRow"
 import {
   OperatorTableTabPanel,
   type OperatorTabContentStatus,
@@ -214,33 +214,18 @@ export function OffersListSection({
               </div>
             </div>
 
-            {list.needsAttentionWarningChip != null
-            || list.filterChips.length > 0 ? (
-            <div
-              className="flex flex-wrap gap-2"
-              aria-label={
+            <GuestsFilterChipRow
+              chips={list.filterChips}
+              onRemoveChip={onRemoveFilterChip}
+              leadingChip={
                 list.needsAttentionWarningChip != null
-                  ? "Applied filters and warning scope"
-                  : "Applied filters"
+                  ? {
+                      label: list.needsAttentionWarningChip.label,
+                      onRemove: onClearNeedsAttentionWarningChip,
+                    }
+                  : null
               }
-            >
-              {list.needsAttentionWarningChip != null ? (
-                <GuestsRemovableChip
-                  label={list.needsAttentionWarningChip.label}
-                  removeLabel={`Remove ${list.needsAttentionWarningChip.label}`}
-                  onRemove={onClearNeedsAttentionWarningChip}
-                />
-              ) : null}
-              {list.filterChips.map((chip) => (
-                <GuestsRemovableChip
-                  key={chip.id}
-                  label={chip.label}
-                  removeLabel={`Remove ${chip.label}`}
-                  onRemove={() => onRemoveFilterChip(chip)}
-                />
-              ))}
-            </div>
-            ) : null}
+            />
 
             {list.searchMissLabel != null ? (
               <p className={OFFERS_SEARCH_MISS_CLASS}>{list.searchMissLabel}</p>

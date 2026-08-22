@@ -2431,5 +2431,97 @@ describe("createOperatorOffersPageModule", () => {
         )
       ).toBeDefined()
     })
+
+    it("warning-type scope alone uses view-scoped empty, not filter-search", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "expiry"
+        ) {
+          return scopedListResponse([], 0)
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 3)
+        }
+        return emptyListResponse({ tabCounts: fullQueueTabCounts })
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+
+      const list = pageModule.getSnapshot().viewModel?.list
+      expect(list?.needsAttentionWarningChip).toEqual({ label: "Expiring soon" })
+      expect(list?.empty?.kind).toBe("view-scoped")
+      expect(list?.empty?.clearAllFiltersLabel).toBeUndefined()
+    })
+
+    it("Status filter after CTA applies on scoped set and updates Showing N", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "expiry"
+          && Array.isArray(params.status)
+          && params.status.includes("active")
+        ) {
+          return scopedListResponse(
+            [offerListItem({ id: 1, title: "Active expiring", status: "active" })],
+            1
+          )
+        }
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "expiry"
+        ) {
+          return scopedListResponse(
+            [
+              offerListItem({ id: 1, title: "Active expiring", status: "active" }),
+              offerListItem({ id: 2, title: "Paused expiring", status: "paused" }),
+            ],
+            2
+          )
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 3)
+        }
+        return emptyListResponse()
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+      pageModule.applyFilters({
+        ...emptySelection(offersFilterSheetSchema()),
+        status: { kind: "multi-select", ids: ["active"] },
+      })
+
+      await vi.waitFor(() => {
+        expect(
+          findListCall(
+            listCatalogOffers,
+            (params) =>
+              params.warningType === "expiry"
+              && Array.isArray(params.status)
+              && params.status.includes("active")
+          )
+        ).toBeDefined()
+        expect(pageModule.getSnapshot().viewModel?.list.totalCount).toBe(1)
+      })
+
+      const list = pageModule.getSnapshot().viewModel?.list
+      expect(list?.needsAttentionWarningChip).toEqual({ label: "Expiring soon" })
+      expect(list?.totalCount).toBe(1)
+      expect(list?.pageRangeLabel).toBe("Showing 1–1 of 1 offers")
+    })
   })
 })
