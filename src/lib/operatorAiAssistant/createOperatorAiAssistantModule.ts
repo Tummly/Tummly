@@ -328,7 +328,8 @@ export type OperatorAiAssistantAdapters = {
   getCampaignDraft: (campaignId: number) => Promise<CampaignDraftDetail | null>
   /**
    * Load the Offers catalog row to gate completing-turn open. Return null when
-   * the Offer is missing. Throw on load fail.
+   * the Offer is missing. Throw on load fail. Draft and Active may open;
+   * paused, archived, and other statuses stay in the Assistant.
    */
   getCatalogOffer: (offerId: number) => Promise<CatalogOfferDetail | null>
   createCampaignDraft?: (body: CreateCampaignDraftRequest) => Promise<void>
@@ -1071,6 +1072,20 @@ function canOpenStoredDraftFromAssistant(
   return row.locationId === analysisScopeLocationId
 }
 
+function canOpenStoredOfferFromAssistant(
+  row: { status: string; locationId: number } | null,
+  analysisScopeLocationId: number
+): boolean {
+  if (row == null) {
+    return false
+  }
+  const status = row.status.toLowerCase()
+  if (status !== "draft" && status !== "active") {
+    return false
+  }
+  return row.locationId === analysisScopeLocationId
+}
+
 function visibleActionsForMessage(
   message: OperatorAiAssistantMessage,
   state: AssistantState
@@ -1090,13 +1105,20 @@ function visibleActionsForMessage(
     isCompletingOfferAction(action.type)
   )
   const hasOpenRecovery = raw.some((action) => action.type === "open-recovery")
-  const filtered = hasCompletingCampaign
-    ? raw.filter((action) => isCompletingCampaignAction(action.type)).slice(0, 3)
-    : hasCompletingOffer
-      ? raw.filter((action) => isCompletingOfferAction(action.type)).slice(0, 1)
-      : hasOpenRecovery
-        ? raw.filter((action) => action.type === "open-recovery").slice(0, 1)
-        : raw.slice(0, 3)
+  const combinedCreate =
+    hasCompletingCampaign && hasCompletingOffer
+  const filtered = combinedCreate
+    ? (["review-campaign", "change-audience", "review-offer"] as const)
+        .map((type) => raw.find((action) => action.type === type))
+        .filter((action): action is OperatorAiAssistantAction => action != null)
+        .slice(0, 3)
+    : hasCompletingCampaign
+      ? raw.filter((action) => isCompletingCampaignAction(action.type)).slice(0, 3)
+      : hasCompletingOffer
+        ? raw.filter((action) => isCompletingOfferAction(action.type)).slice(0, 1)
+        : hasOpenRecovery
+          ? raw.filter((action) => action.type === "open-recovery").slice(0, 1)
+          : raw.slice(0, 3)
 
   return filtered.map((action) => ({
     ...action,
@@ -2278,7 +2300,7 @@ export function createOperatorAiAssistantModule(
           .getCatalogOffer(offerId)
           .then((offer) => {
             if (
-              !canOpenStoredDraftFromAssistant(
+              !canOpenStoredOfferFromAssistant(
                 offer,
                 analysisScope.ownedLocationId
               )

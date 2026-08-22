@@ -26,7 +26,8 @@ namespace TummlyBackend.Helpers
                 || (targets.Contains(Campaign)
                     && LooksLikeNewOfferBesideCampaign(lower)))
             {
-                if (!targets.Contains(Offer, StringComparer.Ordinal))
+                if (!AssistantTaskClassification.LooksLikeCreateCampaignWithOffer(message)
+                    && !targets.Contains(Offer, StringComparer.Ordinal))
                 {
                     targets.Add(Offer);
                 }

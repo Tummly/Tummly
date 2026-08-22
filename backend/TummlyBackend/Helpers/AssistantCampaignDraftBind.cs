@@ -194,6 +194,22 @@ namespace TummlyBackend.Helpers
             );
         }
 
+        public static IReadOnlyList<AssistantCatalogOfferRef> MatchAttachable(
+            string userMessage,
+            IReadOnlyList<AssistantCatalogOfferRef> locationOffers
+        )
+        {
+            var titleMatches = MatchTitles(userMessage, locationOffers)
+                .Where(offer => offer.Attachable)
+                .ToList();
+            if (titleMatches.Count > 0)
+            {
+                return titleMatches;
+            }
+
+            return MatchCommercialTerms(userMessage, locationOffers);
+        }
+
         public static string OfferClashBody(IReadOnlyList<string> titles)
             => $"Which Offer should this Campaign Draft use: {AssistantCreateLocationGap.Join(titles)}?";
 

@@ -1543,9 +1543,9 @@ describe("grounded live answers, helpful fill, and Actions", () => {
       },
     },
     {
-      name: "the Offer is not Draft",
+      name: "the Offer is not Draft or Active",
       getCatalogOffer: async () =>
-        inMemoryOpenableCatalogOffer(55, { status: "active" }),
+        inMemoryOpenableCatalogOffer(55, { status: "paused" }),
     },
     {
       name: "the Offer is at the wrong location",
@@ -1712,6 +1712,162 @@ describe("grounded live answers, helpful fill, and Actions", () => {
       label: "Review campaign draft",
       campaignId: 41,
       clickable: true,
+    })
+  })
+
+  it("keeps the Assistant open after combined create with three Action rows and does not POST create", async () => {
+    let campaignCreateCalls = 0
+    let offerCreateCalls = 0
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-combined",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: null,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Campaign Draft saved with Offer",
+            body: "I saved a Campaign Draft with an attached Offer for Camden.",
+            actions: [
+              {
+                type: "review-campaign",
+                label: "Review campaign draft",
+                campaignId: 41,
+              },
+              {
+                type: "change-audience",
+                label: "Change audience",
+                campaignId: 41,
+              },
+              {
+                type: "review-offer",
+                label: "Review offer draft",
+                offerId: 9,
+              },
+            ],
+          },
+        ],
+      }),
+      createCampaignDraft: async () => {
+        campaignCreateCalls += 1
+      },
+      createCatalogOfferDraft: async () => {
+        offerCreateCalls += 1
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft(
+      "Create a campaign with 10% off valid 30 days after issue at Camden"
+    )
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(campaignCreateCalls).toBe(0)
+    expect(offerCreateCalls).toBe(0)
+    expect(module.getSnapshot().messages.at(-1)?.actions).toEqual([
+      expect.objectContaining({
+        type: "review-campaign",
+        label: "Review campaign draft",
+        campaignId: 41,
+        clickable: true,
+      }),
+      expect.objectContaining({
+        type: "change-audience",
+        label: "Change audience",
+        campaignId: 41,
+        clickable: true,
+      }),
+      expect.objectContaining({
+        type: "review-offer",
+        label: "Review offer draft",
+        offerId: 9,
+        clickable: true,
+      }),
+    ])
+  })
+
+  it("closes the Assistant on combined Review offer without POSTing create when Offer is Active", async () => {
+    let campaignCreateCalls = 0
+    let offerCreateCalls = 0
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-combined-review",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: null,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Campaign Draft saved with Offer",
+            body: "Campaign Draft saved with Offer.",
+            actions: [
+              {
+                type: "review-campaign",
+                label: "Review campaign draft",
+                campaignId: 41,
+              },
+              {
+                type: "change-audience",
+                label: "Change audience",
+                campaignId: 41,
+              },
+              {
+                type: "review-offer",
+                label: "Review offer draft",
+                offerId: 9,
+              },
+            ],
+          },
+        ],
+      }),
+      createCampaignDraft: async () => {
+        campaignCreateCalls += 1
+      },
+      createCatalogOfferDraft: async () => {
+        offerCreateCalls += 1
+      },
+      getCatalogOffer: async (offerId) =>
+        inMemoryOpenableCatalogOffer(offerId, { status: "active" }),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft(
+      "Create a campaign with 10% off valid 30 days after issue at Camden"
+    )
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const action = module
+      .getSnapshot()
+      .messages.at(-1)
+      ?.actions?.find((item) => item.type === "review-offer")
+    expect(action).toBeDefined()
+    module.clickAction(action!)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(campaignCreateCalls).toBe(0)
+    expect(offerCreateCalls).toBe(0)
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(adapters.lastNavigate?.action).toMatchObject({
+      type: "review-offer",
+      label: "Review offer draft",
+      offerId: 9,
     })
   })
 

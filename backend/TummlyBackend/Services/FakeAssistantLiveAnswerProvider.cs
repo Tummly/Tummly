@@ -92,6 +92,17 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (task == AssistantTask.CreateCampaignWithOffer)
+            {
+                return new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Campaign Draft with Offer",
+                    "Create Campaign with Offer.",
+                    [],
+                    AssistantTask.CreateCampaignWithOffer
+                );
+            }
+
             if (task == AssistantTask.OfferPath)
             {
                 return new AssistantLiveAnswerResult.Succeeded(

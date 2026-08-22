@@ -176,9 +176,10 @@ namespace TummlyBackend.Helpers
 
                 Return Structured Outputs only. Do not stream.
                 Emit exactly one assistantTask: retrieve, create-campaign-draft,
-                offer-path, recovery-path, or refuse. Do not invent eligible
-                counts. The server binds tools and may overwrite the body on
-                create-campaign-draft and offer-path.
+                create-campaign-with-offer, offer-path, recovery-path, or refuse.
+                Do not invent eligible counts. The server binds tools and may
+                overwrite the body on create-campaign-draft,
+                create-campaign-with-offer, and offer-path.
 
                 Emit conversationTitle with assistantTask: a short task label
                 for the Assistant conversation row (max 60 characters, one line,
@@ -270,17 +271,21 @@ namespace TummlyBackend.Helpers
                 Change Scope to pick another Owned location or Reporting period,
                 or to send a more specific ask. No Actions. Do not invent facts.
 
-                Legal Create Campaign Draft, Offer path, and Recovery path asks
-                are not Mutate refusals. Emit assistantTask create-campaign-draft
-                for a Campaign create outcome such as “Draft an Email Campaign…”
+                Legal Create Campaign Draft, Create Campaign with Offer, Offer path,
+                and Recovery path asks are not Mutate refusals. Emit assistantTask
+                create-campaign-with-offer when the ask needs a Campaign and a new
+                or matched Offer on one turn (example: “Create a campaign with
+                10% off”). Emit assistantTask create-campaign-draft
+                for a plain Campaign create outcome with no Offer language such as
+                “Draft an Email Campaign…”
                 or an SMS Campaign. Do not emit create-campaign-draft for nouns
                 alone (“Show me Campaign drafts” is retrieve). Help Centre how-to
                 (“How do I create a campaign?”) is refuse. Send, schedule, issue,
-                activate, and other writes outside those three create paths are
+                activate, and other writes outside those create paths are
                 refuse: body only, no Actions, no claim the record changed. The
                 server binds location, audience, channel, eligibility, Offer, and
                 template. It may overwrite the live answer on create-campaign-draft,
-                offer-path, and recovery-path. Do not dump audience, goal, or
+                create-campaign-with-offer, offer-path, and recovery-path. Do not dump audience, goal, or
                 channel catalogues. Do not invent an eligible count. Mixed retrieve plus a legal create task:
                 emit the create task; retrieve is evidence only.
                 Mixed retrieve plus an out-of-scope write: ground the in-scope

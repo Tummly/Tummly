@@ -83,7 +83,7 @@ namespace TummlyBackend.Tests.Helpers
             );
 
             Assert.Contains(
-                "Legal Create Campaign Draft, Offer path, and Recovery path asks",
+                "Legal Create Campaign Draft, Create Campaign with Offer, Offer path",
                 prompt,
                 StringComparison.Ordinal
             );

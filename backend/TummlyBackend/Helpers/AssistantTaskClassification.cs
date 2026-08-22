@@ -11,10 +11,16 @@ namespace TummlyBackend.Helpers
         {
             if (AssistantAskIntent.IsHelpCentreAsk(userMessage)
                 && (LooksLikeCreateCampaignDraft(userMessage)
+                    || LooksLikeCreateCampaignWithOffer(userMessage)
                     || LooksLikeOfferPath(userMessage)
                     || LooksLikeRecoveryPath(userMessage)))
             {
                 return AssistantTask.Refuse;
+            }
+
+            if (LooksLikeCreateCampaignWithOffer(userMessage))
+            {
+                return AssistantTask.CreateCampaignWithOffer;
             }
 
             if (LooksLikeCreateCampaignDraft(userMessage))
@@ -110,6 +116,29 @@ namespace TummlyBackend.Helpers
         public static bool LooksLikeRecoveryPath(string message)
             => AssistantRecoveryIntent.LooksLikeRecoveryAsk(message);
 
+        public static bool LooksLikeCreateCampaignWithOffer(string message)
+        {
+            if (!LooksLikeCreateCampaignDraft(message)
+                || LooksLikeRecoveryPath(message))
+            {
+                return false;
+            }
+
+            if (LooksLikeOfferPath(message)
+                || LooksLikeNewOfferBesideCampaign(message))
+            {
+                return true;
+            }
+
+            var terms = AssistantOfferPathTerms.Parse(message);
+            return terms.OfferType is not null
+                || terms.DiscountPercentage is not null
+                || terms.DiscountAmount is not null
+                || !string.IsNullOrWhiteSpace(terms.FreeItemText)
+                || !string.IsNullOrWhiteSpace(terms.ReplacementItemText)
+                || terms.ConflictingBenefits.Count > 0;
+        }
+
         public static bool LooksLikeCreateCampaignDraft(string message)
         {
             var lower = message.Trim().ToLowerInvariant();
@@ -177,6 +206,7 @@ namespace TummlyBackend.Helpers
             return AssistantAskIntent.HasReplacingRetrieveAsk(message)
                 && AssistantCreateTargets.Detect(message).Count == 0
                 && !LooksLikeCreateCampaignDraft(message)
+                && !LooksLikeCreateCampaignWithOffer(message)
                 && !LooksLikeOfferPath(message)
                 && !LooksLikeRecoveryPath(message);
         }
@@ -188,6 +218,7 @@ namespace TummlyBackend.Helpers
         {
             var classified = Classify(sourceMessage);
             if (classified is AssistantTask.CreateCampaignDraft
+                or AssistantTask.CreateCampaignWithOffer
                 or AssistantTask.OfferPath
                 or AssistantTask.RecoveryPath)
             {
@@ -225,6 +256,17 @@ namespace TummlyBackend.Helpers
                 AssistantCreateTargets.Recovery => AssistantTask.RecoveryPath,
                 _ => AssistantTask.Retrieve,
             };
+
+        private static bool LooksLikeNewOfferBesideCampaign(string message)
+            => ContainsAny(
+                message.Trim().ToLowerInvariant(),
+                "and an offer",
+                "and a new offer",
+                "and create an offer",
+                "and draft an offer",
+                "and an offer draft",
+                "plus an offer"
+            );
 
         private static bool ContainsAny(string lower, params string[] needles)
             => needles.Any(needle => lower.Contains(needle, StringComparison.Ordinal));

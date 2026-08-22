@@ -626,6 +626,9 @@ namespace TummlyBackend.Tests.Services
         private const string CanonicalCamdenEmailWinBackAsk =
             "Draft an Email Campaign to bring back all currently Email-eligible guests at Camden";
 
+        private const string CanonicalCamdenCampaignWithOfferAsk =
+            "Create a campaign with 10% off valid 30 days after issue at Camden";
+
         private const string CanonicalGeneratedConversationTitle =
             "Bring back Email-eligible guests";
 
@@ -716,6 +719,225 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("Review campaign draft", resumeAction.Label);
             Assert.Equal(campaign.Id, resumeAction.CampaignId);
             Assert.Equal("draft", campaign.Status);
+        }
+
+        [Fact]
+        public async Task SendTurn_CanonicalCampaignWithOffer_PersistsAttachAndCombinedAnswer()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenCampaignWithOfferAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal("Campaign Draft saved with Offer", answer.Title);
+            Assert.Contains("## Interpretation", answer.Body, StringComparison.Ordinal);
+            Assert.Contains(
+                "I saved a Campaign Draft with an attached Offer for Camden.",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("## Data", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("## Recommendation", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Camden", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Email", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("1 Email-eligible", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Percentage discount", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("10%", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("30 days after issue", answer.Body, StringComparison.Ordinal);
+            Assert.Contains(
+                "Active (attached to this Campaign Draft)",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("**Status:** Draft", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Nothing was sent or scheduled", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("create-new-offer", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("existing-offer", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("offerStance", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("What should this Campaign be called", answer.Body);
+
+            Assert.Equal(
+                new[] { "review-campaign", "change-audience", "review-offer" },
+                answer.Actions.Select(action => action.Type)
+            );
+            Assert.Equal("Review campaign draft", answer.Actions[0].Label);
+            Assert.Equal("Change audience", answer.Actions[1].Label);
+            Assert.Equal("Review offer draft", answer.Actions[2].Label);
+            Assert.DoesNotContain(answer.Actions, action => action.Type == "add-offer");
+
+            var campaign = Assert.Single(_context.Campaigns);
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal("draft", campaign.Status);
+            Assert.Equal("create-new-offer", campaign.OfferStance);
+            Assert.Equal(offer.Id, campaign.OfferId);
+            Assert.Equal(CatalogOfferStatus.Active, offer.Status);
+            Assert.Equal(campaign.Id, answer.Actions[0].CampaignId);
+            Assert.Equal(offer.Id, answer.Actions[2].OfferId);
+            Assert.Equal(campaign.Id, _context.AssistantConversations.Single().CreatedCampaignId);
+            Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
+            Assert.Equal(
+                AssistantTask.CreateCampaignWithOffer,
+                AssistantTaskClassification.Classify(CanonicalCamdenCampaignWithOfferAsk)
+            );
+            Assert.Equal(
+                CanonicalCamdenCampaignWithOfferAsk,
+                _fake.LastInput!.UserMessage
+            );
+
+            var resumed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.GetAsync(ownerUserId: 7, ok.Conversation.Id)
+            );
+            Assert.Equal(
+                new[] { "review-campaign", "change-audience", "review-offer" },
+                resumed.Conversation.Messages[^1].Actions.Select(item => item.Type)
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_CanonicalCampaignWithOffer_UniqueAttachableDraft_AttachesExisting()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var offerId = await SeedCatalogOfferAsync(
+                locationId,
+                "10% off",
+                status: CatalogOfferStatus.Draft,
+                discountPercentage: 10m
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenCampaignWithOfferAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var campaign = Assert.Single(_context.Campaigns);
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(offerId, offer.Id);
+            Assert.Equal("existing-offer", campaign.OfferStance);
+            Assert.Equal(offerId, campaign.OfferId);
+            Assert.Equal(CatalogOfferStatus.Active, offer.Status);
+            Assert.Equal(
+                new[] { "review-campaign", "change-audience", "review-offer" },
+                ok.Conversation.Messages[^1].Actions.Select(action => action.Type)
+            );
+            Assert.DoesNotContain(
+                "create-new-offer",
+                ok.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_CanonicalCampaignWithOffer_OfferCreateFails_PersistsNeither()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var failing = CreateConversationService(
+                offersCatalog: new ThrowingOffersCatalogService()
+            );
+
+            var outcome = await failing.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenCampaignWithOfferAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("Campaign Draft not saved", answer.Title);
+            Assert.Contains("## Interpretation", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("## Recommendation", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("## Data", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Offer create", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+            Assert.Null(_context.AssistantConversations.Single().CreatedCampaignId);
+            Assert.Null(_context.AssistantConversations.Single().CreatedOfferId);
+        }
+
+        [Fact]
+        public async Task SendTurn_CanonicalCampaignWithOffer_CampaignCreateFails_KeepsUnattachedOfferDraft()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var failing = CreateConversationService(new ThrowingCampaignDraftService());
+
+            var outcome = await failing.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenCampaignWithOfferAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("Campaign Draft not saved", answer.Title);
+            Assert.Contains("## Interpretation", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("## Data", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("## Recommendation", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Draft (not Active)", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("not attached", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Campaign create", answer.Body, StringComparison.Ordinal);
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("review-offer", action.Type);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(CatalogOfferStatus.Draft, offer.Status);
+            Assert.Equal(offer.Id, action.OfferId);
+            Assert.Null(_context.AssistantConversations.Single().CreatedCampaignId);
+            Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
+        }
+
+        [Fact]
+        public async Task SendTurn_CanonicalCampaignWithOffer_ZeroEligible_PersistsAndStatesZero()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenCampaignWithOfferAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Single(_context.Campaigns);
+            Assert.Single(_context.CatalogOffers);
+            Assert.Contains(
+                "0 Email-eligible",
+                ok.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+            Assert.Equal(
+                new[] { "review-campaign", "change-audience", "review-offer" },
+                ok.Conversation.Messages[^1].Actions.Select(action => action.Type)
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_CanonicalCampaignWithOffer_RetrieveTask_DoesNotPersist()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Feedback",
+                "Retrieved facts.",
+                AssistantTask.Retrieve
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenCampaignWithOfferAsk)
+            );
+
+            Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
         }
 
         [Theory]
@@ -2816,20 +3038,20 @@ namespace TummlyBackend.Tests.Services
                 "Campaign Draft",
                 "Create Campaign Draft.",
                 AssistantTask.CreateCampaignDraft,
-                "Create Campaign and Offer"
+                "Create Campaign and recovery"
             );
 
             var outcome = await _service.SendTurnAsync(
                 ownerUserId: 7,
                 FirstSendRequest(
                     locationId,
-                    "Draft an Email Campaign and create an offer draft"
+                    "Draft an Email Campaign and draft a recovery response"
                 )
             );
 
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             Assert.Equal("gap", ok.Conversation.Messages[^1].Class);
-            Assert.Equal("Create Campaign and Offer", ok.Conversation.Title);
+            Assert.Equal("Create Campaign and recovery", ok.Conversation.Title);
         }
 
         [Fact]
@@ -2929,7 +3151,7 @@ namespace TummlyBackend.Tests.Services
                 ownerUserId: 7,
                 FirstSendRequest(
                     locationId,
-                    "Draft an Email Campaign and create an offer draft"
+                    "Draft an Email Campaign and draft a recovery response"
                 )
             );
 
@@ -2939,8 +3161,8 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(answer.Title);
             Assert.Empty(answer.Actions);
             Assert.Contains("Campaign", answer.Body, StringComparison.Ordinal);
-            Assert.Contains("Offer", answer.Body, StringComparison.Ordinal);
-            Assert.DoesNotContain("Feedback recovery", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Feedback recovery", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Offer", answer.Body, StringComparison.Ordinal);
             Assert.DoesNotContain("###", answer.Body, StringComparison.Ordinal);
             Assert.DoesNotContain("Campaign goal catalogue", answer.Body, StringComparison.Ordinal);
             Assert.Equal(0, await _context.Campaigns.CountAsync());
@@ -3007,7 +3229,7 @@ namespace TummlyBackend.Tests.Services
                     ownerUserId: 7,
                     FirstSendRequest(
                         locationId,
-                        CanonicalCamdenEmailWinBackAsk + " and create an offer draft"
+                        CanonicalCamdenEmailWinBackAsk + " and draft a recovery response"
                     )
                 )
             );
@@ -3483,7 +3705,7 @@ namespace TummlyBackend.Tests.Services
                     ownerUserId: 7,
                     FirstSendRequest(
                         soho,
-                        "Draft an Email Campaign and create an offer draft",
+                        "Draft an Email Campaign and draft a recovery response",
                         started.Conversation.Id
                     )
                 )
@@ -3491,7 +3713,7 @@ namespace TummlyBackend.Tests.Services
             var answer = replaced.Conversation.Messages[^1];
             Assert.Equal("gap", answer.Class);
             Assert.Contains("Campaign", answer.Body, StringComparison.Ordinal);
-            Assert.Contains("Offer", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Feedback recovery", answer.Body, StringComparison.Ordinal);
             Assert.Equal(0, await _context.Campaigns.CountAsync());
             Assert.False(replaced.Conversation.DraftInterviewActive);
         }

@@ -3,12 +3,13 @@ namespace TummlyBackend.Helpers
     /// <summary>
     /// Closed Assistant task set emitted by the live-answer model or Fake.
     /// The server binds tools and may downgrade Create → Refuse. It must not
-    /// upgrade Retrieve or Refuse → Create.
+    /// upgrade Retrieve or Refuse → Create, including Create Campaign with Offer.
     /// </summary>
     public static class AssistantTask
     {
         public const string Retrieve = "retrieve";
         public const string CreateCampaignDraft = "create-campaign-draft";
+        public const string CreateCampaignWithOffer = "create-campaign-with-offer";
         public const string OfferPath = "offer-path";
         public const string RecoveryPath = "recovery-path";
         public const string Refuse = "refuse";
@@ -17,6 +18,7 @@ namespace TummlyBackend.Helpers
         [
             Retrieve,
             CreateCampaignDraft,
+            CreateCampaignWithOffer,
             OfferPath,
             RecoveryPath,
             Refuse,
