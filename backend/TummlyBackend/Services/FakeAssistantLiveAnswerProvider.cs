@@ -136,6 +136,22 @@ namespace TummlyBackend.Services
                 }
             }
 
+            var productTopics = AssistantProductExpertTopics.Detect(input.UserMessage);
+            if (productTopics.Count > 0
+                && !AssistantAskIntent.IsHelpCentreAsk(input.UserMessage)
+                && !AssistantProductExpertTopics.IsMixedRetrieve(input.UserMessage))
+            {
+                var canned = AssistantProductExpertTopics.Assemble(productTopics);
+                return new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    canned.Title,
+                    canned.Body,
+                    [],
+                    AssistantTask.Retrieve,
+                    canned.ConversationTitle
+                );
+            }
+
             if (input.CompareLocations is { Count: >= 2 })
             {
                 var compare = AssistantLiveAnswerCopy.CompareFromEvidence(

@@ -662,6 +662,12 @@ namespace TummlyBackend.Services
                     hasExplicitRetrieveAsk
                     || draftTargets.Count == 0
                 );
+            var productTopics = AssistantProductExpertTopics.Detect(userMessage);
+            var helpCentreAsk = AssistantAskIntent.IsHelpCentreAsk(userMessage);
+            var productExpertTurn = productTopics.Count > 0 && !helpCentreAsk;
+            var mixedProductRetrieve = productExpertTurn
+                && AssistantProductExpertTopics.IsMixedRetrieve(userMessage);
+            var pureProductExpert = productExpertTurn && !mixedProductRetrieve;
             if (cancelDraft && !hasRetrieveAsk)
             {
                 conversation.LastCompareLocationIdsJson = null;
@@ -681,7 +687,8 @@ namespace TummlyBackend.Services
             if (gapState is null
                 && !AssistantTaskClassification.LooksLikeCreateCampaignDraft(userMessage)
                 && !AssistantTaskClassification.LooksLikeOfferPath(userMessage)
-                && !AssistantTaskClassification.LooksLikeRecoveryPath(userMessage))
+                && !AssistantTaskClassification.LooksLikeRecoveryPath(userMessage)
+                && !productExpertTurn)
             {
                 var sendScheduleTurn = await TryFinishSendScheduleRouteAsync(
                     conversation,
@@ -724,39 +731,46 @@ namespace TummlyBackend.Services
             AssistantRetrievedEvidence savedEvidence;
             try
             {
-                if (hasRetrieveAsk)
+                if (pureProductExpert)
                 {
-                    await TryPublishProgressAsync(
-                        conversation.OwnerUserId,
-                        conversation.Id,
-                        AssistantTurnProgressSteps.Retrieving,
+                    savedEvidence = EmptyEvidence;
+                }
+                else
+                {
+                    if (hasRetrieveAsk)
+                    {
+                        await TryPublishProgressAsync(
+                            conversation.OwnerUserId,
+                            conversation.Id,
+                            AssistantTurnProgressSteps.Retrieving,
+                            cancellationToken
+                        );
+                    }
+                    var retrieved = await RetrieveForTurnAsync(
+                        compareIds,
+                        conversation.OwnedLocationId,
+                        locationRefs,
+                        window.FromUtc,
+                        window.ToUtc,
+                        AssistantAskIntent.NeedsCampaignCopy(userMessage),
                         cancellationToken
                     );
-                }
-                var retrieved = await RetrieveForTurnAsync(
-                    compareIds,
-                    conversation.OwnedLocationId,
-                    locationRefs,
-                    window.FromUtc,
-                    window.ToUtc,
-                    AssistantAskIntent.NeedsCampaignCopy(userMessage),
-                    cancellationToken
-                );
-                if (retrieved is null)
-                {
-                    conversation.LastCompareLocationIdsJson = null;
-                    return await PersistAssistantAsync(
-                        conversation,
-                        FailureMessage(DateTime.UtcNow),
-                        replaceFailure,
-                        cancellationToken
-                    );
-                }
+                    if (retrieved is null)
+                    {
+                        conversation.LastCompareLocationIdsJson = null;
+                        return await PersistAssistantAsync(
+                            conversation,
+                            FailureMessage(DateTime.UtcNow),
+                            replaceFailure,
+                            cancellationToken
+                        );
+                    }
 
-                compareEvidence = compareOutcome is AssistantCompareOutcome.Compare
-                    ? retrieved.CompareRows
-                    : null;
-                savedEvidence = retrieved.SavedEvidence;
+                    compareEvidence = compareOutcome is AssistantCompareOutcome.Compare
+                        ? retrieved.CompareRows
+                        : null;
+                    savedEvidence = retrieved.SavedEvidence;
+                }
             }
             catch (OperationCanceledException)
             {
@@ -1008,7 +1022,8 @@ namespace TummlyBackend.Services
                     if (succeeded.Class == AssistantMessageClass.Grounded
                         && savedEvidence.IsEmpty
                         && groundedAsk != AssistantGroundedAsk.ListGuests
-                        && compareEvidence is not { Count: >= 2 })
+                        && compareEvidence is not { Count: >= 2 }
+                        && !pureProductExpert)
                     {
                         var empty = AssistantLiveAnswerCopy.EmptyGrounded(
                             locationName,
@@ -1018,10 +1033,33 @@ namespace TummlyBackend.Services
                         body = empty.Body;
                         actions = empty.Actions;
                     }
+                    if (productExpertTurn)
+                    {
+                        var canned = AssistantProductExpertTopics.Assemble(productTopics);
+                        if (pureProductExpert)
+                        {
+                            title = canned.Title;
+                            body = canned.Body;
+                            actions = [];
+                            proposedConversationTitle = canned.ConversationTitle;
+                            if (conversation.Messages.Count(
+                                    message => message.Role == AssistantMessageRole.User
+                                ) == 1)
+                            {
+                                conversation.Title = canned.ConversationTitle;
+                            }
+                        }
+                        else
+                        {
+                            body = $"{body}\n\n{canned.Body}";
+                        }
+                    }
                     assistantMessage = new AssistantMessage
                     {
                         Role = AssistantMessageRole.Assistant,
-                        Class = succeeded.Class,
+                        Class = productExpertTurn
+                            ? AssistantMessageClass.Grounded
+                            : succeeded.Class,
                         Title = title,
                         Body = body,
                         ActionsJson = AssistantAnalysisScope.SerializeActions(actions),

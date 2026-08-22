@@ -623,6 +623,220 @@ namespace TummlyBackend.Tests.Services
             Assert.False(ok.Conversation.DraftInterviewActive);
         }
 
+        [Fact]
+        public async Task SendTurn_WhatCanYouDo_IsCapabilitiesRetrieve_SkipsGets_AndDebits()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "What can you do")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal(AssistantProductExpertCopy.CapabilitiesTitle, answer.Title);
+            Assert.Equal(AssistantProductExpertCopy.CapabilitiesBody, answer.Body);
+            Assert.Contains("## Read", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Create Campaign with Offer", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(
+                AssistantProductExpertCopy.CapabilitiesConversationTitle,
+                ok.Conversation.Title
+            );
+            AssertNoRetrieveGets();
+            Assert.NotNull(_fake.LastInput);
+            Assert.DoesNotContain("retrieving", _progress.Events.Select(item => item.Step));
+        }
+
+        [Fact]
+        public async Task SendTurn_WhatCanYouDraft_StaysCreateTargetGap()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "what can you draft")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Contains("Campaign", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Offer", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Feedback recovery", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                AssistantProductExpertCopy.CapabilitiesTitle,
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Empty(answer.Actions);
+            AssertNoRetrieveGets();
+        }
+
+        [Theory]
+        [InlineData("support")]
+        [InlineData("contact support")]
+        [InlineData("raise a ticket")]
+        [InlineData("How do I create a campaign?")]
+        public async Task SendTurn_HelpCentreAndSupport_RefuseBeforeProductExpert(
+            string message
+        )
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, message)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("refusal", answer.Class);
+            Assert.Equal(AssistantLiveAnswerCopy.HelpCentreRefusalBody, answer.Body);
+            Assert.Empty(answer.Actions);
+            Assert.DoesNotContain(
+                "Create Campaign with Offer",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_HelpCentrePlusCapabilities_StillRefuses()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "help centre — what can you do")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("refusal", answer.Class);
+            Assert.Equal(AssistantLiveAnswerCopy.HelpCentreRefusalBody, answer.Body);
+        }
+
+        [Fact]
+        public async Task SendTurn_MultiTopicProduct_ConcatenatesInOrder_SkipsGets()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "campaign vs offer, campaign status, analysis scope, "
+                    + "draft vs send, what can you do"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal(AssistantProductExpertCopy.MultiTopicTitle, answer.Title);
+            Assert.Equal("Product facts", ok.Conversation.Title);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(
+                AssistantProductExpertCopy.AnalysisScopeBody
+                    + "\n\n"
+                    + AssistantProductExpertCopy.CampaignVsOfferBody
+                    + "\n\n"
+                    + AssistantProductExpertCopy.StatusesBody
+                    + "\n\n"
+                    + AssistantProductExpertCopy.DraftVsSendBody
+                    + "\n\n"
+                    + AssistantProductExpertCopy.CapabilitiesBody,
+                answer.Body
+            );
+            AssertNoRetrieveGets();
+        }
+
+        [Fact]
+        public async Task SendTurn_MixedRetrieveAndProduct_AppendsCannedKeepsRestaurantActions()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                FeedbackSentiment.Negative,
+                "[\"WaitTime\"]",
+                FeedbackWorkflowStatus.New
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Summarise recent feedback and campaign vs offer"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Contains("Camden", answer.Title);
+            Assert.NotEqual(
+                AssistantProductExpertCopy.CampaignVsOfferTitle,
+                answer.Title
+            );
+            Assert.Contains("1 feedback item", answer.Body, StringComparison.Ordinal);
+            Assert.Contains(
+                "\n\n" + AssistantProductExpertCopy.CampaignVsOfferBody,
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(answer.Actions, action => action.Type == "view-feedback-set");
+            Assert.NotEmpty(_retrieve.Calls);
+        }
+
+        [Fact]
+        public async Task SendTurn_CanYouSchedule_WithoutGuard_StaysSendScheduleRefuse()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "can you schedule")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("refusal", answer.Class);
+            Assert.DoesNotContain(
+                AssistantProductExpertCopy.DraftVsSendTitle,
+                answer.Title ?? string.Empty,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                AssistantProductExpertCopy.DraftVsSendBody,
+                answer.Body,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_DoesTheAssistantSend_IsDraftVsSendProductExpert()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "does the assistant send")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal(AssistantProductExpertCopy.DraftVsSendTitle, answer.Title);
+            Assert.Equal(AssistantProductExpertCopy.DraftVsSendBody, answer.Body);
+            Assert.Empty(answer.Actions);
+            Assert.Equal("Draft vs send", ok.Conversation.Title);
+            AssertNoRetrieveGets();
+        }
+
         private const string CanonicalCamdenEmailWinBackAsk =
             "Draft an Email Campaign to bring back all currently Email-eligible guests at Camden";
 
@@ -6126,6 +6340,16 @@ namespace TummlyBackend.Tests.Services
                 AssistantTask.Retrieve,
                 conversationTitle
             );
+        }
+
+        private void AssertNoRetrieveGets()
+        {
+            Assert.Empty(_retrieve.Calls);
+            Assert.Empty(_offersRetrieve.Calls);
+            Assert.Empty(_campaignsRetrieve.Calls);
+            Assert.Empty(_captureRetrieve.Calls);
+            Assert.Empty(_homeRetrieve.Calls);
+            Assert.Empty(_guestsRetrieve.Calls);
         }
 
         private static SendAssistantTurnRequest FirstSendRequest(
