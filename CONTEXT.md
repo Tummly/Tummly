@@ -161,7 +161,7 @@ The top **Subscription plan**, aimed at multi-site operators. Price £199 / mont
 _Avoid_: Enterprise, Scale (as a plan name)
 
 **AI credit**:
-A unit of guest-facing AI usage deducted from the operator's AI pool (for example drafting a guest response). Distinct from platform-side AI such as feedback classification unless product later meters that too.
+A unit of guest-facing AI usage deducted from the operator's AI pool (for example drafting a guest response). Distinct from platform-side AI such as feedback classification, **Home Recommended next step**, **Weekly brief**, and **Attention Retrieve**, unless product later meters those too.
 _Avoid_: AI action (UI copy only until metering exists), token
 
 **Email credit**:
@@ -380,8 +380,12 @@ The post-authentication step where a multi-restaurant operator chooses which res
 _Avoid_: Location picker, workspace picker
 
 **Operator dashboard**:
-The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, SideNav, Owned-location switcher) wraps a swappable page body (Home, Guests, Capture, **Feedback**, and **Campaigns**; other primary destinations later; management destinations under the **Settings nav group** later).
+The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, SideNav, **Owned-location switcher**) wraps a swappable page body (Home, Guests, Capture, **Feedback**, and **Campaigns**; other primary destinations later; management destinations under the **Settings nav group** later).
 _Avoid_: Admin panel, control panel
+
+**Owned-location switcher**:
+The Operator dashboard shell control that selects the current **Owned location** for page bodies. Mode `multi` only. Distinct from **Change analysis scope** and from **Analysis scope**.
+_Avoid_: location picker (when meaning this control), Analysis scope (when meaning dashboard selection)
 
 **AI Assistant**:
 The operator-facing chat surface on the Operator dashboard. Distinct from platform-side AI such as **AI classification**, and from guest-facing AI such as recovery drafts. Distinct from the Help Centre.
@@ -392,35 +396,47 @@ One chat thread in the **AI Assistant**, owned by one Operator user. Distinct fr
 _Avoid_: Conversation (unqualified), chat, thread (when meaning this)
 
 **Analysis scope**:
-The **AI Assistant**'s independent data window: one **Owned location** and one **Reporting period**. Distinct from the Operator dashboard location switcher and from page date ranges such as **Home performance date range**.
+The **AI Assistant**'s data window: one **Owned location** or **All owned locations**, plus one **Reporting period**. In mode `multi`, a dashboard **Owned-location switcher** change to a different venue starts **New chat** at that venue with **Reporting period** **Last 7 days**; **Change analysis scope** **Apply** that changes **Owned location** does the same with the dialog's **Reporting period**. Period-only **Apply** and **All owned locations** stay on **Change analysis scope** — the switcher does not set them. Distinct from page date ranges such as **Home performance date range**.
 _Avoid_: Location scope (alone), restaurant scope, copilot context, AI context
+
+**All owned locations**:
+A saved **Analysis scope** mode (multi-location operators only) that resolves to every **Owned location** on the operator's restaurant at each turn — a live set, not a stored id list. **Change analysis scope** and the glossary use this name; header status and Recent list use the short label **All Locations**. Mode `single` hides this option. Create **Assistant task**s still persist at one **Owned location**; that bind does not narrow saved scope to that venue unless the operator **Apply**s one location via **Change analysis scope**. Distinct from a **Compare turn** named subset and from multi-select of locations as saved scope.
+_Avoid_: All locations (as the glossary noun), every location (as saved scope), aggregate scope
 
 **Reporting period**:
 The time window in an **Analysis scope**. Same preset vocabulary as **Home performance date range** (Last 7 days default on Assistant open; Last 30 days; This month; Custom ≤ 180 inclusive calendar days; no All time). Labels match that control, including **Custom** (not Custom range). Distinct from **Home performance date range** and other page date-range controls: after open, the two values do not sync.
 _Avoid_: Assistant date range, analysis window (when meaning the whole Analysis scope)
 
 **Change analysis scope**:
-The **AI Assistant** dialog that sets **Analysis scope**. Mode `multi` shows **Owned location** and **Reporting period**. Mode `single` shows **Reporting period** only. The header **Change Scope** control opens it.
+The **AI Assistant** dialog that sets **Analysis scope**. Mode `multi` shows **Owned location** (including **All owned locations**), and **Reporting period**. Mode `single` shows **Reporting period** only. The header **Change Scope** control opens it. **Apply** that changes **Owned location** starts **New chat**; **Apply** that changes **Reporting period** only updates scope on the current **Assistant conversation**.
 _Avoid_: Change context, scope picker, Change Scope (except the header button label)
 
 **Assistant task**:
-The closed set of what one send is for: **Retrieve**, **Create Campaign Draft**, **Offer path**, **Recovery path**, or **Refuse** (send, schedule, issue, Help Centre, and other writes that are not a create path). Distinct from **AI classification**, **Clarify**, **Gap turn**, and **Draft interview**.
+The closed set of what one send is for: **Retrieve**, **Create Campaign Draft**, **Create Campaign with Offer**, **Offer path**, **Recovery path**, or **Refuse** (send, schedule, issue, Help Centre, and other writes that are not a create path). Distinct from **AI classification**, **Clarify**, **Gap turn**, and **Draft interview**.
 _Avoid_: intent class, copilot plan, phrase-match interview, READ_ONLY (and sibling approval words)
 
+**Attention Retrieve**:
+A **Retrieve** whose evidence is Operator Home attention surfaces (**Home Needs attention**, **Home Recommended next step**, **Weekly brief**) for one **Owned location** in **Analysis scope**. Distinct from domain Retrieve, product-expert Retrieve, and from a restaurant-wide Home queue.
+_Avoid_: second suggestion engine, unsolicited attention message, Compare-all attention
+
+**Create Campaign with Offer**:
+An **Assistant task** (wire `create-campaign-with-offer`) for one send that persists **Campaign offer attach** plus a matched or new **Offers catalog** definition and a new or attach-updated **Campaign Draft**. Distinct from **Create Campaign Draft** (No Offer path), from **Offer path** (catalog Draft only), and from running two create tasks in one turn.
+_Avoid_: combined create (as the wire id), two-target persist, Offer path then Create Campaign Draft
+
 **Compare turn**:
-An **AI Assistant** question that compares, ranks, or contrasts two or more **Owned location**s. Extra locations are read for that turn only; saved **Analysis scope** stays one **Owned location**. Distinct from a **Gap turn**.
-_Avoid_: Location compare (as a screen), multi-location Analysis scope, compare UI
+An **AI Assistant** question that compares, ranks, or contrasts two or more **Owned location**s. When saved **Analysis scope** is one **Owned location**, extra named locations are read for that turn only (max **3**). When saved **Analysis scope** is **All owned locations**, domain **Retrieve** is an implicit **Compare turn** of the full resolved set and the max-**3** cap does not apply on that path; named subsets in one send still cap at **3**. Compare-all may return a partial ranking with named venues that were empty, failed, or not retrieved this turn. Product-expert Retrieve and **Attention Retrieve** are not Compare-all. Distinct from a **Gap turn**.
+_Avoid_: Location compare (as a screen), multi-select Analysis scope, compare UI
 
 **Live answer**:
-One **AI Assistant** response to a user send in an **Assistant conversation**. A completing **Create Campaign Draft**, **Offer path**, or **Recovery path** turn may persist or prepare work before this answer is shown; a **Gap turn** does not persist. Distinct from **AI classification**, **Feedback recovery**, campaign recommendation, and **Help Centre**.
+One **AI Assistant** response to a user send in an **Assistant conversation**. A completing **Create Campaign Draft**, **Create Campaign with Offer**, **Offer path**, or **Recovery path** turn may persist or prepare work before this answer is shown; a **Gap turn** does not persist. On **Create Campaign with Offer**, product-expert **Retrieve**, and **Attention Retrieve**, the operator-facing body separates retrieved facts, interpretation, recommendation, and proposed **Action** (server-owned section order). Distinct from **AI classification**, **Feedback recovery**, campaign recommendation, and **Help Centre**.
 _Avoid_: Copilot reply, chat completion (as the product noun), stream (when meaning this complete message)
 
 **Clarify** (AI Assistant):
-An **AI Assistant** turn that asks the operator to name or narrow **Owned location**s before a **Compare turn** can read them. Distinct from a **Compare turn**, from a **Gap turn**, from a **Draft interview**, and from a refusal.
+An **AI Assistant** turn that asks the operator to name or narrow **Owned location**s before a **Compare turn** can read them. When saved **Analysis scope** is **All owned locations**, all-location phrases and domain **Retrieve** proceed without this ask. Distinct from a **Compare turn**, from a **Gap turn**, from a **Draft interview**, and from a refusal.
 _Avoid_: Ask-back (as the glossary noun), disambiguation turn, Gap turn (when meaning compare), Draft interview, Allowed clarification
 
 **Gap turn**:
-One **AI Assistant** turn that asks one genuine gap on a create or recovery **Assistant task** (create target, Location, **Feedback**, new-Offer terms, Offer title, audience, or channel), with no persist that turn. Distinct from **Clarify**, from a **Compare turn**, from a completing **live answer**, and from a refusal.
+One **AI Assistant** turn that asks one genuine gap on a create or recovery **Assistant task** (create target, Location, **Feedback**, new-Offer terms, Offer title, Campaign Draft title, audience, or channel), with no persist that turn. When saved **Analysis scope** is **All owned locations**, unnamed create asks Location; **Recovery path** **Feedback** gaps may include venue in row labels. Distinct from **Clarify**, from a **Compare turn**, from a completing **live answer**, and from a refusal.
 _Avoid_: Clarify (when meaning this), Draft interview, Allowed clarification, Ask-back (as this noun)
 
 **Draft interview**:
@@ -428,7 +444,7 @@ Retired create-draft path. Historical name for the shipped multi-turn ask-back t
 _Avoid_: Clarify (when meaning this), draft wizard in chat, Gap turn (when meaning the retired interview), target create path
 
 **Action** (AI Assistant):
-A typed control on a **live answer**, from a server-owned catalogue. After a completing create turn the rows are Review (`Review campaign draft` / `Review offer draft` / `Review recovery`) and, for a No-Offer **Campaign Draft**, Change audience and Add Offer. Distinct from **Feedback recovery** internal action.
+A typed control on a **live answer**, from a server-owned catalogue. After **Create Campaign Draft**, the rows are **Review campaign draft**, **Change audience**, and **Add Offer** when the Draft has **No Offer**. After **Create Campaign with Offer**, the rows are **Review campaign draft**, **Change audience**, and **Review offer draft** (no **Add Offer**). After **Offer path**, **Review offer draft**. After **Recovery path**, **Review recovery** when work was created. Distinct from **Feedback recovery** internal action.
 _Avoid_: Draft Action (as the persist step), Deep link (as the product name), suggested prompt, chip, Send (as an Action row on this spec), internal action (when meaning this)
 
 **Draft Action**:
@@ -568,12 +584,12 @@ The Home-scoped module for the Operator dashboard Home body. Depends on the Oper
 _Avoid_: Operator Home session (when meaning shared shell state), Home controller as the owner of locations/profile
 
 **Home Needs attention**:
-The Operator Home section that lists derived attention items from other Operator dashboard queues for the selected Owned location. It is a now-queue and a pooled projection: Home does not store an attention status and does not invent extra membership. Location-owned rows follow the location switcher (meta scope is the location name, never All locations). The list shows 5 rows then View all expands in the accordion. Kind order: Feedback aggregate, then Campaigns, then Offers; recency sorts inside a kind. The section stays when empty (honest empty shell); collapse is session UI. Offers, Campaigns, and Feedback keep their own Needs attention queues.
-_Avoid_: Unified inbox, alert feed, attention hub, attention changes, stored Home attention status, Needs recovery (when meaning this section), restaurant-wide Home attention
+The Operator Home section that lists derived attention items from other Operator dashboard queues for the selected Owned location. It is a now-queue and a pooled projection: Home does not store an attention status and does not invent extra membership. Location-owned rows follow the location switcher (meta scope is the location name, never All locations). The list shows 5 rows then View all expands in the accordion. Kind order: Feedback aggregate, then Campaigns, then Offers; recency sorts inside a kind (sort and meta clock only — it does not hide a current **Offers list Needs attention** member). The section stays when empty (honest empty shell); collapse is session UI. Offers, Campaigns, and Feedback keep their own Needs attention queues.
+_Avoid_: Unified inbox, alert feed, attention hub, attention changes, stored Home attention status, Needs recovery (when meaning this section), restaurant-wide Home attention, recent-only Home Offer filter
 
 **Home Needs attention item**:
-A projection row in **Home Needs attention** with title, body, meta (kind · relative time · scope), and one or two CTAs that open the source. It leaves when source membership leaves; there is no Home-only dismiss. Feedback is one aggregate count of **Needs attention** (Feedback) (meta time = newest Feedback submission time in that set; CTA opens the Feedback inbox Needs attention tab). Campaigns are one named row per **Failed** or **Partially sent** Campaign (Preview plus Retry remaining or Duplicate as Draft). Offers are one named Offer per **Offers list Needs attention** member; **Void request** wins over expiry when both are open (Manage offer, View redemptions). A later account-scoped kind is a low **AI credit**, **Email credit**, or **SMS credit** pool (Billing owns membership; meta scope Account-wide; sits after Feedback in kind order; also creates a **Notification**). Distinct from **Needs recovery**.
-_Avoid_: Needs recovery row (when meaning this Home row); Notification (when meaning a Home row); credit push; Offers overview aggregate (when meaning a Home Offer row); All locations (as Home meta scope)
+A projection row in **Home Needs attention** with title, body, meta (kind · relative time · scope), and one or two CTAs that open the source. It leaves when source membership leaves; there is no Home-only dismiss. Feedback is one aggregate count of **Needs attention** (Feedback) (meta time = newest Feedback submission time in that set; CTA opens the Feedback inbox Needs attention tab). Campaigns are one named row per **Failed** or **Partially sent** Campaign (Preview plus Retry remaining or Duplicate as Draft). Offers are one named Offer per **Offers list Needs attention** member (every current member, not a recency subset); **Void request** wins over expiry when both are open (Manage offer, View redemptions). The Offers page expiry aggregate is a different grain and may still list that Offer. A later account-scoped kind is a low **AI credit**, **Email credit**, or **SMS credit** pool (Billing owns membership; meta scope Account-wide; sits after Feedback in kind order; also creates a **Notification**). Distinct from **Needs recovery**.
+_Avoid_: Needs recovery row (when meaning this Home row); Notification (when meaning a Home row); credit push; Offers overview aggregate (when meaning a Home Offer row); All locations (as Home meta scope); recent-only Home Offer filter
 
 **Performance overview**:
 The Operator Home section that shows guest-engagement KPIs for the selected Owned location (QR scans, Feedback submitted, Guests joined, Offer redemptions) and the date-range control that scopes live KPI counts. Distinct from Guest overview on the Guests page.
@@ -843,8 +859,8 @@ Derived list tab for closed **Offers catalog** definitions only: paused, expired
 _Avoid_: Campaign Sent (email/SMS send complete)
 
 **Offers list Needs attention**:
-List tab and main-page overview seam for **Offers catalog** definitions that need operator review. Membership: open **rule warning** or open **AI** attention signal that is not session-dismissed on **in-flight** (effective Active with ≥1 live attach) Offers; may overlap other Offers list tabs — its count is not added into Drafts+In flight+Sent = All. Main-page rows use one chrome; meta distinguishes Warning vs AI. MVP rule warnings: catalog offer end-of-validity within rolling **7 local venue days**; open **Void request**. Section stays when empty (honest empty shell); collapse is session UI; rule rows do not dismiss; AI Not now is session-only. Queue CTAs switch the list to this tab (optional warning-type scope). Distinct from **Needs attention** (Feedback), Campaigns **Needs attention**, **Home Needs attention**, and **Offer recommendation**. A first-cut source for **Home Needs attention**.
-_Avoid_: Campaign recommendation (when meaning this Offers seam); Needs attention (Feedback); Campaigns Failed/Partially sent tab; Home Needs attention (when meaning this Offers queue alone)
+List tab and main-page overview seam for **Offers catalog** definitions that need operator review. Membership: open **rule warning** or open **AI** attention signal that is not session-dismissed on **in-flight** (effective Active with ≥1 live attach) Offers; may overlap other Offers list tabs — its count is not added into Drafts+In flight+Sent = All. Main-page rows use one chrome; meta distinguishes Warning vs AI. MVP rule warnings: catalog offer end-of-validity within rolling **7 local venue days**; open **Void request**. The expiry overview row counts only the 7-day rule (not Void-only members). It quotes the in-set Offer with the soonest venue-local end date; that row’s meta clock is that Offer’s 7-day window entry. Void named-row clock is that Void **requestedAt**; Void aggregate clock is the newest pending **requestedAt**. The same Offer may also have a Void overview row. **Home Needs attention** still shows one named Offer; Void request wins. Section stays when empty (honest empty shell); collapse is session UI; rule rows do not dismiss; AI Not now is session-only. **Review expiring offers** scopes this list tab to the complete 7-day-rule set (dual-rule Offers stay in). Aggregate **Review void requests** scopes it to the complete open-Void set. A Review CTA clears search and Status/attach filters, keeps sort, and starts at page 1. The tab badge stays the full count. Table “Showing” N is the scoped set (then search/sheet filters). Scope is a session chip (**Expiring soon** or **Open void**), not a Status/attach filter. Search and Status/attach may apply on the scoped set. **Filters (n)** counts sheet filters only. **Clear all filters** keeps the warning-type scope. Clear the chip, **View all in Needs attention**, or the Needs attention tab control to open the full tab. Other tabs also clear scope. Same venue-local end date: lower catalog Offer id is the expiry overview lead. Distinct from **Needs attention** (Feedback), Campaigns **Needs attention**, **Home Needs attention**, and **Offer recommendation**. A first-cut source for **Home Needs attention**.
+_Avoid_: Campaign recommendation (when meaning this Offers seam); Needs attention (Feedback); Campaigns Failed/Partially sent tab; Home Needs attention (when meaning this Offers queue alone); Active with no attach (that Offer is Drafts, not this queue); 3-day expiry window (MVP is 7 venue days)
 
 **Offers page**:
 Operator dashboard surface for the location’s **Offers catalog**: header CTAs (**Create offer**, **Open staff redeem**, **View redemption log**), **Offers Performance** strip, **Offers list Needs attention** overview, and the Offers table (tabs, search, filters, slim row ⋮). Product lock: `.scratch/offers/issues/14-main-offers-page-surface.md`.
