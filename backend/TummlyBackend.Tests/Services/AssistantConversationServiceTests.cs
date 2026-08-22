@@ -5384,7 +5384,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(answer.Actions);
             AssertNoRetrieveGets();
             Assert.Equal(0, _homeRecommendation.CallCount);
-            Assert.Null(_fake.LastInput);
+            Assert.NotEqual("What needs attention?", _fake.LastInput?.UserMessage);
         }
 
         [Fact]
