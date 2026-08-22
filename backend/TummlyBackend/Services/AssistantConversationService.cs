@@ -478,8 +478,16 @@ namespace TummlyBackend.Services
                 gapState = null;
             }
 
+            var productTopics = AssistantProductExpertTopics.Detect(userMessage);
+            var helpCentreAsk = AssistantAskIntent.IsHelpCentreAsk(userMessage);
+            var productExpertTurn = productTopics.Count > 0 && !helpCentreAsk;
+            var mixedProductRetrieve = productExpertTurn
+                && AssistantProductExpertTopics.IsMixedRetrieve(userMessage);
+            var pureProductExpert = productExpertTurn && !mixedProductRetrieve;
             var compareOutcome = AssistantCompareTurn.Resolve(
-                userMessage,
+                productExpertTurn
+                    ? AssistantProductExpertTopics.StripMatchedNeedles(userMessage)
+                    : userMessage,
                 conversation.OwnedLocationId,
                 locationRefs,
                 AssistantCompareTurn.ParseLocationIds(
@@ -497,7 +505,9 @@ namespace TummlyBackend.Services
             var isCreateTurn = gapState is not null
                 || AssistantTaskClassification.LooksLikeCreateTurn(userMessage);
             if (compareOutcome is AssistantCompareOutcome.Clarify clarify
-                && !isCreateTurn)
+                && !isCreateTurn
+                && !helpCentreAsk
+                && !pureProductExpert)
             {
                 conversation.LastCompareLocationIdsJson = null;
                 return await PersistAssistantAsync(
@@ -662,12 +672,6 @@ namespace TummlyBackend.Services
                     hasExplicitRetrieveAsk
                     || draftTargets.Count == 0
                 );
-            var productTopics = AssistantProductExpertTopics.Detect(userMessage);
-            var helpCentreAsk = AssistantAskIntent.IsHelpCentreAsk(userMessage);
-            var productExpertTurn = productTopics.Count > 0 && !helpCentreAsk;
-            var mixedProductRetrieve = productExpertTurn
-                && AssistantProductExpertTopics.IsMixedRetrieve(userMessage);
-            var pureProductExpert = productExpertTurn && !mixedProductRetrieve;
             if (cancelDraft && !hasRetrieveAsk)
             {
                 conversation.LastCompareLocationIdsJson = null;
@@ -857,6 +861,7 @@ namespace TummlyBackend.Services
                         AssistantTask.CreateCampaignWithOffer,
                         StringComparison.Ordinal
                     )
+                    && !productExpertTurn
                     && !AssistantAskIntent.IsHelpCentreAsk(userMessage))
                 {
                     var persistLocationId = boundCreateLocationId ?? conversation.OwnedLocationId;
@@ -896,6 +901,7 @@ namespace TummlyBackend.Services
                         AssistantTask.CreateCampaignDraft,
                         StringComparison.Ordinal
                     )
+                    && !productExpertTurn
                     && !AssistantAskIntent.IsHelpCentreAsk(userMessage))
                 {
                     var persistLocationId = boundCreateLocationId ?? conversation.OwnedLocationId;
@@ -924,6 +930,7 @@ namespace TummlyBackend.Services
                         AssistantTask.OfferPath,
                         StringComparison.Ordinal
                     )
+                    && !productExpertTurn
                     && !AssistantAskIntent.IsHelpCentreAsk(userMessage))
                 {
                     var persistLocationId = boundCreateLocationId ?? conversation.OwnedLocationId;
@@ -967,6 +974,7 @@ namespace TummlyBackend.Services
                         AssistantTask.RecoveryPath,
                         StringComparison.Ordinal
                     )
+                    && !productExpertTurn
                     && !AssistantAskIntent.IsHelpCentreAsk(userMessage))
                 {
                     var persist = await PersistPrepareRecoveryAsync(

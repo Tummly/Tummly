@@ -133,6 +133,13 @@ namespace TummlyBackend.Helpers
             return HasRemainingRetrieveAsk(message, topics);
         }
 
+        /// <summary>
+        /// Remove matched product-expert needles so Compare does not treat
+        /// "vs" / "all owned locations" product asks as a Compare turn.
+        /// </summary>
+        public static string StripMatchedNeedles(string message)
+            => StripNeedles(message, Detect(message));
+
         public static AssistantProductExpertAnswer Assemble(
             IReadOnlyList<AssistantProductExpertTopic> topics
         )
@@ -173,14 +180,23 @@ namespace TummlyBackend.Helpers
             IReadOnlyList<AssistantProductExpertTopic> topics
         )
         {
+            var stripped = StripNeedles(message, topics);
+            return AssistantAskIntent.HasRetrieveAsk(stripped)
+                || AssistantAskIntent.HasExplicitRetrieveAsk(stripped);
+        }
+
+        private static string StripNeedles(
+            string message,
+            IReadOnlyList<AssistantProductExpertTopic> topics
+        )
+        {
             var stripped = message.Trim().ToLowerInvariant();
             foreach (var needle in NeedlesFor(topics))
             {
                 stripped = stripped.Replace(needle, " ", StringComparison.Ordinal);
             }
 
-            return AssistantAskIntent.HasRetrieveAsk(stripped)
-                || AssistantAskIntent.HasExplicitRetrieveAsk(stripped);
+            return stripped;
         }
 
         private static IEnumerable<string> NeedlesFor(

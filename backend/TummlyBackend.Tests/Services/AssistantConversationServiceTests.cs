@@ -837,6 +837,110 @@ namespace TummlyBackend.Tests.Services
             AssertNoRetrieveGets();
         }
 
+        [Theory]
+        [InlineData("campaign vs offer", "Campaign vs Offer")]
+        [InlineData("campaign versus offer", "Campaign vs Offer")]
+        [InlineData("difference between campaign and offer", "Campaign vs Offer")]
+        [InlineData("all owned locations", "Analysis scope")]
+        [InlineData("draft vs send", "Draft vs send")]
+        public async Task SendTurn_ProductExpertNeedles_OnMultiLocation_SkipCompareClarify(
+            string message,
+            string expectedTitle
+        )
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(camden, message)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.NotEqual("clarify", answer.Class);
+            Assert.Equal(expectedTitle, answer.Title);
+            Assert.Empty(answer.Actions);
+            AssertNoRetrieveGets();
+        }
+
+        [Fact]
+        public async Task SendTurn_MixedRetrieveAndProduct_OnMultiLocation_DoesNotClarify()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+            await SeedFeedbackAsync(
+                camden,
+                DateTime.UtcNow.AddHours(-2),
+                FeedbackSentiment.Negative,
+                "[\"WaitTime\"]",
+                FeedbackWorkflowStatus.New
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    camden,
+                    "Summarise recent feedback and campaign vs offer"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.NotEqual("clarify", answer.Class);
+            Assert.Contains("1 feedback item", answer.Body, StringComparison.Ordinal);
+            Assert.Contains(
+                "\n\n" + AssistantProductExpertCopy.CampaignVsOfferBody,
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(answer.Actions, action => action.Type == "view-feedback-set");
+        }
+
+        [Fact]
+        public async Task SendTurn_HelpCentrePlusProduct_OnMultiLocation_StillRefuses()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(camden, "help centre — campaign vs offer")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("refusal", answer.Class);
+            Assert.Equal(AssistantLiveAnswerCopy.HelpCentreRefusalBody, answer.Body);
+        }
+
+        [Fact]
+        public async Task SendTurn_ForcedCreateTask_OnWhatCanYouDo_StaysProductExpertRetrieve()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Campaign Draft",
+                "Create Campaign Draft.",
+                AssistantTask.CreateCampaignDraft
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "What can you do")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal(AssistantProductExpertCopy.CapabilitiesTitle, answer.Title);
+            Assert.Equal(AssistantProductExpertCopy.CapabilitiesBody, answer.Body);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+        }
+
         private const string CanonicalCamdenEmailWinBackAsk =
             "Draft an Email Campaign to bring back all currently Email-eligible guests at Camden";
 
