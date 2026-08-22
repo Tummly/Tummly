@@ -163,6 +163,17 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (input.CompareAll)
+            {
+                var compareAll = AssistantLiveAnswerCopy.CompareAllFromEvidence(
+                    input.PeriodPhrase,
+                    input.CompareLocations ?? [],
+                    input.FailedLocationNames ?? [],
+                    input.NotStartedLocationNames ?? []
+                );
+                return compareAll with { AssistantTask = AssistantTask.Retrieve };
+            }
+
             if (input.CompareLocations is { Count: >= 2 })
             {
                 var compare = AssistantLiveAnswerCopy.CompareFromEvidence(

@@ -32,6 +32,7 @@ namespace TummlyBackend.Services
         private readonly IOffersCatalogService _offersCatalog;
         private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
         private readonly IAssistantAttentionRetrieve _attentionRetrieve;
+        private readonly TimeProvider _clock;
 
         public AssistantConversationService(
             ApplicationDbContext context,
@@ -49,7 +50,8 @@ namespace TummlyBackend.Services
             ICampaignMessageDraftService campaignMessageDrafts,
             IOffersCatalogService offersCatalog,
             IFeedbackRecoveryDraftsService recoveryDrafts,
-            IAssistantAttentionRetrieve attentionRetrieve
+            IAssistantAttentionRetrieve attentionRetrieve,
+            TimeProvider? timeProvider = null
         )
         {
             _context = context;
@@ -68,6 +70,7 @@ namespace TummlyBackend.Services
             _offersCatalog = offersCatalog;
             _recoveryDrafts = recoveryDrafts;
             _attentionRetrieve = attentionRetrieve;
+            _clock = timeProvider ?? TimeProvider.System;
         }
 
         public async Task<AssistantTurnOutcome> SendTurnAsync(
@@ -509,7 +512,8 @@ namespace TummlyBackend.Services
                 AssistantCompareTurn.ParseLocationIds(
                     conversation.LastCompareLocationIdsJson
                 ),
-                isSingleMode
+                isSingleMode,
+                AssistantAnalysisScope.IsAll(conversation)
             );
             await TryPublishProgressAsync(
                 conversation.OwnerUserId,
@@ -729,11 +733,13 @@ namespace TummlyBackend.Services
                 && !AssistantAskIntent.IsHelpCentreAsk(userMessage)
                 && !AssistantTaskClassification.LooksLikeCreateCampaignDraft(userMessage)
                 && !AssistantTaskClassification.LooksLikeOfferPath(userMessage)
-                && !AssistantTaskClassification.LooksLikeRecoveryPath(userMessage))
+                && !AssistantTaskClassification.LooksLikeRecoveryPath(userMessage)
+                && conversation.OwnedLocationId is int attentionLocationId)
             {
                 return await FinishAttentionRetrieveAsync(
                     conversation,
                     attentionSurface,
+                    attentionLocationId,
                     locationName,
                     scope.ReportingPeriod,
                     replaceFailure,
@@ -746,14 +752,29 @@ namespace TummlyBackend.Services
                 scope.ReportingPeriod,
                 DateTime.UtcNow
             );
-            var compareIds = compareOutcome is AssistantCompareOutcome.Compare compare
-                ? compare.LocationIds
-                : conversation.OwnedLocationId is int savedLocationId
-                    ? (IReadOnlyList<int>)[savedLocationId]
-                    : [];
-            var droppedUnknown = compareOutcome is AssistantCompareOutcome.Compare compareDrop
-                ? compareDrop.DroppedUnknownSentence
-                : null;
+            var skipCompareAll =
+                pureProductExpert
+                || helpCentreAsk
+                || attentionSurface != AssistantAttentionSurface.None
+                || isCreateTurn
+                || AssistantTaskClassification.LooksLikeRecoveryPath(userMessage)
+                || AssistantAskIntent.IsFullRefusal(AssistantAskIntent.Classify(userMessage));
+            var namedCompare = compareOutcome as AssistantCompareOutcome.Compare;
+            var isCompareAll = !skipCompareAll
+                && AssistantAnalysisScope.IsAll(conversation)
+                && (
+                    namedCompare is { IsCompareAll: true }
+                    || (namedCompare is null
+                        && compareOutcome is AssistantCompareOutcome.NotCompare)
+                );
+            var compareIds = isCompareAll
+                ? AssistantCompareTurn.AllOwnedIdsByName(locationRefs)
+                : namedCompare is not null
+                    ? namedCompare.LocationIds
+                    : conversation.OwnedLocationId is int savedLocationId
+                        ? (IReadOnlyList<int>)[savedLocationId]
+                        : [];
+            var droppedUnknown = namedCompare?.DroppedUnknownSentence;
             var caveat = compareOutcome switch
             {
                 AssistantCompareOutcome.SingleCaveat =>
@@ -769,11 +790,49 @@ namespace TummlyBackend.Services
             };
 
             IReadOnlyList<AssistantCompareLocationEvidence>? compareEvidence = null;
+            IReadOnlyList<string> failedLocationNames = [];
+            IReadOnlyList<string> notStartedLocationNames = [];
             AssistantRetrievedEvidence savedEvidence;
             try
             {
                 if (pureProductExpert)
                 {
+                    savedEvidence = EmptyEvidence;
+                }
+                else if (isCompareAll)
+                {
+                    if (hasRetrieveAsk)
+                    {
+                        await TryPublishProgressAsync(
+                            conversation.OwnerUserId,
+                            conversation.Id,
+                            AssistantTurnProgressSteps.Retrieving,
+                            cancellationToken
+                        );
+                    }
+
+                    var compareAll = await RetrieveCompareAllAsync(
+                        compareIds,
+                        locationRefs,
+                        window.FromUtc,
+                        window.ToUtc,
+                        AssistantAskIntent.NeedsCampaignCopy(userMessage),
+                        cancellationToken
+                    );
+                    if (compareAll.Landed.Count == 0)
+                    {
+                        conversation.LastCompareLocationIdsJson = null;
+                        return await PersistAssistantAsync(
+                            conversation,
+                            FailureMessage(DateTime.UtcNow),
+                            replaceFailure,
+                            cancellationToken
+                        );
+                    }
+
+                    compareEvidence = compareAll.Landed;
+                    failedLocationNames = compareAll.FailedNames;
+                    notStartedLocationNames = compareAll.NotStartedNames;
                     savedEvidence = EmptyEvidence;
                 }
                 else
@@ -807,7 +866,7 @@ namespace TummlyBackend.Services
                         );
                     }
 
-                    compareEvidence = compareOutcome is AssistantCompareOutcome.Compare
+                    compareEvidence = namedCompare is not null
                         ? retrieved.CompareRows
                         : null;
                     savedEvidence = retrieved.SavedEvidence;
@@ -861,7 +920,10 @@ namespace TummlyBackend.Services
                         compareEvidence,
                         caveat,
                         droppedUnknown,
-                        SuppressMixedRefusal: false
+                        SuppressMixedRefusal: false,
+                        CompareAll: isCompareAll,
+                        FailedLocationNames: failedLocationNames,
+                        NotStartedLocationNames: notStartedLocationNames
                     ),
                     cancellationToken
                 );
@@ -1068,15 +1130,26 @@ namespace TummlyBackend.Services
                         && savedEvidence.IsEmpty
                         && groundedAsk != AssistantGroundedAsk.ListGuests
                         && compareEvidence is not { Count: >= 2 }
-                        && !pureProductExpert)
+                        && !pureProductExpert
+                        && !isCompareAll
+                        && attentionSurface == AssistantAttentionSurface.None)
                     {
                         var empty = AssistantLiveAnswerCopy.EmptyGrounded(
                             locationName,
                             periodPhrase
                         );
-                        title = empty.Title;
-                        body = empty.Body;
-                        actions = empty.Actions;
+                        var withCaveat = AssistantLiveAnswerCopy.WithSentences(
+                            empty,
+                            caveat,
+                            droppedUnknown
+                        );
+                        title = withCaveat.Title;
+                        body = withCaveat.Body;
+                        actions = withCaveat.Actions;
+                    }
+                    if (isCompareAll)
+                    {
+                        actions = [];
                     }
                     if (productExpertTurn)
                     {
@@ -1111,7 +1184,8 @@ namespace TummlyBackend.Services
                         CreatedAt = assistantNow,
                     };
                     conversation.LastCompareLocationIdsJson =
-                        compareOutcome is AssistantCompareOutcome.Compare compareOk
+                        !AssistantAnalysisScope.IsAll(conversation)
+                        && compareOutcome is AssistantCompareOutcome.Compare compareOk
                         && succeeded.Class == AssistantMessageClass.Grounded
                             ? AssistantCompareTurn.SerializeLocationIds(compareOk.LocationIds)
                             : null;
@@ -3668,6 +3742,60 @@ namespace TummlyBackend.Services
                 .ToList();
         }
 
+        private async Task<CompareAllRetrieve> RetrieveCompareAllAsync(
+            IReadOnlyList<int> locationIds,
+            IReadOnlyList<AssistantOwnedLocationRef> locationRefs,
+            DateTime fromUtc,
+            DateTime toUtc,
+            bool includeCampaignCopy,
+            CancellationToken cancellationToken
+        )
+        {
+            var byId = locationRefs.ToDictionary(location => location.Id);
+            var landed = new List<AssistantCompareLocationEvidence>();
+            var failedNames = new List<string>();
+            var notStartedNames = new List<string>();
+            var startedAt = _clock.GetUtcNow();
+
+            foreach (var locationId in locationIds.Distinct())
+            {
+                if (!byId.TryGetValue(locationId, out var locationRef))
+                {
+                    continue;
+                }
+
+                if (_clock.GetUtcNow() - startedAt >= AssistantCompareAll.RetrieveBudget)
+                {
+                    notStartedNames.Add(locationRef.Name);
+                    continue;
+                }
+
+                var evidence = await RetrieveLocationDomainsAsync(
+                    locationId,
+                    fromUtc,
+                    toUtc,
+                    includeCampaignCopy,
+                    cancellationToken
+                );
+                if (evidence is null)
+                {
+                    failedNames.Add(locationRef.Name);
+                    continue;
+                }
+
+                landed.Add(
+                    new AssistantCompareLocationEvidence(
+                        locationId,
+                        locationRef.Name,
+                        locationRef.CaptureStatus,
+                        AssistantCompareAll.Thin(evidence)
+                    )
+                );
+            }
+
+            return new CompareAllRetrieve(landed, failedNames, notStartedNames);
+        }
+
         private async Task<TurnRetrieve?> RetrieveForTurnAsync(
             IReadOnlyList<int> locationIds,
             int? savedLocationId,
@@ -3848,6 +3976,12 @@ namespace TummlyBackend.Services
             string Address,
             CaptureLocationStatus CaptureStatus,
             string AccountType
+        );
+
+        private sealed record CompareAllRetrieve(
+            IReadOnlyList<AssistantCompareLocationEvidence> Landed,
+            IReadOnlyList<string> FailedNames,
+            IReadOnlyList<string> NotStartedNames
         );
 
         private sealed record TurnRetrieve(
@@ -4255,6 +4389,7 @@ namespace TummlyBackend.Services
         private async Task<AssistantTurnOutcome> FinishAttentionRetrieveAsync(
             AssistantConversation conversation,
             AssistantAttentionSurface surface,
+            int locationId,
             string locationName,
             AssistantReportingPeriodDto reportingPeriod,
             AssistantMessage? replaceFailure,
@@ -4271,7 +4406,7 @@ namespace TummlyBackend.Services
             var presented = await _attentionRetrieve.PresentAsync(
                 surface,
                 conversation.OwnerUserId,
-                conversation.OwnedLocationId,
+                locationId,
                 locationName,
                 reportingPeriod,
                 cancellationToken

@@ -35,6 +35,17 @@ namespace TummlyBackend.Helpers
             userPayload["droppedUnknownSentence"] = input.DroppedUnknownSentence;
             userPayload["compareLocations"] = CompareLocationsPayload(input);
             userPayload["suppressMixedRefusal"] = input.SuppressMixedRefusal;
+            userPayload["compareAll"] = input.CompareAll;
+            userPayload["failedLocationNames"] = new JsonArray(
+                (input.FailedLocationNames ?? [])
+                    .Select(name => (JsonNode?)name)
+                    .ToArray()
+            );
+            userPayload["notStartedLocationNames"] = new JsonArray(
+                (input.NotStartedLocationNames ?? [])
+                    .Select(name => (JsonNode?)name)
+                    .ToArray()
+            );
 
             var request = new JsonObject
             {
@@ -317,6 +328,18 @@ namespace TummlyBackend.Helpers
                 that location. Include droppedUnknownSentence and caveat when
                 present. Actions must use the saved Analysis scope evidence only
                 (the top-level counts), not extra compare locations.
+
+                When compareAll is true, this is Compare-all of All owned locations.
+                Do not attach Actions. List totals for every retrieved venue.
+                Paint at most 3 Feedback excerpts in the whole body. Theme and tag
+                totals are every item in the Reporting period; do not say themes
+                came from the excerpt sample. When a venue's feedbackTotalCount is
+                greater than feedbackSampleCount, say Comment samples are
+                sample of total at the venue name. Name failedLocationNames as
+                Could not load data for that name. Name notStartedLocationNames with
+                Not retrieved this turn, then the names. Retry this send, or name up to
+                3 locations. When any gap applies, state that the ranking is
+                partial. Empty domains use No domain at name for the period phrase.
                 """;
 
         public static bool TryExtractMessageContent(
