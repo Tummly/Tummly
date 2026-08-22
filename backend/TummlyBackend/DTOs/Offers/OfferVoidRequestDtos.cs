@@ -61,6 +61,8 @@ namespace TummlyBackend.DTOs.Offers
         public string OfferTitle { get; set; } = string.Empty;
 
         public int PendingCount { get; set; }
+
+        public DateTime? NewestPendingRequestedAtUtc { get; set; }
     }
 
     /// <summary>

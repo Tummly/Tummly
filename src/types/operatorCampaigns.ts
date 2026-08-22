@@ -442,6 +442,7 @@ export type OpenVoidAttentionOfferApi = {
   offerId: number
   offerTitle: string
   pendingCount: number
+  newestPendingRequestedAtUtc: string | null
 }
 
 export type CreateVoidRequestApiResponse =

@@ -1,5 +1,9 @@
 import type { OffersNeedsAttentionFact } from "@/lib/operatorOffers/buildOffersNeedsAttentionOverview"
 import type { CatalogOffersListItem } from "@/types/operatorCampaigns"
+import {
+  formatRelativeTime,
+  parseApiInstantMs,
+} from "@/lib/operatorHome/relativeTime"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const EXPIRY_WINDOW_DAYS = 7
@@ -21,6 +25,7 @@ export type OffersNeedsAttentionOpenVoidOffer = {
   offerId: number
   offerTitle: string
   pendingCount: number
+  newestPendingRequestedAtUtc: string | null
 }
 
 function venueLocalDateKey(nowMs: number, utcOffsetMinutes: number): string {
@@ -125,6 +130,31 @@ function quoteTitle(title: string): string {
   return `“${title}”`
 }
 
+function voidRelativeTimeLabel(
+  offers: readonly OffersNeedsAttentionOpenVoidOffer[],
+  nowMs: number
+): string | undefined {
+  let newestMs = Number.NaN
+  for (const offer of offers) {
+    const raw = offer.newestPendingRequestedAtUtc?.trim() ?? ""
+    if (raw === "") {
+      continue
+    }
+    const ms = parseApiInstantMs(raw)
+    if (Number.isNaN(ms)) {
+      continue
+    }
+    if (Number.isNaN(newestMs) || ms > newestMs) {
+      newestMs = ms
+    }
+  }
+  if (Number.isNaN(newestMs)) {
+    return undefined
+  }
+  const label = formatRelativeTime(new Date(newestMs).toISOString(), nowMs)
+  return label !== "" ? label : undefined
+}
+
 function claimRedeemCopy(claims: number, redeemed: number): string {
   const claimsLabel = claims === 1 ? "1 claim" : `${claims} claims`
   const redeemedLabel =
@@ -174,16 +204,15 @@ export function buildExpiringOffersWarningFact(input: {
 export function buildOpenVoidWarningFacts(input: {
   offers: readonly OffersNeedsAttentionOpenVoidOffer[]
   locationName: string
-  relativeTimeLabel?: string
+  nowMs: number
 }): OffersNeedsAttentionFact[] {
   if (input.offers.length === 0) {
     return []
   }
 
+  const relativeTimeLabel = voidRelativeTimeLabel(input.offers, input.nowMs)
   const metaParts = [
-    ...(input.relativeTimeLabel != null && input.relativeTimeLabel !== ""
-      ? [input.relativeTimeLabel]
-      : []),
+    ...(relativeTimeLabel != null ? [relativeTimeLabel] : []),
     input.locationName,
   ]
 

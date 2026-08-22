@@ -99,25 +99,33 @@ describe("buildExpiringOffersWarningFact", () => {
 })
 
 describe("buildOpenVoidWarningFacts", () => {
+  const VOID_NOW_MS = Date.parse("2026-08-22T12:00:00.000Z")
+
   it("returns empty when no open voids", () => {
     expect(
       buildOpenVoidWarningFacts({
         offers: [],
         locationName: "Camden",
+        nowMs: VOID_NOW_MS,
       })
     ).toEqual([])
   })
 
-  it("builds single-offer void warning with Details CTA", () => {
+  it("builds single-offer void warning with relative clock from newest pending request", () => {
     const offers: OffersNeedsAttentionOpenVoidOffer[] = [
-      { offerId: 42, offerTitle: "Lunch deal", pendingCount: 2 },
+      {
+        offerId: 42,
+        offerTitle: "Lunch deal",
+        pendingCount: 2,
+        newestPendingRequestedAtUtc: "2026-08-22T11:00:00.000Z",
+      },
     ]
 
     expect(
       buildOpenVoidWarningFacts({
         offers,
         locationName: "Camden",
-        relativeTimeLabel: "Just now",
+        nowMs: VOID_NOW_MS,
       })
     ).toEqual([
       {
@@ -125,7 +133,7 @@ describe("buildOpenVoidWarningFacts", () => {
         kind: "warning",
         title: "Open void request",
         body: "“Lunch deal” has 2 pending void requests.",
-        metaParts: ["Just now", "Camden"],
+        metaParts: ["1 hour ago", "Camden"],
         ctaKind: "review-void-offer",
         ctaLabel: "Review void request",
         offerId: 42,
@@ -133,16 +141,27 @@ describe("buildOpenVoidWarningFacts", () => {
     ])
   })
 
-  it("builds aggregate void warning when multiple offers", () => {
+  it("uses the newest pending requested-at across offers for aggregate void clock", () => {
     const offers: OffersNeedsAttentionOpenVoidOffer[] = [
-      { offerId: 1, offerTitle: "A", pendingCount: 1 },
-      { offerId: 2, offerTitle: "B", pendingCount: 3 },
+      {
+        offerId: 1,
+        offerTitle: "A",
+        pendingCount: 1,
+        newestPendingRequestedAtUtc: "2026-08-21T10:00:00.000Z",
+      },
+      {
+        offerId: 2,
+        offerTitle: "B",
+        pendingCount: 3,
+        newestPendingRequestedAtUtc: "2026-08-22T11:30:00.000Z",
+      },
     ]
 
     expect(
       buildOpenVoidWarningFacts({
         offers,
         locationName: "Camden",
+        nowMs: VOID_NOW_MS,
       })
     ).toEqual([
       {
@@ -150,9 +169,39 @@ describe("buildOpenVoidWarningFacts", () => {
         kind: "warning",
         title: "Open void requests",
         body: "2 offers have pending void requests.",
-        metaParts: ["Camden"],
+        metaParts: ["30 minutes ago", "Camden"],
         ctaKind: "review-void-aggregate",
         ctaLabel: "Review void requests",
+      },
+    ])
+  })
+
+  it("omits a relative clock when no pending requested-at is available", () => {
+    const offers: OffersNeedsAttentionOpenVoidOffer[] = [
+      {
+        offerId: 9,
+        offerTitle: "Lunch deal",
+        pendingCount: 1,
+        newestPendingRequestedAtUtc: null,
+      },
+    ]
+
+    expect(
+      buildOpenVoidWarningFacts({
+        offers,
+        locationName: "Camden",
+        nowMs: VOID_NOW_MS,
+      })
+    ).toEqual([
+      {
+        id: "warning-void-9",
+        kind: "warning",
+        title: "Open void request",
+        body: "“Lunch deal” has 1 pending void request.",
+        metaParts: ["Camden"],
+        ctaKind: "review-void-offer",
+        ctaLabel: "Review void request",
+        offerId: 9,
       },
     ])
   })

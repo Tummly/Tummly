@@ -509,8 +509,14 @@ function assembleNeedsAttention(
     relativeTimeLabel,
   })
   const voidFacts = buildOpenVoidWarningFacts({
-    offers: openVoidAttention,
+    offers: openVoidAttention.map((offer) => ({
+      offerId: offer.offerId,
+      offerTitle: offer.offerTitle,
+      pendingCount: offer.pendingCount,
+      newestPendingRequestedAtUtc: offer.newestPendingRequestedAtUtc,
+    })),
     locationName,
+    nowMs,
   })
   const overview = buildOffersNeedsAttentionOverview({
     warnings: [...(expiringFact != null ? [expiringFact] : []), ...voidFacts],

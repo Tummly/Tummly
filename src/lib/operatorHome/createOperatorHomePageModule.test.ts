@@ -2511,6 +2511,7 @@ describe("createOperatorHomePageModule", () => {
         offerId: 10,
         offerTitle: "Lunch deal",
         pendingCount: 1,
+        newestPendingRequestedAtUtc: null,
       },
     ])
     const home = createOperatorHomePageModule(

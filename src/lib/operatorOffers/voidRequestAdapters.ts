@@ -62,6 +62,7 @@ export type OpenVoidAttentionOffer = {
   offerId: number
   offerTitle: string
   pendingCount: number
+  newestPendingRequestedAtUtc: string | null
 }
 
 export type VoidRequestAdapters = {
@@ -128,6 +129,7 @@ export function voidRequestFormErrorMessage(
 type StubPendingRecord = {
   status: "pending" | "approved" | "rejected"
   detail: VoidReviewDetail
+  requestedAtUtc: string
 }
 
 /**
@@ -152,6 +154,7 @@ export function createStubVoidRequestAdapters(
       }
       seq += 1
       const requestId = `void-stub-${seq}`
+      const requestedAtUtc = new Date().toISOString()
       const detail: VoidReviewDetail = {
         requestId,
         passId: input.passId,
@@ -166,7 +169,7 @@ export function createStubVoidRequestAdapters(
         correctionText: VOID_REQUEST_COPY.corrections[input.correctionId].title,
         ...input.summary,
       }
-      byRequestId.set(requestId, { status: "pending", detail })
+      byRequestId.set(requestId, { status: "pending", detail, requestedAtUtc })
       pendingByPassId.set(input.passId, requestId)
       return { ok: true, requestId }
     },
@@ -207,7 +210,11 @@ export function createStubVoidRequestAdapters(
     async listOpenVoidAttention(locationId) {
       const byOffer = new Map<
         number,
-        { offerTitle: string; pendingCount: number }
+        {
+          offerTitle: string
+          pendingCount: number
+          newestPendingRequestedAtUtc: string | null
+        }
       >()
       for (const record of byRequestId.values()) {
         if (record.status !== "pending") {
@@ -219,10 +226,17 @@ export function createStubVoidRequestAdapters(
         const existing = byOffer.get(record.detail.offerId)
         if (existing != null) {
           existing.pendingCount += 1
+          if (
+            existing.newestPendingRequestedAtUtc == null ||
+            record.requestedAtUtc > existing.newestPendingRequestedAtUtc
+          ) {
+            existing.newestPendingRequestedAtUtc = record.requestedAtUtc
+          }
         } else {
           byOffer.set(record.detail.offerId, {
             offerTitle: record.detail.offerTitle,
             pendingCount: 1,
+            newestPendingRequestedAtUtc: record.requestedAtUtc,
           })
         }
       }
@@ -230,6 +244,7 @@ export function createStubVoidRequestAdapters(
         offerId,
         offerTitle: value.offerTitle,
         pendingCount: value.pendingCount,
+        newestPendingRequestedAtUtc: value.newestPendingRequestedAtUtc,
       }))
     },
   }
@@ -370,6 +385,7 @@ export function createLiveVoidRequestAdapters(
         offerId: item.offerId,
         offerTitle: item.offerTitle,
         pendingCount: item.pendingCount,
+        newestPendingRequestedAtUtc: item.newestPendingRequestedAtUtc ?? null,
       }))
     },
   }

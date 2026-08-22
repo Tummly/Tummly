@@ -287,6 +287,9 @@ namespace TummlyBackend.Services
                     OfferId = grouped.Key.CatalogOfferId,
                     OfferTitle = grouped.Key.Title,
                     PendingCount = grouped.Count(),
+                    NewestPendingRequestedAtUtc = grouped.Max(
+                        row => row.RequestedAtUtc
+                    ),
                 }
             )
                 .OrderBy(row => row.OfferTitle)

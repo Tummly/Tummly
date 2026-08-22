@@ -1584,6 +1584,7 @@ describe("createOperatorOffersPageModule", () => {
         offerId: 2,
         offerTitle: "Free dessert",
         pendingCount: 1,
+        newestPendingRequestedAtUtc: "2026-08-22T11:00:00.000Z",
       },
     ])
     const pageModule = createOperatorOffersPageModule(
@@ -1620,6 +1621,7 @@ describe("createOperatorOffersPageModule", () => {
       ctaKind: "review-void-offer",
       offerId: 2,
       ctaLabel: "Review void request",
+      metaLine: "Warning · 1 hour ago · Manchester",
     })
 
     await pageModule.selectNeedsAttentionList()
@@ -1666,6 +1668,7 @@ describe("createOperatorOffersPageModule", () => {
             offerId: 22,
             offerTitle: "Dual rule dessert",
             pendingCount: 2,
+            newestPendingRequestedAtUtc: "2026-08-22T10:00:00.000Z",
           },
         ]),
       })
@@ -1783,6 +1786,7 @@ describe("createOperatorOffersPageModule", () => {
             offerId: 9,
             offerTitle: "Lunch deal",
             pendingCount: 1,
+            newestPendingRequestedAtUtc: "2026-08-22T11:30:00.000Z",
           },
         ]),
       })
@@ -1799,6 +1803,7 @@ describe("createOperatorOffersPageModule", () => {
     expect(needsAttention?.rows[0]).toMatchObject({
       ctaKind: "review-void-offer",
       offerId: 9,
+      metaLine: "Warning · 30 minutes ago · Camden",
     })
     expect(
       needsAttention?.rows.some((row) => row.ctaKind === "review-expiring")
