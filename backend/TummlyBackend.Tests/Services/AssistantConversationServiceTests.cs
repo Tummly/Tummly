@@ -694,8 +694,44 @@ namespace TummlyBackend.Tests.Services
                 row => row.GuestName == "Alex Guest"
             );
             Assert.Equal(alex.Id, ok.Conversation.PendingRecoveryDraft!.FeedbackId);
+            Assert.Equal(soho, ok.Conversation.PendingRecoveryDraft.LocationId);
             Assert.Equal("all", ok.Conversation.AnalysisScope.ScopeKind);
             Assert.Null(ok.Conversation.AnalysisScope.OwnedLocationId);
+        }
+
+        [Fact]
+        public async Task SendTurn_RecoveryOfferWhenAllSaved_BindsOfferAtBoundVenue()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+            var guestId = await SeedLocationGuestAsync(
+                camden,
+                DateTime.UtcNow.AddHours(-2)
+            );
+            await SeedFeedbackAsync(
+                camden,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest",
+                locationGuestId: guestId
+            );
+            var offerId = await SeedCatalogOfferAsync(camden, "Weekend brunch");
+            _recoveryDrafts.SucceedWith(
+                "Thank you for your feedback. We are looking into this.",
+                "Regarding your recent visit",
+                "email"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                AllSendRequest(
+                    "Prepare a recovery response with a recovery offer. Weekend brunch"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("grounded", ok.Conversation.Messages[^1].Class);
+            Assert.Equal(offerId, ok.Conversation.PendingRecoveryDraft!.OfferId);
+            Assert.Equal(camden, ok.Conversation.PendingRecoveryDraft.LocationId);
         }
 
         [Fact]

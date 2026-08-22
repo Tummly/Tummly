@@ -29,6 +29,7 @@ export type RecoveryDraftActionPayload = {
   category?: InternalActionCategoryId | null
   note?: string | null
   offerId?: number | null
+  locationId?: number | null
   useConfirmedActionForGuestResponse?: boolean
 }
 
@@ -180,6 +181,7 @@ export function parseRecoveryDraftActionPayload(
     category,
     note: asTrimmedString(row.note),
     offerId,
+    locationId: asOfferId(row.locationId),
     useConfirmedActionForGuestResponse:
       row.useConfirmedActionForGuestResponse === true,
   }

@@ -588,6 +588,7 @@ namespace TummlyBackend.Services
                 (
                     AssistantTaskClassification.LooksLikeCreateCampaignDraft(userMessage)
                     || AssistantTaskClassification.LooksLikeOfferPath(userMessage)
+                    || AssistantTaskClassification.LooksLikeCreateCampaignWithOffer(userMessage)
                 )
                 && !AssistantAskIntent.IsHelpCentreAsk(userMessage)
             )
@@ -2269,6 +2270,18 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (feedback is null)
+            {
+                return new RecoveryPersistTurn(
+                    AssistantRecoveryPersistCopy.FailureTitle,
+                    AssistantRecoveryPersistCopy.UnavailableBody(),
+                    none,
+                    null,
+                    null
+                );
+            }
+
+            var persistLocationId = row.LocationId ?? feedback.RestaurantLocationId;
             var eligibility = AssistantRecoveryEligibility.Evaluate(feedback, intent);
             if (eligibility is AssistantRecoveryEligibility.Outcome.Blocked blocked)
             {
@@ -2285,6 +2298,27 @@ namespace TummlyBackend.Services
             int? offerId = null;
             if (intent == AssistantRecoveryEligibility.IntentRecoveryOffer)
             {
+                if (AssistantAnalysisScope.IsAll(conversation))
+                {
+                    var loadedOffers = await RetrieveOffersAtVenueAsync(
+                        persistLocationId,
+                        conversation,
+                        cancellationToken
+                    );
+                    if (loadedOffers is null)
+                    {
+                        return new RecoveryPersistTurn(
+                            AssistantRecoveryPersistCopy.FailureTitle,
+                            AssistantRecoveryPersistCopy.UnavailableBody(),
+                            none,
+                            null,
+                            null
+                        );
+                    }
+
+                    offersEvidence = loadedOffers;
+                }
+
                 offerId = AssistantRecoveryIntent.BindOfferId(
                     userMessage,
                     offersEvidence.Catalog
@@ -2307,6 +2341,7 @@ namespace TummlyBackend.Services
                 var internalWork = new AssistantRecoveryWorkState
                 {
                     FeedbackId = row.Id,
+                    LocationId = persistLocationId,
                     Intent = intent,
                     IncludeNotes = includeNotes,
                     Category = internalCategory,
@@ -2382,6 +2417,7 @@ namespace TummlyBackend.Services
             var work = new AssistantRecoveryWorkState
             {
                 FeedbackId = row.Id,
+                LocationId = persistLocationId,
                 Intent = intent,
                 Channel = channel,
                 Purpose = purpose,
@@ -3883,6 +3919,28 @@ namespace TummlyBackend.Services
                 [],
                 []
             );
+        }
+
+        private async Task<AssistantOffersEvidence?> RetrieveOffersAtVenueAsync(
+            int locationId,
+            AssistantConversation conversation,
+            CancellationToken cancellationToken
+        )
+        {
+            var scope = AssistantAnalysisScope.FromConversation(conversation);
+            var window = AssistantReportingPeriodWindow.Resolve(
+                scope.ReportingPeriod,
+                DateTime.UtcNow
+            );
+            var retrieved = await _offersRetrieve.RetrieveAsync(
+                locationId,
+                window.FromUtc,
+                window.ToUtc,
+                cancellationToken
+            );
+            return retrieved is AssistantOffersRetrieveResult.Ok ok
+                ? ok.Evidence
+                : null;
         }
 
         private async Task<TurnRetrieve?> RetrieveForTurnAsync(

@@ -106,6 +106,7 @@ export function planAssistantActionNavigate(input: {
   const locationId =
     input.campaignDraft?.locationId
     ?? input.catalogOffer?.locationId
+    ?? input.recoveryDraft?.locationId
     ?? input.analysisScope.ownedLocationId
   const { action, mode } = input
 
@@ -244,7 +245,10 @@ export function planAssistantSendScheduleRoute(input: {
   campaignDraft?: CampaignDraftDetail | null
   recoveryDraft?: RecoveryDraftActionPayload | null
 }): AssistantActionNavigatePlan {
-  const locationId = input.analysisScope.ownedLocationId
+  const locationId =
+    input.campaignDraft?.locationId
+    ?? input.recoveryDraft?.locationId
+    ?? input.analysisScope.ownedLocationId
   if (input.route.kind === "recovery") {
     return {
       path: sectionNavPath(input.mode, "feedback", locationId),

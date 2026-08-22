@@ -296,6 +296,37 @@ describe("planAssistantActionNavigate", () => {
     })
   })
 
+  it("maps open-recovery under All to the bound Feedback venue", () => {
+    const recoveryDraft = {
+      feedbackId: 42,
+      intent: "respond-to-guest" as const,
+      channel: "email" as const,
+      purpose: "acknowledge_feedback" as const,
+      tone: "warm_and_apologetic" as const,
+      includeNotes: "",
+      subject: "Hi",
+      message: "Thanks",
+      locationId: 22,
+    }
+    expect(
+      planAssistantActionNavigate({
+        action: {
+          type: "open-recovery",
+          label: "Review recovery",
+          feedbackId: 42,
+          intent: "respond-to-guest",
+        },
+        analysisScope: ALL_SCOPE,
+        mode: "multi",
+        recoveryDraft,
+      })
+    ).toEqual({
+      path: "/multi-dashboard/feedback?location=22",
+      selectLocationId: 22,
+      recoveryDraft,
+    })
+  })
+
   it("maps view-offer to Offer Details without list dates", () => {
     expect(
       planAssistantActionNavigate({

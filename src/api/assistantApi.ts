@@ -82,6 +82,7 @@ type AssistantConversationDto = {
     category?: string | null
     note?: string | null
     offerId?: number | null
+    locationId?: number | null
     useConfirmedActionForGuestResponse?: boolean
   } | null
   draftInterviewActive?: boolean

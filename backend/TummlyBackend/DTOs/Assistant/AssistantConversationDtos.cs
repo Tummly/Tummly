@@ -101,6 +101,7 @@ namespace TummlyBackend.DTOs.Assistant
     public class AssistantRecoveryDraftPayloadDto
     {
         public int FeedbackId { get; set; }
+        public int? LocationId { get; set; }
         public string Intent { get; set; } = string.Empty;
         public string? Channel { get; set; }
         public string? Purpose { get; set; }
