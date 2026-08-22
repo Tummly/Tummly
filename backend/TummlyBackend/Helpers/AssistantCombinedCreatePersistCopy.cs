@@ -50,8 +50,8 @@ namespace TummlyBackend.Helpers
         {
             return
                 "## Interpretation\n"
-                + FullFailureOpener(failedStep)
-                + "\n\n## Data\n"
+                + $"Campaign was not saved. The {failedStep} step failed.\n\n"
+                + "## Data\n"
                 + $"- **Location:** {locationName}\n"
                 + $"- **Type:** {typeLabel}\n"
                 + $"- **Value:** {valueLabel}\n"
@@ -59,7 +59,6 @@ namespace TummlyBackend.Helpers
                 + $"- **Title:** {offerTitle}\n"
                 + "- **Status:** Draft (not Active)\n"
                 + "- Not attached to a Campaign\n\n"
-                + $"Campaign was not saved. The {failedStep} step failed.\n\n"
                 + "## Recommendation\n"
                 + AssistantNextTryCopy.Sentence
                 + " Retry this send, or finish in Campaigns or Offers UI.";

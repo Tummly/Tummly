@@ -116,6 +116,17 @@ namespace TummlyBackend.Helpers
         public static bool LooksLikeRecoveryPath(string message)
             => AssistantRecoveryIntent.LooksLikeRecoveryAsk(message);
 
+        public static bool LooksLikeNewOfferBesideCampaign(string message)
+            => ContainsAny(
+                message.Trim().ToLowerInvariant(),
+                "and an offer",
+                "and a new offer",
+                "and create an offer",
+                "and draft an offer",
+                "and an offer draft",
+                "plus an offer"
+            );
+
         public static bool LooksLikeCreateCampaignWithOffer(string message)
         {
             if (!LooksLikeCreateCampaignDraft(message)
@@ -256,17 +267,6 @@ namespace TummlyBackend.Helpers
                 AssistantCreateTargets.Recovery => AssistantTask.RecoveryPath,
                 _ => AssistantTask.Retrieve,
             };
-
-        private static bool LooksLikeNewOfferBesideCampaign(string message)
-            => ContainsAny(
-                message.Trim().ToLowerInvariant(),
-                "and an offer",
-                "and a new offer",
-                "and create an offer",
-                "and draft an offer",
-                "and an offer draft",
-                "plus an offer"
-            );
 
         private static bool ContainsAny(string lower, params string[] needles)
             => needles.Any(needle => lower.Contains(needle, StringComparison.Ordinal));

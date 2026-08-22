@@ -1454,7 +1454,12 @@ namespace TummlyBackend.Services
             }
             catch
             {
-                if (!createdOfferThisTurn)
+                if (!createdOfferThisTurn
+                    && !string.Equals(
+                        offer.Status,
+                        CatalogOfferStatus.Draft,
+                        StringComparison.Ordinal
+                    ))
                 {
                     return CombinedFullFailure(
                         AssistantCombinedCreatePersistCopy.FullFailureBody("Campaign create")

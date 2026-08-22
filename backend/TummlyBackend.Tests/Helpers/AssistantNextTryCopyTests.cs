@@ -58,5 +58,33 @@ namespace TummlyBackend.Tests.Helpers
                 StringComparison.Ordinal
             );
         }
+
+        [Fact]
+        public void CombinedCreatePartialFailure_InterpretationNamesCampaignStep_NotFullFailureOpener()
+        {
+            var body = AssistantCombinedCreatePersistCopy.PartialFailureBody(
+                "Campaign create",
+                "Camden",
+                "Percentage discount",
+                "10%",
+                "30 days after issue",
+                "10% off"
+            );
+
+            Assert.Contains(
+                "## Interpretation\nCampaign was not saved. The Campaign create step failed.",
+                body,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                "I could not save this Campaign with Offer",
+                body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("## Data", body, StringComparison.Ordinal);
+            Assert.Contains("Draft (not Active)", body, StringComparison.Ordinal);
+            Assert.Contains("## Recommendation", body, StringComparison.Ordinal);
+            Assert.Contains(AssistantNextTryCopy.Sentence, body, StringComparison.Ordinal);
+        }
     }
 }

@@ -880,6 +880,16 @@ namespace TummlyBackend.Tests.Services
             var answer = ok.Conversation.Messages[^1];
             Assert.Equal("Campaign Draft not saved", answer.Title);
             Assert.Contains("## Interpretation", answer.Body, StringComparison.Ordinal);
+            Assert.Contains(
+                "Campaign was not saved. The Campaign create step failed.",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                "I could not save this Campaign with Offer",
+                answer.Body,
+                StringComparison.Ordinal
+            );
             Assert.Contains("## Data", answer.Body, StringComparison.Ordinal);
             Assert.Contains("## Recommendation", answer.Body, StringComparison.Ordinal);
             Assert.Contains("Draft (not Active)", answer.Body, StringComparison.Ordinal);
@@ -893,6 +903,42 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(offer.Id, action.OfferId);
             Assert.Null(_context.AssistantConversations.Single().CreatedCampaignId);
             Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
+        }
+
+        [Fact]
+        public async Task SendTurn_CanonicalCampaignWithOffer_ExistingDraft_CampaignCreateFails_KeepsUnattachedOfferDraft()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var offerId = await SeedCatalogOfferAsync(
+                locationId,
+                "10% off",
+                status: CatalogOfferStatus.Draft,
+                discountPercentage: 10m
+            );
+            var failing = CreateConversationService(new ThrowingCampaignDraftService());
+
+            var outcome = await failing.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenCampaignWithOfferAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("Campaign Draft not saved", answer.Title);
+            Assert.Contains(
+                "Campaign was not saved. The Campaign create step failed.",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("review-offer", action.Type);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(offerId, offer.Id);
+            Assert.Equal(CatalogOfferStatus.Draft, offer.Status);
+            Assert.Equal(offerId, action.OfferId);
+            Assert.Null(_context.AssistantConversations.Single().CreatedCampaignId);
+            Assert.Equal(offerId, _context.AssistantConversations.Single().CreatedOfferId);
         }
 
         [Fact]
