@@ -759,8 +759,8 @@ namespace TummlyBackend.Services
                     conversation,
                     GroundedMessage(
                         DateTime.UtcNow,
-                        AssistantAttentionCopy.AllSavedPickOneTitle,
-                        AssistantAttentionCopy.AllSavedPickOneBody,
+                        AssistantAttentionCopy.AllOwnedLocationsPickOneTitle,
+                        AssistantAttentionCopy.AllOwnedLocationsPickOneBody,
                         []
                     ),
                     replaceFailure,

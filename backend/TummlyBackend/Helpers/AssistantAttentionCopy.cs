@@ -33,13 +33,13 @@ namespace TummlyBackend.Helpers
 
         public const string RetryThisSend = "Retry this send.";
 
-        public const string AllSavedPickOneTitle = "Pick one location";
+        public const string AllOwnedLocationsPickOneTitle = "Pick one location";
 
-        public const string AllSavedPickOneRecommendation =
+        public const string AllOwnedLocationsPickOneRecommendation =
             "Pick one Owned location with Change Scope. Home attention surfaces are per venue.";
 
-        public const string AllSavedPickOneBody =
-            "## Recommendation\n" + AllSavedPickOneRecommendation;
+        public const string AllOwnedLocationsPickOneBody =
+            "## Recommendation\n" + AllOwnedLocationsPickOneRecommendation;
 
         public static string NeedsAttentionClock(string locationName)
             => $"Needs attention is the now-queue at {locationName}. It is not the Reporting period.";
