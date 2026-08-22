@@ -12,6 +12,7 @@ import {
 import {
   buildExpiringOffersWarningFact,
   buildOpenVoidWarningFacts,
+  selectExpiringOffersForOverview,
 } from "@/lib/operatorOffers/buildOffersNeedsAttentionFacts"
 import {
   buildOffersNeedsAttentionOverview,
@@ -62,6 +63,7 @@ import {
   type HomePerformanceDateRange,
 } from "@/lib/operatorHome/homePerformanceDateRange"
 import { NEEDS_ATTENTION_EMPTY_COPY } from "@/lib/operatorHome/operatorHomeSectionPresentation"
+import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import {
   chipCount,
   emptySelection,
@@ -247,6 +249,10 @@ export type OperatorOffersPageAdapters = {
   resumeOffer?: (offerId: number) => Promise<CatalogOfferDetail>
   archiveOffer?: (offerId: number) => Promise<CatalogOfferDetail>
   duplicateOffer?: (offerId: number) => Promise<CatalogOfferDetail>
+  /** Optional clock for expiry overview relative time; defaults to Date.now. */
+  nowMs?: () => number
+  /** Optional venue offset; defaults to the operator local offset. */
+  utcOffsetMinutes?: number
 }
 
 export type OperatorOffersPageModule = {
@@ -313,7 +319,7 @@ type OffersState = {
   filtersSession: FilterSheetSession | null
   filtersBusy: boolean
   lastListResponse: CatalogOffersListResponse | null
-  /** needs-attention view items for overview expiring rule (ticket 33). */
+  /** needs-attention view items; expiry overview uses the 7-day-rule subset. */
   attentionListItems: CatalogOffersListItem[]
   openVoidAttention: OpenVoidAttentionOffer[]
   pendingLifecycleAction: OperatorOffersPendingLifecycleAction | null
@@ -484,16 +490,23 @@ function assemblePerformance(
 function assembleNeedsAttention(
   locationName: string,
   attentionListItems: readonly CatalogOffersListItem[],
-  openVoidAttention: readonly OpenVoidAttentionOffer[]
+  openVoidAttention: readonly OpenVoidAttentionOffer[],
+  nowMs: number,
+  utcOffsetMinutes: number
 ): OperatorOffersNeedsAttentionView {
+  const expiring = selectExpiringOffersForOverview({
+    items: attentionListItems,
+    nowMs,
+    utcOffsetMinutes,
+  })
+  const relativeTimeLabel =
+    expiring.leadWindowEnteredAt == null
+      ? undefined
+      : formatRelativeTime(expiring.leadWindowEnteredAt, nowMs)
   const expiringFact = buildExpiringOffersWarningFact({
-    offers: attentionListItems.map((item) => ({
-      id: item.id,
-      title: item.title,
-      lifetimeClaims: item.lifetimeClaims ?? 0,
-      lifetimeRedeemed: item.lifetimeRedeemed ?? 0,
-    })),
+    offers: expiring.offers,
     locationName,
+    relativeTimeLabel,
   })
   const voidFacts = buildOpenVoidWarningFacts({
     offers: openVoidAttention,
@@ -530,7 +543,8 @@ function assembleViewModel(
   activeOffersCount: number,
   windowCounts: OffersState["windowCounts"],
   attentionListItems: readonly CatalogOffersListItem[],
-  openVoidAttention: readonly OpenVoidAttentionOffer[]
+  openVoidAttention: readonly OpenVoidAttentionOffer[],
+  overviewClock: { nowMs: number; utcOffsetMinutes: number }
 ): OperatorOffersPageViewModel {
   const list = buildListViewModel({
     response: listResponse,
@@ -558,7 +572,9 @@ function assembleViewModel(
     needsAttention: assembleNeedsAttention(
       location.locationName,
       attentionListItems,
-      openVoidAttention
+      openVoidAttention,
+      overviewClock.nowMs,
+      overviewClock.utcOffsetMinutes
     ),
     list,
     filtersSession,
@@ -623,6 +639,15 @@ export function createOperatorOffersPageModule(
   }
 ): OperatorOffersPageModule {
   const debounceMs = adapters.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS
+  const readOverviewClock = () => {
+    const nowMs = adapters.nowMs?.() ?? Date.now()
+    return {
+      nowMs,
+      utcOffsetMinutes:
+        adapters.utcOffsetMinutes
+        ?? -new Date(nowMs).getTimezoneOffset(),
+    }
+  }
 
   const offerTemplatePicker = createOfferTemplatePickerModule({
     loadTemplates: loadOfferTemplateSeed,
@@ -897,7 +922,8 @@ export function createOperatorOffersPageModule(
                 state.activeOffersCount,
                 state.windowCounts,
                 state.attentionListItems,
-                state.openVoidAttention
+                state.openVoidAttention,
+                readOverviewClock()
               ),
       }
       publish()
@@ -973,7 +999,8 @@ export function createOperatorOffersPageModule(
           state.activeOffersCount,
           state.windowCounts,
           attentionListItems,
-          openVoidAttention
+          openVoidAttention,
+          readOverviewClock()
         ),
       }
       publish()
@@ -1147,7 +1174,8 @@ export function createOperatorOffersPageModule(
           activeOffersCount,
           windowCounts,
           attentionListItems,
-          openVoidAttention
+          openVoidAttention,
+          readOverviewClock()
         ),
       }
       publish()

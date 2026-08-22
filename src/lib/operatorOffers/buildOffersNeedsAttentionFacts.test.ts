@@ -3,9 +3,31 @@ import { describe, expect, it } from "vitest"
 import {
   buildExpiringOffersWarningFact,
   buildOpenVoidWarningFacts,
+  selectExpiringOffersForOverview,
   type OffersNeedsAttentionExpiringOffer,
   type OffersNeedsAttentionOpenVoidOffer,
 } from "@/lib/operatorOffers/buildOffersNeedsAttentionFacts"
+import type { CatalogOffersListItem } from "@/types/operatorCampaigns"
+
+const OVERVIEW_NOW_MS = Date.parse("2026-08-22T12:00:00.000Z")
+
+function catalogItem(
+  overrides: Partial<CatalogOffersListItem> & { id: number; title: string }
+): CatalogOffersListItem {
+  return {
+    locationId: 7,
+    status: "active",
+    offerType: "percentage_discount",
+    validity: "14_days_after_issue",
+    expiryDate: null,
+    attachKinds: ["campaign"],
+    lifetimeClaims: 0,
+    lifetimeRedeemed: 0,
+    createdAt: "2026-08-01T10:00:00.000Z",
+    updatedAt: "2026-08-01T10:00:00.000Z",
+    ...overrides,
+  }
+}
 
 describe("buildExpiringOffersWarningFact", () => {
   it("returns null when no expiring offers", () => {
@@ -135,3 +157,113 @@ describe("buildOpenVoidWarningFacts", () => {
     ])
   })
 })
+
+describe("selectExpiringOffersForOverview", () => {
+  it("omits Void-only and N-days-after-issue Offers from the expiry set", () => {
+    const selected = selectExpiringOffersForOverview({
+      items: [
+        catalogItem({
+          id: 11,
+          title: "Void only lunch",
+          validity: "14_days_after_issue",
+          expiryDate: null,
+        }),
+        catalogItem({
+          id: 12,
+          title: "Seven days after issue",
+          validity: "7_days_after_issue",
+          expiryDate: null,
+        }),
+      ],
+      nowMs: OVERVIEW_NOW_MS,
+      utcOffsetMinutes: 0,
+    })
+
+    expect(selected).toEqual({
+      offers: [],
+      leadWindowEnteredAt: null,
+    })
+  })
+
+  it("keeps dual-rule Offers that still have a catalog end date in the 7-day window", () => {
+    const selected = selectExpiringOffersForOverview({
+      items: [
+        catalogItem({
+          id: 21,
+          title: "Void only",
+          validity: "30_days_after_issue",
+          expiryDate: null,
+        }),
+        catalogItem({
+          id: 22,
+          title: "Dual rule dessert",
+          validity: "choose_expiry_date",
+          expiryDate: "2026-08-25",
+          lifetimeClaims: 4,
+          lifetimeRedeemed: 1,
+        }),
+        catalogItem({
+          id: 23,
+          title: "Fixed date eight days out",
+          validity: "choose_expiry_date",
+          expiryDate: "2026-08-30",
+        }),
+      ],
+      nowMs: OVERVIEW_NOW_MS,
+      utcOffsetMinutes: 0,
+    })
+
+    expect(selected.offers).toEqual([
+      {
+        id: 22,
+        title: "Dual rule dessert",
+        lifetimeClaims: 4,
+        lifetimeRedeemed: 1,
+      },
+    ])
+    expect(selected.leadWindowEnteredAt).toBe("2026-08-18T00:00:00.000Z")
+  })
+
+  it("picks the soonest venue-local end date, then the lower catalog Offer id", () => {
+    const selected = selectExpiringOffersForOverview({
+      items: [
+        catalogItem({
+          id: 40,
+          title: "Later end",
+          validity: "choose_expiry_date",
+          expiryDate: "2026-08-28",
+          lifetimeClaims: 9,
+          lifetimeRedeemed: 2,
+        }),
+        catalogItem({
+          id: 31,
+          title: "Same-day higher id",
+          validity: "choose_expiry_date",
+          expiryDate: "2026-08-24",
+          lifetimeClaims: 1,
+          lifetimeRedeemed: 0,
+        }),
+        catalogItem({
+          id: 30,
+          title: "Same-day lead",
+          validity: "choose_expiry_date",
+          expiryDate: "2026-08-24",
+          lifetimeClaims: 8,
+          lifetimeRedeemed: 3,
+        }),
+      ],
+      nowMs: OVERVIEW_NOW_MS,
+      utcOffsetMinutes: 0,
+    })
+
+    expect(selected.offers.map((offer) => offer.id)).toEqual([30, 31, 40])
+    expect(selected.offers[0]).toEqual({
+      id: 30,
+      title: "Same-day lead",
+      lifetimeClaims: 8,
+      lifetimeRedeemed: 3,
+    })
+    expect(selected.leadWindowEnteredAt).toBe("2026-08-17T00:00:00.000Z")
+  })
+})
+

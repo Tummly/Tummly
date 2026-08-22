@@ -54,6 +54,8 @@ function offerListItem(
   }
 }
 
+const OVERVIEW_NOW_MS = Date.parse("2026-08-22T12:00:00.000Z")
+
 function createAdapters(
   overrides: Partial<OperatorOffersPageAdapters> & {
     listCatalogOffers?: Mock<OperatorOffersPageAdapters["listCatalogOffers"]>
@@ -65,6 +67,8 @@ function createAdapters(
       ?? vi.fn(async () => emptyListResponse()),
     listOpenVoidAttention: overrides.listOpenVoidAttention,
     getOffersPerformance: overrides.getOffersPerformance,
+    nowMs: overrides.nowMs ?? (() => OVERVIEW_NOW_MS),
+    utcOffsetMinutes: overrides.utcOffsetMinutes ?? 0,
     debounceMs: overrides.debounceMs ?? 0,
     createOffer: overrides.createOffer,
     updateOffer: overrides.updateOffer,
@@ -1527,7 +1531,7 @@ describe("createOperatorOffersPageModule", () => {
     expect(createOffer).not.toHaveBeenCalled()
   })
 
-  it("assembles Needs attention overview from expiring list + open void facts", async () => {
+  it("does not count Void-only Offers in the expiry overview row", async () => {
     const listCatalogOffers = vi.fn(
       async (params: { view?: string }) => {
         if (params.view === "needs-attention") {
@@ -1538,6 +1542,8 @@ describe("createOperatorOffersPageModule", () => {
                 id: 1,
                 title: "10% off next order",
                 status: "active",
+                validity: "choose_expiry_date",
+                expiryDate: "2026-08-25",
                 lifetimeClaims: 23,
                 lifetimeRedeemed: 9,
               }),
@@ -1545,6 +1551,8 @@ describe("createOperatorOffersPageModule", () => {
                 id: 2,
                 title: "Free dessert",
                 status: "active",
+                validity: "14_days_after_issue",
+                expiryDate: null,
                 lifetimeClaims: 4,
                 lifetimeRedeemed: 1,
               }),
@@ -1573,8 +1581,8 @@ describe("createOperatorOffersPageModule", () => {
     )
     const listOpenVoidAttention = vi.fn(async () => [
       {
-        offerId: 42,
-        offerTitle: "Lunch deal",
+        offerId: 2,
+        offerTitle: "Free dessert",
         pendingCount: 1,
       },
     ])
@@ -1591,16 +1599,19 @@ describe("createOperatorOffersPageModule", () => {
     expect(needsAttention?.isEmpty).toBe(false)
     expect(needsAttention?.showViewAll).toBe(false)
     expect(needsAttention?.rows).toHaveLength(2)
-    expect(needsAttention?.rows[0]).toMatchObject({
+    expect(needsAttention?.rows[0]).toEqual({
+      id: "warning-expiring",
       kind: "warning",
-      title: "2 offers expire this week",
+      title: "1 offer expires this week",
+      body: "“10% off next order” has 23 claims and 9 redemptions before expiry.",
+      metaLine: "Warning · 4 days ago · Manchester",
       ctaKind: "review-expiring",
-      metaLine: expect.stringContaining("Warning ·"),
+      ctaLabel: "Review expiring offers",
     })
     expect(needsAttention?.rows[1]).toMatchObject({
       kind: "warning",
       ctaKind: "review-void-offer",
-      offerId: 42,
+      offerId: 2,
       ctaLabel: "Review void request",
     })
 
@@ -1611,5 +1622,179 @@ describe("createOperatorOffersPageModule", () => {
     expect(pageModule.getSnapshot().viewModel?.list.activeViewId).toBe(
       "needs-attention"
     )
+  })
+
+  it("still counts a dual-rule Offer in the expiry aggregate", async () => {
+    const listCatalogOffers = vi.fn(async (params: { view?: string }) => {
+      if (params.view === "needs-attention") {
+        return emptyListResponse({
+          totalCount: 1,
+          items: [
+            offerListItem({
+              id: 22,
+              title: "Dual rule dessert",
+              status: "active",
+              validity: "choose_expiry_date",
+              expiryDate: "2026-08-25",
+              lifetimeClaims: 4,
+              lifetimeRedeemed: 1,
+            }),
+          ],
+          tabCounts: {
+            all: 3,
+            needsAttention: 1,
+            drafts: 0,
+            inFlight: 1,
+            sent: 0,
+          },
+        })
+      }
+      return emptyListResponse()
+    })
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({
+        listCatalogOffers,
+        listOpenVoidAttention: vi.fn(async () => [
+          {
+            offerId: 22,
+            offerTitle: "Dual rule dessert",
+            pendingCount: 2,
+          },
+        ]),
+      })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 7,
+      locations: [{ id: 7, locationName: "Camden" }],
+    })
+
+    const rows = pageModule.getSnapshot().viewModel?.needsAttention.rows
+    expect(rows).toHaveLength(2)
+    expect(rows?.[0]).toMatchObject({
+      title: "1 offer expires this week",
+      body: "“Dual rule dessert” has 4 claims and 1 redemption before expiry.",
+      ctaKind: "review-expiring",
+    })
+    expect(rows?.[1]).toMatchObject({
+      ctaKind: "review-void-offer",
+      offerId: 22,
+    })
+  })
+
+  it("quotes the soonest end date then lower catalog Offer id as the expiry lead", async () => {
+    const listCatalogOffers = vi.fn(async (params: { view?: string }) => {
+      if (params.view === "needs-attention") {
+        return emptyListResponse({
+          totalCount: 3,
+          items: [
+            offerListItem({
+              id: 40,
+              title: "Later end",
+              status: "active",
+              validity: "choose_expiry_date",
+              expiryDate: "2026-08-28",
+            }),
+            offerListItem({
+              id: 31,
+              title: "Same-day higher id",
+              status: "active",
+              validity: "choose_expiry_date",
+              expiryDate: "2026-08-24",
+            }),
+            offerListItem({
+              id: 30,
+              title: "Same-day lead",
+              status: "active",
+              validity: "choose_expiry_date",
+              expiryDate: "2026-08-24",
+              lifetimeClaims: 8,
+              lifetimeRedeemed: 3,
+            }),
+          ],
+          tabCounts: {
+            all: 3,
+            needsAttention: 3,
+            drafts: 0,
+            inFlight: 3,
+            sent: 0,
+          },
+        })
+      }
+      return emptyListResponse()
+    })
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ listCatalogOffers })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 7,
+      locations: [{ id: 7, locationName: "Camden" }],
+    })
+
+    expect(pageModule.getSnapshot().viewModel?.needsAttention.rows[0]).toEqual({
+      id: "warning-expiring",
+      kind: "warning",
+      title: "3 offers expire this week",
+      body: "“Same-day lead” has 8 claims and 3 redemptions before expiry.",
+      metaLine: "Warning · 5 days ago · Camden",
+      ctaKind: "review-expiring",
+      ctaLabel: "Review expiring offers",
+    })
+  })
+
+  it("keeps a Void-only queue without an expiry overview row", async () => {
+    const listCatalogOffers = vi.fn(async (params: { view?: string }) => {
+      if (params.view === "needs-attention") {
+        return emptyListResponse({
+          totalCount: 1,
+          items: [
+            offerListItem({
+              id: 9,
+              title: "Lunch deal",
+              status: "active",
+              validity: "7_days_after_issue",
+              expiryDate: null,
+            }),
+          ],
+          tabCounts: {
+            all: 2,
+            needsAttention: 1,
+            drafts: 0,
+            inFlight: 1,
+            sent: 0,
+          },
+        })
+      }
+      return emptyListResponse()
+    })
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({
+        listCatalogOffers,
+        listOpenVoidAttention: vi.fn(async () => [
+          {
+            offerId: 9,
+            offerTitle: "Lunch deal",
+            pendingCount: 1,
+          },
+        ]),
+      })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 7,
+      locations: [{ id: 7, locationName: "Camden" }],
+    })
+
+    const needsAttention = pageModule.getSnapshot().viewModel?.needsAttention
+    expect(needsAttention?.isEmpty).toBe(false)
+    expect(needsAttention?.rows).toHaveLength(1)
+    expect(needsAttention?.rows[0]).toMatchObject({
+      ctaKind: "review-void-offer",
+      offerId: 9,
+    })
+    expect(
+      needsAttention?.rows.some((row) => row.ctaKind === "review-expiring")
+    ).toBe(false)
   })
 })
