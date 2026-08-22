@@ -177,13 +177,16 @@ namespace TummlyBackend.Helpers
                 return false;
             }
 
-            return LooksLikeOfferPath(message)
-                || AssistantOfferPathTerms.Parse(message).OfferType is not null
-                || AssistantOfferPathTerms.Parse(message).DiscountPercentage is not null
-                || AssistantOfferPathTerms.Parse(message).DiscountAmount is not null
-                || !string.IsNullOrWhiteSpace(
-                    AssistantOfferPathTerms.Parse(message).FreeItemText
-                );
+            if (LooksLikeOfferPath(message))
+            {
+                return true;
+            }
+
+            var terms = AssistantOfferPathTerms.Parse(message);
+            return terms.OfferType is not null
+                || terms.DiscountPercentage is not null
+                || terms.DiscountAmount is not null
+                || !string.IsNullOrWhiteSpace(terms.FreeItemText);
         }
 
         public static bool LooksLikeCreateCampaignDraft(string message)

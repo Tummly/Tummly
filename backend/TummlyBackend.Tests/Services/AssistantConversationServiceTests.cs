@@ -1108,6 +1108,55 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_CombinedCreate_TwoDraftTitleMatches_IsCampaignTitleGap()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedCampaignAsync(locationId, "Summer win-back", "draft");
+            await SeedCampaignAsync(locationId, "Summer win-back special", "draft");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Create a campaign with 10% off valid 30 days after issue and attach to Summer win-back campaign at Camden"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("gap", ok.Conversation.Messages[^1].Class);
+            Assert.Contains(
+                "Which Campaign Draft should this attach to",
+                ok.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+            Assert.Equal(2, await _context.Campaigns.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_CombinedCreate_LocationAndTermsOpen_LocationGapFirst()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    camden,
+                    "Create a campaign with 25% off for all locations"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Contains("Name one", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("validity", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+        }
+
+        [Fact]
         public async Task SendTurn_CanonicalCampaignWithOffer_RetrieveTask_DoesNotPersist()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");

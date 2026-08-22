@@ -1489,7 +1489,6 @@ namespace TummlyBackend.Services
                     return CombinedFullFailure(refuse.Body);
                 case AssistantCombinedCreateCampaignOutcome.UpdateExisting update:
                     return await AttachOfferToExistingCampaignDraftAsync(
-                        conversation,
                         locationId,
                         locationName,
                         update.CampaignId,
@@ -1522,7 +1521,6 @@ namespace TummlyBackend.Services
         }
 
         private async Task<CombinedCreateTurn> AttachOfferToExistingCampaignDraftAsync(
-            AssistantConversation conversation,
             int locationId,
             string locationName,
             int campaignId,
