@@ -5,6 +5,7 @@ import {
 import type {
   CatalogOfferStatus,
   CatalogOffersListQueryParams,
+  OffersNeedsAttentionWarningType,
   OperatorOffersListViewId,
   OperatorOffersSortId,
 } from "@/types/operatorCampaigns"
@@ -44,6 +45,7 @@ export function buildOffersListQueryParams(input: {
   page: number
   pageSize: number
   filters: OperatorFilterSelection
+  warningType?: OffersNeedsAttentionWarningType | null
   now?: Date
 }): CatalogOffersListQueryParams {
   const now = input.now ?? new Date()
@@ -55,6 +57,9 @@ export function buildOffersListQueryParams(input: {
     page: input.page,
     pageSize: input.pageSize,
     utcOffsetMinutes: operatorUtcOffsetMinutes(now),
+    ...(input.view === "needs-attention" && input.warningType != null
+      ? { warningType: input.warningType }
+      : {}),
   }
   return appendFilterParams(base, input.filters)
 }

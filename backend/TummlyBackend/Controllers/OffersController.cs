@@ -50,7 +50,8 @@ namespace TummlyBackend.Controllers
             [FromQuery] int pageSize = OffersCatalogService.DefaultPageSize,
             [FromQuery] string[]? status = null,
             [FromQuery] string[]? attachSource = null,
-            [FromQuery] int utcOffsetMinutes = 0
+            [FromQuery] int utcOffsetMinutes = 0,
+            [FromQuery] string? warningType = null
         )
         {
             var unauthorized =
@@ -86,6 +87,7 @@ namespace TummlyBackend.Controllers
                         Status = status ?? Array.Empty<string>(),
                         AttachSource = attachSource ?? Array.Empty<string>(),
                         UtcOffsetMinutes = utcOffsetMinutes,
+                        AttentionWarningType = warningType,
                     }
                 );
 

@@ -78,6 +78,12 @@ namespace TummlyBackend.DTOs.Offers
             = Array.Empty<string>();
 
         public int UtcOffsetMinutes { get; init; }
+
+        /// <summary>
+        /// Optional Needs attention warning scope: expiry (7-day rule) or void
+        /// (open Void request). Ignored unless view is needs-attention.
+        /// </summary>
+        public string? AttentionWarningType { get; init; }
     }
 
     public abstract class CatalogOfferLifecycleResult

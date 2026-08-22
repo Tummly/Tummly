@@ -197,6 +197,14 @@ export function OffersPage() {
             )
             return
           }
+          if (row.ctaKind === "review-expiring") {
+            void pageModule.selectNeedsAttentionWarningScope("expiry")
+            return
+          }
+          if (row.ctaKind === "review-void-aggregate") {
+            void pageModule.selectNeedsAttentionWarningScope("void")
+            return
+          }
           void pageModule.selectNeedsAttentionList()
         }}
         onNeedsAttentionViewAll={() => {

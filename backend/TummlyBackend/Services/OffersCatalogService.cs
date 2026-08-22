@@ -65,6 +65,14 @@ namespace TummlyBackend.Services
             CatalogOfferStatus.AttachSourceManual,
         };
 
+        private static readonly HashSet<string> AllowedWarningTypes = new(
+            StringComparer.Ordinal
+        )
+        {
+            "expiry",
+            "void",
+        };
+
         private readonly ApplicationDbContext _context;
         private readonly Func<DateTime> _utcNow;
 
@@ -349,6 +357,7 @@ namespace TummlyBackend.Services
         {
             ValidatePaging(query.Page, query.PageSize);
             var view = NormalizeView(query.View);
+            var warningType = NormalizeWarningType(query.AttentionWarningType, view);
             var sort = NormalizeSort(query.Sort);
             var nameQuery = query.Q?.Trim() ?? string.Empty;
             var statuses = NormalizeStringFilters(
@@ -518,6 +527,7 @@ namespace TummlyBackend.Services
                         attachKinds,
                         campaignNames,
                         needsAttention,
+                        hasOpenVoidRequest,
                         lifetime.Claims,
                         lifetime.Redeemed
                     );
@@ -585,6 +595,23 @@ namespace TummlyBackend.Services
                 ),
                 _ => filtered,
             };
+
+            if (view == "needs-attention" && warningType != null)
+            {
+                filtered = warningType switch
+                {
+                    "expiry" => filtered.Where(row =>
+                        CatalogOfferStatus.IsNeedsAttentionRule(
+                            row.Entity.Validity,
+                            row.Entity.CustomExpiryDate,
+                            row.EffectiveStatus,
+                            today
+                        )
+                    ),
+                    "void" => filtered.Where(row => row.HasOpenVoidRequest),
+                    _ => filtered,
+                };
+            }
 
             if (statuses.Count > 0)
             {
@@ -995,6 +1022,27 @@ namespace TummlyBackend.Services
             return normalized;
         }
 
+        private static string? NormalizeWarningType(string? warningType, string view)
+        {
+            if (string.IsNullOrWhiteSpace(warningType))
+            {
+                return null;
+            }
+
+            var normalized = warningType.Trim();
+            if (!AllowedWarningTypes.Contains(normalized))
+            {
+                throw new ArgumentException("warningType is invalid.");
+            }
+
+            if (view != "needs-attention")
+            {
+                return null;
+            }
+
+            return normalized;
+        }
+
         private static string NormalizeSort(string? sort)
         {
             var normalized = string.IsNullOrWhiteSpace(sort)
@@ -1380,6 +1428,7 @@ namespace TummlyBackend.Services
             IReadOnlyList<string> AttachKinds,
             IReadOnlyList<string> CampaignNames,
             bool NeedsAttention,
+            bool HasOpenVoidRequest,
             int LifetimeClaims,
             int LifetimeRedeemed
         );

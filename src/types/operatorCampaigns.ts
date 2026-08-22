@@ -587,6 +587,8 @@ export type CatalogOffersListResponse = {
   tabCounts: CatalogOffersListTabCounts
 }
 
+export type OffersNeedsAttentionWarningType = "expiry" | "void"
+
 export type CatalogOffersListQueryParams = {
   locationId: number
   view?: OperatorOffersListViewId
@@ -599,6 +601,8 @@ export type CatalogOffersListQueryParams = {
     "campaign" | "recovery" | "guest-form-thank-you" | "manual"
   >
   utcOffsetMinutes?: number
+  /** Needs attention warning scope — expiry (7-day rule) or void (open Void). */
+  warningType?: OffersNeedsAttentionWarningType
 }
 
 /** Campaign recommendation allow-list (ticket 31 / ticket 11). */
