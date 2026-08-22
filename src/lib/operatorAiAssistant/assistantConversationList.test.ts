@@ -114,5 +114,8 @@ describe("formatConversationListMeta", () => {
     expect(
       formatConversationListMeta("Shoreditch", "2026-08-13T11:48:00.000Z", now)
     ).toBe("Shoreditch · 12 minutes ago")
+    expect(
+      formatConversationListMeta("All Locations", "2026-08-13T11:48:00.000Z", now)
+    ).toBe("All Locations · 12 minutes ago")
   })
 })

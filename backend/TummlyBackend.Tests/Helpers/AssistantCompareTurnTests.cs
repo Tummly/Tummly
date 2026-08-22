@@ -234,6 +234,19 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void MentionWithoutCompare_AllOwnedLocations_IsNotCaveat()
+        {
+            var outcome = AssistantCompareTurn.Resolve(
+                "How is Soho doing?",
+                savedLocationId: null,
+                Three(),
+                null,
+                isSingleMode: false
+            );
+            Assert.IsType<AssistantCompareOutcome.NotCompare>(outcome);
+        }
+
+        [Fact]
         public void SingleMode_TypedCompare_IsSingleCaveat()
         {
             var outcome = AssistantCompareTurn.Resolve(
@@ -284,6 +297,92 @@ namespace TummlyBackend.Tests.Helpers
                 isSingleMode: false
             );
             Assert.IsType<AssistantCompareOutcome.NotCompare>(outcome);
+        }
+
+        [Fact]
+        public void AllPhrases_WhenSavedScopeIsAll_CompareAllOwnedInNameOrder()
+        {
+            foreach (var message in new[]
+            {
+                "compare all locations",
+                "Summarise feedback for every location",
+                "all owned locations",
+            })
+            {
+                var outcome = AssistantCompareTurn.Resolve(
+                    message,
+                    savedLocationId: null,
+                    Four(),
+                    null,
+                    isSingleMode: false,
+                    savedScopeIsAll: true
+                );
+                var compare = Assert.IsType<AssistantCompareOutcome.Compare>(outcome);
+                Assert.True(compare.IsCompareAll);
+                Assert.Equal(
+                    [Brixton.Id, Camden.Id, Shoreditch.Id, Soho.Id],
+                    compare.LocationIds
+                );
+            }
+        }
+
+        [Fact]
+        public void NamedTwo_WhenSavedScopeIsAll_IsSubsetNotCompareAll()
+        {
+            var outcome = AssistantCompareTurn.Resolve(
+                "Compare Soho and Shoreditch",
+                savedLocationId: null,
+                Four(),
+                null,
+                isSingleMode: false,
+                savedScopeIsAll: true
+            );
+            var compare = Assert.IsType<AssistantCompareOutcome.Compare>(outcome);
+            Assert.False(compare.IsCompareAll);
+            Assert.Equal([Soho.Id, Shoreditch.Id], compare.LocationIds);
+        }
+
+        [Fact]
+        public void NamedFour_WhenSavedScopeIsAll_ClarifyCapThree()
+        {
+            var outcome = AssistantCompareTurn.Resolve(
+                "Compare Camden, Soho, Shoreditch and Brixton",
+                savedLocationId: null,
+                Four(),
+                null,
+                isSingleMode: false,
+                savedScopeIsAll: true
+            );
+            var clarify = Assert.IsType<AssistantCompareOutcome.Clarify>(outcome);
+            Assert.Contains("up to 3", clarify.Body);
+        }
+
+        [Fact]
+        public void FollowUp_WhenSavedScopeIsAll_DoesNotReuseLastSet()
+        {
+            var outcome = AssistantCompareTurn.Resolve(
+                "which one had more complaints?",
+                savedLocationId: null,
+                Three(),
+                [Soho.Id, Shoreditch.Id],
+                isSingleMode: false,
+                savedScopeIsAll: true
+            );
+            Assert.IsType<AssistantCompareOutcome.NotCompare>(outcome);
+        }
+
+        [Fact]
+        public void UnnamedAll_WhenSavedScopeIsOneVenue_StillClarify()
+        {
+            var outcome = AssistantCompareTurn.Resolve(
+                "compare all locations",
+                Camden.Id,
+                Four(),
+                null,
+                isSingleMode: false,
+                savedScopeIsAll: false
+            );
+            Assert.IsType<AssistantCompareOutcome.Clarify>(outcome);
         }
     }
 }

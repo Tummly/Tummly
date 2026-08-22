@@ -19,6 +19,17 @@ export const OFFERS_STATUS_LABELS: Record<OffersFilterStatusId, string> = {
   archived: "Archived",
 }
 
+/** Catalog Offers that may receive a new live attach (Draft or Active). */
+export const ATTACHABLE_OFFER_STATUS_IDS: ReadonlyArray<
+  Extract<OffersFilterStatusId, "draft" | "active">
+> = ["draft", "active"]
+
+export function isAttachableCatalogOfferStatus(
+  status: string
+): status is Extract<OffersFilterStatusId, "draft" | "active"> {
+  return status === "draft" || status === "active"
+}
+
 export const OFFERS_ATTACH_SOURCE_LABELS: Record<
   OffersFilterAttachSourceId,
   string

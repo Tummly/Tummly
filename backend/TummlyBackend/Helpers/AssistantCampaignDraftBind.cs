@@ -32,7 +32,8 @@ namespace TummlyBackend.Helpers
     public sealed record AssistantCampaignDraftBindChoice(
         string? OfferTitle = null,
         string? AudienceLabel = null,
-        string? ChannelLabel = null
+        string? ChannelLabel = null,
+        string? CampaignTitle = null
     )
     {
         public static readonly AssistantCampaignDraftBindChoice Empty = new();
@@ -40,7 +41,8 @@ namespace TummlyBackend.Helpers
         public bool HasValue
             => OfferTitle is not null
                 || AudienceLabel is not null
-                || ChannelLabel is not null;
+                || ChannelLabel is not null
+                || CampaignTitle is not null;
 
         public static AssistantCampaignDraftBindChoice FromGapKind(
             string kind,
@@ -51,6 +53,7 @@ namespace TummlyBackend.Helpers
                 AssistantGapTurn.KindOffer => new(OfferTitle: value),
                 AssistantGapTurn.KindAudience => new(AudienceLabel: value),
                 AssistantGapTurn.KindChannel => new(ChannelLabel: value),
+                AssistantGapTurn.KindCampaignTitle => new(CampaignTitle: value),
                 _ => Empty,
             };
     }
@@ -192,6 +195,22 @@ namespace TummlyBackend.Helpers
                     OfferNote: offer.Note
                 )
             );
+        }
+
+        public static IReadOnlyList<AssistantCatalogOfferRef> MatchAttachable(
+            string userMessage,
+            IReadOnlyList<AssistantCatalogOfferRef> locationOffers
+        )
+        {
+            var titleMatches = MatchTitles(userMessage, locationOffers)
+                .Where(offer => offer.Attachable)
+                .ToList();
+            if (titleMatches.Count > 0)
+            {
+                return titleMatches;
+            }
+
+            return MatchCommercialTerms(userMessage, locationOffers);
         }
 
         public static string OfferClashBody(IReadOnlyList<string> titles)

@@ -99,6 +99,7 @@ function FixedGuestFormCanvas({
       <GuestFeedbackShell
         className={OPERATOR_HOME_HERO_PHONE_GUEST_SHELL_CLASS}
         contentClassName={OPERATOR_HOME_HERO_PHONE_GUEST_CONTENT_CLASS}
+        accentPatternFade="phone"
       >
         <GuestFeedbackForm
           token=""

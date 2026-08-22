@@ -19,5 +19,8 @@ namespace TummlyBackend.Models
     public static class DataMigrationMarkerIds
     {
         public const string GuestTagBackfill = "guest-tag-backfill";
+
+        public const string WeeklyBriefClosedWeekBackfill =
+            "weekly-brief-closed-week-backfill";
     }
 }

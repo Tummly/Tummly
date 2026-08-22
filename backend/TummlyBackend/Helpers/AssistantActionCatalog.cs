@@ -129,6 +129,32 @@ namespace TummlyBackend.Helpers
             return actions;
         }
 
+        public static IReadOnlyList<AssistantActionDto> ValidateCombinedCreate(
+            int? campaignId,
+            int? offerId,
+            AssistantMessageClass answerClass
+        )
+        {
+            if (answerClass != AssistantMessageClass.Grounded
+                || campaignId is null
+                || offerId is null)
+            {
+                return [];
+            }
+
+            return
+            [
+                CompletingCampaignAction("review-campaign", campaignId.Value),
+                CompletingCampaignAction("change-audience", campaignId.Value),
+                new AssistantActionDto
+                {
+                    Type = "review-offer",
+                    Label = LabelFor(new AssistantActionDto { Type = "review-offer" }),
+                    OfferId = offerId,
+                },
+            ];
+        }
+
         public static IReadOnlyList<AssistantActionDto> ValidateReviewOffer(
             int? offerId,
             AssistantMessageClass answerClass

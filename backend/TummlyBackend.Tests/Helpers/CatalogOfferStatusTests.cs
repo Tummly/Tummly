@@ -103,16 +103,27 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void IsNeedsAttention_OpenVoid_QualifiesEvenWithoutExpiring()
+        public void IsNeedsAttention_OpenVoid_RequiresLiveAttach()
         {
             var today = new DateOnly(2026, 8, 11);
+            Assert.False(
+                CatalogOfferStatus.IsNeedsAttention(
+                    CatalogOfferValidity.Days30AfterIssue,
+                    customExpiryDate: null,
+                    effectiveStatus: "active",
+                    venueLocalToday: today,
+                    hasOpenVoidRequest: true,
+                    liveAttachCount: 0
+                )
+            );
             Assert.True(
                 CatalogOfferStatus.IsNeedsAttention(
                     CatalogOfferValidity.Days30AfterIssue,
                     customExpiryDate: null,
                     effectiveStatus: "active",
                     venueLocalToday: today,
-                    hasOpenVoidRequest: true
+                    hasOpenVoidRequest: true,
+                    liveAttachCount: 1
                 )
             );
             Assert.False(
@@ -121,7 +132,50 @@ namespace TummlyBackend.Tests.Helpers
                     customExpiryDate: null,
                     effectiveStatus: "active",
                     venueLocalToday: today,
-                    hasOpenVoidRequest: false
+                    hasOpenVoidRequest: false,
+                    liveAttachCount: 0
+                )
+            );
+        }
+
+        [Fact]
+        public void IsNeedsAttention_ExpiringRequiresLiveAttach()
+        {
+            var today = new DateOnly(2026, 8, 11);
+            Assert.False(
+                CatalogOfferStatus.IsNeedsAttention(
+                    CatalogOfferValidity.ChooseExpiryDate,
+                    today.AddDays(2),
+                    "active",
+                    today,
+                    hasOpenVoidRequest: false,
+                    liveAttachCount: 0
+                )
+            );
+            Assert.True(
+                CatalogOfferStatus.IsNeedsAttention(
+                    CatalogOfferValidity.ChooseExpiryDate,
+                    today.AddDays(2),
+                    "active",
+                    today,
+                    hasOpenVoidRequest: false,
+                    liveAttachCount: 1
+                )
+            );
+        }
+
+        [Fact]
+        public void IsNeedsAttention_DraftNeverQualifies()
+        {
+            var today = new DateOnly(2026, 8, 11);
+            Assert.False(
+                CatalogOfferStatus.IsNeedsAttention(
+                    CatalogOfferValidity.ChooseExpiryDate,
+                    today.AddDays(2),
+                    "draft",
+                    today,
+                    hasOpenVoidRequest: true,
+                    liveAttachCount: 1
                 )
             );
         }
@@ -136,7 +190,8 @@ namespace TummlyBackend.Tests.Helpers
                     today.AddDays(2),
                     "active",
                     today,
-                    hasOpenVoidRequest: false
+                    hasOpenVoidRequest: false,
+                    liveAttachCount: 1
                 )
             );
             Assert.True(
@@ -145,7 +200,113 @@ namespace TummlyBackend.Tests.Helpers
                     today.AddDays(2),
                     "active",
                     today,
-                    hasOpenVoidRequest: true
+                    hasOpenVoidRequest: true,
+                    liveAttachCount: 1
+                )
+            );
+        }
+
+        [Theory]
+        [InlineData("draft", 0, "draft")]
+        [InlineData("draft", 1, "active")]
+        [InlineData("active", 0, "draft")]
+        [InlineData("active", 2, "active")]
+        [InlineData("paused", 0, "paused")]
+        [InlineData("archived", 1, "archived")]
+        public void ResolveStoredStatusFromLiveAttachCount_OpenDraftActive(
+            string stored,
+            int attaches,
+            string expected
+        )
+        {
+            var today = new DateOnly(2026, 8, 11);
+            Assert.Equal(
+                expected,
+                CatalogOfferStatus.ResolveStoredStatusFromLiveAttachCount(
+                    stored,
+                    CatalogOfferValidity.Days30AfterIssue,
+                    customExpiryDate: null,
+                    today,
+                    attaches
+                )
+            );
+        }
+
+        [Fact]
+        public void ResolveStoredStatusFromLiveAttachCount_ExpiredActive_Unchanged()
+        {
+            var today = new DateOnly(2026, 8, 11);
+            Assert.Equal(
+                "active",
+                CatalogOfferStatus.ResolveStoredStatusFromLiveAttachCount(
+                    "active",
+                    CatalogOfferValidity.ChooseExpiryDate,
+                    new DateOnly(2026, 8, 10),
+                    today,
+                    rawLiveAttachCount: 0
+                )
+            );
+        }
+
+        [Theory]
+        [InlineData(0, "draft")]
+        [InlineData(1, "active")]
+        public void ResolveResumeStoredStatus(int attaches, string expected)
+        {
+            Assert.Equal(
+                expected,
+                CatalogOfferStatus.ResolveResumeStoredStatus(attaches)
+            );
+        }
+
+        [Fact]
+        public void IsAttachable_AllowsDraftAndActive()
+        {
+            var today = new DateOnly(2026, 8, 11);
+            Assert.True(
+                CatalogOfferStatus.IsAttachable(
+                    "draft",
+                    CatalogOfferValidity.Days30AfterIssue,
+                    null,
+                    today
+                )
+            );
+            Assert.True(
+                CatalogOfferStatus.IsAttachable(
+                    "active",
+                    CatalogOfferValidity.Days30AfterIssue,
+                    null,
+                    today
+                )
+            );
+            Assert.False(
+                CatalogOfferStatus.IsAttachable(
+                    "paused",
+                    CatalogOfferValidity.Days30AfterIssue,
+                    null,
+                    today
+                )
+            );
+        }
+
+        [Fact]
+        public void IsAttachable_RejectsPastFixedExpiryDraftAndActive()
+        {
+            var today = new DateOnly(2026, 8, 11);
+            Assert.False(
+                CatalogOfferStatus.IsAttachable(
+                    "draft",
+                    CatalogOfferValidity.ChooseExpiryDate,
+                    new DateOnly(2026, 8, 10),
+                    today
+                )
+            );
+            Assert.False(
+                CatalogOfferStatus.IsAttachable(
+                    "active",
+                    CatalogOfferValidity.ChooseExpiryDate,
+                    new DateOnly(2026, 8, 10),
+                    today
                 )
             );
         }

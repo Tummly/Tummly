@@ -127,7 +127,7 @@ namespace TummlyBackend.Migrations
                     b.Property<string>("LastCompareLocationIdsJson")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("OwnedLocationId")
+                    b.Property<int?>("OwnedLocationId")
                         .HasColumnType("int");
 
                     b.Property<string>("OwnedLocationName")
@@ -137,6 +137,9 @@ namespace TummlyBackend.Migrations
 
                     b.Property<int>("OwnerUserId")
                         .HasColumnType("int");
+
+                    b.Property<string>("RecoveryWorkJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ReportingPeriodEndDate")
                         .HasMaxLength(10)
@@ -155,8 +158,10 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<string>("RecoveryWorkJson")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<string>("ScopeKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -222,6 +227,10 @@ namespace TummlyBackend.Migrations
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ScopeKind")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<string>("Title")
                         .HasMaxLength(200)
@@ -2506,13 +2515,55 @@ namespace TummlyBackend.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.WeeklyBrief", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BodyJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ErrorInfo")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("GeneratedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MetricsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("WeekKey")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LocationId", "WeekKey")
+                        .IsUnique();
+
+                    b.ToTable("WeeklyBriefs");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.AssistantConversation", b =>
                 {
                     b.HasOne("TummlyBackend.Models.RestaurantLocation", "OwnedLocation")
                         .WithMany()
                         .HasForeignKey("OwnedLocationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("TummlyBackend.Models.User", "OwnerUser")
                         .WithMany()
@@ -3240,6 +3291,17 @@ namespace TummlyBackend.Migrations
                         .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("SelectedLocation");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.WeeklyBrief", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Location");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.AssistantConversation", b =>

@@ -54,6 +54,8 @@ function offerListItem(
   }
 }
 
+const OVERVIEW_NOW_MS = Date.parse("2026-08-22T12:00:00.000Z")
+
 function createAdapters(
   overrides: Partial<OperatorOffersPageAdapters> & {
     listCatalogOffers?: Mock<OperatorOffersPageAdapters["listCatalogOffers"]>
@@ -65,6 +67,8 @@ function createAdapters(
       ?? vi.fn(async () => emptyListResponse()),
     listOpenVoidAttention: overrides.listOpenVoidAttention,
     getOffersPerformance: overrides.getOffersPerformance,
+    nowMs: overrides.nowMs ?? (() => OVERVIEW_NOW_MS),
+    utcOffsetMinutes: overrides.utcOffsetMinutes ?? 0,
     debounceMs: overrides.debounceMs ?? 0,
     createOffer: overrides.createOffer,
     updateOffer: overrides.updateOffer,
@@ -1527,7 +1531,7 @@ describe("createOperatorOffersPageModule", () => {
     expect(createOffer).not.toHaveBeenCalled()
   })
 
-  it("assembles Needs attention overview from expiring list + open void facts", async () => {
+  it("does not count Void-only Offers in the expiry overview row", async () => {
     const listCatalogOffers = vi.fn(
       async (params: { view?: string }) => {
         if (params.view === "needs-attention") {
@@ -1538,6 +1542,8 @@ describe("createOperatorOffersPageModule", () => {
                 id: 1,
                 title: "10% off next order",
                 status: "active",
+                validity: "choose_expiry_date",
+                expiryDate: "2026-08-25",
                 lifetimeClaims: 23,
                 lifetimeRedeemed: 9,
               }),
@@ -1545,6 +1551,8 @@ describe("createOperatorOffersPageModule", () => {
                 id: 2,
                 title: "Free dessert",
                 status: "active",
+                validity: "14_days_after_issue",
+                expiryDate: null,
                 lifetimeClaims: 4,
                 lifetimeRedeemed: 1,
               }),
@@ -1573,9 +1581,10 @@ describe("createOperatorOffersPageModule", () => {
     )
     const listOpenVoidAttention = vi.fn(async () => [
       {
-        offerId: 42,
-        offerTitle: "Lunch deal",
+        offerId: 2,
+        offerTitle: "Free dessert",
         pendingCount: 1,
+        newestPendingRequestedAtUtc: "2026-08-22T11:00:00.000Z",
       },
     ])
     const pageModule = createOperatorOffersPageModule(
@@ -1587,21 +1596,32 @@ describe("createOperatorOffersPageModule", () => {
       locations: [{ id: 7, locationName: "Manchester" }],
     })
 
+    expect(listCatalogOffers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        view: "needs-attention",
+        utcOffsetMinutes: 0,
+      })
+    )
+
     const needsAttention = pageModule.getSnapshot().viewModel?.needsAttention
     expect(needsAttention?.isEmpty).toBe(false)
     expect(needsAttention?.showViewAll).toBe(false)
     expect(needsAttention?.rows).toHaveLength(2)
-    expect(needsAttention?.rows[0]).toMatchObject({
+    expect(needsAttention?.rows[0]).toEqual({
+      id: "warning-expiring",
       kind: "warning",
-      title: "2 offers expire this week",
+      title: "1 offer expires this week",
+      body: "“10% off next order” has 23 claims and 9 redemptions before expiry.",
+      metaLine: "Warning · 4 days ago · Manchester",
       ctaKind: "review-expiring",
-      metaLine: expect.stringContaining("Warning ·"),
+      ctaLabel: "Review expiring offers",
     })
     expect(needsAttention?.rows[1]).toMatchObject({
       kind: "warning",
       ctaKind: "review-void-offer",
-      offerId: 42,
+      offerId: 2,
       ctaLabel: "Review void request",
+      metaLine: "Warning · 1 hour ago · Manchester",
     })
 
     await pageModule.selectNeedsAttentionList()
@@ -1611,5 +1631,897 @@ describe("createOperatorOffersPageModule", () => {
     expect(pageModule.getSnapshot().viewModel?.list.activeViewId).toBe(
       "needs-attention"
     )
+  })
+
+  it("still counts a dual-rule Offer in the expiry aggregate", async () => {
+    const listCatalogOffers = vi.fn(async (params: { view?: string }) => {
+      if (params.view === "needs-attention") {
+        return emptyListResponse({
+          totalCount: 1,
+          items: [
+            offerListItem({
+              id: 22,
+              title: "Dual rule dessert",
+              status: "active",
+              validity: "choose_expiry_date",
+              expiryDate: "2026-08-25",
+              lifetimeClaims: 4,
+              lifetimeRedeemed: 1,
+            }),
+          ],
+          tabCounts: {
+            all: 3,
+            needsAttention: 1,
+            drafts: 0,
+            inFlight: 1,
+            sent: 0,
+          },
+        })
+      }
+      return emptyListResponse()
+    })
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({
+        listCatalogOffers,
+        listOpenVoidAttention: vi.fn(async () => [
+          {
+            offerId: 22,
+            offerTitle: "Dual rule dessert",
+            pendingCount: 2,
+            newestPendingRequestedAtUtc: "2026-08-22T10:00:00.000Z",
+          },
+        ]),
+      })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 7,
+      locations: [{ id: 7, locationName: "Camden" }],
+    })
+
+    const rows = pageModule.getSnapshot().viewModel?.needsAttention.rows
+    expect(rows).toHaveLength(2)
+    expect(rows?.[0]).toMatchObject({
+      title: "1 offer expires this week",
+      body: "“Dual rule dessert” has 4 claims and 1 redemption before expiry.",
+      ctaKind: "review-expiring",
+    })
+    expect(rows?.[1]).toMatchObject({
+      ctaKind: "review-void-offer",
+      offerId: 22,
+    })
+  })
+
+  it("quotes the soonest end date then lower catalog Offer id as the expiry lead", async () => {
+    const listCatalogOffers = vi.fn(async (params: { view?: string }) => {
+      if (params.view === "needs-attention") {
+        return emptyListResponse({
+          totalCount: 3,
+          items: [
+            offerListItem({
+              id: 40,
+              title: "Later end",
+              status: "active",
+              validity: "choose_expiry_date",
+              expiryDate: "2026-08-28",
+            }),
+            offerListItem({
+              id: 31,
+              title: "Same-day higher id",
+              status: "active",
+              validity: "choose_expiry_date",
+              expiryDate: "2026-08-24",
+            }),
+            offerListItem({
+              id: 30,
+              title: "Same-day lead",
+              status: "active",
+              validity: "choose_expiry_date",
+              expiryDate: "2026-08-24",
+              lifetimeClaims: 8,
+              lifetimeRedeemed: 3,
+            }),
+          ],
+          tabCounts: {
+            all: 3,
+            needsAttention: 3,
+            drafts: 0,
+            inFlight: 3,
+            sent: 0,
+          },
+        })
+      }
+      return emptyListResponse()
+    })
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ listCatalogOffers })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 7,
+      locations: [{ id: 7, locationName: "Camden" }],
+    })
+
+    expect(pageModule.getSnapshot().viewModel?.needsAttention.rows[0]).toEqual({
+      id: "warning-expiring",
+      kind: "warning",
+      title: "3 offers expire this week",
+      body: "“Same-day lead” has 8 claims and 3 redemptions before expiry.",
+      metaLine: "Warning · 5 days ago · Camden",
+      ctaKind: "review-expiring",
+      ctaLabel: "Review expiring offers",
+    })
+  })
+
+  it("keeps a Void-only queue without an expiry overview row", async () => {
+    const listCatalogOffers = vi.fn(async (params: { view?: string }) => {
+      if (params.view === "needs-attention") {
+        return emptyListResponse({
+          totalCount: 1,
+          items: [
+            offerListItem({
+              id: 9,
+              title: "Lunch deal",
+              status: "active",
+              validity: "7_days_after_issue",
+              expiryDate: null,
+            }),
+          ],
+          tabCounts: {
+            all: 2,
+            needsAttention: 1,
+            drafts: 0,
+            inFlight: 1,
+            sent: 0,
+          },
+        })
+      }
+      return emptyListResponse()
+    })
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({
+        listCatalogOffers,
+        listOpenVoidAttention: vi.fn(async () => [
+          {
+            offerId: 9,
+            offerTitle: "Lunch deal",
+            pendingCount: 1,
+            newestPendingRequestedAtUtc: "2026-08-22T11:30:00.000Z",
+          },
+        ]),
+      })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 7,
+      locations: [{ id: 7, locationName: "Camden" }],
+    })
+
+    const needsAttention = pageModule.getSnapshot().viewModel?.needsAttention
+    expect(needsAttention?.isEmpty).toBe(false)
+    expect(needsAttention?.rows).toHaveLength(1)
+    expect(needsAttention?.rows[0]).toMatchObject({
+      ctaKind: "review-void-offer",
+      offerId: 9,
+      metaLine: "Warning · 30 minutes ago · Camden",
+    })
+    expect(
+      needsAttention?.rows.some((row) => row.ctaKind === "review-expiring")
+    ).toBe(false)
+  })
+
+  describe("Needs attention warning-type list scope (ticket 03)", () => {
+    const fullQueueTabCounts = {
+      all: 4,
+      needsAttention: 3,
+      drafts: 0,
+      inFlight: 3,
+      sent: 0,
+    }
+
+    function scopedListResponse(
+      items: CatalogOffersListItem[],
+      totalCount: number
+    ): CatalogOffersListResponse {
+      return emptyListResponse({
+        totalCount,
+        items,
+        tabCounts: fullQueueTabCounts,
+      })
+    }
+
+    function findListCall(
+      listCatalogOffers: Mock<OperatorOffersPageAdapters["listCatalogOffers"]>,
+      match: (params: Record<string, unknown>) => boolean
+    ) {
+      return listCatalogOffers.mock.calls.find((call) => match(call[0] as Record<string, unknown>))
+    }
+
+    it("Review expiring CTA requests expiry scope and clears search and filters", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "expiry"
+        ) {
+          return scopedListResponse(
+            [
+              offerListItem({
+                id: 1,
+                title: "Expiring",
+                status: "active",
+                validity: "choose_expiry_date",
+                expiryDate: "2026-08-25",
+              }),
+            ],
+            1
+          )
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 3)
+        }
+        return emptyListResponse()
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+      pageModule.setSearchQuery("lunch")
+      pageModule.applyFilters({
+        ...emptySelection(offersFilterSheetSchema()),
+        status: { kind: "multi-select", ids: ["active"] },
+      })
+      pageModule.setSortId("title-az")
+
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+
+      expect(findListCall(listCatalogOffers, (params) => params.warningType === "expiry")).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            view: "needs-attention",
+            warningType: "expiry",
+            q: undefined,
+            page: 1,
+            sort: "title-az",
+          }),
+        ])
+      )
+      const list = pageModule.getSnapshot().viewModel?.list
+      expect(list?.activeViewId).toBe("needs-attention")
+      expect(list?.searchQuery).toBe("")
+      expect(list?.filterChipCount).toBe(0)
+      expect(list?.totalCount).toBe(1)
+      expect(list?.tabs.find((tab) => tab.id === "needs-attention")?.count).toBe(
+        3
+      )
+      expect(list?.pageRangeLabel).toBe("Showing 1–1 of 1 offers")
+    })
+
+    it("Review void aggregate CTA requests void scope and clears search and filters", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "void"
+        ) {
+          return scopedListResponse(
+            [
+              offerListItem({
+                id: 8,
+                title: "Void only",
+                status: "active",
+              }),
+              offerListItem({
+                id: 22,
+                title: "Dual rule",
+                status: "active",
+                validity: "choose_expiry_date",
+                expiryDate: "2026-08-25",
+              }),
+            ],
+            2
+          )
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 3)
+        }
+        return emptyListResponse()
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+      pageModule.setSearchQuery("void")
+      pageModule.applyFilters({
+        ...emptySelection(offersFilterSheetSchema()),
+        status: { kind: "multi-select", ids: ["active"] },
+      })
+      pageModule.setSortId("title-az")
+
+      await pageModule.selectNeedsAttentionWarningScope("void")
+
+      expect(findListCall(listCatalogOffers, (params) => params.warningType === "void")).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            view: "needs-attention",
+            warningType: "void",
+            q: undefined,
+            page: 1,
+            sort: "title-az",
+          }),
+        ])
+      )
+      const list = pageModule.getSnapshot().viewModel?.list
+      expect(list?.searchQuery).toBe("")
+      expect(list?.filterChipCount).toBe(0)
+      expect(list?.totalCount).toBe(2)
+      expect(list?.rows.map((row) => row.id).sort((a, b) => a - b)).toEqual([8, 22])
+      expect(list?.tabs.find((tab) => tab.id === "needs-attention")?.count).toBe(
+        3
+      )
+    })
+
+    it("expiry scope includes dual-rule and expiry-only offers", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "expiry"
+        ) {
+          return scopedListResponse(
+            [
+              offerListItem({
+                id: 1,
+                title: "Expiring only",
+                status: "active",
+                validity: "choose_expiry_date",
+                expiryDate: "2026-08-25",
+              }),
+              offerListItem({
+                id: 22,
+                title: "Dual rule",
+                status: "active",
+                validity: "choose_expiry_date",
+                expiryDate: "2026-08-25",
+              }),
+            ],
+            2
+          )
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 3)
+        }
+        return emptyListResponse()
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+
+      expect(
+        pageModule.getSnapshot().viewModel?.list.rows.map((row) => row.id).sort((a, b) => a - b)
+      ).toEqual([1, 22])
+      expect(pageModule.getSnapshot().viewModel?.list.totalCount).toBe(2)
+    })
+
+    it("Needs attention tab click and View all omit warning-type", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (params.view === "needs-attention" && params.warningType == null) {
+          return scopedListResponse(
+            [offerListItem({ id: 1, title: "One", status: "active" })],
+            3
+          )
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 1)
+        }
+        return emptyListResponse()
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+      await pageModule.setListView("needs-attention")
+
+      expect(
+        findListCall(
+          listCatalogOffers,
+          (params) =>
+            params.view === "needs-attention" && params.warningType == null
+        )
+      ).toBeDefined()
+      expect(pageModule.getSnapshot().viewModel?.list.totalCount).toBe(3)
+
+      await pageModule.selectNeedsAttentionWarningScope("void")
+      await pageModule.selectNeedsAttentionList()
+
+      expect(
+        findListCall(
+          listCatalogOffers,
+          (params) =>
+            params.view === "needs-attention"
+            && params.warningType == null
+            && params.page === 1
+        )
+      ).toBeDefined()
+    })
+
+    it("Other tabs clear warning-type scope", async () => {
+      const listCatalogOffers = vi.fn(async () => emptyListResponse())
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+      await pageModule.setListView("drafts")
+
+      expect(
+        findListCall(
+          listCatalogOffers,
+          (params) => params.view === "drafts" && params.warningType == null
+        )
+      ).toBeDefined()
+    })
+
+    it("Location change clears warning-type scope", async () => {
+      const listCatalogOffers = vi.fn(async () => emptyListResponse())
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [
+          { id: 7, locationName: "Camden" },
+          { id: 8, locationName: "Manchester" },
+        ],
+      })
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+      await pageModule.syncWorkspace({
+        selectedLocationId: 8,
+        locations: [
+          { id: 7, locationName: "Camden" },
+          { id: 8, locationName: "Manchester" },
+        ],
+      })
+
+      expect(
+        findListCall(
+          listCatalogOffers,
+          (params) => params.view === "all" && params.warningType == null
+        )
+      ).toBeDefined()
+    })
+  })
+
+  describe("Needs attention warning-type session chip (ticket 04)", () => {
+    const fullQueueTabCounts = {
+      all: 4,
+      needsAttention: 3,
+      drafts: 0,
+      inFlight: 3,
+      sent: 0,
+    }
+
+    function scopedListResponse(
+      items: CatalogOffersListItem[],
+      totalCount: number
+    ): CatalogOffersListResponse {
+      return emptyListResponse({
+        totalCount,
+        items,
+        tabCounts: fullQueueTabCounts,
+      })
+    }
+
+    function findListCall(
+      listCatalogOffers: Mock<OperatorOffersPageAdapters["listCatalogOffers"]>,
+      match: (params: Record<string, unknown>) => boolean
+    ) {
+      return listCatalogOffers.mock.calls.find((call) => match(call[0] as Record<string, unknown>))
+    }
+
+    it("Review expiry CTA shows Expiring soon chip outside filter count", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "expiry"
+        ) {
+          return scopedListResponse(
+            [offerListItem({ id: 1, title: "Expiring", status: "active" })],
+            1
+          )
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 3)
+        }
+        return emptyListResponse()
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+
+      const list = pageModule.getSnapshot().viewModel?.list
+      expect(list?.needsAttentionWarningChip).toEqual({ label: "Expiring soon" })
+      expect(list?.filterChipCount).toBe(0)
+    })
+
+    it("Review void aggregate CTA shows Open void chip", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "void"
+        ) {
+          return scopedListResponse(
+            [offerListItem({ id: 8, title: "Void only", status: "active" })],
+            1
+          )
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 3)
+        }
+        return emptyListResponse()
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+      await pageModule.selectNeedsAttentionWarningScope("void")
+
+      expect(
+        pageModule.getSnapshot().viewModel?.list.needsAttentionWarningChip
+      ).toEqual({ label: "Open void" })
+    })
+
+    it("chip clear omits warning-type and shows the full Needs attention tab", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (params.view === "needs-attention" && params.warningType == null) {
+          return scopedListResponse(
+            [offerListItem({ id: 1, title: "One", status: "active" })],
+            3
+          )
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 1)
+        }
+        return emptyListResponse()
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+      await pageModule.clearNeedsAttentionWarningScope()
+
+      const list = pageModule.getSnapshot().viewModel?.list
+      expect(list?.needsAttentionWarningChip).toBeNull()
+      expect(list?.totalCount).toBe(3)
+      expect(
+        findListCall(
+          listCatalogOffers,
+          (params) =>
+            params.view === "needs-attention" && params.warningType == null
+        )
+      ).toBeDefined()
+    })
+
+    it("Clear all filters keeps warning-type scope and chip", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "expiry"
+        ) {
+          return scopedListResponse(
+            [offerListItem({ id: 1, title: "Expiring", status: "active" })],
+            1
+          )
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 3)
+        }
+        return emptyListResponse()
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+      pageModule.setSearchQuery("lunch")
+      pageModule.applyFilters({
+        ...emptySelection(offersFilterSheetSchema()),
+        status: { kind: "multi-select", ids: ["active"] },
+      })
+
+      await pageModule.clearSearchAndFilters()
+
+      const list = pageModule.getSnapshot().viewModel?.list
+      expect(list?.needsAttentionWarningChip).toEqual({ label: "Expiring soon" })
+      expect(list?.filterChipCount).toBe(0)
+      expect(list?.searchQuery).toBe("")
+      expect(
+        findListCall(
+          listCatalogOffers,
+          (params) => params.warningType === "expiry"
+        )
+      ).toBeDefined()
+    })
+
+    it("Filters (n) counts sheet filters only when warning chip is present", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "expiry"
+        ) {
+          return scopedListResponse(
+            [offerListItem({ id: 1, title: "Expiring", status: "active" })],
+            1
+          )
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 3)
+        }
+        return emptyListResponse()
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+      pageModule.applyFilters({
+        ...emptySelection(offersFilterSheetSchema()),
+        status: { kind: "multi-select", ids: ["active"] },
+      })
+
+      await vi.waitFor(() => {
+        expect(
+          pageModule.getSnapshot().viewModel?.list.filterChipCount
+        ).toBe(1)
+      })
+
+      const list = pageModule.getSnapshot().viewModel?.list
+      expect(list?.needsAttentionWarningChip).toEqual({ label: "Expiring soon" })
+      expect(list?.filterChipCount).toBe(1)
+    })
+
+    it("search and sheet filters after a CTA apply on the scoped set", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "expiry"
+          && params.q === "lunch"
+        ) {
+          return scopedListResponse(
+            [offerListItem({ id: 1, title: "Lunch special", status: "active" })],
+            1
+          )
+        }
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "expiry"
+        ) {
+          return scopedListResponse(
+            [
+              offerListItem({ id: 1, title: "Lunch special", status: "active" }),
+              offerListItem({ id: 2, title: "Dinner", status: "active" }),
+            ],
+            2
+          )
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 3)
+        }
+        return emptyListResponse()
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+      pageModule.setSearchQuery("lunch")
+      await vi.waitFor(() => {
+        expect(
+          findListCall(
+            listCatalogOffers,
+            (params) =>
+              params.warningType === "expiry" && params.q === "lunch"
+          )
+        ).toBeDefined()
+      })
+
+      const list = pageModule.getSnapshot().viewModel?.list
+      expect(list?.needsAttentionWarningChip).toEqual({ label: "Expiring soon" })
+      expect(list?.totalCount).toBe(1)
+      expect(list?.pageRangeLabel).toBe("Showing 1–1 of 1 offers")
+    })
+
+    it("second Review CTA replaces the chip without stacking scopes", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "void"
+        ) {
+          return scopedListResponse(
+            [offerListItem({ id: 8, title: "Void only", status: "active" })],
+            1
+          )
+        }
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "expiry"
+        ) {
+          return scopedListResponse(
+            [offerListItem({ id: 1, title: "Expiring", status: "active" })],
+            1
+          )
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 3)
+        }
+        return emptyListResponse()
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+      await pageModule.selectNeedsAttentionWarningScope("void")
+
+      const list = pageModule.getSnapshot().viewModel?.list
+      expect(list?.needsAttentionWarningChip).toEqual({ label: "Open void" })
+      expect(
+        findListCall(
+          listCatalogOffers,
+          (params) => params.warningType === "void"
+        )
+      ).toBeDefined()
+      expect(
+        findListCall(
+          listCatalogOffers,
+          (params) => params.warningType === "expiry"
+        )
+      ).toBeDefined()
+    })
+
+    it("warning-type scope alone uses view-scoped empty, not filter-search", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "expiry"
+        ) {
+          return scopedListResponse([], 0)
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 3)
+        }
+        return emptyListResponse({ tabCounts: fullQueueTabCounts })
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+
+      const list = pageModule.getSnapshot().viewModel?.list
+      expect(list?.needsAttentionWarningChip).toEqual({ label: "Expiring soon" })
+      expect(list?.empty?.kind).toBe("view-scoped")
+      expect(list?.empty?.clearAllFiltersLabel).toBeUndefined()
+    })
+
+    it("Status filter after CTA applies on scoped set and updates Showing N", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "expiry"
+          && Array.isArray(params.status)
+          && params.status.includes("active")
+        ) {
+          return scopedListResponse(
+            [offerListItem({ id: 1, title: "Active expiring", status: "active" })],
+            1
+          )
+        }
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "expiry"
+        ) {
+          return scopedListResponse(
+            [
+              offerListItem({ id: 1, title: "Active expiring", status: "active" }),
+              offerListItem({ id: 2, title: "Paused expiring", status: "paused" }),
+            ],
+            2
+          )
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 3)
+        }
+        return emptyListResponse()
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+      pageModule.applyFilters({
+        ...emptySelection(offersFilterSheetSchema()),
+        status: { kind: "multi-select", ids: ["active"] },
+      })
+
+      await vi.waitFor(() => {
+        expect(
+          findListCall(
+            listCatalogOffers,
+            (params) =>
+              params.warningType === "expiry"
+              && Array.isArray(params.status)
+              && params.status.includes("active")
+          )
+        ).toBeDefined()
+        expect(pageModule.getSnapshot().viewModel?.list.totalCount).toBe(1)
+      })
+
+      const list = pageModule.getSnapshot().viewModel?.list
+      expect(list?.needsAttentionWarningChip).toEqual({ label: "Expiring soon" })
+      expect(list?.totalCount).toBe(1)
+      expect(list?.pageRangeLabel).toBe("Showing 1–1 of 1 offers")
+    })
   })
 })

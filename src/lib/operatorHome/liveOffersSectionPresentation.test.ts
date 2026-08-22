@@ -54,4 +54,36 @@ describe("liveOffersSectionPresentation", () => {
     expect(LIVE_OFFERS_EMPTY_ACTION_BUTTON_CLASS).toContain("min-w-11")
     expect(LIVE_OFFERS_EMPTY_ACTION_BUTTON_CLASS).toContain("md:min-h-0")
   })
+
+  it("clips preview peek and uses live meta pane token", async () => {
+    const {
+      LIVE_OFFERS_CARD_CLASS,
+      LIVE_OFFERS_CARD_META_CLASS,
+      LIVE_OFFERS_CARD_PREVIEW_CLASS,
+      LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS,
+    } = await import("./liveOffersSectionPresentation")
+    expect(LIVE_OFFERS_CARD_CLASS).toContain("max-h-[257px]")
+    expect(LIVE_OFFERS_CARD_PREVIEW_CLASS).toContain("overflow-hidden")
+    expect(LIVE_OFFERS_CARD_PREVIEW_CLASS).toContain("items-start")
+    expect(LIVE_OFFERS_CARD_PREVIEW_CLASS).toContain("justify-start")
+    expect(LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS).toContain("z-10")
+    expect(LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS).toContain(
+      "var(--op-color-black)"
+    )
+    expect(LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS).toContain("_82%")
+    expect(LIVE_OFFERS_CARD_META_CLASS).toContain(
+      "bg-op-background-secondary"
+    )
+  })
+})
+
+describe("liveOffersSectionPresentation preview width", () => {
+  it("stretches the cropped guest preview to the pane width", async () => {
+    const { LIVE_OFFERS_CARD_PREVIEW_SCALE_CLASS } = await import(
+      "./liveOffersSectionPresentation"
+    )
+    expect(LIVE_OFFERS_CARD_PREVIEW_SCALE_CLASS).toContain("w-full")
+    expect(LIVE_OFFERS_CARD_PREVIEW_SCALE_CLASS).toContain("z-0")
+    expect(LIVE_OFFERS_CARD_PREVIEW_SCALE_CLASS).not.toContain("scale-[")
+  })
 })

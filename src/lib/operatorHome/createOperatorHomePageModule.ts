@@ -5,8 +5,22 @@ import {
   type FeedbackDetailsSnapshot,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import { closeExclusiveAssistantDrawer } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
+import {
+  buildHomeNeedsAttention,
+  type HomeNeedsAttentionProjection,
+} from "@/lib/operatorHome/buildHomeNeedsAttention"
+import {
+  buildLiveOffersSectionCards,
+  type OperatorHomeLiveCard,
+} from "@/lib/operatorHome/buildLiveOffersSectionCards"
 import { createFinishSettingUpAcksModule } from "@/lib/operatorHome/createFinishSettingUpAcksModule"
 import { buildOperatorHomeViewModel } from "@/lib/operatorHome/buildHomeViewModel"
+import { mapHomeNeedsAttentionSourceFacts } from "@/lib/operatorHome/mapHomeNeedsAttentionSourceFacts"
+import {
+  NEEDS_ATTENTION_DUPLICATE_DRAFT_ERROR,
+  NEEDS_ATTENTION_LOAD_ERROR,
+} from "@/lib/operatorHome/operatorHomeSectionPresentation"
+import { buildHomeRecommendationRequest } from "@/lib/operatorHome/buildHomeRecommendationRequest"
 import {
   labelForHomePerformanceDateRange,
   resolveHomePerformanceWindow,
@@ -26,8 +40,22 @@ import type {
   UpdateChecklistAcksRequest,
 } from "@/types/dashboard"
 import type {
+  CampaignDraftResponse,
+  CampaignLifecycleActionRequest,
+  CampaignLifecycleActionResponse,
+  CampaignsListItem,
+  CatalogOffersListItem,
+  OpenVoidAttentionOfferApi,
+} from "@/types/operatorCampaigns"
+import type {
+  HomeRecommendation,
+  HomeRecommendationRequest,
+  HomeRecommendationResponse,
   OperatorHomeChecklistAcks,
   OperatorHomeViewModel,
+  WeeklyBriefBody,
+  WeeklyBriefGenerateResponse,
+  WeeklyBriefGetResponse,
 } from "@/types/operatorHome"
 
 export type OperatorHomeWorkspaceInput = {
@@ -37,13 +65,65 @@ export type OperatorHomeWorkspaceInput = {
 
 export type CopySmartGuestLinkResult = "copied" | "failed" | "noop"
 
+export const HOME_RECOMMENDATION_LOAD_ERROR_MESSAGE =
+  "Could not load a recommendation. Please try again."
+
+export const HOME_NEEDS_ATTENTION_LOAD_ERROR_MESSAGE =
+  NEEDS_ATTENTION_LOAD_ERROR
+
+export const HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE =
+  "Could not load your weekly brief. Please try again."
+
+export type OperatorHomeRecommendationStatus =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "error"
+  | "dismissed"
+
+export type OperatorHomeRecommendationViewModel = {
+  status: OperatorHomeRecommendationStatus
+  /** Present when status is ready and type is not none. */
+  recommendation: HomeRecommendation | null
+  /** True when status is ready and type is none. */
+  isNone: boolean
+  errorMessage: string | null
+  errorRetryable: boolean
+}
+
+export type OperatorHomeWeeklyBriefStatus =
+  | "empty"
+  | "loading"
+  | "ready"
+  | "error"
+
+export type OperatorHomeWeeklyBriefViewModel = {
+  status: OperatorHomeWeeklyBriefStatus
+  week: string | null
+  body: WeeklyBriefBody | null
+  errorMessage: string | null
+  errorRetryable: boolean
+}
+
 export type OperatorHomePageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
   performanceLoadStatus: "idle" | "loading" | "loaded" | "error"
+  liveOffersLoadStatus: "idle" | "loading" | "loaded" | "error"
+  liveCards: OperatorHomeLiveCard[]
+  liveOffersError: string | null
+  liveOffersPauseBusy: boolean
+  /** Home Needs attention — not on OperatorHomeViewModel (ticket 02). */
+  needsAttentionLoadStatus: "idle" | "loading" | "loaded" | "error"
+  needsAttention: HomeNeedsAttentionProjection | null
+  needsAttentionError: string | null
   viewModel: OperatorHomeViewModel | null
   previewBusy: boolean
   actionError: string | null
   feedbackDetails: FeedbackDetailsSnapshot
+  /** Home Recommended next step — not on OperatorHomeViewModel (ticket 04). */
+  recommendation: OperatorHomeRecommendationViewModel
+  /** Weekly brief — not on OperatorHomeViewModel (ticket 06). */
+  weeklyBrief: OperatorHomeWeeklyBriefViewModel
 }
 
 export type ClassificationTerminalSignal = {
@@ -71,6 +151,13 @@ export type OperatorHomePageAdapters = {
     to: string
   ) => Promise<HomePerformanceResponse>
   getHomePerformanceDateRange: () => HomePerformanceDateRange
+  loadHomeRecommendation: (input: {
+    request: HomeRecommendationRequest
+  }) => Promise<HomeRecommendationResponse>
+  getWeeklyBrief: (locationId: number) => Promise<WeeklyBriefGetResponse>
+  generateWeeklyBrief: (
+    locationId: number
+  ) => Promise<WeeklyBriefGenerateResponse>
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
   correctClassification: FeedbackDetailsAdapters["correctClassification"]
   updateDetectedTags: FeedbackDetailsAdapters["updateDetectedTags"]
@@ -94,6 +181,10 @@ export type OperatorHomePageAdapters = {
     locationId: number,
     body: UpdateChecklistAcksRequest
   ) => Promise<ChecklistAcksResponse>
+  /** Lightweight “has any catalog offer” probe for setup checklist. */
+  hasCreatedOffer: (locationId: number) => Promise<boolean>
+  /** Lightweight “has any campaign” probe for setup checklist. */
+  hasCreatedCampaign: (locationId: number) => Promise<boolean>
   copyText: (
     text: string
   ) => Promise<{ ok: true } | { ok: false; error: string }>
@@ -102,7 +193,35 @@ export type OperatorHomePageAdapters = {
     handlers: FeedbackHomeRealtimeHandlers
   ) => Promise<FeedbackHomeRealtimeSession>
   onPerformanceLoadError?: (message: string) => void
+  listLiveOffers: (locationId: number) => Promise<CatalogOffersListItem[]>
+  listLiveCampaigns: (locationId: number) => Promise<CampaignsListItem[]>
+  getNeedsAttentionFeedback: (locationId: number) => Promise<{
+    count: number
+    newestSubmittedAt: string | null
+  }>
+  listNeedsAttentionCampaigns: (
+    locationId: number
+  ) => Promise<CampaignsListItem[]>
+  listNeedsAttentionOffers: (
+    locationId: number
+  ) => Promise<CatalogOffersListItem[]>
+  listOpenVoidAttention: (
+    locationId: number
+  ) => Promise<OpenVoidAttentionOfferApi[]>
+  pauseCampaign: (
+    campaignId: number,
+    body: CampaignLifecycleActionRequest
+  ) => Promise<CampaignLifecycleActionResponse>
+  duplicateCampaign: (
+    campaignId: number,
+    body: CampaignLifecycleActionRequest
+  ) => Promise<CampaignLifecycleActionResponse>
+  getCampaignDraftById?: (campaignId: number) => Promise<CampaignDraftResponse>
 }
+
+export type DuplicateNeedsAttentionCampaignResult =
+  | { ok: true; campaignId: number }
+  | { ok: false; error: string }
 
 export type OperatorHomePageModule = {
   getSnapshot: () => OperatorHomePageSnapshot
@@ -113,6 +232,18 @@ export type OperatorHomePageModule = {
   retryLoad: () => Promise<void>
   /** Re-load Home using the current Home performance date range from adapters. */
   reloadForHomePerformanceDateRange: () => Promise<void>
+  /** Explicit recommendation retry / refresh (bypasses server cache). */
+  retryRecommendation: () => Promise<void>
+  /** Session hide only — does not write server dismiss/cache. */
+  dismissRecommendation: () => void
+  /** Retry Weekly brief (GET; generate again only if still missing). */
+  retryWeeklyBrief: () => Promise<void>
+  retryLiveOffers: () => Promise<void>
+  retryNeedsAttention: () => Promise<void>
+  pauseLiveCampaign: (campaignId: number) => Promise<boolean>
+  duplicateNeedsAttentionCampaign: (
+    campaignId: number
+  ) => Promise<DuplicateNeedsAttentionCampaignResult>
   previewGuestForm: () => void
   copySmartGuestLink: () => Promise<CopySmartGuestLinkResult>
   openFeedbackDetails: (feedbackId: number) => Promise<void>
@@ -153,6 +284,13 @@ export type OperatorHomePageModule = {
 type HomeState = {
   loadStatus: OperatorHomePageSnapshot["loadStatus"]
   performanceLoadStatus: OperatorHomePageSnapshot["performanceLoadStatus"]
+  liveOffersLoadStatus: OperatorHomePageSnapshot["liveOffersLoadStatus"]
+  liveCards: OperatorHomeLiveCard[]
+  liveOffersError: string | null
+  liveOffersPauseBusy: boolean
+  needsAttentionLoadStatus: OperatorHomePageSnapshot["needsAttentionLoadStatus"]
+  needsAttention: HomeNeedsAttentionProjection | null
+  needsAttentionError: string | null
   workspace: OperatorHomeWorkspaceInput | null
   feedback: { total: number; recent: FeedbackResponse["recent"] } | null
   latestActivity: HomeLatestActivityItem[] | null
@@ -162,10 +300,14 @@ type HomeState = {
   guestsJoinedPrevious: number | null
   qrScans: number | null
   qrScansPrevious: number | null
+  hasCreatedOffer: boolean
+  hasCreatedCampaign: boolean
   viewModel: OperatorHomeViewModel | null
   actionError: string | null
   loadGeneration: number
   performanceLoadGeneration: number
+  liveOffersLoadGeneration: number
+  needsAttentionLoadGeneration: number
 }
 
 type HomeAction =
@@ -192,6 +334,8 @@ type HomeAction =
       guestsJoinedPrevious: number | null
       qrScans: number | null
       qrScansPrevious: number | null
+      hasCreatedOffer: boolean
+      hasCreatedCampaign: boolean
       viewModel: OperatorHomeViewModel | null
     }
   | { type: "load_failed"; generation: number }
@@ -208,6 +352,40 @@ type HomeAction =
       viewModel: OperatorHomeViewModel | null
     }
   | { type: "performance_load_failed"; generation: number }
+  | {
+      type: "live_offers_load_started"
+      generation: number
+      /** Keep prior cards visible (pause refresh) — do not flip to loading. */
+      keepVisible?: boolean
+    }
+  | {
+      type: "live_offers_load_succeeded"
+      generation: number
+      liveCards: OperatorHomeLiveCard[]
+    }
+  | {
+      type: "live_offers_load_failed"
+      generation: number
+      error: string
+    }
+  | {
+      type: "live_offers_pause_busy"
+      busy: boolean
+    }
+  | {
+      type: "needs_attention_load_started"
+      generation: number
+    }
+  | {
+      type: "needs_attention_load_succeeded"
+      generation: number
+      projection: HomeNeedsAttentionProjection
+    }
+  | {
+      type: "needs_attention_load_failed"
+      generation: number
+      error: string
+    }
   | {
       type: "view_model_updated"
       viewModel: OperatorHomeViewModel | null
@@ -237,7 +415,9 @@ function assembleViewModel(
   guestsJoinedPrevious: number | null,
   qrScans: number | null,
   qrScansPrevious: number | null,
-  dateRangeLabel: string
+  dateRangeLabel: string,
+  hasCreatedOffer: boolean,
+  hasCreatedCampaign: boolean
 ): OperatorHomeViewModel | null {
   if (workspace.selectedLocationId == null) {
     return null
@@ -256,6 +436,8 @@ function assembleViewModel(
     qrScansPrevious,
     dateRangeLabel,
     checklistAcks,
+    hasCreatedOffer,
+    hasCreatedCampaign,
   })
 }
 
@@ -266,6 +448,13 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         ...state,
         loadStatus: "idle",
         performanceLoadStatus: "idle",
+        liveOffersLoadStatus: "idle",
+        liveCards: [],
+        liveOffersError: null,
+        liveOffersPauseBusy: false,
+        needsAttentionLoadStatus: "idle",
+        needsAttention: null,
+        needsAttentionError: null,
         workspace: null,
         feedback: null,
         latestActivity: null,
@@ -275,6 +464,8 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         guestsJoinedPrevious: null,
         qrScans: null,
         qrScansPrevious: null,
+        hasCreatedOffer: false,
+        hasCreatedCampaign: false,
         viewModel: null,
         actionError: null,
       }
@@ -284,6 +475,13 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         workspace: action.workspace,
         feedback: null,
         latestActivity: null,
+        liveOffersLoadStatus: "idle",
+        liveCards: [],
+        liveOffersError: null,
+        liveOffersPauseBusy: false,
+        needsAttentionLoadStatus: "idle",
+        needsAttention: null,
+        needsAttentionError: null,
         viewModel: action.viewModel,
         actionError: null,
       }
@@ -314,6 +512,8 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         guestsJoinedPrevious: action.guestsJoinedPrevious,
         qrScans: action.qrScans,
         qrScansPrevious: action.qrScansPrevious,
+        hasCreatedOffer: action.hasCreatedOffer,
+        hasCreatedCampaign: action.hasCreatedCampaign,
         viewModel: action.viewModel,
       }
     case "load_failed":
@@ -347,6 +547,69 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         return state
       }
       return { ...state, performanceLoadStatus: "error" }
+    case "live_offers_load_started": {
+      const keepVisible =
+        action.keepVisible === true && state.liveOffersLoadStatus === "loaded"
+      return {
+        ...state,
+        liveOffersLoadStatus: keepVisible ? "loaded" : "loading",
+        liveOffersLoadGeneration: action.generation,
+        liveOffersError: keepVisible ? state.liveOffersError : null,
+        ...(keepVisible ? {} : { liveOffersPauseBusy: false }),
+      }
+    }
+    case "live_offers_load_succeeded":
+      if (action.generation !== state.liveOffersLoadGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        liveOffersLoadStatus: "loaded",
+        liveCards: action.liveCards,
+        liveOffersError: null,
+      }
+    case "live_offers_load_failed":
+      if (action.generation !== state.liveOffersLoadGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        liveOffersLoadStatus: "error",
+        liveCards: [],
+        liveOffersError: action.error,
+      }
+    case "live_offers_pause_busy":
+      return {
+        ...state,
+        liveOffersPauseBusy: action.busy,
+      }
+    case "needs_attention_load_started":
+      return {
+        ...state,
+        needsAttentionLoadStatus: "loading",
+        needsAttentionLoadGeneration: action.generation,
+        needsAttentionError: null,
+      }
+    case "needs_attention_load_succeeded":
+      if (action.generation !== state.needsAttentionLoadGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        needsAttentionLoadStatus: "loaded",
+        needsAttention: action.projection,
+        needsAttentionError: null,
+      }
+    case "needs_attention_load_failed":
+      if (action.generation !== state.needsAttentionLoadGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        needsAttentionLoadStatus: "error",
+        needsAttention: null,
+        needsAttentionError: action.error,
+      }
     case "view_model_updated":
       return {
         ...state,
@@ -373,6 +636,90 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
   }
 }
 
+function idleRecommendation(): OperatorHomeRecommendationViewModel {
+  return {
+    status: "idle",
+    recommendation: null,
+    isNone: false,
+    errorMessage: null,
+    errorRetryable: false,
+  }
+}
+
+function emptyWeeklyBrief(): OperatorHomeWeeklyBriefViewModel {
+  return {
+    status: "empty",
+    week: null,
+    body: null,
+    errorMessage: null,
+    errorRetryable: false,
+  }
+}
+
+function mapReadyWeeklyBrief(
+  response: Extract<WeeklyBriefGetResponse, { ready: true }>
+): OperatorHomeWeeklyBriefViewModel {
+  return {
+    status: "ready",
+    week: response.week,
+    body: response.body,
+    errorMessage: null,
+    errorRetryable: false,
+  }
+}
+
+function weeklyBriefErrorFrom(
+  message: string | null | undefined,
+  retryable: boolean
+): OperatorHomeWeeklyBriefViewModel {
+  return {
+    status: "error",
+    week: null,
+    body: null,
+    errorMessage: message?.trim() || HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE,
+    errorRetryable: retryable,
+  }
+}
+
+/**
+ * Client soft-cache key — location + Home performance selection identity.
+ * Do not use resolved `from`/`to` timestamps: preset windows bind `to` to `now`,
+ * so ISO strings change every call even when the operator selection is unchanged.
+ */
+function recommendationSoftCacheKey(
+  locationId: number,
+  dateRange: HomePerformanceDateRange
+): string {
+  if (dateRange.kind === "preset") {
+    return `${locationId}:preset:${dateRange.presetId}`
+  }
+  return `${locationId}:custom:${dateRange.startDate}:${dateRange.endDate}`
+}
+
+function mapRecommendationResponse(
+  response: HomeRecommendationResponse
+): OperatorHomeRecommendationViewModel {
+  if (!response.success || response.recommendation == null) {
+    return {
+      status: "error",
+      recommendation: null,
+      isNone: false,
+      errorMessage:
+        response.message ?? HOME_RECOMMENDATION_LOAD_ERROR_MESSAGE,
+      errorRetryable: response.retryable !== false,
+    }
+  }
+
+  const isNone = response.recommendation.type === "none"
+  return {
+    status: "ready",
+    recommendation: isNone ? null : response.recommendation,
+    isNone,
+    errorMessage: null,
+    errorRetryable: false,
+  }
+}
+
 export function createOperatorHomePageModule(
   adapters: OperatorHomePageAdapters
 ): OperatorHomePageModule {
@@ -394,6 +741,13 @@ export function createOperatorHomePageModule(
   let state: HomeState = {
     loadStatus: "idle",
     performanceLoadStatus: "idle",
+    liveOffersLoadStatus: "idle",
+    liveCards: [],
+    liveOffersError: null,
+    liveOffersPauseBusy: false,
+    needsAttentionLoadStatus: "idle",
+    needsAttention: null,
+    needsAttentionError: null,
     workspace: null,
     feedback: null,
     latestActivity: null,
@@ -403,22 +757,51 @@ export function createOperatorHomePageModule(
     guestsJoinedPrevious: null,
     qrScans: null,
     qrScansPrevious: null,
+    hasCreatedOffer: false,
+    hasCreatedCampaign: false,
     viewModel: null,
     actionError: null,
     loadGeneration: 0,
     performanceLoadGeneration: 0,
+    liveOffersLoadGeneration: 0,
+    needsAttentionLoadGeneration: 0,
   }
 
   let snapshot: OperatorHomePageSnapshot = {
     loadStatus: state.loadStatus,
     performanceLoadStatus: state.performanceLoadStatus,
+    liveOffersLoadStatus: state.liveOffersLoadStatus,
+    liveCards: state.liveCards,
+    liveOffersError: state.liveOffersError,
+    liveOffersPauseBusy: state.liveOffersPauseBusy,
+    needsAttentionLoadStatus: state.needsAttentionLoadStatus,
+    needsAttention: state.needsAttention,
+    needsAttentionError: state.needsAttentionError,
     viewModel: state.viewModel,
     previewBusy: false,
     actionError: null,
     feedbackDetails: feedbackDetails.getSnapshot(),
+    recommendation: idleRecommendation(),
+    weeklyBrief: emptyWeeklyBrief(),
   }
 
   const listeners = new Set<() => void>()
+  /** Session-only Not now — survives recommendation reloads until location change. */
+  let recommendationDismissedForSession = false
+  /**
+   * Last ready recommendation for the current soft-cache key.
+   * Keeps return visits / remount reloads from flashing an empty loading card
+   * when the Home performance window key is unchanged.
+   */
+  let softCachedRecommendation: {
+    cacheKey: string
+    viewModel: OperatorHomeRecommendationViewModel
+  } | null = null
+  let recommendation: OperatorHomeRecommendationViewModel = idleRecommendation()
+  let recommendationGeneration = 0
+  let needsAttentionDuplicateBusy = false
+  let weeklyBrief: OperatorHomeWeeklyBriefViewModel = emptyWeeklyBrief()
+  let weeklyBriefGeneration = 0
 
   const emit = () => {
     for (const listener of listeners) {
@@ -440,10 +823,19 @@ export function createOperatorHomePageModule(
     snapshot = {
       loadStatus: state.loadStatus,
       performanceLoadStatus: state.performanceLoadStatus,
+      liveOffersLoadStatus: state.liveOffersLoadStatus,
+      liveCards: state.liveCards,
+      liveOffersError: state.liveOffersError,
+      liveOffersPauseBusy: state.liveOffersPauseBusy,
+      needsAttentionLoadStatus: state.needsAttentionLoadStatus,
+      needsAttention: state.needsAttention,
+      needsAttentionError: state.needsAttentionError,
       viewModel: state.viewModel,
       previewBusy: ackSnapshot.acknowledgeBusy,
       actionError: ackSnapshot.acknowledgeError ?? state.actionError,
       feedbackDetails: feedbackDetails.getSnapshot(),
+      recommendation,
+      weeklyBrief,
     }
     emit()
   }
@@ -456,6 +848,223 @@ export function createOperatorHomePageModule(
   const currentDateRangeLabel = () =>
     labelForHomePerformanceDateRange(adapters.getHomePerformanceDateRange())
 
+  const rememberSoftCachedRecommendation = (
+    cacheKey: string,
+    next: OperatorHomeRecommendationViewModel
+  ) => {
+    if (next.status !== "ready") {
+      return
+    }
+    softCachedRecommendation = {
+      cacheKey,
+      viewModel: { ...next },
+    }
+  }
+
+  const recommendationForSoftLoad = (input: {
+    refresh: boolean
+    cacheKey: string
+  }): OperatorHomeRecommendationViewModel => {
+    if (recommendationDismissedForSession) {
+      return { ...idleRecommendation(), status: "dismissed" }
+    }
+    if (
+      !input.refresh
+      && softCachedRecommendation != null
+      && softCachedRecommendation.cacheKey === input.cacheKey
+      && softCachedRecommendation.viewModel.status === "ready"
+    ) {
+      return softCachedRecommendation.viewModel
+    }
+    return { ...idleRecommendation(), status: "loading" }
+  }
+
+  const patchRecommendation = (
+    next: OperatorHomeRecommendationViewModel,
+    options?: { softCacheKey?: string }
+  ) => {
+    if (options?.softCacheKey != null) {
+      rememberSoftCachedRecommendation(options.softCacheKey, next)
+    }
+    recommendation = next
+    publish()
+  }
+
+  const patchWeeklyBrief = (next: OperatorHomeWeeklyBriefViewModel) => {
+    weeklyBrief = next
+    publish()
+  }
+
+  /**
+   * GET current closed week; if missing, soft-load while lazy generate runs, then re-GET.
+   * Default week from GET is already the closed prior week (Monday started) — always eligible.
+   * Keep `empty` through the first GET on a cold load so a ready brief does not flash a spinner.
+   */
+  const runWeeklyBriefLoad = async (options?: {
+    showLoadingImmediately?: boolean
+  }) => {
+    const workspace = state.workspace
+    const selectedLocationId = workspace?.selectedLocationId
+    if (workspace == null || selectedLocationId == null) {
+      return
+    }
+
+    const generation = weeklyBriefGeneration + 1
+    weeklyBriefGeneration = generation
+
+    if (options?.showLoadingImmediately === true) {
+      patchWeeklyBrief({
+        ...emptyWeeklyBrief(),
+        status: "loading",
+      })
+    }
+
+    try {
+      const first = await adapters.getWeeklyBrief(selectedLocationId)
+      if (generation !== weeklyBriefGeneration) {
+        return
+      }
+
+      if (first.success && first.ready) {
+        patchWeeklyBrief(mapReadyWeeklyBrief(first))
+        return
+      }
+
+      // Missing after closed week is due — soft loading while lazy generate runs.
+      patchWeeklyBrief({
+        ...emptyWeeklyBrief(),
+        status: "loading",
+      })
+
+      const generated = await adapters.generateWeeklyBrief(selectedLocationId)
+      if (generation !== weeklyBriefGeneration) {
+        return
+      }
+
+      if (!generated.success) {
+        patchWeeklyBrief(
+          weeklyBriefErrorFrom(
+            generated.message,
+            generated.retryable !== false
+          )
+        )
+        return
+      }
+
+      const second = await adapters.getWeeklyBrief(selectedLocationId)
+      if (generation !== weeklyBriefGeneration) {
+        return
+      }
+
+      if (second.success && second.ready) {
+        patchWeeklyBrief(mapReadyWeeklyBrief(second))
+        return
+      }
+
+      patchWeeklyBrief(
+        weeklyBriefErrorFrom(HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE, true)
+      )
+    } catch {
+      if (generation !== weeklyBriefGeneration) {
+        return
+      }
+      patchWeeklyBrief(
+        weeklyBriefErrorFrom(HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE, true)
+      )
+    }
+  }
+
+  const loadWeeklyBrief = () => runWeeklyBriefLoad()
+  const retryWeeklyBrief = () =>
+    runWeeklyBriefLoad({ showLoadingImmediately: true })
+
+  const loadRecommendation = async (options?: { refresh?: boolean }) => {
+    const workspace = state.workspace
+    const selectedLocationId = workspace?.selectedLocationId
+    if (workspace == null || selectedLocationId == null) {
+      return
+    }
+    if (recommendationDismissedForSession) {
+      return
+    }
+
+    const performanceDateRange = adapters.getHomePerformanceDateRange()
+    const request = buildHomeRecommendationRequest({
+      locationId: selectedLocationId,
+      performanceDateRange,
+      refresh: options?.refresh === true,
+    })
+    const cacheKey = recommendationSoftCacheKey(
+      selectedLocationId,
+      performanceDateRange
+    )
+    const generation = recommendationGeneration + 1
+    recommendationGeneration = generation
+    recommendation = recommendationForSoftLoad({
+      refresh: options?.refresh === true,
+      cacheKey,
+    })
+    publish()
+
+    try {
+      const response = await adapters.loadHomeRecommendation({ request })
+      if (generation !== recommendationGeneration) {
+        return
+      }
+      if (recommendationDismissedForSession) {
+        return
+      }
+      patchRecommendation(mapRecommendationResponse(response), {
+        softCacheKey: cacheKey,
+      })
+    } catch {
+      if (generation !== recommendationGeneration) {
+        return
+      }
+      if (recommendationDismissedForSession) {
+        return
+      }
+      patchRecommendation({
+        status: "error",
+        recommendation: null,
+        isNone: false,
+        errorMessage: HOME_RECOMMENDATION_LOAD_ERROR_MESSAGE,
+        errorRetryable: true,
+      })
+    }
+  }
+
+  const assembleCurrent = (
+    workspace: OperatorHomeWorkspaceInput,
+    checklistAcks: OperatorHomeChecklistAcks,
+    feedback: HomeState["feedback"],
+    latestActivity: HomeState["latestActivity"],
+    feedbackSubmitted: number | null,
+    guestsJoined: number | null,
+    feedbackSubmittedPrevious: number | null,
+    guestsJoinedPrevious: number | null,
+    qrScans: number | null,
+    qrScansPrevious: number | null,
+    dateRangeLabel: string,
+    hasCreatedOffer: boolean = state.hasCreatedOffer,
+    hasCreatedCampaign: boolean = state.hasCreatedCampaign
+  ) =>
+    assembleViewModel(
+      workspace,
+      checklistAcks,
+      feedback,
+      latestActivity,
+      feedbackSubmitted,
+      guestsJoined,
+      feedbackSubmittedPrevious,
+      guestsJoinedPrevious,
+      qrScans,
+      qrScansPrevious,
+      dateRangeLabel,
+      hasCreatedOffer,
+      hasCreatedCampaign
+    )
+
   const refreshViewModelFromAcks = () => {
     const workspace = state.workspace
     if (workspace == null) {
@@ -465,7 +1074,7 @@ export function createOperatorHomePageModule(
 
     dispatch({
       type: "view_model_updated",
-      viewModel: assembleViewModel(
+      viewModel: assembleCurrent(
         workspace,
         currentAcks(),
         state.feedback,
@@ -488,6 +1097,148 @@ export function createOperatorHomePageModule(
   feedbackDetails.subscribe(() => {
     publish()
   })
+
+  const enrichLiveCardsWithCampaignMessages = async (
+    cards: OperatorHomeLiveCard[]
+  ): Promise<OperatorHomeLiveCard[]> => {
+    const getDraft = adapters.getCampaignDraftById
+    if (getDraft == null) {
+      return cards
+    }
+
+    return Promise.all(
+      cards.map(async (card) => {
+        if (card.kind !== "campaign") {
+          return card
+        }
+        try {
+          const response = await getDraft(card.id)
+          return {
+            ...card,
+            messageSubject: response.campaign.messageSubject,
+            messageBody: response.campaign.messageBody,
+          }
+        } catch {
+          return card
+        }
+      })
+    )
+  }
+
+  const fetchLiveOffersForSelectedLocation = async (options?: {
+    keepVisible?: boolean
+  }) => {
+    const workspace = state.workspace
+    const selectedLocationId = workspace?.selectedLocationId
+    if (workspace == null || selectedLocationId == null) {
+      return
+    }
+
+    const keepVisible = options?.keepVisible === true
+    const generation = state.liveOffersLoadGeneration + 1
+    dispatch({
+      type: "live_offers_load_started",
+      generation,
+      keepVisible,
+    })
+
+    try {
+      const [offers, campaigns] = await Promise.all([
+        adapters.listLiveOffers(selectedLocationId),
+        adapters.listLiveCampaigns(selectedLocationId),
+      ])
+
+      if (generation !== state.liveOffersLoadGeneration) {
+        return
+      }
+
+      const cards = buildLiveOffersSectionCards({ campaigns, offers })
+      const enrichedCards = await enrichLiveCardsWithCampaignMessages(cards)
+
+      if (generation !== state.liveOffersLoadGeneration) {
+        return
+      }
+
+      dispatch({
+        type: "live_offers_load_succeeded",
+        generation,
+        liveCards: enrichedCards,
+      })
+    } catch {
+      if (generation !== state.liveOffersLoadGeneration) {
+        return
+      }
+      if (keepVisible && state.liveOffersLoadStatus === "loaded") {
+        dispatch({
+          type: "action_error",
+          error:
+            "Could not refresh live offers and campaigns. Please try again.",
+        })
+        return
+      }
+      dispatch({
+        type: "live_offers_load_failed",
+        generation,
+        error: "Could not load live offers and campaigns. Please try again.",
+      })
+    }
+  }
+
+  const fetchNeedsAttentionForSelectedLocation = async () => {
+    const workspace = state.workspace
+    const selectedLocationId = workspace?.selectedLocationId
+    if (workspace == null || selectedLocationId == null) {
+      return
+    }
+
+    const location = workspace.locations.find(
+      (entry) => entry.id === selectedLocationId
+    )
+    const locationName = location?.locationName ?? ""
+    const generation = state.needsAttentionLoadGeneration + 1
+    dispatch({ type: "needs_attention_load_started", generation })
+
+    try {
+      const [feedback, campaigns, offers, openVoids] = await Promise.all([
+        adapters.getNeedsAttentionFeedback(selectedLocationId),
+        adapters.listNeedsAttentionCampaigns(selectedLocationId),
+        adapters.listNeedsAttentionOffers(selectedLocationId),
+        adapters.listOpenVoidAttention(selectedLocationId),
+      ])
+
+      if (generation !== state.needsAttentionLoadGeneration) {
+        return
+      }
+
+      const facts = mapHomeNeedsAttentionSourceFacts({
+        feedback,
+        campaigns,
+        offers,
+        openVoids,
+      })
+      const projection = buildHomeNeedsAttention({
+        locationName,
+        feedback: facts.feedback,
+        campaigns: facts.campaigns,
+        offers: facts.offers,
+      })
+
+      dispatch({
+        type: "needs_attention_load_succeeded",
+        generation,
+        projection,
+      })
+    } catch {
+      if (generation !== state.needsAttentionLoadGeneration) {
+        return
+      }
+      dispatch({
+        type: "needs_attention_load_failed",
+        generation,
+        error: HOME_NEEDS_ATTENTION_LOAD_ERROR_MESSAGE,
+      })
+    }
+  }
 
   const fetchPerformanceForSelectedLocation = async () => {
     const workspace = state.workspace
@@ -523,7 +1274,7 @@ export function createOperatorHomePageModule(
         guestsJoinedPrevious: performanceResult.guestsJoinedPrevious,
         qrScans: performanceResult.qrScans,
         qrScansPrevious: performanceResult.qrScansPrevious,
-        viewModel: assembleViewModel(
+        viewModel: assembleCurrent(
           workspace,
           currentAcks(),
           state.feedback,
@@ -573,7 +1324,7 @@ export function createOperatorHomePageModule(
         type: "activity_patched",
         feedback,
         latestActivity,
-        viewModel: assembleViewModel(
+        viewModel: assembleCurrent(
           workspace,
           currentAcks(),
           feedback,
@@ -600,26 +1351,55 @@ export function createOperatorHomePageModule(
     }
 
     const generation = state.loadGeneration + 1
+    const performanceDateRange = adapters.getHomePerformanceDateRange()
+    const recommendationCacheKey = recommendationSoftCacheKey(
+      selectedLocationId,
+      performanceDateRange
+    )
+    const nextRecommendation = recommendationForSoftLoad({
+      refresh: false,
+      cacheKey: recommendationCacheKey,
+    })
+    recommendationGeneration += 1
+    const thisRecommendationGeneration = recommendationGeneration
+    recommendation = nextRecommendation
     dispatch({ type: "load_started", generation })
+    void fetchLiveOffersForSelectedLocation()
+    void fetchNeedsAttentionForSelectedLocation()
+    void loadWeeklyBrief()
 
     let feedback: { total: number; recent: FeedbackResponse["recent"] }
     let latestActivity: HomeLatestActivityItem[]
+    let hasCreatedOffer = false
+    let hasCreatedCampaign = false
 
     try {
-      const [feedbackResult, latestActivityResult] = await Promise.all([
+      const [
+        feedbackResult,
+        latestActivityResult,
+        offerPresence,
+        campaignPresence,
+      ] = await Promise.all([
         adapters.getFeedback(selectedLocationId),
         adapters.getHomeLatestActivity(selectedLocationId),
+        adapters.hasCreatedOffer(selectedLocationId).catch(() => false),
+        adapters.hasCreatedCampaign(selectedLocationId).catch(() => false),
       ])
       feedback = {
         total: feedbackResult.total,
         recent: feedbackResult.recent,
       }
       latestActivity = latestActivityResult.items
+      hasCreatedOffer = offerPresence
+      hasCreatedCampaign = campaignPresence
       await acks.load(selectedLocationId)
     } catch {
       if (generation !== state.loadGeneration) {
         return
       }
+      recommendation = idleRecommendation()
+      weeklyBriefGeneration += 1
+      weeklyBrief = emptyWeeklyBrief()
       dispatch({ type: "load_failed", generation })
       return
     }
@@ -639,7 +1419,9 @@ export function createOperatorHomePageModule(
       guestsJoinedPrevious: state.guestsJoinedPrevious,
       qrScans: state.qrScans,
       qrScansPrevious: state.qrScansPrevious,
-      viewModel: assembleViewModel(
+      hasCreatedOffer,
+      hasCreatedCampaign,
+      viewModel: assembleCurrent(
         workspace,
         currentAcks(),
         feedback,
@@ -650,11 +1432,53 @@ export function createOperatorHomePageModule(
         state.guestsJoinedPrevious,
         state.qrScans,
         state.qrScansPrevious,
-        currentDateRangeLabel()
+        currentDateRangeLabel(),
+        hasCreatedOffer,
+        hasCreatedCampaign
       ),
     })
 
     await fetchPerformanceForSelectedLocation()
+
+    if (thisRecommendationGeneration !== recommendationGeneration) {
+      return
+    }
+    if (recommendationDismissedForSession) {
+      return
+    }
+
+    try {
+      const response = await adapters.loadHomeRecommendation({
+        request: buildHomeRecommendationRequest({
+          locationId: selectedLocationId,
+          performanceDateRange,
+          refresh: false,
+        }),
+      })
+      if (thisRecommendationGeneration !== recommendationGeneration) {
+        return
+      }
+      if (recommendationDismissedForSession) {
+        return
+      }
+      patchRecommendation(mapRecommendationResponse(response), {
+        softCacheKey: recommendationCacheKey,
+      })
+    } catch {
+      if (thisRecommendationGeneration !== recommendationGeneration) {
+        return
+      }
+      if (recommendationDismissedForSession) {
+        return
+      }
+      patchRecommendation({
+        status: "error",
+        recommendation: null,
+        isNone: false,
+        errorMessage: HOME_RECOMMENDATION_LOAD_ERROR_MESSAGE,
+        errorRetryable: true,
+      })
+    }
   }
 
   const refreshOpenFeedbackDetails = () => {
@@ -736,6 +1560,12 @@ export function createOperatorHomePageModule(
     disconnect,
     syncWorkspace: async (input) => {
       if (input.selectedLocationId == null) {
+        recommendationDismissedForSession = false
+        softCachedRecommendation = null
+        recommendationGeneration += 1
+        recommendation = idleRecommendation()
+        weeklyBriefGeneration += 1
+        weeklyBrief = emptyWeeklyBrief()
         dispatch({ type: "workspace_cleared" })
         acks.reset()
         feedbackDetails.reset()
@@ -746,13 +1576,19 @@ export function createOperatorHomePageModule(
       const locationChanged = previousLocationId !== input.selectedLocationId
 
       if (locationChanged) {
+        recommendationDismissedForSession = false
+        softCachedRecommendation = null
+        recommendationGeneration += 1
+        recommendation = idleRecommendation()
+        weeklyBriefGeneration += 1
+        weeklyBrief = emptyWeeklyBrief()
         feedbackDetails.reset()
         const emptyAcks: OperatorHomeChecklistAcks = {
           guestFormPreviewed: false,
           qrPlacementGuideViewed: false,
           logoUploaded: false,
         }
-        const viewModel = assembleViewModel(
+        const viewModel = assembleCurrent(
           input,
           emptyAcks,
           null,
@@ -774,7 +1610,7 @@ export function createOperatorHomePageModule(
       dispatch({
         type: "workspace_fields_updated",
         workspace: input,
-        viewModel: assembleViewModel(
+        viewModel: assembleCurrent(
           input,
           currentAcks(),
           state.feedback,
@@ -795,7 +1631,7 @@ export function createOperatorHomePageModule(
       if (workspace != null) {
         dispatch({
           type: "view_model_updated",
-          viewModel: assembleViewModel(
+          viewModel: assembleCurrent(
             workspace,
             currentAcks(),
             state.feedback,
@@ -811,6 +1647,76 @@ export function createOperatorHomePageModule(
         })
       }
       await fetchPerformanceForSelectedLocation()
+      // Window change may invalidate soft-cache key — reload without refresh.
+      await loadRecommendation()
+    },
+    retryRecommendation: () => loadRecommendation({ refresh: true }),
+    dismissRecommendation: () => {
+      recommendationDismissedForSession = true
+      softCachedRecommendation = null
+      patchRecommendation({
+        ...idleRecommendation(),
+        status: "dismissed",
+      })
+    },
+    retryWeeklyBrief: () => retryWeeklyBrief(),
+    retryLiveOffers: () => fetchLiveOffersForSelectedLocation(),
+    retryNeedsAttention: () => fetchNeedsAttentionForSelectedLocation(),
+    pauseLiveCampaign: async (campaignId) => {
+      const card = state.liveCards.find(
+        (item) => item.kind === "campaign" && item.id === campaignId
+      )
+      if (card == null || card.kind !== "campaign" || state.liveOffersPauseBusy) {
+        return false
+      }
+
+      dispatch({ type: "live_offers_pause_busy", busy: true })
+      try {
+        await adapters.pauseCampaign(campaignId, {
+          rowVersion: card.rowVersion,
+        })
+        await fetchLiveOffersForSelectedLocation({ keepVisible: true })
+        return true
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message.trim().length > 0
+            ? error.message.trim()
+            : "Could not pause this campaign. Please try again."
+        dispatch({ type: "action_error", error: message })
+        return false
+      } finally {
+        dispatch({ type: "live_offers_pause_busy", busy: false })
+      }
+    },
+    duplicateNeedsAttentionCampaign: async (campaignId) => {
+      const row = state.needsAttention?.allRows.find(
+        (item) =>
+          item.sourceKind === "campaign" && item.campaignId === campaignId
+      )
+      if (
+        row == null
+        || row.sourceKind !== "campaign"
+        || needsAttentionDuplicateBusy
+      ) {
+        return { ok: false, error: NEEDS_ATTENTION_DUPLICATE_DRAFT_ERROR }
+      }
+
+      needsAttentionDuplicateBusy = true
+      try {
+        const response = await adapters.duplicateCampaign(campaignId, {
+          rowVersion: row.rowVersion,
+        })
+        return { ok: true, campaignId: response.campaign.id }
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message.trim().length > 0
+            ? error.message.trim()
+            : NEEDS_ATTENTION_DUPLICATE_DRAFT_ERROR
+        dispatch({ type: "action_error", error: message })
+        return { ok: false, error: message }
+      } finally {
+        needsAttentionDuplicateBusy = false
+      }
     },
     previewGuestForm: () => {
       const viewModel = state.viewModel
@@ -902,7 +1808,7 @@ export function createOperatorHomePageModule(
         type: "feedback_patched",
         feedback,
         latestActivity,
-        viewModel: assembleViewModel(
+        viewModel: assembleCurrent(
           state.workspace,
           currentAcks(),
           feedback,

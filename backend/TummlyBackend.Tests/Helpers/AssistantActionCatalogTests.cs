@@ -35,6 +35,35 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void ValidateCombinedCreate_AttachesReviewChangeAudienceAndReviewOffer()
+        {
+            var actions = AssistantActionCatalog.ValidateCombinedCreate(
+                41,
+                9,
+                AssistantMessageClass.Grounded
+            );
+
+            Assert.Equal(
+                new[] { "review-campaign", "change-audience", "review-offer" },
+                actions.Select(action => action.Type)
+            );
+            Assert.Equal("Review campaign draft", actions[0].Label);
+            Assert.Equal("Change audience", actions[1].Label);
+            Assert.Equal("Review offer draft", actions[2].Label);
+            Assert.Equal(41, actions[0].CampaignId);
+            Assert.Equal(41, actions[1].CampaignId);
+            Assert.Equal(9, actions[2].OfferId);
+            Assert.DoesNotContain(actions, action => action.Type == "add-offer");
+            Assert.Empty(
+                AssistantActionCatalog.ValidateCombinedCreate(
+                    41,
+                    null,
+                    AssistantMessageClass.Grounded
+                )
+            );
+        }
+
+        [Fact]
         public void ValidateReviewOffer_AttachesReviewOnly()
         {
             var actions = AssistantActionCatalog.ValidateReviewOffer(

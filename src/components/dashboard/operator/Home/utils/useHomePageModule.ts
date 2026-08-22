@@ -12,6 +12,13 @@ export type OperatorHomePageModuleApi = {
   syncWorkspace: OperatorHomePageModule["syncWorkspace"]
   retryLoad: OperatorHomePageModule["retryLoad"]
   reloadForHomePerformanceDateRange: OperatorHomePageModule["reloadForHomePerformanceDateRange"]
+  retryRecommendation: OperatorHomePageModule["retryRecommendation"]
+  dismissRecommendation: OperatorHomePageModule["dismissRecommendation"]
+  retryWeeklyBrief: OperatorHomePageModule["retryWeeklyBrief"]
+  retryLiveOffers: OperatorHomePageModule["retryLiveOffers"]
+  retryNeedsAttention: OperatorHomePageModule["retryNeedsAttention"]
+  pauseLiveCampaign: OperatorHomePageModule["pauseLiveCampaign"]
+  duplicateNeedsAttentionCampaign: OperatorHomePageModule["duplicateNeedsAttentionCampaign"]
   previewGuestForm: OperatorHomePageModule["previewGuestForm"]
   copySmartGuestLink: () => void
   openFeedbackDetails: OperatorHomePageModule["openFeedbackDetails"]
@@ -63,6 +70,13 @@ export function useHomePageModule(): OperatorHomePageModuleApi {
     retryLoad: pageModule.retryLoad,
     reloadForHomePerformanceDateRange:
       pageModule.reloadForHomePerformanceDateRange,
+    retryRecommendation: pageModule.retryRecommendation,
+    dismissRecommendation: pageModule.dismissRecommendation,
+    retryWeeklyBrief: pageModule.retryWeeklyBrief,
+    retryLiveOffers: pageModule.retryLiveOffers,
+    retryNeedsAttention: pageModule.retryNeedsAttention,
+    pauseLiveCampaign: pageModule.pauseLiveCampaign,
+    duplicateNeedsAttentionCampaign: pageModule.duplicateNeedsAttentionCampaign,
     previewGuestForm: pageModule.previewGuestForm,
     copySmartGuestLink: () => {
       void pageModule.copySmartGuestLink().then((result) => {

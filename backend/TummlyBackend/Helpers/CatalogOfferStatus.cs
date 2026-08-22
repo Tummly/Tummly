@@ -72,7 +72,8 @@ namespace TummlyBackend.Helpers
             DateOnly venueLocalToday
         )
         {
-            if (IsClosed(effectiveStatus))
+            // In-flight only — unattached Drafts are not Needs attention.
+            if (!string.Equals(effectiveStatus, Active, StringComparison.Ordinal))
             {
                 return false;
             }
@@ -89,7 +90,8 @@ namespace TummlyBackend.Helpers
 
         /// <summary>
         /// List-tab / overview membership: expiring rule OR ≥1 open Void request.
-        /// Pass <paramref name="hasOpenVoidRequest"/> when Void rows are queryable;
+        /// In-flight only — effective Active with ≥1 live attach. Pass
+        /// <paramref name="hasOpenVoidRequest"/> when Void rows are queryable;
         /// otherwise false keeps expiring-only membership honest.
         /// </summary>
         public static bool IsNeedsAttention(
@@ -97,15 +99,28 @@ namespace TummlyBackend.Helpers
             DateOnly? customExpiryDate,
             string effectiveStatus,
             DateOnly venueLocalToday,
-            bool hasOpenVoidRequest = false
+            bool hasOpenVoidRequest = false,
+            int liveAttachCount = 0
         )
-            => hasOpenVoidRequest
+        {
+            if (!string.Equals(effectiveStatus, Active, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (liveAttachCount < 1)
+            {
+                return false;
+            }
+
+            return hasOpenVoidRequest
                 || IsNeedsAttentionRule(
                     validity,
                     customExpiryDate,
                     effectiveStatus,
                     venueLocalToday
                 );
+        }
 
         public static bool IsStoredDraft(string storedStatus)
             => string.Equals(storedStatus, Draft, StringComparison.Ordinal);
@@ -130,6 +145,23 @@ namespace TummlyBackend.Helpers
             };
         }
 
+        /// <summary>
+        /// True when a fixed ChooseExpiryDate is strictly before venue-local today.
+        /// Applies to Draft and Active stored rows (Draft skips expiry in
+        /// <see cref="ResolveEffectiveStatus"/>).
+        /// </summary>
+        public static bool IsPastFixedExpiry(
+            CatalogOfferValidity validity,
+            DateOnly? customExpiryDate,
+            DateOnly venueLocalToday
+        )
+            => validity == CatalogOfferValidity.ChooseExpiryDate
+                && customExpiryDate is { } expiry
+                && expiry < venueLocalToday;
+
+        /// <summary>
+        /// In-flight / issue path: stored Active and not past fixed expiry.
+        /// </summary>
         public static bool IsAttachableActive(
             string storedStatus,
             CatalogOfferValidity validity,
@@ -150,6 +182,74 @@ namespace TummlyBackend.Helpers
             );
             return string.Equals(effective, Active, StringComparison.Ordinal);
         }
+
+        /// <summary>
+        /// First-or-next attach may bind Draft or Active (not paused / archived /
+        /// past fixed expiry). Draft becomes Active after the first live attach.
+        /// </summary>
+        public static bool IsAttachable(
+            string storedStatus,
+            CatalogOfferValidity validity,
+            DateOnly? customExpiryDate,
+            DateOnly venueLocalToday
+        )
+        {
+            if (IsPastFixedExpiry(validity, customExpiryDate, venueLocalToday))
+            {
+                return false;
+            }
+
+            if (IsStoredDraft(storedStatus))
+            {
+                return true;
+            }
+
+            return IsAttachableActive(
+                storedStatus,
+                validity,
+                customExpiryDate,
+                venueLocalToday
+            );
+        }
+
+        /// <summary>
+        /// Stored draft ↔ active from raw live attach count. Leaves paused /
+        /// archived / expired-effective rows unchanged.
+        /// </summary>
+        public static string ResolveStoredStatusFromLiveAttachCount(
+            string storedStatus,
+            CatalogOfferValidity validity,
+            DateOnly? customExpiryDate,
+            DateOnly venueLocalToday,
+            int rawLiveAttachCount
+        )
+        {
+            var effective = ResolveEffectiveStatus(
+                storedStatus,
+                validity,
+                customExpiryDate,
+                venueLocalToday
+            );
+
+            if (IsClosed(effective))
+            {
+                return storedStatus;
+            }
+
+            if (!IsStoredDraft(storedStatus)
+                && !string.Equals(storedStatus, Active, StringComparison.Ordinal))
+            {
+                return storedStatus;
+            }
+
+            return rawLiveAttachCount >= 1 ? Active : Draft;
+        }
+
+        /// <summary>
+        /// Resume from Paused: Active when ≥1 live attach remains, else Draft.
+        /// </summary>
+        public static string ResolveResumeStoredStatus(int rawLiveAttachCount)
+            => rawLiveAttachCount >= 1 ? Active : Draft;
 
         public static string BuildDuplicateTitle(
             string originalTitle,

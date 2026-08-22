@@ -376,6 +376,22 @@ builder.Services.AddScoped<
     CampaignRecommendationService
 >();
 builder.Services.AddScoped<
+    IHomeRecommendationService,
+    HomeRecommendationService
+>();
+builder.Services.AddScoped<
+    IWeeklyBriefGenerateService,
+    WeeklyBriefGenerateService
+>();
+builder.Services.AddScoped<
+    IWeeklyBriefMondayJob,
+    WeeklyBriefMondayJob
+>();
+builder.Services.AddScoped<
+    IWeeklyBriefReadyNotifier,
+    WeeklyBriefReadyNotifier
+>();
+builder.Services.AddScoped<
     ICampaignMessageDraftService,
     CampaignMessageDraftService
 >();
@@ -542,6 +558,14 @@ if (useFakeFeedbackClassification)
     builder.Services.AddSingleton<ICampaignRecommendationProvider>(sp =>
         sp.GetRequiredService<FakeCampaignRecommendationProvider>()
     );
+    builder.Services.AddSingleton<FakeHomeRecommendationProvider>();
+    builder.Services.AddSingleton<IHomeRecommendationProvider>(sp =>
+        sp.GetRequiredService<FakeHomeRecommendationProvider>()
+    );
+    builder.Services.AddSingleton<FakeWeeklyBriefProvider>();
+    builder.Services.AddSingleton<IWeeklyBriefProvider>(sp =>
+        sp.GetRequiredService<FakeWeeklyBriefProvider>()
+    );
     builder.Services.AddSingleton<FakeCampaignMessageDraftProvider>();
     builder.Services.AddSingleton<ICampaignMessageDraftProvider>(sp =>
         sp.GetRequiredService<FakeCampaignMessageDraftProvider>()
@@ -562,6 +586,14 @@ else
         AzureOpenAICampaignRecommendationProvider
     >();
     builder.Services.AddSingleton<
+        IHomeRecommendationProvider,
+        AzureOpenAIHomeRecommendationProvider
+    >();
+    builder.Services.AddSingleton<
+        IWeeklyBriefProvider,
+        AzureOpenAIWeeklyBriefProvider
+    >();
+    builder.Services.AddSingleton<
         ICampaignMessageDraftProvider,
         AzureOpenAICampaignMessageDraftProvider
     >();
@@ -573,6 +605,38 @@ else
 
 builder.Services.AddHttpClient(
     CampaignRecommendationStructuredOutput.HttpClientName,
+    client =>
+    {
+        var endpoint = builder.Configuration[
+            $"{FeedbackClassificationSettings.SectionName}:Endpoint"
+        ];
+        if (!string.IsNullOrWhiteSpace(endpoint))
+        {
+            client.BaseAddress = new Uri(endpoint.TrimEnd('/') + "/");
+        }
+
+        client.Timeout = TimeSpan.FromSeconds(60);
+    }
+);
+
+builder.Services.AddHttpClient(
+    HomeRecommendationStructuredOutput.HttpClientName,
+    client =>
+    {
+        var endpoint = builder.Configuration[
+            $"{FeedbackClassificationSettings.SectionName}:Endpoint"
+        ];
+        if (!string.IsNullOrWhiteSpace(endpoint))
+        {
+            client.BaseAddress = new Uri(endpoint.TrimEnd('/') + "/");
+        }
+
+        client.Timeout = TimeSpan.FromSeconds(60);
+    }
+);
+
+builder.Services.AddHttpClient(
+    WeeklyBriefStructuredOutput.HttpClientName,
     client =>
     {
         var endpoint = builder.Configuration[
@@ -719,6 +783,7 @@ builder.Services.AddScoped<IAssistantCampaignsRetrieve, AssistantCampaignsRetrie
 builder.Services.AddScoped<IAssistantCaptureRetrieve, AssistantCaptureRetrieve>();
 builder.Services.AddScoped<IAssistantHomeKpiRetrieve, AssistantHomeKpiRetrieve>();
 builder.Services.AddScoped<IAssistantGuestsRetrieve, AssistantGuestsRetrieve>();
+builder.Services.AddScoped<IAssistantAttentionRetrieve, AssistantAttentionRetrieve>();
 
 builder.Services.AddScoped<IAssistantConversationService, AssistantConversationService>();
 
@@ -751,6 +816,8 @@ builder.Services.AddHostedService<
 >();
 
 builder.Services.AddHostedService<ActivationNotificationBackgroundService>();
+
+builder.Services.AddHostedService<WeeklyBriefMondayBackgroundService>();
 
 /*
  =========================================
@@ -888,6 +955,20 @@ app.Lifetime.ApplicationStarted.Register(() =>
         initState
     );
 });
+
+if (WeeklyBriefOneTimeGenerateCommand.IsRequested(args))
+{
+    app.Logger.LogInformation(
+        "Weekly brief one-time generate starting (ticket 08)"
+    );
+    Environment.ExitCode =
+        await WeeklyBriefOneTimeGenerateCommand.ExecuteAsync(
+            app.Services,
+            DateTime.UtcNow,
+            app.Logger
+        );
+    return;
+}
 
 app.Run();
 
@@ -1051,6 +1132,30 @@ static async Task InitializeDatabaseAsync(
 
     initState.MarkSucceeded();
     logger.LogInformation("Database initialized successfully.");
+
+    if (configuration.GetValue<bool>(
+            WeeklyBriefOneTimeGenerateCommand.OneTimeGenerateOnStartupConfigKey
+        ))
+    {
+        try
+        {
+            var weeklyBriefJob = scope.ServiceProvider
+                .GetRequiredService<IWeeklyBriefMondayJob>();
+            await WeeklyBriefOneTimeGenerateCommand.RunOnceAfterDeployAsync(
+                context,
+                weeklyBriefJob,
+                logger,
+                DateTime.UtcNow
+            );
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Weekly brief one-time generate after deploy failed; will retry on next start"
+            );
+        }
+    }
 }
 
 static void FailDatabaseInitExit(IServiceProvider services)

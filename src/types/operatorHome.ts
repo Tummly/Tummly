@@ -3,9 +3,27 @@ import type {
   OperatorSidebarNavModel,
 } from "@/lib/operatorHome/sidebarNav";
 import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod";
+import type {
+  HomeRecommendationCampaignType,
+  HomeRecommendationDomainActionKind,
+  HomeRecommendationNativeType,
+  HomeRecommendationOverviewDatePreset,
+  HomeRecommendationType,
+} from "@/lib/operatorHome/homeRecommendationContract";
+import type {
+  CampaignRecommendationDraftPrefill,
+  CampaignRecommendationEchoedCounts,
+} from "@/types/operatorCampaigns";
 
 export type { OperatorSidebarActiveId, OperatorSidebarNavModel };
 export type { OperatorSidebarNavId } from "@/lib/operatorHome/sidebarNav";
+export type {
+  HomeRecommendationCampaignType,
+  HomeRecommendationDomainActionKind,
+  HomeRecommendationNativeType,
+  HomeRecommendationOverviewDatePreset,
+  HomeRecommendationType,
+} from "@/lib/operatorHome/homeRecommendationContract";
 
 /**
  * Client-facing Operator Home body contract for the selected Owned location.
@@ -152,3 +170,126 @@ export interface OperatorShellPresentation {
     options: OperatorHomeLocationOption[];
   };
 }
+
+/** POST /home/recommendation — Home performance window (ticket 01). */
+export type HomeRecommendationRequest = {
+  locationId: number;
+  /** Home performance preset id, or `custom`. */
+  overviewDatePreset: HomeRecommendationOverviewDatePreset;
+  /** Resolved ISO UTC bounds — always present (Home has no all-time). */
+  from: string;
+  to: string;
+  refresh?: boolean;
+};
+
+/**
+ * Domain primary CTA payload for Home-native types.
+ * Null entity id means the domain list / create destination.
+ */
+export type HomeRecommendationDomainAction =
+  | { kind: Extract<HomeRecommendationDomainActionKind, "open-feedback">; feedbackId: number | null }
+  | { kind: Extract<HomeRecommendationDomainActionKind, "open-guest">; locationGuestId: number | null }
+  | { kind: Extract<HomeRecommendationDomainActionKind, "open-offer">; offerId: number | null };
+
+/**
+ * Home Recommended next step payload.
+ * Not typed as CampaignRecommendation — Home-native types use domain actions;
+ * campaign types may carry the same draftPrefill + audience fields as Campaigns.
+ */
+export type HomeRecommendation = {
+  type: HomeRecommendationType;
+  title?: string | null;
+  opportunity?: string | null;
+  whyBullets?: string[] | null;
+  /** Present for Home-native types when a primary CTA is available. */
+  action?: HomeRecommendationDomainAction | null;
+  /** Server metrics only; shape varies by type. Campaign types reuse Campaigns counts. */
+  echoedCounts?: CampaignRecommendationEchoedCounts | null;
+  /** Campaign types only — same as Campaigns recommendation. */
+  eligibleAudience?: string | null;
+  suggestedChannel?: "email" | "sms" | null;
+  estimatedUsage?: string | null;
+  draftPrefill?: CampaignRecommendationDraftPrefill | null;
+  locationName?: string | null;
+};
+
+export type HomeRecommendationResponse = {
+  success: boolean;
+  recommendation?: HomeRecommendation;
+  message?: string;
+  retryable?: boolean;
+};
+
+/** Narrow helpers for Home-native vs campaign allow-list members. */
+export type HomeRecommendationNative = HomeRecommendation & {
+  type: HomeRecommendationNativeType;
+};
+
+export type HomeRecommendationCampaign = HomeRecommendation & {
+  type: HomeRecommendationCampaignType;
+};
+
+/** One domain section in a Weekly brief body (capture / feedback / offers / campaigns). */
+export type WeeklyBriefSection = {
+  hasData: boolean;
+  summary: string;
+  echoedCounts?: Record<string, number> | null;
+};
+
+/** Structured Weekly brief body (schema v1). */
+export type WeeklyBriefBody = {
+  headline: string;
+  capture: WeeklyBriefSection;
+  feedback: WeeklyBriefSection;
+  offers: WeeklyBriefSection;
+  campaigns: WeeklyBriefSection;
+  watchNext: string[];
+};
+
+export type WeeklyBriefMetrics = {
+  guestsJoined: number;
+  qrScanEvents: number;
+  feedbackCount: number;
+  positiveFeedbackCount: number;
+  neutralFeedbackCount: number;
+  negativeFeedbackCount: number;
+  needsAttentionCount: number;
+  detectedTagCounts: Record<string, number>;
+  activeOffers: number;
+  claimsInWeek: number;
+  redemptionsInWeek: number;
+  campaignsSentInWeek: number;
+  campaignRecipientsReached: number;
+};
+
+export type WeeklyBriefNotReadyResponse = {
+  success: true;
+  ready: false;
+  locationId: number;
+  week: string;
+};
+
+export type WeeklyBriefReadyResponse = {
+  success: true;
+  ready: true;
+  locationId: number;
+  week: string;
+  status: string;
+  generatedAtUtc: string;
+  body: WeeklyBriefBody;
+  metrics: WeeklyBriefMetrics;
+};
+
+export type WeeklyBriefGetResponse =
+  | WeeklyBriefNotReadyResponse
+  | WeeklyBriefReadyResponse;
+
+export type WeeklyBriefGenerateFailureResponse = {
+  success: false;
+  message: string;
+  retryable?: boolean;
+};
+
+export type WeeklyBriefGenerateResponse =
+  | WeeklyBriefReadyResponse
+  | WeeklyBriefGenerateFailureResponse;

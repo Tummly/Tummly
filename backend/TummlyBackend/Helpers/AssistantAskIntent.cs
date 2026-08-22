@@ -298,7 +298,10 @@ namespace TummlyBackend.Helpers
                 "capture overview",
                 "campaign template",
                 "campaign templates",
-                "latest activity"
+                "latest activity",
+                "raise a ticket",
+                "contact support",
+                "support"
             );
         }
 

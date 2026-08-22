@@ -13,6 +13,8 @@ namespace TummlyBackend.Services
     public class CampaignLifecycleService : ICampaignLifecycleService
     {
         public const string DraftStatus = "draft";
+        public const int NameMaxLength = 200;
+        public const string DuplicateNameSuffix = " - Draft";
         public const string ScheduledStatus = "scheduled";
         public const string SendingStatus = "sending";
         public const string SentStatus = "sent";
@@ -40,6 +42,18 @@ namespace TummlyBackend.Services
             _eligibility = eligibility;
             _billingReserve = billingReserve;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
+        }
+
+        public static string BuildDuplicateName(string originalName)
+        {
+            var source = originalName ?? string.Empty;
+            if (source.Length + DuplicateNameSuffix.Length <= NameMaxLength)
+            {
+                return source + DuplicateNameSuffix;
+            }
+
+            var keep = Math.Max(0, NameMaxLength - DuplicateNameSuffix.Length);
+            return source[..keep] + DuplicateNameSuffix;
         }
 
         public async Task<CampaignLifecycleResult> UnscheduleAsync(
@@ -337,7 +351,7 @@ namespace TummlyBackend.Services
             {
                 RestaurantLocationId = source.RestaurantLocationId,
                 Status = DraftStatus,
-                Name = source.Name,
+                Name = BuildDuplicateName(source.Name),
                 GoalId = source.GoalId,
                 TemplateId = source.TemplateId,
                 TemplateVersion = source.TemplateVersion,

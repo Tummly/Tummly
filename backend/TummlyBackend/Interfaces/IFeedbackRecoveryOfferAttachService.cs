@@ -13,7 +13,8 @@ namespace TummlyBackend.Interfaces
 
         /// <summary>
         /// Sets or clears the Recovery offer attach. Pass null to clear.
-        /// Non-null offerId must be Active for the feedback location.
+        /// Non-null offerId must be an attachable Draft or Active catalog offer
+        /// for the feedback location. First attach promotes Draft → Active.
         /// </summary>
         Task SetAsync(
             int feedbackId,

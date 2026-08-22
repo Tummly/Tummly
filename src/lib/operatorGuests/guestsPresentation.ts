@@ -73,11 +73,31 @@ export const GUESTS_KPI_GRID_CLASS =
 export const GUESTS_KPI_CARD_CLASS =
   "flex h-full flex-col justify-between rounded-op-md bg-op-background-secondary p-5"
 
+/** Guest overview KPI strip — same chrome as Feedback summary (flat cells + dividers). */
+export const GUESTS_KPI_STRIP_CLASS = "w-full"
+
+export const GUESTS_KPI_ROW_CLASS =
+  "grid grid-cols-1 gap-6 sm:grid-cols-2 lg:flex lg:flex-row lg:items-stretch lg:gap-[30px]"
+
+export const GUESTS_KPI_DIVIDER_CLASS =
+  "hidden w-px shrink-0 self-stretch bg-op-card-border lg:block"
+
+export const GUESTS_KPI_CELL_CLASS = "flex min-w-0 flex-1 flex-col"
+
+export const GUESTS_KPI_CONTENT_CLASS =
+  "flex min-w-0 w-full flex-col items-stretch gap-0.5 pb-[4.25px]"
+
+export const GUESTS_KPI_META_STACK_CLASS = "flex flex-col gap-0.5 pt-[1.5px]"
+
 export const GUESTS_KPI_LABEL_CLASS =
   "m-0 text-op-sm font-medium leading-normal text-op-kpi-label-color"
 
 export const GUESTS_KPI_VALUE_CLASS =
   "m-0 text-op-xl font-extrabold leading-9 text-op-kpi-value-color"
+
+/** Helper under the value — Figma Main Bg/Subtitle, same as Feedback comparison. */
+export const GUESTS_KPI_HELPER_CLASS =
+  "m-0 text-op-kpi-info-size font-normal leading-normal text-op-card-subtitle-color"
 
 export const GUESTS_KPI_DESCRIPTION_CLASS =
   "m-0 pt-0.5 text-xs font-normal leading-normal text-muted-foreground dark:text-[#7c7c7c]"

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { CheckIcon } from "lucide-react"
 
 import stepAccount from "@/assets/operator-home/step-account.png"
 import stepCampaign from "@/assets/operator-home/step-campaign.png"
@@ -17,19 +18,25 @@ import {
 import {
   countCompleteSetupSteps,
   getSetupStepIllustration,
-  hasSetupStepTintedRow,
   resolveSetupActionButtonVariant,
+  resolveSetupStepRowSurfaceClass,
   SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS,
   SETUP_CHECKLIST_ACCORDION_TRIGGER_CLASS,
+  SETUP_CHECKLIST_PROGRESS_FILL_CLASS,
+  SETUP_CHECKLIST_PROGRESS_GROUP_CLASS,
+  SETUP_CHECKLIST_PROGRESS_TRACK_CLASS,
   SETUP_CHECKLIST_SECTION_CLASS,
   SETUP_CHECKLIST_STEP_ACTIONS_CLASS,
   SETUP_CHECKLIST_STEP_ACTIONS_SPREAD_CLASS,
   SETUP_CHECKLIST_STEP_BODY_CLASS,
   SETUP_CHECKLIST_STEP_CLASS,
+  SETUP_CHECKLIST_STEP_COMPLETED_CLASS,
+  SETUP_CHECKLIST_STEP_COMPLETED_ICON_CLASS,
   SETUP_CHECKLIST_STEP_CONTENT_CLASS,
   SETUP_STEP_COPY_GAP_CLASS,
   SETUP_STEP_DESCRIPTION_CLASS,
   SETUP_STEP_TITLE_CLASS,
+  setupRequiredProgressPercent,
   shouldShowSetupStatusMarker,
   shouldSpreadSetupStepActions,
 } from "@/lib/operatorHome/setupChecklistPresentation"
@@ -58,6 +65,8 @@ const SETUP_ACCORDION_VALUE = "setup"
 type HomeSetupChecklistProps = {
   steps: OperatorHomeSetupStep[]
   onPreviewGuestForm?: () => void
+  onCreateOffer?: () => void
+  onCreateCampaign?: () => void
   previewBusy?: boolean
 }
 
@@ -65,12 +74,18 @@ type HomeSetupChecklistProps = {
 export function HomeSetupChecklist({
   steps,
   onPreviewGuestForm,
+  onCreateOffer,
+  onCreateCampaign,
   previewBusy = false,
 }: HomeSetupChecklistProps) {
   const [openValues, setOpenValues] = useState<string[]>(() =>
     readSetupChecklistOpen() ? [SETUP_ACCORDION_VALUE] : []
   )
   const { completeCount, totalSteps } = countCompleteSetupSteps(steps)
+  const progressPercent = setupRequiredProgressPercent(
+    completeCount,
+    totalSteps
+  )
 
   return (
     <section className={SETUP_CHECKLIST_SECTION_CLASS}>
@@ -88,9 +103,24 @@ export function HomeSetupChecklist({
               <h2 className="text-xl font-bold text-foreground">
                 Make your Guest Loop ready for guests
               </h2>
-              <p className="text-sm font-normal text-muted-foreground dark:text-[#7c7c7c]">
-                {completeCount} of {totalSteps} required steps completed
-              </p>
+              <div className={SETUP_CHECKLIST_PROGRESS_GROUP_CLASS}>
+                <p className="text-sm font-normal text-muted-foreground dark:text-[#7c7c7c]">
+                  {completeCount} of {totalSteps} required steps completed
+                </p>
+                <div
+                  className={SETUP_CHECKLIST_PROGRESS_TRACK_CLASS}
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={totalSteps}
+                  aria-valuenow={completeCount}
+                  aria-label={`${completeCount} of ${totalSteps} required steps completed`}
+                >
+                  <div
+                    className={SETUP_CHECKLIST_PROGRESS_FILL_CLASS}
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </div>
             </div>
             <span
               className={SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS}
@@ -119,7 +149,6 @@ export function HomeSetupChecklist({
             <ol className="flex flex-col gap-2.5">
               {steps.map((step) => {
                 const showMarker = shouldShowSetupStatusMarker(step.status)
-                const tintedRow = hasSetupStepTintedRow(step.status)
                 const isComplete = step.status === "complete"
                 const hasActions = step.actions.length > 0
                 const spreadActions = shouldSpreadSetupStepActions(
@@ -134,9 +163,7 @@ export function HomeSetupChecklist({
                     className={cn(
                       SETUP_CHECKLIST_STEP_CLASS,
                       showMarker && "gap-[14px]",
-                      tintedRow
-                        ? "rounded bg-[#ebebeb] dark:bg-[#202020]"
-                        : "rounded"
+                      resolveSetupStepRowSurfaceClass(step.status)
                     )}
                   >
                     {showMarker ? <StatusMarker complete={isComplete} /> : null}
@@ -150,14 +177,15 @@ export function HomeSetupChecklist({
                       <div
                         className={cn(
                           SETUP_CHECKLIST_STEP_CONTENT_CLASS,
-                          spreadActions && SETUP_CHECKLIST_STEP_ACTIONS_SPREAD_CLASS
+                          (spreadActions || isComplete) &&
+                            SETUP_CHECKLIST_STEP_ACTIONS_SPREAD_CLASS
                         )}
                       >
                         <div
                           className={cn(
                             "flex min-w-0 flex-col",
                             SETUP_STEP_COPY_GAP_CLASS,
-                            hasActions && "flex-1"
+                            (hasActions || isComplete) && "flex-1"
                           )}
                         >
                           <div className="leading-[0]">
@@ -170,14 +198,26 @@ export function HomeSetupChecklist({
                           </div>
                         </div>
 
-                        {hasActions ? (
+                        {isComplete ? (
+                          <SetupStepCompletedLabel />
+                        ) : hasActions ? (
                           <div className={SETUP_CHECKLIST_STEP_ACTIONS_CLASS}>
                             {step.actions.map((action) => {
                               const isPreview =
                                 action.id === "preview-guest-form"
+                              const isCreateOffer = action.id === "create-offer"
+                              const isCreateCampaign =
+                                action.id === "create-campaign"
                               const available = isPreview
                                 ? action.available && !previewBusy
                                 : action.available
+                              const onClick = isPreview
+                                ? onPreviewGuestForm
+                                : isCreateOffer
+                                  ? onCreateOffer
+                                  : isCreateCampaign
+                                    ? onCreateCampaign
+                                    : undefined
 
                               return (
                                 <Button
@@ -194,9 +234,7 @@ export function HomeSetupChecklist({
                                       ? action.label
                                       : `${action.label} (unavailable)`
                                   }
-                                  onClick={
-                                    isPreview ? onPreviewGuestForm : undefined
-                                  }
+                                  onClick={onClick}
                                 >
                                   {action.label}
                                 </Button>
@@ -246,6 +284,20 @@ function StatusMarker({ complete }: { complete: boolean }) {
       {complete ? (
         <span className="absolute top-[3px] left-[3px] size-[10px] rounded-full bg-primary" />
       ) : null}
+    </span>
+  )
+}
+
+/** Figma completed-step chrome — check + “Step completed” (5512:87308). */
+function SetupStepCompletedLabel() {
+  return (
+    <span className={SETUP_CHECKLIST_STEP_COMPLETED_CLASS}>
+      <CheckIcon
+        className={SETUP_CHECKLIST_STEP_COMPLETED_ICON_CLASS}
+        strokeWidth={3}
+        aria-hidden
+      />
+      Step completed
     </span>
   )
 }

@@ -86,7 +86,11 @@ import {
   type CampaignExistingOfferPickerCard,
 } from "@/lib/operatorCampaigns/campaignExistingOfferPickerPresentation"
 import { emptySelection } from "@/lib/operatorFilterSheet"
-import { offersFilterSheetSchema } from "@/lib/operatorOffers/offersFilterSheetSchema"
+import {
+  ATTACHABLE_OFFER_STATUS_IDS,
+  isAttachableCatalogOfferStatus,
+  offersFilterSheetSchema,
+} from "@/lib/operatorOffers/offersFilterSheetSchema"
 import { buildOffersListQueryParams } from "@/lib/operatorOffers/offersListQueryParams"
 import {
   OPERATOR_OFFERS_DEFAULT_SORT_ID,
@@ -600,7 +604,10 @@ function buildExistingOfferPickerQueryParams(
   locationId: number
 ): CatalogOffersListQueryParams {
   const filters = emptySelection(OFFERS_FILTER_SCHEMA)
-  filters.status = { kind: "multi-select", ids: ["active"] }
+  filters.status = {
+    kind: "multi-select",
+    ids: [...ATTACHABLE_OFFER_STATUS_IDS],
+  }
   return buildOffersListQueryParams({
     locationId,
     view: "all",
@@ -816,7 +823,7 @@ export function createRespondWithRecoveryOfferModule(
         return
       }
       const items = (response.items ?? []).filter(
-        (item) => item.status === "active"
+        (item) => isAttachableCatalogOfferStatus(item.status)
       )
       state = {
         ...state,

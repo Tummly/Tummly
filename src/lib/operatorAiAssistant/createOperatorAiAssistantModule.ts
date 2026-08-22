@@ -159,12 +159,21 @@ export type OperatorAiAssistantOwnedLocationOption = {
 }
 
 export type OperatorAiAssistantAnalysisScope = {
-  ownedLocationId: number
+  scopeKind?: OperatorAiAssistantScopeKind
+  ownedLocationId: number | null
   ownedLocationName: string
   reportingPeriod: HomePerformanceDateRange
 }
 
 export const CHANGE_ANALYSIS_SCOPE_TITLE = "Change analysis scope"
+export const ALL_OWNED_LOCATIONS_SELECT_VALUE = "all"
+export const ALL_OWNED_LOCATIONS_PICKER_LABEL = "All owned locations"
+export const ALL_LOCATIONS_CHROME_LABEL = "All Locations"
+
+export type OperatorAiAssistantScopeKind = "all" | "single"
+export type OperatorAiAssistantDraftLocation =
+  | number
+  | typeof ALL_OWNED_LOCATIONS_SELECT_VALUE
 export { ASSISTANT_WAIT_BODY }
 export const ASSISTANT_COMPOSER_PLACEHOLDER = "Ask AI Assistant..."
 export const ASSISTANT_FAILURE_BODY =
@@ -197,7 +206,9 @@ export type OperatorAiAssistantChangeScopeDialogSnapshot = {
   open: boolean
   title: typeof CHANGE_ANALYSIS_SCOPE_TITLE
   showsOwnedLocationField: boolean
-  draftOwnedLocationId: number
+  includesAllOwnedLocationsOption: boolean
+  draftScopeKind: OperatorAiAssistantScopeKind
+  draftOwnedLocationId: number | null
   draftReportingPeriod: HomePerformanceDateRange
   locationOptions: readonly OperatorAiAssistantOwnedLocationOption[]
 }
@@ -328,7 +339,8 @@ export type OperatorAiAssistantAdapters = {
   getCampaignDraft: (campaignId: number) => Promise<CampaignDraftDetail | null>
   /**
    * Load the Offers catalog row to gate completing-turn open. Return null when
-   * the Offer is missing. Throw on load fail.
+   * the Offer is missing. Throw on load fail. Draft and Active may open;
+   * paused, archived, and other statuses stay in the Assistant.
    */
   getCatalogOffer: (offerId: number) => Promise<CatalogOfferDetail | null>
   createCampaignDraft?: (body: CreateCampaignDraftRequest) => Promise<void>
@@ -389,12 +401,13 @@ export type OperatorAiAssistantModule = {
   expandDrawer: () => void
   leaveExpand: () => void
   openChangeScope: () => void
-  setChangeScopeDraftLocation: (locationId: number) => void
+  setChangeScopeDraftLocation: (locationId: OperatorAiAssistantDraftLocation) => void
   setChangeScopeDraftReportingPeriod: (
     reportingPeriod: HomePerformanceDateRange
   ) => void
   cancelChangeScope: () => void
   applyChangeScope: () => void
+  onOwnedLocationSwitcherChange: () => void
   setComposerDraft: (text: string) => void
   fillComposerFromChip: (label: string) => void
   send: () => void
@@ -487,6 +500,21 @@ export function buildAssistantEmptyGreeting(
   }
 }
 
+export function analysisScopeKind(
+  scope: OperatorAiAssistantAnalysisScope
+): OperatorAiAssistantScopeKind {
+  return scope.scopeKind === "all" ? "all" : "single"
+}
+
+export function changeScopeLocationSelectValue(
+  dialog: OperatorAiAssistantChangeScopeDialogSnapshot
+): string {
+  if (dialog.draftScopeKind === "all") {
+    return ALL_OWNED_LOCATIONS_SELECT_VALUE
+  }
+  return String(dialog.draftOwnedLocationId ?? "")
+}
+
 export function formatAnalysisScopeStatusLine(
   restaurantName: string,
   scope: OperatorAiAssistantAnalysisScope
@@ -518,6 +546,7 @@ export function buildEmptyComposerPlaceholders(
   return [
     `Summarise feedback from ${periodPhrase}\u2026`,
     `What needs attention at ${scope.ownedLocationName}?`,
+    `What should I do today at ${scope.ownedLocationName}?`,
     "Draft a quiet-day offer for lunch guests\u2026",
     "Show guests who gave poor feedback but opted in\u2026",
     "Suggest next week\u2019s campaign\u2026",
@@ -535,6 +564,9 @@ export function analysisScopesEqual(
 ): boolean {
   if (left == null || right == null) {
     return left == null && right == null
+  }
+  if (analysisScopeKind(left) !== analysisScopeKind(right)) {
+    return false
   }
   if (
     left.ownedLocationId !== right.ownedLocationId
@@ -569,10 +601,32 @@ function copyDashboardAnalysisScope(
 ): OperatorAiAssistantAnalysisScope {
   const ownedLocation = adapters.getDashboardOwnedLocation()
   return {
+    scopeKind: "single",
     ownedLocationId: ownedLocation.id,
     ownedLocationName: ownedLocation.name,
     reportingPeriod: DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
   }
+}
+
+function sortOwnedLocationOptions(
+  options: readonly OperatorAiAssistantOwnedLocationOption[]
+): OperatorAiAssistantOwnedLocationOption[] {
+  return [...options].sort((left, right) =>
+    left.name.localeCompare(right.name, undefined, { sensitivity: "base" })
+  )
+}
+
+function bindPendingDraftLocation<T extends { locationId: number }>(
+  draft: T | null,
+  scope: OperatorAiAssistantAnalysisScope
+): T | null {
+  if (draft == null) {
+    return null
+  }
+  if (analysisScopeKind(scope) === "all" || scope.ownedLocationId == null) {
+    return draft
+  }
+  return { ...draft, locationId: scope.ownedLocationId }
 }
 
 function groundedAnswerForScope(
@@ -778,7 +832,9 @@ export function createInMemoryOperatorAiAssistantAdapters(
 type ChangeScopeDialogState = {
   open: boolean
   showsOwnedLocationField: boolean
-  draftOwnedLocationId: number
+  includesAllOwnedLocationsOption: boolean
+  draftScopeKind: OperatorAiAssistantScopeKind
+  draftOwnedLocationId: number | null
   draftReportingPeriod: HomePerformanceDateRange
   locationOptions: readonly OperatorAiAssistantOwnedLocationOption[]
 }
@@ -823,7 +879,9 @@ type AssistantState = {
 const CLOSED_CHANGE_SCOPE_DIALOG: ChangeScopeDialogState = {
   open: false,
   showsOwnedLocationField: false,
-  draftOwnedLocationId: 0,
+  includesAllOwnedLocationsOption: false,
+  draftScopeKind: "single",
+  draftOwnedLocationId: null,
   draftReportingPeriod: DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
   locationOptions: [],
 }
@@ -884,6 +942,8 @@ function toChangeScopeSnapshot(
     open: dialog.open,
     title: CHANGE_ANALYSIS_SCOPE_TITLE,
     showsOwnedLocationField: dialog.showsOwnedLocationField,
+    includesAllOwnedLocationsOption: dialog.includesAllOwnedLocationsOption,
+    draftScopeKind: dialog.draftScopeKind,
     draftOwnedLocationId: dialog.draftOwnedLocationId,
     draftReportingPeriod: dialog.draftReportingPeriod,
     locationOptions: dialog.locationOptions,
@@ -1060,13 +1120,33 @@ function isRetiredDraftActionType(
 
 function canOpenStoredDraftFromAssistant(
   row: { status: string; locationId: number } | null,
-  analysisScopeLocationId: number
+  analysisScopeLocationId: number | null
 ): boolean {
   if (row == null) {
     return false
   }
   if (row.status.toLowerCase() !== "draft") {
     return false
+  }
+  if (analysisScopeLocationId == null) {
+    return true
+  }
+  return row.locationId === analysisScopeLocationId
+}
+
+function canOpenStoredOfferFromAssistant(
+  row: { status: string; locationId: number } | null,
+  analysisScopeLocationId: number | null
+): boolean {
+  if (row == null) {
+    return false
+  }
+  const status = row.status.toLowerCase()
+  if (status !== "draft" && status !== "active") {
+    return false
+  }
+  if (analysisScopeLocationId == null) {
+    return true
   }
   return row.locationId === analysisScopeLocationId
 }
@@ -1090,13 +1170,20 @@ function visibleActionsForMessage(
     isCompletingOfferAction(action.type)
   )
   const hasOpenRecovery = raw.some((action) => action.type === "open-recovery")
-  const filtered = hasCompletingCampaign
-    ? raw.filter((action) => isCompletingCampaignAction(action.type)).slice(0, 3)
-    : hasCompletingOffer
-      ? raw.filter((action) => isCompletingOfferAction(action.type)).slice(0, 1)
-      : hasOpenRecovery
-        ? raw.filter((action) => action.type === "open-recovery").slice(0, 1)
-        : raw.slice(0, 3)
+  const combinedCreate =
+    hasCompletingCampaign && hasCompletingOffer
+  const filtered = combinedCreate
+    ? (["review-campaign", "change-audience", "review-offer"] as const)
+        .map((type) => raw.find((action) => action.type === type))
+        .filter((action): action is OperatorAiAssistantAction => action != null)
+        .slice(0, 3)
+    : hasCompletingCampaign
+      ? raw.filter((action) => isCompletingCampaignAction(action.type)).slice(0, 3)
+      : hasCompletingOffer
+        ? raw.filter((action) => isCompletingOfferAction(action.type)).slice(0, 1)
+        : hasOpenRecovery
+          ? raw.filter((action) => action.type === "open-recovery").slice(0, 1)
+          : raw.slice(0, 3)
 
   return filtered.map((action) => ({
     ...action,
@@ -1308,10 +1395,21 @@ function upsertListItem(
   return [toListItemFromConversation(row), ...without]
 }
 
+function analysisOwnedLocationChanged(
+  saved: OperatorAiAssistantAnalysisScope,
+  next: OperatorAiAssistantAnalysisScope
+): boolean {
+  return (
+    analysisScopeKind(saved) !== analysisScopeKind(next)
+    || saved.ownedLocationId !== next.ownedLocationId
+  )
+}
+
 function emptyGreetingState(
   state: AssistantState,
   adapters: OperatorAiAssistantAdapters,
-  operatorFirstName?: string
+  operatorFirstName?: string,
+  analysisScope?: OperatorAiAssistantAnalysisScope
 ): AssistantState {
   return {
     ...state,
@@ -1319,7 +1417,7 @@ function emptyGreetingState(
     conversationId: null,
     operatorFirstName: operatorFirstName?.trim() || state.operatorFirstName,
     restaurantName: adapters.getRestaurantName(),
-    analysisScope: copyDashboardAnalysisScope(adapters),
+    analysisScope: analysisScope ?? copyDashboardAnalysisScope(adapters),
     changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
     composerDraft: "",
     placeholderCycleGeneration: state.placeholderCycleGeneration + 1,
@@ -1353,6 +1451,9 @@ export function createOperatorAiAssistantModule(
   let waitTimer: ReturnType<typeof setInterval> | null = null
   let waitGerundIndex = 0
   let waitPipeline: "checking" | "retrieving" | "preparing" = "checking"
+  const initialSwitcherOwnedLocationId = adapters.getDashboardOwnedLocation().id
+  let lastSwitcherOwnedLocationId: number | null =
+    initialSwitcherOwnedLocationId === 0 ? null : initialSwitcherOwnedLocationId
 
   const stopCheckingWaitRotation = () => {
     if (waitTimer != null) {
@@ -1462,6 +1563,18 @@ export function createOperatorAiAssistantModule(
     stopCheckingWaitRotation()
   }
 
+  const beginNewChat = (analysisScope?: OperatorAiAssistantAnalysisScope) => {
+    const abandonedConversationId =
+      state.draftInterviewActive ? state.conversationId : null
+    abortInFlight()
+    mic.reset()
+    state = emptyGreetingState(state, adapters, undefined, analysisScope)
+    publish()
+    if (abandonedConversationId != null) {
+      void adapters.clearDraftInterview(abandonedConversationId)
+    }
+  }
+
   const showEmptyGreeting = (operatorFirstName?: string) => {
     state = emptyGreetingState(state, adapters, operatorFirstName)
     publish()
@@ -1565,14 +1678,21 @@ export function createOperatorAiAssistantModule(
       return
     }
     const mode = adapters.getDashboardMode()
+    const showsOwnedLocationField = mode === "multi"
+    const savedIsAll = analysisScopeKind(state.analysisScope) === "all"
     state = {
       ...state,
       changeScopeDialog: {
         open: true,
-        showsOwnedLocationField: mode === "multi",
-        draftOwnedLocationId: state.analysisScope.ownedLocationId,
+        showsOwnedLocationField,
+        includesAllOwnedLocationsOption: showsOwnedLocationField,
+        draftScopeKind:
+          showsOwnedLocationField && savedIsAll ? "all" : "single",
+        draftOwnedLocationId: savedIsAll
+          ? null
+          : state.analysisScope.ownedLocationId,
         draftReportingPeriod: state.analysisScope.reportingPeriod,
-        locationOptions: adapters.listOwnedLocations(),
+        locationOptions: sortOwnedLocationOptions(adapters.listOwnedLocations()),
       },
     }
     publish()
@@ -1792,14 +1912,25 @@ export function createOperatorAiAssistantModule(
       }
     },
     startNewChat: () => {
-      const abandonedConversationId =
-        state.draftInterviewActive ? state.conversationId : null
-      abortInFlight()
-      mic.reset()
-      showEmptyGreeting()
-      if (abandonedConversationId != null) {
-        void adapters.clearDraftInterview(abandonedConversationId)
+      beginNewChat()
+    },
+    onOwnedLocationSwitcherChange: () => {
+      if (adapters.getDashboardMode() === "single") {
+        return
       }
+      const location = adapters.getDashboardOwnedLocation()
+      if (location.id === 0) {
+        return
+      }
+      if (lastSwitcherOwnedLocationId == null) {
+        lastSwitcherOwnedLocationId = location.id
+        return
+      }
+      if (location.id === lastSwitcherOwnedLocationId) {
+        return
+      }
+      lastSwitcherOwnedLocationId = location.id
+      beginNewChat()
     },
     openRecent: () => {
       state = {
@@ -2000,6 +2131,21 @@ export function createOperatorAiAssistantModule(
       if (!state.changeScopeDialog.showsOwnedLocationField) {
         return
       }
+      if (locationId === ALL_OWNED_LOCATIONS_SELECT_VALUE) {
+        if (!state.changeScopeDialog.includesAllOwnedLocationsOption) {
+          return
+        }
+        state = {
+          ...state,
+          changeScopeDialog: {
+            ...state.changeScopeDialog,
+            draftScopeKind: "all",
+            draftOwnedLocationId: null,
+          },
+        }
+        publish()
+        return
+      }
       if (
         !state.changeScopeDialog.locationOptions.some(
           (location) => location.id === locationId
@@ -2011,6 +2157,7 @@ export function createOperatorAiAssistantModule(
         ...state,
         changeScopeDialog: {
           ...state.changeScopeDialog,
+          draftScopeKind: "single",
           draftOwnedLocationId: locationId,
         },
       }
@@ -2034,44 +2181,60 @@ export function createOperatorAiAssistantModule(
       if (!state.changeScopeDialog.open || state.analysisScope == null) {
         return
       }
-      if (state.turnInFlight) {
+      const dialog = state.changeScopeDialog
+      const savedScope = state.analysisScope
+      let nextScope: OperatorAiAssistantAnalysisScope
+      if (!dialog.showsOwnedLocationField) {
+        nextScope = {
+          ...savedScope,
+          reportingPeriod: dialog.draftReportingPeriod,
+        }
+      } else if (dialog.draftScopeKind === "all") {
+        nextScope = {
+          scopeKind: "all",
+          ownedLocationId: null,
+          ownedLocationName: ALL_LOCATIONS_CHROME_LABEL,
+          reportingPeriod: dialog.draftReportingPeriod,
+        }
+      } else {
+        const nextLocationId = dialog.draftOwnedLocationId
+        const nextLocation = dialog.locationOptions.find(
+          (location) => location.id === nextLocationId
+        )
+        if (nextLocation == null) {
+          nextScope = {
+            ...savedScope,
+            reportingPeriod: dialog.draftReportingPeriod,
+          }
+        } else {
+          nextScope = {
+            scopeKind: "single",
+            ownedLocationId: nextLocation.id,
+            ownedLocationName: nextLocation.name,
+            reportingPeriod: dialog.draftReportingPeriod,
+          }
+        }
+      }
+      if (analysisOwnedLocationChanged(savedScope, nextScope)) {
+        beginNewChat(nextScope)
         return
       }
-      const dialog = state.changeScopeDialog
-      const nextLocationId = dialog.showsOwnedLocationField
-        ? dialog.draftOwnedLocationId
-        : state.analysisScope.ownedLocationId
-      const nextLocation =
-        dialog.locationOptions.find((location) => location.id === nextLocationId)
-        ?? {
-          id: state.analysisScope.ownedLocationId,
-          name: state.analysisScope.ownedLocationName,
-        }
-      const nextScope: OperatorAiAssistantAnalysisScope = {
-        ...state.analysisScope,
-        ownedLocationId: nextLocation.id,
-        ownedLocationName: nextLocation.name,
-        reportingPeriod: dialog.draftReportingPeriod,
+      if (state.turnInFlight) {
+        return
       }
       const composerIsEmpty = state.composerDraft.trim().length === 0
       const conversationId = state.conversationId
       state = {
         ...state,
         analysisScope: nextScope,
-        pendingCampaignDraft:
-          state.pendingCampaignDraft == null
-            ? null
-            : {
-                ...state.pendingCampaignDraft,
-                locationId: nextScope.ownedLocationId,
-              },
-        pendingOfferDraft:
-          state.pendingOfferDraft == null
-            ? null
-            : {
-                ...state.pendingOfferDraft,
-                locationId: nextScope.ownedLocationId,
-              },
+        pendingCampaignDraft: bindPendingDraftLocation(
+          state.pendingCampaignDraft,
+          nextScope
+        ),
+        pendingOfferDraft: bindPendingDraftLocation(
+          state.pendingOfferDraft,
+          nextScope
+        ),
         changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
         placeholderCycleGeneration: composerIsEmpty
           ? state.placeholderCycleGeneration + 1
@@ -2087,20 +2250,14 @@ export function createOperatorAiAssistantModule(
           state = {
             ...state,
             analysisScope: scope,
-            pendingCampaignDraft:
-              state.pendingCampaignDraft == null
-                ? null
-                : {
-                    ...state.pendingCampaignDraft,
-                    locationId: scope.ownedLocationId,
-                  },
-            pendingOfferDraft:
-              state.pendingOfferDraft == null
-                ? null
-                : {
-                    ...state.pendingOfferDraft,
-                    locationId: scope.ownedLocationId,
-                  },
+            pendingCampaignDraft: bindPendingDraftLocation(
+              state.pendingCampaignDraft,
+              scope
+            ),
+            pendingOfferDraft: bindPendingDraftLocation(
+              state.pendingOfferDraft,
+              scope
+            ),
           }
           publish()
         })
@@ -2278,7 +2435,7 @@ export function createOperatorAiAssistantModule(
           .getCatalogOffer(offerId)
           .then((offer) => {
             if (
-              !canOpenStoredDraftFromAssistant(
+              !canOpenStoredOfferFromAssistant(
                 offer,
                 analysisScope.ownedLocationId
               )

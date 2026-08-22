@@ -1557,7 +1557,7 @@ describe("createCampaignWizardModule", () => {
     expect(listCatalogOffers).toHaveBeenCalledWith(
       expect.objectContaining({
         locationId: 42,
-        status: ["active"],
+        status: ["draft", "active"],
       })
     )
 

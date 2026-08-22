@@ -863,7 +863,7 @@ describe("createRespondWithRecoveryOfferModule", () => {
     expect(listCatalogOffers).toHaveBeenCalledWith(
       expect.objectContaining({
         locationId: 7,
-        status: ["active"],
+        status: ["draft", "active"],
       })
     )
     expect(

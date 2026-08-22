@@ -187,6 +187,213 @@ namespace TummlyBackend.Helpers
             );
         }
 
+        public static AssistantLiveAnswerResult.Succeeded CompareAllFromEvidence(
+            string periodPhrase,
+            IReadOnlyList<AssistantCompareLocationEvidence> compareLocations,
+            IReadOnlyList<string> failedLocationNames,
+            IReadOnlyList<string> notStartedLocationNames
+        )
+        {
+            var parts = new List<string>
+            {
+                $"Compare over {periodPhrase}:",
+            };
+            var excerpts = new List<string>();
+            var hasThemes = false;
+
+            foreach (var row in compareLocations)
+            {
+                var status = row.CaptureStatus == CaptureLocationStatus.Paused
+                    ? $" {AssistantCompareTurn.CapturePausedSentence(row.LocationName)}"
+                    : "";
+                parts.Add(CompareAllLocationSentence(row, periodPhrase) + status);
+                var feedback = row.Evidence.Feedback;
+                if (feedback.TagCounts.Count > 0)
+                {
+                    hasThemes = true;
+                }
+
+                if (feedback.TotalCount > feedback.SampleCount && feedback.SampleCount > 0)
+                {
+                    parts.Add(
+                        AssistantCompareAll.CommentSampleSentence(
+                            feedback.SampleCount,
+                            feedback.TotalCount,
+                            row.LocationName
+                        )
+                    );
+                }
+
+                excerpts.AddRange(
+                    feedback.Rows
+                        .Select(item => item.Excerpt)
+                        .Where(excerpt => excerpt.Length > 0)
+                );
+            }
+
+            var painted = excerpts
+                .Take(SummariseExcerptCap)
+                .Select(excerpt => $"\"{excerpt}\"")
+                .ToList();
+            if (painted.Count > 0)
+            {
+                parts.Add($"Excerpts: {string.Join("; ", painted)}.");
+            }
+
+            if (hasThemes)
+            {
+                parts.Add("Theme totals are for the full Reporting period.");
+            }
+
+            foreach (var name in failedLocationNames)
+            {
+                parts.Add(AssistantCompareAll.FailedLoadSentence(name));
+            }
+
+            if (notStartedLocationNames.Count > 0)
+            {
+                parts.Add(AssistantCompareAll.NotStartedSentence(notStartedLocationNames));
+            }
+
+            if (failedLocationNames.Count > 0
+                || notStartedLocationNames.Count > 0
+                || compareLocations.Any(row => row.Evidence.IsEmpty))
+            {
+                parts.Add(AssistantCompareAll.PartialRankingSentence);
+            }
+
+            return new AssistantLiveAnswerResult.Succeeded(
+                AssistantMessageClass.Grounded,
+                "Compare all owned locations",
+                string.Join(" ", parts),
+                []
+            );
+        }
+
+        private static string CompareAllLocationSentence(
+            AssistantCompareLocationEvidence row,
+            string periodPhrase
+        )
+        {
+            var evidence = row.Evidence;
+            var bits = new List<string>();
+            var feedback = evidence.Feedback;
+            if (feedback.IsEmpty)
+            {
+                bits.Add(
+                    AssistantCompareAll.EmptyDomainSentence(
+                        "feedback",
+                        row.LocationName,
+                        periodPhrase
+                    )
+                );
+            }
+            else
+            {
+                bits.Add(
+                    $"{row.LocationName} received {feedback.TotalCount} feedback item{(feedback.TotalCount == 1 ? "" : "s")}."
+                );
+                if (feedback.TagCounts.Count > 0)
+                {
+                    var themes = string.Join(
+                        ", ",
+                        feedback.TagCounts.Take(3).Select(tag => $"{tag.Tag} ({tag.Count})")
+                    );
+                    bits.Add($"Top themes at {row.LocationName}: {themes}.");
+                }
+            }
+
+            if (evidence.Offers.HasCatalogFacts || evidence.Offers.HasPerformanceFacts)
+            {
+                bits.Add(
+                    $"{row.LocationName} has {evidence.Offers.CatalogTotalCount} catalog offer{(evidence.Offers.CatalogTotalCount == 1 ? "" : "s")}."
+                );
+            }
+            else if (VenueHasNoFacts(evidence))
+            {
+                bits.Add(
+                    AssistantCompareAll.EmptyDomainSentence(
+                        "offers",
+                        row.LocationName,
+                        periodPhrase
+                    )
+                );
+            }
+
+            if (evidence.Campaigns.HasCampaignFacts)
+            {
+                bits.Add(
+                    $"{row.LocationName} has {evidence.Campaigns.ListTotalCount} Campaign{(evidence.Campaigns.ListTotalCount == 1 ? "" : "s")}."
+                );
+            }
+            else if (VenueHasNoFacts(evidence))
+            {
+                bits.Add(
+                    AssistantCompareAll.EmptyDomainSentence(
+                        "Campaigns",
+                        row.LocationName,
+                        periodPhrase
+                    )
+                );
+            }
+
+            if (evidence.Capture.HasSnapshotFacts)
+            {
+                bits.Add(
+                    $"{row.LocationName} Capture: {evidence.Capture.QrScans} QR scans."
+                );
+            }
+            else if (VenueHasNoFacts(evidence))
+            {
+                bits.Add(
+                    AssistantCompareAll.EmptyDomainSentence(
+                        "Capture",
+                        row.LocationName,
+                        periodPhrase
+                    )
+                );
+            }
+
+            if (!evidence.Home.IsEmpty)
+            {
+                bits.Add(
+                    $"{row.LocationName} Performance overview: {evidence.Home.FeedbackSubmitted} feedbackSubmitted, {evidence.Home.GuestsJoined} guestsJoined, {evidence.Home.QrScans} qrScans."
+                );
+            }
+            else if (VenueHasNoFacts(evidence))
+            {
+                bits.Add(
+                    AssistantCompareAll.EmptyDomainSentence(
+                        "Performance overview",
+                        row.LocationName,
+                        periodPhrase
+                    )
+                );
+            }
+
+            if (!evidence.Guests.IsEmpty)
+            {
+                bits.Add(
+                    $"{row.LocationName} has {evidence.Guests.TotalCount} Location Guest{(evidence.Guests.TotalCount == 1 ? "" : "s")} (current state)."
+                );
+            }
+            else if (VenueHasNoFacts(evidence))
+            {
+                bits.Add(
+                    AssistantCompareAll.EmptyDomainSentence(
+                        "Location Guests",
+                        row.LocationName,
+                        periodPhrase
+                    )
+                );
+            }
+
+            return string.Join(" ", bits);
+        }
+
+        private static bool VenueHasNoFacts(AssistantRetrievedEvidence evidence)
+            => evidence.IsEmpty && evidence.Guests.IsEmpty;
+
         private static string CompareLocationSentence(
             AssistantCompareLocationEvidence row,
             string periodPhrase

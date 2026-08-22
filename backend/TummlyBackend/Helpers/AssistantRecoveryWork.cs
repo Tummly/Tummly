@@ -26,6 +26,8 @@ namespace TummlyBackend.Helpers
 
         public int FeedbackId { get; set; }
 
+        public int? LocationId { get; set; }
+
         public string Intent { get; set; } = string.Empty;
 
         public string? Channel { get; set; }
@@ -94,6 +96,7 @@ namespace TummlyBackend.Helpers
             => new()
             {
                 FeedbackId = state.FeedbackId,
+                LocationId = state.LocationId,
                 Intent = state.Intent,
                 Channel = state.Channel,
                 Purpose = state.Purpose,

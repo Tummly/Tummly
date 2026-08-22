@@ -21,6 +21,10 @@ import {
   type CampaignCatalogOfferDetailsDraft,
 } from "@/lib/operatorOffers/offerCatalogPresentation"
 import type { ConfirmCatalogOfferWriteResult } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
+import {
+  ATTACHABLE_OFFER_STATUS_IDS,
+  isAttachableCatalogOfferStatus,
+} from "@/lib/operatorOffers/offersFilterSheetSchema"
 import type { CreateCatalogOfferRequestBody } from "@/types/operatorCampaigns"
 import type { CatalogOffersListItem } from "@/types/operatorCampaigns"
 import type { CatalogOffersListQueryParams } from "@/types/operatorCampaigns"
@@ -224,13 +228,13 @@ export function createCaptureThankYouOfferModule(
         view: "all",
         page: 1,
         pageSize: 25,
-        status: ["active"],
+        status: [...ATTACHABLE_OFFER_STATUS_IDS],
       })
       if (generation !== loadGeneration) {
         return
       }
-      const items = (response.items ?? []).filter(
-        (item) => item.status === "active"
+      const items = (response.items ?? []).filter((item) =>
+        isAttachableCatalogOfferStatus(item.status)
       )
       state = {
         ...state,

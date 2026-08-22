@@ -5,12 +5,29 @@ import {
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
 import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod"
+import { homeCampaignRecommendationDraftPrefill } from "@/lib/operatorHome/homeCampaignRecommendationDraftPrefill"
+import { isHomeRecommendationCampaignType } from "@/lib/operatorHome/homeRecommendationPresentation"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
-import { operatorDashboardGuestProfilePath } from "@/lib/operatorHome/operatorDashboardPaths"
+import {
+  operatorDashboardCampaignDetailsPath,
+  operatorDashboardCampaignPreviewPath,
+  operatorDashboardGuestProfilePath,
+  operatorDashboardNavPath,
+  operatorDashboardOfferDetailsPath,
+  operatorDashboardOfferPreviewPath,
+} from "@/lib/operatorHome/operatorDashboardPaths"
+import { NEEDS_ATTENTION_DUPLICATE_DRAFT_TOAST } from "@/lib/operatorHome/operatorHomeSectionPresentation"
+import { planHomeNeedsAttentionCta } from "@/lib/operatorHome/planHomeNeedsAttentionCta"
+import type { HomeRecommendation } from "@/types/operatorHome"
 import { useNavigate, useOutletContext } from "react-router-dom"
+import { toast } from "sonner"
 
 type HomePageProps = {
   activationPeriodBadge: ActivationPeriodBadgeCopy | null
+}
+
+function openInNewTab(path: string): void {
+  window.open(path, "_blank", "noopener,noreferrer")
 }
 
 export function HomePage({
@@ -26,6 +43,12 @@ export function HomePage({
   const setHomePerformanceDateRange = useDashboardUiStore(
     (state) => state.setHomePerformanceDateRange
   )
+  const setCampaignsIntent = useDashboardUiStore(
+    (state) => state.setCampaignsIntent
+  )
+  const setFeedbackInboxIntent = useDashboardUiStore(
+    (state) => state.setFeedbackInboxIntent
+  )
 
   const navigateToGuestProfile = (locationGuestId: number) => {
     navigate(
@@ -35,6 +58,83 @@ export function HomePage({
         selectedLocationId
       )
     )
+  }
+
+  const handleRecommendationPrimaryAction = (
+    recommendation: HomeRecommendation
+  ) => {
+    if (isHomeRecommendationCampaignType(recommendation.type)) {
+      const draftPrefill =
+        homeCampaignRecommendationDraftPrefill(recommendation)
+      if (draftPrefill != null) {
+        setCampaignsIntent({
+          openFromRecommendation: { draftPrefill },
+        })
+      }
+      navigate(
+        operatorDashboardNavPath(mode, "campaigns", selectedLocationId)
+      )
+      return
+    }
+
+    const action = recommendation.action
+    if (action == null) {
+      switch (recommendation.type) {
+        case "review-open-feedback":
+          navigate(
+            operatorDashboardNavPath(mode, "feedback", selectedLocationId)
+          )
+          return
+        case "thank-or-follow-guest":
+          navigate(
+            operatorDashboardNavPath(mode, "guests", selectedLocationId)
+          )
+          return
+        case "promote-or-fix-offer":
+          navigate(
+            operatorDashboardNavPath(mode, "offers", selectedLocationId)
+          )
+          return
+        default:
+          return
+      }
+    }
+
+    switch (action.kind) {
+      case "open-feedback":
+        if (action.feedbackId != null) {
+          void home.openFeedbackDetails(action.feedbackId)
+        } else {
+          navigate(
+            operatorDashboardNavPath(mode, "feedback", selectedLocationId)
+          )
+        }
+        return
+      case "open-guest":
+        if (action.locationGuestId != null) {
+          navigateToGuestProfile(action.locationGuestId)
+        } else {
+          navigate(
+            operatorDashboardNavPath(mode, "guests", selectedLocationId)
+          )
+        }
+        return
+      case "open-offer":
+        if (action.offerId != null) {
+          navigate(
+            operatorDashboardOfferDetailsPath(
+              mode,
+              action.offerId,
+              selectedLocationId
+            )
+          )
+        } else {
+          navigate(
+            operatorDashboardNavPath(mode, "offers", selectedLocationId)
+          )
+        }
+        return
+    }
   }
 
   const viewModel = home.snapshot.viewModel
@@ -71,6 +171,8 @@ export function HomePage({
     )
   }
 
+  const locationId = selectedLocationId ?? locations[0]?.id ?? 0
+
   return (
     <>
       {home.snapshot.actionError ? (
@@ -87,12 +189,114 @@ export function HomePage({
         performanceLoading={home.snapshot.performanceLoadStatus === "loading"}
         guestFormPreviewLocationName={viewModel.selectedLocationName}
         guestFormPreviewAddress={selectedLocation?.address ?? ""}
+        brandName={viewModel.selectedLocationName}
+        liveOffersLoadStatus={home.snapshot.liveOffersLoadStatus}
+        liveCards={home.snapshot.liveCards}
+        liveOffersError={home.snapshot.liveOffersError}
+        liveOffersPauseBusy={home.snapshot.liveOffersPauseBusy}
+        onLiveOffersEmptyAction={(actionId) => {
+          if (actionId === "create-offer") {
+            navigate(operatorDashboardNavPath(mode, "offers", locationId))
+            return
+          }
+          navigate(operatorDashboardNavPath(mode, "campaigns", locationId))
+        }}
+        onRetryLiveOffers={() => {
+          void home.retryLiveOffers()
+        }}
+        onLiveOfferPreview={(card) => {
+          if (card.kind === "campaign") {
+            openInNewTab(
+              operatorDashboardCampaignPreviewPath(mode, card.id, locationId)
+            )
+            return
+          }
+          openInNewTab(
+            operatorDashboardOfferPreviewPath(mode, card.id, locationId)
+          )
+        }}
+        onViewLiveCampaign={(campaignId) => {
+          openInNewTab(
+            operatorDashboardCampaignDetailsPath(mode, campaignId, locationId)
+          )
+        }}
+        onViewLiveOffer={(offerId) => {
+          openInNewTab(
+            operatorDashboardOfferDetailsPath(mode, offerId, locationId)
+          )
+        }}
+        onViewLiveOfferRedemptions={(offerId) => {
+          openInNewTab(
+            operatorDashboardOfferDetailsPath(mode, offerId, locationId, {
+              tab: "redemptions",
+            })
+          )
+        }}
+        onPauseLiveCampaign={(campaignId) => home.pauseLiveCampaign(campaignId)}
+        needsAttentionLoadStatus={home.snapshot.needsAttentionLoadStatus}
+        needsAttention={home.snapshot.needsAttention}
+        needsAttentionError={home.snapshot.needsAttentionError}
+        onRetryNeedsAttention={() => {
+          void home.retryNeedsAttention()
+        }}
+        onNeedsAttentionCta={(item, ctaKind) => {
+          const plan = planHomeNeedsAttentionCta({
+            item,
+            ctaKind,
+            mode,
+            locationId,
+          })
+          if (plan.kind === "duplicate-as-draft") {
+            void (async () => {
+              const result = await home.duplicateNeedsAttentionCampaign(
+                plan.campaignId
+              )
+              if (!result.ok) {
+                toast.error(result.error)
+                return
+              }
+              toast.success(NEEDS_ATTENTION_DUPLICATE_DRAFT_TOAST)
+              setCampaignsIntent({
+                continueEditingCampaignId: result.campaignId,
+                continueEditingStep: "review",
+              })
+              navigate(plan.campaignsPath)
+            })()
+            return
+          }
+          if (plan.feedbackInbox != null) {
+            setFeedbackInboxIntent(plan.feedbackInbox)
+          }
+          navigate(plan.path)
+        }}
         onRetryFeedback={() => {
           void home.retryLoad()
         }}
         previewBusy={home.snapshot.previewBusy}
         onPreviewGuestForm={home.previewGuestForm}
+        onCreateOffer={() => {
+          navigate(
+            operatorDashboardNavPath(mode, "offers", selectedLocationId)
+          )
+        }}
+        onCreateCampaign={() => {
+          navigate(
+            operatorDashboardNavPath(mode, "campaigns", selectedLocationId)
+          )
+        }}
         onCopySmartGuestLink={home.copySmartGuestLink}
+        recommendation={home.snapshot.recommendation}
+        onRetryRecommendation={() => {
+          void home.retryRecommendation()
+        }}
+        onRecommendationPrimaryAction={handleRecommendationPrimaryAction}
+        onDismissRecommendation={() => {
+          home.dismissRecommendation()
+        }}
+        weeklyBrief={home.snapshot.weeklyBrief}
+        onRetryWeeklyBrief={() => {
+          void home.retryWeeklyBrief()
+        }}
         feedbackDetails={home.snapshot.feedbackDetails}
         onViewFeedback={(feedbackId) => {
           void home.openFeedbackDetails(feedbackId)

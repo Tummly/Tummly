@@ -24,9 +24,10 @@ namespace TummlyBackend.Helpers
 
             if (AssistantTaskClassification.LooksLikeOfferPath(message)
                 || (targets.Contains(Campaign)
-                    && LooksLikeNewOfferBesideCampaign(lower)))
+                    && AssistantTaskClassification.LooksLikeNewOfferBesideCampaign(message)))
             {
-                if (!targets.Contains(Offer, StringComparer.Ordinal))
+                if (!AssistantTaskClassification.LooksLikeCreateCampaignWithOffer(message)
+                    && !targets.Contains(Offer, StringComparer.Ordinal))
                 {
                     targets.Add(Offer);
                 }
@@ -111,17 +112,6 @@ namespace TummlyBackend.Helpers
                 _ => false,
             };
         }
-
-        private static bool LooksLikeNewOfferBesideCampaign(string lower)
-            => ContainsAny(
-                lower,
-                "and an offer",
-                "and a new offer",
-                "and create an offer",
-                "and draft an offer",
-                "and an offer draft",
-                "plus an offer"
-            );
 
         private static bool ContainsAny(string lower, params string[] needles)
             => needles.Any(needle => lower.Contains(needle, StringComparison.Ordinal));

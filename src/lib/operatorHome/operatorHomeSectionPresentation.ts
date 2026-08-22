@@ -98,6 +98,31 @@ export const WEEKLY_BRIEF_EMPTY_TITLE_CLASS =
 export const WEEKLY_BRIEF_EMPTY_HELPER_CLASS =
   "m-0 text-op-sm font-normal leading-normal text-op-card-subtitle-color"
 
+export const WEEKLY_BRIEF_BODY_CLASS =
+  "flex flex-col gap-5 px-4 sm:px-5 md:px-6"
+
+export const WEEKLY_BRIEF_HEADLINE_CLASS =
+  "m-0 text-base font-semibold leading-normal text-op-card-title-color"
+
+export const WEEKLY_BRIEF_DOMAIN_BLOCK_CLASS = "flex flex-col gap-1.5"
+
+export const WEEKLY_BRIEF_DOMAIN_LABEL_CLASS =
+  "m-0 text-sm font-medium leading-5 text-op-card-title-color"
+
+export const WEEKLY_BRIEF_DOMAIN_SUMMARY_CLASS =
+  "m-0 text-op-sm font-normal leading-5 text-op-card-subtitle-color"
+
+export const WEEKLY_BRIEF_WATCH_LIST_CLASS =
+  "m-0 list-disc space-y-0.5 pl-[21px] text-op-sm font-normal leading-5 text-op-card-subtitle-color"
+
+export const WEEKLY_BRIEF_STATUS_SHELL_CLASS =
+  "flex min-h-[120px] flex-col items-center justify-center gap-3 px-4 sm:px-5 md:px-6"
+
+export const WEEKLY_BRIEF_ERROR_COPY_CLASS =
+  "m-0 text-center text-op-sm font-normal leading-5 text-op-card-subtitle-color"
+
+export const WEEKLY_BRIEF_RETRY_LABEL = "Retry"
+
 /** Recommended next step — node 3353:42550 (header + inner panel). */
 export const RECOMMENDED_SECTION_CLASS = `${OPERATOR_HOME_WHITE_CARD_CLASS} gap-5`
 
@@ -115,3 +140,18 @@ export const RECOMMENDED_EMPTY_COPY_CLASS =
 
 /** Needs attention — node 3360:66297. */
 export const NEEDS_ATTENTION_EMPTY_COPY = "Nothing needs attention right now."
+
+export const NEEDS_ATTENTION_LOAD_ERROR =
+  "Could not load Needs attention. Please try again."
+
+export const NEEDS_ATTENTION_DUPLICATE_DRAFT_TOAST =
+  "Duplicate Draft has been created."
+
+export const NEEDS_ATTENTION_DUPLICATE_DRAFT_ERROR =
+  "Could not duplicate this campaign. Try again."
+
+/** Figma warning row — main-bg #202020 → op-background-secondary (3498:9980). */
+export const WARNING_ROW_CLASS =
+  "flex w-full flex-col gap-4 overflow-clip rounded-[4px] bg-op-background-secondary py-5 pl-[30px] pr-5 sm:flex-row sm:items-center sm:gap-[14px]"
+
+export const NEEDS_ATTENTION_VIEW_ALL_LABEL = "View all"

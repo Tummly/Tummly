@@ -26,7 +26,8 @@ namespace TummlyBackend.Helpers
 
         public sealed record Compare(
             IReadOnlyList<int> LocationIds,
-            string? DroppedUnknownSentence
+            string? DroppedUnknownSentence,
+            bool IsCompareAll = false
         ) : AssistantCompareOutcome;
     }
 
@@ -143,10 +144,11 @@ namespace TummlyBackend.Helpers
 
         public static AssistantCompareOutcome Resolve(
             string userMessage,
-            int savedLocationId,
+            int? savedLocationId,
             IReadOnlyList<AssistantOwnedLocationRef> ownedLocations,
             IReadOnlyList<int>? lastCompareLocationIds,
-            bool isSingleMode
+            bool isSingleMode,
+            bool savedScopeIsAll = false
         )
         {
             var text = userMessage.Trim();
@@ -158,7 +160,9 @@ namespace TummlyBackend.Helpers
             var lower = text.ToLowerInvariant();
             var lastSet = DistinctOwnedIds(lastCompareLocationIds, ownedLocations);
 
-            if (lastSet.Count >= 2 && IsFollowUpReuse(lower))
+            if (!savedScopeIsAll
+                && lastSet.Count >= 2
+                && IsFollowUpReuse(lower))
             {
                 return new AssistantCompareOutcome.Compare(lastSet, null);
             }
@@ -188,6 +192,15 @@ namespace TummlyBackend.Helpers
 
             if (LooksLikeAllLocations(lower) || IsUnnamedCompare(lower, text, ownedLocations))
             {
+                if (savedScopeIsAll)
+                {
+                    return new AssistantCompareOutcome.Compare(
+                        AllOwnedIdsByName(ownedLocations),
+                        null,
+                        IsCompareAll: true
+                    );
+                }
+
                 return new AssistantCompareOutcome.Clarify(
                     ClarifyUnnamedBody(ownedLocations)
                 );
@@ -295,6 +308,14 @@ namespace TummlyBackend.Helpers
             IReadOnlyList<AssistantOwnedLocationRef> locations
         )
             => string.Join(", ", locations.Select(FormatLocationLabel));
+
+        public static IReadOnlyList<int> AllOwnedIdsByName(
+            IReadOnlyList<AssistantOwnedLocationRef> locations
+        )
+            => locations
+                .OrderBy(location => location.Name, StringComparer.Ordinal)
+                .Select(location => location.Id)
+                .ToList();
 
         public static string SingleCaveatSentence(string savedLocationName)
             => $"There is no other Owned location to compare. This answer is for {savedLocationName} only.";
@@ -587,13 +608,18 @@ namespace TummlyBackend.Helpers
 
         private static AssistantOwnedLocationRef? FindMentionedOtherLocation(
             string text,
-            int savedLocationId,
+            int? savedLocationId,
             IReadOnlyList<AssistantOwnedLocationRef> ownedLocations
         )
         {
+            if (savedLocationId is not int savedId)
+            {
+                return null;
+            }
+
             foreach (var location in ownedLocations.OrderByDescending(item => item.Name.Length))
             {
-                if (location.Id == savedLocationId)
+                if (location.Id == savedId)
                 {
                     continue;
                 }
@@ -624,18 +650,23 @@ namespace TummlyBackend.Helpers
 
         private static void AddSavedIfMissing(
             List<int> validIds,
-            int savedLocationId,
+            int? savedLocationId,
             IReadOnlyList<AssistantOwnedLocationRef> ownedLocations
         )
         {
-            if (validIds.Contains(savedLocationId))
+            if (savedLocationId is not int savedId)
             {
                 return;
             }
 
-            if (ownedLocations.Any(location => location.Id == savedLocationId))
+            if (validIds.Contains(savedId))
             {
-                validIds.Insert(0, savedLocationId);
+                return;
+            }
+
+            if (ownedLocations.Any(location => location.Id == savedId))
+            {
+                validIds.Insert(0, savedId);
             }
         }
 

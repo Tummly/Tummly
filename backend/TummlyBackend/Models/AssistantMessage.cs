@@ -24,6 +24,9 @@ namespace TummlyBackend.Models
 
         public int? OwnedLocationId { get; set; }
 
+        [MaxLength(32)]
+        public string? ScopeKind { get; set; }
+
         [MaxLength(200)]
         public string? OwnedLocationName { get; set; }
 

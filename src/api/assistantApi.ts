@@ -11,6 +11,10 @@ import type {
   OperatorAiAssistantMessage,
   AssistantSendScheduleRoute,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import {
+  ALL_LOCATIONS_CHROME_LABEL,
+  analysisScopeKind,
+} from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import type { CreateCampaignDraftRequest } from "@/types/operatorCampaigns"
 import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCatalogPresentation"
@@ -25,7 +29,8 @@ type AssistantReportingPeriodDto = {
 }
 
 type AssistantAnalysisScopeDto = {
-  ownedLocationId: number
+  scopeKind?: "all" | "single"
+  ownedLocationId?: number | null
   ownedLocationName: string
   reportingPeriod: AssistantReportingPeriodDto
 }
@@ -77,6 +82,7 @@ type AssistantConversationDto = {
     category?: string | null
     note?: string | null
     offerId?: number | null
+    locationId?: number | null
     useConfirmedActionForGuestResponse?: boolean
   } | null
   draftInterviewActive?: boolean
@@ -138,7 +144,15 @@ function fromReportingPeriodDto(
 export function toAssistantAnalysisScopeDto(
   scope: OperatorAiAssistantAnalysisScope
 ): AssistantAnalysisScopeDto {
+  if (analysisScopeKind(scope) === "all") {
+    return {
+      scopeKind: "all",
+      ownedLocationName: ALL_LOCATIONS_CHROME_LABEL,
+      reportingPeriod: toReportingPeriodDto(scope.reportingPeriod),
+    }
+  }
   return {
+    scopeKind: "single",
     ownedLocationId: scope.ownedLocationId,
     ownedLocationName: scope.ownedLocationName,
     reportingPeriod: toReportingPeriodDto(scope.reportingPeriod),
@@ -148,8 +162,17 @@ export function toAssistantAnalysisScopeDto(
 function fromAnalysisScopeDto(
   scope: AssistantAnalysisScopeDto
 ): OperatorAiAssistantAnalysisScope {
+  if (scope.scopeKind === "all") {
+    return {
+      scopeKind: "all",
+      ownedLocationId: null,
+      ownedLocationName: scope.ownedLocationName || ALL_LOCATIONS_CHROME_LABEL,
+      reportingPeriod: fromReportingPeriodDto(scope.reportingPeriod),
+    }
+  }
   return {
-    ownedLocationId: scope.ownedLocationId,
+    scopeKind: "single",
+    ownedLocationId: scope.ownedLocationId ?? null,
     ownedLocationName: scope.ownedLocationName,
     reportingPeriod: fromReportingPeriodDto(scope.reportingPeriod),
   }

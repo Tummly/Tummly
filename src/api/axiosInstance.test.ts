@@ -40,6 +40,75 @@ describe("axiosInstance 401 interceptor", () => {
 
     expect(useAuthStore.getState().token).toBeNull()
     expect(locationHref).toBe("/login")
+    expect(
+      mock.history.post.filter((request) =>
+        request.url?.includes("/auth/refresh")
+      )
+    ).toHaveLength(0)
+  })
+
+  it("renews the session via refresh instead of logging out on 401", async () => {
+    useAuthStore.getState().setSession(
+      "jwt-token",
+      "USER",
+      "Single",
+      "refresh-token"
+    )
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: {
+            token: "new-jwt",
+            refreshToken: "next-refresh",
+          },
+        }),
+      })
+    )
+    mock.onGet("/dashboard-test").replyOnce(401)
+    mock.onGet("/dashboard-test").reply(200, { ok: true })
+
+    const response = await axiosInstance.get("/dashboard-test")
+
+    expect(response.status).toBe(200)
+    expect(response.data).toEqual({ ok: true })
+    expect(useAuthStore.getState().token).toBe("new-jwt")
+    expect(useAuthStore.getState().refreshToken).toBe("next-refresh")
+    expect(locationHref).toBe("")
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/auth/refresh"),
+      expect.objectContaining({
+        method: "POST",
+      })
+    )
+  })
+
+  it("clears session when refresh fails after 401", async () => {
+    useAuthStore.getState().setSession(
+      "jwt-token",
+      "USER",
+      "Single",
+      "refresh-token"
+    )
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({
+          success: false,
+          message: "Invalid refresh token.",
+        }),
+      })
+    )
+    mock.onGet("/dashboard-test").reply(401)
+
+    await expect(axiosInstance.get("/dashboard-test")).rejects.toThrow()
+
+    expect(useAuthStore.getState().token).toBeNull()
+    expect(useAuthStore.getState().refreshToken).toBeNull()
+    expect(locationHref).toBe("/login")
   })
 
   it("does not redirect when skipAuthRedirect is set", async () => {

@@ -57,6 +57,7 @@ type OffersBodyProps = {
   onNextPage: () => void
   onOpenFilters: () => void
   onRemoveFilterChip: (chip: FilterChip) => void
+  onClearNeedsAttentionWarningChip: () => void
   onViewAllOffers: () => void
   onClearAllFilters: () => void
   onRowAction: (offerId: number, actionId: OfferRowActionId) => void
@@ -85,6 +86,7 @@ export function OffersBody({
   onNextPage,
   onOpenFilters,
   onRemoveFilterChip,
+  onClearNeedsAttentionWarningChip,
   onViewAllOffers,
   onClearAllFilters,
   onRowAction,
@@ -154,6 +156,7 @@ export function OffersBody({
         onNextPage={onNextPage}
         onOpenFilters={onOpenFilters}
         onRemoveFilterChip={onRemoveFilterChip}
+        onClearNeedsAttentionWarningChip={onClearNeedsAttentionWarningChip}
         onRowAction={onRowAction}
         onCreateOffer={onCreateOfferFromEmpty}
         onUseTemplate={onUseTemplateFromEmpty}

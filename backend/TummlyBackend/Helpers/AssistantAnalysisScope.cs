@@ -7,6 +7,12 @@ namespace TummlyBackend.Helpers
 {
     public static class AssistantAnalysisScope
     {
+        public const string ScopeKindAll = "all";
+
+        public const string ScopeKindSingle = "single";
+
+        public const string AllLocationsChromeName = "All Locations";
+
         public const string FailureBody =
             "The answer could not be completed. Retry this send. "
             + AssistantNextTryCopy.Sentence;
@@ -41,14 +47,36 @@ namespace TummlyBackend.Helpers
             };
         }
 
+        public static bool IsAll(string? scopeKind)
+            => string.Equals(scopeKind, ScopeKindAll, StringComparison.OrdinalIgnoreCase);
+
+        public static bool IsAll(AssistantAnalysisScopeDto scope)
+            => IsAll(scope.ScopeKind);
+
+        public static bool IsAll(AssistantConversation conversation)
+            => IsAll(conversation.ScopeKind);
+
+        public static string NormalizeScopeKind(string? scopeKind)
+            => IsAll(scopeKind) ? ScopeKindAll : ScopeKindSingle;
+
         public static void CopyToConversation(
             AssistantConversation conversation,
             AssistantAnalysisScopeDto scope,
             string ownedLocationName
         )
         {
-            conversation.OwnedLocationId = scope.OwnedLocationId;
-            conversation.OwnedLocationName = ownedLocationName;
+            var scopeKind = NormalizeScopeKind(scope.ScopeKind);
+            conversation.ScopeKind = scopeKind;
+            if (scopeKind == ScopeKindAll)
+            {
+                conversation.OwnedLocationId = null;
+                conversation.OwnedLocationName = AllLocationsChromeName;
+            }
+            else
+            {
+                conversation.OwnedLocationId = scope.OwnedLocationId;
+                conversation.OwnedLocationName = ownedLocationName;
+            }
             conversation.ReportingPeriodKind = NormalizeKind(scope.ReportingPeriod.Kind);
             conversation.ReportingPeriodPresetId = conversation.ReportingPeriodKind == "preset"
                 ? NormalizePreset(scope.ReportingPeriod.PresetId)
@@ -67,8 +95,18 @@ namespace TummlyBackend.Helpers
             string ownedLocationName
         )
         {
-            message.OwnedLocationId = scope.OwnedLocationId;
-            message.OwnedLocationName = ownedLocationName;
+            var scopeKind = NormalizeScopeKind(scope.ScopeKind);
+            message.ScopeKind = scopeKind;
+            if (scopeKind == ScopeKindAll)
+            {
+                message.OwnedLocationId = null;
+                message.OwnedLocationName = AllLocationsChromeName;
+            }
+            else
+            {
+                message.OwnedLocationId = scope.OwnedLocationId;
+                message.OwnedLocationName = ownedLocationName;
+            }
             message.ReportingPeriodKind = NormalizeKind(scope.ReportingPeriod.Kind);
             message.ReportingPeriodPresetId = message.ReportingPeriodKind == "preset"
                 ? NormalizePreset(scope.ReportingPeriod.PresetId)
@@ -86,6 +124,7 @@ namespace TummlyBackend.Helpers
         )
             => new()
             {
+                ScopeKind = NormalizeScopeKind(conversation.ScopeKind),
                 OwnedLocationId = conversation.OwnedLocationId,
                 OwnedLocationName = conversation.OwnedLocationName,
                 ReportingPeriod = ToPeriodDto(
@@ -100,13 +139,37 @@ namespace TummlyBackend.Helpers
             AssistantMessage message
         )
         {
-            if (message.OwnedLocationId is null || message.ReportingPeriodKind is null)
+            if (message.ReportingPeriodKind is null)
+            {
+                return null;
+            }
+
+            if (IsAll(message.ScopeKind))
+            {
+                return new AssistantAnalysisScopeDto
+                {
+                    ScopeKind = ScopeKindAll,
+                    OwnedLocationId = null,
+                    OwnedLocationName = string.IsNullOrEmpty(message.OwnedLocationName)
+                        ? AllLocationsChromeName
+                        : message.OwnedLocationName,
+                    ReportingPeriod = ToPeriodDto(
+                        message.ReportingPeriodKind,
+                        message.ReportingPeriodPresetId,
+                        message.ReportingPeriodStartDate,
+                        message.ReportingPeriodEndDate
+                    )
+                };
+            }
+
+            if (message.OwnedLocationId is null)
             {
                 return null;
             }
 
             return new AssistantAnalysisScopeDto
             {
+                ScopeKind = ScopeKindSingle,
                 OwnedLocationId = message.OwnedLocationId.Value,
                 OwnedLocationName = message.OwnedLocationName ?? string.Empty,
                 ReportingPeriod = ToPeriodDto(
@@ -171,6 +234,11 @@ namespace TummlyBackend.Helpers
                 return left is null && right is null;
             }
 
+            if (NormalizeScopeKind(left.ScopeKind) != NormalizeScopeKind(right.ScopeKind))
+            {
+                return false;
+            }
+
             if (left.OwnedLocationId != right.OwnedLocationId)
             {
                 return false;
@@ -203,7 +271,7 @@ namespace TummlyBackend.Helpers
             return JsonSerializer.Serialize(actions);
         }
 
-        private static IReadOnlyList<AssistantActionDto> ParseActions(string? json)
+        public static IReadOnlyList<AssistantActionDto> ParseActions(string? json)
         {
             if (string.IsNullOrWhiteSpace(json) || json == "[]")
             {

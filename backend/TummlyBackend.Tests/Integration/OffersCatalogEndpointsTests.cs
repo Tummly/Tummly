@@ -52,7 +52,7 @@ namespace TummlyBackend.Tests.Integration
             var offer = body.GetProperty("offer");
             Assert.True(offer.GetProperty("id").GetInt32() > 0);
             Assert.Equal(seeded.LocationId, offer.GetProperty("locationId").GetInt32());
-            Assert.Equal("active", offer.GetProperty("status").GetString());
+            Assert.Equal("draft", offer.GetProperty("status").GetString());
             Assert.Equal("percentage_discount", offer.GetProperty("offerType").GetString());
             Assert.Equal("10% off next visit", offer.GetProperty("title").GetString());
             Assert.Equal(10m, offer.GetProperty("discountPercentage").GetDecimal());
@@ -60,7 +60,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task PostOfferDraft_CreatesStoredDraft_NotActivePath()
+        public async Task PostOfferDraft_CreatesStoredDraft_Attachable()
         {
             var seeded = await SeedOwnerWithLocationAsync("offers-catalog-draft-create");
 
@@ -73,7 +73,7 @@ namespace TummlyBackend.Tests.Integration
                     locationId = seeded.LocationId,
                     offerType = "percentage_discount",
                     title = "Draft 10% off",
-                    description = "Stored Draft — not attachable until Active.",
+                    description = "Stored Draft — attachable; Active after first live attach.",
                     validity = "7_days_after_issue",
                     discountPercentage = 10m,
                 }
@@ -93,8 +93,8 @@ namespace TummlyBackend.Tests.Integration
             using var scope = _factory.Services.CreateScope();
             var offers = scope.ServiceProvider
                 .GetRequiredService<IOffersCatalogService>();
-            Assert.False(
-                await offers.IsActiveForLocationAsync(offerId, seeded.LocationId)
+            Assert.True(
+                await offers.IsAttachableForLocationAsync(offerId, seeded.LocationId)
             );
 
             using var listRequest = AuthorizedGet(
@@ -274,6 +274,24 @@ namespace TummlyBackend.Tests.Integration
                 (await _client.SendAsync(attachRequest)).StatusCode
             );
 
+            using var attachNeedsAttention = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    name = "Expiring campaign",
+                    goalId = "thank-recent-guests",
+                    offerStance = "create-new-offer",
+                    offerId = needsAttentionId,
+                }
+            );
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(attachNeedsAttention)).StatusCode
+            );
+
             using var listAll = AuthorizedGet(
                 $"/api/offers?locationId={seeded.LocationId}&view=all&page=1&pageSize=25&utcOffsetMinutes=0",
                 seeded.Jwt
@@ -283,8 +301,8 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(4, allBody.GetProperty("totalCount").GetInt32());
             var tabs = allBody.GetProperty("tabCounts");
             Assert.Equal(4, tabs.GetProperty("all").GetInt32());
-            Assert.Equal(2, tabs.GetProperty("drafts").GetInt32());
-            Assert.Equal(1, tabs.GetProperty("inFlight").GetInt32());
+            Assert.Equal(1, tabs.GetProperty("drafts").GetInt32());
+            Assert.Equal(2, tabs.GetProperty("inFlight").GetInt32());
             Assert.Equal(1, tabs.GetProperty("sent").GetInt32());
             Assert.Equal(1, tabs.GetProperty("needsAttention").GetInt32());
 
@@ -298,7 +316,7 @@ namespace TummlyBackend.Tests.Integration
                 .Select(item => item.GetProperty("id").GetInt32())
                 .ToHashSet();
             Assert.Contains(draftLikeId, draftIds);
-            Assert.Contains(needsAttentionId, draftIds);
+            Assert.DoesNotContain(needsAttentionId, draftIds);
             Assert.DoesNotContain(inFlightId, draftIds);
             Assert.DoesNotContain(pausedId, draftIds);
 
@@ -350,7 +368,7 @@ namespace TummlyBackend.Tests.Integration
             var offerId = await CreateOfferAsync(seeded, "Picker offer");
 
             using var list = AuthorizedGet(
-                $"/api/offers?locationId={seeded.LocationId}&view=all&sort=recent-activity&page=1&pageSize=100&utcOffsetMinutes=300&status=active",
+                $"/api/offers?locationId={seeded.LocationId}&view=all&sort=recent-activity&page=1&pageSize=100&utcOffsetMinutes=300&status=draft&status=active",
                 seeded.Jwt
             );
             var response = await _client.SendAsync(list);
@@ -371,6 +389,21 @@ namespace TummlyBackend.Tests.Integration
         {
             var seeded = await SeedOwnerWithLocationAsync("offers-lifecycle");
             var offerId = await CreateOfferAsync(seeded, "Lifecycle offer");
+
+            using var attach = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    name = "Lifecycle campaign",
+                    goalId = "thank-recent-guests",
+                    offerStance = "create-new-offer",
+                    offerId,
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(attach)).StatusCode);
 
             using var pause = AuthorizedJson(
                 HttpMethod.Post,
@@ -407,7 +440,15 @@ namespace TummlyBackend.Tests.Integration
                 seeded.Jwt,
                 new { }
             );
-            Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(resume)).StatusCode);
+            var resumeResponse = await _client.SendAsync(resume);
+            Assert.Equal(HttpStatusCode.OK, resumeResponse.StatusCode);
+            Assert.Equal(
+                "active",
+                (await ReadJsonAsync(resumeResponse))
+                    .GetProperty("offer")
+                    .GetProperty("status")
+                    .GetString()
+            );
 
             using var archive = AuthorizedJson(
                 HttpMethod.Post,
@@ -435,7 +476,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, duplicateResponse.StatusCode);
             var copy = (await ReadJsonAsync(duplicateResponse)).GetProperty("offer");
             Assert.True(copy.GetProperty("id").GetInt32() != offerId);
-            Assert.Equal("active", copy.GetProperty("status").GetString());
+            Assert.Equal("draft", copy.GetProperty("status").GetString());
             Assert.Equal(
                 "Lifecycle offer (copy)",
                 copy.GetProperty("title").GetString()

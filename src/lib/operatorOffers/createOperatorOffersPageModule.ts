@@ -12,6 +12,7 @@ import {
 import {
   buildExpiringOffersWarningFact,
   buildOpenVoidWarningFacts,
+  selectExpiringOffersForOverview,
 } from "@/lib/operatorOffers/buildOffersNeedsAttentionFacts"
 import {
   buildOffersNeedsAttentionOverview,
@@ -50,6 +51,7 @@ import {
   OPERATOR_OFFERS_LIST_VIEW_ORDER,
   OPERATOR_OFFERS_SORT_LABELS,
   offersListEmptyCopy,
+  offersNeedsAttentionWarningChip,
 } from "@/lib/operatorOffers/offersPresentation"
 import {
   offersListSearchMissLabel,
@@ -62,6 +64,7 @@ import {
   type HomePerformanceDateRange,
 } from "@/lib/operatorHome/homePerformanceDateRange"
 import { NEEDS_ATTENTION_EMPTY_COPY } from "@/lib/operatorHome/operatorHomeSectionPresentation"
+import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import {
   chipCount,
   emptySelection,
@@ -77,6 +80,7 @@ import type {
   CatalogOffersListItem,
   CatalogOffersListQueryParams,
   CatalogOffersListResponse,
+  OffersNeedsAttentionWarningType,
   OperatorOffersListEmptyStateKind,
   OperatorOffersListTab,
   OperatorOffersListViewId,
@@ -121,6 +125,8 @@ export type OperatorOffersListViewModel = {
   sortLabel: string
   filterChips: FilterChip[]
   filterChipCount: number
+  /** Session chip for Review CTA warning-type scope — not a sheet filter. */
+  needsAttentionWarningChip: { label: string } | null
   currentPage: number
   pageSize: number
   totalCount: number
@@ -247,6 +253,10 @@ export type OperatorOffersPageAdapters = {
   resumeOffer?: (offerId: number) => Promise<CatalogOfferDetail>
   archiveOffer?: (offerId: number) => Promise<CatalogOfferDetail>
   duplicateOffer?: (offerId: number) => Promise<CatalogOfferDetail>
+  /** Optional clock for expiry overview relative time; defaults to Date.now. */
+  nowMs?: () => number
+  /** Optional venue offset; defaults to the operator local offset. */
+  utcOffsetMinutes?: number
 }
 
 export type OperatorOffersPageModule = {
@@ -270,6 +280,15 @@ export type OperatorOffersPageModule = {
   viewAllOffers: () => Promise<void>
   /** Switches the Offers list to Needs attention (overview View all / queue CTAs). */
   selectNeedsAttentionList: () => Promise<void>
+  /**
+   * Review expiring / aggregate Void CTAs — scoped Needs attention list,
+   * page 1, clears search and sheet filters, keeps sort.
+   */
+  selectNeedsAttentionWarningScope: (
+    warningType: OffersNeedsAttentionWarningType
+  ) => Promise<void>
+  /** Chip remove — full Needs attention tab without warning-type scope. */
+  clearNeedsAttentionWarningScope: () => Promise<void>
   /**
    * Row ⋮ — View navigates from the page (Details route). Edit opens the shared drawer (ticket 31).
    * Pause/Resume/Duplicate/Archive open confirm chrome; confirm runs lifecycle writes.
@@ -313,8 +332,10 @@ type OffersState = {
   filtersSession: FilterSheetSession | null
   filtersBusy: boolean
   lastListResponse: CatalogOffersListResponse | null
-  /** needs-attention view items for overview expiring rule (ticket 33). */
+  /** needs-attention view items; expiry overview uses the 7-day-rule subset. */
   attentionListItems: CatalogOffersListItem[]
+  /** Warning-type list scope for Review CTAs; cleared on tab/location change. */
+  needsAttentionWarningType: OffersNeedsAttentionWarningType | null
   openVoidAttention: OpenVoidAttentionOffer[]
   pendingLifecycleAction: OperatorOffersPendingLifecycleAction | null
   performanceDateRange: HomePerformanceDateRange
@@ -360,6 +381,16 @@ function formatOffersPageRangeLabel(
 
 function hasActiveFilters(filters: OperatorFilterSelection): boolean {
   return JSON.stringify(filters) !== JSON.stringify(emptyOffersFilters())
+}
+
+function offersListCacheKey(input: {
+  viewId: OperatorOffersListViewId
+  warningType: OffersNeedsAttentionWarningType | null
+}): string {
+  if (input.viewId !== "needs-attention" || input.warningType == null) {
+    return input.viewId
+  }
+  return `${input.viewId}:${input.warningType}`
 }
 
 function mapTabs(
@@ -420,6 +451,7 @@ function buildListViewModel(input: {
   sortId: OperatorOffersSortId
   page: number
   appliedFilters: OperatorFilterSelection
+  needsAttentionWarningType: OffersNeedsAttentionWarningType | null
 }): OperatorOffersListViewModel {
   const hasActiveQuery =
     input.searchQuery.trim().length > 0
@@ -451,6 +483,10 @@ function buildListViewModel(input: {
     sortLabel: OPERATOR_OFFERS_SORT_LABELS[input.sortId],
     filterChips,
     filterChipCount: chipCount(OFFERS_FILTER_SCHEMA, input.appliedFilters),
+    needsAttentionWarningChip:
+      input.activeViewId === "needs-attention"
+        ? offersNeedsAttentionWarningChip(input.needsAttentionWarningType)
+        : null,
     currentPage: input.page,
     pageSize,
     totalCount,
@@ -484,20 +520,28 @@ function assemblePerformance(
 function assembleNeedsAttention(
   locationName: string,
   attentionListItems: readonly CatalogOffersListItem[],
-  openVoidAttention: readonly OpenVoidAttentionOffer[]
+  openVoidAttention: readonly OpenVoidAttentionOffer[],
+  nowMs: number,
+  utcOffsetMinutes: number
 ): OperatorOffersNeedsAttentionView {
+  const expiring = selectExpiringOffersForOverview({
+    items: attentionListItems,
+    nowMs,
+    utcOffsetMinutes,
+  })
+  const relativeTimeLabel =
+    expiring.leadWindowEnteredAt == null
+      ? undefined
+      : formatRelativeTime(expiring.leadWindowEnteredAt, nowMs)
   const expiringFact = buildExpiringOffersWarningFact({
-    offers: attentionListItems.map((item) => ({
-      id: item.id,
-      title: item.title,
-      lifetimeClaims: item.lifetimeClaims ?? 0,
-      lifetimeRedeemed: item.lifetimeRedeemed ?? 0,
-    })),
+    offers: expiring.offers,
     locationName,
+    relativeTimeLabel,
   })
   const voidFacts = buildOpenVoidWarningFacts({
     offers: openVoidAttention,
     locationName,
+    nowMs,
   })
   const overview = buildOffersNeedsAttentionOverview({
     warnings: [...(expiringFact != null ? [expiringFact] : []), ...voidFacts],
@@ -530,7 +574,9 @@ function assembleViewModel(
   activeOffersCount: number,
   windowCounts: OffersState["windowCounts"],
   attentionListItems: readonly CatalogOffersListItem[],
-  openVoidAttention: readonly OpenVoidAttentionOffer[]
+  openVoidAttention: readonly OpenVoidAttentionOffer[],
+  overviewClock: { nowMs: number; utcOffsetMinutes: number },
+  needsAttentionWarningType: OffersNeedsAttentionWarningType | null
 ): OperatorOffersPageViewModel {
   const list = buildListViewModel({
     response: listResponse,
@@ -539,6 +585,7 @@ function assembleViewModel(
     sortId,
     page,
     appliedFilters,
+    needsAttentionWarningType,
   })
 
   return {
@@ -558,7 +605,9 @@ function assembleViewModel(
     needsAttention: assembleNeedsAttention(
       location.locationName,
       attentionListItems,
-      openVoidAttention
+      openVoidAttention,
+      overviewClock.nowMs,
+      overviewClock.utcOffsetMinutes
     ),
     list,
     filtersSession,
@@ -623,6 +672,15 @@ export function createOperatorOffersPageModule(
   }
 ): OperatorOffersPageModule {
   const debounceMs = adapters.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS
+  const readOverviewClock = () => {
+    const nowMs = adapters.nowMs?.() ?? Date.now()
+    return {
+      nowMs,
+      utcOffsetMinutes:
+        adapters.utcOffsetMinutes
+        ?? -new Date(nowMs).getTimezoneOffset(),
+    }
+  }
 
   const offerTemplatePicker = createOfferTemplatePickerModule({
     loadTemplates: loadOfferTemplateSeed,
@@ -645,6 +703,7 @@ export function createOperatorOffersPageModule(
     filtersBusy: false,
     lastListResponse: null,
     attentionListItems: [],
+    needsAttentionWarningType: null,
     openVoidAttention: [],
     pendingLifecycleAction: null,
     performanceDateRange: DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
@@ -680,12 +739,9 @@ export function createOperatorOffersPageModule(
 
   const listeners = new Set<() => void>()
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
-  const tabCache = new Map<
-    OperatorOffersListViewId,
-    CatalogOffersListResponse
-  >()
+  const tabCache = new Map<string, CatalogOffersListResponse>()
   let tabCacheGeneration = 0
-  const latestRequestByView = new Map<OperatorOffersListViewId, number>()
+  const latestRequestByListKey = new Map<string, number>()
   let listRequestSequence = 0
 
   const publish = () => {
@@ -717,15 +773,13 @@ export function createOperatorOffersPageModule(
 
   const invalidateTabCache = () => {
     tabCache.clear()
-    latestRequestByView.clear()
+    latestRequestByListKey.clear()
     tabCacheGeneration += 1
   }
 
-  const claimLatestRequestForView = (
-    view: OperatorOffersListViewId
-  ): number => {
+  const claimLatestRequestForListKey = (cacheKey: string): number => {
     listRequestSequence += 1
-    latestRequestByView.set(view, listRequestSequence)
+    latestRequestByListKey.set(cacheKey, listRequestSequence)
     return listRequestSequence
   }
 
@@ -741,15 +795,19 @@ export function createOperatorOffersPageModule(
       page: state.page,
       pageSize: OFFERS_PAGE_SIZE,
       filters: state.appliedFilters,
+      warningType:
+        view === "needs-attention" ? state.needsAttentionWarningType : null,
     })
 
   const loadAttentionFacts = async (locationId: number) => {
+    const { utcOffsetMinutes } = readOverviewClock()
     const [attentionResponse, openVoids] = await Promise.all([
       adapters.listCatalogOffers({
         locationId,
         view: "needs-attention",
         page: 1,
         pageSize: OFFERS_PAGE_SIZE,
+        utcOffsetMinutes,
       }),
       adapters.listOpenVoidAttention?.(locationId) ?? Promise.resolve([]),
     ])
@@ -859,9 +917,13 @@ export function createOperatorOffersPageModule(
     }
 
     const requestedViewId = state.activeViewId
+    const listCacheKey = offersListCacheKey({
+      viewId: requestedViewId,
+      warningType: state.needsAttentionWarningType,
+    })
     const requestCacheGeneration = tabCacheGeneration
-    const requestSequence = claimLatestRequestForView(requestedViewId)
-    const cachedResponse = tabCache.get(requestedViewId)
+    const requestSequence = claimLatestRequestForListKey(listCacheKey)
+    const cachedResponse = tabCache.get(listCacheKey)
     const isWarmTabSwitch =
       options?.tabSwitch === true && cachedResponse != null
 
@@ -897,7 +959,9 @@ export function createOperatorOffersPageModule(
                 state.activeOffersCount,
                 state.windowCounts,
                 state.attentionListItems,
-                state.openVoidAttention
+                state.openVoidAttention,
+                readOverviewClock(),
+                state.needsAttentionWarningType
               ),
       }
       publish()
@@ -922,11 +986,11 @@ export function createOperatorOffersPageModule(
       )
       if (
         requestCacheGeneration !== tabCacheGeneration
-        || latestRequestByView.get(requestedViewId) !== requestSequence
+        || latestRequestByListKey.get(listCacheKey) !== requestSequence
       ) {
         return
       }
-      tabCache.set(requestedViewId, listResponse)
+      tabCache.set(listCacheKey, listResponse)
 
       let attentionListItems = state.attentionListItems
       let openVoidAttention = state.openVoidAttention
@@ -934,7 +998,7 @@ export function createOperatorOffersPageModule(
         const attention = await loadAttentionFacts(location.id)
         if (
           requestCacheGeneration !== tabCacheGeneration
-          || latestRequestByView.get(requestedViewId) !== requestSequence
+          || latestRequestByListKey.get(listCacheKey) !== requestSequence
         ) {
           return
         }
@@ -946,7 +1010,7 @@ export function createOperatorOffersPageModule(
 
       if (
         state.activeViewId !== requestedViewId
-        || latestRequestByView.get(requestedViewId) !== requestSequence
+        || latestRequestByListKey.get(listCacheKey) !== requestSequence
       ) {
         return
       }
@@ -973,14 +1037,16 @@ export function createOperatorOffersPageModule(
           state.activeOffersCount,
           state.windowCounts,
           attentionListItems,
-          openVoidAttention
+          openVoidAttention,
+          readOverviewClock(),
+          state.needsAttentionWarningType
         ),
       }
       publish()
     } catch {
       if (
         requestCacheGeneration !== tabCacheGeneration
-        || latestRequestByView.get(requestedViewId) !== requestSequence
+        || latestRequestByListKey.get(listCacheKey) !== requestSequence
         || state.activeViewId !== requestedViewId
       ) {
         return
@@ -1025,7 +1091,11 @@ export function createOperatorOffersPageModule(
     const listLoadGeneration = state.listLoadGeneration + 1
     const requestCacheGeneration = tabCacheGeneration
     const requestedViewId = state.activeViewId
-    const requestSequence = claimLatestRequestForView(requestedViewId)
+    const listCacheKey = offersListCacheKey({
+      viewId: requestedViewId,
+      warningType: state.needsAttentionWarningType,
+    })
+    const requestSequence = claimLatestRequestForListKey(listCacheKey)
     state = {
       ...state,
       loadStatus: "loading",
@@ -1102,11 +1172,11 @@ export function createOperatorOffersPageModule(
         generation !== state.loadGeneration
         || listLoadGeneration !== state.listLoadGeneration
         || requestCacheGeneration !== tabCacheGeneration
-        || latestRequestByView.get(requestedViewId) !== requestSequence
+        || latestRequestByListKey.get(listCacheKey) !== requestSequence
       ) {
         return
       }
-      tabCache.set(requestedViewId, listResponse)
+      tabCache.set(listCacheKey, listResponse)
 
       let activeOffersCount = state.activeOffersCount
       let windowCounts = state.windowCounts
@@ -1147,7 +1217,9 @@ export function createOperatorOffersPageModule(
           activeOffersCount,
           windowCounts,
           attentionListItems,
-          openVoidAttention
+          openVoidAttention,
+          readOverviewClock(),
+          state.needsAttentionWarningType
         ),
       }
       publish()
@@ -1298,7 +1370,11 @@ export function createOperatorOffersPageModule(
   }
 
   const setListView = async (viewId: OperatorOffersListViewId) => {
-    if (state.activeViewId === viewId) {
+    const clearingNeedsAttentionScope =
+      viewId === "needs-attention"
+      && state.activeViewId === "needs-attention"
+      && state.needsAttentionWarningType != null
+    if (state.activeViewId === viewId && !clearingNeedsAttentionScope) {
       return
     }
     clearSearchDebounce()
@@ -1306,6 +1382,7 @@ export function createOperatorOffersPageModule(
       ...state,
       activeViewId: viewId,
       page: 1,
+      needsAttentionWarningType: null,
     }
     await fetchList({ tabSwitch: true })
   }
@@ -1350,6 +1427,7 @@ export function createOperatorOffersPageModule(
               filtersSession: null,
               filtersBusy: false,
               pendingLifecycleAction: null,
+              needsAttentionWarningType: null,
             }
           : {}),
       }
@@ -1554,11 +1632,52 @@ export function createOperatorOffersPageModule(
         searchQuery: "",
         page: 1,
         appliedFilters: emptyOffersFilters(),
+        needsAttentionWarningType: null,
       }
       await fetchList()
     },
     selectNeedsAttentionList: async () => {
-      await setListView("needs-attention")
+      clearSearchDebounce()
+      state = {
+        ...state,
+        activeViewId: "needs-attention",
+        needsAttentionWarningType: null,
+        page: 1,
+      }
+      await fetchList({ tabSwitch: true })
+    },
+    selectNeedsAttentionWarningScope: async (warningType) => {
+      clearSearchDebounce()
+      invalidateTabCache()
+      state = {
+        ...state,
+        activeViewId: "needs-attention",
+        needsAttentionWarningType: warningType,
+        searchQuery: "",
+        page: 1,
+        appliedFilters: emptyOffersFilters(),
+        filtersSession:
+          state.filtersSession != null
+            ? openSession(emptyOffersFilters())
+            : null,
+      }
+      await fetchList()
+    },
+    clearNeedsAttentionWarningScope: async () => {
+      if (
+        state.activeViewId !== "needs-attention"
+        || state.needsAttentionWarningType == null
+      ) {
+        return
+      }
+      clearSearchDebounce()
+      invalidateTabCache()
+      state = {
+        ...state,
+        needsAttentionWarningType: null,
+        page: 1,
+      }
+      await fetchList()
     },
     requestRowAction: (offerId, actionId) => {
       if (actionId === "view") {

@@ -22,18 +22,72 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void CampaignAndOfferDraft_ListsNamedTargetsOnly()
+        public void CampaignAndOfferDraft_RoutesToCombinedCreateNotTwoTargets()
         {
             var targets = AssistantCreateTargets.Detect(
                 "Draft an Email Campaign and create an offer draft"
             );
 
+            var target = Assert.Single(targets);
+            Assert.Equal(AssistantCreateTargets.Campaign, target);
+            Assert.Equal(
+                AssistantTask.CreateCampaignWithOffer,
+                AssistantTaskClassification.Classify(
+                    "Draft an Email Campaign and create an offer draft"
+                )
+            );
+            Assert.Equal(
+                AssistantTask.CreateCampaignWithOffer,
+                AssistantTaskClassification.Classify(
+                    "Create a campaign with 10% off valid 30 days after issue"
+                )
+            );
+            Assert.Equal(
+                AssistantTask.CreateCampaignDraft,
+                AssistantTaskClassification.Classify("Create a campaign")
+            );
+            Assert.Equal(
+                AssistantTask.OfferPath,
+                AssistantTaskClassification.Classify("Create an offer draft")
+            );
+            Assert.Equal(
+                AssistantTask.Refuse,
+                AssistantTaskClassification.Classify("How do I create a campaign?")
+            );
+            Assert.Equal(
+                AssistantTask.Retrieve,
+                AssistantTaskClassification.Classify("Show me Campaign drafts")
+            );
+        }
+
+        [Fact]
+        public void CampaignAndRecovery_ListsNamedTargets()
+        {
+            var targets = AssistantCreateTargets.Detect(
+                "Draft an Email Campaign and draft a recovery response"
+            );
+
             Assert.Equal(
                 [
                     AssistantCreateTargets.Campaign,
-                    AssistantCreateTargets.Offer,
+                    AssistantCreateTargets.Recovery,
                 ],
                 targets
+            );
+        }
+
+        [Fact]
+        public void OfferFirstAttachToCampaign_RoutesToCombinedCreate()
+        {
+            Assert.Equal(
+                AssistantTask.CreateCampaignWithOffer,
+                AssistantTaskClassification.Classify(
+                    "Create 10% off offer and attach it to Summer win-back campaign — if it is not there, create the campaign"
+                )
+            );
+            Assert.Equal(
+                AssistantTask.OfferPath,
+                AssistantTaskClassification.Classify("Create a 25% Offer at Camden")
             );
         }
 

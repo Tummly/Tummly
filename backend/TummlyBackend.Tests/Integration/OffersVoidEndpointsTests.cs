@@ -158,6 +158,13 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(1, items.GetArrayLength());
             Assert.Equal(offerId, items[0].GetProperty("offerId").GetInt32());
             Assert.Equal(1, items[0].GetProperty("pendingCount").GetInt32());
+            Assert.True(
+                items[0].TryGetProperty(
+                    "newestPendingRequestedAtUtc",
+                    out var requestedAt
+                )
+            );
+            Assert.False(requestedAt.ValueKind == JsonValueKind.Null);
         }
 
         private async Task<int> CreatePendingVoidAsync(

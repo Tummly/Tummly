@@ -24,6 +24,7 @@ describe("useAuthStore", () => {
     expect(useAuthStore.getState().token).toBe("jwt-token")
     expect(useAuthStore.getState().role).toBe("ADMIN")
     expect(useAuthStore.getState().accountType).toBeNull()
+    expect(useAuthStore.getState().refreshToken).toBeNull()
     expect(getAuthToken()).toBe("jwt-token")
     expect(hasAuthSession()).toBe(true)
   })
@@ -34,28 +35,43 @@ describe("useAuthStore", () => {
     expect(useAuthStore.getState().accountType).toBe("Single")
   })
 
+  it("stores a refresh token without dropping it on later token-only updates", () => {
+    useAuthStore.getState().setSession("jwt-token", "USER", "Single", "refresh-token")
+    useAuthStore.getState().setSession("jwt-token-2", "USER", "Multi")
+
+    expect(useAuthStore.getState().token).toBe("jwt-token-2")
+    expect(useAuthStore.getState().refreshToken).toBe("refresh-token")
+  })
+
   it("clears session via clearSession", () => {
-    useAuthStore.getState().setSession("jwt-token", "USER", "Multi")
+    useAuthStore.getState().setSession("jwt-token", "USER", "Multi", "refresh-token")
     useAuthStore.getState().clearSession()
 
     expect(useAuthStore.getState().token).toBeNull()
+    expect(useAuthStore.getState().refreshToken).toBeNull()
     expect(useAuthStore.getState().role).toBeNull()
     expect(useAuthStore.getState().accountType).toBeNull()
     expect(hasAuthSession()).toBe(false)
   })
 
   it("persists session under tummly-auth", () => {
-    useAuthStore.getState().setSession("jwt-token", "USER", "Multi")
+    useAuthStore.getState().setSession("jwt-token", "USER", "Multi", "refresh-token")
 
     const raw = localStorage.getItem("tummly-auth")
     expect(raw).toBeTruthy()
 
     const parsed = JSON.parse(raw!) as {
-      state: { token: string; role: string; accountType: string }
+      state: {
+        token: string
+        role: string
+        accountType: string
+        refreshToken: string
+      }
     }
 
     expect(parsed.state.token).toBe("jwt-token")
     expect(parsed.state.role).toBe("USER")
     expect(parsed.state.accountType).toBe("Multi")
+    expect(parsed.state.refreshToken).toBe("refresh-token")
   })
 })

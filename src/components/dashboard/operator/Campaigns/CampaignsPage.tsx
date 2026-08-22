@@ -310,19 +310,28 @@ export function CampaignsPage() {
     })
   }
 
-  const handleReviewRecommendationDraft = (
-    recommendation: CampaignRecommendation
+  const openWizardFromRecommendationDraft = (
+    draftPrefill: NonNullable<CampaignRecommendation["draftPrefill"]>
   ) => {
     const viewModel = snapshot.viewModel
-    if (viewModel == null || recommendation.draftPrefill == null) {
+    if (viewModel == null) {
       return
     }
     void campaignWizard.openFromRecommendation({
       locationId: viewModel.locationId,
       locationName: viewModel.locationName,
       locationAddress: selectedLocationAddress,
-      draftPrefill: recommendation.draftPrefill,
+      draftPrefill,
     })
+  }
+
+  const handleReviewRecommendationDraft = (
+    recommendation: CampaignRecommendation
+  ) => {
+    if (recommendation.draftPrefill == null) {
+      return
+    }
+    openWizardFromRecommendationDraft(recommendation.draftPrefill)
   }
 
   const handleOpenTemplatePicker = () => {
@@ -394,6 +403,27 @@ export function CampaignsPage() {
     setCampaignsIntent(null)
     handleContinueEditing(campaignId, startStep, loadedDraft, scheduleLand)
   }, [campaignsIntent, setCampaignsIntent, snapshot.viewModel])
+
+  useEffect(() => {
+    if (
+      campaignsIntent == null
+      || !("openFromRecommendation" in campaignsIntent)
+    ) {
+      return
+    }
+    if (snapshot.viewModel == null) {
+      return
+    }
+    const draftPrefill = campaignsIntent.openFromRecommendation.draftPrefill
+    setCampaignsIntent(null)
+    openWizardFromRecommendationDraft(draftPrefill)
+  }, [
+    campaignWizard,
+    campaignsIntent,
+    selectedLocationAddress,
+    setCampaignsIntent,
+    snapshot.viewModel,
+  ])
 
   const handlePreviewCampaign = (campaignId: number) => {
     void campaignDetailPreview.open(campaignId)

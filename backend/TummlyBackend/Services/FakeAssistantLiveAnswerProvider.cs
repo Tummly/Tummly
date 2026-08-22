@@ -92,6 +92,17 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (task == AssistantTask.CreateCampaignWithOffer)
+            {
+                return new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Campaign Draft with Offer",
+                    "Create Campaign with Offer.",
+                    [],
+                    AssistantTask.CreateCampaignWithOffer
+                );
+            }
+
             if (task == AssistantTask.OfferPath)
             {
                 return new AssistantLiveAnswerResult.Succeeded(
@@ -123,6 +134,44 @@ namespace TummlyBackend.Services
                 {
                     return AssistantLiveAnswerCopy.Refusal(refuseKind);
                 }
+            }
+
+            if (AssistantAttentionAsk.IsAttentionRetrieve(input.UserMessage))
+            {
+                return new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Attention Retrieve",
+                    "Attention Retrieve.",
+                    [],
+                    AssistantTask.Retrieve
+                );
+            }
+
+            var productTopics = AssistantProductExpertTopics.Detect(input.UserMessage);
+            if (productTopics.Count > 0
+                && !AssistantAskIntent.IsHelpCentreAsk(input.UserMessage)
+                && !AssistantProductExpertTopics.IsMixedRetrieve(input.UserMessage))
+            {
+                var canned = AssistantProductExpertTopics.Assemble(productTopics);
+                return new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    canned.Title,
+                    canned.Body,
+                    [],
+                    AssistantTask.Retrieve,
+                    canned.ConversationTitle
+                );
+            }
+
+            if (input.CompareAll)
+            {
+                var compareAll = AssistantLiveAnswerCopy.CompareAllFromEvidence(
+                    input.PeriodPhrase,
+                    input.CompareLocations ?? [],
+                    input.FailedLocationNames ?? [],
+                    input.NotStartedLocationNames ?? []
+                );
+                return compareAll with { AssistantTask = AssistantTask.Retrieve };
             }
 
             if (input.CompareLocations is { Count: >= 2 })

@@ -1,6 +1,7 @@
 /** Figma Offers main page — node 3498:1587 (header + Performance + Needs attention + list chrome). */
 
 import type {
+  OffersNeedsAttentionWarningType,
   OperatorOffersListEmptyStateKind,
   OperatorOffersListViewId,
   OperatorOffersSortId,
@@ -81,6 +82,24 @@ export const OPERATOR_OFFERS_LIST_VIEW_LABELS: Record<
 
 export const OPERATOR_OFFERS_LIST_VIEW_ORDER: readonly OperatorOffersListViewId[] =
   ["all", "needs-attention", "drafts", "in-flight", "sent"] as const
+
+/** Session chip labels for Review CTA warning-type scope (ticket 04). */
+export const OFFERS_NEEDS_ATTENTION_WARNING_CHIP_LABELS: Record<
+  OffersNeedsAttentionWarningType,
+  string
+> = {
+  expiry: "Expiring soon",
+  void: "Open void",
+}
+
+export function offersNeedsAttentionWarningChip(
+  warningType: OffersNeedsAttentionWarningType | null
+): { label: string } | null {
+  if (warningType == null) {
+    return null
+  }
+  return { label: OFFERS_NEEDS_ATTENTION_WARNING_CHIP_LABELS[warningType] }
+}
 
 export const OPERATOR_OFFERS_VIEW_SCOPED_EMPTY_COPY: Record<
   Exclude<OperatorOffersListViewId, "all">,

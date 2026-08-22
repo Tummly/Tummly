@@ -1,5 +1,6 @@
 import {
   getAuthToken,
+  getRefreshToken,
   hasAuthSession,
   useAuthStore,
 } from "@/stores/authStore"
@@ -11,6 +12,7 @@ import {
   readString,
   unwrapDataObject,
 } from "@/lib/apiEnvelope"
+import { revokeRefreshToken } from "@/api/sessionRefresh"
 
 export const DEVICE_TOKEN_KEY = "deviceToken"
 export const SELECTED_LOCATION_KEY = "selectedLocationId"
@@ -37,6 +39,7 @@ export interface VerifyOtpPayload {
   activationExpiresAt?: string | null
   selectedLocationId?: number | null
   deviceToken?: string
+  refreshToken?: string
 }
 
 export interface UserSessionPayload {
@@ -46,11 +49,17 @@ export interface UserSessionPayload {
   activationRequired?: boolean
   activationExpiresAt?: string | null
   selectedLocationId?: number | null
+  refreshToken?: string
 }
 
 /** Persist JWT and role for ProtectedRoute / RoleRoute. */
-export function persistAuthSession(token: string, role: AuthSessionRole, accountType?: string) {
-  useAuthStore.getState().setSession(token, role, accountType)
+export function persistAuthSession(
+  token: string,
+  role: AuthSessionRole,
+  accountType?: string,
+  refreshToken?: string | null
+) {
+  useAuthStore.getState().setSession(token, role, accountType, refreshToken)
 }
 
 /** Persist the opaque trusted-device token (30-day browser trust). */
@@ -92,8 +101,13 @@ export function getDeviceToken(): string | null {
 
 /** Sign out — clears session only; device trust is retained (decision #13). */
 export function clearAuthSession() {
+  const refreshToken = getRefreshToken()
   localStorage.removeItem(ACTIVATION_REQUIRED_KEY)
   useAuthStore.getState().clearSession()
+
+  if (refreshToken) {
+    void revokeRefreshToken(refreshToken)
+  }
 }
 
 /** Non-React session read — prefer `useAuthStore` in components. */
@@ -127,6 +141,7 @@ export function parseVerifyOtpResponse(result: unknown): VerifyOtpPayload | null
   const selectedLocationId = readNumber(data, "selectedLocationId")
 
   const deviceToken = readString(data, "deviceToken")
+  const refreshToken = readString(data, "refreshToken")
 
   return {
     token,
@@ -136,6 +151,7 @@ export function parseVerifyOtpResponse(result: unknown): VerifyOtpPayload | null
     ...(activationExpiresAt !== undefined ? { activationExpiresAt } : {}),
     ...(selectedLocationId != null ? { selectedLocationId } : {}),
     ...(deviceToken ? { deviceToken } : {}),
+    ...(refreshToken ? { refreshToken } : {}),
   }
 }
 
@@ -171,6 +187,7 @@ export function parseTrustSkipLoginResponse(
   )
 
   const selectedLocationId = readNumber(data, "selectedLocationId")
+  const refreshToken = readString(data, "refreshToken")
 
   return {
     token,
@@ -179,6 +196,7 @@ export function parseTrustSkipLoginResponse(
     ...(activationRequired !== undefined ? { activationRequired } : {}),
     ...(activationExpiresAt !== undefined ? { activationExpiresAt } : {}),
     ...(selectedLocationId != null ? { selectedLocationId } : {}),
+    ...(refreshToken ? { refreshToken } : {}),
   }
 }
 
@@ -186,7 +204,12 @@ export function completeUserSession(
   session: UserSessionPayload,
   deviceToken?: string | null
 ) {
-  persistAuthSession(session.token, "USER", session.accountType)
+  persistAuthSession(
+    session.token,
+    "USER",
+    session.accountType,
+    session.refreshToken ?? null
+  )
 
   if (deviceToken) {
     persistDeviceToken(deviceToken)

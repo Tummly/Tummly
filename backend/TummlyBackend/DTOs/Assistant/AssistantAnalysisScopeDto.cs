@@ -1,8 +1,13 @@
+using System.Text.Json.Serialization;
+
 namespace TummlyBackend.DTOs.Assistant
 {
     public class AssistantAnalysisScopeDto
     {
-        public int OwnedLocationId { get; set; }
+        public string ScopeKind { get; set; } = "single";
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public int? OwnedLocationId { get; set; }
 
         public string OwnedLocationName { get; set; } = string.Empty;
 

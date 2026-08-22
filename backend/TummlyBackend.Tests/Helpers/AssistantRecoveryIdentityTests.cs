@@ -62,6 +62,72 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void FormatLabel_WithVenue_UsesGuestDateAndVenue()
+        {
+            var row = Row(
+                11,
+                "Pat Guest",
+                "negative",
+                hoursAgo: 1,
+                locationName: "Camden",
+                createdAt: new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc)
+            );
+
+            Assert.Equal(
+                "Pat Guest (1 Jan 2026) · Camden",
+                AssistantRecoveryIdentity.FormatLabel(row, includeVenue: true)
+            );
+        }
+
+        [Fact]
+        public void FormatLabel_WithoutVenue_OmitsVenue()
+        {
+            var row = Row(
+                11,
+                "Pat Guest",
+                "negative",
+                hoursAgo: 1,
+                locationName: "Camden",
+                createdAt: new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc)
+            );
+
+            Assert.Equal(
+                "Pat Guest (1 Jan 2026)",
+                AssistantRecoveryIdentity.FormatLabel(row)
+            );
+        }
+
+        [Fact]
+        public void GapBody_WithVenue_ListsCollidingRowsWithVenue()
+        {
+            var camden = Row(
+                11,
+                "Pat Guest",
+                "negative",
+                hoursAgo: 2,
+                locationName: "Camden"
+            );
+            var soho = Row(
+                12,
+                "Alex Guest",
+                "negative",
+                hoursAgo: 1,
+                locationName: "Soho"
+            );
+
+            var body = AssistantRecoveryIdentity.GapBody(
+                [camden, soho],
+                includeVenue: true
+            );
+
+            Assert.Contains("Pat Guest", body, StringComparison.Ordinal);
+            Assert.Contains("Camden", body, StringComparison.Ordinal);
+            Assert.Contains("Alex Guest", body, StringComparison.Ordinal);
+            Assert.Contains("Soho", body, StringComparison.Ordinal);
+            Assert.Contains(" · ", body, StringComparison.Ordinal);
+        }
+
+        [Fact]
         public void NamedGuestMiss_IsStillNone()
         {
             var match = AssistantRecoveryIdentity.Resolve(
@@ -78,11 +144,13 @@ namespace TummlyBackend.Tests.Helpers
             string guestName,
             string? sentiment,
             int hoursAgo,
-            string workflow = "New"
+            string workflow = "New",
+            string? locationName = null,
+            DateTime? createdAt = null
         )
             => new(
                 id,
-                DateTime.UtcNow.AddHours(-hoursAgo),
+                createdAt ?? DateTime.UtcNow.AddHours(-hoursAgo),
                 guestName,
                 sentiment,
                 "Succeeded",
@@ -96,7 +164,9 @@ namespace TummlyBackend.Tests.Helpers
                 null,
                 [],
                 null,
-                false
+                false,
+                LocationId: null,
+                LocationName: locationName
             );
     }
 }

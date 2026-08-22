@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Memory;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Auth;
 using TummlyBackend.DTOs.Notifications;
+using TummlyBackend.Exceptions;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -828,6 +829,9 @@ namespace TummlyBackend.Services
                     );
             }
 
+            var issuedRefreshToken =
+                await RefreshTokenHelper.IssueAsync(_context, user.Id);
+
             await _context.SaveChangesAsync();
 
             if (!isFirstSignIn && signInContext != null)
@@ -845,9 +849,57 @@ namespace TummlyBackend.Services
             return await BuildUserSessionPayloadAsync(
                 user,
                 token,
+                issuedRefreshToken,
                 issuedDeviceToken
             );
 
+        }
+
+        public async Task<object> RefreshSessionAsync(string refreshToken)
+        {
+            var stored =
+                await RefreshTokenHelper.FindValidAsync(_context, refreshToken);
+
+            if (stored == null)
+            {
+                throw new InvalidRefreshTokenException();
+            }
+
+            EnsureOperatorCanSignIn(stored.User);
+
+            stored.IsRevoked = true;
+
+            var nextRefreshToken =
+                await RefreshTokenHelper.IssueAsync(_context, stored.UserId);
+
+            var accessToken =
+                _jwtService.GenerateToken(
+                    stored.User.Id.ToString(),
+                    stored.User.Email,
+                    stored.User.Role
+                );
+
+            await _context.SaveChangesAsync();
+
+            return new
+            {
+                token = accessToken,
+                refreshToken = nextRefreshToken,
+            };
+        }
+
+        public async Task RevokeRefreshTokenAsync(string refreshToken)
+        {
+            var stored =
+                await RefreshTokenHelper.FindValidAsync(_context, refreshToken);
+
+            if (stored == null)
+            {
+                return;
+            }
+
+            stored.IsRevoked = true;
+            await _context.SaveChangesAsync();
         }
 
         private async Task<bool> RequiresWorkspaceSetupAsync(User user)
@@ -867,6 +919,7 @@ namespace TummlyBackend.Services
         private async Task<object> BuildUserSessionPayloadAsync(
             User user,
             string token,
+            string refreshToken,
             string? deviceToken = null
         )
         {
@@ -881,6 +934,7 @@ namespace TummlyBackend.Services
                 return new
                 {
                     token,
+                    refreshToken,
                     accountType = user.AccountType,
                     workspaceSetupRequired,
                     selectedLocationId = user.SelectedLocationId,
@@ -892,6 +946,7 @@ namespace TummlyBackend.Services
             return new
             {
                 token,
+                refreshToken,
                 accountType = user.AccountType,
                 workspaceSetupRequired,
                 selectedLocationId = user.SelectedLocationId,
@@ -1160,6 +1215,11 @@ namespace TummlyBackend.Services
                         user.Role
                     );
 
+                var refreshToken =
+                    await RefreshTokenHelper.IssueAsync(_context, user.Id);
+
+                await _context.SaveChangesAsync();
+
                 var workspaceSetupRequired =
                     await RequiresWorkspaceSetupAsync(user);
 
@@ -1167,6 +1227,7 @@ namespace TummlyBackend.Services
                 {
                     loginType = "USER",
                     token = sessionToken,
+                    refreshToken,
                     accountType = user.AccountType,
                     workspaceSetupRequired,
                     selectedLocationId = user.SelectedLocationId,

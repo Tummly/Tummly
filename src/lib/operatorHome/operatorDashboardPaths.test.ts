@@ -8,7 +8,10 @@ import {
   operatorDashboardGuestProfilePath,
   operatorDashboardModeForAccountType,
   operatorDashboardNavPath,
+  operatorDashboardCampaignDetailsPath,
+  operatorDashboardCampaignPreviewPath,
   operatorDashboardOfferDetailsPath,
+  operatorDashboardOfferPreviewPath,
   operatorDashboardOffersRedemptionLogPath,
   operatorDashboardRootPath,
   resolveMismatchedOperatorDashboardRedirect,
@@ -333,6 +336,33 @@ describe("operatorDashboardCaptureLocationPath", () => {
     )
     expect(operatorDashboardCaptureLocationPath(7)).toBe(
       "/multi-dashboard/capture/locations/7?location=7"
+    )
+  })
+})
+
+describe("operatorDashboardCampaignDetailsPath", () => {
+  it("builds thin Campaign detail paths with location query", () => {
+    expect(operatorDashboardCampaignDetailsPath("single", 10, 42)).toBe(
+      "/single-dashboard/campaigns/10?location=42"
+    )
+    expect(operatorDashboardCampaignDetailsPath("multi", "7", 3)).toBe(
+      "/multi-dashboard/campaigns/7?location=3"
+    )
+  })
+})
+
+describe("operatorDashboardCampaignPreviewPath", () => {
+  it("builds campaign Guest Preview paths", () => {
+    expect(operatorDashboardCampaignPreviewPath("single", 10, 42)).toBe(
+      "/single-dashboard/campaigns/10/preview?location=42"
+    )
+  })
+})
+
+describe("operatorDashboardOfferPreviewPath", () => {
+  it("builds offer Guest Preview paths", () => {
+    expect(operatorDashboardOfferPreviewPath("single", 10, 42)).toBe(
+      "/single-dashboard/offers/10/preview?location=42"
     )
   })
 })

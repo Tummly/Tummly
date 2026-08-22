@@ -8,6 +8,8 @@ import {
   LATEST_ACTIVITY_TITLE_CLASS,
   LATEST_ACTIVITY_VIEW_ALL_LABEL,
   NEEDS_ATTENTION_EMPTY_COPY,
+  NEEDS_ATTENTION_VIEW_ALL_LABEL,
+  WARNING_ROW_CLASS,
   OPERATOR_HOME_CARD_CLASS,
   OPERATOR_HOME_CARD_PADDED_CLASS,
   OPERATOR_HOME_CARD_STACK_CLASS,
@@ -78,6 +80,8 @@ describe("operatorHomeSectionPresentation", () => {
     expect(NEEDS_ATTENTION_EMPTY_COPY).toBe(
       "Nothing needs attention right now."
     )
+    expect(WARNING_ROW_CLASS).toContain("bg-op-background-secondary")
+    expect(NEEDS_ATTENTION_VIEW_ALL_LABEL).toBe("View all")
   })
 
   it("uses Figma weekly brief empty shell without CTA", () => {

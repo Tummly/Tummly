@@ -7,11 +7,17 @@ import {
   operatorDashboardGuestProfilePath,
   operatorDashboardNavPath,
   operatorDashboardOfferDetailsPath,
+  operatorDashboardRootPath,
+  type NavigableOperatorSidebarPrimaryNavId,
   type OperatorDashboardMode,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import type { CampaignWizardContinueEditingStep } from "@/lib/operatorCampaigns/campaignWizardPresentation"
-import type { CampaignDraftDetail } from "@/types/operatorCampaigns"
+import type {
+  CampaignDraftDetail,
+  CampaignRecommendationDraftPrefill,
+  CatalogOfferDetail,
+} from "@/types/operatorCampaigns"
 import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import type { OperatorFeedbackInboxTabId } from "@/types/operatorFeedback"
 
@@ -42,6 +48,12 @@ export type AssistantCampaignsIntent =
       timeLocal?: string
       campaign?: CampaignDraftDetail
     }
+  | {
+      /** Home Recommended next step — Review campaign draft (ticket 06). */
+      openFromRecommendation: {
+        draftPrefill: CampaignRecommendationDraftPrefill
+      }
+    }
 
 export type AssistantOffersIntent = {
   view: "drafts"
@@ -49,7 +61,7 @@ export type AssistantOffersIntent = {
 
 export type AssistantActionNavigatePlan = {
   path: string
-  selectLocationId: number
+  selectLocationId: number | null
   feedbackDateRange?: HomePerformanceDateRange
   captureDateRange?: HomePerformanceDateRange
   feedbackInbox?: AssistantFeedbackInboxIntent
@@ -57,6 +69,18 @@ export type AssistantActionNavigatePlan = {
   campaigns?: AssistantCampaignsIntent
   offers?: AssistantOffersIntent
   recoveryDraft?: RecoveryDraftActionPayload
+}
+
+function sectionNavPath(
+  mode: OperatorDashboardMode,
+  navId: NavigableOperatorSidebarPrimaryNavId,
+  locationId: number | null
+): string {
+  if (locationId == null) {
+    const root = operatorDashboardRootPath(mode)
+    return navId === "home" ? root : `${root}/${navId}`
+  }
+  return operatorDashboardNavPath(mode, navId, locationId)
 }
 
 function isInboxTab(
@@ -77,14 +101,19 @@ export function planAssistantActionNavigate(input: {
   mode: OperatorDashboardMode
   recoveryDraft?: RecoveryDraftActionPayload | null
   campaignDraft?: CampaignDraftDetail | null
+  catalogOffer?: CatalogOfferDetail | null
 }): AssistantActionNavigatePlan {
-  const locationId = input.analysisScope.ownedLocationId
+  const locationId =
+    input.campaignDraft?.locationId
+    ?? input.catalogOffer?.locationId
+    ?? input.recoveryDraft?.locationId
+    ?? input.analysisScope.ownedLocationId
   const { action, mode } = input
 
   switch (action.type) {
     case "review-campaign":
       return {
-        path: operatorDashboardNavPath(mode, "campaigns", locationId),
+        path: sectionNavPath(mode, "campaigns", locationId),
         selectLocationId: locationId,
         campaigns:
           action.campaignId != null
@@ -99,7 +128,7 @@ export function planAssistantActionNavigate(input: {
     case "change-audience":
     case "add-offer":
       return {
-        path: operatorDashboardNavPath(mode, "campaigns", locationId),
+        path: sectionNavPath(mode, "campaigns", locationId),
         selectLocationId: locationId,
         campaigns:
           action.campaignId != null
@@ -116,20 +145,20 @@ export function planAssistantActionNavigate(input: {
     case "review-offer":
       return {
         path:
-          action.offerId != null
+          action.offerId != null && locationId != null
             ? operatorDashboardOfferDetailsPath(mode, action.offerId, locationId)
-            : operatorDashboardNavPath(mode, "offers", locationId),
+            : sectionNavPath(mode, "offers", locationId),
         selectLocationId: locationId,
       }
     case "open-recovery":
       return {
-        path: operatorDashboardNavPath(mode, "feedback", locationId),
+        path: sectionNavPath(mode, "feedback", locationId),
         selectLocationId: locationId,
         recoveryDraft: input.recoveryDraft ?? undefined,
       }
     case "prepare-recovery":
       return {
-        path: operatorDashboardNavPath(mode, "feedback", locationId),
+        path: sectionNavPath(mode, "feedback", locationId),
         selectLocationId: locationId,
         feedbackDateRange: input.analysisScope.reportingPeriod,
         feedbackInbox: { tab: "needs-attention" },
@@ -146,7 +175,7 @@ export function planAssistantActionNavigate(input: {
         inbox.detectedTag = action.detectedTag
       }
       return {
-        path: operatorDashboardNavPath(mode, "feedback", locationId),
+        path: sectionNavPath(mode, "feedback", locationId),
         selectLocationId: locationId,
         feedbackDateRange: input.analysisScope.reportingPeriod,
         feedbackInbox: Object.keys(inbox).length > 0 ? inbox : undefined,
@@ -154,20 +183,20 @@ export function planAssistantActionNavigate(input: {
     }
     case "view-campaigns":
       return {
-        path: operatorDashboardNavPath(mode, "campaigns", locationId),
+        path: sectionNavPath(mode, "campaigns", locationId),
         selectLocationId: locationId,
       }
     case "view-offers":
       return {
-        path: operatorDashboardNavPath(mode, "offers", locationId),
+        path: sectionNavPath(mode, "offers", locationId),
         selectLocationId: locationId,
       }
     case "view-offer":
       return {
         path:
-          action.offerId != null
+          action.offerId != null && locationId != null
             ? operatorDashboardOfferDetailsPath(mode, action.offerId, locationId)
-            : operatorDashboardNavPath(mode, "offers", locationId),
+            : sectionNavPath(mode, "offers", locationId),
         selectLocationId: locationId,
       }
     case "view-guests": {
@@ -179,7 +208,7 @@ export function planAssistantActionNavigate(input: {
         guests.marketingEligible = true
       }
       return {
-        path: operatorDashboardNavPath(mode, "guests", locationId),
+        path: sectionNavPath(mode, "guests", locationId),
         selectLocationId: locationId,
         guests: Object.keys(guests).length > 0 ? guests : undefined,
       }
@@ -187,23 +216,23 @@ export function planAssistantActionNavigate(input: {
     case "view-guest":
       return {
         path:
-          action.guestId != null
+          action.guestId != null && locationId != null
             ? operatorDashboardGuestProfilePath(mode, action.guestId, locationId)
-            : operatorDashboardNavPath(mode, "guests", locationId),
+            : sectionNavPath(mode, "guests", locationId),
         selectLocationId: locationId,
       }
     case "view-capture":
       return {
         path:
-          mode === "multi"
+          mode === "multi" && locationId != null
             ? operatorDashboardCaptureLocationPath(locationId)
-            : operatorDashboardNavPath(mode, "capture", locationId),
+            : sectionNavPath(mode, "capture", locationId),
         selectLocationId: locationId,
         captureDateRange: input.analysisScope.reportingPeriod,
       }
     default:
       return {
-        path: operatorDashboardNavPath(mode, "feedback", locationId),
+        path: sectionNavPath(mode, "feedback", locationId),
         selectLocationId: locationId,
       }
   }
@@ -216,10 +245,13 @@ export function planAssistantSendScheduleRoute(input: {
   campaignDraft?: CampaignDraftDetail | null
   recoveryDraft?: RecoveryDraftActionPayload | null
 }): AssistantActionNavigatePlan {
-  const locationId = input.analysisScope.ownedLocationId
+  const locationId =
+    input.campaignDraft?.locationId
+    ?? input.recoveryDraft?.locationId
+    ?? input.analysisScope.ownedLocationId
   if (input.route.kind === "recovery") {
     return {
-      path: operatorDashboardNavPath(input.mode, "feedback", locationId),
+      path: sectionNavPath(input.mode, "feedback", locationId),
       selectLocationId: locationId,
       recoveryDraft: input.recoveryDraft ?? undefined,
     }
@@ -231,7 +263,7 @@ export function planAssistantSendScheduleRoute(input: {
       ? input.route.step
       : "review"
   return {
-    path: operatorDashboardNavPath(input.mode, "campaigns", locationId),
+    path: sectionNavPath(input.mode, "campaigns", locationId),
     selectLocationId: locationId,
     campaigns:
       campaignId != null

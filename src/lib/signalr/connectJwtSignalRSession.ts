@@ -6,6 +6,7 @@ import {
 } from "@microsoft/signalr"
 
 import { getAuthToken } from "@/stores/authStore"
+import { ensureFreshAccessToken } from "@/api/sessionRefresh"
 
 export type JwtSignalRSession = {
   stop: () => Promise<void>
@@ -32,7 +33,13 @@ export async function connectJwtSignalRSession(
     options.buildConnection?.(options.hubUrl)
     ?? new HubConnectionBuilder()
       .withUrl(options.hubUrl, {
-        accessTokenFactory: () => getAccessToken() ?? "",
+        accessTokenFactory: async () => {
+          if (!options.getAccessToken) {
+            await ensureFreshAccessToken()
+          }
+
+          return getAccessToken() ?? ""
+        },
       })
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Warning)

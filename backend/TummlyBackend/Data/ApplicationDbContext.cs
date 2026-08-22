@@ -112,6 +112,8 @@ namespace TummlyBackend.Data
 
         public DbSet<AssistantMessage> AssistantMessages { get; set; }
 
+        public DbSet<WeeklyBrief> WeeklyBriefs { get; set; }
+
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )
@@ -941,7 +943,8 @@ namespace TummlyBackend.Data
                 .HasOne(c => c.OwnedLocation)
                 .WithMany()
                 .HasForeignKey(c => c.OwnedLocationId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
 
             modelBuilder.Entity<AssistantConversation>()
                 .HasIndex(c => new { c.OwnerUserId, c.LastActivityAt });
@@ -1229,6 +1232,34 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<OfferVoidRequest>()
                 .HasIndex(row => new { row.OfferIssueId, row.Status });
+
+            /*
+             =========================================
+             WEEKLY BRIEF (home-weekly-brief / 01)
+             =========================================
+            */
+
+            modelBuilder.Entity<WeeklyBrief>()
+                .HasOne(row => row.Location)
+                .WithMany()
+                .HasForeignKey(row => row.LocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<WeeklyBrief>()
+                .HasIndex(row => new { row.LocationId, row.WeekKey })
+                .IsUnique();
+
+            modelBuilder.Entity<WeeklyBrief>()
+                .Property(row => row.WeekKey)
+                .HasMaxLength(16);
+
+            modelBuilder.Entity<WeeklyBrief>()
+                .Property(row => row.Status)
+                .HasConversion(
+                    v => v.ToWireString(),
+                    v => WeeklyBriefStatusExtensions.FromWireString(v)
+                )
+                .HasMaxLength(32);
         }
 
         public override int SaveChanges()

@@ -74,7 +74,14 @@ function DashboardContent({ mode }: DashboardProps) {
       id: location.id,
       name: location.locationName,
     })),
-    navigateAction: ({ action, analysisScope, recoveryDraft, campaignDraft, sendScheduleRoute }) => {
+    navigateAction: ({
+      action,
+      analysisScope,
+      recoveryDraft,
+      campaignDraft,
+      catalogOffer,
+      sendScheduleRoute,
+    }) => {
       const plan = sendScheduleRoute
         ? planAssistantSendScheduleRoute({
             route: sendScheduleRoute,
@@ -89,8 +96,11 @@ function DashboardContent({ mode }: DashboardProps) {
             mode,
             recoveryDraft,
             campaignDraft,
+            catalogOffer,
           })
-      workspace.selectLocation(plan.selectLocationId)
+      if (plan.selectLocationId != null) {
+        workspace.selectLocation(plan.selectLocationId)
+      }
       if (plan.feedbackDateRange) {
         dashboardUiStore
           .getState()

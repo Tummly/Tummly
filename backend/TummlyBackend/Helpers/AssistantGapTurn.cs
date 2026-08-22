@@ -22,6 +22,7 @@ namespace TummlyBackend.Helpers
         public const string KindAudience = "audience";
         public const string KindChannel = "channel";
         public const string KindOfferTerms = "offer-terms";
+        public const string KindCampaignTitle = "campaign-title";
         public const string KindFeedback = "feedback";
 
         public static AssistantGapState CreateTarget(
@@ -56,12 +57,28 @@ namespace TummlyBackend.Helpers
 
         public static AssistantGapState CreateOfferTerms(
             string sourceUserMessage,
-            string? offerTermsJson
+            string? offerTermsJson,
+            string assistantTask = AssistantTask.OfferPath
         )
             => new()
             {
                 Kind = KindOfferTerms,
-                AssistantTask = AssistantTask.OfferPath,
+                AssistantTask = assistantTask,
+                SourceUserMessage = sourceUserMessage,
+                OfferTermsJson = offerTermsJson,
+            };
+
+        public static AssistantGapState CreateCampaignTitle(
+            IReadOnlyList<string> options,
+            string sourceUserMessage,
+            string assistantTask,
+            string? offerTermsJson = null
+        )
+            => new()
+            {
+                Kind = KindCampaignTitle,
+                AssistantTask = assistantTask,
+                Options = options.ToList(),
                 SourceUserMessage = sourceUserMessage,
                 OfferTermsJson = offerTermsJson,
             };
@@ -135,7 +152,7 @@ namespace TummlyBackend.Helpers
         private static bool IsKnownKind(string kind)
             => kind is KindCreateTarget or KindLocation
                 or KindOffer or KindAudience or KindChannel
-                or KindOfferTerms or KindFeedback;
+                or KindOfferTerms or KindCampaignTitle or KindFeedback;
 
         public static AssistantGapState? Parse(string? json)
         {
@@ -200,6 +217,10 @@ namespace TummlyBackend.Helpers
                 KindOffer => AssistantCampaignDraftBind.OfferClashBody(state.Options),
                 KindAudience => AssistantCampaignDraftBind.AudienceClashBody(state.Options),
                 KindChannel => AssistantCampaignDraftBind.ChannelClashBody(),
+                KindCampaignTitle =>
+                    AssistantCombinedCreateCampaignResolve.CampaignTitleClashBody(
+                        state.Options
+                    ),
                 _ => RepeatLocationBody(state),
             };
 

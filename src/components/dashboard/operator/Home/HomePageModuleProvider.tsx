@@ -5,11 +5,21 @@ import {
   closeOutFeedback,
   correctFeedbackClassification,
   createFeedbackInternalNote,
+  duplicateCampaignAsDraft,
+  getCampaignDraftById,
+  getCampaignsList,
   getChecklistAcks,
   getFeedback,
   getFeedbackDetails,
+  getFeedbackInbox,
   getHomeLatestActivity,
   getHomePerformance,
+  getHomeRecommendation,
+  getWeeklyBrief,
+  generateWeeklyBrief,
+  listCatalogOffers,
+  listOpenVoidAttention,
+  pauseCampaign,
   setChecklistAcks,
   setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
@@ -18,6 +28,8 @@ import {
 } from "@/api/dashboardApi"
 import { homePageModuleContext } from "@/components/dashboard/operator/Home/utils/homePageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
+import { CAMPAIGNS_PAGE_SIZE } from "@/lib/operatorCampaigns/campaignsPresentation"
+import { FEEDBACK_INBOX_PAGE_SIZE } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
 import { connectFeedbackHomeHub } from "@/lib/operatorHome/connectFeedbackHomeHub"
 import {
   createOperatorHomePageModule,
@@ -54,6 +66,10 @@ export function HomePageModuleProvider({
       getHomePerformance,
       getHomePerformanceDateRange: () =>
         dashboardUiStore.getState().homePerformanceDateRange,
+      loadHomeRecommendation: async ({ request }) =>
+        getHomeRecommendation(request),
+      getWeeklyBrief,
+      generateWeeklyBrief,
       getFeedbackDetails,
       correctClassification: async (feedbackId, input) => {
         const trimmedNote = input.noteBody?.trim() ?? ""
@@ -114,12 +130,97 @@ export function HomePageModuleProvider({
       },
       getChecklistAcks,
       setChecklistAcks,
+      hasCreatedOffer: async (locationId) => {
+        const response = await listCatalogOffers({
+          locationId,
+          view: "all",
+          page: 1,
+          pageSize: 1,
+        })
+        return response.tabCounts.all > 0 || response.totalCount > 0
+      },
+      hasCreatedCampaign: async (locationId) => {
+        const response = await getCampaignsList({
+          locationId,
+          view: "all",
+          page: 1,
+          pageSize: 1,
+        })
+        return response.tabCounts.all > 0 || response.totalCount > 0
+      },
       copyText,
       openSmartGuestLink,
       connectRealtime: connectFeedbackHomeHub,
       onPerformanceLoadError: (message) => {
         toast.error(message)
       },
+      listLiveOffers: async (locationId) => {
+        const response = await listCatalogOffers({
+          locationId,
+          view: "in-flight",
+          sort: "recent-activity",
+          page: 1,
+          pageSize: 20,
+          utcOffsetMinutes: -new Date().getTimezoneOffset(),
+        })
+        return response.items
+      },
+      listLiveCampaigns: async (locationId) => {
+        const response = await getCampaignsList({
+          locationId,
+          view: "in-flight",
+          status: ["scheduled", "sending"],
+          sort: "recent-activity",
+          page: 1,
+          pageSize: 20,
+          utcOffsetMinutes: -new Date().getTimezoneOffset(),
+        })
+        return response.items
+      },
+      getNeedsAttentionFeedback: async (locationId) => {
+        const response = await getFeedbackInbox({
+          locationId,
+          from: "2000-01-01T00:00:00.000Z",
+          to: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          tab: "needs-attention",
+          q: "",
+          sort: "newest-submitted",
+          page: 1,
+          pageSize: FEEDBACK_INBOX_PAGE_SIZE,
+        })
+        return {
+          count: response.tabCounts.needsAttention,
+          newestSubmittedAt: response.items[0]?.createdAt ?? null,
+        }
+      },
+      listNeedsAttentionCampaigns: async (locationId) => {
+        const response = await getCampaignsList({
+          locationId,
+          view: "needs-attention",
+          sort: "recent-activity",
+          page: 1,
+          pageSize: CAMPAIGNS_PAGE_SIZE,
+        })
+        return response.items
+      },
+      listNeedsAttentionOffers: async (locationId) => {
+        const response = await listCatalogOffers({
+          locationId,
+          view: "needs-attention",
+          sort: "recent-activity",
+          page: 1,
+          pageSize: 100,
+          utcOffsetMinutes: -new Date().getTimezoneOffset(),
+        })
+        return response.items
+      },
+      listOpenVoidAttention: async (locationId) => {
+        const response = await listOpenVoidAttention({ locationId })
+        return response.items
+      },
+      pauseCampaign,
+      duplicateCampaign: duplicateCampaignAsDraft,
+      getCampaignDraftById,
     })
   )
 

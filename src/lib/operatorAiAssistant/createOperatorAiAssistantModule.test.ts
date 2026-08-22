@@ -6,6 +6,9 @@ import {
 } from "@/lib/operatorNotifications/createOperatorNotificationsModule"
 
 import {
+  ALL_LOCATIONS_CHROME_LABEL,
+  ALL_OWNED_LOCATIONS_PICKER_LABEL,
+  ALL_OWNED_LOCATIONS_SELECT_VALUE,
   ASSISTANT_FAILURE_BODY,
   buildEmptyComposerPlaceholders,
   createInMemoryOperatorAiAssistantAdapters,
@@ -147,6 +150,7 @@ describe("createOperatorAiAssistantModule", () => {
     module.openDrawer({ operatorFirstName: "Mohamed" })
 
     expect(module.getSnapshot().analysisScope).toEqual({
+      scopeKind: "single",
       ownedLocationId: 11,
       ownedLocationName: "Camden",
       reportingPeriod: { kind: "preset", presetId: "last7" },
@@ -158,28 +162,449 @@ describe("createOperatorAiAssistantModule", () => {
     expect(adapters.conversations).toEqual([])
   })
 
-  it("after that open, changing the dashboard location does not rewrite Analysis scope", () => {
+  it("Owned-location switcher to a different venue starts New chat at that venue with Last 7 days", async () => {
     const dashboard = {
       ownedLocation: { id: 11, name: "Camden" },
       restaurantName: "Mehmet's Grill",
     }
     const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
       getDashboardOwnedLocation: () => dashboard.ownedLocation,
       getRestaurantName: () => dashboard.restaurantName,
     })
     const module = createOperatorAiAssistantModule(adapters)
 
     module.openDrawer({ operatorFirstName: "Mohamed" })
-    dashboard.ownedLocation = { id: 22, name: "Shoreditch" }
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
 
+    const abandonedId = module.getSnapshot().conversationId
+    const abandonedScope = adapters.conversations[0]?.analysisScope
+    module.setComposerDraft("draft that must go")
+    dashboard.ownedLocation = { id: 22, name: "Shoreditch" }
+    module.onOwnedLocationSwitcherChange()
+
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: true,
+      view: "empty",
+      conversationId: null,
+      composerDraft: "",
+      greeting: { hello: "Hello, Mohamed" },
+      analysisScope: {
+        scopeKind: "single",
+        ownedLocationId: 22,
+        ownedLocationName: "Shoreditch",
+        reportingPeriod: { kind: "preset", presetId: "last7" },
+      },
+      headerStatusLine: "Mehmet's Grill · Shoreditch · Last 7 days",
+    })
+    expect(adapters.conversations).toHaveLength(1)
+    expect(adapters.conversations[0]?.id).toBe(abandonedId)
+    expect(adapters.conversations[0]?.analysisScope).toEqual(abandonedScope)
+  })
+
+  it("Owned-location switcher at the same venue is a no-op", async () => {
+    const dashboard = {
+      ownedLocation: { id: 11, name: "Camden" },
+    }
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => dashboard.ownedLocation,
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const conversationId = module.getSnapshot().conversationId
+    module.setComposerDraft("keep this draft")
+    module.onOwnedLocationSwitcherChange()
+
+    expect(module.getSnapshot().conversationId).toBe(conversationId)
+    expect(module.getSnapshot().composerDraft).toBe("keep this draft")
+    expect(module.getSnapshot().view).toBe("thread")
+    expect(module.getSnapshot().analysisScope?.ownedLocationId).toBe(11)
+  })
+
+  it("mode single does not start New chat from the Owned-location switcher", async () => {
+    const dashboard = {
+      ownedLocation: { id: 11, name: "Camden" },
+    }
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "single",
+      getDashboardOwnedLocation: () => dashboard.ownedLocation,
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const conversationId = module.getSnapshot().conversationId
+    dashboard.ownedLocation = { id: 22, name: "Shoreditch" }
+    module.onOwnedLocationSwitcherChange()
+
+    expect(module.getSnapshot().conversationId).toBe(conversationId)
+    expect(module.getSnapshot().analysisScope?.ownedLocationId).toBe(11)
+  })
+
+  it("does not start New chat when the dashboard Owned location hydrates from empty", async () => {
+    const dashboard = {
+      ownedLocation: { id: 0, name: "" },
+    }
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => dashboard.ownedLocation,
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.onOwnedLocationSwitcherChange()
+    dashboard.ownedLocation = { id: 11, name: "Camden" }
+    module.onOwnedLocationSwitcherChange()
+
+    expect(module.getSnapshot().conversationId).toBe(null)
+    expect(module.getSnapshot().view).toBe("empty")
+    expect(module.getSnapshot().analysisScope).toBe(null)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+    const conversationId = module.getSnapshot().conversationId
+    module.onOwnedLocationSwitcherChange()
+    expect(module.getSnapshot().conversationId).toBe(conversationId)
+  })
+
+  it("Owned-location switcher from saved All owned locations starts one-location New chat and leaves All owned locations on the abandoned Assistant conversation", async () => {
+    const dashboard = {
+      ownedLocation: { id: 11, name: "Camden" },
+    }
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => dashboard.ownedLocation,
+      listOwnedLocations: () => [
+        { id: 11, name: "Camden" },
+        { id: 22, name: "Shoreditch" },
+      ],
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openChangeScope()
+    module.setChangeScopeDraftLocation(ALL_OWNED_LOCATIONS_SELECT_VALUE)
+    module.applyChangeScope()
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const abandonedId = module.getSnapshot().conversationId
+    expect(module.getSnapshot().analysisScope?.scopeKind).toBe("all")
+    dashboard.ownedLocation = { id: 22, name: "Shoreditch" }
+    module.onOwnedLocationSwitcherChange()
+
+    expect(module.getSnapshot()).toMatchObject({
+      view: "empty",
+      conversationId: null,
+      analysisScope: {
+        scopeKind: "single",
+        ownedLocationId: 22,
+        ownedLocationName: "Shoreditch",
+        reportingPeriod: { kind: "preset", presetId: "last7" },
+      },
+    })
+    expect(adapters.conversations[0]?.id).toBe(abandonedId)
+    expect(adapters.conversations[0]?.analysisScope).toMatchObject({
+      scopeKind: "all",
+      ownedLocationId: null,
+      ownedLocationName: ALL_LOCATIONS_CHROME_LABEL,
+    })
+  })
+
+  it("Owned-location switcher keeps Expand width and shows the empty greeting", async () => {
+    const dashboard = {
+      ownedLocation: { id: 11, name: "Camden" },
+    }
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => dashboard.ownedLocation,
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.expandDrawer()
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    dashboard.ownedLocation = { id: 22, name: "Shoreditch" }
+    module.onOwnedLocationSwitcherChange()
+
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: true,
+      widthMode: "expanded",
+      view: "empty",
+      conversationId: null,
+      greeting: { hello: "Hello, Mohamed" },
+    })
+  })
+
+  it("Owned-location switcher with the drawer closed New chats so the next open is the empty greeting", async () => {
+    const dashboard = {
+      ownedLocation: { id: 11, name: "Camden" },
+    }
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => dashboard.ownedLocation,
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+    module.closeDrawer()
+
+    dashboard.ownedLocation = { id: 22, name: "Shoreditch" }
+    module.onOwnedLocationSwitcherChange()
+
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: false,
+      conversationId: null,
+      view: "empty",
+      analysisScope: {
+        ownedLocationId: 22,
+        ownedLocationName: "Shoreditch",
+      },
+    })
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: true,
+      view: "empty",
+      conversationId: null,
+      greeting: { hello: "Hello, Mohamed" },
+      analysisScope: {
+        ownedLocationId: 22,
+        ownedLocationName: "Shoreditch",
+        reportingPeriod: { kind: "preset", presetId: "last7" },
+      },
+    })
+    expect(adapters.conversations).toHaveLength(1)
+  })
+
+  it("Owned-location switcher closes Change analysis scope and New chat wins", async () => {
+    const dashboard = {
+      ownedLocation: { id: 11, name: "Camden" },
+    }
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => dashboard.ownedLocation,
+      listOwnedLocations: () => [
+        { id: 11, name: "Camden" },
+        { id: 22, name: "Shoreditch" },
+      ],
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openChangeScope()
+    module.setChangeScopeDraftLocation(22)
+    dashboard.ownedLocation = { id: 22, name: "Shoreditch" }
+    module.onOwnedLocationSwitcherChange()
+
+    expect(module.getSnapshot().changeScopeDialog.open).toBe(false)
+    expect(module.getSnapshot()).toMatchObject({
+      view: "empty",
+      conversationId: null,
+      analysisScope: {
+        ownedLocationId: 22,
+        reportingPeriod: { kind: "preset", presetId: "last7" },
+      },
+    })
+  })
+
+  it("Owned-location switcher aborts an in-flight turn then starts New chat", async () => {
+    const dashboard = {
+      ownedLocation: { id: 11, name: "Camden" },
+    }
+    const hung = new Promise<never>(() => {})
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => dashboard.ownedLocation,
+      sendTurn: () => hung,
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    expect(module.getSnapshot().turnInFlight).toBe(true)
+
+    dashboard.ownedLocation = { id: 22, name: "Shoreditch" }
+    module.onOwnedLocationSwitcherChange()
+
+    expect(module.getSnapshot()).toMatchObject({
+      view: "empty",
+      conversationId: null,
+      turnInFlight: false,
+      composerDraft: "",
+    })
+  })
+
+  it("Owned-location switcher clears draft interview on the abandoned Assistant conversation", async () => {
+    const cleared: string[] = []
+    const dashboard = {
+      ownedLocation: { id: 11, name: "Camden" },
+    }
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => dashboard.ownedLocation,
+      sendTurn: async (input) => {
+        const row = {
+          id: "conv-draft",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          isArchived: false,
+          draftInterviewActive: true,
+          messages: [
+            {
+              id: "u1",
+              role: "user" as const,
+              body: input.message,
+              analysisScope: input.analysisScope,
+            },
+            {
+              id: "a1",
+              role: "assistant" as const,
+              class: "grounded" as const,
+              body: "Ask the next draft field.",
+            },
+          ],
+        }
+        adapters.conversations.push(row)
+        return row
+      },
+      clearDraftInterview: async (conversationId) => {
+        cleared.push(conversationId)
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Draft a lunch offer")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    dashboard.ownedLocation = { id: 22, name: "Shoreditch" }
+    module.onOwnedLocationSwitcherChange()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(cleared).toEqual(["conv-draft"])
+    expect(adapters.conversations).toHaveLength(1)
+    expect(adapters.conversations[0]?.id).toBe("conv-draft")
+    expect(module.getSnapshot().conversationId).toBe(null)
+  })
+
+  it("Apply that changes Owned location starts New chat with the dialog period", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => ({ id: 11, name: "Camden" }),
+      listOwnedLocations: () => [
+        { id: 11, name: "Camden" },
+        { id: 22, name: "Shoreditch" },
+      ],
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const abandonedId = module.getSnapshot().conversationId
+    const abandonedScope = adapters.conversations[0]?.analysisScope
+    module.setComposerDraft("draft that must go")
+    module.openChangeScope()
+    module.setChangeScopeDraftLocation(22)
+    module.setChangeScopeDraftReportingPeriod({
+      kind: "preset",
+      presetId: "thisMonth",
+    })
+    module.applyChangeScope()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot()).toMatchObject({
+      changeScopeDialog: { open: false },
+      view: "empty",
+      conversationId: null,
+      composerDraft: "",
+      analysisScope: {
+        scopeKind: "single",
+        ownedLocationId: 22,
+        ownedLocationName: "Shoreditch",
+        reportingPeriod: { kind: "preset", presetId: "thisMonth" },
+      },
+      headerStatusLine: "Mehmet's Grill · Shoreditch · This month",
+    })
+    expect(adapters.conversations[0]?.id).toBe(abandonedId)
+    expect(adapters.conversations[0]?.analysisScope).toEqual(abandonedScope)
+  })
+
+  it("Apply that changes Reporting period only keeps the same Assistant conversation and PATCHes when a row exists", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => ({ id: 11, name: "Camden" }),
+      listOwnedLocations: () => [
+        { id: 11, name: "Camden" },
+        { id: 22, name: "Shoreditch" },
+      ],
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const conversationId = module.getSnapshot().conversationId
+    const lastActivity = adapters.conversations[0]?.lastActivityAt
+    module.openChangeScope()
+    module.setChangeScopeDraftReportingPeriod({
+      kind: "preset",
+      presetId: "last30",
+    })
+    module.applyChangeScope()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().conversationId).toBe(conversationId)
+    expect(module.getSnapshot().view).toBe("thread")
     expect(module.getSnapshot().analysisScope).toMatchObject({
       ownedLocationId: 11,
       ownedLocationName: "Camden",
-      reportingPeriod: { kind: "preset", presetId: "last7" },
+      reportingPeriod: { kind: "preset", presetId: "last30" },
     })
-    expect(module.getSnapshot().headerStatusLine).toBe(
-      "Mehmet's Grill · Camden · Last 7 days"
+    expect(adapters.conversations[0]?.analysisScope).toEqual(
+      module.getSnapshot().analysisScope
     )
+    expect(adapters.conversations[0]?.lastActivityAt).toBe(lastActivity)
   })
 
   it("New chat copies the current dashboard location and Last 7 days", () => {
@@ -226,6 +651,8 @@ describe("createOperatorAiAssistantModule", () => {
       open: true,
       title: "Change analysis scope",
       showsOwnedLocationField: true,
+      includesAllOwnedLocationsOption: true,
+      draftScopeKind: "single",
       draftOwnedLocationId: 11,
       draftReportingPeriod: { kind: "preset", presetId: "last7" },
       locationOptions: [
@@ -309,6 +736,7 @@ describe("createOperatorAiAssistantModule", () => {
     expect(module.getSnapshot().changeScopeDialog.open).toBe(false)
     expect(module.getSnapshot().conversationId).toBe(null)
     expect(module.getSnapshot().analysisScope).toEqual({
+      scopeKind: "single",
       ownedLocationId: 22,
       ownedLocationName: "Shoreditch",
       reportingPeriod: { kind: "preset", presetId: "thisMonth" },
@@ -481,6 +909,7 @@ describe("empty-state chips and composer placeholders", () => {
     expect(placeholders).toEqual([
       "Summarise feedback from the last 7 days\u2026",
       "What needs attention at Shoreditch?",
+      "What should I do today at Shoreditch?",
       "Draft a quiet-day offer for lunch guests\u2026",
       "Show guests who gave poor feedback but opted in\u2026",
       "Suggest next week\u2019s campaign\u2026",
@@ -576,6 +1005,9 @@ describe("empty-state chips and composer placeholders", () => {
     expect(module.getSnapshot().composerPlaceholders[1]).toBe(
       "What needs attention at Camden?"
     )
+    expect(module.getSnapshot().composerPlaceholders[2]).toBe(
+      "What should I do today at Camden?"
+    )
 
     module.openChangeScope()
     module.setChangeScopeDraftLocation(22)
@@ -594,6 +1026,9 @@ describe("empty-state chips and composer placeholders", () => {
     )
     expect(module.getSnapshot().composerPlaceholders[1]).toBe(
       "What needs attention at Shoreditch?"
+    )
+    expect(module.getSnapshot().composerPlaceholders[2]).toBe(
+      "What should I do today at Shoreditch?"
     )
 
     module.setComposerDraft("Keep this draft")
@@ -916,7 +1351,7 @@ describe("first send creates a durable Assistant conversation", () => {
     ).toHaveLength(1)
   })
 
-  it("Apply on Change Scope continues the same thread and does not change last activity", async () => {
+  it("Apply All owned locations on an Assistant conversation starts New chat and leaves the abandoned row unchanged", async () => {
     const adapters = createInMemoryOperatorAiAssistantAdapters({
       getDashboardMode: () => "multi",
       getDashboardOwnedLocation: () => ({ id: 11, name: "Camden" }),
@@ -933,8 +1368,55 @@ describe("first send creates a durable Assistant conversation", () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    const conversationId = module.getSnapshot().conversationId
-    const lastActivity = adapters.conversations[0]?.lastActivityAt
+    const abandonedId = module.getSnapshot().conversationId
+    const abandonedScope = adapters.conversations[0]?.analysisScope
+    module.openChangeScope()
+    module.setChangeScopeDraftLocation(ALL_OWNED_LOCATIONS_SELECT_VALUE)
+    module.setChangeScopeDraftReportingPeriod({
+      kind: "preset",
+      presetId: "thisMonth",
+    })
+    module.applyChangeScope()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot()).toMatchObject({
+      view: "empty",
+      conversationId: null,
+      analysisScope: {
+        scopeKind: "all",
+        ownedLocationId: null,
+        ownedLocationName: ALL_LOCATIONS_CHROME_LABEL,
+        reportingPeriod: { kind: "preset", presetId: "thisMonth" },
+      },
+    })
+    expect(adapters.conversations[0]?.id).toBe(abandonedId)
+    expect(adapters.conversations[0]?.analysisScope).toEqual(abandonedScope)
+  })
+
+  it("Apply from All owned locations to one venue starts New chat with the dialog period", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => ({ id: 11, name: "Camden" }),
+      listOwnedLocations: () => [
+        { id: 11, name: "Camden" },
+        { id: 22, name: "Shoreditch" },
+      ],
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openChangeScope()
+    module.setChangeScopeDraftLocation(ALL_OWNED_LOCATIONS_SELECT_VALUE)
+    module.applyChangeScope()
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const abandonedId = module.getSnapshot().conversationId
+    const abandonedScope = adapters.conversations[0]?.analysisScope
+    expect(abandonedScope?.scopeKind).toBe("all")
 
     module.openChangeScope()
     module.setChangeScopeDraftLocation(22)
@@ -946,13 +1428,18 @@ describe("first send creates a durable Assistant conversation", () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    expect(module.getSnapshot().conversationId).toBe(conversationId)
-    expect(module.getSnapshot().analysisScope).toMatchObject({
-      ownedLocationId: 22,
-      ownedLocationName: "Shoreditch",
-      reportingPeriod: { kind: "preset", presetId: "thisMonth" },
+    expect(module.getSnapshot()).toMatchObject({
+      view: "empty",
+      conversationId: null,
+      analysisScope: {
+        scopeKind: "single",
+        ownedLocationId: 22,
+        ownedLocationName: "Shoreditch",
+        reportingPeriod: { kind: "preset", presetId: "thisMonth" },
+      },
     })
-    expect(adapters.conversations[0]?.lastActivityAt).toBe(lastActivity)
+    expect(adapters.conversations[0]?.id).toBe(abandonedId)
+    expect(adapters.conversations[0]?.analysisScope).toEqual(abandonedScope)
   })
 
   it("New chat discards unsent composer text and keeps the previous saved thread", async () => {
@@ -1025,7 +1512,38 @@ describe("first send creates a durable Assistant conversation", () => {
     expect(adapters.conversations[0]?.title).toBe("Summarise recent feedback")
   })
 
-  it("Apply is ignored while a turn runs", async () => {
+  it("period-only Apply is ignored while a turn runs", async () => {
+    const hung = new Promise<never>(() => {})
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => ({ id: 11, name: "Camden" }),
+      listOwnedLocations: () => [
+        { id: 11, name: "Camden" },
+        { id: 22, name: "Shoreditch" },
+      ],
+      sendTurn: () => hung,
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    module.openChangeScope()
+    module.setChangeScopeDraftReportingPeriod({
+      kind: "preset",
+      presetId: "last30",
+    })
+    module.applyChangeScope()
+
+    expect(module.getSnapshot().changeScopeDialog.open).toBe(true)
+    expect(module.getSnapshot().analysisScope).toMatchObject({
+      ownedLocationId: 11,
+      reportingPeriod: { kind: "preset", presetId: "last7" },
+    })
+    expect(module.getSnapshot().turnInFlight).toBe(true)
+  })
+
+  it("Apply that changes Owned location aborts an in-flight turn then starts New chat", async () => {
     const hung = new Promise<never>(() => {})
     const adapters = createInMemoryOperatorAiAssistantAdapters({
       getDashboardMode: () => "multi",
@@ -1045,8 +1563,166 @@ describe("first send creates a durable Assistant conversation", () => {
     module.setChangeScopeDraftLocation(22)
     module.applyChangeScope()
 
-    expect(module.getSnapshot().changeScopeDialog.open).toBe(true)
-    expect(module.getSnapshot().analysisScope?.ownedLocationId).toBe(11)
+    expect(module.getSnapshot()).toMatchObject({
+      changeScopeDialog: { open: false },
+      view: "empty",
+      conversationId: null,
+      turnInFlight: false,
+      analysisScope: {
+        ownedLocationId: 22,
+        ownedLocationName: "Shoreditch",
+      },
+    })
+  })
+
+  it("mode multi Change Scope lists All owned locations first, a separator, then venues A–Z", () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => ({ id: 11, name: "Camden" }),
+      listOwnedLocations: () => [
+        { id: 22, name: "Shoreditch" },
+        { id: 11, name: "Camden" },
+      ],
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openChangeScope()
+
+    const dialog = module.getSnapshot().changeScopeDialog
+    expect(dialog.showsOwnedLocationField).toBe(true)
+    expect(dialog.includesAllOwnedLocationsOption).toBe(true)
+    expect(dialog.draftScopeKind).toBe("single")
+    expect(dialog.locationOptions).toEqual([
+      { id: 11, name: "Camden" },
+      { id: 22, name: "Shoreditch" },
+    ])
+  })
+
+  it("mode single Change Scope omits the Owned location field and All row", () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "single",
+      getDashboardOwnedLocation: () => ({ id: 11, name: "Camden" }),
+      listOwnedLocations: () => [{ id: 11, name: "Camden" }],
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openChangeScope()
+    module.setChangeScopeDraftLocation(ALL_OWNED_LOCATIONS_SELECT_VALUE)
+
+    expect(module.getSnapshot().changeScopeDialog).toMatchObject({
+      showsOwnedLocationField: false,
+      includesAllOwnedLocationsOption: false,
+      draftScopeKind: "single",
+      draftOwnedLocationId: 11,
+    })
+  })
+
+  it("Apply All on an empty conversation stores All Locations chrome with no server row", () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => ({ id: 11, name: "Camden" }),
+      listOwnedLocations: () => [
+        { id: 11, name: "Camden" },
+        { id: 22, name: "Shoreditch" },
+      ],
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openChangeScope()
+    module.setChangeScopeDraftLocation(ALL_OWNED_LOCATIONS_SELECT_VALUE)
+    expect(module.getSnapshot().changeScopeDialog.draftScopeKind).toBe("all")
+    expect(module.getSnapshot().changeScopeDialog.draftOwnedLocationId).toBe(null)
+    module.applyChangeScope()
+
+    expect(module.getSnapshot().changeScopeDialog.open).toBe(false)
+    expect(module.getSnapshot().conversationId).toBe(null)
+    expect(module.getSnapshot().analysisScope).toEqual({
+      scopeKind: "all",
+      ownedLocationId: null,
+      ownedLocationName: ALL_LOCATIONS_CHROME_LABEL,
+      reportingPeriod: { kind: "preset", presetId: "last7" },
+    })
+    expect(module.getSnapshot().headerStatusLine).toBe(
+      `Mehmet's Grill · ${ALL_LOCATIONS_CHROME_LABEL} · Last 7 days`
+    )
+    expect(adapters.conversations).toEqual([])
+    expect(ALL_OWNED_LOCATIONS_PICKER_LABEL).toBe("All owned locations")
+  })
+
+  it("Cancel after selecting All leaves saved Analysis scope unchanged", () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => ({ id: 11, name: "Camden" }),
+      listOwnedLocations: () => [
+        { id: 11, name: "Camden" },
+        { id: 22, name: "Shoreditch" },
+      ],
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openChangeScope()
+    module.setChangeScopeDraftLocation(ALL_OWNED_LOCATIONS_SELECT_VALUE)
+    module.cancelChangeScope()
+
+    expect(module.getSnapshot().analysisScope).toMatchObject({
+      ownedLocationId: 11,
+      ownedLocationName: "Camden",
+    })
+    expect(module.getSnapshot().headerStatusLine).toBe(
+      "Mehmet's Grill · Camden · Last 7 days"
+    )
+  })
+
+  it("period-only Apply while All is saved PATCHes the same thread", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => ({ id: 11, name: "Camden" }),
+      listOwnedLocations: () => [
+        { id: 11, name: "Camden" },
+        { id: 22, name: "Shoreditch" },
+      ],
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openChangeScope()
+    module.setChangeScopeDraftLocation(ALL_OWNED_LOCATIONS_SELECT_VALUE)
+    module.applyChangeScope()
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const conversationId = module.getSnapshot().conversationId
+    const lastActivity = adapters.conversations[0]?.lastActivityAt
+
+    module.openChangeScope()
+    module.setChangeScopeDraftReportingPeriod({
+      kind: "preset",
+      presetId: "last30",
+    })
+    module.applyChangeScope()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().conversationId).toBe(conversationId)
+    expect(module.getSnapshot().analysisScope).toEqual({
+      scopeKind: "all",
+      ownedLocationId: null,
+      ownedLocationName: ALL_LOCATIONS_CHROME_LABEL,
+      reportingPeriod: { kind: "preset", presetId: "last30" },
+    })
+    expect(adapters.conversations[0]?.analysisScope).toEqual(
+      module.getSnapshot().analysisScope
+    )
+    expect(adapters.conversations[0]?.lastActivityAt).toBe(lastActivity)
+    expect(module.getSnapshot().headerStatusLine).toBe(
+      `Mehmet's Grill · ${ALL_LOCATIONS_CHROME_LABEL} · Last 30 days`
+    )
   })
 })
 
@@ -1543,9 +2219,9 @@ describe("grounded live answers, helpful fill, and Actions", () => {
       },
     },
     {
-      name: "the Offer is not Draft",
+      name: "the Offer is not Draft or Active",
       getCatalogOffer: async () =>
-        inMemoryOpenableCatalogOffer(55, { status: "active" }),
+        inMemoryOpenableCatalogOffer(55, { status: "paused" }),
     },
     {
       name: "the Offer is at the wrong location",
@@ -1715,6 +2391,162 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     })
   })
 
+  it("keeps the Assistant open after combined create with three Action rows and does not POST create", async () => {
+    let campaignCreateCalls = 0
+    let offerCreateCalls = 0
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-combined",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: null,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Campaign Draft saved with Offer",
+            body: "I saved a Campaign Draft with an attached Offer for Camden.",
+            actions: [
+              {
+                type: "review-campaign",
+                label: "Review campaign draft",
+                campaignId: 41,
+              },
+              {
+                type: "change-audience",
+                label: "Change audience",
+                campaignId: 41,
+              },
+              {
+                type: "review-offer",
+                label: "Review offer draft",
+                offerId: 9,
+              },
+            ],
+          },
+        ],
+      }),
+      createCampaignDraft: async () => {
+        campaignCreateCalls += 1
+      },
+      createCatalogOfferDraft: async () => {
+        offerCreateCalls += 1
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft(
+      "Create a campaign with 10% off valid 30 days after issue at Camden"
+    )
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(campaignCreateCalls).toBe(0)
+    expect(offerCreateCalls).toBe(0)
+    expect(module.getSnapshot().messages.at(-1)?.actions).toEqual([
+      expect.objectContaining({
+        type: "review-campaign",
+        label: "Review campaign draft",
+        campaignId: 41,
+        clickable: true,
+      }),
+      expect.objectContaining({
+        type: "change-audience",
+        label: "Change audience",
+        campaignId: 41,
+        clickable: true,
+      }),
+      expect.objectContaining({
+        type: "review-offer",
+        label: "Review offer draft",
+        offerId: 9,
+        clickable: true,
+      }),
+    ])
+  })
+
+  it("closes the Assistant on combined Review offer without POSTing create when Offer is Active", async () => {
+    let campaignCreateCalls = 0
+    let offerCreateCalls = 0
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-combined-review",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: null,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Campaign Draft saved with Offer",
+            body: "Campaign Draft saved with Offer.",
+            actions: [
+              {
+                type: "review-campaign",
+                label: "Review campaign draft",
+                campaignId: 41,
+              },
+              {
+                type: "change-audience",
+                label: "Change audience",
+                campaignId: 41,
+              },
+              {
+                type: "review-offer",
+                label: "Review offer draft",
+                offerId: 9,
+              },
+            ],
+          },
+        ],
+      }),
+      createCampaignDraft: async () => {
+        campaignCreateCalls += 1
+      },
+      createCatalogOfferDraft: async () => {
+        offerCreateCalls += 1
+      },
+      getCatalogOffer: async (offerId) =>
+        inMemoryOpenableCatalogOffer(offerId, { status: "active" }),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft(
+      "Create a campaign with 10% off valid 30 days after issue at Camden"
+    )
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const action = module
+      .getSnapshot()
+      .messages.at(-1)
+      ?.actions?.find((item) => item.type === "review-offer")
+    expect(action).toBeDefined()
+    module.clickAction(action!)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(campaignCreateCalls).toBe(0)
+    expect(offerCreateCalls).toBe(0)
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(adapters.lastNavigate?.action).toMatchObject({
+      type: "review-offer",
+      label: "Review offer draft",
+      offerId: 9,
+    })
+  })
+
   it("closes the Assistant and navigates on Review without POSTing create", async () => {
     let createCalls = 0
     const adapters = createInMemoryOperatorAiAssistantAdapters({
@@ -1774,6 +2606,78 @@ describe("grounded live answers, helpful fill, and Actions", () => {
       id: 41,
       status: "draft",
       locationId: 1,
+    })
+  })
+
+  it("Review campaign under All lands at the bound persist venue and keeps saved All", async () => {
+    const allScope = {
+      scopeKind: "all" as const,
+      ownedLocationId: null,
+      ownedLocationName: ALL_LOCATIONS_CHROME_LABEL,
+      reportingPeriod: { kind: "preset" as const, presetId: "last7" as const },
+    }
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-all-create",
+        title: input.message,
+        analysisScope: allScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: null,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: allScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Campaign Draft saved",
+            body: "I saved a Campaign Draft for Camden.",
+            actions: [
+              {
+                type: "review-campaign",
+                label: "Review campaign draft",
+                campaignId: 41,
+              },
+            ],
+          },
+        ],
+      }),
+      getCampaignDraft: async (campaignId) =>
+        inMemoryOpenableCampaignDraft(campaignId, { locationId: 22 }),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft(
+      "Draft an Email Campaign to bring back all currently Email-eligible guests at Camden"
+    )
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const action = module.getSnapshot().messages.at(-1)?.actions?.[0]
+    expect(action?.type).toBe("review-campaign")
+    module.clickAction(action!)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(module.getSnapshot().analysisScope).toMatchObject(allScope)
+    expect(adapters.lastNavigate?.analysisScope).toMatchObject(allScope)
+    expect(adapters.lastNavigate?.campaignDraft).toMatchObject({
+      id: 41,
+      status: "draft",
+      locationId: 22,
+    })
+    expect(
+      planAssistantActionNavigate({
+        action: adapters.lastNavigate!.action,
+        analysisScope: adapters.lastNavigate!.analysisScope,
+        mode: "multi",
+        campaignDraft: adapters.lastNavigate!.campaignDraft,
+      })
+    ).toMatchObject({
+      path: "/multi-dashboard/campaigns?location=22",
+      selectLocationId: 22,
     })
   })
 
@@ -3413,7 +4317,6 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     expect(module.getSnapshot().retryVisible).toBe(true)
 
     module.openChangeScope()
-    module.setChangeScopeDraftLocation(2)
     module.setChangeScopeDraftReportingPeriod({
       kind: "preset",
       presetId: "last30",
@@ -3503,6 +4406,34 @@ describe("Recent, Archive, search, and delete", () => {
     ])
     expect(module.getSnapshot().listRows[0]?.meta).toContain("Camden ·")
     expect(module.getSnapshot().listRows[0]?.meta).not.toMatch(/Draft saved/i)
+  })
+
+  it("Recent subtitle uses All Locations when saved Analysis scope is All owned locations", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      nowMs: () => now,
+    })
+    seed(adapters, [
+      {
+        id: "all-scope",
+        title: "Summarise recent feedback",
+        lastActivityAt: new Date(2026, 7, 13, 14, 0, 0).toISOString(),
+        ownedLocationName: "All Locations",
+      },
+    ])
+    adapters.conversations[0]!.analysisScope = {
+      scopeKind: "all",
+      ownedLocationId: null,
+      ownedLocationName: "All Locations",
+      reportingPeriod: { kind: "preset", presetId: "last7" },
+    }
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openRecent()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().listRows[0]?.meta).toMatch(/^All Locations ·/)
   })
 
   it("filters Recent by client title search and uses search-miss copy", async () => {

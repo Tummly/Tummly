@@ -223,6 +223,10 @@ export function useAiAssistantModule(
   )
 
   useEffect(() => {
+    assistant.onOwnedLocationSwitcherChange()
+  }, [assistant, context.selectedLocation?.id])
+
+  useEffect(() => {
     if (!snapshot.drawerOpen) {
       return
     }

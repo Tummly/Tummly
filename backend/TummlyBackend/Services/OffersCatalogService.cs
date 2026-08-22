@@ -65,6 +65,14 @@ namespace TummlyBackend.Services
             CatalogOfferStatus.AttachSourceManual,
         };
 
+        private static readonly HashSet<string> AllowedWarningTypes = new(
+            StringComparer.Ordinal
+        )
+        {
+            "expiry",
+            "void",
+        };
+
         private readonly ApplicationDbContext _context;
         private readonly Func<DateTime> _utcNow;
 
@@ -77,19 +85,17 @@ namespace TummlyBackend.Services
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
         }
 
-        public async Task<CatalogOfferDto> CreateActiveAsync(
+        /// <summary>
+        /// Persist a finished Offer create. Same as <see cref="CreateDraftAsync"/> —
+        /// stored Draft until the first live attach. Name kept for
+        /// <c>POST /offers</c> wire compatibility.
+        /// </summary>
+        public Task<CatalogOfferDto> CreateActiveAsync(
             CreateCatalogOfferRequest request,
             int? createdByUserId = null,
             CancellationToken cancellationToken = default
         )
-        {
-            return await CreateWithStatusAsync(
-                request,
-                ActiveStatus,
-                createdByUserId,
-                cancellationToken
-            );
-        }
+            => CreateDraftAsync(request, createdByUserId, cancellationToken);
 
         public async Task<CatalogOfferDto> CreateDraftAsync(
             CreateCatalogOfferRequest request,
@@ -254,7 +260,11 @@ namespace TummlyBackend.Services
             return ToDto(entity, utcOffsetMinutes, issueCount, attachKinds);
         }
 
-        public async Task<bool> IsActiveForLocationAsync(
+        /// <summary>
+        /// True when the offer exists at the location and may receive a live attach
+        /// (stored Draft or Active, not past fixed expiry / paused / archived).
+        /// </summary>
+        public async Task<bool> IsAttachableForLocationAsync(
             int offerId,
             int locationId,
             CancellationToken cancellationToken = default
@@ -275,12 +285,69 @@ namespace TummlyBackend.Services
             }
 
             var today = CatalogOfferStatus.VenueLocalToday(_utcNow(), 0);
-            return CatalogOfferStatus.IsAttachableActive(
+            return CatalogOfferStatus.IsAttachable(
                 entity.Status,
                 entity.Validity,
                 entity.CustomExpiryDate,
                 today
             );
+        }
+
+        /// <summary>
+        /// Promote Draft → Active when ≥1 raw live attach exists; demote Active →
+        /// Draft when the last attach is cleared. No-op for paused / archived /
+        /// expired-effective rows.
+        /// </summary>
+        public async Task SyncInFlightStoredStatusAsync(
+            int offerId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var entity = await LoadForMutationAsync(offerId, cancellationToken);
+            if (entity == null)
+            {
+                return;
+            }
+
+            var today = CatalogOfferStatus.VenueLocalToday(_utcNow(), 0);
+            var rawCount = await CountRawLiveAttachesAsync(
+                offerId,
+                cancellationToken
+            );
+            var next = CatalogOfferStatus.ResolveStoredStatusFromLiveAttachCount(
+                entity.Status,
+                entity.Validity,
+                entity.CustomExpiryDate,
+                today,
+                rawCount
+            );
+
+            if (string.Equals(entity.Status, next, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            entity.Status = next;
+            entity.UpdatedAt = _utcNow();
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task SyncInFlightStoredStatusForAttachChangeAsync(
+            int? previousOfferId,
+            int? nextOfferId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (nextOfferId is int attachedId)
+            {
+                await SyncInFlightStoredStatusAsync(attachedId, cancellationToken);
+            }
+
+            if (previousOfferId is int clearedId
+                && clearedId != nextOfferId)
+            {
+                await SyncInFlightStoredStatusAsync(clearedId, cancellationToken);
+            }
         }
 
         public async Task<CatalogOffersListResponse> ListAsync(
@@ -290,6 +357,7 @@ namespace TummlyBackend.Services
         {
             ValidatePaging(query.Page, query.PageSize);
             var view = NormalizeView(query.View);
+            var warningType = NormalizeWarningType(query.AttentionWarningType, view);
             var sort = NormalizeSort(query.Sort);
             var nameQuery = query.Q?.Trim() ?? string.Empty;
             var statuses = NormalizeStringFilters(
@@ -417,19 +485,15 @@ namespace TummlyBackend.Services
                         offer.CustomExpiryDate,
                         today
                     );
-                    // Live attach = Campaign / Recovery / thank-you only when catalog is
-                    // effectively Active (not Draft / expired / paused / archived).
-                    var catalogLive = string.Equals(
-                        effective,
-                        CatalogOfferStatus.Active,
-                        StringComparison.Ordinal
-                    );
+                    // Raw attach FKs count when the catalog is still open (Draft or
+                    // Active). Closed (paused / expired / archived) hide attaches.
+                    var catalogOpen = !CatalogOfferStatus.IsClosed(effective);
                     var hasCampaignAttach =
-                        catalogLive && campaignNames.Count > 0;
+                        catalogOpen && campaignNames.Count > 0;
                     var hasRecoveryAttach =
-                        catalogLive && recoveryCount > 0;
+                        catalogOpen && recoveryCount > 0;
                     var hasThankYouAttach =
-                        catalogLive && thankYouOfferIds.Contains(offer.Id);
+                        catalogOpen && thankYouOfferIds.Contains(offer.Id);
                     var liveAttachCount =
                         (hasCampaignAttach ? campaignNames.Count : 0)
                         + (hasRecoveryAttach ? recoveryCount : 0)
@@ -446,7 +510,8 @@ namespace TummlyBackend.Services
                             offer.CustomExpiryDate,
                             effective,
                             today,
-                            hasOpenVoidRequest: hasOpenVoidRequest
+                            hasOpenVoidRequest: hasOpenVoidRequest,
+                            liveAttachCount: liveAttachCount
                         );
                     var lifetime = lifetimeByOffer.TryGetValue(
                         offer.Id,
@@ -462,6 +527,7 @@ namespace TummlyBackend.Services
                         attachKinds,
                         campaignNames,
                         needsAttention,
+                        hasOpenVoidRequest,
                         lifetime.Claims,
                         lifetime.Redeemed
                     );
@@ -529,6 +595,23 @@ namespace TummlyBackend.Services
                 ),
                 _ => filtered,
             };
+
+            if (view == "needs-attention" && warningType != null)
+            {
+                filtered = warningType switch
+                {
+                    "expiry" => filtered.Where(row =>
+                        CatalogOfferStatus.IsNeedsAttentionRule(
+                            row.Entity.Validity,
+                            row.Entity.CustomExpiryDate,
+                            row.EffectiveStatus,
+                            today
+                        )
+                    ),
+                    "void" => filtered.Where(row => row.HasOpenVoidRequest),
+                    _ => filtered,
+                };
+            }
 
             if (statuses.Count > 0)
             {
@@ -653,7 +736,9 @@ namespace TummlyBackend.Services
                 };
             }
 
-            entity.Status = CatalogOfferStatus.Active;
+            entity.Status = CatalogOfferStatus.ResolveResumeStoredStatus(
+                await CountRawLiveAttachesAsync(offerId, cancellationToken)
+            );
             entity.UpdatedAt = _utcNow();
             await _context.SaveChangesAsync(cancellationToken);
             var issueCount = await CountIssuesAsync(offerId, cancellationToken);
@@ -740,7 +825,7 @@ namespace TummlyBackend.Services
             var copy = new CatalogOffer
             {
                 RestaurantLocationId = entity.RestaurantLocationId,
-                Status = CatalogOfferStatus.Active,
+                Status = CatalogOfferStatus.Draft,
                 OfferType = entity.OfferType,
                 Title = CatalogOfferStatus.BuildDuplicateTitle(
                     entity.Title,
@@ -769,6 +854,32 @@ namespace TummlyBackend.Services
             {
                 Offer = ToDto(copy, utcOffsetMinutes, issueCount: 0),
             };
+        }
+
+        private async Task<int> CountRawLiveAttachesAsync(
+            int offerId,
+            CancellationToken cancellationToken
+        )
+        {
+            var campaignCount = await _context.Campaigns
+                .AsNoTracking()
+                .CountAsync(
+                    campaign => campaign.OfferId == offerId,
+                    cancellationToken
+                );
+            var recoveryCount = await _context.Feedbacks
+                .AsNoTracking()
+                .CountAsync(
+                    feedback => feedback.RecoveryOfferId == offerId,
+                    cancellationToken
+                );
+            var thankYouCount = await _context.RestaurantLocations
+                .AsNoTracking()
+                .CountAsync(
+                    location => location.ThankYouCatalogOfferId == offerId,
+                    cancellationToken
+                );
+            return campaignCount + recoveryCount + thankYouCount;
         }
 
         private async Task<CatalogOffer?> LoadForMutationAsync(
@@ -906,6 +1017,27 @@ namespace TummlyBackend.Services
             if (!AllowedViews.Contains(normalized))
             {
                 throw new ArgumentException("view is invalid.");
+            }
+
+            return normalized;
+        }
+
+        private static string? NormalizeWarningType(string? warningType, string view)
+        {
+            if (string.IsNullOrWhiteSpace(warningType))
+            {
+                return null;
+            }
+
+            var normalized = warningType.Trim();
+            if (!AllowedWarningTypes.Contains(normalized))
+            {
+                throw new ArgumentException("warningType is invalid.");
+            }
+
+            if (view != "needs-attention")
+            {
+                return null;
             }
 
             return normalized;
@@ -1188,8 +1320,8 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// Attach path ids for Offer Details Source — live Campaign / Recovery /
-        /// thank-you attaches when catalog is effectively Active, plus distinct
+        /// Attach path ids for Offer Details Source — Campaign / Recovery /
+        /// thank-you when catalog is still open (Draft or Active), plus distinct
         /// issue sources (guest form / recovery), else empty (UI: Manual).
         /// </summary>
         private async Task<IReadOnlyList<string>> ResolveAttachKindsAsync(
@@ -1205,17 +1337,21 @@ namespace TummlyBackend.Services
                     row => row.Id == offerId,
                     cancellationToken
                 );
-            var today = CatalogOfferStatus.VenueLocalToday(_utcNow(), 0);
-            var catalogLive =
-                offer != null
-                && CatalogOfferStatus.IsAttachableActive(
-                    offer.Status,
-                    offer.Validity,
-                    offer.CustomExpiryDate,
-                    today
-                );
+            if (offer == null)
+            {
+                return kinds;
+            }
 
-            if (catalogLive)
+            var today = CatalogOfferStatus.VenueLocalToday(_utcNow(), 0);
+            var effective = CatalogOfferStatus.ResolveEffectiveStatus(
+                offer.Status,
+                offer.Validity,
+                offer.CustomExpiryDate,
+                today
+            );
+            var catalogOpen = !CatalogOfferStatus.IsClosed(effective);
+
+            if (catalogOpen)
             {
                 var hasCampaignAttach = await _context.Campaigns
                     .AsNoTracking()
@@ -1292,6 +1428,7 @@ namespace TummlyBackend.Services
             IReadOnlyList<string> AttachKinds,
             IReadOnlyList<string> CampaignNames,
             bool NeedsAttention,
+            bool HasOpenVoidRequest,
             int LifetimeClaims,
             int LifetimeRedeemed
         );
