@@ -264,7 +264,7 @@ namespace TummlyBackend.Helpers
 
             return new AssistantLiveAnswerResult.Succeeded(
                 AssistantMessageClass.Grounded,
-                "Compare All Locations",
+                "Compare all owned locations",
                 string.Join(" ", parts),
                 []
             );
@@ -309,7 +309,7 @@ namespace TummlyBackend.Helpers
                     $"{row.LocationName} has {evidence.Offers.CatalogTotalCount} catalog offer{(evidence.Offers.CatalogTotalCount == 1 ? "" : "s")}."
                 );
             }
-            else
+            else if (VenueHasNoFacts(evidence))
             {
                 bits.Add(
                     AssistantCompareAll.EmptyDomainSentence(
@@ -326,7 +326,7 @@ namespace TummlyBackend.Helpers
                     $"{row.LocationName} has {evidence.Campaigns.ListTotalCount} Campaign{(evidence.Campaigns.ListTotalCount == 1 ? "" : "s")}."
                 );
             }
-            else
+            else if (VenueHasNoFacts(evidence))
             {
                 bits.Add(
                     AssistantCompareAll.EmptyDomainSentence(
@@ -343,7 +343,7 @@ namespace TummlyBackend.Helpers
                     $"{row.LocationName} Capture: {evidence.Capture.QrScans} QR scans."
                 );
             }
-            else
+            else if (VenueHasNoFacts(evidence))
             {
                 bits.Add(
                     AssistantCompareAll.EmptyDomainSentence(
@@ -360,7 +360,7 @@ namespace TummlyBackend.Helpers
                     $"{row.LocationName} Performance overview: {evidence.Home.FeedbackSubmitted} feedbackSubmitted, {evidence.Home.GuestsJoined} guestsJoined, {evidence.Home.QrScans} qrScans."
                 );
             }
-            else
+            else if (VenueHasNoFacts(evidence))
             {
                 bits.Add(
                     AssistantCompareAll.EmptyDomainSentence(
@@ -377,7 +377,7 @@ namespace TummlyBackend.Helpers
                     $"{row.LocationName} has {evidence.Guests.TotalCount} Location Guest{(evidence.Guests.TotalCount == 1 ? "" : "s")} (current state)."
                 );
             }
-            else
+            else if (VenueHasNoFacts(evidence))
             {
                 bits.Add(
                     AssistantCompareAll.EmptyDomainSentence(
@@ -390,6 +390,9 @@ namespace TummlyBackend.Helpers
 
             return string.Join(" ", bits);
         }
+
+        private static bool VenueHasNoFacts(AssistantRetrievedEvidence evidence)
+            => evidence.IsEmpty && evidence.Guests.IsEmpty;
 
         private static string CompareLocationSentence(
             AssistantCompareLocationEvidence row,

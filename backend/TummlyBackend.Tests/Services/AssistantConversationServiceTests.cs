@@ -4932,6 +4932,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("Comment samples are 5 of 6 at Camden", answer.Body);
             Assert.Contains("Theme totals are for the full Reporting period", answer.Body);
             Assert.DoesNotContain("These themes come from", answer.Body);
+            Assert.DoesNotContain("No offers at Camden", answer.Body);
             Assert.Equal(3, CountQuotedExcerpts(answer.Body));
             Assert.Contains("Camden excerpt 0", answer.Body);
             Assert.DoesNotContain("Soho excerpt", answer.Body);
@@ -5063,6 +5064,10 @@ namespace TummlyBackend.Tests.Services
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             Assert.Contains(
                 "No feedback at Soho for the last 7 days.",
+                ok.Conversation.Messages[^1].Body
+            );
+            Assert.DoesNotContain(
+                "No offers at Camden",
                 ok.Conversation.Messages[^1].Body
             );
             Assert.Contains("This ranking is partial.", ok.Conversation.Messages[^1].Body);
