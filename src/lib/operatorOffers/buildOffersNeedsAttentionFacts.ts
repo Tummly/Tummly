@@ -1,4 +1,5 @@
 import type { OffersNeedsAttentionFact } from "@/lib/operatorOffers/buildOffersNeedsAttentionOverview"
+import type { OpenVoidAttentionOffer } from "@/lib/operatorOffers/voidRequestAdapters"
 import type { CatalogOffersListItem } from "@/types/operatorCampaigns"
 import {
   formatRelativeTime,
@@ -21,12 +22,7 @@ export type ExpiringOffersOverviewSelection = {
   leadWindowEnteredAt: string | null
 }
 
-export type OffersNeedsAttentionOpenVoidOffer = {
-  offerId: number
-  offerTitle: string
-  pendingCount: number
-  newestPendingRequestedAtUtc: string | null
-}
+export type OffersNeedsAttentionOpenVoidOffer = OpenVoidAttentionOffer
 
 function venueLocalDateKey(nowMs: number, utcOffsetMinutes: number): string {
   const shifted = new Date(nowMs + utcOffsetMinutes * 60_000)
@@ -134,6 +130,7 @@ function voidRelativeTimeLabel(
   offers: readonly OffersNeedsAttentionOpenVoidOffer[],
   nowMs: number
 ): string | undefined {
+  let newestRaw = ""
   let newestMs = Number.NaN
   for (const offer of offers) {
     const raw = offer.newestPendingRequestedAtUtc?.trim() ?? ""
@@ -146,12 +143,13 @@ function voidRelativeTimeLabel(
     }
     if (Number.isNaN(newestMs) || ms > newestMs) {
       newestMs = ms
+      newestRaw = raw
     }
   }
-  if (Number.isNaN(newestMs)) {
+  if (newestRaw === "") {
     return undefined
   }
-  const label = formatRelativeTime(new Date(newestMs).toISOString(), nowMs)
+  const label = formatRelativeTime(newestRaw, nowMs)
   return label !== "" ? label : undefined
 }
 

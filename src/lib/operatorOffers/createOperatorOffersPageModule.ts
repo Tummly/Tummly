@@ -509,12 +509,7 @@ function assembleNeedsAttention(
     relativeTimeLabel,
   })
   const voidFacts = buildOpenVoidWarningFacts({
-    offers: openVoidAttention.map((offer) => ({
-      offerId: offer.offerId,
-      offerTitle: offer.offerTitle,
-      pendingCount: offer.pendingCount,
-      newestPendingRequestedAtUtc: offer.newestPendingRequestedAtUtc,
-    })),
+    offers: openVoidAttention,
     locationName,
     nowMs,
   })
