@@ -746,13 +746,31 @@ namespace TummlyBackend.Services
             }
 
             var attentionSurface = AssistantAttentionAsk.Detect(userMessage);
-            if (attentionSurface != AssistantAttentionSurface.None
+            var attentionAsk = attentionSurface != AssistantAttentionSurface.None
                 && gapState is null
-                && compareOutcome is AssistantCompareOutcome.NotCompare
                 && !AssistantAskIntent.IsHelpCentreAsk(userMessage)
                 && !AssistantTaskClassification.LooksLikeCreateCampaignDraft(userMessage)
                 && !AssistantTaskClassification.LooksLikeOfferPath(userMessage)
-                && !AssistantTaskClassification.LooksLikeRecoveryPath(userMessage)
+                && !AssistantTaskClassification.LooksLikeRecoveryPath(userMessage);
+            if (attentionAsk && AssistantAnalysisScope.IsAll(conversation))
+            {
+                conversation.LastCompareLocationIdsJson = null;
+                return await PersistAssistantAsync(
+                    conversation,
+                    GroundedMessage(
+                        DateTime.UtcNow,
+                        AssistantAttentionCopy.AllSavedPickOneTitle,
+                        AssistantAttentionCopy.AllSavedPickOneBody,
+                        []
+                    ),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true
+                );
+            }
+
+            if (attentionAsk
+                && compareOutcome is AssistantCompareOutcome.NotCompare
                 && conversation.OwnedLocationId is int attentionLocationId)
             {
                 return await FinishAttentionRetrieveAsync(

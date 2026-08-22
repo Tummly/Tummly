@@ -5377,10 +5377,14 @@ namespace TummlyBackend.Tests.Services
             );
 
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("Pick one location", answer.Title);
+            Assert.Contains("Change Scope", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("## Data", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
             AssertNoRetrieveGets();
             Assert.Equal(0, _homeRecommendation.CallCount);
-            Assert.False(_fake.LastInput!.CompareAll);
-            Assert.Equal("Attention Retrieve.", ok.Conversation.Messages[^1].Body);
+            Assert.Null(_fake.LastInput);
         }
 
         [Fact]
@@ -7586,6 +7590,145 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.NotEmpty(_retrieve.Calls);
             Assert.Equal(0, _homeRecommendation.CallCount);
+        }
+
+        [Theory]
+        [InlineData("What needs attention?")]
+        [InlineData("What should I do today?")]
+        [InlineData("weekly brief")]
+        [InlineData("what should I focus on")]
+        public async Task SendTurn_AllOwnedLocations_AttentionAsks_PickOneLocationAndSkipHome(
+            string message
+        )
+        {
+            await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Shoreditch");
+            _homeRecommendation.Recommendation = new HomeRecommendationDto
+            {
+                Type = "thank-recent-guests",
+                Title = "Thank recent guests",
+            };
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                AllSendRequest(message)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("Pick one location", answer.Title);
+            Assert.Contains("## Recommendation", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("## Data", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("## Interpretation", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Change Scope", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Owned location", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Compare", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Empty(answer.Actions);
+            Assert.Equal("all", ok.Conversation.AnalysisScope.ScopeKind);
+            Assert.Null(_fake.LastInput);
+            AssertNoRetrieveGets();
+            Assert.Equal(0, _homeRecommendation.CallCount);
+            Assert.Equal(0, _weeklyBriefGenerate.CallCount);
+        }
+
+        [Fact]
+        public async Task SendTurn_AllOwnedLocations_NeedsAttention_DoesNotPresentHomeQueue()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Shoreditch");
+            await SeedFeedbackAsync(camden, DateTime.UtcNow.AddMinutes(-8));
+
+            var allAsk = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                AllSendRequest("What needs attention?")
+            );
+
+            var allOk = Assert.IsType<AssistantTurnOutcome.Ok>(allAsk);
+            var allAnswer = allOk.Conversation.Messages[^1];
+            Assert.Equal("Pick one location", allAnswer.Title);
+            Assert.DoesNotContain(
+                "Slow service at dinner",
+                allAnswer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                "need attention at Camden",
+                allAnswer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Empty(allAnswer.Actions);
+            Assert.Equal(0, _homeRecommendation.CallCount);
+
+            var applied = await _service.ApplyScopeAsync(
+                ownerUserId: 7,
+                allOk.Conversation.Id,
+                new ApplyAssistantScopeRequest
+                {
+                    AnalysisScope = new AssistantAnalysisScopeDto
+                    {
+                        OwnedLocationId = camden,
+                        ReportingPeriod = new AssistantReportingPeriodDto
+                        {
+                            Kind = "preset",
+                            PresetId = "last7",
+                        },
+                    },
+                }
+            );
+            Assert.IsType<AssistantTurnOutcome.Ok>(applied);
+
+            var oneAsk = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(camden, "What needs attention?", allOk.Conversation.Id)
+            );
+
+            var oneOk = Assert.IsType<AssistantTurnOutcome.Ok>(oneAsk);
+            var oneAnswer = oneOk.Conversation.Messages[^1];
+            Assert.Equal("1 item needs attention at Camden", oneAnswer.Title);
+            Assert.Contains(
+                "1 feedback item needs attention",
+                oneAnswer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Equal("view-feedback-set", Assert.Single(oneAnswer.Actions).Type);
+        }
+
+        [Fact]
+        public async Task SendTurn_AfterApplyAllOwnedLocations_AttentionAsk_PicksOneLocation()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Shoreditch");
+            var created = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(camden, "Summarise recent feedback")
+            );
+            var conversationId = Assert.IsType<AssistantTurnOutcome.Ok>(created)
+                .Conversation.Id;
+            await _service.ApplyScopeAsync(
+                ownerUserId: 7,
+                conversationId,
+                AllOwnedLocationsScopeRequest()
+            );
+            _homeRecommendation.Recommendation = new HomeRecommendationDto
+            {
+                Type = "thank-recent-guests",
+                Title = "Thank recent guests",
+            };
+            _retrieve.Calls.Clear();
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                AllSendRequest("What needs attention?", conversationId)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("Pick one location", answer.Title);
+            Assert.Contains("Change Scope", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("## Data", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(0, _homeRecommendation.CallCount);
+            Assert.Empty(_retrieve.Calls);
         }
 
         [Fact]
