@@ -114,7 +114,7 @@ namespace TummlyBackend.Services
             if (loaded is null)
             {
                 return new AssistantAttentionTurn(
-                    AssistantAttentionCopy.NeedsAttentionTitle(0, locationName),
+                    AssistantAttentionCopy.NeedsAttentionErrorTitle(locationName),
                     AssistantAttentionCopy.NeedsAttentionErrorBody(locationName),
                     []
                 );

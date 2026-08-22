@@ -74,8 +74,11 @@ namespace TummlyBackend.Helpers
             return $"{NeedsAttentionClock(locationName)}\n\n## Data\n{data}";
         }
 
+        public static string NeedsAttentionErrorTitle(string locationName)
+            => $"Needs attention at {locationName}";
+
         public static string NeedsAttentionErrorBody(string locationName)
-            => $"{NeedsAttentionClock(locationName)}\n\n## Recommendation\n"
+            => $"{NeedsAttentionClock(locationName)}\n\n## Data\n"
                 + $"{NeedsAttentionLoadError} {RetryThisSend}";
 
         public static string RecommendedNextStepBody(
@@ -87,7 +90,8 @@ namespace TummlyBackend.Helpers
             var clock = RecommendedNextStepClock(locationName, periodPhrase);
             if (IsNone(recommendation))
             {
-                return $"{clock}\n\n## Recommendation\n{RecommendationNone}";
+                return $"{clock}\n\n## Data\n- **Type:** none"
+                    + $"\n\n## Recommendation\n{RecommendationNone}";
             }
 
             return $"{clock}\n\n## Data\n{FormatRecommendationData(recommendation)}"
@@ -99,7 +103,8 @@ namespace TummlyBackend.Helpers
             string periodPhrase
         )
             => $"{RecommendedNextStepClock(locationName, periodPhrase)}\n\n"
-                + $"## Recommendation\n{RecommendationLoadError} {RetryThisSend}";
+                + $"## Data\n{RecommendationLoadError}\n\n"
+                + $"## Recommendation\n{RetryThisSend}";
 
         public static string WeeklyBriefBodyText(
             string locationName,
@@ -116,7 +121,7 @@ namespace TummlyBackend.Helpers
                 + $"{WeeklyBriefEmptyTitle}\n{WeeklyBriefEmptyHelper}";
 
         public static string WeeklyBriefErrorBody(string locationName, string weekKey)
-            => $"{WeeklyBriefClock(locationName, weekKey)}\n\n## Recommendation\n"
+            => $"{WeeklyBriefClock(locationName, weekKey)}\n\n## Data\n"
                 + $"{WeeklyBriefLoadError} {RetryThisSend}";
 
         public static string MixBody(
@@ -136,8 +141,8 @@ namespace TummlyBackend.Helpers
 
             if (queueError && recommendationError)
             {
-                return $"{clock}\n\n## Recommendation\n"
-                    + $"{NeedsAttentionLoadError} {RecommendationLoadError} {RetryThisSend}";
+                return $"{clock}\n\n## Data\n{NeedsAttentionLoadError}\n\n"
+                    + $"## Recommendation\n{RecommendationLoadError} {RetryThisSend}";
             }
 
             if (queueReady && recReady)
@@ -219,6 +224,21 @@ namespace TummlyBackend.Helpers
             if (!string.IsNullOrWhiteSpace(recommendation.Opportunity))
             {
                 lines.Add($"- **Opportunity:** {recommendation.Opportunity}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(recommendation.EligibleAudience))
+            {
+                lines.Add($"- **Eligible audience:** {recommendation.EligibleAudience}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(recommendation.SuggestedChannel))
+            {
+                lines.Add($"- **Suggested channel:** {recommendation.SuggestedChannel}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(recommendation.EstimatedUsage))
+            {
+                lines.Add($"- **Estimated usage:** {recommendation.EstimatedUsage}");
             }
 
             foreach (var bullet in recommendation.WhyBullets ?? [])

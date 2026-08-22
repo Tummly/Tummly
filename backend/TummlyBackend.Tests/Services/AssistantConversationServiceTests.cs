@@ -6568,6 +6568,9 @@ namespace TummlyBackend.Tests.Services
                 Title = "Thank recent guests",
                 Opportunity = "Guests joined this week.",
                 WhyBullets = ["Recent joiners have not had a thank-you"],
+                EligibleAudience = "12 Email-eligible guests",
+                SuggestedChannel = "email",
+                EstimatedUsage = "12 Email credits",
             };
 
             var outcome = await _service.SendTurnAsync(
@@ -6583,6 +6586,9 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("Reporting period", answer.Body, StringComparison.Ordinal);
             Assert.Contains("the last 7 days", answer.Body, StringComparison.Ordinal);
             Assert.Contains("Thank recent guests", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("12 Email-eligible guests", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("email", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("12 Email credits", answer.Body, StringComparison.Ordinal);
             Assert.Empty(answer.Actions);
             Assert.Equal(1, _homeRecommendation.CallCount);
             Assert.NotNull(_homeRecommendation.LastRequest);
@@ -6615,7 +6621,9 @@ namespace TummlyBackend.Tests.Services
                 answer.Body,
                 StringComparison.Ordinal
             );
-            Assert.DoesNotContain("## Data", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("## Data", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("## Recommendation", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("- **Type:** none", answer.Body, StringComparison.Ordinal);
             Assert.Empty(answer.Actions);
         }
 
@@ -6637,6 +6645,8 @@ namespace TummlyBackend.Tests.Services
                 answer.Body,
                 StringComparison.Ordinal
             );
+            Assert.Contains("## Data", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("## Recommendation", answer.Body, StringComparison.Ordinal);
             Assert.Contains(
                 AssistantAttentionCopy.RetryThisSend,
                 answer.Body,

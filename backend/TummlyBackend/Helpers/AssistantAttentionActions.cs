@@ -10,12 +10,10 @@ namespace TummlyBackend.Helpers
         )
         {
             var hasFeedback = items.Any(item => item.SourceKind == "feedback");
-            var feedbackCount = 0;
-            if (hasFeedback)
-            {
-                var title = items.First(item => item.SourceKind == "feedback").Title;
-                feedbackCount = ParseFeedbackCount(title);
-            }
+            var feedbackCount = items
+                .Where(item => item.SourceKind == "feedback")
+                .Select(item => item.Count ?? 1)
+                .FirstOrDefault();
 
             var hasCampaigns = items.Any(item => item.SourceKind == "campaign");
             var offerIds = items
@@ -157,12 +155,6 @@ namespace TummlyBackend.Helpers
                 ? "View feedback"
                 : AssistantActionCatalog.LabelFor(action);
             return action;
-        }
-
-        private static int ParseFeedbackCount(string title)
-        {
-            var digits = new string(title.TakeWhile(char.IsDigit).ToArray());
-            return int.TryParse(digits, out var count) ? count : 1;
         }
     }
 }

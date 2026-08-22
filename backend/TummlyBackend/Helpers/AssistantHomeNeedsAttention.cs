@@ -6,7 +6,8 @@ namespace TummlyBackend.Helpers
         string Body,
         string MetaLine,
         int? CampaignId,
-        int? OfferId
+        int? OfferId,
+        int? Count = null
     );
 
     /// <summary>
@@ -107,7 +108,8 @@ namespace TummlyBackend.Helpers
                         FeedbackBody,
                         MetaLine("warning", newestFeedbackUtc, locationName, nowUtc),
                         CampaignId: null,
-                        OfferId: null
+                        OfferId: null,
+                        Count: feedbackCount
                     )
                 );
             }

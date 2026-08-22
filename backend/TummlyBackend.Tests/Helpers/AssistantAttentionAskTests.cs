@@ -9,7 +9,7 @@ namespace TummlyBackend.Tests.Helpers
         [InlineData("What needs attention?")]
         [InlineData("What needs attention at Camden?")]
         [InlineData("what needs attention")]
-        public void ChipAndAttentionPhrases_AreNeedsAttentionNotSummarise(
+        public void AttentionPhrases_AreNeedsAttention_EvenWhenGroundedClassifierIsSummarise(
             string message
         )
         {
