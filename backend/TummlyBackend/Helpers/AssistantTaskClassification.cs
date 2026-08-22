@@ -129,8 +129,17 @@ namespace TummlyBackend.Helpers
 
         public static bool LooksLikeCreateCampaignWithOffer(string message)
         {
-            if (!LooksLikeCreateCampaignDraft(message)
-                || LooksLikeRecoveryPath(message))
+            if (LooksLikeRecoveryPath(message))
+            {
+                return false;
+            }
+
+            if (LooksLikeAttachToCampaignIntent(message))
+            {
+                return true;
+            }
+
+            if (!LooksLikeCreateCampaignDraft(message))
             {
                 return false;
             }
@@ -148,6 +157,33 @@ namespace TummlyBackend.Helpers
                 || !string.IsNullOrWhiteSpace(terms.FreeItemText)
                 || !string.IsNullOrWhiteSpace(terms.ReplacementItemText)
                 || terms.ConflictingBenefits.Count > 0;
+        }
+
+        public static bool LooksLikeAttachToCampaignIntent(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            if (!ContainsAny(
+                    lower,
+                    "attach",
+                    "attach it",
+                    "attach to"
+                ))
+            {
+                return false;
+            }
+
+            if (!ContainsAny(lower, "campaign"))
+            {
+                return false;
+            }
+
+            return LooksLikeOfferPath(message)
+                || AssistantOfferPathTerms.Parse(message).OfferType is not null
+                || AssistantOfferPathTerms.Parse(message).DiscountPercentage is not null
+                || AssistantOfferPathTerms.Parse(message).DiscountAmount is not null
+                || !string.IsNullOrWhiteSpace(
+                    AssistantOfferPathTerms.Parse(message).FreeItemText
+                );
         }
 
         public static bool LooksLikeCreateCampaignDraft(string message)

@@ -71,6 +71,14 @@ namespace TummlyBackend.Helpers
                 + AssistantNextTryCopy.Sentence
                 + " Retry this send, or create the Campaign in Campaigns or the Offer in Offers.";
 
+        public static string InFlightCampaignRefusalBody(string campaignName)
+            => "## Interpretation\n"
+                + "I could not save this Campaign with Offer. "
+                + $"Attach from chat is not allowed for **{campaignName}** because that Campaign is already scheduled, active, paused, or sent.\n\n"
+                + "## Recommendation\n"
+                + AssistantNextTryCopy.Sentence
+                + " Attach the Offer in Campaigns UI.";
+
         public static string TypeLabel(CatalogOfferDto offer)
             => AssistantOfferPathTerms.TypeLabel(offer.OfferType);
 

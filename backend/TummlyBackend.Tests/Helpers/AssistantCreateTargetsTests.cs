@@ -77,6 +77,21 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void OfferFirstAttachToCampaign_RoutesToCombinedCreate()
+        {
+            Assert.Equal(
+                AssistantTask.CreateCampaignWithOffer,
+                AssistantTaskClassification.Classify(
+                    "Create 10% off offer and attach it to Summer win-back campaign — if it is not there, create the campaign"
+                )
+            );
+            Assert.Equal(
+                AssistantTask.OfferPath,
+                AssistantTaskClassification.Classify("Create a 25% Offer at Camden")
+            );
+        }
+
+        [Fact]
         public void UnnamedCreate_ListsCampaignOfferAndRecovery()
         {
             Assert.Equal(
