@@ -407,6 +407,7 @@ export type OperatorAiAssistantModule = {
   ) => void
   cancelChangeScope: () => void
   applyChangeScope: () => void
+  onOwnedLocationSwitcherChange: () => void
   setComposerDraft: (text: string) => void
   fillComposerFromChip: (label: string) => void
   send: () => void
@@ -1394,10 +1395,21 @@ function upsertListItem(
   return [toListItemFromConversation(row), ...without]
 }
 
+function analysisLocationChanged(
+  saved: OperatorAiAssistantAnalysisScope,
+  next: OperatorAiAssistantAnalysisScope
+): boolean {
+  return (
+    analysisScopeKind(saved) !== analysisScopeKind(next)
+    || saved.ownedLocationId !== next.ownedLocationId
+  )
+}
+
 function emptyGreetingState(
   state: AssistantState,
   adapters: OperatorAiAssistantAdapters,
-  operatorFirstName?: string
+  operatorFirstName?: string,
+  analysisScope?: OperatorAiAssistantAnalysisScope
 ): AssistantState {
   return {
     ...state,
@@ -1405,7 +1417,7 @@ function emptyGreetingState(
     conversationId: null,
     operatorFirstName: operatorFirstName?.trim() || state.operatorFirstName,
     restaurantName: adapters.getRestaurantName(),
-    analysisScope: copyDashboardAnalysisScope(adapters),
+    analysisScope: analysisScope ?? copyDashboardAnalysisScope(adapters),
     changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
     composerDraft: "",
     placeholderCycleGeneration: state.placeholderCycleGeneration + 1,
@@ -1439,6 +1451,9 @@ export function createOperatorAiAssistantModule(
   let waitTimer: ReturnType<typeof setInterval> | null = null
   let waitGerundIndex = 0
   let waitPipeline: "checking" | "retrieving" | "preparing" = "checking"
+  const initialSwitcherOwnedLocationId = adapters.getDashboardOwnedLocation().id
+  let lastSwitcherOwnedLocationId: number | null =
+    initialSwitcherOwnedLocationId === 0 ? null : initialSwitcherOwnedLocationId
 
   const stopCheckingWaitRotation = () => {
     if (waitTimer != null) {
@@ -1546,6 +1561,18 @@ export function createOperatorAiAssistantModule(
     inflight?.abort()
     inflight = null
     stopCheckingWaitRotation()
+  }
+
+  const beginNewChat = (analysisScope?: OperatorAiAssistantAnalysisScope) => {
+    const abandonedConversationId =
+      state.draftInterviewActive ? state.conversationId : null
+    abortInFlight()
+    mic.reset()
+    state = emptyGreetingState(state, adapters, undefined, analysisScope)
+    publish()
+    if (abandonedConversationId != null) {
+      void adapters.clearDraftInterview(abandonedConversationId)
+    }
   }
 
   const showEmptyGreeting = (operatorFirstName?: string) => {
@@ -1885,14 +1912,25 @@ export function createOperatorAiAssistantModule(
       }
     },
     startNewChat: () => {
-      const abandonedConversationId =
-        state.draftInterviewActive ? state.conversationId : null
-      abortInFlight()
-      mic.reset()
-      showEmptyGreeting()
-      if (abandonedConversationId != null) {
-        void adapters.clearDraftInterview(abandonedConversationId)
+      beginNewChat()
+    },
+    onOwnedLocationSwitcherChange: () => {
+      if (adapters.getDashboardMode() === "single") {
+        return
       }
+      const location = adapters.getDashboardOwnedLocation()
+      if (location.id === 0) {
+        return
+      }
+      if (lastSwitcherOwnedLocationId == null) {
+        lastSwitcherOwnedLocationId = location.id
+        return
+      }
+      if (location.id === lastSwitcherOwnedLocationId) {
+        return
+      }
+      lastSwitcherOwnedLocationId = location.id
+      beginNewChat()
     },
     openRecent: () => {
       state = {
@@ -2143,9 +2181,6 @@ export function createOperatorAiAssistantModule(
       if (!state.changeScopeDialog.open || state.analysisScope == null) {
         return
       }
-      if (state.turnInFlight) {
-        return
-      }
       const dialog = state.changeScopeDialog
       const savedScope = state.analysisScope
       let nextScope: OperatorAiAssistantAnalysisScope
@@ -2179,6 +2214,13 @@ export function createOperatorAiAssistantModule(
             reportingPeriod: dialog.draftReportingPeriod,
           }
         }
+      }
+      if (analysisLocationChanged(savedScope, nextScope)) {
+        beginNewChat(nextScope)
+        return
+      }
+      if (state.turnInFlight) {
+        return
       }
       const composerIsEmpty = state.composerDraft.trim().length === 0
       const conversationId = state.conversationId
