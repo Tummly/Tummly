@@ -499,6 +499,24 @@ namespace TummlyBackend.Services
 
             var productTopics = AssistantProductExpertTopics.Detect(userMessage);
             var helpCentreAsk = AssistantAskIntent.IsHelpCentreAsk(userMessage);
+            if (!helpCentreAsk
+                && AssistantExplainWhyFollowUp.IsExplainWhyFollowUp(userMessage))
+            {
+                var explainTurn = await TryFinishExplainWhyFollowUpAsync(
+                    conversation,
+                    userMessage,
+                    scope,
+                    locationName,
+                    locationRefs,
+                    replaceFailure,
+                    cancellationToken
+                );
+                if (explainTurn is not null)
+                {
+                    return explainTurn;
+                }
+            }
+
             var productExpertTurn = productTopics.Count > 0 && !helpCentreAsk;
             var mixedProductRetrieve = productExpertTurn
                 && AssistantProductExpertTopics.IsMixedRetrieve(userMessage);
@@ -4531,6 +4549,200 @@ namespace TummlyBackend.Services
                         && conversation.OwnerUserId == ownerUserId,
                     cancellationToken
                 );
+        }
+
+        private async Task<AssistantTurnOutcome?> TryFinishExplainWhyFollowUpAsync(
+            AssistantConversation conversation,
+            string userMessage,
+            AssistantAnalysisScopeDto scope,
+            string locationName,
+            IReadOnlyList<AssistantOwnedLocationRef> locationRefs,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken
+        )
+        {
+            var kind = AssistantExplainWhyFollowUp.Detect(userMessage);
+            if (kind == AssistantExplainWhyKind.None)
+            {
+                return null;
+            }
+
+            var priorAssistant = conversation.Messages
+                .Where(message =>
+                    message.Role == AssistantMessageRole.Assistant
+                    && message.Class == AssistantMessageClass.Grounded)
+                .OrderBy(message => message.CreatedAt)
+                .ThenBy(message => message.Id)
+                .LastOrDefault();
+            var priorUser = conversation.Messages
+                .Where(message => message.Role == AssistantMessageRole.User)
+                .OrderBy(message => message.CreatedAt)
+                .ThenBy(message => message.Id)
+                .SkipLast(1)
+                .LastOrDefault();
+            if (priorAssistant is null || priorUser is null)
+            {
+                return null;
+            }
+
+            var path = AssistantExplainWhyFollowUp.InferPriorPath(
+                priorUser.Body,
+                priorAssistant.Title ?? string.Empty,
+                priorAssistant.Body
+            );
+            if (!AssistantExplainWhyFollowUp.MatchesPrior(
+                    kind,
+                    path,
+                    priorAssistant.Body
+                ))
+            {
+                return null;
+            }
+
+            var priorScope = AssistantAnalysisScope.FromUserMessage(priorUser);
+            var refetch = priorScope is null
+                || !AssistantAnalysisScope.ScopesEqual(priorScope, scope)
+                || AssistantExplainWhyFollowUp.NamesNewPeriodOrLocation(
+                    userMessage,
+                    scope,
+                    locationRefs
+                );
+
+            var title = priorAssistant.Title ?? string.Empty;
+            var body = priorAssistant.Body;
+            var actions = AssistantAnalysisScope.ParseActions(priorAssistant.ActionsJson);
+            var productTopics = AssistantProductExpertTopics.Detect(priorUser.Body);
+            var fetchLocationId = conversation.OwnedLocationId;
+            var fetchLocationName = locationName;
+            var fetchPeriod = scope.ReportingPeriod;
+            var namedLocation = AssistantExplainWhyFollowUp.NamedOtherLocation(
+                userMessage,
+                conversation.OwnedLocationId,
+                locationRefs
+            );
+            if (namedLocation is AssistantOwnedLocationRef named)
+            {
+                fetchLocationId = named.Id;
+                fetchLocationName = named.Name;
+            }
+
+            var namedPreset = AssistantExplainWhyFollowUp.NamedPeriodPreset(userMessage);
+            if (namedPreset is not null)
+            {
+                fetchPeriod = new AssistantReportingPeriodDto
+                {
+                    Kind = "preset",
+                    PresetId = namedPreset,
+                };
+            }
+
+            if (refetch
+                && path is AssistantExplainWhyPriorPath.NeedsAttention
+                    or AssistantExplainWhyPriorPath.RecommendedNextStep
+                    or AssistantExplainWhyPriorPath.Mix
+                    or AssistantExplainWhyPriorPath.WeeklyBrief
+                && fetchLocationId is int attentionLocationId)
+            {
+                var surface = AssistantAttentionAsk.Detect(priorUser.Body);
+                if (surface == AssistantAttentionSurface.None)
+                {
+                    surface = AssistantAttentionSurface.NeedsAttention;
+                }
+
+                await TryPublishProgressAsync(
+                    conversation.OwnerUserId,
+                    conversation.Id,
+                    AssistantTurnProgressSteps.Retrieving,
+                    cancellationToken
+                );
+                var presented = await _attentionRetrieve.PresentAsync(
+                    surface,
+                    conversation.OwnerUserId,
+                    attentionLocationId,
+                    fetchLocationName,
+                    fetchPeriod,
+                    cancellationToken
+                );
+                title = presented.Title;
+                body = presented.Body;
+                actions = presented.Actions;
+            }
+            else if (refetch && path == AssistantExplainWhyPriorPath.ProductExpert)
+            {
+                var canned = AssistantProductExpertTopics.Assemble(productTopics);
+                title = canned.Title;
+                body = canned.Body;
+                actions = [];
+            }
+            else if (refetch
+                && path == AssistantExplainWhyPriorPath.DomainRetrieve
+                && fetchLocationId is int domainLocationId)
+            {
+                var periodPhrase = AssistantAnalysisScope.PeriodPhrase(fetchPeriod);
+                var window = AssistantReportingPeriodWindow.Resolve(
+                    fetchPeriod,
+                    DateTime.UtcNow
+                );
+                await TryPublishProgressAsync(
+                    conversation.OwnerUserId,
+                    conversation.Id,
+                    AssistantTurnProgressSteps.Retrieving,
+                    cancellationToken
+                );
+                var retrieved = await RetrieveForTurnAsync(
+                    [domainLocationId],
+                    domainLocationId,
+                    locationRefs,
+                    window.FromUtc,
+                    window.ToUtc,
+                    AssistantAskIntent.NeedsCampaignCopy(priorUser.Body),
+                    cancellationToken
+                );
+                if (retrieved is null)
+                {
+                    conversation.LastCompareLocationIdsJson = null;
+                    return await PersistAssistantAsync(
+                        conversation,
+                        FailureMessage(DateTime.UtcNow),
+                        replaceFailure,
+                        cancellationToken
+                    );
+                }
+
+                var grounded = AssistantLiveAnswerCopy.GroundedFromEvidence(
+                    priorUser.Body,
+                    fetchLocationName,
+                    periodPhrase,
+                    retrieved.SavedEvidence
+                );
+                title = grounded.Title ?? string.Empty;
+                body = grounded.Body;
+                actions = grounded.Actions;
+                conversation.LastCompareLocationIdsJson = null;
+            }
+
+            var expanded = AssistantExplainWhyCopy.Expand(
+                kind,
+                path,
+                title,
+                body,
+                actions,
+                path == AssistantExplainWhyPriorPath.ProductExpert
+                    ? productTopics
+                    : null
+            );
+            return await PersistAssistantAsync(
+                conversation,
+                GroundedMessage(
+                    DateTime.UtcNow,
+                    expanded.Title,
+                    expanded.Body,
+                    expanded.Actions
+                ),
+                replaceFailure,
+                cancellationToken,
+                liveAnswerAlreadyCompleted: true
+            );
         }
 
         private async Task<AssistantTurnOutcome> FinishAttentionRetrieveAsync(

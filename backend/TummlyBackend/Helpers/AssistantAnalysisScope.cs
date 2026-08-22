@@ -271,7 +271,7 @@ namespace TummlyBackend.Helpers
             return JsonSerializer.Serialize(actions);
         }
 
-        private static IReadOnlyList<AssistantActionDto> ParseActions(string? json)
+        public static IReadOnlyList<AssistantActionDto> ParseActions(string? json)
         {
             if (string.IsNullOrWhiteSpace(json) || json == "[]")
             {
