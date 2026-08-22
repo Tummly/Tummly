@@ -2100,6 +2100,78 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     })
   })
 
+  it("Review campaign under All lands at the bound persist venue and keeps saved All", async () => {
+    const allScope = {
+      scopeKind: "all" as const,
+      ownedLocationId: null,
+      ownedLocationName: ALL_LOCATIONS_CHROME_LABEL,
+      reportingPeriod: { kind: "preset" as const, presetId: "last7" as const },
+    }
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-all-create",
+        title: input.message,
+        analysisScope: allScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: null,
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: allScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Campaign Draft saved",
+            body: "I saved a Campaign Draft for Camden.",
+            actions: [
+              {
+                type: "review-campaign",
+                label: "Review campaign draft",
+                campaignId: 41,
+              },
+            ],
+          },
+        ],
+      }),
+      getCampaignDraft: async (campaignId) =>
+        inMemoryOpenableCampaignDraft(campaignId, { locationId: 22 }),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft(
+      "Draft an Email Campaign to bring back all currently Email-eligible guests at Camden"
+    )
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const action = module.getSnapshot().messages.at(-1)?.actions?.[0]
+    expect(action?.type).toBe("review-campaign")
+    module.clickAction(action!)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(module.getSnapshot().analysisScope).toMatchObject(allScope)
+    expect(adapters.lastNavigate?.analysisScope).toMatchObject(allScope)
+    expect(adapters.lastNavigate?.campaignDraft).toMatchObject({
+      id: 41,
+      status: "draft",
+      locationId: 22,
+    })
+    expect(
+      planAssistantActionNavigate({
+        action: adapters.lastNavigate!.action,
+        analysisScope: adapters.lastNavigate!.analysisScope,
+        mode: "multi",
+        campaignDraft: adapters.lastNavigate!.campaignDraft,
+      })
+    ).toMatchObject({
+      path: "/multi-dashboard/campaigns?location=22",
+      selectLocationId: 22,
+    })
+  })
+
   it("does not auto-route when completing create includes send it now", async () => {
     const adapters = createInMemoryOperatorAiAssistantAdapters({
       sendTurn: async (input) => ({

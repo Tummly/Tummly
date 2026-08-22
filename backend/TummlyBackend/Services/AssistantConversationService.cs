@@ -752,12 +752,39 @@ namespace TummlyBackend.Services
                 scope.ReportingPeriod,
                 DateTime.UtcNow
             );
+            var recoveryIdentityNeeded =
+                AssistantAnalysisScope.IsAll(conversation)
+                && (
+                    AssistantTaskClassification.LooksLikeRecoveryPath(userMessage)
+                    || gapState?.Kind == AssistantGapTurn.KindFeedback
+                );
+            AssistantFeedbackEvidence? recoveryIdentity = null;
+            if (recoveryIdentityNeeded)
+            {
+                recoveryIdentity = await RetrieveRecoveryIdentityUnionAsync(
+                    ownedLocations,
+                    window.FromUtc,
+                    window.ToUtc,
+                    cancellationToken
+                );
+                if (recoveryIdentity is null)
+                {
+                    conversation.LastCompareLocationIdsJson = null;
+                    return await PersistAssistantAsync(
+                        conversation,
+                        FailureMessage(DateTime.UtcNow),
+                        replaceFailure,
+                        cancellationToken
+                    );
+                }
+            }
             var skipCompareAll =
                 pureProductExpert
                 || helpCentreAsk
                 || attentionSurface != AssistantAttentionSurface.None
                 || isCreateTurn
                 || AssistantTaskClassification.LooksLikeRecoveryPath(userMessage)
+                || recoveryIdentityNeeded
                 || AssistantAskIntent.IsFullRefusal(AssistantAskIntent.Classify(userMessage));
             var namedCompare = compareOutcome as AssistantCompareOutcome.Compare;
             var isCompareAll = !skipCompareAll
@@ -798,6 +825,10 @@ namespace TummlyBackend.Services
                 if (pureProductExpert)
                 {
                     savedEvidence = EmptyEvidence;
+                }
+                else if (recoveryIdentity is not null)
+                {
+                    savedEvidence = AssistantRetrievedEvidence.FromFeedback(recoveryIdentity);
                 }
                 else if (isCompareAll)
                 {
@@ -895,7 +926,7 @@ namespace TummlyBackend.Services
                     conversation,
                     openFeedbackGap,
                     userMessage,
-                    savedEvidence.Feedback,
+                    recoveryIdentity ?? savedEvidence.Feedback,
                     savedEvidence.Offers,
                     replaceFailure,
                     cancellationToken
@@ -1079,7 +1110,7 @@ namespace TummlyBackend.Services
                     var persist = await PersistPrepareRecoveryAsync(
                         conversation,
                         userMessage,
-                        savedEvidence.Feedback,
+                        recoveryIdentity ?? savedEvidence.Feedback,
                         savedEvidence.Offers,
                         cancellationToken
                     );
@@ -2080,6 +2111,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            var includeVenue = AssistantAnalysisScope.IsAll(conversation);
             var match = AssistantRecoveryIdentity.Resolve(
                 userMessage,
                 feedbackEvidence.Rows
@@ -2090,11 +2122,19 @@ namespace TummlyBackend.Services
                     return await FinishGapTurnAsync(
                         conversation,
                         AssistantGapTurn.CreateFeedback(
-                            many.Rows.Select(AssistantRecoveryIdentity.FormatLabel).ToList(),
+                            many.Rows
+                                .Select(row =>
+                                    AssistantRecoveryIdentity.FormatLabel(row, includeVenue)
+                                )
+                                .ToList(),
                             gapState.SourceUserMessage
                         ),
                         AssistantRecoveryIdentity.RepeatGapBody(
-                            many.Rows.Select(AssistantRecoveryIdentity.FormatLabel).ToList()
+                            many.Rows
+                                .Select(row =>
+                                    AssistantRecoveryIdentity.FormatLabel(row, includeVenue)
+                                )
+                                .ToList()
                         ),
                         replaceFailure,
                         cancellationToken
@@ -2169,6 +2209,7 @@ namespace TummlyBackend.Services
                 }
             }
 
+            var includeVenue = AssistantAnalysisScope.IsAll(conversation);
             var match = boundRow is not null
                 ? new AssistantRecoveryIdentity.Match.One(boundRow)
                 : AssistantRecoveryIdentity.Resolve(
@@ -2192,11 +2233,13 @@ namespace TummlyBackend.Services
                     );
                 case AssistantRecoveryIdentity.Match.Many many:
                     var labels = many.Rows
-                        .Select(AssistantRecoveryIdentity.FormatLabel)
+                        .Select(row =>
+                            AssistantRecoveryIdentity.FormatLabel(row, includeVenue)
+                        )
                         .ToList();
                     return new RecoveryPersistTurn(
                         "",
-                        AssistantRecoveryIdentity.GapBody(many.Rows),
+                        AssistantRecoveryIdentity.GapBody(many.Rows, includeVenue),
                         none,
                         null,
                         AssistantGapTurn.CreateFeedback(labels, userMessage)
@@ -2742,6 +2785,9 @@ namespace TummlyBackend.Services
                     "Create persist needs one Owned location."
                 );
 
+        private static bool ShouldUpdateScopeOnCreateBind(AssistantConversation conversation)
+            => !AssistantAnalysisScope.IsAll(conversation);
+
         private AssistantLocationGapOutcome ResolveCreateLocation(
             string userMessage,
             AssistantConversation conversation,
@@ -3207,7 +3253,7 @@ namespace TummlyBackend.Services
                     analysisScopeLocationName,
                     ownedLocations,
                     AssistantCampaignDraftBindChoice.Empty,
-                    updateScope: true,
+                    updateScope: ShouldUpdateScopeOnCreateBind(conversation),
                     replaceFailure,
                     cancellationToken,
                     rememberedTerms
@@ -3240,7 +3286,7 @@ namespace TummlyBackend.Services
                 gapState.SourceUserMessage,
                 CreatePersistLocationId(locationFinish.LocationId, conversation),
                 locationFinish.LocationName ?? analysisScopeLocationName,
-                updateScope: true,
+                updateScope: ShouldUpdateScopeOnCreateBind(conversation),
                 replaceFailure,
                 cancellationToken,
                 ownedLocations.Select(location => location.Id).ToList(),
@@ -3794,6 +3840,49 @@ namespace TummlyBackend.Services
             }
 
             return new CompareAllRetrieve(landed, failedNames, notStartedNames);
+        }
+
+        private async Task<AssistantFeedbackEvidence?> RetrieveRecoveryIdentityUnionAsync(
+            IReadOnlyList<OwnedLocationRow> ownedLocations,
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            var rows = new List<AssistantFeedbackEvidenceRow>();
+            foreach (var location in ownedLocations)
+            {
+                var retrieved = await _feedbackRetrieve.RetrieveIdentityAsync(
+                    location.Id,
+                    location.Name,
+                    fromUtc,
+                    toUtc,
+                    cancellationToken
+                );
+                if (retrieved is AssistantFeedbackRetrieveResult.Failed)
+                {
+                    return null;
+                }
+
+                if (retrieved is AssistantFeedbackRetrieveResult.Ok ok)
+                {
+                    rows.AddRange(ok.Evidence.Rows);
+                }
+            }
+
+            return new AssistantFeedbackEvidence(
+                rows.Count,
+                rows.Count,
+                0,
+                0,
+                0,
+                0,
+                [],
+                rows,
+                [],
+                [],
+                []
+            );
         }
 
         private async Task<TurnRetrieve?> RetrieveForTurnAsync(

@@ -93,15 +93,30 @@ namespace TummlyBackend.Helpers
             return new Match.Many(pool);
         }
 
-        public static string FormatLabel(AssistantFeedbackEvidenceRow row)
+        public static string FormatLabel(
+            AssistantFeedbackEvidenceRow row,
+            bool includeVenue = false
+        )
         {
             var date = row.CreatedAt.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
-            return $"{row.GuestName} ({date})";
+            var label = $"{row.GuestName} ({date})";
+            if (includeVenue && !string.IsNullOrWhiteSpace(row.LocationName))
+            {
+                return $"{label} · {row.LocationName}";
+            }
+
+            return label;
         }
 
-        public static string GapBody(IReadOnlyList<AssistantFeedbackEvidenceRow> rows)
+        public static string GapBody(
+            IReadOnlyList<AssistantFeedbackEvidenceRow> rows,
+            bool includeVenue = false
+        )
         {
-            var labels = rows.Select(FormatLabel).Distinct(StringComparer.Ordinal).ToList();
+            var labels = rows
+                .Select(row => FormatLabel(row, includeVenue))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
             return WhichFeedbackQuestion(labels);
         }
 
@@ -122,8 +137,10 @@ namespace TummlyBackend.Helpers
             }
 
             var label = FormatLabel(row);
+            var venueLabel = FormatLabel(row, includeVenue: true);
             return userMessage.Contains(row.GuestName, StringComparison.OrdinalIgnoreCase)
-                || userMessage.Contains(label, StringComparison.OrdinalIgnoreCase);
+                || userMessage.Contains(label, StringComparison.OrdinalIgnoreCase)
+                || userMessage.Contains(venueLabel, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool TrySpecificWho(string userMessage, out string who)

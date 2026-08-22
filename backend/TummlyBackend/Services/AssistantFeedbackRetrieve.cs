@@ -213,6 +213,94 @@ namespace TummlyBackend.Services
             }
         }
 
+        public async Task<AssistantFeedbackRetrieveResult> RetrieveIdentityAsync(
+            int ownedLocationId,
+            string locationName,
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken = default
+        )
+        {
+            try
+            {
+                var rows = await _context.Feedbacks
+                    .AsNoTracking()
+                    .Where(feedback =>
+                        feedback.RestaurantLocationId == ownedLocationId
+                        && feedback.CreatedAt >= fromUtc
+                        && feedback.CreatedAt < toUtc
+                    )
+                    .OrderByDescending(feedback => feedback.CreatedAt)
+                    .ThenByDescending(feedback => feedback.Id)
+                    .Select(feedback => new
+                    {
+                        feedback.Id,
+                        feedback.CreatedAt,
+                        feedback.GuestName,
+                        feedback.Sentiment,
+                        feedback.ClassificationStatus,
+                        feedback.WorkflowStatus,
+                        feedback.ContactType,
+                        feedback.Comment,
+                    })
+                    .ToListAsync(cancellationToken);
+
+                var evidenceRows = rows
+                    .Select(row =>
+                    {
+                        var succeeded =
+                            row.ClassificationStatus == ClassificationStatus.Succeeded;
+                        return new AssistantFeedbackEvidenceRow(
+                            row.Id,
+                            row.CreatedAt,
+                            row.GuestName,
+                            succeeded ? row.Sentiment?.ToString().ToLowerInvariant() : null,
+                            row.ClassificationStatus.ToString(),
+                            [],
+                            row.WorkflowStatus.ToString(),
+                            succeeded
+                                && row.Sentiment == FeedbackSentiment.Negative
+                                && row.WorkflowStatus != FeedbackWorkflowStatus.Resolved,
+                            null,
+                            ContactTypeLabel(row.ContactType),
+                            Excerpt(row.Comment),
+                            FeedbackReference(row.Id),
+                            null,
+                            [],
+                            null,
+                            false,
+                            ownedLocationId,
+                            locationName
+                        );
+                    })
+                    .ToList();
+
+                return new AssistantFeedbackRetrieveResult.Ok(
+                    new AssistantFeedbackEvidence(
+                        evidenceRows.Count,
+                        evidenceRows.Count,
+                        0,
+                        0,
+                        0,
+                        0,
+                        [],
+                        evidenceRows,
+                        [],
+                        [],
+                        []
+                    )
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return new AssistantFeedbackRetrieveResult.Failed();
+            }
+        }
+
         private async Task<Dictionary<int, string?>> LoadQrSourcesAsync(
             IReadOnlyList<int> qrCodeIds,
             CancellationToken cancellationToken

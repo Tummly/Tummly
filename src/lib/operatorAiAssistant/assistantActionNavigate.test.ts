@@ -9,6 +9,13 @@ const SCOPE: OperatorAiAssistantAnalysisScope = {
   reportingPeriod: { kind: "preset", presetId: "last7" },
 }
 
+const ALL_SCOPE: OperatorAiAssistantAnalysisScope = {
+  scopeKind: "all",
+  ownedLocationId: null,
+  ownedLocationName: "All Locations",
+  reportingPeriod: { kind: "preset", presetId: "last7" },
+}
+
 describe("planAssistantActionNavigate", () => {
   it("maps view-feedback-set to Feedback with Family A and one inbox filter", () => {
     expect(
@@ -87,6 +94,62 @@ describe("planAssistantActionNavigate", () => {
       path: "/multi-dashboard/campaigns?location=11",
       selectLocationId: 11,
       campaigns: { previewCampaignId: 41 },
+    })
+  })
+
+  it("maps review-campaign under All to the bound persist venue, not saved All", () => {
+    expect(
+      planAssistantActionNavigate({
+        action: {
+          type: "review-campaign",
+          label: "Review campaign draft",
+          campaignId: 41,
+        },
+        analysisScope: ALL_SCOPE,
+        mode: "multi",
+        campaignDraft: {
+          id: 41,
+          locationId: 22,
+          status: "draft",
+          name: "Win-back",
+          goalId: "re-engage-inactive",
+          templateId: null,
+          templateVersion: null,
+          audienceKey: "all-eligible-guests",
+          channel: "email",
+          offerStance: "no-offer",
+          offerId: null,
+          messageSubject: null,
+          messageBody: null,
+          rowVersion: "1",
+          createdAt: "2026-08-19T00:00:00Z",
+          updatedAt: "2026-08-19T00:00:00Z",
+        },
+      })
+    ).toEqual({
+      path: "/multi-dashboard/campaigns?location=22",
+      selectLocationId: 22,
+      campaigns: {
+        previewCampaignId: 41,
+        campaign: {
+          id: 41,
+          locationId: 22,
+          status: "draft",
+          name: "Win-back",
+          goalId: "re-engage-inactive",
+          templateId: null,
+          templateVersion: null,
+          audienceKey: "all-eligible-guests",
+          channel: "email",
+          offerStance: "no-offer",
+          offerId: null,
+          messageSubject: null,
+          messageBody: null,
+          rowVersion: "1",
+          createdAt: "2026-08-19T00:00:00Z",
+          updatedAt: "2026-08-19T00:00:00Z",
+        },
+      },
     })
   })
 

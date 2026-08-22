@@ -1121,11 +1121,14 @@ function canOpenStoredDraftFromAssistant(
   row: { status: string; locationId: number } | null,
   analysisScopeLocationId: number | null
 ): boolean {
-  if (row == null || analysisScopeLocationId == null) {
+  if (row == null) {
     return false
   }
   if (row.status.toLowerCase() !== "draft") {
     return false
+  }
+  if (analysisScopeLocationId == null) {
+    return true
   }
   return row.locationId === analysisScopeLocationId
 }
@@ -1134,12 +1137,15 @@ function canOpenStoredOfferFromAssistant(
   row: { status: string; locationId: number } | null,
   analysisScopeLocationId: number | null
 ): boolean {
-  if (row == null || analysisScopeLocationId == null) {
+  if (row == null) {
     return false
   }
   const status = row.status.toLowerCase()
   if (status !== "draft" && status !== "active") {
     return false
+  }
+  if (analysisScopeLocationId == null) {
+    return true
   }
   return row.locationId === analysisScopeLocationId
 }

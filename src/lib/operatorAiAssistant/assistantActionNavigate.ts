@@ -16,6 +16,7 @@ import type { CampaignWizardContinueEditingStep } from "@/lib/operatorCampaigns/
 import type {
   CampaignDraftDetail,
   CampaignRecommendationDraftPrefill,
+  CatalogOfferDetail,
 } from "@/types/operatorCampaigns"
 import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import type { OperatorFeedbackInboxTabId } from "@/types/operatorFeedback"
@@ -100,8 +101,12 @@ export function planAssistantActionNavigate(input: {
   mode: OperatorDashboardMode
   recoveryDraft?: RecoveryDraftActionPayload | null
   campaignDraft?: CampaignDraftDetail | null
+  catalogOffer?: CatalogOfferDetail | null
 }): AssistantActionNavigatePlan {
-  const locationId = input.analysisScope.ownedLocationId
+  const locationId =
+    input.campaignDraft?.locationId
+    ?? input.catalogOffer?.locationId
+    ?? input.analysisScope.ownedLocationId
   const { action, mode } = input
 
   switch (action.type) {

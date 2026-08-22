@@ -40,7 +40,9 @@ namespace TummlyBackend.Models
         string? MarketingStatus,
         IReadOnlyList<string> GuestTags,
         int? LocationGuestId,
-        bool IsLinked
+        bool IsLinked,
+        int? LocationId = null,
+        string? LocationName = null
     );
 
     public sealed record AssistantGuestEvidenceRow(

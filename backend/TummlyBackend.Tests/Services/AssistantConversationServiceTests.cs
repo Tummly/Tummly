@@ -480,6 +480,247 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_UnnamedCreateWhenAllSaved_IsLocationGapWithoutPersist()
+        {
+            await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                AllSendRequest(
+                    "Draft an Email Campaign to bring back all currently Email-eligible guests"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Equal(
+                "Which Owned location should this Campaign Draft use? Name one.",
+                answer.Body
+            );
+            Assert.DoesNotContain("Soho", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.Equal("all", ok.Conversation.AnalysisScope.ScopeKind);
+            Assert.Null(ok.Conversation.AnalysisScope.OwnedLocationId);
+        }
+
+        [Fact]
+        public async Task SendTurn_EverywhereCreateWhenAllSaved_IsLocationGap()
+        {
+            await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                AllSendRequest("Create a campaign everywhere")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Contains("Name one", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Camden", answer.Body, StringComparison.Ordinal);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_UniqueNamedCreateWhenAllSaved_PersistsAtVenueAndKeepsAll()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+            await SeedLinkedGuestAsync(
+                camden,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                AllSendRequest(CanonicalCamdenEmailWinBackAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Contains("Camden", answer.Body, StringComparison.Ordinal);
+            Assert.Equal("all", ok.Conversation.AnalysisScope.ScopeKind);
+            Assert.Null(ok.Conversation.AnalysisScope.OwnedLocationId);
+            Assert.Equal("All Locations", ok.Conversation.AnalysisScope.OwnedLocationName);
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+            Assert.Equal(camden, _context.Campaigns.Single().RestaurantLocationId);
+        }
+
+        [Fact]
+        public async Task SendTurn_LocationGapAnswerWhenAllSaved_DoesNotUpdateScope()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+            await SeedLinkedGuestAsync(
+                camden,
+                "Eligible Guest",
+                email: "eligible@example.com",
+                offersOptOut: false
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    AllSendRequest(
+                        "Draft an Email Campaign to bring back all currently Email-eligible guests"
+                    )
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+
+            var completed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    AllSendRequest("Camden", started.Conversation.Id)
+                )
+            );
+
+            Assert.Equal("grounded", completed.Conversation.Messages[^1].Class);
+            Assert.Contains("Camden", completed.Conversation.Messages[^1].Body);
+            Assert.Equal("all", completed.Conversation.AnalysisScope.ScopeKind);
+            Assert.Null(completed.Conversation.AnalysisScope.OwnedLocationId);
+            Assert.Equal(camden, _context.Campaigns.Single().RestaurantLocationId);
+        }
+
+        [Fact]
+        public async Task ApplyScope_DuringLocationGapWhenAllSaved_DoesNotPersist()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    AllSendRequest(
+                        "Draft an Email Campaign to bring back all currently Email-eligible guests"
+                    )
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+
+            var applied = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.ApplyScopeAsync(
+                    ownerUserId: 7,
+                    started.Conversation.Id,
+                    new ApplyAssistantScopeRequest
+                    {
+                        AnalysisScope = new AssistantAnalysisScopeDto
+                        {
+                            OwnedLocationId = camden,
+                            OwnedLocationName = "Camden",
+                            ReportingPeriod = new AssistantReportingPeriodDto
+                            {
+                                Kind = "preset",
+                                PresetId = "last7",
+                            },
+                        },
+                    }
+                )
+            );
+
+            Assert.Equal(camden, applied.Conversation.AnalysisScope.OwnedLocationId);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.Equal("gap", applied.Conversation.Messages[^1].Class);
+        }
+
+        [Fact]
+        public async Task SendTurn_RecoveryWhenAllSaved_TwoVenues_IsFeedbackGapWithVenueLabels()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var soho = await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+            await SeedFeedbackAsync(
+                camden,
+                DateTime.UtcNow.AddHours(-5),
+                guestName: "Pat Guest"
+            );
+            await SeedFeedbackAsync(
+                soho,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Alex Guest"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                AllSendRequest("Draft a recovery response")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Contains("Pat Guest", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Camden", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Alex Guest", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Soho", answer.Body, StringComparison.Ordinal);
+            Assert.Contains(" · ", answer.Body, StringComparison.Ordinal);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+            Assert.Equal("all", ok.Conversation.AnalysisScope.ScopeKind);
+        }
+
+        [Fact]
+        public async Task SendTurn_LatestNegativeOnThisLocationWhenAllSaved_BindsNewestAcrossVenues()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var soho = await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+            await SeedFeedbackAsync(
+                camden,
+                DateTime.UtcNow.AddHours(-5),
+                guestName: "Pat Guest"
+            );
+            await SeedFeedbackAsync(
+                soho,
+                DateTime.UtcNow.AddHours(-1),
+                guestName: "Alex Guest"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                AllSendRequest(
+                    "Draft a recovery response for the last negative feedback on this location"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.NotNull(ok.Conversation.PendingRecoveryDraft);
+            var alex = await _context.Feedbacks.SingleAsync(
+                row => row.GuestName == "Alex Guest"
+            );
+            Assert.Equal(alex.Id, ok.Conversation.PendingRecoveryDraft!.FeedbackId);
+            Assert.Equal("all", ok.Conversation.AnalysisScope.ScopeKind);
+            Assert.Null(ok.Conversation.AnalysisScope.OwnedLocationId);
+        }
+
+        [Fact]
+        public async Task SendTurn_RecoveryUnionReadFailWhenAllSaved_IsFailureNotSubset()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+            await SeedFeedbackAsync(
+                camden,
+                DateTime.UtcNow.AddHours(-1),
+                guestName: "Pat Guest"
+            );
+            _retrieve.FailNext = true;
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                AllSendRequest("Draft a recovery response")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("failure", ok.Conversation.Messages[^1].Class);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+        }
+
+        [Fact]
         public async Task SendTurn_StoresScopeSnapshotOnEachUserSend()
         {
             var first = await SeedLocationAsync(ownerUserId: 7, "Camden");
@@ -7437,6 +7678,17 @@ namespace TummlyBackend.Tests.Services
                 },
             };
 
+        private static SendAssistantTurnRequest AllSendRequest(
+            string message,
+            int? conversationId = null
+        )
+            => new()
+            {
+                ConversationId = conversationId,
+                Message = message,
+                AnalysisScope = AllOwnedLocationsScope(),
+            };
+
         private static AssistantAnalysisScopeDto AllOwnedLocationsScope()
             => new()
             {
@@ -7928,6 +8180,48 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             )
             {
+                return RetrieveCoreAsync(
+                    ownedLocationId,
+                    fromUtc,
+                    toUtc,
+                    () => _inner.RetrieveAsync(
+                        ownedLocationId,
+                        fromUtc,
+                        toUtc,
+                        cancellationToken
+                    )
+                );
+            }
+
+            public Task<AssistantFeedbackRetrieveResult> RetrieveIdentityAsync(
+                int ownedLocationId,
+                string locationName,
+                DateTime fromUtc,
+                DateTime toUtc,
+                CancellationToken cancellationToken = default
+            )
+            {
+                return RetrieveCoreAsync(
+                    ownedLocationId,
+                    fromUtc,
+                    toUtc,
+                    () => _inner.RetrieveIdentityAsync(
+                        ownedLocationId,
+                        locationName,
+                        fromUtc,
+                        toUtc,
+                        cancellationToken
+                    )
+                );
+            }
+
+            private Task<AssistantFeedbackRetrieveResult> RetrieveCoreAsync(
+                int ownedLocationId,
+                DateTime fromUtc,
+                DateTime toUtc,
+                Func<Task<AssistantFeedbackRetrieveResult>> inner
+            )
+            {
                 Calls.Add((ownedLocationId, fromUtc, toUtc));
                 AfterRetrieve?.Invoke(ownedLocationId);
                 if (FailAll
@@ -7940,12 +8234,7 @@ namespace TummlyBackend.Tests.Services
                     );
                 }
 
-                return _inner.RetrieveAsync(
-                    ownedLocationId,
-                    fromUtc,
-                    toUtc,
-                    cancellationToken
-                );
+                return inner();
             }
         }
 

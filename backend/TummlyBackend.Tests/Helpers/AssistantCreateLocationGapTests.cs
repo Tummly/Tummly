@@ -140,6 +140,58 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void UnnamedCreate_WhenAnalysisScopeIdIsNull_IsLocationGapWithoutListingVenues()
+        {
+            var outcome = AssistantCreateLocationGap.Resolve(
+                "Draft an Email Campaign to bring back all currently Email-eligible guests",
+                analysisScopeLocationId: null,
+                "All Locations",
+                Two()
+            );
+
+            var gap = Assert.IsType<AssistantLocationGapOutcome.Gap>(outcome);
+            Assert.Equal(AssistantCreateLocationGap.KindAll, gap.Kind);
+            Assert.Empty(gap.Options);
+            Assert.Equal(
+                "Which Owned location should this Campaign Draft use? Name one.",
+                gap.Body
+            );
+            Assert.DoesNotContain("Camden", gap.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Soho", gap.Body, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void UniqueName_WhenAnalysisScopeIdIsNull_BindsAndDoesNotConflict()
+        {
+            var outcome = AssistantCreateLocationGap.Resolve(
+                CanonicalAtCamden,
+                analysisScopeLocationId: null,
+                "All Locations",
+                Two()
+            );
+
+            var unique = Assert.IsType<AssistantLocationGapOutcome.Unique>(outcome);
+            Assert.Equal(Camden.Id, unique.LocationId);
+            Assert.Equal("Camden", unique.LocationName);
+        }
+
+        [Fact]
+        public void EverywhereCreate_WhenAnalysisScopeIdIsNull_IsLocationGap()
+        {
+            var outcome = AssistantCreateLocationGap.Resolve(
+                "Create a campaign everywhere",
+                analysisScopeLocationId: null,
+                "All Locations",
+                Two()
+            );
+
+            var gap = Assert.IsType<AssistantLocationGapOutcome.Gap>(outcome);
+            Assert.Equal(AssistantCreateLocationGap.KindAll, gap.Kind);
+            Assert.Empty(gap.Options);
+            Assert.DoesNotContain("Soho", gap.Body, StringComparison.Ordinal);
+        }
+
+        [Fact]
         public void UniqueNameAsChoice_BindsEvenWhenNotAnalysisScope()
         {
             var outcome = AssistantCreateLocationGap.Resolve(
