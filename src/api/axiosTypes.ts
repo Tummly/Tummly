@@ -4,5 +4,7 @@ declare module "axios" {
   export interface AxiosRequestConfig {
     /** Suppress 401 session clear + /login redirect (login-wizard calls). */
     skipAuthRedirect?: boolean
+    /** Internal: one retry after a successful refresh. */
+    _authRetried?: boolean
   }
 }

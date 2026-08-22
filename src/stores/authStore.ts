@@ -11,10 +11,16 @@ const LEGACY_ROLE_KEY = "role"
 
 interface AuthState {
   token: string | null
+  refreshToken: string | null
   role: AuthSessionRole | null
   accountType: string | null
   _hasHydrated: boolean
-  setSession: (token: string, role: AuthSessionRole, accountType?: string) => void
+  setSession: (
+    token: string,
+    role: AuthSessionRole,
+    accountType?: string,
+    refreshToken?: string | null
+  ) => void
   clearSession: () => void
   setHasHydrated: (value: boolean) => void
 }
@@ -42,11 +48,27 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       token: null,
+      refreshToken: null,
       role: null,
       accountType: null,
       _hasHydrated: false,
-      setSession: (token, role, accountType) => set({ token, role, accountType: accountType ?? null }),
-      clearSession: () => set({ token: null, role: null, accountType: null }),
+      setSession: (token, role, accountType, refreshToken) =>
+        set((state) => ({
+          token,
+          role,
+          accountType: accountType ?? null,
+          refreshToken:
+            refreshToken === undefined
+              ? state.refreshToken
+              : refreshToken?.trim() || null,
+        })),
+      clearSession: () =>
+        set({
+          token: null,
+          refreshToken: null,
+          role: null,
+          accountType: null,
+        }),
       setHasHydrated: (value) => set({ _hasHydrated: value }),
     }),
     {
@@ -54,6 +76,7 @@ export const useAuthStore = create<AuthState>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         token: state.token,
+        refreshToken: state.refreshToken,
         role: state.role,
         accountType: state.accountType,
       }),
@@ -87,6 +110,11 @@ export function getAuthToken(): string | null {
   return token?.trim() ? token : null
 }
 
+export function getRefreshToken(): string | null {
+  const token = useAuthStore.getState().refreshToken
+  return token?.trim() ? token : null
+}
+
 export function getAuthRole(): AuthSessionRole | null {
   return useAuthStore.getState().role
 }
@@ -104,6 +132,7 @@ export function resetAuthStore() {
   useAuthStore.persist.clearStorage()
   useAuthStore.setState({
     token: null,
+    refreshToken: null,
     role: null,
     accountType: null,
     _hasHydrated: true,

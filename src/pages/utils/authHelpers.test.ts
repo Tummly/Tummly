@@ -52,6 +52,23 @@ describe("parseVerifyOtpResponse", () => {
     })
   })
 
+  it("reads refreshToken from the verify-otp payload", () => {
+    const parsed = parseVerifyOtpResponse({
+      success: true,
+      data: {
+        token: "jwt-token",
+        refreshToken: "refresh-token",
+        accountType: "Single",
+      },
+    })
+
+    expect(parsed).toEqual({
+      token: "jwt-token",
+      accountType: "Single",
+      refreshToken: "refresh-token",
+    })
+  })
+
   it("reads PascalCase fields and deviceToken from the API envelope", () => {
     expect(
       parseVerifyOtpResponse({
@@ -112,11 +129,13 @@ describe("parseTrustSkipLoginResponse", () => {
       parseTrustSkipLoginResponse({
         loginType: "USER",
         token: "jwt-token",
+        refreshToken: "refresh-token",
         accountType: "Single",
         workspaceSetupRequired: false,
       })
     ).toEqual({
       token: "jwt-token",
+      refreshToken: "refresh-token",
       accountType: "Single",
       workspaceSetupRequired: false,
     })
@@ -204,10 +223,11 @@ describe("completeUserSession", () => {
     ).toBe("/login?step=activation-code")
   })
 
-  it("persists session and optional device token", () => {
+  it("persists session, refresh token, and optional device token", () => {
     const path = completeUserSession(
       {
         token: "jwt-token",
+        refreshToken: "refresh-token",
         accountType: "Single",
       },
       "trusted-device-token"
@@ -215,6 +235,7 @@ describe("completeUserSession", () => {
 
     expect(path).toBe("/single-dashboard")
     expect(useAuthStore.getState().token).toBe("jwt-token")
+    expect(useAuthStore.getState().refreshToken).toBe("refresh-token")
     expect(useAuthStore.getState().role).toBe("USER")
     expect(localStorage.getItem(DEVICE_TOKEN_KEY)).toBe("trusted-device-token")
   })

@@ -92,6 +92,10 @@ _Avoid_: First login, first visit
 A browser the operator has opted to remember for 30 days after completing OTP verification. Subsequent Sign-ins from that browser may skip OTP until trust expires.
 _Avoid_: Remember me cookie, device fingerprint
 
+**Refresh token**:
+Opaque Sign-in renewal token issued to an operator with the access JWT. The client uses it to obtain a new access JWT when the 60-minute access token ends, without a new Sign-in. Lifetime is 14 days. Distinct from **Trusted device** (OTP skip) and from the access JWT.
+_Avoid_: device token, session cookie, remember-me token
+
 **Sign-in OTP**:
 The one-time code sent after password validation to confirm the operator's identity. Delivered by email by default; SMS is an alternate channel from the choose-method step.
 _Avoid_: 2FA code, MFA token

@@ -8,6 +8,7 @@ using TummlyBackend.DTOs.Trial;
 using TummlyBackend.Exceptions;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Controllers
 {
@@ -530,6 +531,63 @@ namespace TummlyBackend.Controllers
             }
 
 
+        }
+
+        [AllowAnonymous]
+        [HttpPost("refresh")]
+        public async Task<IActionResult> Refresh(
+            [FromBody] RefreshSessionDto? dto
+        )
+        {
+            try
+            {
+                var result =
+                    await _authService.RefreshSessionAsync(
+                        dto?.RefreshToken ?? string.Empty
+                    );
+
+                return Ok(new
+                {
+                    success = true,
+                    data = result
+                });
+            }
+            catch (ActivationExpiredException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        activationExpired = true,
+                        message = ex.Message
+                    }
+                );
+            }
+            catch (InvalidRefreshTokenException)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = "Invalid refresh token."
+                });
+            }
+        }
+
+        [AllowAnonymous]
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout(
+            [FromBody] RefreshSessionDto? dto
+        )
+        {
+            await _authService.RevokeRefreshTokenAsync(
+                dto?.RefreshToken ?? string.Empty
+            );
+
+            return Ok(new
+            {
+                success = true
+            });
         }
     }
 }

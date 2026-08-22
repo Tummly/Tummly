@@ -30,6 +30,10 @@ namespace TummlyBackend.Interfaces
             SignInContext? signInContext = null
         );
 
+        Task<object> RefreshSessionAsync(string refreshToken);
+
+        Task RevokeRefreshTokenAsync(string refreshToken);
+
         Task<SendOtpResultDto> SendAuthOtpAsync(string email, string purpose);
 
         Task<SendOtpResultDto> SendAuthOtpSmsAsync(string email);
