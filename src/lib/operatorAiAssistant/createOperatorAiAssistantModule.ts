@@ -519,6 +519,7 @@ export function buildEmptyComposerPlaceholders(
   return [
     `Summarise feedback from ${periodPhrase}\u2026`,
     `What needs attention at ${scope.ownedLocationName}?`,
+    `What should I do today at ${scope.ownedLocationName}?`,
     "Draft a quiet-day offer for lunch guests\u2026",
     "Show guests who gave poor feedback but opted in\u2026",
     "Suggest next week\u2019s campaign\u2026",

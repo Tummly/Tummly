@@ -481,6 +481,7 @@ describe("empty-state chips and composer placeholders", () => {
     expect(placeholders).toEqual([
       "Summarise feedback from the last 7 days\u2026",
       "What needs attention at Shoreditch?",
+      "What should I do today at Shoreditch?",
       "Draft a quiet-day offer for lunch guests\u2026",
       "Show guests who gave poor feedback but opted in\u2026",
       "Suggest next week\u2019s campaign\u2026",
@@ -576,6 +577,9 @@ describe("empty-state chips and composer placeholders", () => {
     expect(module.getSnapshot().composerPlaceholders[1]).toBe(
       "What needs attention at Camden?"
     )
+    expect(module.getSnapshot().composerPlaceholders[2]).toBe(
+      "What should I do today at Camden?"
+    )
 
     module.openChangeScope()
     module.setChangeScopeDraftLocation(22)
@@ -594,6 +598,9 @@ describe("empty-state chips and composer placeholders", () => {
     )
     expect(module.getSnapshot().composerPlaceholders[1]).toBe(
       "What needs attention at Shoreditch?"
+    )
+    expect(module.getSnapshot().composerPlaceholders[2]).toBe(
+      "What should I do today at Shoreditch?"
     )
 
     module.setComposerDraft("Keep this draft")

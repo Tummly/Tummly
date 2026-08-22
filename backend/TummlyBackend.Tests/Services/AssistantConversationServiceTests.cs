@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -6,6 +7,7 @@ using TummlyBackend.DTOs.Admin;
 using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.DTOs.Campaigns;
 using TummlyBackend.DTOs.Offers;
+using TummlyBackend.DTOs.OperatorHome;
 using TummlyBackend.DTOs.OwnedLocation;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -27,6 +29,8 @@ namespace TummlyBackend.Tests.Services
         private readonly RecordingAssistantProgressPublisher _progress;
         private readonly FakeCampaignMessageDraftProvider _messageDrafts;
         private readonly FakeFeedbackRecoveryDraftProvider _recoveryDrafts;
+        private readonly ControllableHomeRecommendation _homeRecommendation;
+        private readonly ControllableWeeklyBriefGenerate _weeklyBriefGenerate;
         private readonly AssistantConversationService _service;
 
         public AssistantConversationServiceTests()
@@ -65,6 +69,8 @@ namespace TummlyBackend.Tests.Services
             _progress = new RecordingAssistantProgressPublisher();
             _messageDrafts = new FakeCampaignMessageDraftProvider();
             _recoveryDrafts = new FakeFeedbackRecoveryDraftProvider();
+            _homeRecommendation = new ControllableHomeRecommendation();
+            _weeklyBriefGenerate = new ControllableWeeklyBriefGenerate();
             _service = CreateConversationService();
         }
 
@@ -95,7 +101,16 @@ namespace TummlyBackend.Tests.Services
                 eligibility ?? new CampaignEligibilityService(_context),
                 new CampaignMessageDraftService(_messageDrafts),
                 catalog,
-                new FeedbackRecoveryDraftsService(_context, _recoveryDrafts)
+                new FeedbackRecoveryDraftsService(_context, _recoveryDrafts),
+                new AssistantAttentionRetrieve(
+                    _context,
+                    new FeedbackInboxListService(_context),
+                    new CampaignsListService(_context),
+                    catalog,
+                    new EmptyOfferVoidRequestService(),
+                    _homeRecommendation,
+                    _weeklyBriefGenerate
+                )
             );
         }
 
@@ -6456,6 +6471,363 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(_guestsRetrieve.Calls);
         }
 
+        [Fact]
+        public async Task SendTurn_ShowWhatNeedsAttention_IsAttentionRetrieveNotFeedbackSummarise()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _retrieve.FailNext = true;
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Show what needs attention")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal("Nothing needs attention at Camden", answer.Title);
+            Assert.Contains(
+                AssistantAttentionCopy.NeedsAttentionEmpty,
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("now-queue", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("## Recommendation", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("## Interpretation", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("## Data", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+            Assert.Empty(_retrieve.Calls);
+            Assert.Equal(0, _homeRecommendation.CallCount);
+            Assert.Equal(0, _weeklyBriefGenerate.CallCount);
+        }
+
+        [Fact]
+        public async Task SendTurn_NeedsAttention_ListsHomeItemsAndKindLevelActions()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddMinutes(-12));
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddMinutes(-20),
+                comment: "Cold chips"
+            );
+            _context.Campaigns.Add(
+                new Campaign
+                {
+                    RestaurantLocationId = locationId,
+                    Status = "failed",
+                    Name = "Weekend SMS blast",
+                    GoalId = "thank-recent-guests",
+                    Channel = "sms",
+                    OfferStance = "no-offer",
+                    CreatedAt = DateTime.UtcNow.AddHours(-1),
+                    UpdatedAt = DateTime.UtcNow.AddHours(-1),
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "What needs attention?")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("2 items need attention at Camden", answer.Title);
+            Assert.Contains(
+                "2 feedback items need attention",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                AssistantHomeNeedsAttention.FeedbackBody,
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("Weekend SMS blast", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("This campaign failed.", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("View all", answer.Body, StringComparison.Ordinal);
+            Assert.Equal(2, answer.Actions.Count);
+            Assert.Equal("view-feedback-set", answer.Actions[0].Type);
+            Assert.Equal("needs-attention", answer.Actions[0].Tab);
+            Assert.Equal(2, answer.Actions[0].Count);
+            Assert.Equal("view-campaigns", answer.Actions[1].Type);
+            Assert.Equal("Open Campaigns", answer.Actions[1].Label);
+            Assert.DoesNotContain(answer.Actions, action => action.Type == "prepare-recovery");
+            Assert.DoesNotContain(answer.Actions, action => action.Type == "review-campaign");
+            Assert.Empty(_retrieve.Calls);
+        }
+
+        [Fact]
+        public async Task SendTurn_WhatShouldIDoToday_UsesReportingPeriodAndOmitsReviewCampaign()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _homeRecommendation.Recommendation = new HomeRecommendationDto
+            {
+                Type = "thank-recent-guests",
+                Title = "Thank recent guests",
+                Opportunity = "Guests joined this week.",
+                WhyBullets = ["Recent joiners have not had a thank-you"],
+            };
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "What should I do today?")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("Thank recent guests", answer.Title);
+            Assert.Contains("## Data", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("## Recommendation", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Reporting period", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("the last 7 days", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Thank recent guests", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(1, _homeRecommendation.CallCount);
+            Assert.NotNull(_homeRecommendation.LastRequest);
+            Assert.Equal(locationId, _homeRecommendation.LastRequest!.LocationId);
+            Assert.Equal("last7", _homeRecommendation.LastRequest.OverviewDatePreset);
+            Assert.NotNull(_homeRecommendation.LastRequest.From);
+            Assert.NotNull(_homeRecommendation.LastRequest.To);
+            Assert.Equal(0, _weeklyBriefGenerate.CallCount);
+            Assert.Empty(_retrieve.Calls);
+        }
+
+        [Fact]
+        public async Task SendTurn_WhatShouldIDoToday_None_HasNoActions()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _homeRecommendation.Recommendation = new HomeRecommendationDto
+            {
+                Type = "none",
+            };
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "What should I do next")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Contains(
+                AssistantAttentionCopy.RecommendationNone,
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain("## Data", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+        }
+
+        [Fact]
+        public async Task SendTurn_WhatShouldIDoToday_LoadError_UsesHomeErrorString()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _homeRecommendation.FailNext = true;
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "What should I do today?")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Contains(
+                AssistantAttentionCopy.RecommendationLoadError,
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                AssistantAttentionCopy.RetryThisSend,
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Empty(answer.Actions);
+        }
+
+        [Fact]
+        public async Task SendTurn_ReviewOpenFeedbackToday_MapsViewFeedbackSet()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _homeRecommendation.Recommendation = new HomeRecommendationDto
+            {
+                Type = "review-open-feedback",
+                Title = "Review open feedback",
+                Opportunity = "Guests left feedback that still needs a response.",
+                Action = new HomeRecommendationDomainActionDto
+                {
+                    Kind = "open-feedback",
+                },
+            };
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "What should I do today at Camden?")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var action = Assert.Single(ok.Conversation.Messages[^1].Actions);
+            Assert.Equal("view-feedback-set", action.Type);
+            Assert.NotEqual("needs-attention", action.Tab);
+        }
+
+        [Fact]
+        public async Task SendTurn_WeeklyBrief_PresentsStoredBodyWithoutActions()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var closedWeek = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                DateTime.UtcNow
+            );
+            var body = new WeeklyBriefBody(
+                Headline: "Quiet week at Camden",
+                Capture: new WeeklyBriefSection(true, "12 guests joined.", null),
+                Feedback: new WeeklyBriefSection(true, "Feedback was mixed.", null),
+                Offers: new WeeklyBriefSection(false, "No offer movement.", null),
+                Campaigns: new WeeklyBriefSection(false, "No campaigns sent.", null),
+                WatchNext: ["Watch lunch covers", "Watch Friday SMS"]
+            );
+            _context.WeeklyBriefs.Add(
+                new WeeklyBrief
+                {
+                    LocationId = locationId,
+                    WeekKey = closedWeek.WeekKey,
+                    Status = WeeklyBriefStatus.Succeeded,
+                    GeneratedAtUtc = DateTime.UtcNow,
+                    BodyJson = JsonSerializer.Serialize(body, WeeklyBriefStoreJson.Options),
+                    MetricsJson = "{}",
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "weekly brief")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("Quiet week at Camden", answer.Title);
+            Assert.Contains("## Data", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Watch lunch covers", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("## Recommendation", answer.Body, StringComparison.Ordinal);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(0, _weeklyBriefGenerate.CallCount);
+            Assert.Equal(0, _homeRecommendation.CallCount);
+        }
+
+        [Fact]
+        public async Task SendTurn_WeeklyBriefMissing_UsesHomeEmptyCopy()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _weeklyBriefGenerate.Mode = WeeklyBriefGenerateMode.Empty;
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "watch next")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Contains(
+                AssistantAttentionCopy.WeeklyBriefEmptyTitle,
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                AssistantAttentionCopy.WeeklyBriefEmptyHelper,
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Empty(answer.Actions);
+            Assert.Equal(1, _weeklyBriefGenerate.CallCount);
+        }
+
+        [Fact]
+        public async Task SendTurn_MixFocusToday_NamesEmptyRecommendation()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddMinutes(-5));
+            _homeRecommendation.Recommendation = new HomeRecommendationDto
+            {
+                Type = "none",
+            };
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "what should I focus on")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Contains(
+                "1 feedback item needs attention",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                AssistantAttentionCopy.RecommendationNone,
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("## Recommendation", answer.Body, StringComparison.Ordinal);
+            Assert.Equal("view-feedback-set", Assert.Single(answer.Actions).Type);
+            Assert.Equal(1, _homeRecommendation.CallCount);
+        }
+
+        [Fact]
+        public async Task SendTurn_SummariseRecentFeedback_IsNotAttentionRetrieve()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Contains(
+                "nothing to summarise",
+                ok.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+            Assert.NotEmpty(_retrieve.Calls);
+            Assert.Equal(0, _homeRecommendation.CallCount);
+        }
+
+        [Fact]
+        public void AttentionRetrieve_DoesNotDebitAiCredits()
+        {
+            var ctor = typeof(AssistantAttentionRetrieve).GetConstructors().Single();
+            Assert.DoesNotContain(
+                ctor.GetParameters(),
+                parameter =>
+                    parameter.ParameterType.Name.Contains(
+                        "Billing",
+                        StringComparison.Ordinal
+                    )
+                    || parameter.ParameterType.Name.Contains(
+                        "Credit",
+                        StringComparison.Ordinal
+                    )
+            );
+            var conversationCtor = typeof(AssistantConversationService)
+                .GetConstructors()
+                .Single();
+            Assert.DoesNotContain(
+                conversationCtor.GetParameters(),
+                parameter =>
+                    parameter.ParameterType.Name.Contains(
+                        "Billing",
+                        StringComparison.Ordinal
+                    )
+                    || parameter.ParameterType.Name.Contains(
+                        "Credit",
+                        StringComparison.Ordinal
+                    )
+            );
+        }
+
         private static SendAssistantTurnRequest FirstSendRequest(
             int locationId,
             string message,
@@ -6776,6 +7148,150 @@ namespace TummlyBackend.Tests.Services
             _context.LocationGuests.Add(guest);
             await _context.SaveChangesAsync();
             return guest.Id;
+        }
+
+        private enum WeeklyBriefGenerateMode
+        {
+            Fail,
+            Empty,
+            Succeed,
+        }
+
+        private sealed class ControllableHomeRecommendation : IHomeRecommendationService
+        {
+            public HomeRecommendationDto Recommendation { get; set; } = new()
+            {
+                Type = "none",
+            };
+
+            public bool FailNext { get; set; }
+
+            public int CallCount { get; private set; }
+
+            public HomeRecommendationRequest? LastRequest { get; private set; }
+
+            public Task<HomeRecommendationServiceResult> RecommendAsync(
+                int operatorUserId,
+                HomeRecommendationRequest request,
+                CancellationToken cancellationToken = default
+            )
+            {
+                CallCount++;
+                LastRequest = request;
+                if (FailNext)
+                {
+                    FailNext = false;
+                    return Task.FromResult<HomeRecommendationServiceResult>(
+                        new HomeRecommendationServiceResult.Failed(
+                            AssistantAttentionCopy.RecommendationLoadError,
+                            true
+                        )
+                    );
+                }
+
+                return Task.FromResult<HomeRecommendationServiceResult>(
+                    new HomeRecommendationServiceResult.Ok(Recommendation)
+                );
+            }
+        }
+
+        private sealed class ControllableWeeklyBriefGenerate : IWeeklyBriefGenerateService
+        {
+            public WeeklyBriefGenerateMode Mode { get; set; } =
+                WeeklyBriefGenerateMode.Fail;
+
+            public int CallCount { get; private set; }
+
+            public Task<WeeklyBriefGenerateResult> GenerateAsync(
+                int locationId,
+                WeeklyBriefClosedWeek closedWeek,
+                CancellationToken cancellationToken = default
+            )
+            {
+                CallCount++;
+                if (Mode == WeeklyBriefGenerateMode.Empty)
+                {
+                    return Task.FromResult<WeeklyBriefGenerateResult>(
+                        new WeeklyBriefGenerateResult.Succeeded(
+                            new WeeklyBrief
+                            {
+                                LocationId = locationId,
+                                WeekKey = closedWeek.WeekKey,
+                                Status = WeeklyBriefStatus.Succeeded,
+                                GeneratedAtUtc = DateTime.UtcNow,
+                                BodyJson = "",
+                                MetricsJson = "{}",
+                            },
+                            Created: false
+                        )
+                    );
+                }
+
+                return Task.FromResult<WeeklyBriefGenerateResult>(
+                    new WeeklyBriefGenerateResult.Failed(
+                        AssistantAttentionCopy.WeeklyBriefLoadError,
+                        true
+                    )
+                );
+            }
+        }
+
+        private sealed class EmptyOfferVoidRequestService : IOfferVoidRequestService
+        {
+            public Task<IReadOnlyList<OpenVoidAttentionOfferDto>> ListOpenAttentionAsync(
+                int locationId,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult<IReadOnlyList<OpenVoidAttentionOfferDto>>([]);
+
+            public Task<OfferVoidCreateResult> CreateAsync(
+                int userId,
+                CreateOfferVoidRequestBody body,
+                DateTime atUtc,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotSupportedException();
+
+            public Task<OfferVoidOutcomeResult> ApproveAsync(
+                int userId,
+                int requestId,
+                DateTime atUtc,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotSupportedException();
+
+            public Task<OfferVoidOutcomeResult> RejectAsync(
+                int userId,
+                int requestId,
+                DateTime atUtc,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotSupportedException();
+
+            public Task<OfferVoidRequestDetailDto?> GetDetailAsync(
+                int requestId,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotSupportedException();
+
+            public Task<OfferDetailsVoidRequestsListDto?> ListForOfferAsync(
+                int offerId,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotSupportedException();
+
+            public Task NotifyApproversAsync(
+                int requestId,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotSupportedException();
+
+            public Task NotifySubmitterAsync(
+                int requestId,
+                string outcome,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotSupportedException();
         }
 
         private sealed class ControllableFeedbackRetrieve : IAssistantFeedbackRetrieve

@@ -136,6 +136,17 @@ namespace TummlyBackend.Services
                 }
             }
 
+            if (AssistantAttentionAsk.IsAttentionRetrieve(input.UserMessage))
+            {
+                return new AssistantLiveAnswerResult.Succeeded(
+                    AssistantMessageClass.Grounded,
+                    "Attention Retrieve",
+                    "Attention Retrieve.",
+                    [],
+                    AssistantTask.Retrieve
+                );
+            }
+
             var productTopics = AssistantProductExpertTopics.Detect(input.UserMessage);
             if (productTopics.Count > 0
                 && !AssistantAskIntent.IsHelpCentreAsk(input.UserMessage)

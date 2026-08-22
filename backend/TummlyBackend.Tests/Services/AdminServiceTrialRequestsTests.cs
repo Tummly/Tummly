@@ -77,7 +77,8 @@ namespace TummlyBackend.Tests.Services
                     new FeedbackRecoveryDraftsService(
                         _context,
                         new FakeFeedbackRecoveryDraftProvider()
-                    )
+                    ),
+                    new UnusedAssistantAttentionRetrieve()
                 )
             );
         }

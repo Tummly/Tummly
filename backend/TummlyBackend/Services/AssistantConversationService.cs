@@ -31,6 +31,7 @@ namespace TummlyBackend.Services
         private readonly ICampaignMessageDraftService _campaignMessageDrafts;
         private readonly IOffersCatalogService _offersCatalog;
         private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
+        private readonly IAssistantAttentionRetrieve _attentionRetrieve;
 
         public AssistantConversationService(
             ApplicationDbContext context,
@@ -47,7 +48,8 @@ namespace TummlyBackend.Services
             ICampaignEligibilityService campaignEligibility,
             ICampaignMessageDraftService campaignMessageDrafts,
             IOffersCatalogService offersCatalog,
-            IFeedbackRecoveryDraftsService recoveryDrafts
+            IFeedbackRecoveryDraftsService recoveryDrafts,
+            IAssistantAttentionRetrieve attentionRetrieve
         )
         {
             _context = context;
@@ -65,6 +67,7 @@ namespace TummlyBackend.Services
             _campaignMessageDrafts = campaignMessageDrafts;
             _offersCatalog = offersCatalog;
             _recoveryDrafts = recoveryDrafts;
+            _attentionRetrieve = attentionRetrieve;
         }
 
         public async Task<AssistantTurnOutcome> SendTurnAsync(
@@ -704,6 +707,25 @@ namespace TummlyBackend.Services
                 {
                     return sendScheduleTurn;
                 }
+            }
+
+            var attentionSurface = AssistantAttentionAsk.Detect(userMessage);
+            if (attentionSurface != AssistantAttentionSurface.None
+                && gapState is null
+                && compareOutcome is AssistantCompareOutcome.NotCompare
+                && !AssistantAskIntent.IsHelpCentreAsk(userMessage)
+                && !AssistantTaskClassification.LooksLikeCreateCampaignDraft(userMessage)
+                && !AssistantTaskClassification.LooksLikeOfferPath(userMessage)
+                && !AssistantTaskClassification.LooksLikeRecoveryPath(userMessage))
+            {
+                return await FinishAttentionRetrieveAsync(
+                    conversation,
+                    attentionSurface,
+                    locationName,
+                    scope.ReportingPeriod,
+                    replaceFailure,
+                    cancellationToken
+                );
             }
 
             var periodPhrase = AssistantAnalysisScope.PeriodPhrase(scope.ReportingPeriod);
@@ -4124,6 +4146,44 @@ namespace TummlyBackend.Services
                         && conversation.OwnerUserId == ownerUserId,
                     cancellationToken
                 );
+        }
+
+        private async Task<AssistantTurnOutcome> FinishAttentionRetrieveAsync(
+            AssistantConversation conversation,
+            AssistantAttentionSurface surface,
+            string locationName,
+            AssistantReportingPeriodDto reportingPeriod,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken
+        )
+        {
+            conversation.LastCompareLocationIdsJson = null;
+            await TryPublishProgressAsync(
+                conversation.OwnerUserId,
+                conversation.Id,
+                AssistantTurnProgressSteps.Retrieving,
+                cancellationToken
+            );
+            var presented = await _attentionRetrieve.PresentAsync(
+                surface,
+                conversation.OwnerUserId,
+                conversation.OwnedLocationId,
+                locationName,
+                reportingPeriod,
+                cancellationToken
+            );
+            return await PersistAssistantAsync(
+                conversation,
+                GroundedMessage(
+                    DateTime.UtcNow,
+                    presented.Title,
+                    presented.Body,
+                    presented.Actions
+                ),
+                replaceFailure,
+                cancellationToken,
+                liveAnswerAlreadyCompleted: true
+            );
         }
 
         private static AssistantMessage FailureMessage(DateTime createdAt)
