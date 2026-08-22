@@ -591,9 +591,14 @@ namespace TummlyBackend.Helpers
             IReadOnlyList<AssistantOwnedLocationRef> ownedLocations
         )
         {
+            if (savedLocationId is not int savedId)
+            {
+                return null;
+            }
+
             foreach (var location in ownedLocations.OrderByDescending(item => item.Name.Length))
             {
-                if (savedLocationId is int savedId && location.Id == savedId)
+                if (location.Id == savedId)
                 {
                     continue;
                 }

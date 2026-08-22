@@ -234,6 +234,19 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void MentionWithoutCompare_AllOwnedLocations_IsNotCaveat()
+        {
+            var outcome = AssistantCompareTurn.Resolve(
+                "How is Soho doing?",
+                savedLocationId: null,
+                Three(),
+                null,
+                isSingleMode: false
+            );
+            Assert.IsType<AssistantCompareOutcome.NotCompare>(outcome);
+        }
+
+        [Fact]
         public void SingleMode_TypedCompare_IsSingleCaveat()
         {
             var outcome = AssistantCompareTurn.Resolve(

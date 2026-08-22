@@ -444,6 +444,40 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_AllOwnedLocations_NamedOwnedVenue_IsNotMentionCaveat()
+        {
+            var first = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Shoreditch");
+            var created = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(first, "Summarise recent feedback")
+            );
+            var conversationId = Assert.IsType<AssistantTurnOutcome.Ok>(created).Conversation.Id;
+            await _service.ApplyScopeAsync(
+                ownerUserId: 7,
+                conversationId,
+                AllOwnedLocationsScopeRequest()
+            );
+
+            var continued = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                new SendAssistantTurnRequest
+                {
+                    ConversationId = conversationId,
+                    Message = "How is Shoreditch doing?",
+                    AnalysisScope = AllOwnedLocationsScope(),
+                }
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(continued);
+            Assert.DoesNotContain(
+                "not a Compare turn",
+                ok.Conversation.Messages[^1].Body
+            );
+            Assert.Equal("All Locations", ok.Conversation.AnalysisScope.OwnedLocationName);
+        }
+
+        [Fact]
         public async Task SendTurn_StoresScopeSnapshotOnEachUserSend()
         {
             var first = await SeedLocationAsync(ownerUserId: 7, "Camden");
