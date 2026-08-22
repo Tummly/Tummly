@@ -1595,6 +1595,13 @@ describe("createOperatorOffersPageModule", () => {
       locations: [{ id: 7, locationName: "Manchester" }],
     })
 
+    expect(listCatalogOffers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        view: "needs-attention",
+        utcOffsetMinutes: 0,
+      })
+    )
+
     const needsAttention = pageModule.getSnapshot().viewModel?.needsAttention
     expect(needsAttention?.isEmpty).toBe(false)
     expect(needsAttention?.showViewAll).toBe(false)

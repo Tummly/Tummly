@@ -769,12 +769,14 @@ export function createOperatorOffersPageModule(
     })
 
   const loadAttentionFacts = async (locationId: number) => {
+    const { utcOffsetMinutes } = readOverviewClock()
     const [attentionResponse, openVoids] = await Promise.all([
       adapters.listCatalogOffers({
         locationId,
         view: "needs-attention",
         page: 1,
         pageSize: OFFERS_PAGE_SIZE,
+        utcOffsetMinutes,
       }),
       adapters.listOpenVoidAttention?.(locationId) ?? Promise.resolve([]),
     ])
