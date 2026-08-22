@@ -83,7 +83,6 @@ export type OperatorAiAssistantApi = {
   setChangeScopeDraftReportingPeriod: OperatorAiAssistantModule["setChangeScopeDraftReportingPeriod"]
   cancelChangeScope: OperatorAiAssistantModule["cancelChangeScope"]
   applyChangeScope: OperatorAiAssistantModule["applyChangeScope"]
-  onOwnedLocationSwitcherChange: OperatorAiAssistantModule["onOwnedLocationSwitcherChange"]
   setComposerDraft: OperatorAiAssistantModule["setComposerDraft"]
   fillComposerFromChip: OperatorAiAssistantModule["fillComposerFromChip"]
   send: OperatorAiAssistantModule["send"]
@@ -279,7 +278,6 @@ export function useAiAssistantModule(
     setChangeScopeDraftReportingPeriod: assistant.setChangeScopeDraftReportingPeriod,
     cancelChangeScope: assistant.cancelChangeScope,
     applyChangeScope: assistant.applyChangeScope,
-    onOwnedLocationSwitcherChange: assistant.onOwnedLocationSwitcherChange,
     setComposerDraft: assistant.setComposerDraft,
     fillComposerFromChip: assistant.fillComposerFromChip,
     send: assistant.send,

@@ -1395,7 +1395,7 @@ function upsertListItem(
   return [toListItemFromConversation(row), ...without]
 }
 
-function analysisLocationChanged(
+function analysisOwnedLocationChanged(
   saved: OperatorAiAssistantAnalysisScope,
   next: OperatorAiAssistantAnalysisScope
 ): boolean {
@@ -2215,7 +2215,7 @@ export function createOperatorAiAssistantModule(
           }
         }
       }
-      if (analysisLocationChanged(savedScope, nextScope)) {
+      if (analysisOwnedLocationChanged(savedScope, nextScope)) {
         beginNewChat(nextScope)
         return
       }
