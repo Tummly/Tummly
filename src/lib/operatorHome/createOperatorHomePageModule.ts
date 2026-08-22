@@ -895,7 +895,14 @@ export function createOperatorHomePageModule(
     publish()
   }
 
-  const loadWeeklyBrief = async () => {
+  /**
+   * GET current closed week; if missing, soft-load while lazy generate runs, then re-GET.
+   * Default week from GET is already the closed prior week (Monday started) — always eligible.
+   * Keep `empty` through the first GET on a cold load so a ready brief does not flash a spinner.
+   */
+  const runWeeklyBriefLoad = async (options?: {
+    showLoadingImmediately?: boolean
+  }) => {
     const workspace = state.workspace
     const selectedLocationId = workspace?.selectedLocationId
     if (workspace == null || selectedLocationId == null) {
@@ -904,10 +911,13 @@ export function createOperatorHomePageModule(
 
     const generation = weeklyBriefGeneration + 1
     weeklyBriefGeneration = generation
-    patchWeeklyBrief({
-      ...emptyWeeklyBrief(),
-      status: "loading",
-    })
+
+    if (options?.showLoadingImmediately === true) {
+      patchWeeklyBrief({
+        ...emptyWeeklyBrief(),
+        status: "loading",
+      })
+    }
 
     try {
       const first = await adapters.getWeeklyBrief(selectedLocationId)
@@ -920,7 +930,12 @@ export function createOperatorHomePageModule(
         return
       }
 
-      // Soft loading while lazy generate runs — keep status loading.
+      // Missing after closed week is due — soft loading while lazy generate runs.
+      patchWeeklyBrief({
+        ...emptyWeeklyBrief(),
+        status: "loading",
+      })
+
       const generated = await adapters.generateWeeklyBrief(selectedLocationId)
       if (generation !== weeklyBriefGeneration) {
         return
@@ -946,12 +961,6 @@ export function createOperatorHomePageModule(
         return
       }
 
-      // Generate claimed success but re-GET still missing — use generate body if ready.
-      if (generated.ready) {
-        patchWeeklyBrief(mapReadyWeeklyBrief(generated))
-        return
-      }
-
       patchWeeklyBrief(
         weeklyBriefErrorFrom(HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE, true)
       )
@@ -965,74 +974,9 @@ export function createOperatorHomePageModule(
     }
   }
 
-  const retryWeeklyBrief = async () => {
-    const workspace = state.workspace
-    const selectedLocationId = workspace?.selectedLocationId
-    if (workspace == null || selectedLocationId == null) {
-      return
-    }
-
-    const generation = weeklyBriefGeneration + 1
-    weeklyBriefGeneration = generation
-    patchWeeklyBrief({
-      ...emptyWeeklyBrief(),
-      status: "loading",
-    })
-
-    try {
-      const first = await adapters.getWeeklyBrief(selectedLocationId)
-      if (generation !== weeklyBriefGeneration) {
-        return
-      }
-
-      if (first.success && first.ready) {
-        patchWeeklyBrief(mapReadyWeeklyBrief(first))
-        return
-      }
-
-      // Still missing — generate again, then re-GET.
-      const generated = await adapters.generateWeeklyBrief(selectedLocationId)
-      if (generation !== weeklyBriefGeneration) {
-        return
-      }
-
-      if (!generated.success) {
-        patchWeeklyBrief(
-          weeklyBriefErrorFrom(
-            generated.message,
-            generated.retryable !== false
-          )
-        )
-        return
-      }
-
-      const second = await adapters.getWeeklyBrief(selectedLocationId)
-      if (generation !== weeklyBriefGeneration) {
-        return
-      }
-
-      if (second.success && second.ready) {
-        patchWeeklyBrief(mapReadyWeeklyBrief(second))
-        return
-      }
-
-      if (generated.ready) {
-        patchWeeklyBrief(mapReadyWeeklyBrief(generated))
-        return
-      }
-
-      patchWeeklyBrief(
-        weeklyBriefErrorFrom(HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE, true)
-      )
-    } catch {
-      if (generation !== weeklyBriefGeneration) {
-        return
-      }
-      patchWeeklyBrief(
-        weeklyBriefErrorFrom(HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE, true)
-      )
-    }
-  }
+  const loadWeeklyBrief = () => runWeeklyBriefLoad()
+  const retryWeeklyBrief = () =>
+    runWeeklyBriefLoad({ showLoadingImmediately: true })
 
   const loadRecommendation = async (options?: { refresh?: boolean }) => {
     const workspace = state.workspace

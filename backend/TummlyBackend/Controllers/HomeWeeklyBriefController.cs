@@ -101,13 +101,11 @@ namespace TummlyBackend.Controllers
         }
 
         /// <summary>
-        /// Lazy generate for the closed prior week (Home). Optional <c>week</c>
-        /// must match the current closed prior week key when provided.
+        /// Lazy generate for the current closed prior week (Home — no week picker).
         /// </summary>
         [HttpPost("generate")]
         public async Task<IActionResult> GenerateWeeklyBrief(
             [FromQuery] int locationId,
-            [FromQuery] string? week = null,
             CancellationToken cancellationToken = default
         )
         {
@@ -139,16 +137,10 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
-            if (
-                !TryResolveClosedWeekForGenerate(
-                    week,
-                    out var closedWeek,
-                    out var weekError
-                )
-            )
-            {
-                return weekError!;
-            }
+            var closedWeek = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                DateTime.UtcNow
+            );
 
             var result = await _generate.GenerateAsync(
                 locationId,
@@ -232,63 +224,6 @@ namespace TummlyBackend.Controllers
                     success = false,
                     message =
                         "week must be an ISO week key in the form yyyy-Www.",
-                });
-                return false;
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// POST generate: omitted week → closed prior; explicit week must match
-        /// that closed prior key (MVP — Home never passes week).
-        /// </summary>
-        private static bool TryResolveClosedWeekForGenerate(
-            string? week,
-            out WeeklyBriefClosedWeek closedWeek,
-            out IActionResult? error
-        )
-        {
-            error = null;
-            closedWeek = WeeklyBriefWeekKey.ForClosedPriorWeek(
-                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
-                DateTime.UtcNow
-            );
-
-            if (string.IsNullOrWhiteSpace(week))
-            {
-                return true;
-            }
-
-            if (
-                !WeeklyBriefWeekKey.TryNormalizeWeekKey(
-                    week,
-                    out var weekKey
-                )
-            )
-            {
-                error = new BadRequestObjectResult(new
-                {
-                    success = false,
-                    message =
-                        "week must be an ISO week key in the form yyyy-Www.",
-                });
-                return false;
-            }
-
-            if (
-                !string.Equals(
-                    weekKey,
-                    closedWeek.WeekKey,
-                    StringComparison.Ordinal
-                )
-            )
-            {
-                error = new BadRequestObjectResult(new
-                {
-                    success = false,
-                    message =
-                        "week must be the current closed prior week.",
                 });
                 return false;
             }

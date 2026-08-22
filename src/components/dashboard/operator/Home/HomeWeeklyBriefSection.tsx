@@ -1,6 +1,9 @@
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
-import type { OperatorHomeWeeklyBriefViewModel } from "@/lib/operatorHome/createOperatorHomePageModule"
+import {
+  HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE,
+  type OperatorHomeWeeklyBriefViewModel,
+} from "@/lib/operatorHome/createOperatorHomePageModule"
 import {
   OPERATOR_HOME_HEADER_COPY_CLASS,
   OPERATOR_HOME_SUBTITLE_CLASS,
@@ -107,8 +110,7 @@ export function HomeWeeklyBriefSection({
       {weeklyBrief.status === "error" ? (
         <div className={WEEKLY_BRIEF_STATUS_SHELL_CLASS}>
           <p className={WEEKLY_BRIEF_ERROR_COPY_CLASS}>
-            {weeklyBrief.errorMessage
-              ?? "Could not load your weekly brief. Please try again."}
+            {weeklyBrief.errorMessage ?? HOME_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE}
           </p>
           {weeklyBrief.errorRetryable ? (
             <Button

@@ -2884,4 +2884,51 @@ describe("createOperatorHomePageModule", () => {
     })
     expect(home.getSnapshot().viewModel).not.toHaveProperty("weeklyBrief")
   })
+
+  it("keeps empty chrome through GET when the brief is already ready", async () => {
+    const gate = Promise.withResolvers<void>()
+    const getWeeklyBrief = vi.fn(async (locationId: number) => {
+      await gate.promise
+      return readyWeeklyBriefResponse(locationId)
+    })
+    const generateWeeklyBrief = vi.fn(async () => {
+      throw new Error("generate should not run")
+    })
+    const home = createOperatorHomePageModule(
+      createAdapters({ getWeeklyBrief, generateWeeklyBrief })
+    )
+
+    const syncPromise = home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(getWeeklyBrief).toHaveBeenCalled()
+    })
+    expect(home.getSnapshot().weeklyBrief.status).toBe("empty")
+
+    gate.resolve()
+    await syncPromise
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().weeklyBrief.status).toBe("ready")
+    })
+    expect(generateWeeklyBrief).not.toHaveBeenCalled()
+  })
+
+  it("errors when generate succeeds but re-GET is still not ready", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) =>
+      notReadyWeeklyBriefResponse(locationId)
+    )
+    const generateWeeklyBrief = vi.fn(async (locationId: number) =>
+      readyWeeklyBriefResponse(locationId)
+    )
+    const home = createOperatorHomePageModule(
+      createAdapters({ getWeeklyBrief, generateWeeklyBrief })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().weeklyBrief.status).toBe("error")
+    })
+    expect(generateWeeklyBrief).toHaveBeenCalledTimes(1)
+    expect(getWeeklyBrief.mock.calls.length).toBeGreaterThanOrEqual(2)
+    expect(home.getSnapshot().weeklyBrief.body).toBeNull()
+  })
 })
