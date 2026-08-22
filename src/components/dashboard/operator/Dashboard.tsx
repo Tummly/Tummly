@@ -90,7 +90,9 @@ function DashboardContent({ mode }: DashboardProps) {
             recoveryDraft,
             campaignDraft,
           })
-      workspace.selectLocation(plan.selectLocationId)
+      if (plan.selectLocationId != null) {
+        workspace.selectLocation(plan.selectLocationId)
+      }
       if (plan.feedbackDateRange) {
         dashboardUiStore
           .getState()

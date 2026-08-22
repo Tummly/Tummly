@@ -82,17 +82,17 @@ namespace TummlyBackend.Services
                 return new AssistantTurnOutcome.Invalid("Message is required.");
             }
 
-            var locationResult = await _ownedLocation.ResolveAsync(
+            var authorized = await TryAuthorizeScopeAsync(
                 ownerUserId,
-                request.AnalysisScope.OwnedLocationId
+                request.AnalysisScope,
+                cancellationToken
             );
-
-            if (locationResult.Status != OwnedLocationResolveStatus.Found)
+            if (authorized.Error is not null)
             {
-                return new AssistantTurnOutcome.LocationDenied(locationResult);
+                return authorized.Error;
             }
 
-            var locationName = locationResult.Location!.LocationName;
+            var locationName = authorized.LocationName;
             AssistantConversation conversation;
 
             if (request.ConversationId is int conversationId)
@@ -195,21 +195,21 @@ namespace TummlyBackend.Services
                 return new AssistantTurnOutcome.Invalid("Send Analysis scope is missing.");
             }
 
-            var locationResult = await _ownedLocation.ResolveAsync(
+            var authorized = await TryAuthorizeScopeAsync(
                 ownerUserId,
-                sendScope.OwnedLocationId
+                sendScope,
+                cancellationToken
             );
-
-            if (locationResult.Status != OwnedLocationResolveStatus.Found)
+            if (authorized.Error is not null)
             {
-                return new AssistantTurnOutcome.LocationDenied(locationResult);
+                return authorized.Error;
             }
 
             return await CompleteTurnAsync(
                 conversation,
                 lastUser.Body,
                 sendScope,
-                locationResult.Location!.LocationName,
+                authorized.LocationName,
                 lastAssistant,
                 cancellationToken
             );
@@ -232,14 +232,27 @@ namespace TummlyBackend.Services
                 return new AssistantTurnOutcome.NotFound();
             }
 
-            var locationResult = await _ownedLocation.ResolveAsync(
-                ownerUserId,
-                conversation.OwnedLocationId
-            );
-
-            if (locationResult.Status != OwnedLocationResolveStatus.Found)
+            if (!AssistantAnalysisScope.IsAll(conversation))
             {
-                return new AssistantTurnOutcome.LocationDenied(locationResult);
+                if (conversation.OwnedLocationId is not int locationId)
+                {
+                    return new AssistantTurnOutcome.LocationDenied(
+                        new OwnedLocationResult
+                        {
+                            Status = OwnedLocationResolveStatus.NotFound
+                        }
+                    );
+                }
+
+                var locationResult = await _ownedLocation.ResolveAsync(
+                    ownerUserId,
+                    locationId
+                );
+
+                if (locationResult.Status != OwnedLocationResolveStatus.Found)
+                {
+                    return new AssistantTurnOutcome.LocationDenied(locationResult);
+                }
             }
 
             return new AssistantTurnOutcome.Ok(
@@ -265,21 +278,21 @@ namespace TummlyBackend.Services
                 return new AssistantTurnOutcome.NotFound();
             }
 
-            var locationResult = await _ownedLocation.ResolveAsync(
+            var authorized = await TryAuthorizeScopeAsync(
                 ownerUserId,
-                request.AnalysisScope.OwnedLocationId
+                request.AnalysisScope,
+                cancellationToken
             );
-
-            if (locationResult.Status != OwnedLocationResolveStatus.Found)
+            if (authorized.Error is not null)
             {
-                return new AssistantTurnOutcome.LocationDenied(locationResult);
+                return authorized.Error;
             }
 
             var lastActivity = conversation.LastActivityAt;
             AssistantAnalysisScope.CopyToConversation(
                 conversation,
                 request.AnalysisScope,
-                locationResult.Location!.LocationName
+                authorized.LocationName
             );
             conversation.LastActivityAt = lastActivity;
             await _context.SaveChangesAsync(cancellationToken);
@@ -617,7 +630,7 @@ namespace TummlyBackend.Services
                 {
                     preparedCampaignBind = await BindCampaignAsync(
                         userMessage,
-                        boundCreateLocationId ?? conversation.OwnedLocationId,
+                        CreatePersistLocationId(boundCreateLocationId, conversation),
                         boundCreateLocationName ?? locationName,
                         ownedLocationIds,
                         cancellationToken,
@@ -641,7 +654,7 @@ namespace TummlyBackend.Services
                         var combinedGap = await TryFinishCombinedCreatePrePersistGapsAsync(
                             conversation,
                             userMessage,
-                            boundCreateLocationId ?? conversation.OwnedLocationId,
+                            CreatePersistLocationId(boundCreateLocationId, conversation),
                             ownedLocationIds,
                             replaceFailure,
                             cancellationToken
@@ -735,7 +748,9 @@ namespace TummlyBackend.Services
             );
             var compareIds = compareOutcome is AssistantCompareOutcome.Compare compare
                 ? compare.LocationIds
-                : (IReadOnlyList<int>)[conversation.OwnedLocationId];
+                : conversation.OwnedLocationId is int savedLocationId
+                    ? (IReadOnlyList<int>)[savedLocationId]
+                    : [];
             var droppedUnknown = compareOutcome is AssistantCompareOutcome.Compare compareDrop
                 ? compareDrop.DroppedUnknownSentence
                 : null;
@@ -886,7 +901,7 @@ namespace TummlyBackend.Services
                     && !productExpertTurn
                     && !AssistantAskIntent.IsHelpCentreAsk(userMessage))
                 {
-                    var persistLocationId = boundCreateLocationId ?? conversation.OwnedLocationId;
+                    var persistLocationId = CreatePersistLocationId(boundCreateLocationId, conversation);
                     var persistLocationName = boundCreateLocationName ?? locationName;
                     var persist = await PersistCreateCampaignWithOfferAsync(
                         conversation,
@@ -926,7 +941,7 @@ namespace TummlyBackend.Services
                     && !productExpertTurn
                     && !AssistantAskIntent.IsHelpCentreAsk(userMessage))
                 {
-                    var persistLocationId = boundCreateLocationId ?? conversation.OwnedLocationId;
+                    var persistLocationId = CreatePersistLocationId(boundCreateLocationId, conversation);
                     var persistLocationName = boundCreateLocationName ?? locationName;
                     var persist = await PersistCreateCampaignDraftAsync(
                         conversation,
@@ -955,7 +970,7 @@ namespace TummlyBackend.Services
                     && !productExpertTurn
                     && !AssistantAskIntent.IsHelpCentreAsk(userMessage))
                 {
-                    var persistLocationId = boundCreateLocationId ?? conversation.OwnedLocationId;
+                    var persistLocationId = CreatePersistLocationId(boundCreateLocationId, conversation);
                     var persistLocationName = boundCreateLocationName ?? locationName;
                     var terms = AssistantOfferPathTerms.Parse(userMessage);
                     var termsGap = await TryFinishOfferTermsGapAsync(
@@ -2643,6 +2658,16 @@ namespace TummlyBackend.Services
                     persist.Actions
                 );
 
+        private static int CreatePersistLocationId(
+            int? boundLocationId,
+            AssistantConversation conversation
+        )
+            => boundLocationId
+                ?? conversation.OwnedLocationId
+                ?? throw new InvalidOperationException(
+                    "Create persist needs one Owned location."
+                );
+
         private AssistantLocationGapOutcome ResolveCreateLocation(
             string userMessage,
             AssistantConversation conversation,
@@ -2806,7 +2831,7 @@ namespace TummlyBackend.Services
                     var persist = await PersistCreateAndStoreAsync(
                         conversation,
                         gapState.SourceUserMessage,
-                        finished.LocationId ?? conversation.OwnedLocationId,
+                        CreatePersistLocationId(finished.LocationId, conversation),
                         finished.LocationName ?? analysisScopeLocationName,
                         updateScope: false,
                         replaceFailure,
@@ -2902,7 +2927,7 @@ namespace TummlyBackend.Services
                 var resumed = await PersistCreateAndStoreAsync(
                     conversation,
                     gapState.SourceUserMessage,
-                    boundFinish.LocationId ?? conversation.OwnedLocationId,
+                    CreatePersistLocationId(boundFinish.LocationId, conversation),
                     boundFinish.LocationName ?? analysisScopeLocationName,
                     updateScope: false,
                     replaceFailure,
@@ -3139,7 +3164,7 @@ namespace TummlyBackend.Services
             var persisted = await PersistCreateAndStoreAsync(
                 conversation,
                 gapState.SourceUserMessage,
-                locationFinish.LocationId ?? conversation.OwnedLocationId,
+                CreatePersistLocationId(locationFinish.LocationId, conversation),
                 locationFinish.LocationName ?? analysisScopeLocationName,
                 updateScope: true,
                 replaceFailure,
@@ -3218,7 +3243,7 @@ namespace TummlyBackend.Services
             var persist = await PersistCreateAndStoreAsync(
                 conversation,
                 sourceUserMessage,
-                finished.LocationId ?? conversation.OwnedLocationId,
+                CreatePersistLocationId(finished.LocationId, conversation),
                 finished.LocationName ?? analysisScopeLocationName,
                 updateScope,
                 replaceFailure,
@@ -3269,7 +3294,7 @@ namespace TummlyBackend.Services
                 return new GapResume(locationFinish.Outcome, null);
             }
 
-            var locationId = locationFinish.LocationId ?? conversation.OwnedLocationId;
+            var locationId = CreatePersistLocationId(locationFinish.LocationId, conversation);
             var locationName = locationFinish.LocationName ?? analysisScopeLocationName;
             if (updateScope && locationId != conversation.OwnedLocationId)
             {
@@ -3532,32 +3557,104 @@ namespace TummlyBackend.Services
             );
         }
 
+        private sealed record ScopeAuthorizeResult(
+            string LocationName,
+            AssistantTurnOutcome? Error
+        );
+
+        private async Task<ScopeAuthorizeResult> TryAuthorizeScopeAsync(
+            int ownerUserId,
+            AssistantAnalysisScopeDto scope,
+            CancellationToken cancellationToken
+        )
+        {
+            if (AssistantAnalysisScope.IsAll(scope))
+            {
+                var owned = await LoadOwnedLocationsAsync(
+                    null,
+                    ownerUserId,
+                    cancellationToken
+                );
+                if (owned.Count == 0)
+                {
+                    return new ScopeAuthorizeResult(
+                        string.Empty,
+                        new AssistantTurnOutcome.LocationDenied(
+                            new OwnedLocationResult
+                            {
+                                Status = OwnedLocationResolveStatus.NotFound
+                            }
+                        )
+                    );
+                }
+
+                return new ScopeAuthorizeResult(
+                    AssistantAnalysisScope.AllLocationsChromeName,
+                    null
+                );
+            }
+
+            if (scope.OwnedLocationId is not int locationId || locationId <= 0)
+            {
+                return new ScopeAuthorizeResult(
+                    string.Empty,
+                    new AssistantTurnOutcome.Invalid("Owned location is required.")
+                );
+            }
+
+            var locationResult = await _ownedLocation.ResolveAsync(
+                ownerUserId,
+                locationId
+            );
+            if (locationResult.Status != OwnedLocationResolveStatus.Found)
+            {
+                return new ScopeAuthorizeResult(
+                    string.Empty,
+                    new AssistantTurnOutcome.LocationDenied(locationResult)
+                );
+            }
+
+            return new ScopeAuthorizeResult(
+                locationResult.Location!.LocationName,
+                null
+            );
+        }
+
         private async Task<IReadOnlyList<OwnedLocationRow>> LoadOwnedLocationsAsync(
-            int savedLocationId,
+            int? savedLocationId,
             int ownerUserId,
             CancellationToken cancellationToken
         )
         {
-            var saved = await _context.RestaurantLocations
-                .AsNoTracking()
-                .Include(location => location.Restaurant)
-                .FirstOrDefaultAsync(
-                    location => location.Id == savedLocationId,
-                    cancellationToken
-                );
-            if (saved?.Restaurant is null || saved.Restaurant.OwnerUserId != ownerUserId)
+            int? restaurantId = null;
+            if (savedLocationId is int savedId)
             {
-                return [];
+                var saved = await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .Include(location => location.Restaurant)
+                    .FirstOrDefaultAsync(
+                        location => location.Id == savedId,
+                        cancellationToken
+                    );
+                if (saved?.Restaurant is null || saved.Restaurant.OwnerUserId != ownerUserId)
+                {
+                    return [];
+                }
+
+                restaurantId = saved.RestaurantId;
             }
 
-            var rows = await _context.RestaurantLocations
+            var query = _context.RestaurantLocations
                 .AsNoTracking()
                 .Include(location => location.Restaurant)
-                .Where(location =>
-                    location.RestaurantId == saved.RestaurantId
-                    && location.Restaurant!.OwnerUserId == ownerUserId
-                )
-                .OrderBy(location => location.Id)
+                .Where(location => location.Restaurant!.OwnerUserId == ownerUserId);
+            if (restaurantId is int scopedRestaurantId)
+            {
+                query = query.Where(location => location.RestaurantId == scopedRestaurantId);
+            }
+
+            var rows = await query
+                .OrderBy(location => location.LocationName)
                 .ToListAsync(cancellationToken);
 
             return rows
@@ -3573,7 +3670,7 @@ namespace TummlyBackend.Services
 
         private async Task<TurnRetrieve?> RetrieveForTurnAsync(
             IReadOnlyList<int> locationIds,
-            int savedLocationId,
+            int? savedLocationId,
             IReadOnlyList<AssistantOwnedLocationRef> locationRefs,
             DateTime fromUtc,
             DateTime toUtc,
@@ -3621,16 +3718,23 @@ namespace TummlyBackend.Services
 
             if (savedEvidence is null)
             {
-                savedEvidence = await RetrieveLocationDomainsAsync(
-                    savedLocationId,
-                    fromUtc,
-                    toUtc,
-                    includeCampaignCopy,
-                    cancellationToken
-                );
-                if (savedEvidence is null)
+                if (savedLocationId is not int savedId)
                 {
-                    return null;
+                    savedEvidence = EmptyEvidence;
+                }
+                else
+                {
+                    savedEvidence = await RetrieveLocationDomainsAsync(
+                        savedId,
+                        fromUtc,
+                        toUtc,
+                        includeCampaignCopy,
+                        cancellationToken
+                    );
+                    if (savedEvidence is null)
+                    {
+                        return null;
+                    }
                 }
             }
 

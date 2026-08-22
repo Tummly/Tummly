@@ -306,6 +306,144 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ApplyScope_AllOwnedLocations_PersistsSentinelAndNullId()
+        {
+            var first = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(
+                ownerUserId: 7,
+                "Shoreditch",
+                captureStatus: CaptureLocationStatus.Paused
+            );
+            var created = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(first, "Summarise recent feedback")
+            );
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(created);
+            var lastActivity = ok.Conversation.LastActivityAt;
+
+            var applied = await _service.ApplyScopeAsync(
+                ownerUserId: 7,
+                ok.Conversation.Id,
+                AllOwnedLocationsScopeRequest()
+            );
+
+            var after = Assert.IsType<AssistantTurnOutcome.Ok>(applied);
+            Assert.Equal("all", after.Conversation.AnalysisScope.ScopeKind);
+            Assert.Null(after.Conversation.AnalysisScope.OwnedLocationId);
+            Assert.Equal("All Locations", after.Conversation.AnalysisScope.OwnedLocationName);
+            Assert.Equal(lastActivity, after.Conversation.LastActivityAt);
+
+            var stored = await _context.AssistantConversations
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == ok.Conversation.Id);
+            Assert.Equal("all", stored.ScopeKind);
+            Assert.Null(stored.OwnedLocationId);
+
+            var got = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.GetAsync(ownerUserId: 7, ok.Conversation.Id)
+            );
+            Assert.Equal("all", got.Conversation.AnalysisScope.ScopeKind);
+            Assert.Null(got.Conversation.AnalysisScope.OwnedLocationId);
+        }
+
+        [Fact]
+        public async Task ApplyScope_AllOwnedLocations_WithZeroId_DoesNotStoreSentinelInteger()
+        {
+            var first = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Shoreditch");
+            var created = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(first, "Summarise recent feedback")
+            );
+            var conversationId = Assert.IsType<AssistantTurnOutcome.Ok>(created).Conversation.Id;
+
+            var applied = await _service.ApplyScopeAsync(
+                ownerUserId: 7,
+                conversationId,
+                new ApplyAssistantScopeRequest
+                {
+                    AnalysisScope = new AssistantAnalysisScopeDto
+                    {
+                        ScopeKind = "all",
+                        OwnedLocationId = 0,
+                        ReportingPeriod = new AssistantReportingPeriodDto
+                        {
+                            Kind = "preset",
+                            PresetId = "last7",
+                        },
+                    },
+                }
+            );
+
+            var after = Assert.IsType<AssistantTurnOutcome.Ok>(applied);
+            Assert.Equal("all", after.Conversation.AnalysisScope.ScopeKind);
+            Assert.Null(after.Conversation.AnalysisScope.OwnedLocationId);
+        }
+
+        [Fact]
+        public async Task SendTurn_AllOwnedLocations_SnapshotsNullIdAndDoesNotReadUnowned()
+        {
+            var first = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(
+                ownerUserId: 7,
+                "Shoreditch",
+                captureStatus: CaptureLocationStatus.Paused
+            );
+            var other = await SeedLocationAsync(ownerUserId: 99, "Soho");
+            var created = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(first, "Summarise recent feedback")
+            );
+            var conversationId = Assert.IsType<AssistantTurnOutcome.Ok>(created).Conversation.Id;
+
+            await _service.ApplyScopeAsync(
+                ownerUserId: 7,
+                conversationId,
+                AllOwnedLocationsScopeRequest()
+            );
+
+            _retrieve.Calls.Clear();
+            _offersRetrieve.Calls.Clear();
+            _campaignsRetrieve.Calls.Clear();
+            _captureRetrieve.Calls.Clear();
+            _homeRetrieve.Calls.Clear();
+            _guestsRetrieve.Calls.Clear();
+
+            var continued = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                new SendAssistantTurnRequest
+                {
+                    ConversationId = conversationId,
+                    Message = "Summarise recent feedback",
+                    AnalysisScope = AllOwnedLocationsScope(),
+                }
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(continued);
+            var lastUser = ok.Conversation.Messages
+                .Last(message => message.Role == "user");
+            Assert.Equal("all", lastUser.AnalysisScope?.ScopeKind);
+            Assert.Null(lastUser.AnalysisScope?.OwnedLocationId);
+            Assert.Equal("All Locations", lastUser.AnalysisScope?.OwnedLocationName);
+            Assert.Equal("All Locations", ok.Conversation.AnalysisScope.OwnedLocationName);
+            Assert.DoesNotContain(
+                _retrieve.Calls,
+                call => call.OwnedLocationId == other
+            );
+
+            var denied = await _service.SendTurnAsync(
+                ownerUserId: 99,
+                new SendAssistantTurnRequest
+                {
+                    ConversationId = conversationId,
+                    Message = "Summarise recent feedback",
+                    AnalysisScope = AllOwnedLocationsScope(),
+                }
+            );
+            Assert.IsType<AssistantTurnOutcome.NotFound>(denied);
+        }
+
+        [Fact]
         public async Task SendTurn_StoresScopeSnapshotOnEachUserSend()
         {
             var first = await SeedLocationAsync(ownerUserId: 7, "Camden");
@@ -6856,6 +6994,24 @@ namespace TummlyBackend.Tests.Services
                         PresetId = "last7",
                     },
                 },
+            };
+
+        private static AssistantAnalysisScopeDto AllOwnedLocationsScope()
+            => new()
+            {
+                ScopeKind = "all",
+                OwnedLocationName = "All Locations",
+                ReportingPeriod = new AssistantReportingPeriodDto
+                {
+                    Kind = "preset",
+                    PresetId = "last7",
+                },
+            };
+
+        private static ApplyAssistantScopeRequest AllOwnedLocationsScopeRequest()
+            => new()
+            {
+                AnalysisScope = AllOwnedLocationsScope(),
             };
 
         private static void AssertNoContact(string? title, string body)

@@ -37,7 +37,7 @@ namespace TummlyBackend.Helpers
 
         public static AssistantLocationGapOutcome Resolve(
             string userMessage,
-            int analysisScopeLocationId,
+            int? analysisScopeLocationId,
             string analysisScopeLocationName,
             IReadOnlyList<AssistantGapLocation> ownedLocations,
             bool uniqueNameIsChoice = false,
@@ -90,7 +90,11 @@ namespace TummlyBackend.Helpers
             if (matches.Count == 1)
             {
                 var named = matches[0];
-                if (uniqueNameIsChoice || named.Id == analysisScopeLocationId)
+                if (
+                    uniqueNameIsChoice
+                    || analysisScopeLocationId is not int savedId
+                    || named.Id == savedId
+                )
                 {
                     return new AssistantLocationGapOutcome.Unique(named.Id, named.Name);
                 }
@@ -110,6 +114,15 @@ namespace TummlyBackend.Helpers
             {
                 return new AssistantLocationGapOutcome.Refusal(
                     $"{unknownName} is not an Owned location."
+                );
+            }
+
+            if (analysisScopeLocationId is null)
+            {
+                return new AssistantLocationGapOutcome.Gap(
+                    KindAll,
+                    [],
+                    AllLocationsBody(draftNoun)
                 );
             }
 

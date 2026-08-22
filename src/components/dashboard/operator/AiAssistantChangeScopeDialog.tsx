@@ -17,6 +17,7 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -28,15 +29,19 @@ import {
   OPERATOR_SHELL_MENU_ITEM_CLASS,
   OPERATOR_SHELL_MENU_PANEL_CLASS,
 } from "@/lib/operatorHome/shellResponsivePresentation"
-import type {
-  OperatorAiAssistantChangeScopeDialogSnapshot,
+import {
+  ALL_OWNED_LOCATIONS_PICKER_LABEL,
+  ALL_OWNED_LOCATIONS_SELECT_VALUE,
+  changeScopeLocationSelectValue,
+  type OperatorAiAssistantChangeScopeDialogSnapshot,
+  type OperatorAiAssistantDraftLocation,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import { cn } from "@/lib/utils"
 
 type AiAssistantChangeScopeDialogProps = {
   dialog: OperatorAiAssistantChangeScopeDialogSnapshot
   onOpenChange: (open: boolean) => void
-  onDraftLocationChange: (locationId: number) => void
+  onDraftLocationChange: (locationId: OperatorAiAssistantDraftLocation) => void
   onDraftReportingPeriodChange: (range: HomePerformanceDateRange) => void
   onApply: () => void
 }
@@ -74,9 +79,11 @@ export function AiAssistantChangeScopeDialog({
   onApply,
 }: AiAssistantChangeScopeDialogProps) {
   const selectedLocationName =
-    dialog.locationOptions.find(
-      (location) => location.id === dialog.draftOwnedLocationId
-    )?.name ?? ""
+    dialog.draftScopeKind === "all"
+      ? ALL_OWNED_LOCATIONS_PICKER_LABEL
+      : dialog.locationOptions.find(
+          (location) => location.id === dialog.draftOwnedLocationId
+        )?.name ?? ""
 
   return (
     <Dialog
@@ -122,8 +129,12 @@ export function AiAssistantChangeScopeDialog({
                 Owned location
               </Label>
               <Select
-                value={String(dialog.draftOwnedLocationId)}
+                value={changeScopeLocationSelectValue(dialog)}
                 onValueChange={(value) => {
+                  if (value === ALL_OWNED_LOCATIONS_SELECT_VALUE) {
+                    onDraftLocationChange(ALL_OWNED_LOCATIONS_SELECT_VALUE)
+                    return
+                  }
                   const locationId = Number.parseInt(value, 10)
                   if (Number.isFinite(locationId)) {
                     onDraftLocationChange(locationId)
@@ -143,6 +154,17 @@ export function AiAssistantChangeScopeDialog({
                   className={DIALOG_MENU_CLASS}
                 >
                   <SelectGroup className="p-0">
+                    {dialog.includesAllOwnedLocationsOption ? (
+                      <>
+                        <SelectItem
+                          value={ALL_OWNED_LOCATIONS_SELECT_VALUE}
+                          className={SELECT_ITEM_CLASS}
+                        >
+                          {ALL_OWNED_LOCATIONS_PICKER_LABEL}
+                        </SelectItem>
+                        <SelectSeparator className="bg-op-input-border" />
+                      </>
+                    ) : null}
                     {dialog.locationOptions.map((location) => (
                       <SelectItem
                         key={location.id}

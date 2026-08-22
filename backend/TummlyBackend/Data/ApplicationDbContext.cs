@@ -943,7 +943,8 @@ namespace TummlyBackend.Data
                 .HasOne(c => c.OwnedLocation)
                 .WithMany()
                 .HasForeignKey(c => c.OwnedLocationId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
 
             modelBuilder.Entity<AssistantConversation>()
                 .HasIndex(c => new { c.OwnerUserId, c.LastActivityAt });

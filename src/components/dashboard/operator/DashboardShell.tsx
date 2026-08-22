@@ -15,6 +15,7 @@ import {
 import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudioLevel"
 import type {
   OperatorAiAssistantAction,
+  OperatorAiAssistantDraftLocation,
   OperatorAiAssistantHelpfulFill,
   OperatorAiAssistantSnapshot,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
@@ -82,7 +83,7 @@ type DashboardShellProps = {
     onRouteDestination: () => void
     onOpenChangeScope: () => void
     onChangeScopeOpenChange: (open: boolean) => void
-    onChangeScopeDraftLocation: (locationId: number) => void
+    onChangeScopeDraftLocation: (locationId: OperatorAiAssistantDraftLocation) => void
     onChangeScopeDraftReportingPeriod: (range: HomePerformanceDateRange) => void
     onApplyChangeScope: () => void
     onSetComposerDraft: (text: string) => void

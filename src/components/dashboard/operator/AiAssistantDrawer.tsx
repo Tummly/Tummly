@@ -53,6 +53,7 @@ import {
 } from "@/lib/operatorAiAssistant/assistantWaitPresentation"
 import type {
   OperatorAiAssistantAction,
+  OperatorAiAssistantDraftLocation,
   OperatorAiAssistantHelpfulFill,
   OperatorAiAssistantMessage,
   OperatorAiAssistantSnapshot,
@@ -82,7 +83,7 @@ type AiAssistantDrawerProps = {
   onLeaveExpand: () => void
   onOpenChangeScope: () => void
   onChangeScopeOpenChange: (open: boolean) => void
-  onChangeScopeDraftLocation: (locationId: number) => void
+  onChangeScopeDraftLocation: (locationId: OperatorAiAssistantDraftLocation) => void
   onChangeScopeDraftReportingPeriod: (range: HomePerformanceDateRange) => void
   onApplyChangeScope: () => void
   onSetComposerDraft: (text: string) => void

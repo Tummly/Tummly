@@ -143,7 +143,7 @@ namespace TummlyBackend.Helpers
 
         public static AssistantCompareOutcome Resolve(
             string userMessage,
-            int savedLocationId,
+            int? savedLocationId,
             IReadOnlyList<AssistantOwnedLocationRef> ownedLocations,
             IReadOnlyList<int>? lastCompareLocationIds,
             bool isSingleMode
@@ -587,13 +587,13 @@ namespace TummlyBackend.Helpers
 
         private static AssistantOwnedLocationRef? FindMentionedOtherLocation(
             string text,
-            int savedLocationId,
+            int? savedLocationId,
             IReadOnlyList<AssistantOwnedLocationRef> ownedLocations
         )
         {
             foreach (var location in ownedLocations.OrderByDescending(item => item.Name.Length))
             {
-                if (location.Id == savedLocationId)
+                if (savedLocationId is int savedId && location.Id == savedId)
                 {
                     continue;
                 }
@@ -624,18 +624,23 @@ namespace TummlyBackend.Helpers
 
         private static void AddSavedIfMissing(
             List<int> validIds,
-            int savedLocationId,
+            int? savedLocationId,
             IReadOnlyList<AssistantOwnedLocationRef> ownedLocations
         )
         {
-            if (validIds.Contains(savedLocationId))
+            if (savedLocationId is not int savedId)
             {
                 return;
             }
 
-            if (ownedLocations.Any(location => location.Id == savedLocationId))
+            if (validIds.Contains(savedId))
             {
-                validIds.Insert(0, savedLocationId);
+                return;
+            }
+
+            if (ownedLocations.Any(location => location.Id == savedId))
+            {
+                validIds.Insert(0, savedId);
             }
         }
 

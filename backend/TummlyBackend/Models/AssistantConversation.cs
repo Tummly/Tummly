@@ -14,9 +14,13 @@ namespace TummlyBackend.Models
         [MaxLength(200)]
         public string Title { get; set; } = string.Empty;
 
-        public int OwnedLocationId { get; set; }
+        public int? OwnedLocationId { get; set; }
 
-        public RestaurantLocation OwnedLocation { get; set; } = null!;
+        public RestaurantLocation? OwnedLocation { get; set; }
+
+        [Required]
+        [MaxLength(32)]
+        public string ScopeKind { get; set; } = "single";
 
         [Required]
         [MaxLength(200)]
