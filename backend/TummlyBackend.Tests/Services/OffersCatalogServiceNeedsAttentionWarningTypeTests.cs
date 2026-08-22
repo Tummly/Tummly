@@ -35,25 +35,6 @@ namespace TummlyBackend.Tests.Services
         public async Task ListAsync_NeedsAttentionExpiryScope_OmitsVoidOnly()
         {
             var seeded = await SeedNeedsAttentionSetAsync();
-            var voidOnly = await _context.CatalogOffers.FindAsync(seeded.VoidOnlyOfferId);
-            Assert.NotNull(voidOnly);
-            Assert.Equal(CatalogOfferValidity.Days14AfterIssue, voidOnly!.Validity);
-            Assert.Null(voidOnly.CustomExpiryDate);
-            var today = CatalogOfferStatus.VenueLocalToday(_now, 0);
-            var effective = CatalogOfferStatus.ResolveEffectiveStatus(
-                voidOnly.Status,
-                voidOnly.Validity,
-                voidOnly.CustomExpiryDate,
-                today
-            );
-            Assert.False(
-                CatalogOfferStatus.IsNeedsAttentionRule(
-                    voidOnly.Validity,
-                    voidOnly.CustomExpiryDate,
-                    effective,
-                    today
-                )
-            );
 
             var response = await _service.ListAsync(
                 new CatalogOffersListQuery

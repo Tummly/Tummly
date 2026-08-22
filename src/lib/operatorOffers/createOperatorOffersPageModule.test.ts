@@ -1900,7 +1900,7 @@ describe("createOperatorOffersPageModule", () => {
       expect(list?.pageRangeLabel).toBe("Showing 1–1 of 1 offers")
     })
 
-    it("Review void aggregate CTA requests void scope", async () => {
+    it("Review void aggregate CTA requests void scope and clears search and filters", async () => {
       const listCatalogOffers = vi.fn(async (params) => {
         if (
           params.view === "needs-attention"
@@ -1937,6 +1937,12 @@ describe("createOperatorOffersPageModule", () => {
         selectedLocationId: 7,
         locations: [{ id: 7, locationName: "Camden" }],
       })
+      pageModule.setSearchQuery("void")
+      pageModule.applyFilters({
+        ...emptySelection(offersFilterSheetSchema()),
+        status: { kind: "multi-select", ids: ["active"] },
+      })
+      pageModule.setSortId("title-az")
 
       await pageModule.selectNeedsAttentionWarningScope("void")
 
@@ -1945,15 +1951,68 @@ describe("createOperatorOffersPageModule", () => {
           expect.objectContaining({
             view: "needs-attention",
             warningType: "void",
+            q: undefined,
+            page: 1,
+            sort: "title-az",
           }),
         ])
       )
-      expect(pageModule.getSnapshot().viewModel?.list.totalCount).toBe(2)
+      const list = pageModule.getSnapshot().viewModel?.list
+      expect(list?.searchQuery).toBe("")
+      expect(list?.filterChipCount).toBe(0)
+      expect(list?.totalCount).toBe(2)
+      expect(list?.rows.map((row) => row.id).sort((a, b) => a - b)).toEqual([8, 22])
+      expect(list?.tabs.find((tab) => tab.id === "needs-attention")?.count).toBe(
+        3
+      )
+    })
+
+    it("expiry scope includes dual-rule and expiry-only offers", async () => {
+      const listCatalogOffers = vi.fn(async (params) => {
+        if (
+          params.view === "needs-attention"
+          && params.warningType === "expiry"
+        ) {
+          return scopedListResponse(
+            [
+              offerListItem({
+                id: 1,
+                title: "Expiring only",
+                status: "active",
+                validity: "choose_expiry_date",
+                expiryDate: "2026-08-25",
+              }),
+              offerListItem({
+                id: 22,
+                title: "Dual rule",
+                status: "active",
+                validity: "choose_expiry_date",
+                expiryDate: "2026-08-25",
+              }),
+            ],
+            2
+          )
+        }
+        if (params.view === "needs-attention") {
+          return scopedListResponse([], 3)
+        }
+        return emptyListResponse()
+      })
+      const pageModule = createOperatorOffersPageModule(
+        createAdapters({ listCatalogOffers })
+      )
+
+      await pageModule.syncWorkspace({
+        selectedLocationId: 7,
+        locations: [{ id: 7, locationName: "Camden" }],
+      })
+
+      await pageModule.selectNeedsAttentionWarningScope("expiry")
+
       expect(
-        pageModule.getSnapshot().viewModel?.list.tabs.find(
-          (tab) => tab.id === "needs-attention"
-        )?.count
-      ).toBe(3)
+        pageModule.getSnapshot().viewModel?.list.rows.map((row) => row.id).sort((a, b) => a - b)
+      ).toEqual([1, 22])
+      expect(pageModule.getSnapshot().viewModel?.list.totalCount).toBe(2)
     })
 
     it("Needs attention tab click and View all omit warning-type", async () => {
