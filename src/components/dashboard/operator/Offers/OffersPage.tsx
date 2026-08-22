@@ -159,6 +159,9 @@ export function OffersPage() {
         onNextPage={pageModule.goToNextPage}
         onOpenFilters={pageModule.openFilters}
         onRemoveFilterChip={pageModule.removeFilterChip}
+        onClearNeedsAttentionWarningChip={() => {
+          void pageModule.clearNeedsAttentionWarningScope()
+        }}
         onViewAllOffers={() => {
           void pageModule.viewAllOffers()
         }}

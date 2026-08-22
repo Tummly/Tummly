@@ -51,6 +51,7 @@ import {
   OPERATOR_OFFERS_LIST_VIEW_ORDER,
   OPERATOR_OFFERS_SORT_LABELS,
   offersListEmptyCopy,
+  offersNeedsAttentionWarningChip,
 } from "@/lib/operatorOffers/offersPresentation"
 import {
   offersListSearchMissLabel,
@@ -124,6 +125,8 @@ export type OperatorOffersListViewModel = {
   sortLabel: string
   filterChips: FilterChip[]
   filterChipCount: number
+  /** Session chip for Review CTA warning-type scope — not a sheet filter. */
+  needsAttentionWarningChip: { label: string } | null
   currentPage: number
   pageSize: number
   totalCount: number
@@ -284,6 +287,8 @@ export type OperatorOffersPageModule = {
   selectNeedsAttentionWarningScope: (
     warningType: OffersNeedsAttentionWarningType
   ) => Promise<void>
+  /** Chip remove — full Needs attention tab without warning-type scope. */
+  clearNeedsAttentionWarningScope: () => Promise<void>
   /**
    * Row ⋮ — View navigates from the page (Details route). Edit opens the shared drawer (ticket 31).
    * Pause/Resume/Duplicate/Archive open confirm chrome; confirm runs lifecycle writes.
@@ -446,6 +451,7 @@ function buildListViewModel(input: {
   sortId: OperatorOffersSortId
   page: number
   appliedFilters: OperatorFilterSelection
+  needsAttentionWarningType: OffersNeedsAttentionWarningType | null
 }): OperatorOffersListViewModel {
   const hasActiveQuery =
     input.searchQuery.trim().length > 0
@@ -477,6 +483,10 @@ function buildListViewModel(input: {
     sortLabel: OPERATOR_OFFERS_SORT_LABELS[input.sortId],
     filterChips,
     filterChipCount: chipCount(OFFERS_FILTER_SCHEMA, input.appliedFilters),
+    needsAttentionWarningChip:
+      input.activeViewId === "needs-attention"
+        ? offersNeedsAttentionWarningChip(input.needsAttentionWarningType)
+        : null,
     currentPage: input.page,
     pageSize,
     totalCount,
@@ -565,7 +575,8 @@ function assembleViewModel(
   windowCounts: OffersState["windowCounts"],
   attentionListItems: readonly CatalogOffersListItem[],
   openVoidAttention: readonly OpenVoidAttentionOffer[],
-  overviewClock: { nowMs: number; utcOffsetMinutes: number }
+  overviewClock: { nowMs: number; utcOffsetMinutes: number },
+  needsAttentionWarningType: OffersNeedsAttentionWarningType | null
 ): OperatorOffersPageViewModel {
   const list = buildListViewModel({
     response: listResponse,
@@ -574,6 +585,7 @@ function assembleViewModel(
     sortId,
     page,
     appliedFilters,
+    needsAttentionWarningType,
   })
 
   return {
@@ -948,7 +960,8 @@ export function createOperatorOffersPageModule(
                 state.windowCounts,
                 state.attentionListItems,
                 state.openVoidAttention,
-                readOverviewClock()
+                readOverviewClock(),
+                state.needsAttentionWarningType
               ),
       }
       publish()
@@ -1025,7 +1038,8 @@ export function createOperatorOffersPageModule(
           state.windowCounts,
           attentionListItems,
           openVoidAttention,
-          readOverviewClock()
+          readOverviewClock(),
+          state.needsAttentionWarningType
         ),
       }
       publish()
@@ -1204,7 +1218,8 @@ export function createOperatorOffersPageModule(
           windowCounts,
           attentionListItems,
           openVoidAttention,
-          readOverviewClock()
+          readOverviewClock(),
+          state.needsAttentionWarningType
         ),
       }
       publish()
@@ -1645,6 +1660,22 @@ export function createOperatorOffersPageModule(
           state.filtersSession != null
             ? openSession(emptyOffersFilters())
             : null,
+      }
+      await fetchList()
+    },
+    clearNeedsAttentionWarningScope: async () => {
+      if (
+        state.activeViewId !== "needs-attention"
+        || state.needsAttentionWarningType == null
+      ) {
+        return
+      }
+      clearSearchDebounce()
+      invalidateTabCache()
+      state = {
+        ...state,
+        needsAttentionWarningType: null,
+        page: 1,
       }
       await fetchList()
     },
