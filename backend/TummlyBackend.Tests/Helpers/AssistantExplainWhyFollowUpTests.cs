@@ -81,7 +81,7 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void InferPriorPath_TodayAsk()
+        public void InferPriorPath_RecommendedNextStepAsk()
         {
             Assert.Equal(
                 AssistantExplainWhyPriorPath.RecommendedNextStep,
@@ -89,6 +89,32 @@ namespace TummlyBackend.Tests.Helpers
                     "What should I do today?",
                     "Thank recent guests",
                     "## Data\nfields\n\n## Recommendation\ncard"
+                )
+            );
+        }
+
+        [Fact]
+        public void InferPriorPath_GroundedBodyWithoutData_IsNone()
+        {
+            Assert.Equal(
+                AssistantExplainWhyPriorPath.None,
+                AssistantExplainWhyFollowUp.InferPriorPath(
+                    "Cancel that",
+                    "Cancelled",
+                    "The draft was not saved."
+                )
+            );
+        }
+
+        [Fact]
+        public void InferPriorPath_SummariseAsk_WithoutDataHeading_IsDomainRetrieve()
+        {
+            Assert.Equal(
+                AssistantExplainWhyPriorPath.DomainRetrieve,
+                AssistantExplainWhyFollowUp.InferPriorPath(
+                    "Summarise recent feedback",
+                    "Feedback at Camden",
+                    "3 comments in the last 7 days."
                 )
             );
         }
@@ -114,6 +140,37 @@ namespace TummlyBackend.Tests.Helpers
                     AssistantExplainWhyKind.Recommendation,
                     AssistantExplainWhyPriorPath.NeedsAttention,
                     "## Data\nqueue"
+                )
+            );
+        }
+
+        [Fact]
+        public void MatchesPrior_NeedsAttentionNeedle_OnMix_DoesNotMatch()
+        {
+            Assert.False(
+                AssistantExplainWhyFollowUp.MatchesPrior(
+                    AssistantExplainWhyKind.NeedsAttention,
+                    AssistantExplainWhyPriorPath.Mix,
+                    "## Data\nqueue\n\n## Recommendation\ncard"
+                )
+            );
+        }
+
+        [Fact]
+        public void MatchesPrior_ResultsNeedle_WithoutDataOrRetrievePath_DoesNotMatch()
+        {
+            Assert.False(
+                AssistantExplainWhyFollowUp.MatchesPrior(
+                    AssistantExplainWhyKind.Results,
+                    AssistantExplainWhyPriorPath.None,
+                    "The draft was not saved."
+                )
+            );
+            Assert.True(
+                AssistantExplainWhyFollowUp.MatchesPrior(
+                    AssistantExplainWhyKind.Results,
+                    AssistantExplainWhyPriorPath.DomainRetrieve,
+                    "3 comments in the last 7 days."
                 )
             );
         }
@@ -262,7 +319,7 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void Expand_Today_KeepsRecommendationAndActions()
+        public void Expand_RecommendedNextStep_KeepsRecommendationAndActions()
         {
             var expanded = AssistantExplainWhyCopy.Expand(
                 AssistantExplainWhyKind.Recommendation,

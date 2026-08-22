@@ -4574,12 +4574,17 @@ namespace TummlyBackend.Services
                 .OrderBy(message => message.CreatedAt)
                 .ThenBy(message => message.Id)
                 .LastOrDefault();
-            var priorUser = conversation.Messages
-                .Where(message => message.Role == AssistantMessageRole.User)
-                .OrderBy(message => message.CreatedAt)
-                .ThenBy(message => message.Id)
-                .SkipLast(1)
-                .LastOrDefault();
+            var priorUser = priorAssistant is null
+                ? null
+                : conversation.Messages
+                    .Where(message =>
+                        message.Role == AssistantMessageRole.User
+                        && (message.CreatedAt < priorAssistant.CreatedAt
+                            || (message.CreatedAt == priorAssistant.CreatedAt
+                                && message.Id < priorAssistant.Id)))
+                    .OrderBy(message => message.CreatedAt)
+                    .ThenBy(message => message.Id)
+                    .LastOrDefault();
             if (priorAssistant is null || priorUser is null)
             {
                 return null;

@@ -142,12 +142,12 @@ namespace TummlyBackend.Helpers
 
             if (string.Equals(
                     priorAssistantTitle,
-                    "Campaign Draft saved with Offer",
+                    AssistantCombinedCreatePersistCopy.SuccessTitle,
                     StringComparison.Ordinal
                 )
                 || string.Equals(
                     priorAssistantTitle,
-                    "Campaign Draft not saved",
+                    AssistantCombinedCreatePersistCopy.FailureTitle,
                     StringComparison.Ordinal
                 ))
             {
@@ -155,7 +155,7 @@ namespace TummlyBackend.Helpers
             }
 
             if (HasDataLayer(priorAssistantBody)
-                || !string.IsNullOrWhiteSpace(priorAssistantBody))
+                || AssistantAskIntent.HasExplicitRetrieveAsk(priorUserMessage))
             {
                 return AssistantExplainWhyPriorPath.DomainRetrieve;
             }
@@ -181,8 +181,7 @@ namespace TummlyBackend.Helpers
             return kind switch
             {
                 AssistantExplainWhyKind.NeedsAttention =>
-                    path is AssistantExplainWhyPriorPath.NeedsAttention
-                        or AssistantExplainWhyPriorPath.Mix,
+                    path == AssistantExplainWhyPriorPath.NeedsAttention,
                 AssistantExplainWhyKind.Results =>
                     path == AssistantExplainWhyPriorPath.ProductExpert
                         || HasDataLayer(priorAssistantBody)
@@ -284,23 +283,11 @@ namespace TummlyBackend.Helpers
             AssistantAnalysisScopeDto currentScope,
             IReadOnlyList<AssistantOwnedLocationRef> ownedLocations
         )
-        {
-            var savedId = currentScope.OwnedLocationId;
-            foreach (var location in ownedLocations.OrderByDescending(item => item.Name.Length))
-            {
-                if (!ContainsName(message, location.Name))
-                {
-                    continue;
-                }
-
-                if (savedId is not int id || location.Id != id)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
+            => NamedOtherLocation(
+                message,
+                currentScope.OwnedLocationId,
+                ownedLocations
+            ) is not null;
 
         private static bool ContainsHeading(string body, string heading)
             => body.Contains(heading, StringComparison.Ordinal);

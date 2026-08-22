@@ -7666,7 +7666,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_WhyAreYouRecommending_AfterToday_ReusesSnapshot_KeepsRecommendation()
+        public async Task SendTurn_WhyAreYouRecommending_AfterRecommendedNextStep_ReusesSnapshot_KeepsRecommendation()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             _homeRecommendation.Recommendation = new HomeRecommendationDto
@@ -7794,7 +7794,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_ExplainWhy_AfterPeriodChange_RefetchesTodayRecommendation()
+        public async Task SendTurn_ExplainWhy_AfterPeriodChange_RefetchesRecommendedNextStep()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             _homeRecommendation.Recommendation = new HomeRecommendationDto
@@ -7922,6 +7922,45 @@ namespace TummlyBackend.Tests.Services
             var answer = answered.Conversation.Messages[^1];
             Assert.Equal("refusal", answer.Class);
             Assert.DoesNotContain("## Interpretation", answer.Body, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task SendTurn_ExplainWhatNeedsAttention_AfterHelpCentreRefuse_ReusesGroundedSnapshot()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var created = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "What needs attention?")
+            );
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(created);
+            var grounded = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", grounded.Class);
+
+            var refused = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "How do I explain these results?",
+                    ok.Conversation.Id
+                )
+            );
+            Assert.IsType<AssistantTurnOutcome.Ok>(refused);
+
+            var followUp = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Explain what needs attention",
+                    ok.Conversation.Id
+                )
+            );
+
+            var answered = Assert.IsType<AssistantTurnOutcome.Ok>(followUp);
+            var answer = answered.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal(grounded.Title, answer.Title);
+            Assert.Contains("## Interpretation", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("## Recommendation", answer.Body, StringComparison.Ordinal);
         }
 
         [Fact]
