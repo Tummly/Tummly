@@ -252,15 +252,27 @@ namespace TummlyBackend.Helpers
             var replacementItem = ReplacementItemRegex().Match(text);
             if (replacementItem.Success)
             {
-                state.ReplacementItemText = Clean(replacementItem.Groups["item"].Value);
+                var cleaned = AssistantCapturedItemText.TryClean(
+                    replacementItem.Groups["item"].Value
+                );
+                if (cleaned is not null)
+                {
+                    state.ReplacementItemText = cleaned;
+                }
             }
             else if (typeAlreadyLocked
                 && state.OfferType == "replacement_item"
                 && string.IsNullOrWhiteSpace(state.ReplacementItemText)
                 && !IsSkipPhrase(lower)
-                && !number.Success)
+                && !number.Success
+                && !LooksLikeValidityAnswer(lower)
+                && !LooksLikeActivate(lower))
             {
-                state.ReplacementItemText = Clean(text);
+                var cleaned = AssistantCapturedItemText.TryClean(text);
+                if (cleaned is not null)
+                {
+                    state.ReplacementItemText = cleaned;
+                }
             }
 
             if (lower.Contains("no purchase", StringComparison.Ordinal))
@@ -417,7 +429,9 @@ namespace TummlyBackend.Helpers
                     "percentage_discount" => $"{state.DiscountPercentage:0.##}% off your next visit",
                     "fixed_discount" => $"£{state.DiscountAmount:0.##} off your next order",
                     "free_item" => $"Enjoy a free {state.FreeItemText}",
-                    _ => $"Replacement {state.ReplacementItemText}",
+                    "replacement_item" when !string.IsNullOrWhiteSpace(state.ReplacementItemText)
+                        => $"Replacement {state.ReplacementItemText}",
+                    _ => null,
                 };
             }
             if (state.Description is null)
@@ -427,7 +441,9 @@ namespace TummlyBackend.Helpers
                     "percentage_discount" => $"Save {state.DiscountPercentage:0.##}% on your next visit.",
                     "fixed_discount" => $"Save £{state.DiscountAmount:0.##} on your next order.",
                     "free_item" => $"Enjoy a free {state.FreeItemText} on your next visit.",
-                    _ => $"Receive a replacement {state.ReplacementItemText}.",
+                    "replacement_item" when !string.IsNullOrWhiteSpace(state.ReplacementItemText)
+                        => $"Receive a replacement {state.ReplacementItemText}.",
+                    _ => null,
                 };
             }
         }
@@ -459,7 +475,7 @@ namespace TummlyBackend.Helpers
                 state.OfferType = "free_item";
                 state.OfferTypeLabel = "Free item";
             }
-            else if (ContainsAny(lower, "replace the", "swap the", "replacement"))
+            else if (HasReplacementCue(lower))
             {
                 state.OfferType = "replacement_item";
                 state.OfferTypeLabel = "Replacement item";
@@ -533,6 +549,22 @@ namespace TummlyBackend.Helpers
                 || IsoDateRegex().IsMatch(lower)
                 || NaturalDateRegex().IsMatch(lower);
 
+        private static bool LooksLikeActivate(string lower)
+            => ContainsAny(
+                lower,
+                "activate",
+                "make live",
+                "make it live",
+                "make it active",
+                "issue now",
+                "issue it now"
+            );
+
+        private static bool HasReplacementCue(string lower)
+            => Regex.IsMatch(lower, @"\breplacement\s+item\b")
+                || Regex.IsMatch(lower, @"\breplace\b")
+                || Regex.IsMatch(lower, @"\bswap\b");
+
         private static string Clean(string value)
             => value.Trim().TrimEnd('.', ',', ';');
 
@@ -545,7 +577,10 @@ namespace TummlyBackend.Helpers
         )]
         private static partial Regex FreeItemRegex();
 
-        [GeneratedRegex(@"(?:replacement item|replace)\s*(?:is|:)?\s*(?<item>[^,;\n]+)", RegexOptions.IgnoreCase)]
+        [GeneratedRegex(
+            @"(?:replacement\s+item\s*(?:is|:)\s*(?<item>[^,;\n]+)|(?<![\w])(?:replace|swap)\b(?:\s+(?:the|with)|\s*(?:is|:))?\s*(?<item>[^,;\n]+))",
+            RegexOptions.IgnoreCase
+        )]
         private static partial Regex ReplacementItemRegex();
 
         [GeneratedRegex(@"(?:title)\s*:\s*(?<value>[^;\n]+)", RegexOptions.IgnoreCase)]

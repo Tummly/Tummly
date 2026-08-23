@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.DTOs.Campaigns;
+using TummlyBackend.DTOs.Capture;
 using TummlyBackend.DTOs.Feedback;
 using TummlyBackend.DTOs.Offers;
 using TummlyBackend.DTOs.OwnedLocation;
@@ -32,6 +33,7 @@ namespace TummlyBackend.Services
         private readonly IOffersCatalogService _offersCatalog;
         private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
         private readonly IAssistantAttentionRetrieve _attentionRetrieve;
+        private readonly ICaptureThankYouOfferService _thankYouOffers;
         private readonly TimeProvider _clock;
 
         public AssistantConversationService(
@@ -51,6 +53,7 @@ namespace TummlyBackend.Services
             IOffersCatalogService offersCatalog,
             IFeedbackRecoveryDraftsService recoveryDrafts,
             IAssistantAttentionRetrieve attentionRetrieve,
+            ICaptureThankYouOfferService thankYouOffers,
             TimeProvider? timeProvider = null
         )
         {
@@ -70,6 +73,7 @@ namespace TummlyBackend.Services
             _offersCatalog = offersCatalog;
             _recoveryDrafts = recoveryDrafts;
             _attentionRetrieve = attentionRetrieve;
+            _thankYouOffers = thankYouOffers;
             _clock = timeProvider ?? TimeProvider.System;
         }
 
@@ -2065,7 +2069,10 @@ namespace TummlyBackend.Services
             string Title,
             string Body,
             IReadOnlyList<AssistantActionDto> Actions,
-            int? CreatedOfferId
+            int? CreatedOfferId,
+            string ThankYouAttach = "none",
+            string? ThankYouOfferTitle = null,
+            bool ThankYouOfferLive = false
         );
 
         private async Task<CreateOfferDraftPersistTurn> PersistCreateOfferDraftAsync(
@@ -2112,21 +2119,64 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var thankYouAttach = "none";
+            string? thankYouOfferTitle = null;
+            var thankYouOfferLive = false;
+            if (string.Equals(
+                    terms.Placement,
+                    AssistantOfferPathTermsState.PlacementGuestFormThankYou,
+                    StringComparison.Ordinal
+                ))
+            {
+                try
+                {
+                    var setResult = await _thankYouOffers.SetAsync(
+                        locationId,
+                        created.Id,
+                        cancellationToken
+                    );
+                    if (setResult is CaptureThankYouOfferSetResult.Ok ok
+                        && ok.Value.ThankYouOfferId == created.Id)
+                    {
+                        thankYouAttach = "attached";
+                        thankYouOfferTitle = ok.Value.ThankYouOfferTitle;
+                        thankYouOfferLive = ok.Value.ThankYouOfferLive;
+                    }
+                    else
+                    {
+                        thankYouAttach = "failed";
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch
+                {
+                    thankYouAttach = "failed";
+                }
+            }
+
             return new CreateOfferDraftPersistTurn(
-                AssistantOfferPathPersistCopy.SuccessTitle,
+                AssistantOfferPathPersistCopy.TitleFor(thankYouAttach),
                 AssistantOfferPathPersistCopy.SuccessBody(
                     locationName,
                     AssistantOfferPathTerms.TypeLabel(terms.OfferType),
                     AssistantOfferPathTerms.ValueLabel(terms),
                     AssistantOfferPathTerms.ValidityLabel(terms),
                     created.Title,
-                    terms.WantsActivate
+                    terms.WantsActivate,
+                    thankYouAttach,
+                    thankYouOfferLive
                 ),
                 AssistantActionCatalog.ValidateReviewOffer(
                     created.Id,
                     AssistantMessageClass.Grounded
                 ),
-                created.Id
+                created.Id,
+                thankYouAttach,
+                thankYouOfferTitle,
+                thankYouOfferLive
             );
         }
 
@@ -2899,8 +2949,9 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            var stayOnOfferPath = AssistantGapTurn.IsOfferPathGap(gapState);
             var detected = AssistantCreateTargets.Detect(userMessage);
-            if (detected.Count > 1)
+            if (detected.Count > 1 && !stayOnOfferPath)
             {
                 return new GapResume(
                     await FinishGapTurnAsync(
@@ -2936,7 +2987,8 @@ namespace TummlyBackend.Services
             var gapTarget = CreateTargetForTask(gapState.AssistantTask);
             if (detected.Count == 1
                 && gapTarget is not null
-                && !string.Equals(detected[0], gapTarget, StringComparison.Ordinal))
+                && !string.Equals(detected[0], gapTarget, StringComparison.Ordinal)
+                && !stayOnOfferPath)
             {
                 if (detected[0] == AssistantCreateTargets.Offer)
                 {

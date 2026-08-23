@@ -85,7 +85,17 @@ namespace TummlyBackend.Helpers
                 .Where(item => options.Contains(item, StringComparer.Ordinal))
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
-            return detected.Count == 1 ? detected[0] : null;
+            if (detected.Count == 1)
+            {
+                return detected[0];
+            }
+
+            if (detected.Count >= 2)
+            {
+                return null;
+            }
+
+            return AssistantGapOptionOrdinal.TryBind(options, normalized);
         }
 
         private static bool IsExactChoice(string option, string normalized)

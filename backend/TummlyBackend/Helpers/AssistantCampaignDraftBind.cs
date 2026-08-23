@@ -252,19 +252,23 @@ namespace TummlyBackend.Helpers
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderByDescending(option => option.Length)
                 .ToList();
-            if (contained.Count == 0)
+            if (contained.Count >= 1)
             {
+                if (contained.Count == 1
+                    || contained[0].Length > contained[1].Length)
+                {
+                    return options.First(option =>
+                        option.Equals(
+                            contained[0],
+                            StringComparison.OrdinalIgnoreCase
+                        ));
+                }
+
                 return null;
             }
 
-            if (contained.Count == 1
-                || contained[0].Length > contained[1].Length)
-            {
-                return options.First(option =>
-                    option.Equals(contained[0], StringComparison.OrdinalIgnoreCase));
-            }
-
-            return null;
+            var normalized = text.Trim('.', ',', ';', ':').ToLowerInvariant();
+            return AssistantGapOptionOrdinal.TryBind(options, normalized);
         }
 
         private static ChannelBind ResolveChannel(string lower, string? chosenLabel)

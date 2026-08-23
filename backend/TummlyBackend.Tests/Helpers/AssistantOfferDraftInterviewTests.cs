@@ -125,5 +125,63 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal("choose_expiry_date", dated.State.Validity);
             Assert.Equal("2026-09-30", dated.State.ExpiryDate);
         }
+
+        [Theory]
+        [InlineData("replacement item offer and attach it", null)]
+        [InlineData("replacement item: burger", "burger")]
+        [InlineData("replace the burger and attach it", "burger")]
+        [InlineData("swap the burger and attach it", "burger")]
+        [InlineData("replace and attach it", null)]
+        public void ReplacementItem_LockstepWithOfferPath_CleansOrOmitsItem(
+            string message,
+            string? expectedItem
+        )
+        {
+            var turn = AssistantOfferDraftInterview.Apply(null, message);
+
+            Assert.Equal("replacement_item", turn.State.OfferType);
+            Assert.Equal(expectedItem, turn.State.ReplacementItemText);
+        }
+
+        [Fact]
+        public void TypeAlreadyLocked_ReplacementFill_UsesSharedHelper()
+        {
+            var typed = AssistantOfferDraftInterview.Apply(null, "Replacement item");
+            Assert.Equal("replacement_item", typed.State.OfferType);
+            Assert.True(string.IsNullOrWhiteSpace(typed.State.ReplacementItemText));
+
+            var filled = AssistantOfferDraftInterview.Apply(
+                CloneDraft(typed.State),
+                "burger and attach it"
+            );
+            Assert.Equal("burger", filled.State.ReplacementItemText);
+
+            var ignored = AssistantOfferDraftInterview.Apply(
+                CloneDraft(typed.State),
+                "attach it to thank you"
+            );
+            Assert.True(string.IsNullOrWhiteSpace(ignored.State.ReplacementItemText));
+        }
+
+        private static AssistantOfferDraftState CloneDraft(AssistantOfferDraftState source)
+            => new()
+            {
+                Target = source.Target,
+                OfferType = source.OfferType,
+                OfferTypeLabel = source.OfferTypeLabel,
+                DiscountPercentage = source.DiscountPercentage,
+                DiscountAmount = source.DiscountAmount,
+                FreeItemText = source.FreeItemText,
+                PurchaseRequirement = source.PurchaseRequirement,
+                MinimumSpend = source.MinimumSpend,
+                ReplacementItemText = source.ReplacementItemText,
+                Title = source.Title,
+                Description = source.Description,
+                Validity = source.Validity,
+                ExpiryDate = source.ExpiryDate,
+                StaffInstructions = source.StaffInstructions,
+                UsefulOptionalsSkipped = source.UsefulOptionalsSkipped,
+            };
+
     }
 }

@@ -149,6 +149,14 @@ namespace TummlyBackend.Helpers
         public static bool IsBindKind(string kind)
             => kind is KindOffer or KindAudience or KindChannel;
 
+        public static bool IsOfferPathGap(AssistantGapState gapState)
+            => string.Equals(
+                    gapState.AssistantTask,
+                    AssistantTask.OfferPath,
+                    StringComparison.Ordinal
+                )
+                && gapState.Kind is KindOfferTerms or KindLocation;
+
         private static bool IsKnownKind(string kind)
             => kind is KindCreateTarget or KindLocation
                 or KindOffer or KindAudience or KindChannel

@@ -11,6 +11,8 @@ namespace TummlyBackend.Helpers
     /// </summary>
     public sealed class AssistantOfferPathTermsState
     {
+        public const string PlacementGuestFormThankYou = "guest_form_thank_you";
+
         public string? OfferType { get; set; }
 
         public decimal? DiscountPercentage { get; set; }
@@ -38,6 +40,10 @@ namespace TummlyBackend.Helpers
         public List<string> ConflictingBenefits { get; set; } = [];
 
         public bool WantsActivate { get; set; }
+
+        public bool WantsAttach { get; set; }
+
+        public string? Placement { get; set; }
     }
 
     public static partial class AssistantOfferPathTerms
@@ -142,6 +148,11 @@ namespace TummlyBackend.Helpers
                 missing.Add("validity");
             }
 
+            if (state.WantsAttach && state.Placement is null)
+            {
+                missing.Add("placement");
+            }
+
             return missing;
         }
 
@@ -167,23 +178,28 @@ namespace TummlyBackend.Helpers
             }
 
             var missing = MissingFields(state);
-            if (missing.Count == 0)
+            var catalogMissing = missing
+                .Where(field => field != "placement")
+                .ToList();
+            var needsPlacement = missing.Contains("placement", StringComparer.Ordinal);
+
+            if (catalogMissing.Count == 0 && !needsPlacement)
             {
                 return "Name the missing Offer terms.";
             }
 
-            if (missing.Count == 1)
+            if (catalogMissing.Count == 0 && needsPlacement)
             {
-                return $"Which {missing[0]} should this Offers catalog Draft use?";
+                return PlacementGapSentence;
             }
 
-            if (missing.Count == 2)
+            var catalogSentence = CatalogMissingGapSentence(catalogMissing);
+            if (needsPlacement)
             {
-                return $"Which {missing[0]} and {missing[1]} should this Offers catalog Draft use?";
+                return catalogSentence + " " + PlacementGapSentence;
             }
 
-            var head = string.Join(", ", missing.Take(missing.Count - 1));
-            return $"Which {head}, and {missing[^1]} should this Offers catalog Draft use?";
+            return catalogSentence;
         }
 
         public static void ProposeCopy(AssistantOfferPathTermsState state)
@@ -198,14 +214,18 @@ namespace TummlyBackend.Helpers
                 "percentage_discount" => $"{state.DiscountPercentage:0.##}% off",
                 "fixed_discount" => $"£{state.DiscountAmount:0.##} off",
                 "free_item" => $"Enjoy a free {state.FreeItemText}",
-                _ => $"Replacement {state.ReplacementItemText}",
+                "replacement_item" when !string.IsNullOrWhiteSpace(state.ReplacementItemText)
+                    => $"Replacement {state.ReplacementItemText}",
+                _ => null,
             };
             state.Description ??= state.OfferType switch
             {
                 "percentage_discount" => $"Save {state.DiscountPercentage:0.##}%.",
                 "fixed_discount" => $"Save £{state.DiscountAmount:0.##}.",
                 "free_item" => $"Enjoy a free {state.FreeItemText}.",
-                _ => $"Receive a replacement {state.ReplacementItemText}.",
+                "replacement_item" when !string.IsNullOrWhiteSpace(state.ReplacementItemText)
+                    => $"Receive a replacement {state.ReplacementItemText}.",
+                _ => null,
             };
         }
 
@@ -265,6 +285,37 @@ namespace TummlyBackend.Helpers
                 _ => state.Validity ?? string.Empty,
             };
 
+        private const string PlacementGapSentence =
+            "Name Guest form thank-you if this Offers catalog Draft should attach there.";
+
+        private static readonly string[] GuestFormThankYouPhrases =
+        [
+            "guest form thank-you",
+            "guest form thank you",
+            "capture thank you",
+            "capture thank-you",
+            "thank-you page",
+            "thank you page",
+            "thank-you screen",
+            "thank you screen",
+        ];
+
+        private static string CatalogMissingGapSentence(IReadOnlyList<string> missing)
+        {
+            if (missing.Count == 1)
+            {
+                return $"Which {missing[0]} should this Offers catalog Draft use?";
+            }
+
+            if (missing.Count == 2)
+            {
+                return $"Which {missing[0]} and {missing[1]} should this Offers catalog Draft use?";
+            }
+
+            var head = string.Join(", ", missing.Take(missing.Count - 1));
+            return $"Which {head}, and {missing[^1]} should this Offers catalog Draft use?";
+        }
+
         private static void Apply(
             AssistantOfferPathTermsState state,
             string message,
@@ -278,6 +329,10 @@ namespace TummlyBackend.Helpers
                 return;
             }
 
+            var replacementFillEligible =
+                state.OfferType == "replacement_item"
+                && string.IsNullOrWhiteSpace(state.ReplacementItemText);
+
             if (LooksLikeDelegatedTerms(lower))
             {
                 state.OperatorDelegatedTerms = true;
@@ -288,15 +343,104 @@ namespace TummlyBackend.Helpers
                 state.WantsActivate = true;
             }
 
+            text = ApplyPlacement(state, text);
+            lower = text.ToLowerInvariant();
+
             ApplyBenefits(state, text, lower);
+
+            if (replacementFillEligible
+                && string.IsNullOrWhiteSpace(state.ReplacementItemText)
+                && !LooksLikeValidityMessage(lower)
+                && !LooksLikeActivate(lower))
+            {
+                var filled = AssistantCapturedItemText.TryClean(text);
+                if (filled is not null)
+                {
+                    state.ReplacementItemText = filled;
+                }
+            }
+
             ApplyValidity(state, lower, utcNow);
             ApplyPurchaseRequirement(state, lower, text);
+
+            var freeItem = state.FreeItemText;
+            AssistantCapturedItemText.CleanupStoredField(ref freeItem);
+            state.FreeItemText = freeItem;
+
+            var replacementItem = state.ReplacementItemText;
+            AssistantCapturedItemText.CleanupStoredField(ref replacementItem);
+            state.ReplacementItemText = replacementItem;
 
             if (HasAnyAuthorisedBenefit(state) || state.Validity is not null)
             {
                 state.OperatorDelegatedTerms = false;
             }
         }
+
+        private static string ApplyPlacement(
+            AssistantOfferPathTermsState state,
+            string text
+        )
+        {
+            var attachMatch = AttachClauseRegex().Match(text);
+            if (attachMatch.Success)
+            {
+                var clauseLower = attachMatch.Value.ToLowerInvariant();
+                var remainder = (text[..attachMatch.Index]
+                        + text[(attachMatch.Index + attachMatch.Length)..])
+                    .Trim()
+                    .TrimEnd(',', ';', '.')
+                    .Trim();
+
+                if (!LooksLikeCampaignOrRecoveryAttach(clauseLower))
+                {
+                    state.WantsAttach = true;
+                    if (ContainsGuestFormThankYouPhrase(clauseLower))
+                    {
+                        state.Placement ??=
+                            AssistantOfferPathTermsState.PlacementGuestFormThankYou;
+                    }
+                }
+
+                return remainder;
+            }
+
+            var lower = text.ToLowerInvariant();
+            if (LooksLikeThankYouOnlyReply(lower))
+            {
+                state.WantsAttach = true;
+                state.Placement ??=
+                    AssistantOfferPathTermsState.PlacementGuestFormThankYou;
+            }
+
+            return text;
+        }
+
+        private static bool LooksLikeThankYouOnlyReply(string lower)
+        {
+            if (!ContainsGuestFormThankYouPhrase(lower))
+            {
+                return false;
+            }
+
+            var stripped = lower;
+            foreach (var phrase in GuestFormThankYouPhrases)
+            {
+                stripped = stripped.Replace(phrase, " ", StringComparison.Ordinal);
+            }
+
+            stripped = FillerWordRegex().Replace(stripped, " ");
+            return string.IsNullOrWhiteSpace(stripped);
+        }
+
+        private static bool ContainsGuestFormThankYouPhrase(string lower)
+            => GuestFormThankYouPhrases.Any(
+                phrase => lower.Contains(phrase, StringComparison.Ordinal)
+            );
+
+        private static bool LooksLikeCampaignOrRecoveryAttach(string lower)
+            => lower.Contains("campaign", StringComparison.Ordinal)
+                || lower.Contains("recovery", StringComparison.Ordinal);
 
         private static void ApplyBenefits(
             AssistantOfferPathTermsState state,
@@ -339,7 +483,8 @@ namespace TummlyBackend.Helpers
             }
 
             var freeItem = FreeItemRegex().Match(text);
-            if (freeItem.Success)
+            if (freeItem.Success
+                && !IsFreeItemMatchInsideReplacementPhrase(text, freeItem.Index))
             {
                 var item = Clean(freeItem.Groups["item"].Value);
                 found.Add(("free_item", $"free {item}"));
@@ -351,15 +496,28 @@ namespace TummlyBackend.Helpers
             }
 
             var replacement = ReplacementItemRegex().Match(text);
-            if (replacement.Success)
+            var replacementCued = replacement.Success || HasReplacementCue(lower);
+            if (replacementCued)
             {
-                var item = Clean(replacement.Groups["item"].Value);
-                found.Add(("replacement_item", $"replacement {item}"));
-                state.ReplacementItemText ??= item;
-            }
-            else if (ContainsAny(lower, "replace the", "swap the", "replacement"))
-            {
-                found.Add(("replacement_item", "replacement item"));
+                string? cleaned = null;
+                if (replacement.Success
+                    && replacement.Groups["item"].Success
+                    && !string.IsNullOrWhiteSpace(replacement.Groups["item"].Value))
+                {
+                    cleaned = AssistantCapturedItemText.TryClean(
+                        replacement.Groups["item"].Value
+                    );
+                }
+
+                if (cleaned is not null)
+                {
+                    found.Add(("replacement_item", $"replacement {cleaned}"));
+                    state.ReplacementItemText ??= cleaned;
+                }
+                else
+                {
+                    found.Add(("replacement_item", "replacement item"));
+                }
             }
 
             var distinct = found
@@ -516,6 +674,47 @@ namespace TummlyBackend.Helpers
                 "issue it now"
             );
 
+        private static bool LooksLikeValidityMessage(string lower)
+            => ContainsAny(
+                    lower,
+                    "until the end of the year",
+                    "end of the year",
+                    "year-end",
+                    "year end"
+                )
+                || lower.Contains("30 days", StringComparison.Ordinal)
+                || lower.Contains("14 days", StringComparison.Ordinal)
+                || lower.Contains("7 days", StringComparison.Ordinal);
+
+        private static bool IsFreeItemMatchInsideReplacementPhrase(
+            string text,
+            int matchIndex
+        )
+        {
+            if (matchIndex <= 0)
+            {
+                return false;
+            }
+
+            var before = text[..matchIndex];
+            return before.EndsWith("replacement ", StringComparison.OrdinalIgnoreCase)
+                || before.EndsWith("replacement", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool HasReplacementCue(string lower)
+            => System.Text.RegularExpressions.Regex.IsMatch(
+                    lower,
+                    @"\breplacement\s+item\b"
+                )
+                || System.Text.RegularExpressions.Regex.IsMatch(
+                    lower,
+                    @"\breplace\b"
+                )
+                || System.Text.RegularExpressions.Regex.IsMatch(
+                    lower,
+                    @"\bswap\b"
+                );
+
         private static AssistantOfferPathTermsState? Clone(AssistantOfferPathTermsState? prior)
         {
             if (prior is null)
@@ -539,6 +738,8 @@ namespace TummlyBackend.Helpers
                 OperatorDelegatedTerms = prior.OperatorDelegatedTerms,
                 ConflictingBenefits = [.. prior.ConflictingBenefits],
                 WantsActivate = prior.WantsActivate,
+                WantsAttach = prior.WantsAttach,
+                Placement = prior.Placement,
             };
         }
 
@@ -564,9 +765,21 @@ namespace TummlyBackend.Helpers
         private static partial Regex FreeItemRegex();
 
         [GeneratedRegex(
-            @"(?:replacement item|replace)\s*(?:is|:)?\s*(?<item>[^,;\n]+)",
+            @"(?:replacement\s+item\s*(?:is|:)\s*(?<item>[^,;\n]+)|(?<![\w])(?:replace|swap)\b(?:\s+(?:the|with)|\s*(?:is|:))?\s*(?<item>[^,;\n]+))",
             RegexOptions.IgnoreCase
         )]
         private static partial Regex ReplacementItemRegex();
+
+        [GeneratedRegex(
+            @"(?:,?\s*(?:\band\b|\bthen\b)\s+)?\battach(?:\s+it)?(?:\s+to\s+[^.!?\n]+)?",
+            RegexOptions.IgnoreCase
+        )]
+        private static partial Regex AttachClauseRegex();
+
+        [GeneratedRegex(
+            @"\b(the|a|an|to|on|at|please|use|name)\b",
+            RegexOptions.IgnoreCase
+        )]
+        private static partial Regex FillerWordRegex();
     }
 }
