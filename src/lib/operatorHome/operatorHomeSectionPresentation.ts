@@ -150,8 +150,33 @@ export const NEEDS_ATTENTION_DUPLICATE_DRAFT_TOAST =
 export const NEEDS_ATTENTION_DUPLICATE_DRAFT_ERROR =
   "Could not duplicate this campaign. Try again."
 
-/** Figma warning row — main-bg #202020 → op-background-secondary (3498:9980). */
+/**
+ * Figma Needs attention row (3344:39087) — #1d1d1d wash, 14px gap,
+ * 30px / 20px padding.
+ */
 export const WARNING_ROW_CLASS =
-  "flex w-full flex-col gap-4 overflow-clip rounded-[4px] bg-op-background-secondary py-5 pl-[30px] pr-5 sm:flex-row sm:items-center sm:gap-[14px]"
+  "flex w-full flex-wrap items-center gap-x-op-3-5 gap-y-3 overflow-clip rounded-op-md bg-op-needs-attention-row-background py-5 pl-[30px] pr-5"
+
+export const NEEDS_ATTENTION_ROW_LIST_CLASS = "flex flex-col gap-3"
+
+export const NEEDS_ATTENTION_ROW_COPY_CLASS =
+  "flex min-w-0 flex-1 flex-col gap-[6px] leading-[0]"
+
+export const NEEDS_ATTENTION_ROW_TITLE_CLASS =
+  "m-0 text-base font-semibold leading-6 tracking-[-0.4px] text-op-card-title-color"
+
+export const NEEDS_ATTENTION_ROW_BODY_CLASS =
+  "m-0 text-sm font-medium leading-[17px] text-op-card-title-color"
+
+export const NEEDS_ATTENTION_ROW_META_CLASS =
+  "m-0 text-xs font-medium leading-[15px] tracking-[-0.4px] text-op-needs-attention-row-meta"
+
+export const NEEDS_ATTENTION_ROW_ICON_CLASS =
+  "size-4 shrink-0 text-op-action-primary"
+
+export const NEEDS_ATTENTION_ROW_ACTIONS_CLASS =
+  "ml-auto flex shrink-0 flex-wrap items-center gap-2"
+
+export const NEEDS_ATTENTION_VIEW_ALL_ROW_CLASS = "flex justify-end pt-1"
 
 export const NEEDS_ATTENTION_VIEW_ALL_LABEL = "View all"

@@ -8,6 +8,8 @@ import {
   LATEST_ACTIVITY_TITLE_CLASS,
   LATEST_ACTIVITY_VIEW_ALL_LABEL,
   NEEDS_ATTENTION_EMPTY_COPY,
+  NEEDS_ATTENTION_ROW_COPY_CLASS,
+  NEEDS_ATTENTION_ROW_META_CLASS,
   NEEDS_ATTENTION_VIEW_ALL_LABEL,
   WARNING_ROW_CLASS,
   OPERATOR_HOME_CARD_CLASS,
@@ -80,7 +82,14 @@ describe("operatorHomeSectionPresentation", () => {
     expect(NEEDS_ATTENTION_EMPTY_COPY).toBe(
       "Nothing needs attention right now."
     )
-    expect(WARNING_ROW_CLASS).toContain("bg-op-background-secondary")
+    expect(WARNING_ROW_CLASS).toContain("bg-op-needs-attention-row-background")
+    expect(WARNING_ROW_CLASS).toContain("rounded-op-md")
+    expect(WARNING_ROW_CLASS).toContain("gap-x-op-3-5")
+    expect(NEEDS_ATTENTION_ROW_COPY_CLASS).toContain("gap-[6px]")
+    expect(NEEDS_ATTENTION_ROW_COPY_CLASS).toContain("leading-[0]")
+    expect(NEEDS_ATTENTION_ROW_META_CLASS).toContain(
+      "text-op-needs-attention-row-meta"
+    )
     expect(NEEDS_ATTENTION_VIEW_ALL_LABEL).toBe("View all")
   })
 

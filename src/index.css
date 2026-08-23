@@ -100,6 +100,11 @@
   --color-op-card-border: var(--op-card-border);
   --color-op-card-title-color: var(--op-card-title-color);
   --color-op-card-subtitle-color: var(--op-card-subtitle-color);
+  --color-op-needs-attention-row-background: var(
+    --op-needs-attention-row-background
+  );
+  --color-op-needs-attention-row-meta: var(--op-needs-attention-row-meta);
+  --color-op-color-gray-993: var(--op-color-gray-993);
   --color-op-empty-title-color: var(--op-empty-title-color);
   --color-op-kpi-icon-color: var(--op-kpi-icon-color);
   --color-op-kpi-label-color: var(--op-kpi-label-color);
@@ -163,6 +168,7 @@
   --radius-op-toast: var(--op-toast-radius);
   --spacing-op-2: var(--op-spacing-2);
   --spacing-op-3: var(--op-spacing-3);
+  --spacing-op-3-5: var(--op-spacing-3-5);
   --spacing-op-4: var(--op-spacing-4);
   --spacing-op-toast-x: var(--op-toast-padding-x);
   --spacing-op-toast-y: var(--op-toast-padding-y);
@@ -363,6 +369,8 @@ html.op {
   --op-color-gray-980: #262626;
   --op-color-gray-985: #212121;
   --op-color-gray-990: #202020;
+  /* Figma Needs attention row fill (3344:39087) */
+  --op-color-gray-993: #1d1d1d;
   --op-color-gray-995: #1b1b1b;
   --op-color-gray-1000: #171717;
   --op-color-green-500: #14a74a;
@@ -434,6 +442,9 @@ html.op {
   --op-card-title-size: var(--op-font-size-lg);
   --op-card-subtitle-color: var(--op-text-secondary);
   --op-card-subtitle-size: var(--op-font-size-sm);
+  /* Nested Needs attention row — gray-150 light; Figma #1d1d1d dark. */
+  --op-needs-attention-row-background: var(--op-color-gray-150);
+  --op-needs-attention-row-meta: var(--op-color-gray-550);
   /* Empty-state headings — Figma #171717 light / #ffffff dark */
   --op-empty-title-color: var(--op-color-gray-1000);
   --op-card-header-gap: var(--op-spacing-2);
@@ -567,6 +578,7 @@ html.op.dark {
   /* Semantics — dark */
   --op-background-primary: var(--op-color-gray-995);
   --op-background-secondary: var(--op-color-gray-990);
+  --op-needs-attention-row-background: var(--op-color-gray-993);
   --op-surface-primary: var(--op-color-gray-1000);
   --op-surface-secondary: var(--op-color-black);
   /* Header + SideNav chrome — was #141414 before token migration. */

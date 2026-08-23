@@ -1,12 +1,11 @@
 import { useState } from "react"
-import { ChevronDownIcon, Diamond } from "lucide-react"
 
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
+  NeedsAttentionEmpty,
+  NeedsAttentionRow,
+  NeedsAttentionRowList,
+  NeedsAttentionSection,
+} from "@/components/dashboard/operator/NeedsAttentionSection"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import type {
@@ -18,24 +17,10 @@ import {
   NEEDS_ATTENTION_EMPTY_COPY,
   NEEDS_ATTENTION_VIEW_ALL_LABEL,
   resolveHomeNeedsAttentionSectionBody,
-  WARNING_ROW_CLASS,
   type HomeNeedsAttentionLoadStatus,
 } from "@/lib/operatorHome/homeNeedsAttentionSectionPresentation"
 import { GUESTS_PAGE_SECONDARY_BUTTON_CLASS } from "@/lib/operatorGuests/guestsPresentation"
-import {
-  OPERATOR_HOME_CARD_PADDED_CLASS,
-  OPERATOR_HOME_CHROME_BUTTON_CLASS,
-  OPERATOR_HOME_CHROME_ICON_CLASS,
-  OPERATOR_HOME_EMPTY_SHELL_CENTERED_CLASS,
-  OPERATOR_HOME_EMPTY_TITLE_CLASS,
-  OPERATOR_HOME_GRAY_SHELL_TITLE_CLASS,
-  OPERATOR_HOME_HEADER_COPY_CLASS,
-  OPERATOR_HOME_HEADER_ROW_CLASS,
-  OPERATOR_HOME_SUBTITLE_CLASS,
-} from "@/lib/operatorHome/operatorHomeSectionPresentation"
-import { cn } from "@/lib/utils"
-
-const NEEDS_ATTENTION_ACCORDION_VALUE = "needs-attention"
+import { NEEDS_ATTENTION_VIEW_ALL_ROW_CLASS } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 
 export type HomeNeedsAttentionSectionProps = {
   loadStatus: HomeNeedsAttentionLoadStatus
@@ -48,7 +33,7 @@ export type HomeNeedsAttentionSectionProps = {
   ) => void
 }
 
-/** Figma Needs attention — loaded / empty / error+Retry / warning rows. */
+/** Home Needs attention — load / empty / error+Retry / shared Figma rows. */
 export function HomeNeedsAttentionSection({
   loadStatus,
   projection,
@@ -56,11 +41,7 @@ export function HomeNeedsAttentionSection({
   onRetry,
   onCta,
 }: HomeNeedsAttentionSectionProps) {
-  const [openValues, setOpenValues] = useState<string[]>([
-    NEEDS_ATTENTION_ACCORDION_VALUE,
-  ])
   const [expanded, setExpanded] = useState(false)
-  const isOpen = openValues.includes(NEEDS_ATTENTION_ACCORDION_VALUE)
   const body = resolveHomeNeedsAttentionSectionBody({
     loadStatus,
     projection,
@@ -69,131 +50,75 @@ export function HomeNeedsAttentionSection({
   })
 
   return (
-    <section className={OPERATOR_HOME_CARD_PADDED_CLASS}>
-      <Accordion
-        type="multiple"
-        value={openValues}
-        onValueChange={setOpenValues}
-      >
-        <AccordionItem
-          value={NEEDS_ATTENTION_ACCORDION_VALUE}
-          className="border-none"
-        >
-          <AccordionTrigger
-            className={cn(
-              OPERATOR_HOME_HEADER_ROW_CLASS,
-              "cursor-pointer py-0 hover:no-underline **:data-[slot=accordion-trigger-icon]:hidden"
-            )}
-          >
-            <div className={OPERATOR_HOME_HEADER_COPY_CLASS}>
-              <h2 className={OPERATOR_HOME_GRAY_SHELL_TITLE_CLASS}>
-                Needs attention
-              </h2>
-              <p className={OPERATOR_HOME_SUBTITLE_CLASS}>
-                Review issues that may require action.
-              </p>
+    <NeedsAttentionSection
+      title="Needs attention"
+      subtitle="Review issues that may require action."
+    >
+      {body.mode === "loading" ? (
+        <div className="flex min-h-[120px] items-center justify-center">
+          <Spinner
+            className="size-6"
+            aria-label="Loading Needs attention"
+          />
+        </div>
+      ) : null}
+
+      {body.mode === "error" ? (
+        <div className="px-6 py-10 text-center">
+          <p className="text-sm text-destructive">{body.message}</p>
+          {onRetry ? (
+            <Button
+              type="button"
+              variant="link"
+              size="link-sm"
+              className="mt-3 font-medium underline"
+              onClick={onRetry}
+            >
+              Retry
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {body.mode === "empty" ? (
+        <NeedsAttentionEmpty copy={NEEDS_ATTENTION_EMPTY_COPY} />
+      ) : null}
+
+      {body.mode === "rows" ? (
+        <NeedsAttentionRowList>
+          {body.rows.map((row) => (
+            <NeedsAttentionRow
+              key={row.id}
+              title={row.title}
+              body={row.body}
+              metaLine={row.metaLine}
+              tone={row.metaKind}
+              icon={row.sourceKind === "offer" ? "tag" : undefined}
+              actions={row.ctas.map((cta) => ({
+                key: cta.kind,
+                label: cta.label,
+                onClick: () => {
+                  onCta(row, cta.kind)
+                },
+              }))}
+            />
+          ))}
+          {body.showViewAll ? (
+            <div className={NEEDS_ATTENTION_VIEW_ALL_ROW_CLASS}>
+              <Button
+                type="button"
+                variant="op-tertiary"
+                className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+                onClick={() => {
+                  setExpanded(true)
+                }}
+              >
+                {NEEDS_ATTENTION_VIEW_ALL_LABEL}
+              </Button>
             </div>
-            <span className={OPERATOR_HOME_CHROME_BUTTON_CLASS} aria-hidden>
-              <ChevronDownIcon
-                className={cn(
-                  OPERATOR_HOME_CHROME_ICON_CLASS,
-                  "transition-transform duration-200 motion-reduce:transition-none",
-                  isOpen && "rotate-180"
-                )}
-              />
-            </span>
-          </AccordionTrigger>
-
-          <AccordionContent className="pt-6 pb-0 sm:pt-8 md:pt-10">
-            {body.mode === "loading" ? (
-              <div className="flex min-h-[120px] items-center justify-center">
-                <Spinner
-                  className="size-6"
-                  aria-label="Loading Needs attention"
-                />
-              </div>
-            ) : null}
-
-            {body.mode === "error" ? (
-              <div className="px-6 py-10 text-center">
-                <p className="text-sm text-destructive">{body.message}</p>
-                {onRetry ? (
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="link-sm"
-                    className="mt-3 font-medium underline"
-                    onClick={onRetry}
-                  >
-                    Retry
-                  </Button>
-                ) : null}
-              </div>
-            ) : null}
-
-            {body.mode === "empty" ? (
-              <div className={OPERATOR_HOME_EMPTY_SHELL_CENTERED_CLASS}>
-                <p className={OPERATOR_HOME_EMPTY_TITLE_CLASS}>
-                  {NEEDS_ATTENTION_EMPTY_COPY}
-                </p>
-              </div>
-            ) : null}
-
-            {body.mode === "rows" ? (
-              <div className="flex flex-col gap-3">
-                {body.rows.map((row) => (
-                  <div key={row.id} className={WARNING_ROW_CLASS}>
-                    <Diamond
-                      className="size-4 shrink-0 text-op-action-primary"
-                      aria-hidden
-                    />
-                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                      <p className="m-0 text-base font-semibold leading-6 tracking-[-0.4px] text-op-card-title-color">
-                        {row.title}
-                      </p>
-                      <p className="m-0 text-sm font-medium leading-normal text-op-card-title-color">
-                        {row.body}
-                      </p>
-                      <p className="m-0 text-xs font-medium leading-normal tracking-[-0.4px] text-op-card-subtitle-color">
-                        {row.metaLine}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap items-center gap-2">
-                      {row.ctas.map((cta) => (
-                        <Button
-                          key={cta.kind}
-                          type="button"
-                          variant="op-tertiary"
-                          className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-                          onClick={() => {
-                            onCta(row, cta.kind)
-                          }}
-                        >
-                          {cta.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                {body.showViewAll ? (
-                  <div className="flex justify-end pt-1">
-                    <Button
-                      type="button"
-                      variant="op-tertiary"
-                      className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-                      onClick={() => {
-                        setExpanded(true)
-                      }}
-                    >
-                      {NEEDS_ATTENTION_VIEW_ALL_LABEL}
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-    </section>
+          ) : null}
+        </NeedsAttentionRowList>
+      ) : null}
+    </NeedsAttentionSection>
   )
 }

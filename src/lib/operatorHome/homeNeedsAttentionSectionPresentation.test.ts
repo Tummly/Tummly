@@ -101,8 +101,8 @@ describe("resolveHomeNeedsAttentionSectionBody", () => {
 
 describe("Home Needs attention row chrome", () => {
   it("reuses Offers warning-row wash and padding", () => {
-    expect(WARNING_ROW_CLASS).toContain("bg-op-background-secondary")
-    expect(WARNING_ROW_CLASS).toContain("rounded-[4px]")
+    expect(WARNING_ROW_CLASS).toContain("bg-op-needs-attention-row-background")
+    expect(WARNING_ROW_CLASS).toContain("rounded-op-md")
     expect(WARNING_ROW_CLASS).toContain("pl-[30px]")
     expect(NEEDS_ATTENTION_VIEW_ALL_LABEL).toBe("View all")
   })
