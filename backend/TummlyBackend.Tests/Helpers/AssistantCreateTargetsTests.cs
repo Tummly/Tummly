@@ -167,5 +167,70 @@ namespace TummlyBackend.Tests.Helpers
                 )
             );
         }
+
+        public static TheoryData<string, string> OrdinalBindsFirstCampaign()
+            => new()
+            {
+                { "1", AssistantCreateTargets.Campaign },
+                { "2", AssistantCreateTargets.Offer },
+                { "3", AssistantCreateTargets.Recovery },
+                { "number 1", AssistantCreateTargets.Campaign },
+                { "option 1", AssistantCreateTargets.Campaign },
+                { "first", AssistantCreateTargets.Campaign },
+                { "second", AssistantCreateTargets.Offer },
+                { "third", AssistantCreateTargets.Recovery },
+                { "the first one", AssistantCreateTargets.Campaign },
+                { "the second one", AssistantCreateTargets.Offer },
+                { "last", AssistantCreateTargets.Recovery },
+                { "the last one", AssistantCreateTargets.Recovery },
+                { "1.", AssistantCreateTargets.Campaign },
+            };
+
+        [Theory]
+        [MemberData(nameof(OrdinalBindsFirstCampaign))]
+        public void Resolve_Ordinal_BindsOptionInJoinOrder(string message, string expected)
+        {
+            Assert.Equal(
+                expected,
+                AssistantCreateTargets.Resolve(
+                    AssistantCreateTargets.UnnamedOptions,
+                    message
+                )
+            );
+        }
+
+        [Fact]
+        public void Resolve_NameWinsOverOrdinalPosition()
+        {
+            Assert.Equal(
+                AssistantCreateTargets.Campaign,
+                AssistantCreateTargets.Resolve(
+                    [
+                        AssistantCreateTargets.Offer,
+                        AssistantCreateTargets.Campaign,
+                        AssistantCreateTargets.Recovery,
+                    ],
+                    "Campaign"
+                )
+            );
+        }
+
+        [Theory]
+        [InlineData("14 days")]
+        [InlineData("10% off")]
+        [InlineData("Yes, proceed with number 1")]
+        [InlineData("4")]
+        [InlineData("latest")]
+        [InlineData("most recent")]
+        [InlineData("number 0")]
+        public void Resolve_NonOrdinalOrOutOfRange_IsMiss(string message)
+        {
+            Assert.Null(
+                AssistantCreateTargets.Resolve(
+                    AssistantCreateTargets.UnnamedOptions,
+                    message
+                )
+            );
+        }
     }
 }

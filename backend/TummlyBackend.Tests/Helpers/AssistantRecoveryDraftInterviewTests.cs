@@ -115,6 +115,27 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal("", completed.State.IncludeNotes);
         }
 
+        [Theory]
+        [InlineData("number 1")]
+        [InlineData("option 1")]
+        public void ResolveFeedback_NumberOrOptionOrdinal_StaysMiss(string message)
+        {
+            var feedback = OneFeedback();
+            var started = AssistantRecoveryDraftInterview.Apply(
+                null,
+                "Help me with a recovery",
+                feedback,
+                EmptyOffers()
+            );
+            var selected = AssistantRecoveryDraftInterview.Apply(
+                started.State,
+                message,
+                feedback,
+                EmptyOffers()
+            );
+            Assert.Null(selected.State.FeedbackId);
+        }
+
         [Fact]
         public void Parse_RejectsCampaignTarget()
         {

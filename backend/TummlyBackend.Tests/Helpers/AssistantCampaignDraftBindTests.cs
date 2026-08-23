@@ -576,5 +576,66 @@ namespace TummlyBackend.Tests.Helpers
                 )
             );
         }
+
+        public static TheoryData<string, string> NamedChoiceOrdinals()
+            => new()
+            {
+                { "1", "Weekend brunch" },
+                { "2", "Lunch treat" },
+                { "number 1", "Weekend brunch" },
+                { "option 1", "Weekend brunch" },
+                { "first", "Weekend brunch" },
+                { "second", "Lunch treat" },
+                { "the first one", "Weekend brunch" },
+                { "the second one", "Lunch treat" },
+                { "last", "Lunch treat" },
+                { "the last one", "Lunch treat" },
+                { "1.", "Weekend brunch" },
+            };
+
+        [Theory]
+        [MemberData(nameof(NamedChoiceOrdinals))]
+        public void ResolveNamedChoice_Ordinal_BindsOptionInJoinOrder(
+            string message,
+            string expected
+        )
+        {
+            Assert.Equal(
+                expected,
+                AssistantCampaignDraftBind.ResolveNamedChoice(
+                    ["Weekend brunch", "Lunch treat"],
+                    message
+                )
+            );
+        }
+
+        [Fact]
+        public void ResolveNamedChoice_NameWinsOverOrdinal()
+        {
+            Assert.Equal(
+                "Lunch treat",
+                AssistantCampaignDraftBind.ResolveNamedChoice(
+                    ["Weekend brunch", "Lunch treat"],
+                    "Lunch treat"
+                )
+            );
+        }
+
+        [Theory]
+        [InlineData("14 days")]
+        [InlineData("10% off")]
+        [InlineData("Yes, proceed with number 1")]
+        [InlineData("3")]
+        [InlineData("latest")]
+        [InlineData("most recent")]
+        public void ResolveNamedChoice_NonOrdinalOrOutOfRange_IsMiss(string message)
+        {
+            Assert.Null(
+                AssistantCampaignDraftBind.ResolveNamedChoice(
+                    ["Weekend brunch", "Lunch treat"],
+                    message
+                )
+            );
+        }
     }
 }

@@ -4305,6 +4305,93 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(refused.Conversation.Messages[^1].Actions);
         }
 
+        public static TheoryData<string> UnnamedCreateFirstOptionOrdinals()
+            => new()
+            {
+                "1",
+                "number 1",
+                "option 1",
+                "first",
+                "the first one",
+            };
+
+        [Theory]
+        [MemberData(nameof(UnnamedCreateFirstOptionOrdinals))]
+        public async Task SendTurn_UnnamedCreate_OrdinalFirst_StartsCampaignNotRecovery(
+            string ordinal
+        )
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com"
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "help me draft something")
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+            Assert.Null(started.Conversation.PendingRecoveryDraft);
+
+            var answered = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, ordinal, started.Conversation.Id)
+                )
+            );
+            var answer = answered.Conversation.Messages[^1];
+            Assert.Null(answered.Conversation.PendingRecoveryDraft);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal(
+                new[] { "review-campaign", "change-audience", "add-offer" },
+                answer.Actions.Select(action => action.Type)
+            );
+            Assert.Equal(1, await _context.Campaigns.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferTitleGap_Number1_BindsFirstStoredOption()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Eligible Guest",
+                email: "eligible@example.com"
+            );
+            var firstId = await SeedCatalogOfferAsync(locationId, "Weekend brunch");
+            await SeedCatalogOfferAsync(locationId, "Lunch treat");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        CanonicalCamdenEmailWinBackAsk
+                            + " with Weekend brunch and Lunch treat"
+                    )
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+
+            var answered = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "number 1", started.Conversation.Id)
+                )
+            );
+            var campaign = Assert.Single(_context.Campaigns);
+            Assert.Equal("existing-offer", campaign.OfferStance);
+            Assert.Equal(firstId, campaign.OfferId);
+            Assert.Equal("grounded", answered.Conversation.Messages[^1].Class);
+            Assert.Null(answered.Conversation.PendingRecoveryDraft);
+        }
+
         [Fact]
         public async Task SendTurn_UnnamedCreateWithSeveralOwnedLocations_PersistsAtAnalysisScope()
         {
