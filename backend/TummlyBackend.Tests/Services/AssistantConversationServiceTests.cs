@@ -6,6 +6,7 @@ using TummlyBackend.Data;
 using TummlyBackend.DTOs.Admin;
 using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.DTOs.Campaigns;
+using TummlyBackend.DTOs.Capture;
 using TummlyBackend.DTOs.Offers;
 using TummlyBackend.DTOs.OperatorHome;
 using TummlyBackend.DTOs.OwnedLocation;
@@ -78,6 +79,7 @@ namespace TummlyBackend.Tests.Services
             ICampaignDraftService? campaignDrafts = null,
             ICampaignEligibilityService? eligibility = null,
             IOffersCatalogService? offersCatalog = null,
+            ICaptureThankYouOfferService? thankYouOffers = null,
             TimeProvider? timeProvider = null
         )
         {
@@ -112,6 +114,7 @@ namespace TummlyBackend.Tests.Services
                     _homeRecommendation,
                     _weeklyBriefGenerate
                 ),
+                thankYouOffers ?? new CaptureThankYouOfferService(_context, catalog),
                 timeProvider
             );
         }
@@ -1570,6 +1573,9 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(offer.Id, answer.Actions[2].OfferId);
             Assert.Equal(campaign.Id, _context.AssistantConversations.Single().CreatedCampaignId);
             Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
+            Assert.Null(
+                _context.RestaurantLocations.Single(row => row.Id == locationId).ThankYouCatalogOfferId
+            );
             Assert.Equal(
                 AssistantTask.CreateCampaignWithOffer,
                 AssistantTaskClassification.Classify(CanonicalCamdenCampaignWithOfferAsk)
@@ -2137,8 +2143,11 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(action.OfferId, offer.Id);
             Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
             Assert.Empty(_context.Campaigns);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+            Assert.Null(
+                _context.RestaurantLocations.Single(row => row.Id == locationId).ThankYouCatalogOfferId
+            );
 
-            // Stored Draft may receive a live attach (thank-you attach is ticket 14).
             var attachable = await new OffersCatalogService(_context).IsAttachableForLocationAsync(
                 offer.Id,
                 locationId
@@ -2157,6 +2166,82 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("review-offer", resumeAction.Type);
             Assert.Equal("Review offer draft", resumeAction.Label);
             Assert.Equal(offer.Id, resumeAction.OfferId);
+        }
+
+        private const string CanonicalCamdenOfferPathThankYouAsk =
+            "Create a 25% Offer valid 30 days after issue and attach it to the thank-you page";
+
+        [Fact]
+        public async Task SendTurn_CompleteCreateAndGuestFormThankYou_PersistsDraftAttachesAndReviews()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var terms = AssistantOfferPathTerms.Parse(CanonicalCamdenOfferPathThankYouAsk);
+            Assert.True(AssistantOfferPathTerms.IsComplete(terms));
+            Assert.Equal(
+                AssistantOfferPathTermsState.PlacementGuestFormThankYou,
+                terms.Placement
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenOfferPathThankYouAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("review-offer", action.Type);
+            Assert.NotNull(action.OfferId);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(locationId, offer.RestaurantLocationId);
+            Assert.Equal(action.OfferId, offer.Id);
+            Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
+            Assert.Equal(
+                offer.Id,
+                _context.RestaurantLocations.Single(row => row.Id == locationId).ThankYouCatalogOfferId
+            );
+            Assert.Empty(_context.Campaigns);
+        }
+
+        [Fact]
+        public async Task SendTurn_CompleteCreateAndGuestFormThankYou_AttachThrow_KeepsDraftAndReviewOffer()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var failing = CreateConversationService(
+                thankYouOffers: new ThrowingCaptureThankYouOfferService()
+            );
+
+            var outcome = await failing.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, CanonicalCamdenOfferPathThankYouAsk)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal(
+                AssistantOfferPathPersistCopy.SuccessTitle,
+                answer.Title
+            );
+            Assert.NotEqual(
+                AssistantOfferPathPersistCopy.FailureTitle,
+                answer.Title
+            );
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("review-offer", action.Type);
+            Assert.NotNull(action.OfferId);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(action.OfferId, offer.Id);
+            Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
+            Assert.Null(
+                _context.RestaurantLocations.Single(row => row.Id == locationId).ThankYouCatalogOfferId
+            );
+            Assert.Empty(_context.Campaigns);
         }
 
         private const string PackAi018OfferPathAsk =
@@ -2365,6 +2450,9 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(
                 AssistantOfferPathTermsState.PlacementGuestFormThankYou,
                 terms.Placement
+            );
+            Assert.Null(
+                _context.RestaurantLocations.Single(row => row.Id == locationId).ThankYouCatalogOfferId
             );
         }
 
@@ -7557,6 +7645,22 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             )
                 => throw new NotImplementedException();
+        }
+
+        private sealed class ThrowingCaptureThankYouOfferService : ICaptureThankYouOfferService
+        {
+            public Task<CaptureThankYouOfferDto> GetAsync(
+                int locationId,
+                CancellationToken cancellationToken = default
+            )
+                => throw new InvalidOperationException("thank-you get");
+
+            public Task<CaptureThankYouOfferSetResult> SetAsync(
+                int locationId,
+                int? offerId,
+                CancellationToken cancellationToken = default
+            )
+                => throw new InvalidOperationException("thank-you set");
         }
 
         private sealed class ThrowingOffersCatalogService : IOffersCatalogService

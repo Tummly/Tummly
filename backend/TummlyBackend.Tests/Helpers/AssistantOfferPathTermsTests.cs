@@ -1,4 +1,5 @@
 using TummlyBackend.Helpers;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Tests.Helpers
 {
@@ -23,6 +24,10 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal("Save 25%.", state.Description);
             Assert.DoesNotContain("visit", state.Title, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("order", state.Description, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(
+                OfferIssueSources.GuestFormThankYou,
+                AssistantOfferPathTermsState.PlacementGuestFormThankYou
+            );
         }
 
         [Fact]
