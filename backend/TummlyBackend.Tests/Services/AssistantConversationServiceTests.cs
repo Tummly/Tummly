@@ -2103,27 +2103,6 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(2, ok.Conversation.Messages.Count);
             var answer = ok.Conversation.Messages[^1];
             Assert.Equal("grounded", answer.Class);
-            Assert.Equal(
-                AssistantOfferPathPersistCopy.SuccessTitle,
-                answer.Title
-            );
-            Assert.Contains("Draft", answer.Body, StringComparison.Ordinal);
-            Assert.Contains("not Active", answer.Body, StringComparison.Ordinal);
-            Assert.Contains("Camden", answer.Body, StringComparison.Ordinal);
-            Assert.Contains("25%", answer.Body, StringComparison.Ordinal);
-            Assert.Contains("30 days after issue", answer.Body, StringComparison.Ordinal);
-            Assert.Contains("25% off", answer.Body, StringComparison.Ordinal);
-            Assert.Contains("not attached", answer.Body, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("Guest form thank-you", answer.Body, StringComparison.Ordinal);
-            Assert.DoesNotContain(
-                "Attached to Guest form thank-you",
-                answer.Body,
-                StringComparison.Ordinal
-            );
-            Assert.Contains("Nothing was issued", answer.Body, StringComparison.Ordinal);
-            Assert.Contains("Nothing was sent", answer.Body, StringComparison.Ordinal);
-            Assert.DoesNotContain("## Interpretation", answer.Body, StringComparison.Ordinal);
-            Assert.DoesNotContain("Offer type catalogue", answer.Body, StringComparison.Ordinal);
             Assert.False(ok.Conversation.DraftInterviewActive);
             Assert.Null(ok.Conversation.PendingOfferDraft);
 
@@ -2153,6 +2132,28 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(
                 _context.RestaurantLocations.Single(row => row.Id == locationId).ThankYouCatalogOfferId
             );
+
+            Assert.Equal(
+                AssistantOfferPathPersistCopy.SuccessTitle,
+                answer.Title
+            );
+            Assert.Contains("Draft", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("not Active", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Camden", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("25%", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("30 days after issue", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("25% off", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("not attached", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Guest form thank-you", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "Attached to Guest form thank-you",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("Nothing was issued", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Nothing was sent", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("## Interpretation", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Offer type catalogue", answer.Body, StringComparison.Ordinal);
 
             var attachable = await new OffersCatalogService(_context).IsAttachableForLocationAsync(
                 offer.Id,
@@ -2265,6 +2266,16 @@ namespace TummlyBackend.Tests.Services
 
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             var answer = ok.Conversation.Messages[^1];
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("review-offer", action.Type);
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(action.OfferId, offer.Id);
+            Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
+            Assert.Equal(
+                offer.Id,
+                _context.RestaurantLocations.Single(row => row.Id == locationId).ThankYouCatalogOfferId
+            );
+
             Assert.Equal(
                 AssistantOfferPathPersistCopy.AttachedSuccessTitle,
                 answer.Title
@@ -2276,8 +2287,6 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.DoesNotContain("stays Draft only", answer.Body, StringComparison.Ordinal);
             Assert.DoesNotContain("did not activate", answer.Body, StringComparison.OrdinalIgnoreCase);
-            Assert.Equal("review-offer", Assert.Single(answer.Actions).Type);
-            Assert.Single(_context.CatalogOffers);
         }
 
         [Fact]
@@ -2295,6 +2304,19 @@ namespace TummlyBackend.Tests.Services
 
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             var answer = ok.Conversation.Messages[^1];
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("review-offer", action.Type);
+            Assert.NotNull(action.OfferId);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(action.OfferId, offer.Id);
+            Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
+            Assert.Null(
+                _context.RestaurantLocations.Single(row => row.Id == locationId).ThankYouCatalogOfferId
+            );
+            Assert.Empty(_context.Campaigns);
+
             Assert.Equal(
                 AssistantOfferPathPersistCopy.SuccessTitle,
                 answer.Title
@@ -2319,18 +2341,6 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("Review offer", answer.Body, StringComparison.Ordinal);
             Assert.Contains("Nothing was issued", answer.Body, StringComparison.Ordinal);
             Assert.DoesNotContain("## Interpretation", answer.Body, StringComparison.Ordinal);
-            var action = Assert.Single(answer.Actions);
-            Assert.Equal("review-offer", action.Type);
-            Assert.NotNull(action.OfferId);
-            Assert.Null(ok.Conversation.PendingRecoveryDraft);
-
-            var offer = Assert.Single(_context.CatalogOffers);
-            Assert.Equal(action.OfferId, offer.Id);
-            Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
-            Assert.Null(
-                _context.RestaurantLocations.Single(row => row.Id == locationId).ThankYouCatalogOfferId
-            );
-            Assert.Empty(_context.Campaigns);
         }
 
         [Fact]
@@ -2348,6 +2358,19 @@ namespace TummlyBackend.Tests.Services
 
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             var answer = ok.Conversation.Messages[^1];
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("review-offer", action.Type);
+            Assert.NotNull(action.OfferId);
+            Assert.Null(ok.Conversation.PendingRecoveryDraft);
+
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(action.OfferId, offer.Id);
+            Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
+            Assert.Null(
+                _context.RestaurantLocations.Single(row => row.Id == locationId).ThankYouCatalogOfferId
+            );
+            Assert.Empty(_context.Campaigns);
+
             Assert.Equal(
                 AssistantOfferPathPersistCopy.SuccessTitle,
                 answer.Title
@@ -2372,18 +2395,6 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("Review offer", answer.Body, StringComparison.Ordinal);
             Assert.Contains("Nothing was issued", answer.Body, StringComparison.Ordinal);
             Assert.DoesNotContain("## Interpretation", answer.Body, StringComparison.Ordinal);
-            var action = Assert.Single(answer.Actions);
-            Assert.Equal("review-offer", action.Type);
-            Assert.NotNull(action.OfferId);
-            Assert.Null(ok.Conversation.PendingRecoveryDraft);
-
-            var offer = Assert.Single(_context.CatalogOffers);
-            Assert.Equal(action.OfferId, offer.Id);
-            Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
-            Assert.Null(
-                _context.RestaurantLocations.Single(row => row.Id == locationId).ThankYouCatalogOfferId
-            );
-            Assert.Empty(_context.Campaigns);
         }
 
         private const string PackAi018OfferPathAsk =
@@ -2814,14 +2825,14 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(2, ok.Conversation.Messages.Count);
             Assert.Equal(0, await _context.CatalogOffers.CountAsync());
             Assert.DoesNotContain("review-offer", answer.Actions.Select(action => action.Type));
+            Assert.Null(ok.Conversation.PendingOfferDraft);
+            Assert.Null(_context.AssistantConversations.Single().CreatedOfferId);
             Assert.Equal(
                 AssistantOfferPathPersistCopy.FailureTitle,
                 answer.Title
             );
             Assert.Contains("Offer create", answer.Body);
             Assert.Contains("Change Scope", answer.Body);
-            Assert.Null(ok.Conversation.PendingOfferDraft);
-            Assert.Null(_context.AssistantConversations.Single().CreatedOfferId);
             Assert.Equal("Create Offer Draft", ok.Conversation.Title);
         }
 
