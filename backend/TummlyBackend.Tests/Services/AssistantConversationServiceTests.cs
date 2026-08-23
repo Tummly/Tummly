@@ -2103,6 +2103,10 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(2, ok.Conversation.Messages.Count);
             var answer = ok.Conversation.Messages[^1];
             Assert.Equal("grounded", answer.Class);
+            Assert.Equal(
+                AssistantOfferPathPersistCopy.SuccessTitle,
+                answer.Title
+            );
             Assert.Contains("Draft", answer.Body, StringComparison.Ordinal);
             Assert.Contains("not Active", answer.Body, StringComparison.Ordinal);
             Assert.Contains("Camden", answer.Body, StringComparison.Ordinal);
@@ -2110,6 +2114,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("30 days after issue", answer.Body, StringComparison.Ordinal);
             Assert.Contains("25% off", answer.Body, StringComparison.Ordinal);
             Assert.Contains("not attached", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Guest form thank-you", answer.Body, StringComparison.Ordinal);
             Assert.DoesNotContain(
                 "Attached to Guest form thank-you",
                 answer.Body,
@@ -2117,6 +2122,7 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.Contains("Nothing was issued", answer.Body, StringComparison.Ordinal);
             Assert.Contains("Nothing was sent", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("## Interpretation", answer.Body, StringComparison.Ordinal);
             Assert.DoesNotContain("Offer type catalogue", answer.Body, StringComparison.Ordinal);
             Assert.False(ok.Conversation.DraftInterviewActive);
             Assert.Null(ok.Conversation.PendingOfferDraft);
@@ -2212,6 +2218,66 @@ namespace TummlyBackend.Tests.Services
             ).GetAsync(locationId);
             Assert.Equal(offer.Id, thankYou.ThankYouOfferId);
             Assert.Equal(offer.Title, thankYou.ThankYouOfferTitle);
+
+            Assert.Equal(
+                AssistantOfferPathPersistCopy.AttachedSuccessTitle,
+                answer.Title
+            );
+            Assert.NotEqual(
+                AssistantOfferPathPersistCopy.FailureTitle,
+                answer.Title
+            );
+            Assert.Contains(
+                "Attached to Guest form thank-you",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            if (thankYou.ThankYouOfferLive)
+            {
+                Assert.Contains("**Status:** Active", answer.Body, StringComparison.Ordinal);
+            }
+            else
+            {
+                Assert.Contains(
+                    "**Status:** Draft (not Active)",
+                    answer.Body,
+                    StringComparison.Ordinal
+                );
+            }
+            Assert.DoesNotContain("stays Draft only", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Nothing was issued", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Nothing was sent", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("## Interpretation", answer.Body, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task SendTurn_CompleteCreateAndGuestFormThankYou_ActivateAsk_OmitsRefuseActivateSentence()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    CanonicalCamdenOfferPathThankYouAsk + " and activate it"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal(
+                AssistantOfferPathPersistCopy.AttachedSuccessTitle,
+                answer.Title
+            );
+            Assert.Contains(
+                "Attached to Guest form thank-you",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain("stays Draft only", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("did not activate", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("review-offer", Assert.Single(answer.Actions).Type);
+            Assert.Single(_context.CatalogOffers);
         }
 
         [Fact]
@@ -2237,6 +2303,22 @@ namespace TummlyBackend.Tests.Services
                 AssistantOfferPathPersistCopy.FailureTitle,
                 answer.Title
             );
+            Assert.Contains(
+                "Guest form thank-you attach failed",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("**Status:** Draft (not Active)", answer.Body, StringComparison.Ordinal);
+            Assert.Contains(
+                "Not attached to Guest form thank-you",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(AssistantNextTryCopy.Sentence, answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Capture Guest experience", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Review offer", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Nothing was issued", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("## Interpretation", answer.Body, StringComparison.Ordinal);
             var action = Assert.Single(answer.Actions);
             Assert.Equal("review-offer", action.Type);
             Assert.NotNull(action.OfferId);
@@ -2274,6 +2356,22 @@ namespace TummlyBackend.Tests.Services
                 AssistantOfferPathPersistCopy.FailureTitle,
                 answer.Title
             );
+            Assert.Contains(
+                "Guest form thank-you attach failed",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("**Status:** Draft (not Active)", answer.Body, StringComparison.Ordinal);
+            Assert.Contains(
+                "Not attached to Guest form thank-you",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(AssistantNextTryCopy.Sentence, answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Capture Guest experience", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Review offer", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Nothing was issued", answer.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("## Interpretation", answer.Body, StringComparison.Ordinal);
             var action = Assert.Single(answer.Actions);
             Assert.Equal("review-offer", action.Type);
             Assert.NotNull(action.OfferId);
@@ -2716,6 +2814,10 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(2, ok.Conversation.Messages.Count);
             Assert.Equal(0, await _context.CatalogOffers.CountAsync());
             Assert.DoesNotContain("review-offer", answer.Actions.Select(action => action.Type));
+            Assert.Equal(
+                AssistantOfferPathPersistCopy.FailureTitle,
+                answer.Title
+            );
             Assert.Contains("Offer create", answer.Body);
             Assert.Contains("Change Scope", answer.Body);
             Assert.Null(ok.Conversation.PendingOfferDraft);

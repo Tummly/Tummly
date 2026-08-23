@@ -2158,14 +2158,16 @@ namespace TummlyBackend.Services
             }
 
             return new CreateOfferDraftPersistTurn(
-                AssistantOfferPathPersistCopy.SuccessTitle,
+                AssistantOfferPathPersistCopy.TitleFor(thankYouAttach),
                 AssistantOfferPathPersistCopy.SuccessBody(
                     locationName,
                     AssistantOfferPathTerms.TypeLabel(terms.OfferType),
                     AssistantOfferPathTerms.ValueLabel(terms),
                     AssistantOfferPathTerms.ValidityLabel(terms),
                     created.Title,
-                    terms.WantsActivate
+                    terms.WantsActivate,
+                    thankYouAttach,
+                    thankYouOfferLive
                 ),
                 AssistantActionCatalog.ValidateReviewOffer(
                     created.Id,
