@@ -2889,15 +2889,6 @@ namespace TummlyBackend.Services
                 _ => null,
             };
 
-        private static bool IsOfferPathGap(AssistantGapState gapState)
-            => string.Equals(
-                    gapState.AssistantTask,
-                    AssistantTask.OfferPath,
-                    StringComparison.Ordinal
-                )
-                && gapState.Kind is AssistantGapTurn.KindOfferTerms
-                    or AssistantGapTurn.KindLocation;
-
         private async Task<GapResume> TryResumeGapAsync(
             AssistantConversation conversation,
             AssistantGapState gapState,
@@ -2908,9 +2899,9 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            var offerPathGapHold = IsOfferPathGap(gapState);
+            var stayOnOfferPath = AssistantGapTurn.IsOfferPathGap(gapState);
             var detected = AssistantCreateTargets.Detect(userMessage);
-            if (detected.Count > 1 && !offerPathGapHold)
+            if (detected.Count > 1 && !stayOnOfferPath)
             {
                 return new GapResume(
                     await FinishGapTurnAsync(
@@ -2947,7 +2938,7 @@ namespace TummlyBackend.Services
             if (detected.Count == 1
                 && gapTarget is not null
                 && !string.Equals(detected[0], gapTarget, StringComparison.Ordinal)
-                && !offerPathGapHold)
+                && !stayOnOfferPath)
             {
                 if (detected[0] == AssistantCreateTargets.Offer)
                 {

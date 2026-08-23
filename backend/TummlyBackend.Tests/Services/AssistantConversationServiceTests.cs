@@ -5101,11 +5101,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("gap", stayed.Conversation.Messages[^1].Class);
             Assert.Null(stayed.Conversation.PendingRecoveryDraft);
             Assert.Empty(stayed.Conversation.Messages[^1].Actions);
-            Assert.DoesNotContain(
-                "Which should I create",
-                stayed.Conversation.Messages[^1].Body,
-                StringComparison.Ordinal
-            );
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
             await AssertOfferPathGap(started.Conversation.Id, AssistantGapTurn.KindOfferTerms);
         }
 
