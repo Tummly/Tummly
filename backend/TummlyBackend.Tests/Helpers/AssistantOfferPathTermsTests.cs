@@ -81,5 +81,142 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal("30_days_after_issue", merged.Validity);
             Assert.Empty(merged.ConflictingBenefits);
         }
+
+        [Theory]
+        [InlineData("replacement item offer and attach it", null)]
+        [InlineData("create a replacement item", null)]
+        [InlineData("replacement item: burger", "burger")]
+        [InlineData("replacement item is burger", "burger")]
+        [InlineData("replace the burger", "burger")]
+        [InlineData("replace the burger and attach it", "burger")]
+        [InlineData(
+            "replace the burger then attach it to the thank-you page",
+            "burger"
+        )]
+        [InlineData("replace fish and chips", "fish and chips")]
+        [InlineData("replace the fish and chips and attach it", "fish and chips")]
+        [InlineData("swap the burger and attach it", "burger")]
+        [InlineData("replace with burger", "burger")]
+        [InlineData("replace and attach it", null)]
+        [InlineData("replace an item", null)]
+        public void Parse_ReplacementItemTable_SetsTypeAndCleansItem(
+            string message,
+            string? expectedItem
+        )
+        {
+            var state = AssistantOfferPathTerms.Parse(message, Utc2026);
+
+            Assert.Equal("replacement_item", state.OfferType);
+            Assert.Equal(expectedItem, state.ReplacementItemText);
+            var missing = AssistantOfferPathTerms.MissingFields(state);
+            if (expectedItem is null)
+            {
+                Assert.Contains("value", missing);
+            }
+            else
+            {
+                Assert.DoesNotContain("value", missing);
+            }
+            Assert.Contains("validity", missing);
+            Assert.False(AssistantOfferPathTerms.IsComplete(state));
+            AssistantOfferPathTerms.ProposeCopy(state);
+            Assert.Null(state.Title);
+            Assert.Null(state.Description);
+        }
+
+        [Fact]
+        public void Parse_ReplacementDoesNotMatchInsideReplacementWord()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "create a replacement item offer and attach it",
+                Utc2026
+            );
+
+            Assert.Equal("replacement_item", state.OfferType);
+            Assert.Null(state.ReplacementItemText);
+        }
+
+        [Theory]
+        [InlineData("Caesar salad", "Caesar salad", null, false)]
+        [InlineData("30 days", null, "30_days_after_issue", false)]
+        [InlineData("14 days", null, "14_days_after_issue", false)]
+        [InlineData("activate it", null, null, true)]
+        [InlineData("attach it to thank you", null, null, false)]
+        [InlineData("then attach it", null, null, false)]
+        public void Merge_ReplacementItemFill_RespectsExclusions(
+            string followUp,
+            string? expectedItem,
+            string? expectedValidity,
+            bool expectsActivate
+        )
+        {
+            var prior = AssistantOfferPathTerms.Parse("create a replacement item", Utc2026);
+            Assert.Equal("replacement_item", prior.OfferType);
+            Assert.Null(prior.ReplacementItemText);
+
+            var merged = AssistantOfferPathTerms.Merge(prior, followUp, Utc2026);
+
+            Assert.Equal("replacement_item", merged.OfferType);
+            Assert.Equal(expectedItem, merged.ReplacementItemText);
+            Assert.Equal(expectedValidity, merged.Validity);
+            Assert.Equal(expectsActivate, merged.WantsActivate);
+        }
+
+        [Fact]
+        public void Parse_InstructionLikeReplacement_CleansThenMissingValue()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "offer and attach it to capture thank you page",
+                Utc2026
+            );
+
+            // No replacement cue → not a replacement type from this phrase alone.
+            Assert.Null(state.ReplacementItemText);
+        }
+
+        [Fact]
+        public void Parse_BurgerAndAttachIt_CleansToBurgerWhenCued()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "replace burger and attach it",
+                Utc2026
+            );
+
+            Assert.Equal("replacement_item", state.OfferType);
+            Assert.Equal("burger", state.ReplacementItemText);
+        }
+
+        [Fact]
+        public void Merge_AfterClearedJunk_NextFillStoresNameOnly()
+        {
+            var prior = AssistantOfferPathTerms.Parse(
+                "replacement item offer and attach it",
+                Utc2026
+            );
+            Assert.Null(prior.ReplacementItemText);
+
+            var merged = AssistantOfferPathTerms.Merge(prior, "burger", Utc2026);
+
+            Assert.Equal("burger", merged.ReplacementItemText);
+            Assert.DoesNotContain("attach", merged.ReplacementItemText!);
+        }
+
+        [Fact]
+        public void Parse_OpsLikeFreeItemText_ClearedBySharedCleanup()
+        {
+            var state = new AssistantOfferPathTermsState
+            {
+                OfferType = "free_item",
+                FreeItemText = "offer and attach it to capture thank you page",
+            };
+            var cleaned = AssistantOfferPathTerms.Merge(
+                state,
+                "keep type only",
+                Utc2026
+            );
+
+            // Message has no free-item extract; post-Apply cleanup clears junk.
+            Assert.Null(cleaned.FreeItemText);
+        }
     }
 }

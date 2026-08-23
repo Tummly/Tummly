@@ -2220,6 +2220,39 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("review-offer", Assert.Single(answered.Conversation.Messages[^1].Actions).Type);
         }
 
+        
+        [Fact]
+        public async Task SendTurn_ReplacementItemTypeOnly_TermsGapZeroCatalogRows()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Create a replacement item offer and attach it"
+                    )
+                )
+            );
+            var gap = started.Conversation.Messages[^1];
+            Assert.Equal("gap", gap.Class);
+            Assert.Empty(gap.Actions);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+
+            var row = await _context.AssistantConversations.SingleAsync(
+                c => c.Id == started.Conversation.Id
+            );
+            var gapState = AssistantGapTurn.Parse(row.DraftInterviewJson);
+            Assert.NotNull(gapState);
+            Assert.Equal(AssistantGapTurn.KindOfferTerms, gapState!.Kind);
+            var terms = AssistantOfferPathTerms.FromJson(gapState.OfferTermsJson);
+            Assert.NotNull(terms);
+            Assert.Equal("replacement_item", terms!.OfferType);
+            Assert.Null(terms.ReplacementItemText);
+            Assert.Contains("value", AssistantOfferPathTerms.MissingFields(terms));
+        }
+
         [Fact]
         public async Task SendTurn_OfferPathYouChoose_DoesNotPersist()
         {
