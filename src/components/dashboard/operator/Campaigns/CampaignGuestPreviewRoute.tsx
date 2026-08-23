@@ -2,9 +2,10 @@ import { useEffect, useState } from "react"
 import { useNavigate, useOutletContext, useParams } from "react-router-dom"
 import { XIcon } from "lucide-react"
 
-import { getCampaignDraftById } from "@/api/dashboardApi"
+import { getCampaignDraftById, getCatalogOfferById } from "@/api/dashboardApi"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { GuestPreviewEmailChrome } from "@/components/dashboard/operator/Feedback/GuestPreviewOverlay"
+import { GuestPreviewOfferCoupon } from "@/components/dashboard/operator/Feedback/GuestPreviewOfferCoupon"
 import { OperatorGuestPreviewShell } from "@/components/dashboard/operator/shared/OperatorGuestPreviewShell"
 import { Button } from "@/components/ui/button"
 import {
@@ -17,9 +18,13 @@ import {
   GUEST_PREVIEW_DEVICE,
   GUEST_PREVIEW_HEADING,
   GUEST_PREVIEW_MOBILE_LABEL,
+  GUEST_PREVIEW_OFFER_COPY_LABEL,
+  GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
   GUEST_PREVIEW_OVERLAY_BODY_CLASS,
   GUEST_PREVIEW_OVERLAY_CLASS,
+  formatCatalogOfferExpiryLabel,
   type GuestPreviewDevice,
+  type GuestPreviewOfferCouponView,
 } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import { operatorDashboardNavPath } from "@/lib/operatorHome/operatorDashboardPaths"
 import { cn } from "@/lib/utils"
@@ -59,6 +64,8 @@ export function CampaignGuestPreviewRoute() {
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
   const [title, setTitle] = useState("Campaign")
+  const [offerCoupon, setOfferCoupon] =
+    useState<GuestPreviewOfferCouponView | null>(null)
 
   const locationId = selectedLocationId ?? locations[0]?.id ?? 0
   const selectedLocation = locations.find(
@@ -75,7 +82,7 @@ export function CampaignGuestPreviewRoute() {
     let cancelled = false
     setLoadStatus("loading")
     void getCampaignDraftById(campaignId)
-      .then((response) => {
+      .then(async (response) => {
         if (cancelled) {
           return
         }
@@ -85,6 +92,35 @@ export function CampaignGuestPreviewRoute() {
           response.campaign.messageBody?.trim()
           || "Campaign message preview is not available."
         )
+        const offerId = response.campaign.offerId
+        if (offerId == null) {
+          setOfferCoupon(null)
+          setLoadStatus("loaded")
+          return
+        }
+        try {
+          const offerResponse = await getCatalogOfferById(offerId)
+          if (cancelled) {
+            return
+          }
+          const offer = offerResponse.offer
+          setOfferCoupon({
+            title: offer.title,
+            description: offer.description.trim(),
+            redemptionCode: GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
+            expiryLabel: formatCatalogOfferExpiryLabel(
+              offer.validity,
+              offer.expiryDate
+            ),
+            copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
+            copyEnabled: false,
+          })
+        } catch {
+          if (cancelled) {
+            return
+          }
+          setOfferCoupon(null)
+        }
         setLoadStatus("loaded")
       })
       .catch(() => {
@@ -184,6 +220,11 @@ export function CampaignGuestPreviewRoute() {
         subject={subject}
         message={message}
         device={device}
+        offerCoupon={
+          offerCoupon != null ? (
+            <GuestPreviewOfferCoupon coupon={offerCoupon} />
+          ) : undefined
+        }
       />
     </OperatorGuestPreviewShell>
   )

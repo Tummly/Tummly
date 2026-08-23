@@ -309,6 +309,31 @@ export function formatGuestPreviewOfferExpiryLabel(
   return `Expires: ${labelForRecoveryOfferValidity(validity)}`
 }
 
+function isRecoveryOfferValidityId(
+  value: string
+): value is RecoveryOfferValidityId {
+  return (
+    value === "7_days_after_issue"
+    || value === "14_days_after_issue"
+    || value === "30_days_after_issue"
+    || value === "choose_expiry_date"
+  )
+}
+
+/**
+ * Catalog list/detail validity is a wire string. Days-after-issue offers have
+ * no `expiryDate`; only `choose_expiry_date` stores a calendar day.
+ */
+export function formatCatalogOfferExpiryLabel(
+  validity: string,
+  expiryDate: string | null | undefined
+): string {
+  if (isRecoveryOfferValidityId(validity)) {
+    return formatGuestPreviewOfferExpiryLabel(validity, expiryDate)
+  }
+  return formatGuestPreviewOfferExpiryLabel("choose_expiry_date", expiryDate)
+}
+
 /**
  * Email Guest preview offer coupon from the confirmed offer draft.
  * Redemption code is always a placeholder until issue; Offer claim QR encodes

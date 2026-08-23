@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  formatCatalogOfferExpiryLabel,
   GUEST_PREVIEW_CLOSE_LABEL,
   GUEST_PREVIEW_CONTROL_LABEL,
   GUEST_PREVIEW_DESKTOP_LABEL,
@@ -200,6 +201,18 @@ describe("guestPreviewPresentation", () => {
       expiryLabel: "Expires: 30 days after issue",
       redemptionCode: GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
     })
+  })
+
+  it("formats catalog list validity including days-after-issue", () => {
+    expect(
+      formatCatalogOfferExpiryLabel("30_days_after_issue", null)
+    ).toBe("Expires: 30 days after issue")
+    expect(
+      formatCatalogOfferExpiryLabel("choose_expiry_date", "2026-07-31")
+    ).toBe("Expires: 31 July 2026")
+    expect(formatCatalogOfferExpiryLabel("choose_expiry_date", null)).toBe(
+      `Expires: ${GUEST_PREVIEW_EMPTY_VALUE}`
+    )
   })
 
   it("returns null when offer title is missing", () => {

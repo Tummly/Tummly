@@ -1,3 +1,4 @@
+import { formatCatalogOfferExpiryLabel } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import type {
   CampaignsListItem,
   CatalogOffersListItem,
@@ -6,6 +7,12 @@ import type {
 export const LIVE_OFFERS_METRIC_DASH = "—"
 
 const LIVE_CAMPAIGN_STATUSES = new Set(["scheduled", "sending"])
+
+export type OperatorHomeLiveOfferCoupon = {
+  title: string
+  description: string
+  expiryLabel: string
+}
 
 export type OperatorHomeLiveCampaignCard = {
   kind: "campaign"
@@ -19,6 +26,8 @@ export type OperatorHomeLiveCampaignCard = {
   /** Guest message for left preview chrome — filled after optional draft fetch. */
   messageSubject: string | null
   messageBody: string | null
+  /** Attached catalog offer coupon — filled after optional draft + offer join. */
+  offerCoupon: OperatorHomeLiveOfferCoupon | null
 }
 
 export type OperatorHomeLiveOfferCard = {
@@ -29,7 +38,9 @@ export type OperatorHomeLiveOfferCard = {
   statusLabel: string
   metricParts: string[]
   description: string | null
+  validity: string
   expiryDate: string | null
+  expiryLabel: string
 }
 
 export type OperatorHomeLiveCard =
@@ -73,23 +84,6 @@ function sortByUpdatedAtDesc<T extends { updatedAt: string }>(
   )
 }
 
-function formatOfferExpiryLabel(expiryDate: string | null): string {
-  if (expiryDate == null || expiryDate.trim().length === 0) {
-    return `Expires ${LIVE_OFFERS_METRIC_DASH}`
-  }
-  const parsed = new Date(`${expiryDate}T00:00:00.000Z`)
-  if (Number.isNaN(parsed.getTime())) {
-    return `Expires ${LIVE_OFFERS_METRIC_DASH}`
-  }
-  const formatted = new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(parsed)
-  return `Expires ${formatted}`
-}
-
 function mapCampaignCard(item: CampaignsListItem): OperatorHomeLiveCampaignCard {
   const delivery = formatLiveMetricOrDash(item.delivery)
   const claims = formatLiveMetricOrDash(item.redemptions)
@@ -103,6 +97,7 @@ function mapCampaignCard(item: CampaignsListItem): OperatorHomeLiveCampaignCard 
     channel: item.channel,
     messageSubject: null,
     messageBody: null,
+    offerCoupon: null,
     // List wire has no guest-count field — only delivery + redemptions.
     metricParts: [
       delivery === LIVE_OFFERS_METRIC_DASH
@@ -120,6 +115,10 @@ function mapCampaignCard(item: CampaignsListItem): OperatorHomeLiveCampaignCard 
 }
 
 function mapOfferCard(item: CatalogOffersListItem): OperatorHomeLiveOfferCard {
+  const expiryLabel = formatCatalogOfferExpiryLabel(
+    item.validity,
+    item.expiryDate
+  )
   return {
     kind: "offer",
     id: item.id,
@@ -127,11 +126,44 @@ function mapOfferCard(item: CatalogOffersListItem): OperatorHomeLiveOfferCard {
     status: item.status,
     statusLabel: statusLabelForWireStatus(item.status),
     description: item.description ?? null,
+    validity: item.validity,
     expiryDate: item.expiryDate,
+    expiryLabel,
     metricParts: [
       `${formatLiveMetricCount(item.lifetimeClaims)} claims`,
       `${formatLiveMetricCount(item.lifetimeRedeemed)} redemptions`,
-      formatOfferExpiryLabel(item.expiryDate),
+      expiryLabel,
+    ],
+  }
+}
+
+/**
+ * Join the attached catalog offer onto a live campaign card after draft fetch.
+ */
+export function attachLiveCampaignOffer(
+  card: OperatorHomeLiveCampaignCard,
+  offer: Pick<
+    CatalogOffersListItem,
+    "title" | "description" | "validity" | "expiryDate"
+  > | null
+): OperatorHomeLiveCampaignCard {
+  if (offer == null) {
+    return card
+  }
+  const expiryLabel = formatCatalogOfferExpiryLabel(
+    offer.validity,
+    offer.expiryDate
+  )
+  return {
+    ...card,
+    offerCoupon: {
+      title: offer.title,
+      description: offer.description?.trim() ?? "",
+      expiryLabel,
+    },
+    metricParts: [
+      ...card.metricParts.filter((part) => !part.startsWith("Expires")),
+      expiryLabel,
     ],
   }
 }

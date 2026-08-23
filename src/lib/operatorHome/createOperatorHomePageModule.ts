@@ -10,6 +10,7 @@ import {
   type HomeNeedsAttentionProjection,
 } from "@/lib/operatorHome/buildHomeNeedsAttention"
 import {
+  attachLiveCampaignOffer,
   buildLiveOffersSectionCards,
   type OperatorHomeLiveCard,
 } from "@/lib/operatorHome/buildLiveOffersSectionCards"
@@ -44,6 +45,7 @@ import type {
   CampaignLifecycleActionRequest,
   CampaignLifecycleActionResponse,
   CampaignsListItem,
+  CatalogOfferResponse,
   CatalogOffersListItem,
   OpenVoidAttentionOfferApi,
 } from "@/types/operatorCampaigns"
@@ -217,6 +219,7 @@ export type OperatorHomePageAdapters = {
     body: CampaignLifecycleActionRequest
   ) => Promise<CampaignLifecycleActionResponse>
   getCampaignDraftById?: (campaignId: number) => Promise<CampaignDraftResponse>
+  getCatalogOfferById?: (offerId: number) => Promise<CatalogOfferResponse>
 }
 
 export type DuplicateNeedsAttentionCampaignResult =
@@ -1099,12 +1102,15 @@ export function createOperatorHomePageModule(
   })
 
   const enrichLiveCardsWithCampaignMessages = async (
-    cards: OperatorHomeLiveCard[]
+    cards: OperatorHomeLiveCard[],
+    offers: readonly CatalogOffersListItem[]
   ): Promise<OperatorHomeLiveCard[]> => {
     const getDraft = adapters.getCampaignDraftById
     if (getDraft == null) {
       return cards
     }
+
+    const offersById = new Map(offers.map((offer) => [offer.id, offer]))
 
     return Promise.all(
       cards.map(async (card) => {
@@ -1113,11 +1119,32 @@ export function createOperatorHomePageModule(
         }
         try {
           const response = await getDraft(card.id)
-          return {
-            ...card,
-            messageSubject: response.campaign.messageSubject,
-            messageBody: response.campaign.messageBody,
+          const offerId = response.campaign.offerId
+          let attached: Pick<
+            CatalogOffersListItem,
+            "title" | "description" | "validity" | "expiryDate"
+          > | null =
+            offerId != null ? offersById.get(offerId) ?? null : null
+          if (
+            attached == null
+            && offerId != null
+            && adapters.getCatalogOfferById != null
+          ) {
+            try {
+              const offerResponse = await adapters.getCatalogOfferById(offerId)
+              attached = offerResponse.offer
+            } catch {
+              attached = null
+            }
           }
+          return attachLiveCampaignOffer(
+            {
+              ...card,
+              messageSubject: response.campaign.messageSubject,
+              messageBody: response.campaign.messageBody,
+            },
+            attached
+          )
         } catch {
           return card
         }
@@ -1153,7 +1180,10 @@ export function createOperatorHomePageModule(
       }
 
       const cards = buildLiveOffersSectionCards({ campaigns, offers })
-      const enrichedCards = await enrichLiveCardsWithCampaignMessages(cards)
+      const enrichedCards = await enrichLiveCardsWithCampaignMessages(
+        cards,
+        offers
+      )
 
       if (generation !== state.liveOffersLoadGeneration) {
         return

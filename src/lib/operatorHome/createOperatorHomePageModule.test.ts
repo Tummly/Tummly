@@ -302,6 +302,7 @@ function createAdapters(overrides: {
   pauseCampaign?: OperatorHomePageAdapters["pauseCampaign"]
   duplicateCampaign?: OperatorHomePageAdapters["duplicateCampaign"]
   getCampaignDraftById?: OperatorHomePageAdapters["getCampaignDraftById"]
+  getCatalogOfferById?: OperatorHomePageAdapters["getCatalogOfferById"]
 } = {}): OperatorHomePageAdapters {
   let defaultWeeklyBriefGenerated = false
 
@@ -485,6 +486,7 @@ function createAdapters(overrides: {
         throw new Error("duplicateCampaign not stubbed")
       }),
     getCampaignDraftById: overrides.getCampaignDraftById,
+    getCatalogOfferById: overrides.getCatalogOfferById,
   }
 }
 
@@ -2180,8 +2182,8 @@ describe("createOperatorHomePageModule", () => {
         title: "10% off your next visit",
         status: "active" as const,
         offerType: "percentage-discount",
-        validity: "custom-date",
-        expiryDate: "2026-07-31",
+        validity: "30_days_after_issue",
+        expiryDate: null,
         attachKinds: ["campaign"],
         lifetimeClaims: 5,
         lifetimeRedeemed: 2,
@@ -2250,10 +2252,23 @@ describe("createOperatorHomePageModule", () => {
       id: 2,
       messageSubject: "Thanks for visiting",
       messageBody: "We would love to see you again.",
+      offerCoupon: {
+        title: "10% off your next visit",
+        expiryLabel: "Expires: 30 days after issue",
+      },
     })
+    expect(
+      home.getSnapshot().liveCards[0]?.kind === "campaign"
+      && home.getSnapshot().liveCards[0].metricParts
+    ).toEqual([
+      "80% delivered",
+      "3 offer claims",
+      "Expires: 30 days after issue",
+    ])
     expect(home.getSnapshot().liveCards[1]).toMatchObject({
       kind: "offer",
       id: 11,
+      expiryLabel: "Expires: 30 days after issue",
     })
   })
 

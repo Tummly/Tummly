@@ -6,6 +6,7 @@ import type {
 } from "@/types/operatorCampaigns"
 
 import {
+  attachLiveCampaignOffer,
   buildLiveOffersSectionCards,
   formatLiveMetricCount,
   formatLiveMetricOrDash,
@@ -41,7 +42,7 @@ function offer(
     locationId: 1,
     status: "active",
     offerType: "percentage-discount",
-    validity: "custom-date",
+    validity: "choose_expiry_date",
     expiryDate: "2026-07-31",
     attachKinds: ["campaign"],
     createdAt: "2026-08-01T12:00:00.000Z",
@@ -148,8 +149,11 @@ describe("buildLiveOffersSectionCards", () => {
     expect(cards[1]?.kind === "offer" && cards[1].metricParts).toEqual([
       "5 claims",
       "2 redemptions",
-      "Expires 31 Jul 2026",
+      "Expires: 31 July 2026",
     ])
+    expect(cards[1]?.kind === "offer" && cards[1].expiryLabel).toBe(
+      "Expires: 31 July 2026"
+    )
   })
 
   it("fills with two campaigns when no offers qualify", () => {
@@ -233,5 +237,63 @@ describe("buildLiveOffersSectionCards", () => {
     expect(cards[0]?.id).toBe(1)
     expect(cards[1]?.kind).toBe("offer")
     expect(cards[1]?.id).toBe(5)
+  })
+
+  it("formats days-after-issue expiry without a calendar date", () => {
+    const cards = buildLiveOffersSectionCards({
+      campaigns: [],
+      offers: [
+        offer({
+          id: 7,
+          title: "30 day deal",
+          validity: "30_days_after_issue",
+          expiryDate: null,
+        }),
+      ],
+    })
+
+    expect(cards[0]?.kind === "offer" && cards[0].metricParts).toEqual([
+      `${LIVE_OFFERS_METRIC_DASH} claims`,
+      `${LIVE_OFFERS_METRIC_DASH} redemptions`,
+      "Expires: 30 days after issue",
+    ])
+    expect(cards[0]?.kind === "offer" && cards[0].expiryLabel).toBe(
+      "Expires: 30 days after issue"
+    )
+  })
+
+  it("attaches catalog offer expiry onto a live campaign card", () => {
+    const [campaignCard] = buildLiveOffersSectionCards({
+      campaigns: [
+        campaign({
+          id: 1,
+          name: "Thank-you",
+          delivery: "80%",
+          redemptions: "3",
+        }),
+      ],
+      offers: [],
+    })
+    if (campaignCard?.kind !== "campaign") {
+      throw new Error("expected campaign card")
+    }
+
+    const attached = attachLiveCampaignOffer(campaignCard, {
+      title: "10% off your next visit",
+      description: "Show this code on your next visit.",
+      validity: "14_days_after_issue",
+      expiryDate: null,
+    })
+
+    expect(attached.offerCoupon).toEqual({
+      title: "10% off your next visit",
+      description: "Show this code on your next visit.",
+      expiryLabel: "Expires: 14 days after issue",
+    })
+    expect(attached.metricParts).toEqual([
+      "80% delivered",
+      "3 offer claims",
+      "Expires: 14 days after issue",
+    ])
   })
 })

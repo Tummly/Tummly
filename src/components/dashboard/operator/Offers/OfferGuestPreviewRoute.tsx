@@ -21,6 +21,7 @@ import {
   GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
   GUEST_PREVIEW_OVERLAY_BODY_CLASS,
   GUEST_PREVIEW_OVERLAY_CLASS,
+  formatCatalogOfferExpiryLabel,
   type GuestPreviewDevice,
   type GuestPreviewOfferCouponView,
 } from "@/lib/operatorFeedback/guestPreviewPresentation"
@@ -80,10 +81,10 @@ export function OfferGuestPreviewRoute() {
         }
         const offer = response.offer
         setTitle(offer.title)
-        const expiryLabel =
-          offer.expiryDate != null && offer.expiryDate.trim().length > 0
-            ? `Expires: ${offer.expiryDate}`
-            : ""
+        const expiryLabel = formatCatalogOfferExpiryLabel(
+          offer.validity,
+          offer.expiryDate
+        )
         setCoupon({
           title: offer.title,
           description: offer.description.trim(),

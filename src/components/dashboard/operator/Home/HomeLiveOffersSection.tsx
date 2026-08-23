@@ -54,21 +54,21 @@ export type HomeLiveOffersSectionProps = {
   onPauseCampaign?: (campaignId: number) => void
 }
 
-function formatExpiryLabel(expiryDate: string | null): string {
-  if (expiryDate == null || expiryDate.trim().length === 0) {
-    return "Expires —"
+function liveOfferCouponView(
+  coupon: {
+    title: string
+    description: string
+    expiryLabel: string
   }
-  const parsed = new Date(`${expiryDate}T00:00:00.000Z`)
-  if (Number.isNaN(parsed.getTime())) {
-    return "Expires —"
+) {
+  return {
+    title: coupon.title,
+    description: coupon.description,
+    redemptionCode: GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
+    expiryLabel: coupon.expiryLabel,
+    copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
+    copyEnabled: false,
   }
-  const formatted = new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(parsed)
-  return `Expires: ${formatted}`
 }
 
 function LiveCardPreview({
@@ -84,17 +84,16 @@ function LiveCardPreview({
   locationAddress: string | null
   onPreview?: (card: OperatorHomeLiveCard) => void
 }) {
-  const coupon =
+  const offerCoupon =
     card.kind === "offer"
-      ? {
+      ? liveOfferCouponView({
           title: card.title,
           description: card.description?.trim() ?? "",
-          redemptionCode: GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
-          expiryLabel: formatExpiryLabel(card.expiryDate),
-          copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
-          copyEnabled: false,
-        }
-      : null
+          expiryLabel: card.expiryLabel,
+        })
+      : card.offerCoupon != null
+        ? liveOfferCouponView(card.offerCoupon)
+        : null
 
   return (
     <div className={LIVE_OFFERS_CARD_PREVIEW_CLASS}>
@@ -109,12 +108,17 @@ function LiveCardPreview({
               card.messageBody?.trim()
               || "Campaign message preview is not available."
             }
+            offerCoupon={
+              offerCoupon != null ? (
+                <GuestPreviewOfferCoupon coupon={offerCoupon} />
+              ) : undefined
+            }
             className="w-full"
             maxWidthClass="max-w-none"
           />
-        ) : coupon != null ? (
+        ) : offerCoupon != null ? (
           <div className="w-full">
-            <GuestPreviewOfferCoupon coupon={coupon} />
+            <GuestPreviewOfferCoupon coupon={offerCoupon} />
           </div>
         ) : null}
       </div>
