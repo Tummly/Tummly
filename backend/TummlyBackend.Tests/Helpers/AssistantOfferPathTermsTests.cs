@@ -227,5 +227,222 @@ namespace TummlyBackend.Tests.Helpers
             // Message has no free-item extract; post-Apply cleanup clears junk.
             Assert.Null(cleaned.FreeItemText);
         }
+ 
+        [Fact]
+        public void Parse_ReplacementItemAttachCaptureThankYou_SetsPlacementItemNull()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "Create a replacement item offer and attach it to capture thank you page",
+                Utc2026
+            );
+
+            Assert.Equal("replacement_item", state.OfferType);
+            Assert.Null(state.ReplacementItemText);
+            Assert.True(state.WantsAttach);
+            Assert.Equal(
+                AssistantOfferPathTermsState.PlacementGuestFormThankYou,
+                state.Placement
+            );
+            Assert.False(AssistantOfferPathTerms.IsComplete(state));
+            Assert.Contains("value", AssistantOfferPathTerms.MissingFields(state));
+            AssistantOfferPathTerms.ProposeCopy(state);
+            Assert.Null(state.Title);
+            Assert.DoesNotContain(
+                "attach",
+                AssistantOfferPathTerms.ValueLabel(state),
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public void Parse_ReplaceBurgerThenAttachThankYouPage_SetsItemAndPlacement()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "replace the burger then attach it to the thank-you page",
+                Utc2026
+            );
+
+            Assert.Equal("replacement_item", state.OfferType);
+            Assert.Equal("burger", state.ReplacementItemText);
+            Assert.True(state.WantsAttach);
+            Assert.Equal(
+                AssistantOfferPathTermsState.PlacementGuestFormThankYou,
+                state.Placement
+            );
+        }
+
+        [Fact]
+        public void Parse_CatalogOnlyTwentyFivePercent_CompleteWithoutAttach()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "Create a 25% Offer valid 14 days",
+                Utc2026
+            );
+
+            Assert.True(AssistantOfferPathTerms.IsComplete(state));
+            Assert.False(state.WantsAttach);
+            Assert.Null(state.Placement);
+            Assert.DoesNotContain(
+                "placement",
+                AssistantOfferPathTerms.MissingFields(state)
+            );
+        }
+
+        [Fact]
+        public void Parse_GenericAttach_WantsAttachMissingPlacement()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "Create a 25% Offer valid 14 days and attach it",
+                Utc2026
+            );
+
+            Assert.True(state.WantsAttach);
+            Assert.Null(state.Placement);
+            Assert.False(AssistantOfferPathTerms.IsComplete(state));
+            Assert.Equal(
+                ["placement"],
+                AssistantOfferPathTerms.MissingFields(state)
+            );
+        }
+
+        [Fact]
+        public void Parse_CampaignAttach_DoesNotSetWantsAttach()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "Create a 25% Offer valid 14 days and attach it to Summer win-back campaign",
+                Utc2026
+            );
+
+            Assert.False(state.WantsAttach);
+            Assert.Null(state.Placement);
+            Assert.True(AssistantOfferPathTerms.IsComplete(state));
+            AssistantOfferPathTerms.ProposeCopy(state);
+            Assert.Equal("25% off", state.Title);
+            Assert.DoesNotContain("attach", state.Title, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(
+                "campaign",
+                state.Description ?? string.Empty,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public void Merge_FirstKnownWins_WantsAttachAndPlacement()
+        {
+            var prior = AssistantOfferPathTerms.Parse(
+                "Create a 25% Offer valid 14 days and attach it",
+                Utc2026
+            );
+            Assert.True(prior.WantsAttach);
+            Assert.Null(prior.Placement);
+
+            var withPlacement = AssistantOfferPathTerms.Merge(
+                prior,
+                "Guest form thank-you",
+                Utc2026
+            );
+            Assert.True(withPlacement.WantsAttach);
+            Assert.Equal(
+                AssistantOfferPathTermsState.PlacementGuestFormThankYou,
+                withPlacement.Placement
+            );
+            Assert.True(AssistantOfferPathTerms.IsComplete(withPlacement));
+
+            var kept = AssistantOfferPathTerms.Merge(
+                withPlacement,
+                "attach it to capture thank you page",
+                Utc2026
+            );
+            Assert.Equal(
+                AssistantOfferPathTermsState.PlacementGuestFormThankYou,
+                kept.Placement
+            );
+            Assert.True(kept.WantsAttach);
+        }
+
+        [Fact]
+        public void GapBody_PlacementOnly_UsesOperatorLabelNotWireWord()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "Create a 25% Offer valid 14 days and attach it",
+                Utc2026
+            );
+
+            var body = AssistantOfferPathTerms.GapBody(state);
+            Assert.DoesNotContain("placement", body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Guest form thank-you", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Campaign", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("recovery", body, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(
+                "Name Guest form thank-you if this Offers catalog Draft should attach there.",
+                body
+            );
+        }
+
+        [Fact]
+        public void GapBody_CatalogAndPlacement_AppendsDedicatedSentence()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "Create a replacement item offer and attach it",
+                Utc2026
+            );
+
+            var body = AssistantOfferPathTerms.GapBody(state);
+            Assert.DoesNotContain("placement", body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("value", body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(
+                "Name Guest form thank-you if this Offers catalog Draft should attach there.",
+                body,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public void Serialize_RoundTrip_PreservesAttachFields()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "Create a 25% Offer valid 14 days and attach it to the thank you page",
+                Utc2026
+            );
+
+            var restored = AssistantOfferPathTerms.FromJson(
+                AssistantOfferPathTerms.Serialize(state)
+            );
+
+            Assert.NotNull(restored);
+            Assert.True(restored!.WantsAttach);
+            Assert.Equal(
+                AssistantOfferPathTermsState.PlacementGuestFormThankYou,
+                restored.Placement
+            );
+            Assert.Equal(state.OfferType, restored.OfferType);
+            Assert.Equal(state.DiscountPercentage, restored.DiscountPercentage);
+            Assert.Equal(state.Validity, restored.Validity);
+        }
+
+        [Fact]
+        public void ToCreateRequest_OmitsAttachFields()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "Create a 25% Offer valid 14 days",
+                Utc2026
+            );
+            state.WantsAttach = true;
+            state.Placement = AssistantOfferPathTermsState.PlacementGuestFormThankYou;
+
+            var request = AssistantOfferPathTerms.ToCreateRequest(state, locationId: 9);
+
+            Assert.Equal(9, request.LocationId);
+            Assert.Equal("percentage_discount", request.OfferType);
+            Assert.Equal(25m, request.DiscountPercentage);
+            var json = System.Text.Json.JsonSerializer.Serialize(request);
+            Assert.DoesNotContain("WantsAttach", json, StringComparison.Ordinal);
+            Assert.DoesNotContain("Placement", json, StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                AssistantOfferPathTermsState.PlacementGuestFormThankYou,
+                json,
+                StringComparison.Ordinal
+            );
+        }
     }
 }

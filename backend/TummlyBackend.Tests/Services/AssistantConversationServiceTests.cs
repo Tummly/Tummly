@@ -2129,11 +2129,12 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
             Assert.Empty(_context.Campaigns);
 
+            // Stored Draft may receive a live attach (thank-you attach is ticket 14).
             var attachable = await new OffersCatalogService(_context).IsAttachableForLocationAsync(
                 offer.Id,
                 locationId
             );
-            Assert.False(attachable);
+            Assert.True(attachable);
 
             Assert.Equal(
                 AssistantTask.OfferPath,
@@ -2285,6 +2286,78 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("value", AssistantOfferPathTerms.MissingFields(terms));
         }
 
+
+        [Fact]
+        public async Task SendTurn_OfferPathGenericAttach_IsPlacementTermsGapZeroCatalogRows()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Create a 25% Offer valid 14 days and attach it"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+            Assert.DoesNotContain("placement", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Guest form thank-you", answer.Body, StringComparison.Ordinal);
+
+            var stored = await _context.AssistantConversations
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == ok.Conversation.Id);
+            var gapState = AssistantGapTurn.Parse(stored.DraftInterviewJson);
+            Assert.NotNull(gapState);
+            Assert.Equal(AssistantGapTurn.KindOfferTerms, gapState!.Kind);
+            Assert.Equal(AssistantTask.OfferPath, gapState.AssistantTask);
+            var terms = AssistantOfferPathTerms.FromJson(gapState.OfferTermsJson);
+            Assert.NotNull(terms);
+            Assert.True(terms!.WantsAttach);
+            Assert.Null(terms.Placement);
+            Assert.Contains("placement", AssistantOfferPathTerms.MissingFields(terms));
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferPathIncompleteCreateAndAttach_IsTermsGapZeroCatalogRows()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Create a replacement item offer and attach it to capture thank you page"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Empty(answer.Actions);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+
+            var stored = await _context.AssistantConversations
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == ok.Conversation.Id);
+            var gapState = AssistantGapTurn.Parse(stored.DraftInterviewJson);
+            Assert.NotNull(gapState);
+            Assert.Equal(AssistantGapTurn.KindOfferTerms, gapState!.Kind);
+            Assert.Equal(AssistantTask.OfferPath, gapState.AssistantTask);
+            var terms = AssistantOfferPathTerms.FromJson(gapState.OfferTermsJson);
+            Assert.NotNull(terms);
+            Assert.Equal("replacement_item", terms!.OfferType);
+            Assert.Null(terms.ReplacementItemText);
+            Assert.True(terms.WantsAttach);
+            Assert.Equal(
+                AssistantOfferPathTermsState.PlacementGuestFormThankYou,
+                terms.Placement
+            );
+        }
 
         [Fact]
         public async Task SendTurn_OfferPathYouChoose_DoesNotPersist()
