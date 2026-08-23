@@ -144,7 +144,7 @@ export function HomePageModuleProvider({
           locationId,
           view: "all",
           page: 1,
-          pageSize: 1,
+          pageSize: CAMPAIGNS_PAGE_SIZE,
         })
         return response.tabCounts.all > 0 || response.totalCount > 0
       },
@@ -172,7 +172,7 @@ export function HomePageModuleProvider({
           status: ["scheduled", "sending"],
           sort: "recent-activity",
           page: 1,
-          pageSize: 20,
+          pageSize: CAMPAIGNS_PAGE_SIZE,
           utcOffsetMinutes: -new Date().getTimezoneOffset(),
         })
         return response.items

@@ -134,6 +134,48 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetFeedbackInbox_HomeAllTimeNeedsAttentionWindow_IncludesOlderItems()
+        {
+            var from = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 8, 24, 6, 17, 40, 615, DateTimeKind.Utc);
+            var seeded = await SeedOwnerWithLocationAsync(
+                "feedback-inbox-all-time"
+            );
+
+            await AddFeedbackAsync(
+                seeded.LocationId,
+                new DateTime(2020, 3, 1, 10, 0, 0, DateTimeKind.Utc),
+                "Old unresolved negative",
+                "Alex",
+                ClassificationStatus.Succeeded,
+                FeedbackSentiment.Negative,
+                FeedbackWorkflowStatus.New
+            );
+
+            using var request = AuthorizedGet(
+                InboxUrl(
+                    seeded.LocationId,
+                    from,
+                    to,
+                    tab: "needs-attention"
+                ),
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(1, body.GetProperty("totalCount").GetInt32());
+            Assert.Equal(
+                1,
+                body.GetProperty("tabCounts")
+                    .GetProperty("needsAttention")
+                    .GetInt32()
+            );
+        }
+
+        [Fact]
         public async Task GetFeedbackInbox_SearchAndSentimentFilter_ComposeWithAnd()
         {
             var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);

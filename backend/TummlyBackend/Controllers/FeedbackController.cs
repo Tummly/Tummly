@@ -362,15 +362,9 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var inclusiveCalendarDays = (toUtc.Date - fromUtc.Date).Days;
-            if (inclusiveCalendarDays > MaxInclusiveCalendarDays)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Date range cannot exceed 180 days."
-                });
-            }
+            // Inbox is not capped at 180 days: Home Needs attention uses an
+            // all-time window so unresolved Negative Feedback still counts.
+            // Summary and export keep the 180-day cap.
 
             var ownedLocation =
                 await _ownedLocation.ResolveAsync(userId, locationId);
