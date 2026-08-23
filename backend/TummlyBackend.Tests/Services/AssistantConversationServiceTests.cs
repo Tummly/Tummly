@@ -2104,11 +2104,20 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("30 days after issue", answer.Body, StringComparison.Ordinal);
             Assert.Contains("25% off", answer.Body, StringComparison.Ordinal);
             Assert.Contains("not attached", answer.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(
+                "Attached to Guest form thank-you",
+                answer.Body,
+                StringComparison.Ordinal
+            );
             Assert.Contains("Nothing was issued", answer.Body, StringComparison.Ordinal);
             Assert.Contains("Nothing was sent", answer.Body, StringComparison.Ordinal);
             Assert.DoesNotContain("Offer type catalogue", answer.Body, StringComparison.Ordinal);
             Assert.False(ok.Conversation.DraftInterviewActive);
             Assert.Null(ok.Conversation.PendingOfferDraft);
+
+            var catalogOnlyTerms = AssistantOfferPathTerms.Parse(CanonicalCamdenOfferPathAsk);
+            Assert.False(catalogOnlyTerms.WantsAttach);
+            Assert.Null(catalogOnlyTerms.Placement);
 
             var action = Assert.Single(answer.Actions);
             Assert.Equal("review-offer", action.Type);

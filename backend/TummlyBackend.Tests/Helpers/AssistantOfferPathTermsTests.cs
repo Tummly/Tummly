@@ -327,6 +327,46 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void Parse_CompleteWithGuestFormThankYou_ProposeCopyOmitsAttachLanguage()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "Create a 25% Offer valid 14 days and attach it to the thank-you page",
+                Utc2026
+            );
+
+            Assert.True(AssistantOfferPathTerms.IsComplete(state));
+            Assert.True(state.WantsAttach);
+            Assert.Equal(
+                AssistantOfferPathTermsState.PlacementGuestFormThankYou,
+                state.Placement
+            );
+            AssistantOfferPathTerms.ProposeCopy(state);
+            Assert.Equal("25% off", state.Title);
+            Assert.Equal("Save 25%.", state.Description);
+            Assert.DoesNotContain("attach", state.Title!, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("thank", state.Title!, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(
+                "offer and attach",
+                state.Title!,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.DoesNotContain(
+                "attach",
+                state.Description!,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.DoesNotContain(
+                "thank",
+                state.Description!,
+                StringComparison.OrdinalIgnoreCase
+            );
+            var value = AssistantOfferPathTerms.ValueLabel(state);
+            Assert.Equal("25%", value);
+            Assert.DoesNotContain("attach", value, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("thank", value, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public void Merge_FirstKnownWins_WantsAttachAndPlacement()
         {
             var prior = AssistantOfferPathTerms.Parse(
