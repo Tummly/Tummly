@@ -4955,51 +4955,201 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_DraftInterview_TargetSwitch_ReplacesIncompleteState()
+        public async Task SendTurn_OfferPathTermsGap_FourteenDays_StaysOnOfferAndPersists()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Create a 25% Offer")
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+            await AssertOfferPathGap(started.Conversation.Id, AssistantGapTurn.KindOfferTerms);
+
+            var answered = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "14 days", started.Conversation.Id)
+                )
+            );
+            Assert.Null(answered.Conversation.PendingRecoveryDraft);
+            Assert.DoesNotContain(
+                answered.Conversation.Messages[^1].Actions,
+                action => action.Type == "open-recovery"
+            );
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(CatalogOfferStatus.Draft, offer.Status);
+            Assert.Equal(CatalogOfferValidity.Days14AfterIssue, offer.Validity);
+            Assert.Equal("review-offer", Assert.Single(answered.Conversation.Messages[^1].Actions).Type);
+            Assert.Null(AssistantGapTurn.Parse(
+                (await _context.AssistantConversations.SingleAsync(row => row.Id == started.Conversation.Id))
+                    .DraftInterviewJson
+            ));
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferPathLocationGap_ShortFill_StaysOnOfferAndPersists()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(camden, PackAi018OfferPathAsk)
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+            await AssertOfferPathGap(started.Conversation.Id, AssistantGapTurn.KindLocation);
+
+            var answered = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(camden, "Camden", started.Conversation.Id)
+                )
+            );
+            Assert.Null(answered.Conversation.PendingRecoveryDraft);
+            Assert.DoesNotContain(
+                answered.Conversation.Messages[^1].Actions,
+                action => action.Type == "open-recovery"
+            );
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(CatalogOfferStatus.Draft, offer.Status);
+            Assert.Equal(camden, offer.RestaurantLocationId);
+            Assert.Equal("review-offer", Assert.Single(answered.Conversation.Messages[^1].Actions).Type);
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferPathTermsGap_VoucherFill_DoesNotStartRecovery()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Create a 25% Offer")
+                )
+            );
+            await AssertOfferPathGap(started.Conversation.Id, AssistantGapTurn.KindOfferTerms);
+
+            var filled = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "voucher", started.Conversation.Id)
+                )
+            );
+            Assert.Equal("gap", filled.Conversation.Messages[^1].Class);
+            Assert.Null(filled.Conversation.PendingRecoveryDraft);
+            Assert.Empty(filled.Conversation.Messages[^1].Actions);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+            await AssertOfferPathGap(started.Conversation.Id, AssistantGapTurn.KindOfferTerms);
+        }
+
+        [Theory]
+        [InlineData("respond to the guest")]
+        [InlineData("help me recover")]
+        [InlineData("Draft a recovery response")]
+        public async Task SendTurn_DraftInterview_TargetSwitch_StaysOnOfferPath(string recoveryAsk)
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
             var offer = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await _service.SendTurnAsync(
                     ownerUserId: 7,
                     FirstSendRequest(locationId, "Create an offer draft")
                 )
             );
-
             Assert.Equal("gap", offer.Conversation.Messages[^1].Class);
+            await AssertOfferPathGap(offer.Conversation.Id, AssistantGapTurn.KindOfferTerms);
+
+            var stayed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, recoveryAsk, offer.Conversation.Id)
+                )
+            );
+            Assert.Equal("gap", stayed.Conversation.Messages[^1].Class);
+            Assert.Null(stayed.Conversation.PendingRecoveryDraft);
+            Assert.Empty(stayed.Conversation.Messages[^1].Actions);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+            await AssertOfferPathGap(offer.Conversation.Id, AssistantGapTurn.KindOfferTerms);
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferPathTermsGap_DetectMultiTarget_StaysOnOfferPath()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Create a 25% Offer")
+                )
+            );
+            await AssertOfferPathGap(started.Conversation.Id, AssistantGapTurn.KindOfferTerms);
+
+            var stayed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "create an offer and help me recover",
+                        started.Conversation.Id
+                    )
+                )
+            );
+            Assert.Equal("gap", stayed.Conversation.Messages[^1].Class);
+            Assert.Null(stayed.Conversation.PendingRecoveryDraft);
+            Assert.Empty(stayed.Conversation.Messages[^1].Actions);
+            Assert.DoesNotContain(
+                "Which should I create",
+                stayed.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+            await AssertOfferPathGap(started.Conversation.Id, AssistantGapTurn.KindOfferTerms);
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferPathTermsGap_CancelThenRecovery_StartsRecovery()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
+            var offer = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Create an offer draft")
+                )
+            );
+            await AssertOfferPathGap(offer.Conversation.Id, AssistantGapTurn.KindOfferTerms);
+
+            var cancelled = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "cancel the draft", offer.Conversation.Id)
+                )
+            );
+            Assert.Null(AssistantGapTurn.Parse(
+                (await _context.AssistantConversations.SingleAsync(row => row.Id == offer.Conversation.Id))
+                    .DraftInterviewJson
+            ));
+            Assert.Null(cancelled.Conversation.PendingRecoveryDraft);
 
             var recovery = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await _service.SendTurnAsync(
                     ownerUserId: 7,
-                    new SendAssistantTurnRequest
-                    {
-                        ConversationId = offer.Conversation.Id,
-                        Message = "Draft a recovery response",
-                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
-                    }
+                    FirstSendRequest(
+                        locationId,
+                        "Draft a recovery response",
+                        offer.Conversation.Id
+                    )
                 )
             );
-            Assert.Contains("Feedback", recovery.Conversation.Messages[^1].Body);
-            Assert.Null(recovery.Conversation.PendingOfferDraft);
-            Assert.False(recovery.Conversation.DraftInterviewActive);
-
-            var offerAgain = Assert.IsType<AssistantTurnOutcome.Ok>(
-                await _service.SendTurnAsync(
-                    ownerUserId: 7,
-                    new SendAssistantTurnRequest
-                    {
-                        ConversationId = offer.Conversation.Id,
-                        Message = "Create an offer draft",
-                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
-                    }
-                )
+            Assert.Equal(
+                "open-recovery",
+                Assert.Single(recovery.Conversation.Messages[^1].Actions).Type
             );
-            Assert.Equal("gap", offerAgain.Conversation.Messages[^1].Class);
-            Assert.Null(offerAgain.Conversation.PendingRecoveryDraft);
-            Assert.DoesNotContain(
-                "Offer type catalogue",
-                offerAgain.Conversation.Messages[^1].Body,
-                StringComparison.Ordinal
-            );
+            Assert.NotNull(recovery.Conversation.PendingRecoveryDraft);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
         }
 
         [Fact]
@@ -8382,6 +8532,17 @@ namespace TummlyBackend.Tests.Services
             Assert.DoesNotContain("pat@example.com", body, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("07700900999", title ?? string.Empty, StringComparison.Ordinal);
             Assert.DoesNotContain("07700900999", body, StringComparison.Ordinal);
+        }
+
+        private async Task AssertOfferPathGap(int conversationId, string kind)
+        {
+            var row = await _context.AssistantConversations.SingleAsync(
+                conversation => conversation.Id == conversationId
+            );
+            var gap = AssistantGapTurn.Parse(row.DraftInterviewJson);
+            Assert.NotNull(gap);
+            Assert.Equal(kind, gap.Kind);
+            Assert.Equal(AssistantTask.OfferPath, gap.AssistantTask);
         }
 
         private static void AssertNamedLocationCalls(
