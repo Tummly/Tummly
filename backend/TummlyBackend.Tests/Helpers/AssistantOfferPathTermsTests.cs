@@ -201,6 +201,15 @@ namespace TummlyBackend.Tests.Helpers
             Assert.DoesNotContain("attach", merged.ReplacementItemText!);
         }
 
+        [Theory]
+        [InlineData("Item")]
+        [InlineData("OFFER")]
+        [InlineData("Replacement Item")]
+        public void TryClean_Filler_IsCaseInsensitive(string filler)
+        {
+            Assert.Null(AssistantCapturedItemText.TryClean(filler));
+        }
+
         [Fact]
         public void Parse_OpsLikeFreeItemText_ClearedBySharedCleanup()
         {

@@ -8,7 +8,7 @@ namespace TummlyBackend.Helpers
     /// </summary>
     public static partial class AssistantCapturedItemText
     {
-        private static readonly HashSet<string> Fillers = new(StringComparer.Ordinal)
+        private static readonly HashSet<string> Fillers = new(StringComparer.OrdinalIgnoreCase)
         {
             "item",
             "offer",
