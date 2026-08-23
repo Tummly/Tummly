@@ -4393,6 +4393,42 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_UnnamedCreate_OutOfRangeOrdinal_RepeatsCreateTargetGap()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "help me draft something")
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+
+            var repeated = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "4", started.Conversation.Id)
+                )
+            );
+            var answer = repeated.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Contains("Campaign", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Offer", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("Feedback recovery", answer.Body, StringComparison.Ordinal);
+            Assert.Null(repeated.Conversation.PendingRecoveryDraft);
+            Assert.Equal(0, await _context.Campaigns.CountAsync());
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+            var gap = AssistantGapTurn.Parse(
+                (await _context.AssistantConversations.FindAsync(
+                    started.Conversation.Id
+                ))!.DraftInterviewJson
+            );
+            Assert.NotNull(gap);
+            Assert.Equal(AssistantGapTurn.KindCreateTarget, gap!.Kind);
+        }
+
+        [Fact]
         public async Task SendTurn_UnnamedCreateWithSeveralOwnedLocations_PersistsAtAnalysisScope()
         {
             var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");

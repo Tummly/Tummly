@@ -206,6 +206,23 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal(Camden.Id, unique.LocationId);
         }
 
+        [Theory]
+        [InlineData("1")]
+        [InlineData("number 1")]
+        [InlineData("first")]
+        public void OrdinalMessage_DoesNotBindUniqueLocation(string message)
+        {
+            var outcome = AssistantCreateLocationGap.Resolve(
+                message,
+                Soho.Id,
+                Soho.Name,
+                Two(),
+                uniqueNameIsChoice: true
+            );
+
+            Assert.IsType<AssistantLocationGapOutcome.Unnamed>(outcome);
+        }
+
         [Fact]
         public void LongerUniqueName_WinsOverSubstring()
         {
