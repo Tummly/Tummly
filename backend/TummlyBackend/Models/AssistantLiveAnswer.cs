@@ -9,6 +9,11 @@ namespace TummlyBackend.Models
         AssistantRetrievedEvidence Evidence
     );
 
+    public sealed record AssistantLiveAnswerHistoryTurn(
+        AssistantMessageRole Role,
+        string Body
+    );
+
     public sealed record AssistantLiveAnswerInput(
         string UserMessage,
         string OwnedLocationName,
@@ -20,7 +25,8 @@ namespace TummlyBackend.Models
         bool SuppressMixedRefusal = false,
         bool CompareAll = false,
         IReadOnlyList<string>? FailedLocationNames = null,
-        IReadOnlyList<string>? NotStartedLocationNames = null
+        IReadOnlyList<string>? NotStartedLocationNames = null,
+        IReadOnlyList<AssistantLiveAnswerHistoryTurn>? History = null
     );
 
     public abstract record AssistantLiveAnswerResult

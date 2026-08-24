@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.DTOs.Campaigns;
@@ -35,6 +37,7 @@ namespace TummlyBackend.Services
         private readonly IAssistantAttentionRetrieve _attentionRetrieve;
         private readonly ICaptureThankYouOfferService _thankYouOffers;
         private readonly TimeProvider _clock;
+        private readonly FeedbackClassificationSettings _liveAnswerSettings;
 
         public AssistantConversationService(
             ApplicationDbContext context,
@@ -54,7 +57,8 @@ namespace TummlyBackend.Services
             IFeedbackRecoveryDraftsService recoveryDrafts,
             IAssistantAttentionRetrieve attentionRetrieve,
             ICaptureThankYouOfferService thankYouOffers,
-            TimeProvider? timeProvider = null
+            TimeProvider? timeProvider = null,
+            IOptions<FeedbackClassificationSettings>? liveAnswerSettings = null
         )
         {
             _context = context;
@@ -75,6 +79,8 @@ namespace TummlyBackend.Services
             _attentionRetrieve = attentionRetrieve;
             _thankYouOffers = thankYouOffers;
             _clock = timeProvider ?? TimeProvider.System;
+            _liveAnswerSettings = liveAnswerSettings?.Value
+                ?? new FeedbackClassificationSettings();
         }
 
         public async Task<AssistantTurnOutcome> SendTurnAsync(
@@ -431,6 +437,43 @@ namespace TummlyBackend.Services
             _context.AssistantMessages.RemoveRange(messages);
             _context.AssistantConversations.RemoveRange(conversations);
             await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Prior chat messages sent to the live answer model: everything
+        /// strictly before the last user message. The last user message is the
+        /// current ask; anything after it (for example a failure reply being
+        /// retried) is replaced this turn and never shipped as history.
+        /// </summary>
+        private IReadOnlyList<AssistantLiveAnswerHistoryTurn> BuildLiveAnswerHistory(
+            AssistantConversation conversation
+        )
+        {
+            var ordered = conversation.Messages
+                .OrderBy(message => message.CreatedAt)
+                .ThenBy(message => message.Id)
+                .ToList();
+
+            var lastUserIndex = -1;
+            for (var i = ordered.Count - 1; i >= 0; i--)
+            {
+                if (ordered[i].Role == AssistantMessageRole.User)
+                {
+                    lastUserIndex = i;
+                    break;
+                }
+            }
+
+            var cap = Math.Max(0, _liveAnswerSettings.AssistantHistoryMessageCap);
+            var historyEnd = Math.Max(0, lastUserIndex);
+            return ordered
+                .Take(historyEnd)
+                .TakeLast(cap)
+                .Select(message => new AssistantLiveAnswerHistoryTurn(
+                    message.Role,
+                    message.Body
+                ))
+                .ToList();
         }
 
         private async Task<AssistantTurnOutcome> CompleteTurnAsync(
@@ -995,7 +1038,8 @@ namespace TummlyBackend.Services
                         SuppressMixedRefusal: false,
                         CompareAll: isCompareAll,
                         FailedLocationNames: failedLocationNames,
-                        NotStartedLocationNames: notStartedLocationNames
+                        NotStartedLocationNames: notStartedLocationNames,
+                        History: BuildLiveAnswerHistory(conversation)
                     ),
                     cancellationToken
                 );

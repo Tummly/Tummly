@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using TummlyBackend.Helpers;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Tests.Helpers
 {
@@ -115,6 +116,97 @@ namespace TummlyBackend.Tests.Helpers
                 "send a more specific ask",
                 prompt,
                 StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public void BuildSystemPrompt_TreatsHistoryAsContextOnly()
+        {
+            var prompt = AssistantLiveAnswerStructuredOutput.BuildSystemPrompt(
+                "2026-08-16"
+            );
+
+            Assert.Contains(
+                "Prior turns are chat history for reference only",
+                prompt,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public void BuildRequestJson_WithoutHistory_SendsSystemThenUserPayload()
+        {
+            var input = new AssistantLiveAnswerInput(
+                "Summarise feedback",
+                "Camden",
+                "the last 7 days",
+                AssistantRetrievedEvidence.Empty
+            );
+
+            var request = AssistantLiveAnswerStructuredOutput.BuildRequestJson(
+                "gpt-4o-mini",
+                input,
+                "2026-08-16"
+            );
+            var messages = JsonNode.Parse(request)!["messages"]!.AsArray();
+
+            Assert.Equal(2, messages.Count);
+            Assert.Equal("system", messages[0]!["role"]!.GetValue<string>());
+            Assert.Equal("user", messages[1]!["role"]!.GetValue<string>());
+        }
+
+        [Fact]
+        public void BuildRequestJson_WithHistory_InsertsTurnsBetweenSystemAndUserPayload()
+        {
+            var history = new[]
+            {
+                new AssistantLiveAnswerHistoryTurn(
+                    AssistantMessageRole.User,
+                    "How did offers do?"
+                ),
+                new AssistantLiveAnswerHistoryTurn(
+                    AssistantMessageRole.Assistant,
+                    "Two offers ran."
+                ),
+            };
+            var input = new AssistantLiveAnswerInput(
+                "Make it 25% instead",
+                "Camden",
+                "the last 7 days",
+                AssistantRetrievedEvidence.Empty,
+                History: history
+            );
+
+            var request = AssistantLiveAnswerStructuredOutput.BuildRequestJson(
+                "gpt-4o-mini",
+                input,
+                "2026-08-16"
+            );
+            var messages = JsonNode.Parse(request)!["messages"]!.AsArray();
+
+            Assert.Equal(4, messages.Count);
+            Assert.Equal(
+                "system",
+                messages[0]!["role"]!.GetValue<string>()
+            );
+            Assert.Equal("user", messages[1]!["role"]!.GetValue<string>());
+            Assert.Equal(
+                "How did offers do?",
+                messages[1]!["content"]!.GetValue<string>()
+            );
+            Assert.Equal(
+                "assistant",
+                messages[2]!["role"]!.GetValue<string>()
+            );
+            Assert.Equal(
+                "Two offers ran.",
+                messages[2]!["content"]!.GetValue<string>()
+            );
+            Assert.Equal("user", messages[3]!["role"]!.GetValue<string>());
+            var payload = JsonNode.Parse(messages[3]!["content"]!.GetValue<string>())!;
+            Assert.Equal(
+                "Make it 25% instead",
+                payload["userMessage"]!.GetValue<string>()
             );
         }
     }

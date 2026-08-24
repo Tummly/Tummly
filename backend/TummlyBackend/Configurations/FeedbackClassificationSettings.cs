@@ -37,6 +37,12 @@ namespace TummlyBackend.Configurations
         public int InitialBackoffMilliseconds { get; set; } = 250;
 
         /// <summary>
+        /// Max prior chat messages sent as history for one Assistant live
+        /// answer. Bounds token cost on long threads.
+        /// </summary>
+        public int AssistantHistoryMessageCap { get; set; } = 20;
+
+        /// <summary>
         /// Per-row soft-claim budget for durable Pending work (ADR-0010).
         /// Exhaustion marks the same generic Failed as other terminal failures.
         /// </summary>

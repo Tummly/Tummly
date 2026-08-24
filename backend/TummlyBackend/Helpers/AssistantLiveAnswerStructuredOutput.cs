@@ -50,19 +50,11 @@ namespace TummlyBackend.Helpers
             var request = new JsonObject
             {
                 ["model"] = deploymentName,
-                ["messages"] = new JsonArray
-                {
-                    new JsonObject
-                    {
-                        ["role"] = "system",
-                        ["content"] = BuildSystemPrompt(promptSchemaVersion)
-                    },
-                    new JsonObject
-                    {
-                        ["role"] = "user",
-                        ["content"] = userPayload.ToJsonString(RequestJsonOptions)
-                    }
-                },
+                ["messages"] = BuildMessages(
+                    BuildSystemPrompt(promptSchemaVersion),
+                    input,
+                    userPayload
+                ),
                 ["response_format"] = new JsonObject
                 {
                     ["type"] = "json_schema",
@@ -76,6 +68,46 @@ namespace TummlyBackend.Helpers
             };
 
             return request.ToJsonString(RequestJsonOptions);
+        }
+
+        private static JsonArray BuildMessages(
+            string systemPrompt,
+            AssistantLiveAnswerInput input,
+            JsonObject userPayload
+        )
+        {
+            var messages = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["role"] = "system",
+                    ["content"] = systemPrompt,
+                },
+            };
+
+            if (input.History is { Count: > 0 } history)
+            {
+                foreach (var turn in history)
+                {
+                    messages.Add(
+                        new JsonObject
+                        {
+                            ["role"] = turn.Role.ToWireString(),
+                            ["content"] = turn.Body,
+                        }
+                    );
+                }
+            }
+
+            messages.Add(
+                new JsonObject
+                {
+                    ["role"] = "user",
+                    ["content"] = userPayload.ToJsonString(RequestJsonOptions),
+                }
+            );
+
+            return messages;
         }
 
         public static JsonObject BuildSchema()
@@ -202,8 +234,10 @@ namespace TummlyBackend.Helpers
                 first successful complete.
 
                 Every restaurant claim must come from retrieved evidence in the
-                user payload. Re-retrieve is already done. Prior assistant text is
-                not evidence. Vague time words map to the current Reporting period.
+                user payload. Re-retrieve is already done.
+                Prior turns are chat history for reference only;
+                prior assistant text is not evidence.
+                Vague time words map to the current Reporting period.
                 Title and body must use periodPhrase for windowed facts. Do not
                 write a hard-coded "this week". The server owns Gap turns: do not
                 ask Campaign name, catalogues, extra questions, or Location when

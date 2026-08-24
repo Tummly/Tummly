@@ -2,6 +2,8 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Admin;
 using TummlyBackend.DTOs.Assistant;
@@ -80,7 +82,8 @@ namespace TummlyBackend.Tests.Services
             ICampaignEligibilityService? eligibility = null,
             IOffersCatalogService? offersCatalog = null,
             ICaptureThankYouOfferService? thankYouOffers = null,
-            TimeProvider? timeProvider = null
+            TimeProvider? timeProvider = null,
+            IOptions<FeedbackClassificationSettings>? liveAnswerOptions = null
         )
         {
             var catalog = offersCatalog ?? new OffersCatalogService(_context);
@@ -115,8 +118,120 @@ namespace TummlyBackend.Tests.Services
                     _weeklyBriefGenerate
                 ),
                 thankYouOffers ?? new CaptureThankYouOfferService(_context, catalog),
-                timeProvider
+                timeProvider,
+                liveAnswerOptions
             );
+        }
+
+        [Fact]
+        public async Task SendTurn_SecondTurn_PassesPriorTurnsAsHistory()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var first = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise feedback for me")
+            );
+            var okFirst = Assert.IsType<AssistantTurnOutcome.Ok>(first);
+
+            await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Summarise the same for last month",
+                    okFirst.Conversation.Id
+                )
+            );
+
+            var history = _fake.LastInput!.History;
+            Assert.NotNull(history);
+            Assert.Equal(2, history!.Count);
+            Assert.Equal(AssistantMessageRole.User, history[0].Role);
+            Assert.Equal("Summarise feedback for me", history[0].Body);
+            Assert.Equal(AssistantMessageRole.Assistant, history[1].Role);
+            Assert.False(string.IsNullOrWhiteSpace(history[1].Body));
+        }
+
+        [Fact]
+        public async Task SendTurn_FirstTurn_HasEmptyHistory()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+
+            var history = _fake.LastInput!.History;
+            Assert.NotNull(history);
+            Assert.Empty(history!);
+        }
+
+        [Fact]
+        public async Task RetryTurn_DoesNotLeakReplacedFailureReplyIntoHistory()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 11, "Mayfair");
+            _fake.Fail();
+            var first = await _service.SendTurnAsync(
+                ownerUserId: 11,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+            var okFirst = Assert.IsType<AssistantTurnOutcome.Ok>(first);
+            Assert.Equal(
+                "failure",
+                okFirst.Conversation.Messages[1].Class
+            );
+
+            var retried = await _service.RetryTurnAsync(
+                ownerUserId: 11,
+                okFirst.Conversation.Id
+            );
+
+            Assert.IsType<AssistantTurnOutcome.Ok>(retried);
+            Assert.Equal(
+                "Summarise recent feedback",
+                _fake.LastInput!.UserMessage
+            );
+            Assert.Empty(_fake.LastInput!.History!);
+        }
+
+        [Fact]
+        public async Task SendTurn_HistoryWindow_IsCappedToLatestTurns()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 8, "Soho");
+            var service = CreateConversationService(
+                liveAnswerOptions: Options.Create(
+                    new FeedbackClassificationSettings
+                    {
+                        AssistantHistoryMessageCap = 2,
+                    }
+                )
+            );
+            string[] asks =
+            {
+                "Summarise feedback one",
+                "Summarise feedback two",
+                "Summarise feedback three",
+            };
+            int? conversationId = null;
+            foreach (var ask in asks)
+            {
+                var outcome = await service.SendTurnAsync(
+                    ownerUserId: 8,
+                    FirstSendRequest(locationId, ask, conversationId)
+                );
+                conversationId = Assert.IsType<AssistantTurnOutcome.Ok>(
+                    outcome
+                ).Conversation.Id;
+            }
+
+            var history = _fake.LastInput!.History!;
+            Assert.Equal(2, history.Count);
+            Assert.Equal(AssistantMessageRole.User, history[0].Role);
+            Assert.Equal(
+                "Summarise feedback two",
+                history[0].Body
+            );
+            Assert.Equal(AssistantMessageRole.Assistant, history[1].Role);
         }
 
         [Fact]
