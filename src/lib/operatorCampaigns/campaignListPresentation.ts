@@ -25,6 +25,7 @@ export const CAMPAIGNS_LIST_TABLE_COPY = {
   actionsColumn: "Actions",
   draftStatusLabel: "Draft",
   continueEditing: "Continue editing",
+  deleteDraft: "Delete draft",
   preview: CAMPAIGN_DETAIL_PREVIEW_COPY.preview,
   unschedule: "Unschedule",
   pause: "Pause",
@@ -35,11 +36,17 @@ export const CAMPAIGNS_LIST_TABLE_COPY = {
   duplicateAsDraft: "Duplicate / retry as new Draft",
   metricDash: "—",
   updatedPrefix: "Updated",
+  deleteDraftDialogTitle: "Delete this draft?",
+  deleteDraftDialogDescription:
+    "This removes the campaign draft. No campaign messages have been sent.",
+  deleteDraftDialogConfirm: "Delete draft",
+  deleteDraftDialogCancel: "Cancel",
 } as const
 
 export type CampaignRowActionId =
   | "preview"
   | "continue-editing"
+  | "delete-draft"
   | "unschedule"
   | "pause"
   | "cancel"
@@ -67,6 +74,10 @@ export function buildCampaignRowActions(status: string): CampaignRowAction[] {
         {
           id: "continue-editing",
           label: CAMPAIGNS_LIST_TABLE_COPY.continueEditing,
+        },
+        {
+          id: "delete-draft",
+          label: CAMPAIGNS_LIST_TABLE_COPY.deleteDraft,
         },
       ]
     case "scheduled":

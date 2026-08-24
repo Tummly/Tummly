@@ -12,16 +12,7 @@ import { GuestsBody } from "@/components/dashboard/operator/Guests/GuestsBody"
 import { useGuestsPageModule } from "@/components/dashboard/operator/Guests/utils/useGuestsPageModule"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { OperatorDestructiveConfirmDialog } from "@/components/dashboard/operator/OperatorDestructiveConfirmDialog"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { deleteLocationGuest } from "@/api/dashboardApi"
@@ -363,61 +354,38 @@ export function GuestsPage() {
           toast.error(message)
         }}
       />
-      <AlertDialog
+      <OperatorDestructiveConfirmDialog
         open={deleteGuestId != null}
+        busy={deleteBusy}
+        title={privacyCopy.deleteDialogTitle}
+        description={privacyCopy.deleteDialogDescription}
+        confirmLabel={privacyCopy.deleteDialogConfirm}
+        cancelLabel={privacyCopy.deleteDialogCancel}
         onOpenChange={(open) => {
-          if (deleteBusy) {
-            return
-          }
           if (!open) {
             setDeleteGuestId(null)
           }
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{privacyCopy.deleteDialogTitle}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {privacyCopy.deleteDialogDescription}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteBusy}>
-              {privacyCopy.deleteDialogCancel}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={deleteBusy || deleteGuestId == null}
-              onClick={(event) => {
-                event.preventDefault()
-                if (deleteGuestId == null) {
-                  return
-                }
-                void (async () => {
-                  setDeleteBusy(true)
-                  try {
-                    await deleteLocationGuest({
-                      guestId: Number.parseInt(deleteGuestId, 10),
-                      locationId: selectedLocationId,
-                    })
-                    setDeleteGuestId(null)
-                    toast.success("Guest data deleted.")
-                    void guests.retryLoad()
-                  } catch {
-                    toast.error(
-                      "Could not delete guest data. Please try again."
-                    )
-                  } finally {
-                    setDeleteBusy(false)
-                  }
-                })()
-              }}
-            >
-              {privacyCopy.deleteDialogConfirm}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onConfirm={async () => {
+          if (deleteGuestId == null) {
+            return
+          }
+          setDeleteBusy(true)
+          try {
+            await deleteLocationGuest({
+              guestId: Number.parseInt(deleteGuestId, 10),
+              locationId: selectedLocationId,
+            })
+            setDeleteGuestId(null)
+            toast.success("Guest data deleted.")
+            void guests.retryLoad()
+          } catch {
+            toast.error("Could not delete guest data. Please try again.")
+          } finally {
+            setDeleteBusy(false)
+          }
+        }}
+      />
     </>
   )
 }

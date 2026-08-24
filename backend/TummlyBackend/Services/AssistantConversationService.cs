@@ -3310,7 +3310,8 @@ namespace TummlyBackend.Services
                 // Offer-path gaps resume through the live answer: the model
                 // re-extracts every term from the whole thread and the server
                 // re-validates. Only the location binding stays server-side;
-                // an answer that names a location wins over the source ask.
+                // an answer that cleanly names a location wins over the
+                // source ask.
                 var resumedLocationOutcome = ResolveCreateLocation(
                     userMessage,
                     conversation,
@@ -3319,7 +3320,8 @@ namespace TummlyBackend.Services
                     uniqueNameIsChoice: true,
                     gapState.AssistantTask
                 );
-                if (resumedLocationOutcome is AssistantLocationGapOutcome.Unnamed)
+                if (resumedLocationOutcome
+                    is not AssistantLocationGapOutcome.Unique)
                 {
                     resumedLocationOutcome = ResolveCreateLocation(
                         gapState.SourceUserMessage,

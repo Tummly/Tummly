@@ -88,10 +88,11 @@ describe("mapCampaignListItemToTableRow", () => {
 })
 
 describe("buildCampaignRowActions", () => {
-  it("returns Preview and Continue editing for Draft", () => {
+  it("returns Preview, Continue editing, and Delete draft for Draft", () => {
     expect(buildCampaignRowActions("draft")).toEqual([
       { id: "preview", label: "Preview" },
       { id: "continue-editing", label: "Continue editing" },
+      { id: "delete-draft", label: "Delete draft" },
     ])
   })
 

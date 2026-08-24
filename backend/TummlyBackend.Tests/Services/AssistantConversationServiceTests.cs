@@ -2562,6 +2562,10 @@ namespace TummlyBackend.Tests.Services
                     FirstSendRequest(camden, "Create a 25% off lunch offer at Camden")
                 )
             );
+            Assert.True(
+                false,
+                $"class={started.Conversation.Messages[^1].Class} body={started.Conversation.Messages[^1].Body}"
+            );
             Assert.Equal("gap", started.Conversation.Messages[^1].Class);
 
             var answered = Assert.IsType<AssistantTurnOutcome.Ok>(
@@ -2573,6 +2577,10 @@ namespace TummlyBackend.Tests.Services
                         started.Conversation.Id
                     )
                 )
+            );
+            Assert.True(
+                false,
+                $"startedBody={started.Conversation.Messages[^1].Body}"
             );
 
             var offer = Assert.Single(_context.CatalogOffers);

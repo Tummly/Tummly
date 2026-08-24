@@ -681,6 +681,11 @@ export const duplicateCampaignAsDraft = (
   body: CampaignLifecycleActionRequest
 ) => postCampaignLifecycleAction(id, "duplicate", body)
 
+export const deleteCampaignDraft = (
+  id: number,
+  body: CampaignLifecycleActionRequest
+) => postCampaignLifecycleAction(id, "delete", body)
+
 export const exportFeedback = async (
   params: FeedbackExportQueryParams
 ): Promise<{ blob: Blob; filename: string }> => {

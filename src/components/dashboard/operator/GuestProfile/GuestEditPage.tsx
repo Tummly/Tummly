@@ -9,16 +9,7 @@ import { useGuestProfileEditCommands } from "@/components/dashboard/operator/Gue
 import { GuestsRemovableChip } from "@/components/dashboard/operator/Guests/GuestsRemovableChip"
 import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
 import { RecoveryWizardsHost } from "@/components/dashboard/operator/Feedback/RecoveryWizardsHost"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { OperatorDestructiveConfirmDialog } from "@/components/dashboard/operator/OperatorDestructiveConfirmDialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -1020,47 +1011,24 @@ export function GuestEditPage({
 
       <RecoveryWizardsHost snapshot={snapshot} wizards={recoveryWizards} />
 
-      <AlertDialog
+      <OperatorDestructiveConfirmDialog
         open={deleteDialogOpen}
-        onOpenChange={(open) => {
-          if (deleteBusy) {
+        busy={deleteBusy}
+        title={privacyCopy.deleteDialogTitle}
+        description={privacyCopy.deleteDialogDescription}
+        confirmLabel={privacyCopy.deleteDialogConfirm}
+        cancelLabel={privacyCopy.deleteDialogCancel}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={async () => {
+          const result = await deleteLocationGuest()
+          if (result.status === "deleted") {
+            setDeleteDialogOpen(false)
+            navigate(guestsListPath)
             return
           }
-          setDeleteDialogOpen(open)
+          toast.error(result.message)
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{privacyCopy.deleteDialogTitle}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {privacyCopy.deleteDialogDescription}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteBusy}>
-              {privacyCopy.deleteDialogCancel}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={deleteBusy}
-              onClick={(event) => {
-                event.preventDefault()
-                void (async () => {
-                  const result = await deleteLocationGuest()
-                  if (result.status === "deleted") {
-                    setDeleteDialogOpen(false)
-                    navigate(guestsListPath)
-                    return
-                  }
-                  toast.error(result.message)
-                })()
-              }}
-            >
-              {privacyCopy.deleteDialogConfirm}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      />
     </div>
   )
 }

@@ -7,6 +7,7 @@ import {
   commitCampaignSchedule,
   createCampaignDraft,
   createCatalogOffer,
+  deleteCampaignDraft,
   duplicateCampaignAsDraft,
   getCampaignDraftById,
   getCampaignEligibility,
@@ -33,6 +34,7 @@ import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/Filte
 import { useCampaignsPageModule } from "@/components/dashboard/operator/Campaigns/utils/useCampaignsPageModule"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
+import { OperatorDestructiveConfirmDialog } from "@/components/dashboard/operator/OperatorDestructiveConfirmDialog"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import type {
@@ -49,6 +51,7 @@ import { createCampaignWizardModule } from "@/lib/operatorCampaigns/createCampai
 import type { CampaignWizardContinueEditingStep } from "@/lib/operatorCampaigns/campaignWizardPresentation"
 import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import type { CampaignRowActionId } from "@/lib/operatorCampaigns/campaignListPresentation"
+import { CAMPAIGNS_LIST_TABLE_COPY } from "@/lib/operatorCampaigns/campaignListPresentation"
 import { loadCampaignMessagingBalances } from "@/lib/operatorCampaigns/loadCampaignMessagingBalances"
 import { prepareCampaignMessageDraft } from "@/lib/operatorCampaigns/prepareCampaignMessageDraft"
 import { CAMPAIGNS_LOAD_ERROR_MESSAGE } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
@@ -150,6 +153,11 @@ export function CampaignsPage() {
   const setCampaignsIntent = useDashboardUiStore(
     (state) => state.setCampaignsIntent
   )
+  const [deleteDraftTarget, setDeleteDraftTarget] = useState<{
+    campaignId: number
+    rowVersion: string
+  } | null>(null)
+  const [deleteDraftBusy, setDeleteDraftBusy] = useState(false)
 
   useEffect(
     () => () => {
@@ -453,6 +461,10 @@ export function CampaignsPage() {
       handleContinueEditing(campaignId)
       return
     }
+    if (actionId === "delete-draft") {
+      setDeleteDraftTarget({ campaignId, rowVersion })
+      return
+    }
 
     const body = { rowVersion }
     void (async () => {
@@ -470,7 +482,7 @@ export function CampaignsPage() {
           case "cancel-remaining": {
             const response = await cancelCampaign(campaignId, body)
             toast.success(
-              response.campaign.status === "partially-sent"
+              response.campaign?.status === "partially-sent"
                 ? "Remaining sends cancelled."
                 : "Campaign cancelled."
             )
@@ -790,6 +802,41 @@ export function CampaignsPage() {
         }}
         onDismissSuccess={handleDismissCommitSuccess}
         onBrowseTemplates={handleBrowseTemplatesFromWizard}
+      />
+      <OperatorDestructiveConfirmDialog
+        open={deleteDraftTarget != null}
+        busy={deleteDraftBusy}
+        title={CAMPAIGNS_LIST_TABLE_COPY.deleteDraftDialogTitle}
+        description={CAMPAIGNS_LIST_TABLE_COPY.deleteDraftDialogDescription}
+        confirmLabel={CAMPAIGNS_LIST_TABLE_COPY.deleteDraftDialogConfirm}
+        cancelLabel={CAMPAIGNS_LIST_TABLE_COPY.deleteDraftDialogCancel}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteDraftTarget(null)
+          }
+        }}
+        onConfirm={async () => {
+          if (deleteDraftTarget == null) {
+            return
+          }
+          setDeleteDraftBusy(true)
+          try {
+            await deleteCampaignDraft(deleteDraftTarget.campaignId, {
+              rowVersion: deleteDraftTarget.rowVersion,
+            })
+            setDeleteDraftTarget(null)
+            toast.success("Draft deleted.")
+            void campaigns.retryLoad()
+          } catch (error) {
+            const message =
+              error instanceof Error && error.message.trim().length > 0
+                ? error.message
+                : "Could not delete this draft. Try again."
+            toast.error(message)
+          } finally {
+            setDeleteDraftBusy(false)
+          }
+        }}
       />
     </>
   )

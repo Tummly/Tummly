@@ -114,5 +114,9 @@ namespace TummlyBackend.DTOs.Campaigns
         public sealed class ZeroEligible : CampaignLifecycleResult
         {
         }
+
+        public sealed class Deleted : CampaignLifecycleResult
+        {
+        }
     }
 }
