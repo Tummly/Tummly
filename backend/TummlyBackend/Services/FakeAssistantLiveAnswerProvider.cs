@@ -23,7 +23,8 @@ namespace TummlyBackend.Services
             string? title,
             string body,
             string assistantTask = AssistantTask.Retrieve,
-            string? conversationTitle = null
+            string? conversationTitle = null,
+            AssistantOfferPathTermsState? offerTerms = null
         )
         {
             _throwOnComplete = null;
@@ -33,7 +34,8 @@ namespace TummlyBackend.Services
                 body,
                 [],
                 assistantTask,
-                conversationTitle
+                conversationTitle,
+                offerTerms
             );
         }
 

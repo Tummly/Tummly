@@ -715,7 +715,8 @@ namespace TummlyBackend.Helpers
                     @"\bswap\b"
                 );
 
-        private static AssistantOfferPathTermsState? Clone(AssistantOfferPathTermsState? prior)
+        [return: System.Diagnostics.CodeAnalysis.NotNullIfNotNull(nameof(prior))]
+        public static AssistantOfferPathTermsState? Clone(AssistantOfferPathTermsState? prior)
         {
             if (prior is null)
             {
