@@ -129,6 +129,8 @@ function createGuestProfileResponse(
       },
     ],
     latestFeedback: [],
+    latestOffers: [],
+    latestCampaigns: [],
     recentNotes: [],
     ...overrides,
   }
@@ -1302,6 +1304,8 @@ describe("createOperatorGuestsPageModule", () => {
         },
       ],
       latestFeedback: [],
+      latestOffers: [],
+      latestCampaigns: [],
       recentNotes: [],
     }))
     const module = createOperatorGuestsPageModule(

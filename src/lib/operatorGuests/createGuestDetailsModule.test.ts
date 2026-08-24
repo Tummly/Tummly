@@ -66,6 +66,8 @@ function sampleProfile(
         detectedTags: ["FoodQuality"],
       },
     ],
+    latestOffers: [],
+    latestCampaigns: [],
     recentNotes: [],
     ...overrides,
   }

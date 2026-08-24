@@ -897,6 +897,27 @@ export interface GuestProfileLatestFeedbackItem {
   detectedTags: string[] | null;
 }
 
+/** Capped Overview Latest offer activity preview row (≤3 on detail GET). */
+export interface GuestProfileLatestOfferItem {
+  id: number;
+  title: string;
+  source: string;
+  issuedAt: string;
+  claimedAt: string | null;
+  redeemedAt: string | null;
+  cancelledAt: string | null;
+}
+
+/** Capped Overview Latest campaign activity preview row (≤3 on detail GET). */
+export interface GuestProfileLatestCampaignItem {
+  id: number;
+  campaignId: number;
+  campaignName: string;
+  channel: string;
+  outcome: string;
+  activityAt: string;
+}
+
 /** Guest-scoped Feedbacks tab list row (same classification honesty as Overview). */
 export interface GuestFeedbacksListItem {
   id: number;
@@ -997,6 +1018,8 @@ export interface GuestProfileResponse {
   overviewDetails: GuestProfileOverviewDetails;
   contactEligibility: GuestProfileContactEligibilityRow[];
   latestFeedback: GuestProfileLatestFeedbackItem[];
+  latestOffers: GuestProfileLatestOfferItem[];
+  latestCampaigns: GuestProfileLatestCampaignItem[];
   recentNotes: GuestProfileRecentNoteItem[];
 }
 

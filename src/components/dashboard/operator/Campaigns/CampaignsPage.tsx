@@ -425,6 +425,17 @@ export function CampaignsPage() {
     snapshot.viewModel,
   ])
 
+  useEffect(() => {
+    if (campaignsIntent == null || !("openBlankCreate" in campaignsIntent)) {
+      return
+    }
+    if (snapshot.viewModel == null) {
+      return
+    }
+    setCampaignsIntent(null)
+    handleOpenCreateCampaign()
+  }, [campaignsIntent, setCampaignsIntent, snapshot.viewModel])
+
   const handlePreviewCampaign = (campaignId: number) => {
     void campaignDetailPreview.open(campaignId)
   }

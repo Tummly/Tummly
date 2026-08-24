@@ -23,6 +23,9 @@ type GuestsRowActionsMenuProps = {
   onManageTags: (guestId: string) => void
   onViewGuest: (guestId: string) => void
   onManageMarketingPermissions: (guestId: string) => void
+  onEditGuest: (guestId: string) => void
+  onExportGuest: (guestId: string) => void
+  onDeleteGuest: (guestId: string) => void
 }
 
 /** Figma Guests table Actions menu — node `4213:61228`. */
@@ -32,6 +35,9 @@ export function GuestsRowActionsMenu({
   onManageTags,
   onViewGuest,
   onManageMarketingPermissions,
+  onEditGuest,
+  onExportGuest,
+  onDeleteGuest,
 }: GuestsRowActionsMenuProps) {
   return (
     <DropdownMenu>
@@ -77,6 +83,33 @@ export function GuestsRowActionsMenu({
                 className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
                 onClick={() => {
                   onManageMarketingPermissions(guestId)
+                }}
+              >
+                {action.label}
+              </DropdownMenuItem>
+            ) : action.id === "edit-guest-details" ? (
+              <DropdownMenuItem
+                className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+                onClick={() => {
+                  onEditGuest(guestId)
+                }}
+              >
+                {action.label}
+              </DropdownMenuItem>
+            ) : action.id === "export-guest-record" ? (
+              <DropdownMenuItem
+                className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+                onClick={() => {
+                  onExportGuest(guestId)
+                }}
+              >
+                {action.label}
+              </DropdownMenuItem>
+            ) : action.id === "delete-guest-data" ? (
+              <DropdownMenuItem
+                className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+                onClick={() => {
+                  onDeleteGuest(guestId)
                 }}
               >
                 {action.label}

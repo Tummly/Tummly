@@ -10,6 +10,8 @@ namespace TummlyBackend.Services
     {
         private const string LastInteractionLabel = "Feedback submitted";
         private const int LatestFeedbackPreviewLimit = 3;
+        private const int LatestOfferPreviewLimit = 3;
+        private const int LatestCampaignPreviewLimit = 3;
         private const int RecentNotesPreviewLimit = 3;
 
         private readonly ApplicationDbContext _context;
@@ -153,6 +155,62 @@ namespace TummlyBackend.Services
                 })
                 .ToListAsync();
 
+            var offerIssuesQuery = _context.OfferIssues
+                .AsNoTracking()
+                .Where(issue => issue.LocationGuestId == guestId);
+
+            var offersClaimed = await offerIssuesQuery
+                .CountAsync(issue => issue.ClaimedAtUtc != null);
+
+            var latestOfferRows = await offerIssuesQuery
+                .OrderByDescending(issue =>
+                    issue.RedeemedAtUtc
+                    ?? issue.ClaimedAtUtc
+                    ?? issue.IssuedAtUtc
+                )
+                .ThenByDescending(issue => issue.Id)
+                .Take(LatestOfferPreviewLimit)
+                .Select(issue => new
+                {
+                    id = issue.Id,
+                    title = issue.Title,
+                    source = issue.Source,
+                    issuedAt = issue.IssuedAtUtc,
+                    claimedAt = issue.ClaimedAtUtc,
+                    redeemedAt = issue.RedeemedAtUtc,
+                    cancelledAt = issue.CancelledAtUtc,
+                })
+                .ToListAsync();
+
+            var campaignDeliveriesQuery =
+                from delivery in _context.CampaignRecipientDeliveries.AsNoTracking()
+                join campaign in _context.Campaigns.AsNoTracking()
+                    on delivery.CampaignId equals campaign.Id
+                where delivery.LocationGuestId == guestId
+                    && campaign.RestaurantLocationId == locationId
+                select new { delivery, campaign };
+
+            var campaignsSent = await campaignDeliveriesQuery
+                .CountAsync(row => row.delivery.Outcome == "accepted");
+
+            var latestCampaignRows = await campaignDeliveriesQuery
+                .OrderByDescending(row =>
+                    row.delivery.AcceptedAtUtc ?? row.delivery.UpdatedAtUtc
+                )
+                .ThenByDescending(row => row.delivery.Id)
+                .Take(LatestCampaignPreviewLimit)
+                .Select(row => new
+                {
+                    id = row.delivery.Id,
+                    campaignId = row.campaign.Id,
+                    campaignName = row.campaign.Name,
+                    channel = row.delivery.Channel,
+                    outcome = row.delivery.Outcome,
+                    activityAt = row.delivery.AcceptedAtUtc
+                        ?? row.delivery.UpdatedAtUtc,
+                })
+                .ToListAsync();
+
             return new
             {
                 success = true,
@@ -172,7 +230,7 @@ namespace TummlyBackend.Services
                     firstCapturedAt = locationGuest.CreatedAt,
                     locationName,
                     feedbackSubmissionCount = feedbackCount,
-                    offerClaimsAndRedemptions = 0,
+                    offerClaimsAndRedemptions = offersClaimed,
                     lastInteractionAt = lastActivityAt,
                     lastInteractionLabel = LastInteractionLabel,
                     guestTags,
@@ -180,14 +238,16 @@ namespace TummlyBackend.Services
                 overviewDetails = new
                 {
                     guestSinceAt = locationGuest.CreatedAt,
-                    totalInteractions = feedbackCount,
+                    totalInteractions = feedbackCount + offersClaimed + campaignsSent,
                     feedbackReceived = feedbackCount,
-                    offersClaimed = 0,
-                    campaignsSent = 0,
+                    offersClaimed,
+                    campaignsSent,
                     lastActivityAt,
                 },
                 contactEligibility,
                 latestFeedback,
+                latestOffers = latestOfferRows,
+                latestCampaigns = latestCampaignRows,
                 recentNotes,
             };
         }

@@ -79,7 +79,7 @@ namespace TummlyBackend.Helpers
                 Kind = KindOfferTerms,
                 AssistantTask = assistantTask,
                 SourceUserMessage = sourceUserMessage,
-                OpenRules = AssistantOfferPathTerms.MissingFields(terms).ToList(),
+                OpenRules = AssistantOfferPathTerms.OpenRuleNames(terms).ToList(),
                 OfferTermsJson = AssistantOfferPathTerms.Serialize(terms),
             };
 

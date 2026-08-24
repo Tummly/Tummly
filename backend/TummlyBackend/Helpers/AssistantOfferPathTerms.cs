@@ -163,6 +163,18 @@ namespace TummlyBackend.Helpers
                 && state.OfferType is not null
                 && state.Validity is not null;
 
+        /// <summary>
+        /// Open hard-rule names for a blocked Offer create: what still stops
+        /// persistence. Stored on the gap turn; never used to build question
+        /// copy.
+        /// </summary>
+        public static IReadOnlyList<string> OpenRuleNames(
+            AssistantOfferPathTermsState state
+        )
+            => state.ConflictingBenefits.Count >= 2
+                ? ["one authorised benefit"]
+                : MissingFields(state);
+
         public static string GapBody(AssistantOfferPathTermsState state)
         {
             if (state.ConflictingBenefits.Count >= 2)

@@ -4,7 +4,10 @@ import { toast } from "sonner"
 import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
 import { HomeHero } from "@/components/dashboard/operator/Home/HomeHero"
 import { HomeKpiStrip } from "@/components/dashboard/operator/Home/HomeKpiStrip"
-import { HomeLatestActivity } from "@/components/dashboard/operator/Home/HomeLatestActivity"
+import {
+  HomeLatestActivity,
+  type HomeLatestActivityViewAllTabId,
+} from "@/components/dashboard/operator/Home/HomeLatestActivity"
 import { HomeLiveOffersSection } from "@/components/dashboard/operator/Home/HomeLiveOffersSection"
 import { HomeNeedsAttentionSection } from "@/components/dashboard/operator/Home/HomeNeedsAttentionSection"
 import { HomePerformanceDateRangeControl } from "@/components/dashboard/operator/Home/HomePerformanceDateRangeControl"
@@ -93,6 +96,7 @@ type HomeBodyProps = {
   onViewFeedback?: (feedbackId: number) => void
   onViewGuest?: (locationGuestId: number) => void
   onViewGuestProfile?: (locationGuestId: number) => void
+  onViewAllActivity?: (tabId: HomeLatestActivityViewAllTabId) => void
   onFeedbackDetailsOpenChange?: (open: boolean) => void
   onRetryFeedbackDetails?: () => void
   onStartClassificationCorrection?: () => void
@@ -174,6 +178,7 @@ export function HomeBody({
   onViewFeedback,
   onViewGuest,
   onViewGuestProfile,
+  onViewAllActivity,
   onFeedbackDetailsOpenChange,
   onRetryFeedbackDetails,
   onStartClassificationCorrection,
@@ -336,6 +341,7 @@ export function HomeBody({
           activityEmpty={viewModel.activityEmpty}
           onViewFeedback={onViewFeedback}
           onViewGuest={onViewGuest}
+          onViewAllActivity={onViewAllActivity}
         />
       )}
 

@@ -2538,6 +2538,53 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_OfferPath_GapAnswerNamesLocation_PersistsAtNamedLocation()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var soho = await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Lunch discount",
+                "Saving the lunch discount.",
+                AssistantTask.OfferPath,
+                null,
+                new AssistantOfferPathTermsState
+                {
+                    OfferType = "percentage_discount",
+                    DiscountPercentage = 25m,
+                    Validity = "30_days_after_issue",
+                }
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(camden, "Create a 25% off lunch offer at Camden")
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+
+            var answered = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        camden,
+                        "30 days after issue, for Soho",
+                        started.Conversation.Id
+                    )
+                )
+            );
+
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(CatalogOfferStatus.Draft, offer.Status);
+            Assert.Equal(soho, offer.RestaurantLocationId);
+            Assert.Equal(
+                "review-offer",
+                Assert.Single(answered.Conversation.Messages[^1].Actions).Type
+            );
+        }
+
+        [Fact]
         public async Task SendTurn_CompleteCreateAndGuestFormThankYou_PersistsDraftAttachesAndReviews()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");

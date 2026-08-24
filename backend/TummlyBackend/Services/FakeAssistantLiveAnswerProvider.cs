@@ -29,11 +29,10 @@ namespace TummlyBackend.Services
         )
         {
             _throwOnComplete = null;
-            _forcedResult = new AssistantLiveAnswerResult.Succeeded(
+            _forcedResult = SucceededResult(
                 answerClass,
                 title,
                 body,
-                [],
                 assistantTask,
                 conversationTitle,
                 offerTerms
@@ -51,17 +50,34 @@ namespace TummlyBackend.Services
         {
             _throwOnComplete = null;
             _resultQueue.Enqueue(
-                new AssistantLiveAnswerResult.Succeeded(
+                SucceededResult(
                     answerClass,
                     title,
                     body,
-                    [],
                     assistantTask,
                     conversationTitle,
                     offerTerms
                 )
             );
         }
+
+        private static AssistantLiveAnswerResult.Succeeded SucceededResult(
+            AssistantMessageClass answerClass,
+            string? title,
+            string body,
+            string assistantTask,
+            string? conversationTitle,
+            AssistantOfferPathTermsState? offerTerms
+        )
+            => new(
+                answerClass,
+                title,
+                body,
+                [],
+                assistantTask,
+                conversationTitle,
+                offerTerms
+            );
 
         public void Fail(bool retryable = true)
         {

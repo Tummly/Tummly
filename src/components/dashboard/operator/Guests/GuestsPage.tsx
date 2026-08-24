@@ -1,5 +1,5 @@
-import { useEffect } from "react"
-import { useOutletContext } from "react-router-dom"
+import { useEffect, useState } from "react"
+import { useNavigate, useOutletContext } from "react-router-dom"
 import { toast } from "sonner"
 
 import { AddTagDialog } from "@/components/dashboard/operator/Guests/AddTagDialog"
@@ -12,8 +12,24 @@ import { GuestsBody } from "@/components/dashboard/operator/Guests/GuestsBody"
 import { useGuestsPageModule } from "@/components/dashboard/operator/Guests/utils/useGuestsPageModule"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
+import { deleteLocationGuest } from "@/api/dashboardApi"
+import { GUEST_EDIT_PAGE } from "@/lib/operatorGuestProfile/guestProfilePresentation"
+import {
+  operatorDashboardGuestEditPath,
+  operatorDashboardNavPath,
+} from "@/lib/operatorHome/operatorDashboardPaths"
 import {
   labelForGuestsOverviewDateRange,
   type GuestsOverviewDateRange,
@@ -23,6 +39,7 @@ import { guestsFilterSheetSchemaForWorkspace } from "@/lib/operatorGuests/guests
 export function GuestsPage() {
   const guests = useGuestsPageModule()
   const { snapshot, clearTabCache } = guests
+  const navigate = useNavigate()
   const { mode, locations, selectedLocationId } =
     useOutletContext<DashboardOutletContext>()
   const guestsOverviewDateRange = useDashboardUiStore(
@@ -31,6 +48,11 @@ export function GuestsPage() {
   const setGuestsOverviewDateRange = useDashboardUiStore(
     (state) => state.setGuestsOverviewDateRange
   )
+  const setCampaignsIntent = useDashboardUiStore(
+    (state) => state.setCampaignsIntent
+  )
+  const [deleteGuestId, setDeleteGuestId] = useState<string | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
 
   useEffect(
     () => () => {
@@ -43,6 +65,13 @@ export function GuestsPage() {
     setGuestsOverviewDateRange(range)
     void guests.reloadForOverviewDateRange()
   }
+
+  const handleCreateCampaign = () => {
+    setCampaignsIntent({ openBlankCreate: true })
+    navigate(operatorDashboardNavPath(mode, "campaigns", selectedLocationId))
+  }
+
+  const privacyCopy = GUEST_EDIT_PAGE.dataPrivacy
 
   if (
     snapshot.viewModel == null &&
@@ -145,6 +174,22 @@ export function GuestsPage() {
         onManageMarketingPermissions={(guestId) => {
           void guests.openManageMarketingPreferences(guestId)
         }}
+        onEditGuest={(guestId) => {
+          navigate(
+            operatorDashboardGuestEditPath(
+              mode,
+              guestId,
+              selectedLocationId
+            )
+          )
+        }}
+        onExportGuest={(guestId) => {
+          void guests.exportGuestCsv(guestId)
+        }}
+        onDeleteGuest={(guestId) => {
+          setDeleteGuestId(guestId)
+        }}
+        onCreateCampaign={handleCreateCampaign}
         onExportCsv={() => {
           void guests.exportCsv()
         }}
@@ -318,6 +363,61 @@ export function GuestsPage() {
           toast.error(message)
         }}
       />
+      <AlertDialog
+        open={deleteGuestId != null}
+        onOpenChange={(open) => {
+          if (deleteBusy) {
+            return
+          }
+          if (!open) {
+            setDeleteGuestId(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{privacyCopy.deleteDialogTitle}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {privacyCopy.deleteDialogDescription}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteBusy}>
+              {privacyCopy.deleteDialogCancel}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deleteBusy || deleteGuestId == null}
+              onClick={(event) => {
+                event.preventDefault()
+                if (deleteGuestId == null) {
+                  return
+                }
+                void (async () => {
+                  setDeleteBusy(true)
+                  try {
+                    await deleteLocationGuest({
+                      guestId: Number.parseInt(deleteGuestId, 10),
+                      locationId: selectedLocationId,
+                    })
+                    setDeleteGuestId(null)
+                    toast.success("Guest data deleted.")
+                    void guests.retryLoad()
+                  } catch {
+                    toast.error(
+                      "Could not delete guest data. Please try again."
+                    )
+                  } finally {
+                    setDeleteBusy(false)
+                  }
+                })()
+              }}
+            >
+              {privacyCopy.deleteDialogConfirm}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

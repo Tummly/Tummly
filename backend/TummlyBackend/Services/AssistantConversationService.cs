@@ -2754,9 +2754,9 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            var openRules = terms.ConflictingBenefits.Count >= 2
-                ? new List<string> { "one authorised benefit" }
-                : AssistantOfferPathTerms.MissingFields(terms).ToList();
+            var openRules = AssistantOfferPathTerms
+                .OpenRuleNames(terms)
+                .ToList();
             var body = string.IsNullOrWhiteSpace(questionBody)
                 ? AssistantOfferPathTerms.GapBody(terms)
                 : questionBody.Trim();
@@ -3309,15 +3309,28 @@ namespace TummlyBackend.Services
 
                 // Offer-path gaps resume through the live answer: the model
                 // re-extracts every term from the whole thread and the server
-                // re-validates. Only the location binding stays server-side.
+                // re-validates. Only the location binding stays server-side;
+                // an answer that names a location wins over the source ask.
                 var resumedLocationOutcome = ResolveCreateLocation(
-                    gapState.SourceUserMessage,
+                    userMessage,
                     conversation,
                     analysisScopeLocationName,
                     ownedLocations,
-                    uniqueNameIsChoice: false,
+                    uniqueNameIsChoice: true,
                     gapState.AssistantTask
                 );
+                if (resumedLocationOutcome is AssistantLocationGapOutcome.Unnamed)
+                {
+                    resumedLocationOutcome = ResolveCreateLocation(
+                        gapState.SourceUserMessage,
+                        conversation,
+                        analysisScopeLocationName,
+                        ownedLocations,
+                        uniqueNameIsChoice: false,
+                        gapState.AssistantTask
+                    );
+                }
+
                 var resumedLocation = await TryFinishLocationOutcomeAsync(
                     conversation,
                     gapState.SourceUserMessage,

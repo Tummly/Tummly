@@ -28,6 +28,23 @@ export type OperatorGuestProfileLatestFeedbackRow = {
   recoveryDisplay: string
 }
 
+export type OperatorGuestProfileLatestOfferRow = {
+  id: number
+  title: string
+  statusDisplay: string
+  sourceDisplay: string
+  dateDisplay: string
+}
+
+export type OperatorGuestProfileLatestCampaignRow = {
+  id: number
+  campaignId: number
+  campaignName: string
+  channelDisplay: string
+  outcomeDisplay: string
+  dateDisplay: string
+}
+
 export type OperatorGuestFeedbacksSortId =
   | "recent-activity"
   | "oldest-first"
@@ -134,5 +151,7 @@ export type OperatorGuestProfileViewModel = {
     detailDisplay: string
   }>
   latestFeedback: OperatorGuestProfileLatestFeedbackRow[]
+  latestOffers: OperatorGuestProfileLatestOfferRow[]
+  latestCampaigns: OperatorGuestProfileLatestCampaignRow[]
   recentNotes: OperatorGuestProfileNoteRow[]
 }
