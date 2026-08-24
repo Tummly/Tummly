@@ -36,6 +36,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
+import { resolveBrandLogoSrc } from "@/lib/brandLogo/resolveBrandLogoSrc"
 import { createBrowserGuestMicAdapters } from "@/lib/guestFeedback/createBrowserGuestMicAdapters"
 import { createGuestMicSttModule } from "@/lib/guestFeedback/createGuestMicSttModule"
 import { guestFeedbackCommentPresentation } from "@/lib/guestFeedback/guestFeedbackCommentPresentation"
@@ -86,6 +87,7 @@ type GuestFeedbackFormProps = {
   token: string
   locationName: string
   address: string
+  brandLogoPublicUrl?: string | null
   isSubmitting: boolean
   submitError: string | null
   defaultValues?: GuestFeedbackFormValues
@@ -97,6 +99,7 @@ export function GuestFeedbackForm({
   token,
   locationName,
   address,
+  brandLogoPublicUrl = null,
   isSubmitting,
   submitError,
   defaultValues = guestFeedbackDefaultValues,
@@ -183,7 +186,9 @@ export function GuestFeedbackForm({
             aria-hidden
           >
             <img
-              src={brandLogoPlaceholder}
+              src={
+                resolveBrandLogoSrc(brandLogoPublicUrl) ?? brandLogoPlaceholder
+              }
               alt=""
               className="size-full object-cover"
             />

@@ -696,8 +696,8 @@ Operator surface for purchasing physical QR stickers and related materials. Side
 _Avoid_: Store, marketplace (when meaning the SideNav footer item)
 
 **Brand logo**:
-The operator-uploaded mark for the Restaurant, managed on **Account & workspace** (blob-backed). One file for the Owned-location switcher, the Private feedback form header, and guest email chrome; until upload, those surfaces share one placeholder.
-_Avoid_: Location logo, avatar, restaurant icon, Workspace logo (as a second file)
+The operator-uploaded mark for the Restaurant, managed on **Account & workspace** (blob-backed). One Restaurant mark is shown on the Owned-location switcher, the **Private feedback form** header, and guest email chrome for every location under that restaurant. Until that upload exists, those surfaces use one shared placeholder — not per-location art, not scraped favicons.
+_Avoid_: Location logo, avatar, restaurant icon, Workspace logo (as a second file), guest-facing brand file (as a second upload)
 
 **Legal structure**:
 The optional UK business-form of the legal entity on **Business details**: Sole trader; Partnership; Limited company (Ltd); LLP; PLC; Other. Distinct from **Account structure**.

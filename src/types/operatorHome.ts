@@ -167,6 +167,7 @@ export interface OperatorShellPresentation {
     interactive: boolean;
     selectedLocationId: number;
     selectedLocationName: string;
+    brandLogoPublicUrl: string | null;
     options: OperatorHomeLocationOption[];
   };
 }

@@ -10,6 +10,7 @@ export type OperatorWorkspaceSnapshot = {
   locations: LocationItem[]
   selectedLocationId: number | null
   restaurantName: string
+  brandLogoPublicUrl: string | null
   operatorDisplayName: string
   activationExpiresAt: string | null
   selfRole: string | null
@@ -43,6 +44,7 @@ type WorkspaceAction =
       locations: LocationItem[]
       selectedLocationId: number | null
       restaurantName: string
+      brandLogoPublicUrl: string | null
       operatorDisplayName: string
       activationExpiresAt: string | null
       selfRole: string | null
@@ -76,6 +78,7 @@ function reduce(
         locations: action.locations,
         selectedLocationId: action.selectedLocationId,
         restaurantName: action.restaurantName,
+        brandLogoPublicUrl: action.brandLogoPublicUrl,
         operatorDisplayName: action.operatorDisplayName,
         activationExpiresAt: action.activationExpiresAt,
         selfRole: action.selfRole,
@@ -102,6 +105,7 @@ export function createOperatorWorkspaceSession(
     locations: [],
     selectedLocationId: null,
     restaurantName: "",
+    brandLogoPublicUrl: null,
     operatorDisplayName: "Operator",
     activationExpiresAt: null,
     selfRole: null,
@@ -115,6 +119,7 @@ export function createOperatorWorkspaceSession(
     locations: state.locations,
     selectedLocationId: state.selectedLocationId,
     restaurantName: state.restaurantName,
+    brandLogoPublicUrl: state.brandLogoPublicUrl,
     operatorDisplayName: state.operatorDisplayName,
     activationExpiresAt: state.activationExpiresAt,
     selfRole: state.selfRole,
@@ -136,6 +141,7 @@ export function createOperatorWorkspaceSession(
       locations: state.locations,
       selectedLocationId: state.selectedLocationId,
       restaurantName: state.restaurantName,
+      brandLogoPublicUrl: state.brandLogoPublicUrl,
       operatorDisplayName: state.operatorDisplayName,
       activationExpiresAt: state.activationExpiresAt,
       selfRole: state.selfRole,
@@ -186,6 +192,7 @@ export function createOperatorWorkspaceSession(
         locations: locationsResult.locations,
         selectedLocationId,
         restaurantName: locationsResult.restaurantName?.trim() ?? "",
+        brandLogoPublicUrl: locationsResult.brandLogoPublicUrl ?? null,
         operatorDisplayName: profile?.fullName ?? "Operator",
         activationExpiresAt: profile?.activationExpiresAt ?? null,
         selfRole: profile?.selfRole ?? null,

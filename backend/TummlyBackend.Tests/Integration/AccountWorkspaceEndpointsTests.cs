@@ -1,0 +1,409 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using TummlyBackend.Data;
+using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
+
+namespace TummlyBackend.Tests.Integration
+{
+    public class AccountWorkspaceEndpointsTests
+        : IClassFixture<TummlyWebApplicationFactory>
+    {
+        private readonly TummlyWebApplicationFactory _factory;
+        private readonly HttpClient _client;
+
+        public AccountWorkspaceEndpointsTests(
+            TummlyWebApplicationFactory factory
+        )
+        {
+            _factory = factory;
+            _client = factory.CreateClient();
+        }
+
+        [Fact]
+        public async Task GetDetails_Returns401_WhenUnauthenticated()
+        {
+            var response = await _client.GetAsync("/api/account-workspace");
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetDetails_ReturnsIdentityStatusAndShell()
+        {
+            var seeded = await SeedOwnerAsync(
+                email: "aw-get@example.com",
+                businessCategory: "takeaway",
+                accountType: "Single"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/account-workspace"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "Account Workspace Venue",
+                body.GetProperty("workspaceName").GetString()
+            );
+            Assert.Equal(
+                "Single location",
+                body.GetProperty("accountStructure").GetString()
+            );
+            Assert.Equal(
+                "takeaway",
+                body.GetProperty("businessCategory").GetString()
+            );
+            Assert.Equal(
+                "Takeaway / quick-service restaurant",
+                body.GetProperty("businessCategoryLabel").GetString()
+            );
+            Assert.Equal(
+                "United Kingdom",
+                body.GetProperty("mainOperatingCountry").GetString()
+            );
+            Assert.Equal(
+                JsonValueKind.Null,
+                body.GetProperty("brandLogoOperatorUrl").ValueKind
+            );
+            Assert.Equal(
+                JsonValueKind.Null,
+                body.GetProperty("brandLogoPublicUrl").ValueKind
+            );
+            Assert.Equal(
+                JsonValueKind.Null,
+                body.GetProperty("lastSavedAt").ValueKind
+            );
+
+            var status = body.GetProperty("status");
+            Assert.Equal("Active", status.GetProperty("workspaceStatus").GetString());
+            Assert.Equal("Pilot", status.GetProperty("planStatus").GetString());
+            Assert.Equal("Active", status.GetProperty("billingStatus").GetString());
+            Assert.Equal(1, status.GetProperty("activeLocations").GetInt32());
+            Assert.Equal(1, status.GetProperty("teamMembers").GetInt32());
+            Assert.Equal(0, status.GetProperty("guestProfiles").GetInt32());
+            Assert.Equal("Live", status.GetProperty("guestFormStatus").GetString());
+            Assert.False(
+                string.IsNullOrWhiteSpace(
+                    status.GetProperty("accountCreatedAt").GetString()
+                )
+            );
+            Assert.False(
+                string.IsNullOrWhiteSpace(
+                    status.GetProperty("lastAccountUpdateAt").GetString()
+                )
+            );
+
+            Assert.True(body.TryGetProperty("businessDetails", out _));
+            Assert.True(body.TryGetProperty("keyContacts", out _));
+            Assert.True(body.TryGetProperty("workspaceDefaults", out _));
+        }
+
+        [Fact]
+        public async Task PutAccountDetails_NameOnly_UpdatesNameAndLastSaved()
+        {
+            var seeded = await SeedOwnerAsync(email: "aw-put-name@example.com");
+
+            using var content = new MultipartFormDataContent();
+            content.Add(new StringContent("  Renamed Workspace  "), "name");
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/account-workspace/account-details"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = content;
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "Renamed Workspace",
+                body.GetProperty("workspaceName").GetString()
+            );
+            Assert.False(
+                string.IsNullOrWhiteSpace(
+                    body.GetProperty("lastSavedAt").GetString()
+                )
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurant = Assert.Single(
+                context.Restaurants.Where(r => r.Id == seeded.RestaurantId)
+            );
+            Assert.Equal("Renamed Workspace", restaurant.Name);
+            Assert.NotNull(restaurant.AccountWorkspaceLastSavedAt);
+        }
+
+        [Fact]
+        public async Task PutAccountDetails_NameAndLogo_PersistsWhenStorageConfigured()
+        {
+            var storage = new InMemoryQueryAttachmentStorage();
+            var client = CreateClientWithStorage(storage);
+            var seeded = await SeedOwnerAsync(email: "aw-put-logo@example.com");
+
+            var pngBytes = MinimalPngBytes();
+            using var content = new MultipartFormDataContent();
+            content.Add(new StringContent("Logo Venue"), "name");
+            var fileContent = new ByteArrayContent(pngBytes);
+            fileContent.Headers.ContentType =
+                new MediaTypeHeaderValue("image/png");
+            content.Add(fileContent, "logo", "brand.png");
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/account-workspace/account-details"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = content;
+
+            var response = await client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "Logo Venue",
+                body.GetProperty("workspaceName").GetString()
+            );
+            var operatorUrl = body.GetProperty("brandLogoOperatorUrl").GetString();
+            var publicUrl = body.GetProperty("brandLogoPublicUrl").GetString();
+            Assert.False(string.IsNullOrWhiteSpace(operatorUrl));
+            Assert.False(string.IsNullOrWhiteSpace(publicUrl));
+            Assert.StartsWith("/api/public/brand-logos/", publicUrl);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurant = Assert.Single(
+                context.Restaurants.Where(r => r.Id == seeded.RestaurantId)
+            );
+            Assert.False(string.IsNullOrWhiteSpace(restaurant.BrandLogoObjectKey));
+            Assert.Equal("image/png", restaurant.BrandLogoContentType);
+            Assert.Contains(restaurant.BrandLogoObjectKey!, storage.UploadedKeys);
+        }
+
+        [Fact]
+        public async Task PutAccountDetails_WithLogo_FailsFastWhenStorageNotConfigured()
+        {
+            var seeded = await SeedOwnerAsync(email: "aw-put-nologo@example.com");
+
+            var pngBytes = MinimalPngBytes();
+            using var content = new MultipartFormDataContent();
+            content.Add(new StringContent("Still Named"), "name");
+            var fileContent = new ByteArrayContent(pngBytes);
+            fileContent.Headers.ContentType =
+                new MediaTypeHeaderValue("image/png");
+            content.Add(fileContent, "logo", "brand.png");
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/account-workspace/account-details"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = content;
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurant = Assert.Single(
+                context.Restaurants.Where(r => r.Id == seeded.RestaurantId)
+            );
+            Assert.Equal("Account Workspace Venue", restaurant.Name);
+            Assert.Null(restaurant.BrandLogoObjectKey);
+            Assert.Null(restaurant.AccountWorkspaceLastSavedAt);
+        }
+
+        [Fact]
+        public async Task PutAccountDetails_Returns401_WhenUnauthenticated()
+        {
+            using var content = new MultipartFormDataContent();
+            content.Add(new StringContent("Nope"), "name");
+
+            var response = await _client.PutAsync(
+                "/api/account-workspace/account-details",
+                content
+            );
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        private HttpClient CreateClientWithStorage(
+            IQueryAttachmentStorage storage
+        )
+        {
+            return _factory
+                .WithWebHostBuilder(builder =>
+                {
+                    builder.ConfigureServices(services =>
+                    {
+                        var descriptors = services
+                            .Where(d =>
+                                d.ServiceType == typeof(IQueryAttachmentStorage)
+                            )
+                            .ToList();
+                        foreach (var descriptor in descriptors)
+                        {
+                            services.Remove(descriptor);
+                        }
+
+                        services.AddSingleton(storage);
+                    });
+                })
+                .CreateClient();
+        }
+
+        private async Task<(
+            string Jwt,
+            int RestaurantId,
+            int LocationId
+        )> SeedOwnerAsync(
+            string email = "aw-owner@example.com",
+            string? businessCategory = "cafe",
+            string accountType = "Single"
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Account Workspace Owner",
+                Email = email,
+                PasswordHash = "hash",
+                PhoneNumber = "07700900123",
+                Role = "Owner",
+                AccountType = accountType,
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Account Workspace Venue",
+                AccountType = accountType,
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow.AddDays(-10),
+                BusinessCategory = businessCategory,
+            };
+
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+                CaptureLocationStatus = CaptureLocationStatus.Active,
+            };
+
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return (jwt, restaurant.Id, location.Id);
+        }
+
+        private static async Task<JsonElement> ReadJsonAsync(
+            HttpResponseMessage response
+        )
+        {
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            return body;
+        }
+
+        private static byte[] MinimalPngBytes()
+        {
+            // 1x1 transparent PNG
+            return Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+            );
+        }
+
+        private sealed class InMemoryQueryAttachmentStorage
+            : IQueryAttachmentStorage
+        {
+            private readonly Dictionary<string, (byte[] Bytes, string ContentType)>
+                _objects = new();
+
+            public bool IsConfigured => true;
+
+            public HashSet<string> UploadedKeys { get; } = new();
+
+            public Task UploadAsync(
+                string storageKey,
+                Stream content,
+                string contentType,
+                long contentLength,
+                CancellationToken cancellationToken = default
+            )
+            {
+                using var ms = new MemoryStream();
+                content.CopyTo(ms);
+                _objects[storageKey] = (ms.ToArray(), contentType);
+                UploadedKeys.Add(storageKey);
+                return Task.CompletedTask;
+            }
+
+            public Task<Stream> OpenReadAsync(
+                string storageKey,
+                CancellationToken cancellationToken = default
+            )
+            {
+                if (!_objects.TryGetValue(storageKey, out var stored))
+                {
+                    throw new FileNotFoundException(storageKey);
+                }
+
+                return Task.FromResult<Stream>(
+                    new MemoryStream(stored.Bytes)
+                );
+            }
+
+            public Task DeleteAsync(
+                string storageKey,
+                CancellationToken cancellationToken = default
+            )
+            {
+                _objects.Remove(storageKey);
+                return Task.CompletedTask;
+            }
+        }
+    }
+}

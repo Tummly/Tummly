@@ -8,6 +8,7 @@ import {
 import brandLogoPlaceholder from "@/assets/images/brand-logo-placeholder.png"
 import { GuestPreviewOfferCoupon } from "@/components/dashboard/operator/Feedback/GuestPreviewOfferCoupon"
 import type { GuestPreviewOfferCouponView } from "@/lib/operatorFeedback/guestPreviewPresentation"
+import { resolveBrandLogoSrc } from "@/lib/brandLogo/resolveBrandLogoSrc"
 import { cn } from "@/lib/utils"
 
 const cardSpring: Transition = {
@@ -45,6 +46,7 @@ const itemVariants: Variants = {
 type GuestFeedbackSuccessProps = {
   locationName: string
   address: string
+  brandLogoPublicUrl?: string | null
   className?: string
   /** Issued or preview-sample offer coupon painted under thank-you copy. */
   offer?: GuestPreviewOfferCouponView | null
@@ -53,6 +55,7 @@ type GuestFeedbackSuccessProps = {
 export function GuestFeedbackSuccess({
   locationName,
   address,
+  brandLogoPublicUrl = null,
   className,
   offer = null,
 }: GuestFeedbackSuccessProps) {
@@ -95,7 +98,9 @@ export function GuestFeedbackSuccess({
           aria-hidden
         >
           <img
-            src={brandLogoPlaceholder}
+            src={
+              resolveBrandLogoSrc(brandLogoPublicUrl) ?? brandLogoPlaceholder
+            }
             alt=""
             className="size-full object-cover"
           />

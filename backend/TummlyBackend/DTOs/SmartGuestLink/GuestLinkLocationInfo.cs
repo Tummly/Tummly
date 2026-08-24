@@ -12,6 +12,8 @@ namespace TummlyBackend.DTOs.SmartGuestLink
 
         public string Address { get; set; } = string.Empty;
 
+        public string? BrandLogoPublicUrl { get; set; }
+
         public int QrCodeId { get; set; }
 
         public QrType QrType { get; set; }

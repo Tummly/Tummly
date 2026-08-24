@@ -23,6 +23,7 @@ export interface LocationItem {
 export interface LocationsResponse {
   success: boolean;
   restaurantName?: string;
+  brandLogoPublicUrl?: string | null;
   locations: LocationItem[];
 }
 

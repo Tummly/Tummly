@@ -456,6 +456,8 @@ builder.Services.AddScoped<
 
 builder.Services.AddScoped<IOwnedLocationService, OwnedLocationService>();
 
+builder.Services.AddScoped<IAccountWorkspaceService, AccountWorkspaceService>();
+
 builder.Services.AddHttpClient(
     "Resend",
     client =>

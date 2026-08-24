@@ -122,6 +122,7 @@ describe("buildOperatorShellPresentation", () => {
       interactive: true,
       selectedLocationId: 10,
       selectedLocationName: "Mehmet's Grill",
+      brandLogoPublicUrl: null,
       options: [
         { id: 10, name: "Mehmet's Grill", address: "Leeds", isActive: true },
         { id: 11, name: "Second Venue", address: "Manchester", isActive: true },

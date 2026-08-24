@@ -1,5 +1,6 @@
 import {
   isNavigableOperatorSidebarPrimaryNavId,
+  isNavigableOperatorSidebarSettingsChildId,
   operatorDashboardNavPath,
   type OperatorDashboardMode,
 } from "@/lib/operatorHome/operatorDashboardPaths";
@@ -139,8 +140,17 @@ export function getOperatorSidebarNav(
   const children = OPERATOR_SIDEBAR_SETTINGS_CHILDREN.map((item) => ({
     id: item.id,
     label: item.label,
-    navigable: false,
+    navigable: isNavigableOperatorSidebarSettingsChildId(item.id),
     active: item.id === activeId,
+    to:
+      navTargets != null
+      && isNavigableOperatorSidebarSettingsChildId(item.id)
+        ? operatorDashboardNavPath(
+            navTargets.mode,
+            item.id,
+            navTargets.locationId,
+          )
+        : undefined,
   }));
 
   const forceExpanded = children.some((child) => child.active);

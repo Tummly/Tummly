@@ -44,6 +44,8 @@ import { GuestEditRoute } from "@/components/dashboard/operator/GuestProfile/Gue
 import { GuestProfilePageModuleProvider } from "@/components/dashboard/operator/GuestProfile/GuestProfilePageModuleProvider";
 import { GuestProfileRoute } from "@/components/dashboard/operator/GuestProfile/GuestProfileRoute";
 import { HomeRoute } from "@/components/dashboard/operator/Home/HomeRoute";
+import { AccountWorkspacePageModuleProvider } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspacePageModuleProvider";
+import { AccountWorkspaceRoute } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceRoute";
 import AdminDashboard from "../../components/dashboard/admin/Dashboard";
 import SupportDashboard from "../../components/dashboard/support/Dashboard";
 import SupportQueryDetailPage from "../../components/dashboard/support/SupportQueryDetailPage";
@@ -181,6 +183,14 @@ function AppRoutes() {
                     </OfferDetailsPageModuleProvider>
                   }
                 />
+                <Route
+                  path="settings/account-workspace"
+                  element={
+                    <AccountWorkspacePageModuleProvider>
+                      <AccountWorkspaceRoute />
+                    </AccountWorkspacePageModuleProvider>
+                  }
+                />
               </Route>
             </Route>
             <Route element={<OperatorDashboardRoute mode="multi" />}>
@@ -232,6 +242,14 @@ function AppRoutes() {
                     <OfferDetailsPageModuleProvider>
                       <OfferDetailsRoute />
                     </OfferDetailsPageModuleProvider>
+                  }
+                />
+                <Route
+                  path="settings/account-workspace"
+                  element={
+                    <AccountWorkspacePageModuleProvider>
+                      <AccountWorkspaceRoute />
+                    </AccountWorkspacePageModuleProvider>
                   }
                 />
               </Route>

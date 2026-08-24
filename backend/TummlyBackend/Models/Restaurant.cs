@@ -70,6 +70,23 @@ namespace TummlyBackend.Models
 
         public string? PublicPhoneNumber { get; set; }
 
+        /*
+         =========================================
+         ACCOUNT & WORKSPACE
+         =========================================
+        */
+
+        public WorkspaceStatus WorkspaceStatus { get; set; }
+            = WorkspaceStatus.Active;
+
+        [MaxLength(500)]
+        public string? BrandLogoObjectKey { get; set; }
+
+        [MaxLength(100)]
+        public string? BrandLogoContentType { get; set; }
+
+        public DateTime? AccountWorkspaceLastSavedAt { get; set; }
+
     }
 
 

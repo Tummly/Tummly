@@ -9,6 +9,7 @@ export type ScanLocationMetadata = {
   restaurantName: string
   locationName: string
   address: string
+  brandLogoPublicUrl: string | null
 }
 
 export type GuestThankYouOffer = {
@@ -23,6 +24,7 @@ type ScanMetadataResponse = {
   restaurantName?: string
   locationName?: string
   address?: string
+  brandLogoPublicUrl?: string | null
   message?: string
 }
 
@@ -54,6 +56,7 @@ export async function fetchScanLocationMetadata(
     restaurantName: response.data.restaurantName ?? "",
     locationName: response.data.locationName ?? "",
     address: response.data.address ?? "",
+    brandLogoPublicUrl: response.data.brandLogoPublicUrl ?? null,
   }
 }
 

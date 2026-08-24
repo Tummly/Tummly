@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.SmartGuestLink;
 using TummlyBackend.Exceptions;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -71,12 +72,19 @@ namespace TummlyBackend.Services
                 return null;
             }
 
+            var brandLogoObjectKey = location.Restaurant?.BrandLogoObjectKey;
+            var brandLogoPublicUrl =
+                string.IsNullOrWhiteSpace(brandLogoObjectKey)
+                    ? null
+                    : BrandLogoRules.BuildPublicUrl(brandLogoObjectKey);
+
             return new GuestLinkLocationInfo
             {
                 LocationId = location.Id,
                 RestaurantName = location.Restaurant?.Name ?? "",
                 LocationName = location.LocationName,
                 Address = location.Address ?? "",
+                BrandLogoPublicUrl = brandLogoPublicUrl,
                 QrCodeId = qrCode.Id,
                 QrType = qrCode.QrType
             };

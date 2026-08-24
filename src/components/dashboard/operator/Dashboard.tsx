@@ -277,6 +277,7 @@ function DashboardContent({ mode }: DashboardProps) {
     selectedLocationId,
     locationSwitcherInteractive:
       workspace.snapshot.locationSwitcherInteractive,
+    brandLogoPublicUrl: workspace.snapshot.brandLogoPublicUrl,
     activeNavId: resolveOperatorSidebarActiveId(pathname),
     navTargets: {
       mode,

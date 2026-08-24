@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -92,10 +93,18 @@ namespace TummlyBackend.Controllers
                 )
                 .ToDictionaryAsync(q => q.RestaurantLocationId, q => q.Token);
 
+            var brandLogoPublicUrl =
+                string.IsNullOrWhiteSpace(restaurant.BrandLogoObjectKey)
+                    ? null
+                    : BrandLogoRules.BuildPublicUrl(
+                        restaurant.BrandLogoObjectKey
+                    );
+
             return Ok(new
             {
                 success = true,
                 restaurantName = restaurant.Name,
+                brandLogoPublicUrl,
                 locations = locations.Select(l => new
                 {
                     l.Id,

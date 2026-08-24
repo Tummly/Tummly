@@ -93,7 +93,8 @@ namespace TummlyBackend.Controllers
                 success = true,
                 restaurantName = location.RestaurantName,
                 locationName = location.LocationName,
-                address = location.Address
+                address = location.Address,
+                brandLogoPublicUrl = location.BrandLogoPublicUrl
             });
         }
 
