@@ -25,7 +25,9 @@ import {
 import {
   ACCOUNT_WORKSPACE_PAGE_COPY,
   ACCOUNT_WORKSPACE_SELECT_MENU_CLASS,
+  DEFAULT_REPORTING_PERIOD_OPTIONS,
   LEGAL_STRUCTURE_OPTIONS,
+  WEEK_STARTS_ON_OPTIONS,
   formatAccountWorkspaceLastSaved,
   isUnitedKingdomCountry,
 } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
@@ -215,6 +217,7 @@ export function AccountWorkspacePage() {
   const workspaceNameError = snap.accountDetails.workspaceNameError
   const business = snap.businessDetails
   const keyContacts = snap.keyContacts
+  const workspaceDefaults = snap.workspaceDefaults
   const isUkAddress = isUnitedKingdomCountry(business.country)
   const eligibleMembers = keyContacts.eligibleMembers
   const ownerMember =
@@ -853,7 +856,123 @@ export function AccountWorkspacePage() {
             </div>
           </section>
         </TabsContent>
-        <TabsContent value="workspace-defaults" className="mt-0" />
+        <TabsContent value="workspace-defaults" className="mt-0">
+          <section className={GUESTS_SECTION_CLASS}>
+            <div className="flex flex-col gap-2">
+              <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+                {ACCOUNT_WORKSPACE_PAGE_COPY.workspaceDefaultsTitle}
+              </h2>
+              <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+                {ACCOUNT_WORKSPACE_PAGE_COPY.workspaceDefaultsSubtitle}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-6">
+              <div className={FIELD_GRID_CLASS}>
+                <div className={FIELD_STACK_CLASS}>
+                  <label
+                    htmlFor="week-starts-on"
+                    className={FIELD_LABEL_CLASS}
+                  >
+                    {ACCOUNT_WORKSPACE_PAGE_COPY.weekStartsOn}
+                  </label>
+                  <Select
+                    value={workspaceDefaults.weekStartsOn}
+                    onValueChange={(value) => {
+                      pageModule.setWeekStartsOn(
+                        value as (typeof WEEK_STARTS_ON_OPTIONS)[number]["value"]
+                      )
+                    }}
+                  >
+                    <SelectTrigger id="week-starts-on" className="h-8 w-full">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent
+                      className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
+                    >
+                      {WEEK_STARTS_ON_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className={FIELD_STACK_CLASS}>
+                  <label
+                    htmlFor="default-reporting-period"
+                    className={FIELD_LABEL_CLASS}
+                  >
+                    {ACCOUNT_WORKSPACE_PAGE_COPY.defaultReportingPeriod}
+                  </label>
+                  <Select
+                    value={workspaceDefaults.defaultReportingPeriod}
+                    onValueChange={(value) => {
+                      pageModule.setDefaultReportingPeriod(
+                        value as (typeof DEFAULT_REPORTING_PERIOD_OPTIONS)[number]["value"]
+                      )
+                    }}
+                  >
+                    <SelectTrigger
+                      id="default-reporting-period"
+                      className="h-8 w-full"
+                    >
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent
+                      className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
+                    >
+                      {DEFAULT_REPORTING_PERIOD_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className={FIELD_STACK_CLASS}>
+                <label
+                  htmlFor="default-campaign-sender-name"
+                  className={FIELD_LABEL_CLASS}
+                >
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.defaultCampaignSenderName}
+                </label>
+                <Input
+                  id="default-campaign-sender-name"
+                  value={workspaceDefaults.defaultCampaignSenderName}
+                  maxLength={200}
+                  onChange={(event) => {
+                    pageModule.setDefaultCampaignSenderName(event.target.value)
+                  }}
+                />
+                <p className={FIELD_HELPER_CLASS}>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.defaultCampaignSenderNameHelper}
+                </p>
+              </div>
+
+              <div className={FIELD_GRID_CLASS}>
+                <StatusRow
+                  label={ACCOUNT_WORKSPACE_PAGE_COPY.defaultTimezone}
+                  value={workspaceDefaults.defaultTimezone}
+                />
+                <StatusRow
+                  label={ACCOUNT_WORKSPACE_PAGE_COPY.defaultCurrency}
+                  value={workspaceDefaults.defaultCurrency}
+                />
+                <StatusRow
+                  label={ACCOUNT_WORKSPACE_PAGE_COPY.defaultLanguage}
+                  value={workspaceDefaults.defaultLanguage}
+                />
+                <StatusRow
+                  label={ACCOUNT_WORKSPACE_PAGE_COPY.dateFormat}
+                  value={workspaceDefaults.dateFormat}
+                />
+              </div>
+            </div>
+          </section>
+        </TabsContent>
         <TabsContent value="account-controls" className="mt-0" />
       </Tabs>
 

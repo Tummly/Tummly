@@ -59,10 +59,10 @@ namespace TummlyBackend.Services
 
             var location = campaign.RestaurantLocation;
             var restaurant = location.Restaurant;
-            var brandTitle =
-                restaurant != null && !string.IsNullOrWhiteSpace(restaurant.Name)
-                    ? restaurant.Name.Trim()
-                    : location.LocationName;
+            var brandTitle = CampaignSenderDisplayName.Resolve(
+                restaurant,
+                location.LocationName
+            );
             var brandSubtitle =
                 string.Equals(
                     brandTitle,

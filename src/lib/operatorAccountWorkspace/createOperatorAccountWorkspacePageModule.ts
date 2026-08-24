@@ -9,8 +9,11 @@ import {
   isUnitedKingdomCountry,
   resolveAccountWorkspaceTabId,
   type AccountWorkspaceTabId,
+  type DefaultReportingPeriodValue,
   type LegalStructureValue,
+  type WeekStartsOnValue,
 } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
+import { bumpRecommendedNextStepSoftCaches } from "@/lib/operatorRecommendations/recommendationSoftCacheBust"
 
 export {
   ACCOUNT_WORKSPACE_TAB_IDS,
@@ -58,6 +61,16 @@ export type AccountWorkspaceKeyContacts = {
   eligibleMembers: TeamMemberPickerItem[]
 }
 
+export type AccountWorkspaceWorkspaceDefaults = {
+  weekStartsOn: WeekStartsOnValue
+  defaultReportingPeriod: DefaultReportingPeriodValue
+  defaultCampaignSenderName: string
+  defaultTimezone: string
+  defaultCurrency: string
+  defaultLanguage: string
+  dateFormat: string
+}
+
 export type AccountWorkspaceDetails = {
   workspaceName: string
   accountStructure: string
@@ -70,6 +83,7 @@ export type AccountWorkspaceDetails = {
   status: AccountWorkspaceStatus
   businessDetails: AccountWorkspaceBusinessDetails
   keyContacts: AccountWorkspaceKeyContacts
+  workspaceDefaults: AccountWorkspaceWorkspaceDefaults
 }
 
 export type UpdateBusinessDetailsPayload = {
@@ -94,6 +108,12 @@ export type UpdateKeyContactsPayload = {
   supportContactUserId: number
 }
 
+export type UpdateWorkspaceDefaultsPayload = {
+  weekStartsOn: WeekStartsOnValue
+  defaultReportingPeriod: DefaultReportingPeriodValue
+  defaultCampaignSenderName: string
+}
+
 export type AccountWorkspaceToast = {
   kind: "success" | "error"
   message: string
@@ -111,8 +131,13 @@ export type OperatorAccountWorkspacePageAdapters = {
   updateKeyContacts: (
     payload: UpdateKeyContactsPayload
   ) => Promise<AccountWorkspaceDetails>
+  updateWorkspaceDefaults: (
+    payload: UpdateWorkspaceDefaultsPayload
+  ) => Promise<AccountWorkspaceDetails>
   /** Refresh shell readers of Restaurant.Name / Brand logo after persist. */
   onIdentityPersisted?: (details: AccountWorkspaceDetails) => void
+  /** Bust Home / Campaigns Recommended next step soft caches after period save. */
+  onWorkspaceDefaultsPersisted?: (details: AccountWorkspaceDetails) => void
 }
 
 export type OperatorAccountWorkspacePageOptions = {
@@ -140,6 +165,12 @@ type KeyContactsDraft = {
   supportContactUserId: number
 }
 
+type WorkspaceDefaultsDraft = {
+  weekStartsOn: WeekStartsOnValue
+  defaultReportingPeriod: DefaultReportingPeriodValue
+  defaultCampaignSenderName: string
+}
+
 export type OperatorAccountWorkspacePageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
   loadError: string | null
@@ -165,6 +196,12 @@ export type OperatorAccountWorkspacePageSnapshot = {
   keyContacts: KeyContactsDraft & {
     accountOwner: TeamMemberPickerItem | null
     eligibleMembers: TeamMemberPickerItem[]
+  }
+  workspaceDefaults: WorkspaceDefaultsDraft & {
+    defaultTimezone: string
+    defaultCurrency: string
+    defaultLanguage: string
+    dateFormat: string
   }
   renameConfirmOpen: boolean
   leaveDirtyOpen: boolean
@@ -195,6 +232,9 @@ export type OperatorAccountWorkspacePageModule = {
   setBillingContactUserId: (userId: number) => void
   setPrivacyContactUserId: (userId: number) => void
   setSupportContactUserId: (userId: number) => void
+  setWeekStartsOn: (value: WeekStartsOnValue) => void
+  setDefaultReportingPeriod: (value: DefaultReportingPeriodValue) => void
+  setDefaultCampaignSenderName: (value: string) => void
   requestSave: () => Promise<void>
   confirmRename: () => Promise<void>
   cancelRenameConfirm: () => void
@@ -235,6 +275,62 @@ function emptyKeyContacts(): AccountWorkspaceKeyContacts {
     privacyContactUserId: 0,
     supportContactUserId: 0,
     eligibleMembers: [],
+  }
+}
+
+function emptyWorkspaceDefaults(): AccountWorkspaceWorkspaceDefaults {
+  return {
+    weekStartsOn: "monday",
+    defaultReportingPeriod: "7days",
+    defaultCampaignSenderName: "",
+    defaultTimezone: "Europe/London",
+    defaultCurrency: "GBP",
+    defaultLanguage: "English",
+    dateFormat: "DD/MM/YYYY",
+  }
+}
+
+function normalizeWeekStartsOn(value: string | null | undefined): WeekStartsOnValue {
+  const allowed: WeekStartsOnValue[] = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+  ]
+  const trimmed = (value ?? "").trim().toLowerCase()
+  return (allowed.find((item) => item === trimmed) ?? "monday") as WeekStartsOnValue
+}
+
+function normalizeReportingPeriod(
+  value: string | null | undefined
+): DefaultReportingPeriodValue {
+  const allowed: DefaultReportingPeriodValue[] = [
+    "7days",
+    "30days",
+    "thisMonth",
+  ]
+  const trimmed = (value ?? "").trim()
+  return (
+    allowed.find((item) => item.toLowerCase() === trimmed.toLowerCase())
+    ?? "7days"
+  )
+}
+
+function normalizeWorkspaceDefaults(
+  details: AccountWorkspaceWorkspaceDefaults | null | undefined
+): AccountWorkspaceWorkspaceDefaults {
+  const base = details ?? emptyWorkspaceDefaults()
+  return {
+    weekStartsOn: normalizeWeekStartsOn(base.weekStartsOn),
+    defaultReportingPeriod: normalizeReportingPeriod(base.defaultReportingPeriod),
+    defaultCampaignSenderName: (base.defaultCampaignSenderName ?? "").trim(),
+    defaultTimezone: base.defaultTimezone || "Europe/London",
+    defaultCurrency: base.defaultCurrency || "GBP",
+    defaultLanguage: base.defaultLanguage || "English",
+    dateFormat: base.dateFormat || "DD/MM/YYYY",
   }
 }
 
@@ -322,6 +418,11 @@ export function createOperatorAccountWorkspacePageModule(
     privacyContactUserId: 0,
     supportContactUserId: 0,
   }
+  let workspaceDefaultsDraft: WorkspaceDefaultsDraft = {
+    weekStartsOn: "monday",
+    defaultReportingPeriod: "7days",
+    defaultCampaignSenderName: "",
+  }
 
   const listeners = new Set<() => void>()
 
@@ -355,6 +456,12 @@ export function createOperatorAccountWorkspacePageModule(
       privacyContactUserId: contacts.privacyContactUserId,
       supportContactUserId: contacts.supportContactUserId,
     }
+    const defaults = normalizeWorkspaceDefaults(persisted?.workspaceDefaults)
+    workspaceDefaultsDraft = {
+      weekStartsOn: defaults.weekStartsOn,
+      defaultReportingPeriod: defaults.defaultReportingPeriod,
+      defaultCampaignSenderName: defaults.defaultCampaignSenderName,
+    }
     postcodeError = null
   }
 
@@ -363,6 +470,7 @@ export function createOperatorAccountWorkspacePageModule(
       ...details,
       businessDetails: normalizeBusinessDetails(details.businessDetails),
       keyContacts: normalizeKeyContacts(details.keyContacts),
+      workspaceDefaults: normalizeWorkspaceDefaults(details.workspaceDefaults),
     }
     // Header Last saved shares the form-save clock; CreatedAt until first save.
     lastSavedAt =
@@ -443,6 +551,20 @@ export function createOperatorAccountWorkspacePageModule(
     )
   }
 
+  function isWorkspaceDefaultsDirty(): boolean {
+    if (persisted == null) {
+      return false
+    }
+    const saved = normalizeWorkspaceDefaults(persisted.workspaceDefaults)
+    return (
+      workspaceDefaultsDraft.weekStartsOn !== saved.weekStartsOn
+      || workspaceDefaultsDraft.defaultReportingPeriod
+        !== saved.defaultReportingPeriod
+      || workspaceDefaultsDraft.defaultCampaignSenderName.trim()
+        !== saved.defaultCampaignSenderName
+    )
+  }
+
   function activeTabDirty(): boolean {
     if (!isAccountWorkspaceFormTab(activeTabId)) {
       return false
@@ -455,6 +577,9 @@ export function createOperatorAccountWorkspacePageModule(
     }
     if (activeTabId === "key-contacts") {
       return isKeyContactsDirty()
+    }
+    if (activeTabId === "workspace-defaults") {
+      return isWorkspaceDefaultsDirty()
     }
     // Later tickets own other form tabs.
     return false
@@ -477,6 +602,13 @@ export function createOperatorAccountWorkspacePageModule(
 
   function patchKeyContactsDraft(patch: Partial<KeyContactsDraft>): void {
     keyContactsDraft = { ...keyContactsDraft, ...patch }
+    emit()
+  }
+
+  function patchWorkspaceDefaultsDraft(
+    patch: Partial<WorkspaceDefaultsDraft>
+  ): void {
+    workspaceDefaultsDraft = { ...workspaceDefaultsDraft, ...patch }
     emit()
   }
 
@@ -522,6 +654,17 @@ export function createOperatorAccountWorkspacePageModule(
         ...keyContactsDraft,
         accountOwner: persisted?.keyContacts.accountOwner ?? null,
         eligibleMembers: persisted?.keyContacts.eligibleMembers ?? [],
+      },
+      workspaceDefaults: {
+        ...workspaceDefaultsDraft,
+        defaultTimezone:
+          persisted?.workspaceDefaults.defaultTimezone ?? "Europe/London",
+        defaultCurrency:
+          persisted?.workspaceDefaults.defaultCurrency ?? "GBP",
+        defaultLanguage:
+          persisted?.workspaceDefaults.defaultLanguage ?? "English",
+        dateFormat:
+          persisted?.workspaceDefaults.dateFormat ?? "DD/MM/YYYY",
       },
       renameConfirmOpen,
       leaveDirtyOpen,
@@ -662,6 +805,49 @@ export function createOperatorAccountWorkspacePageModule(
     }
   }
 
+  async function persistWorkspaceDefaults(): Promise<boolean> {
+    if (persisted == null) {
+      return false
+    }
+
+    const previousPeriod = persisted.workspaceDefaults.defaultReportingPeriod
+    const payload: UpdateWorkspaceDefaultsPayload = {
+      weekStartsOn: workspaceDefaultsDraft.weekStartsOn,
+      defaultReportingPeriod: workspaceDefaultsDraft.defaultReportingPeriod,
+      defaultCampaignSenderName: workspaceDefaultsDraft.defaultCampaignSenderName,
+    }
+
+    isSaving = true
+    toast = null
+    emit()
+
+    try {
+      const result = await adapters.updateWorkspaceDefaults(payload)
+      applyPersisted(result)
+      if (
+        previousPeriod !== result.workspaceDefaults.defaultReportingPeriod
+      ) {
+        bumpRecommendedNextStepSoftCaches()
+        adapters.onWorkspaceDefaultsPersisted?.(result)
+      }
+      toast = {
+        kind: "success",
+        message: ACCOUNT_WORKSPACE_PAGE_COPY.workspaceDefaultsSaveSuccess,
+      }
+      isSaving = false
+      emit()
+      return true
+    } catch {
+      toast = {
+        kind: "error",
+        message: ACCOUNT_WORKSPACE_PAGE_COPY.workspaceDefaultsSaveError,
+      }
+      isSaving = false
+      emit()
+      return false
+    }
+  }
+
   async function runSaveFlow(): Promise<boolean> {
     if (!activeTabDirty() || isSaving) {
       return false
@@ -673,6 +859,10 @@ export function createOperatorAccountWorkspacePageModule(
 
     if (activeTabId === "key-contacts") {
       return persistKeyContacts()
+    }
+
+    if (activeTabId === "workspace-defaults") {
+      return persistWorkspaceDefaults()
     }
 
     if (activeTabId === "account-details" && !validateAccountDetailsDraft()) {
@@ -828,6 +1018,18 @@ export function createOperatorAccountWorkspacePageModule(
       patchKeyContactsDraft({ supportContactUserId: userId })
     },
 
+    setWeekStartsOn(value) {
+      patchWorkspaceDefaultsDraft({ weekStartsOn: value })
+    },
+
+    setDefaultReportingPeriod(value) {
+      patchWorkspaceDefaultsDraft({ defaultReportingPeriod: value })
+    },
+
+    setDefaultCampaignSenderName(value) {
+      patchWorkspaceDefaultsDraft({ defaultCampaignSenderName: value })
+    },
+
     async requestSave() {
       await runSaveFlow()
     },
@@ -903,6 +1105,17 @@ export function createOperatorAccountWorkspacePageModule(
 
       if (activeTabId === "key-contacts") {
         const ok = await persistKeyContacts()
+        if (ok) {
+          continuePendingLeave()
+        } else {
+          pendingLeave = null
+        }
+        emit()
+        return
+      }
+
+      if (activeTabId === "workspace-defaults") {
+        const ok = await persistWorkspaceDefaults()
         if (ok) {
           continuePendingLeave()
         } else {

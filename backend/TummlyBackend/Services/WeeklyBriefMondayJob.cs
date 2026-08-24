@@ -7,9 +7,9 @@ using TummlyBackend.Models;
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// Hourly Monday job: for each Owned location, if the closed prior week
-    /// in the location timezone has no succeeded brief, call generate.
-    /// Notify on first-write success via <see cref="IWeeklyBriefReadyNotifier"/>.
+    /// Hourly job: for each Owned location on its Week-starts-on day, if the
+    /// closed prior week in the location timezone has no succeeded brief, call
+    /// generate. Notify on first-write success via <see cref="IWeeklyBriefReadyNotifier"/>.
     /// Per-location failures are logged; the batch continues.
     /// </summary>
     public sealed class WeeklyBriefMondayJob : IWeeklyBriefMondayJob
@@ -37,31 +37,50 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var locationIds = await _context.RestaurantLocations
+            var locations = await _context.RestaurantLocations
                 .AsNoTracking()
-                .Select(location => location.Id)
+                .Select(location => new
+                {
+                    location.Id,
+                    WeekStartsOn = location.Restaurant != null
+                        ? location.Restaurant.WeekStartsOn
+                        : null,
+                })
                 .ToListAsync(cancellationToken);
-
-            var closedWeek = WeeklyBriefWeekKey.ForClosedPriorWeek(
-                WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
-                utcNow
-            );
 
             var generated = 0;
             var skipped = 0;
             var failed = 0;
 
-            foreach (var locationId in locationIds)
+            foreach (var location in locations)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
                 try
                 {
+                    if (
+                        !WeeklyBriefWeekKey.IsGenerateDay(
+                            WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                            utcNow,
+                            location.WeekStartsOn
+                        )
+                    )
+                    {
+                        skipped++;
+                        continue;
+                    }
+
+                    var closedWeek = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                        WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                        utcNow,
+                        location.WeekStartsOn
+                    );
+
                     var alreadyReady = await _context.WeeklyBriefs
                         .AsNoTracking()
                         .AnyAsync(
                             row =>
-                                row.LocationId == locationId
+                                row.LocationId == location.Id
                                 && row.WeekKey == closedWeek.WeekKey
                                 && row.Status == WeeklyBriefStatus.Succeeded,
                             cancellationToken
@@ -74,7 +93,7 @@ namespace TummlyBackend.Services
                     }
 
                     var result = await _generate.GenerateAsync(
-                        locationId,
+                        location.Id,
                         closedWeek,
                         cancellationToken
                     );
@@ -84,7 +103,7 @@ namespace TummlyBackend.Services
                         if (succeeded.Created)
                         {
                             await _notifier.NotifyGeneratedAsync(
-                                locationId,
+                                location.Id,
                                 closedWeek,
                                 cancellationToken
                             );
@@ -100,7 +119,7 @@ namespace TummlyBackend.Services
                         failed++;
                         _logger.LogWarning(
                             "Weekly brief generate failed for location {LocationId} week {WeekKey}",
-                            locationId,
+                            location.Id,
                             closedWeek.WeekKey
                         );
                     }
@@ -117,7 +136,7 @@ namespace TummlyBackend.Services
                     _logger.LogError(
                         ex,
                         "Weekly brief Monday job failed for location {LocationId}",
-                        locationId
+                        location.Id
                     );
                 }
             }

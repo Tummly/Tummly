@@ -29,6 +29,7 @@ import {
   type CampaignsOverviewDateRange,
 } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 import { buildCampaignRecommendationRequest } from "@/lib/operatorCampaigns/buildCampaignRecommendationRequest"
+import { recommendedNextStepSoftCacheGeneration } from "@/lib/operatorRecommendations/recommendationSoftCacheBust"
 import {
   CAMPAIGN_MESSAGING_BALANCES_LOAD_ERROR,
   resolveCampaignMessagingUsage,
@@ -329,13 +330,14 @@ function recommendationSoftCacheKey(
   locationId: number,
   overviewDateRange: CampaignsOverviewDateRange
 ): string {
+  const generation = recommendedNextStepSoftCacheGeneration()
   if (overviewDateRange.kind === "all-time") {
-    return `${locationId}:all-time`
+    return `${locationId}:all-time:g${generation}`
   }
   if (overviewDateRange.kind === "preset") {
-    return `${locationId}:preset:${overviewDateRange.presetId}`
+    return `${locationId}:preset:${overviewDateRange.presetId}:g${generation}`
   }
-  return `${locationId}:custom:${overviewDateRange.startDate}:${overviewDateRange.endDate}`
+  return `${locationId}:custom:${overviewDateRange.startDate}:${overviewDateRange.endDate}:g${generation}`
 }
 
 function mapRecommendationResponse(

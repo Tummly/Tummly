@@ -181,18 +181,41 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task SendAsync_UsesDefaultCampaignSenderName_WhenSet()
+        {
+            var locationId = await SeedLocationAsync(
+                restaurantName: "Workspace Name",
+                locationName: "Main",
+                address: "1 High Street",
+                defaultCampaignSenderName: "Harbour Kitchen"
+            );
+
+            var result = await _service.SendAsync(
+                locationId,
+                toEmail: "team@example.com",
+                subject: "Thanks",
+                body: "Hello"
+            );
+
+            Assert.True(result);
+            Assert.Equal("Harbour Kitchen", _emailService.LastBrandTitle);
+            Assert.Equal("Main", _emailService.LastBrandSubtitle);
+        }
+
         public void Dispose() => _context.Dispose();
 
         private async Task<int> SeedLocationAsync(
             string restaurantName,
             string locationName,
-            string address
+            string address,
+            string? defaultCampaignSenderName = null
         )
         {
             var user = new User
             {
                 FullName = "Campaign Operator",
-                Email = "owner@example.com",
+                Email = $"owner-{Guid.NewGuid():N}@example.com",
                 PasswordHash = "hash",
                 PhoneNumber = "07700900123",
                 Role = "Owner",
@@ -209,6 +232,7 @@ namespace TummlyBackend.Tests.Services
                 Name = restaurantName,
                 AccountType = "Single",
                 OwnerUserId = user.Id,
+                DefaultCampaignSenderName = defaultCampaignSenderName,
                 CreatedAt = DateTime.UtcNow,
             };
             _context.Restaurants.Add(restaurant);

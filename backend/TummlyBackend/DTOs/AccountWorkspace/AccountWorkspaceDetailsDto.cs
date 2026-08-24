@@ -26,7 +26,7 @@ namespace TummlyBackend.DTOs.AccountWorkspace
 
         public AccountWorkspaceKeyContactsDto? KeyContacts { get; set; }
 
-        public object? WorkspaceDefaults { get; set; }
+        public AccountWorkspaceWorkspaceDefaultsDto? WorkspaceDefaults { get; set; }
     }
 
     public sealed class AccountWorkspaceStatusDto

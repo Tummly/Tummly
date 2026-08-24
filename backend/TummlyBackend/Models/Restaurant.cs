@@ -107,6 +107,22 @@ namespace TummlyBackend.Models
 
         public RestaurantBusinessDetails? BusinessDetails { get; set; }
 
+        /*
+         =========================================
+         WORKSPACE DEFAULTS
+         Restaurant-wide. Missing/invalid → product fallbacks.
+         =========================================
+        */
+
+        [MaxLength(16)]
+        public string? WeekStartsOn { get; set; }
+
+        [MaxLength(16)]
+        public string? DefaultReportingPeriod { get; set; }
+
+        [MaxLength(200)]
+        public string? DefaultCampaignSenderName { get; set; }
+
     }
 
 

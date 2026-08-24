@@ -13,6 +13,7 @@ import {
   updateAccountWorkspaceBusinessDetails,
   updateAccountWorkspaceDetails,
   updateAccountWorkspaceKeyContacts,
+  updateAccountWorkspaceWorkspaceDefaults,
 } from "@/api/accountWorkspaceApi"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { accountWorkspacePageModuleContext } from "@/components/dashboard/operator/AccountWorkspace/utils/accountWorkspacePageModuleContext"
@@ -40,11 +41,15 @@ export function AccountWorkspacePageModuleProvider({
         updateAccountDetails: updateAccountWorkspaceDetails,
         updateBusinessDetails: updateAccountWorkspaceBusinessDetails,
         updateKeyContacts: updateAccountWorkspaceKeyContacts,
+        updateWorkspaceDefaults: updateAccountWorkspaceWorkspaceDefaults,
         onIdentityPersisted: (details) => {
           applyIdentityRef.current({
             restaurantName: details.workspaceName,
             brandLogoPublicUrl: details.brandLogoPublicUrl,
           })
+        },
+        onWorkspaceDefaultsPersisted: (_details) => {
+          // Soft-cache generation already bumped in the page module.
         },
       },
       { initialTabId }

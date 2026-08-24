@@ -1332,7 +1332,7 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<WeeklyBrief>()
                 .Property(row => row.WeekKey)
-                .HasMaxLength(16);
+                .HasMaxLength(32);
 
             modelBuilder.Entity<WeeklyBrief>()
                 .Property(row => row.Status)

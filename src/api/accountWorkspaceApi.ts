@@ -6,10 +6,16 @@ import type {
   AccountWorkspaceBusinessDetails,
   AccountWorkspaceDetails,
   AccountWorkspaceKeyContacts,
+  AccountWorkspaceWorkspaceDefaults,
   TeamMemberPickerItem,
   UpdateBusinessDetailsPayload,
   UpdateKeyContactsPayload,
+  UpdateWorkspaceDefaultsPayload,
 } from "@/lib/operatorAccountWorkspace/createOperatorAccountWorkspacePageModule"
+import type {
+  DefaultReportingPeriodValue,
+  WeekStartsOnValue,
+} from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 
 type AccountWorkspaceApiStatus = {
   workspaceStatus: string
@@ -52,6 +58,16 @@ type AccountWorkspaceApiKeyContacts = {
   eligibleMembers: AccountWorkspaceApiPickerItem[]
 }
 
+type AccountWorkspaceApiWorkspaceDefaults = {
+  weekStartsOn: string
+  defaultReportingPeriod: string
+  defaultCampaignSenderName: string | null
+  defaultTimezone: string
+  defaultCurrency: string
+  defaultLanguage: string
+  dateFormat: string
+}
+
 type AccountWorkspaceApiDetails = {
   success: boolean
   workspaceName: string
@@ -65,6 +81,7 @@ type AccountWorkspaceApiDetails = {
   status: AccountWorkspaceApiStatus
   businessDetails?: AccountWorkspaceApiBusinessDetails | null
   keyContacts?: AccountWorkspaceApiKeyContacts | null
+  workspaceDefaults?: AccountWorkspaceApiWorkspaceDefaults | null
 }
 
 function mapBusinessDetails(
@@ -112,6 +129,49 @@ function mapKeyContacts(
   }
 }
 
+function mapWeekStartsOn(value: string | null | undefined): WeekStartsOnValue {
+  const allowed: WeekStartsOnValue[] = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+  ]
+  const trimmed = (value ?? "").trim().toLowerCase()
+  return allowed.find((item) => item === trimmed) ?? "monday"
+}
+
+function mapReportingPeriod(
+  value: string | null | undefined
+): DefaultReportingPeriodValue {
+  const allowed: DefaultReportingPeriodValue[] = [
+    "7days",
+    "30days",
+    "thisMonth",
+  ]
+  const trimmed = (value ?? "").trim()
+  return (
+    allowed.find((item) => item.toLowerCase() === trimmed.toLowerCase())
+    ?? "7days"
+  )
+}
+
+function mapWorkspaceDefaults(
+  data: AccountWorkspaceApiWorkspaceDefaults | null | undefined
+): AccountWorkspaceWorkspaceDefaults {
+  return {
+    weekStartsOn: mapWeekStartsOn(data?.weekStartsOn),
+    defaultReportingPeriod: mapReportingPeriod(data?.defaultReportingPeriod),
+    defaultCampaignSenderName: data?.defaultCampaignSenderName ?? "",
+    defaultTimezone: data?.defaultTimezone || "Europe/London",
+    defaultCurrency: data?.defaultCurrency || "GBP",
+    defaultLanguage: data?.defaultLanguage || "English",
+    dateFormat: data?.dateFormat || "DD/MM/YYYY",
+  }
+}
+
 function mapDetails(
   data: AccountWorkspaceApiDetails
 ): AccountWorkspaceDetails {
@@ -127,6 +187,7 @@ function mapDetails(
     status: data.status,
     businessDetails: mapBusinessDetails(data.businessDetails),
     keyContacts: mapKeyContacts(data.keyContacts),
+    workspaceDefaults: mapWorkspaceDefaults(data.workspaceDefaults),
   }
 }
 
@@ -169,6 +230,16 @@ export async function updateAccountWorkspaceKeyContacts(
 ): Promise<AccountWorkspaceDetails> {
   const response = await axiosInstance.put<AccountWorkspaceApiDetails>(
     "/account-workspace/key-contacts",
+    payload
+  )
+  return mapDetails(response.data)
+}
+
+export async function updateAccountWorkspaceWorkspaceDefaults(
+  payload: UpdateWorkspaceDefaultsPayload
+): Promise<AccountWorkspaceDetails> {
+  const response = await axiosInstance.put<AccountWorkspaceApiDetails>(
+    "/account-workspace/workspace-defaults",
     payload
   )
   return mapDetails(response.data)

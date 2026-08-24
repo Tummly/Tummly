@@ -3,7 +3,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
+using TummlyBackend.Helpers;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -136,7 +138,200 @@ namespace TummlyBackend.Tests.Integration
                 ownerId,
                 eligible[0].GetProperty("userId").GetInt32()
             );
-            Assert.True(body.TryGetProperty("workspaceDefaults", out _));
+            Assert.True(body.TryGetProperty("workspaceDefaults", out var defaults));
+            Assert.Equal(
+                "monday",
+                defaults.GetProperty("weekStartsOn").GetString()
+            );
+            Assert.Equal(
+                "7days",
+                defaults.GetProperty("defaultReportingPeriod").GetString()
+            );
+            Assert.Equal(
+                JsonValueKind.Null,
+                defaults.GetProperty("defaultCampaignSenderName").ValueKind
+            );
+            Assert.Equal(
+                "Europe/London",
+                defaults.GetProperty("defaultTimezone").GetString()
+            );
+            Assert.Equal(
+                "GBP",
+                defaults.GetProperty("defaultCurrency").GetString()
+            );
+            Assert.Equal(
+                "English",
+                defaults.GetProperty("defaultLanguage").GetString()
+            );
+            Assert.Equal(
+                "DD/MM/YYYY",
+                defaults.GetProperty("dateFormat").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PutWorkspaceDefaults_HappyPath_PersistsWritableFields()
+        {
+            var seeded = await SeedOwnerAsync(email: "aw-wd-ok@example.com");
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/account-workspace/workspace-defaults"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                weekStartsOn = "friday",
+                defaultReportingPeriod = "30days",
+                defaultCampaignSenderName = "  Harbour Kitchen  ",
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.False(
+                string.IsNullOrWhiteSpace(
+                    body.GetProperty("lastSavedAt").GetString()
+                )
+            );
+            var defaults = body.GetProperty("workspaceDefaults");
+            Assert.Equal(
+                "friday",
+                defaults.GetProperty("weekStartsOn").GetString()
+            );
+            Assert.Equal(
+                "30days",
+                defaults.GetProperty("defaultReportingPeriod").GetString()
+            );
+            Assert.Equal(
+                "Harbour Kitchen",
+                defaults.GetProperty("defaultCampaignSenderName").GetString()
+            );
+            Assert.Equal(
+                "Europe/London",
+                defaults.GetProperty("defaultTimezone").GetString()
+            );
+
+            using var verifyScope = _factory.Services.CreateScope();
+            var verifyContext = verifyScope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurant = Assert.Single(
+                verifyContext.Restaurants.Where(r => r.Id == seeded.RestaurantId)
+            );
+            Assert.Equal("friday", restaurant.WeekStartsOn);
+            Assert.Equal("30days", restaurant.DefaultReportingPeriod);
+            Assert.Equal("Harbour Kitchen", restaurant.DefaultCampaignSenderName);
+            Assert.NotNull(restaurant.AccountWorkspaceLastSavedAt);
+        }
+
+        [Fact]
+        public async Task PutWorkspaceDefaults_MissingOrInvalid_UsesProductFallbacks()
+        {
+            var seeded = await SeedOwnerAsync(email: "aw-wd-fallback@example.com");
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/account-workspace/workspace-defaults"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                weekStartsOn = "not-a-day",
+                defaultReportingPeriod = "last7",
+                defaultCampaignSenderName = "   ",
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var defaults = (await ReadJsonAsync(response))
+                .GetProperty("workspaceDefaults");
+            Assert.Equal(
+                "monday",
+                defaults.GetProperty("weekStartsOn").GetString()
+            );
+            Assert.Equal(
+                "7days",
+                defaults.GetProperty("defaultReportingPeriod").GetString()
+            );
+            Assert.Equal(
+                JsonValueKind.Null,
+                defaults.GetProperty("defaultCampaignSenderName").ValueKind
+            );
+        }
+
+        [Fact]
+        public async Task PutWorkspaceDefaults_ReportingPeriodChange_BustsRecommendationCaches()
+        {
+            var seeded = await SeedOwnerAsync(email: "aw-wd-bust@example.com");
+
+            int ownerUserId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                ownerUserId = context.Restaurants
+                    .Single(r => r.Id == seeded.RestaurantId)
+                    .OwnerUserId;
+
+                var cache = scope.ServiceProvider
+                    .GetRequiredService<IDistributedCache>();
+                var key = HomeRecommendationContract.BuildCacheKey(
+                    ownerUserId,
+                    seeded.LocationId,
+                    "7days",
+                    null,
+                    null
+                );
+                await cache.SetStringAsync(key, "{\"type\":\"none\"}");
+                Assert.Equal(
+                    "{\"type\":\"none\"}",
+                    await cache.GetStringAsync(key)
+                );
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/account-workspace/workspace-defaults"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                weekStartsOn = "monday",
+                defaultReportingPeriod = "30days",
+                defaultCampaignSenderName = (string?)null,
+            });
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var verifyScope = _factory.Services.CreateScope();
+            var verifyCache = verifyScope.ServiceProvider
+                .GetRequiredService<IDistributedCache>();
+            var bustedKey = HomeRecommendationContract.BuildCacheKey(
+                ownerUserId,
+                seeded.LocationId,
+                "7days",
+                null,
+                null
+            );
+            Assert.Null(await verifyCache.GetStringAsync(bustedKey));
+        }
+
+        [Fact]
+        public async Task PutWorkspaceDefaults_Returns401_WhenUnauthenticated()
+        {
+            var response = await _client.PutAsJsonAsync(
+                "/api/account-workspace/workspace-defaults",
+                new { weekStartsOn = "monday" }
+            );
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
 
         [Fact]

@@ -17,11 +17,12 @@ namespace TummlyBackend.Models
         public RestaurantLocation? Location { get; set; }
 
         /// <summary>
-        /// ISO week key <c>yyyy-Www</c> for the closed prior Mon–Sun week in the
-        /// location timezone (see <c>WeeklyBriefWeekKey</c>).
+        /// Workspace-week identity: <c>{weekStartsOn}:{yyyy-MM-dd}</c> for the
+        /// coverage start local date (see <c>WeeklyBriefWeekKey</c>). Legacy
+        /// Monday ISO keys <c>yyyy-Www</c> may still exist.
         /// </summary>
         [Required]
-        [MaxLength(16)]
+        [MaxLength(32)]
         public string WeekKey { get; set; } = string.Empty;
 
         public WeeklyBriefStatus Status { get; set; }

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.AccountWorkspace;
 using TummlyBackend.Helpers;
@@ -13,14 +14,17 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IQueryAttachmentStorage _attachmentStorage;
+        private readonly IDistributedCache _cache;
 
         public AccountWorkspaceService(
             ApplicationDbContext context,
-            IQueryAttachmentStorage attachmentStorage
+            IQueryAttachmentStorage attachmentStorage,
+            IDistributedCache cache
         )
         {
             _context = context;
             _attachmentStorage = attachmentStorage;
+            _cache = cache;
         }
 
         public async Task<AccountWorkspaceDetailsDto?> GetDetailsAsync(
@@ -297,6 +301,59 @@ namespace TummlyBackend.Services
             return (details, null, StatusCodes.Status200OK);
         }
 
+        public async Task<(
+            AccountWorkspaceDetailsDto? Details,
+            string? Error,
+            int StatusCode
+        )> UpdateWorkspaceDefaultsAsync(
+            int ownerUserId,
+            UpdateWorkspaceDefaultsRequest request
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .FirstOrDefaultAsync(r => r.OwnerUserId == ownerUserId);
+
+            if (restaurant == null)
+            {
+                return (null, "Restaurant not found.", StatusCodes.Status404NotFound);
+            }
+
+            var previousPeriod = WorkspaceDefaultsOptions.NormalizeReportingPeriod(
+                restaurant.DefaultReportingPeriod
+            );
+
+            restaurant.WeekStartsOn = WorkspaceDefaultsOptions.NormalizeWeekStartsOn(
+                request.WeekStartsOn
+            );
+            restaurant.DefaultReportingPeriod =
+                WorkspaceDefaultsOptions.NormalizeReportingPeriod(
+                    request.DefaultReportingPeriod
+                );
+            restaurant.DefaultCampaignSenderName =
+                WorkspaceDefaultsOptions.NormalizeCampaignSenderName(
+                    request.DefaultCampaignSenderName
+                );
+            restaurant.AccountWorkspaceLastSavedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            if (
+                !string.Equals(
+                    previousPeriod,
+                    restaurant.DefaultReportingPeriod,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                await BustRecommendedNextStepCachesAsync(
+                    ownerUserId,
+                    restaurant.Id
+                );
+            }
+
+            var details = await BuildDetailsAsync(restaurant);
+            return (details, null, StatusCodes.Status200OK);
+        }
+
         public async Task<(Stream Stream, string ContentType)?> OpenBrandLogoAsync(
             int ownerUserId
         )
@@ -427,7 +484,59 @@ namespace TummlyBackend.Services
                 },
                 BusinessDetails = MapBusinessDetails(businessDetails),
                 KeyContacts = keyContacts,
-                WorkspaceDefaults = null,
+                WorkspaceDefaults = MapWorkspaceDefaults(restaurant),
+            };
+        }
+
+        private async Task BustRecommendedNextStepCachesAsync(
+            int ownerUserId,
+            int restaurantId
+        )
+        {
+            var locationIds = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(l => l.RestaurantId == restaurantId)
+                .Select(l => l.Id)
+                .ToListAsync();
+
+            foreach (var locationId in locationIds)
+            {
+                foreach (var period in WorkspaceDefaultsOptions.ReportingPeriodValues)
+                {
+                    await _cache.RemoveAsync(
+                        HomeRecommendationContract.BuildCacheKey(
+                            ownerUserId,
+                            locationId,
+                            period,
+                            fromUtc: null,
+                            toUtc: null
+                        )
+                    );
+                    await _cache.RemoveAsync(
+                        $"campaign-recommendation:{ownerUserId}:{locationId}:{period}"
+                    );
+                }
+            }
+        }
+
+        private static AccountWorkspaceWorkspaceDefaultsDto MapWorkspaceDefaults(
+            Restaurant restaurant
+        )
+        {
+            return new AccountWorkspaceWorkspaceDefaultsDto
+            {
+                WeekStartsOn = WorkspaceDefaultsOptions.NormalizeWeekStartsOn(
+                    restaurant.WeekStartsOn
+                ),
+                DefaultReportingPeriod =
+                    WorkspaceDefaultsOptions.NormalizeReportingPeriod(
+                        restaurant.DefaultReportingPeriod
+                    ),
+                DefaultCampaignSenderName = restaurant.DefaultCampaignSenderName,
+                DefaultTimezone = WorkspaceDefaultsOptions.DefaultTimezone,
+                DefaultCurrency = WorkspaceDefaultsOptions.DefaultCurrency,
+                DefaultLanguage = WorkspaceDefaultsOptions.DefaultLanguage,
+                DateFormat = WorkspaceDefaultsOptions.DefaultDateFormat,
             };
         }
 

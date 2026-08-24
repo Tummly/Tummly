@@ -42,6 +42,28 @@ export const LEGAL_STRUCTURE_OPTIONS = [
 export type LegalStructureValue =
   (typeof LEGAL_STRUCTURE_OPTIONS)[number]["value"]
 
+export const WEEK_STARTS_ON_OPTIONS = [
+  { value: "monday", label: "Monday" },
+  { value: "tuesday", label: "Tuesday" },
+  { value: "wednesday", label: "Wednesday" },
+  { value: "thursday", label: "Thursday" },
+  { value: "friday", label: "Friday" },
+  { value: "saturday", label: "Saturday" },
+  { value: "sunday", label: "Sunday" },
+] as const
+
+export type WeekStartsOnValue =
+  (typeof WEEK_STARTS_ON_OPTIONS)[number]["value"]
+
+export const DEFAULT_REPORTING_PERIOD_OPTIONS = [
+  { value: "7days", label: "7 days" },
+  { value: "30days", label: "30 days" },
+  { value: "thisMonth", label: "This month" },
+] as const
+
+export type DefaultReportingPeriodValue =
+  (typeof DEFAULT_REPORTING_PERIOD_OPTIONS)[number]["value"]
+
 export const ACCOUNT_WORKSPACE_DEFAULT_COUNTRY = "United Kingdom"
 
 export const ACCOUNT_WORKSPACE_PAGE_COPY = {
@@ -66,6 +88,21 @@ export const ACCOUNT_WORKSPACE_PAGE_COPY = {
     "Could not save business details. Please try again.",
   keyContactsSaveSuccess: "Key contacts saved.",
   keyContactsSaveError: "Could not save key contacts. Please try again.",
+  workspaceDefaultsSaveSuccess: "Workspace defaults saved.",
+  workspaceDefaultsSaveError:
+    "Could not save workspace defaults. Please try again.",
+  workspaceDefaultsTitle: "Workspace defaults",
+  workspaceDefaultsSubtitle:
+    "Set restaurant-wide defaults used for weekly briefs, recommendations and campaign email.",
+  weekStartsOn: "Week starts on",
+  defaultReportingPeriod: "Default reporting period",
+  defaultCampaignSenderName: "Default Campaign Sender Name",
+  defaultCampaignSenderNameHelper:
+    "Shown as the From display name on Campaign Email and Campaign send test.",
+  defaultTimezone: "Default timezone",
+  defaultCurrency: "Default currency",
+  defaultLanguage: "Default language",
+  dateFormat: "Date format",
   primaryResponsibilitiesTitle: "Primary responsibilities",
   primaryResponsibilitiesSubtitle:
     "Choose authorised users who should own account, billing, privacy and support responsibilities.",

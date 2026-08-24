@@ -27,6 +27,7 @@ import {
   resolveHomePerformanceWindow,
   type HomePerformanceDateRange,
 } from "@/lib/operatorHome/homePerformanceDateRange"
+import { recommendedNextStepSoftCacheGeneration } from "@/lib/operatorRecommendations/recommendationSoftCacheBust"
 import type {
   ChecklistAcksResponse,
   FeedbackDetailsResponse,
@@ -693,10 +694,11 @@ function recommendationSoftCacheKey(
   locationId: number,
   dateRange: HomePerformanceDateRange
 ): string {
+  const generation = recommendedNextStepSoftCacheGeneration()
   if (dateRange.kind === "preset") {
-    return `${locationId}:preset:${dateRange.presetId}`
+    return `${locationId}:preset:${dateRange.presetId}:g${generation}`
   }
-  return `${locationId}:custom:${dateRange.startDate}:${dateRange.endDate}`
+  return `${locationId}:custom:${dateRange.startDate}:${dateRange.endDate}:g${generation}`
 }
 
 function mapRecommendationResponse(

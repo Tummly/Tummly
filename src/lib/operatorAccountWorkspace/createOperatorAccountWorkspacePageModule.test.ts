@@ -62,6 +62,15 @@ function createDetails(
         },
       ],
     },
+    workspaceDefaults: {
+      weekStartsOn: "monday",
+      defaultReportingPeriod: "7days",
+      defaultCampaignSenderName: "",
+      defaultTimezone: "Europe/London",
+      defaultCurrency: "GBP",
+      defaultLanguage: "English",
+      dateFormat: "DD/MM/YYYY",
+    },
     ...overrides,
   }
 }
@@ -73,6 +82,7 @@ function createAdapters(
   updateAccountDetails: Mock
   updateBusinessDetails: Mock
   updateKeyContacts: Mock
+  updateWorkspaceDefaults: Mock
 } {
   return {
     getDetails: vi.fn(async () => createDetails()),
@@ -126,12 +136,28 @@ function createAdapters(
         },
       })
     ),
+    updateWorkspaceDefaults: vi.fn(async (payload) =>
+      createDetails({
+        lastSavedAt: "2026-08-24T15:00:00.000Z",
+        status: {
+          ...createDetails().status,
+          lastAccountUpdateAt: "2026-08-24T15:00:00.000Z",
+        },
+        workspaceDefaults: {
+          ...createDetails().workspaceDefaults,
+          weekStartsOn: payload.weekStartsOn,
+          defaultReportingPeriod: payload.defaultReportingPeriod,
+          defaultCampaignSenderName: payload.defaultCampaignSenderName.trim(),
+        },
+      })
+    ),
     ...overrides,
   } as OperatorAccountWorkspacePageAdapters & {
     getDetails: Mock
     updateAccountDetails: Mock
     updateBusinessDetails: Mock
     updateKeyContacts: Mock
+    updateWorkspaceDefaults: Mock
   }
 }
 
@@ -638,4 +664,51 @@ describe("createOperatorAccountWorkspacePageModule", () => {
     expect(page.getSnapshot().activeTabId).toBe("account-details")
     expect(page.getSnapshot().leaveDirtyOpen).toBe(false)
   })
+
+  it("Workspace defaults dirty and Save calls updateWorkspaceDefaults", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "workspace-defaults",
+    })
+    await page.load()
+
+    expect(page.getSnapshot().saveEnabled).toBe(false)
+    page.setWeekStartsOn("friday")
+    page.setDefaultReportingPeriod("30days")
+    page.setDefaultCampaignSenderName(" Harbour Kitchen ")
+    expect(page.getSnapshot().isDirty).toBe(true)
+    expect(page.getSnapshot().saveEnabled).toBe(true)
+
+    await page.requestSave()
+
+    expect(adapters.updateWorkspaceDefaults).toHaveBeenCalledWith({
+      weekStartsOn: "friday",
+      defaultReportingPeriod: "30days",
+      defaultCampaignSenderName: " Harbour Kitchen ",
+    })
+    expect(page.getSnapshot().toast).toEqual({
+      kind: "success",
+      message: "Workspace defaults saved.",
+    })
+    expect(page.getSnapshot().isDirty).toBe(false)
+  })
+
+  it("leave-dirty on Workspace defaults Save then continues", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "workspace-defaults",
+    })
+    await page.load()
+
+    page.setDefaultReportingPeriod("thisMonth")
+    page.requestTabChange("account-details")
+    expect(page.getSnapshot().leaveDirtyOpen).toBe(true)
+
+    await page.confirmLeaveDirtySave()
+
+    expect(adapters.updateWorkspaceDefaults).toHaveBeenCalled()
+    expect(page.getSnapshot().activeTabId).toBe("account-details")
+    expect(page.getSnapshot().leaveDirtyOpen).toBe(false)
+  })
+
 })

@@ -71,7 +71,15 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
-            if (!TryResolveWeekKey(week, out var weekKey, out var weekError))
+            if (!TryResolveWeekKey(
+                    week,
+                    weekStartsOn: await ResolveWeekStartsOnAsync(
+                        locationId,
+                        cancellationToken
+                    ),
+                    out var weekKey,
+                    out var weekError
+                ))
             {
                 return weekError!;
             }
@@ -137,9 +145,15 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
+            var weekStartsOn = await ResolveWeekStartsOnAsync(
+                locationId,
+                cancellationToken
+            );
+
             var closedWeek = WeeklyBriefWeekKey.ForClosedPriorWeek(
                 WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
-                DateTime.UtcNow
+                DateTime.UtcNow,
+                weekStartsOn
             );
 
             var result = await _generate.GenerateAsync(
@@ -195,10 +209,11 @@ namespace TummlyBackend.Controllers
         }
 
         /// <summary>
-        /// Resolve ISO week key for GET — any valid key, or closed prior when omitted.
+        /// Resolve workspace-week key for GET — any valid key, or closed prior when omitted.
         /// </summary>
         private static bool TryResolveWeekKey(
             string? week,
+            string? weekStartsOn,
             out string weekKey,
             out IActionResult? error
         )
@@ -211,7 +226,8 @@ namespace TummlyBackend.Controllers
                 weekKey = WeeklyBriefWeekKey
                     .ForClosedPriorWeek(
                         WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
-                        DateTime.UtcNow
+                        DateTime.UtcNow,
+                        weekStartsOn
                     )
                     .WeekKey;
                 return true;
@@ -223,12 +239,24 @@ namespace TummlyBackend.Controllers
                 {
                     success = false,
                     message =
-                        "week must be an ISO week key in the form yyyy-Www.",
+                        "week must be a workspace-week key (weekday:yyyy-MM-dd) or legacy ISO yyyy-Www.",
                 });
                 return false;
             }
 
             return true;
+        }
+
+        private async Task<string?> ResolveWeekStartsOnAsync(
+            int locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            return await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(l => l.Id == locationId)
+                .Select(l => l.Restaurant != null ? l.Restaurant.WeekStartsOn : null)
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
         private IActionResult ReadyEnvelopeOrStoreError(
