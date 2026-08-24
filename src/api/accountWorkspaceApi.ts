@@ -1,5 +1,12 @@
 import axiosInstance from "@/api/axiosInstance"
-import type { AccountWorkspaceDetails } from "@/lib/operatorAccountWorkspace/createOperatorAccountWorkspacePageModule"
+import {
+  defaultAccountWorkspaceCountry,
+} from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
+import type {
+  AccountWorkspaceBusinessDetails,
+  AccountWorkspaceDetails,
+  UpdateBusinessDetailsPayload,
+} from "@/lib/operatorAccountWorkspace/createOperatorAccountWorkspacePageModule"
 
 type AccountWorkspaceApiStatus = {
   workspaceStatus: string
@@ -13,6 +20,21 @@ type AccountWorkspaceApiStatus = {
   lastAccountUpdateAt: string
 }
 
+type AccountWorkspaceApiBusinessDetails = {
+  legalStructure: string | null
+  legalBusinessName: string | null
+  tradingName: string | null
+  companyNumber: string | null
+  vatNumber: string | null
+  countryOfRegistration: string | null
+  addressLine1: string | null
+  addressLine2: string | null
+  townCity: string | null
+  county: string | null
+  postcode: string | null
+  country: string | null
+}
+
 type AccountWorkspaceApiDetails = {
   success: boolean
   workspaceName: string
@@ -24,6 +46,28 @@ type AccountWorkspaceApiDetails = {
   brandLogoPublicUrl: string | null
   lastSavedAt: string | null
   status: AccountWorkspaceApiStatus
+  businessDetails?: AccountWorkspaceApiBusinessDetails | null
+}
+
+function mapBusinessDetails(
+  data: AccountWorkspaceApiBusinessDetails | null | undefined
+): AccountWorkspaceBusinessDetails {
+  return {
+    legalStructure: data?.legalStructure ?? "",
+    legalBusinessName: data?.legalBusinessName ?? "",
+    tradingName: data?.tradingName ?? "",
+    companyNumber: data?.companyNumber ?? "",
+    vatNumber: data?.vatNumber ?? "",
+    countryOfRegistration: defaultAccountWorkspaceCountry(
+      data?.countryOfRegistration
+    ),
+    addressLine1: data?.addressLine1 ?? "",
+    addressLine2: data?.addressLine2 ?? "",
+    townCity: data?.townCity ?? "",
+    county: data?.county ?? "",
+    postcode: data?.postcode ?? "",
+    country: defaultAccountWorkspaceCountry(data?.country),
+  }
 }
 
 function mapDetails(
@@ -39,6 +83,7 @@ function mapDetails(
     brandLogoPublicUrl: data.brandLogoPublicUrl,
     lastSavedAt: data.lastSavedAt,
     status: data.status,
+    businessDetails: mapBusinessDetails(data.businessDetails),
   }
 }
 
@@ -62,6 +107,16 @@ export async function updateAccountWorkspaceDetails(params: {
   const response = await axiosInstance.put<AccountWorkspaceApiDetails>(
     "/account-workspace/account-details",
     form
+  )
+  return mapDetails(response.data)
+}
+
+export async function updateAccountWorkspaceBusinessDetails(
+  payload: UpdateBusinessDetailsPayload
+): Promise<AccountWorkspaceDetails> {
+  const response = await axiosInstance.put<AccountWorkspaceApiDetails>(
+    "/account-workspace/business-details",
+    payload
   )
   return mapDetails(response.data)
 }

@@ -250,6 +250,140 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
 
+
+        [Fact]
+        public async Task PutBusinessDetails_EmptyProfile_IsValidSave()
+        {
+            var seeded = await SeedOwnerAsync(email: "aw-biz-empty@example.com");
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/account-workspace/business-details"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new { });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.False(
+                string.IsNullOrWhiteSpace(
+                    body.GetProperty("lastSavedAt").GetString()
+                )
+            );
+
+            var details = body.GetProperty("businessDetails");
+            Assert.Equal(JsonValueKind.Object, details.ValueKind);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var row = Assert.Single(
+                context.RestaurantBusinessDetails.Where(
+                    d => d.RestaurantId == seeded.RestaurantId
+                )
+            );
+            Assert.Null(row.LegalBusinessName);
+            Assert.Null(row.TradingName);
+            Assert.NotNull(
+                context.Restaurants.Single(r => r.Id == seeded.RestaurantId)
+                    .AccountWorkspaceLastSavedAt
+            );
+        }
+
+        [Fact]
+        public async Task PutBusinessDetails_SameAsLegal_CopiesTradingNameOnPersist()
+        {
+            var seeded = await SeedOwnerAsync(email: "aw-biz-same@example.com");
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/account-workspace/business-details"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                legalStructure = "limited-company",
+                legalBusinessName = "Mehmet's Grill Ltd",
+                tradingName = "Should Be Overwritten",
+                sameAsLegalBusinessName = true,
+                companyNumber = "12345678",
+                vatNumber = "GB123",
+                countryOfRegistration = "United Kingdom",
+                addressLine1 = "1 High Street",
+                addressLine2 = (string?)null,
+                townCity = "London",
+                county = "Greater London",
+                postcode = "SW1A 1AA",
+                country = "United Kingdom",
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            var details = body.GetProperty("businessDetails");
+            Assert.Equal(
+                "Mehmet's Grill Ltd",
+                details.GetProperty("legalBusinessName").GetString()
+            );
+            Assert.Equal(
+                "Mehmet's Grill Ltd",
+                details.GetProperty("tradingName").GetString()
+            );
+            Assert.False(details.TryGetProperty("sameAsLegalBusinessName", out _));
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurant = context.Restaurants.Single(
+                r => r.Id == seeded.RestaurantId
+            );
+            Assert.Equal("Account Workspace Venue", restaurant.Name);
+            var location = context.RestaurantLocations.Single(
+                l => l.Id == seeded.LocationId
+            );
+            Assert.Equal("Main", location.LocationName);
+            Assert.Equal("1 High Street", location.Address);
+        }
+
+        [Fact]
+        public async Task PutBusinessDetails_UkPostcode_RejectsInvalidFormat()
+        {
+            var seeded = await SeedOwnerAsync(email: "aw-biz-postcode@example.com");
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/account-workspace/business-details"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                country = "United Kingdom",
+                postcode = "NOT A POSTCODE",
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PutBusinessDetails_Returns401_WhenUnauthenticated()
+        {
+            var response = await _client.PutAsJsonAsync(
+                "/api/account-workspace/business-details",
+                new { }
+            );
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
         private HttpClient CreateClientWithStorage(
             IQueryAttachmentStorage storage
         )

@@ -87,6 +87,8 @@ namespace TummlyBackend.Models
 
         public DateTime? AccountWorkspaceLastSavedAt { get; set; }
 
+        public RestaurantBusinessDetails? BusinessDetails { get; set; }
+
     }
 
 

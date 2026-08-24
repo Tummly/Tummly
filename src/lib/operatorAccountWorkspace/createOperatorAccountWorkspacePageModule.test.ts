@@ -31,6 +31,20 @@ function createDetails(
       guestFormStatus: "Live",
       lastAccountUpdateAt: "2026-07-22T13:41:00.000Z",
     },
+    businessDetails: {
+      legalStructure: "",
+      legalBusinessName: "",
+      tradingName: "",
+      companyNumber: "",
+      vatNumber: "",
+      countryOfRegistration: "United Kingdom",
+      addressLine1: "",
+      addressLine2: "",
+      townCity: "",
+      county: "",
+      postcode: "",
+      country: "United Kingdom",
+    },
     ...overrides,
   }
 }
@@ -40,6 +54,7 @@ function createAdapters(
 ): OperatorAccountWorkspacePageAdapters & {
   getDetails: Mock
   updateAccountDetails: Mock
+  updateBusinessDetails: Mock
 } {
   return {
     getDetails: vi.fn(async () => createDetails()),
@@ -53,10 +68,36 @@ function createAdapters(
         },
       })
     ),
+    updateBusinessDetails: vi.fn(async (payload) =>
+      createDetails({
+        lastSavedAt: "2026-08-24T13:00:00.000Z",
+        status: {
+          ...createDetails().status,
+          lastAccountUpdateAt: "2026-08-24T13:00:00.000Z",
+        },
+        businessDetails: {
+          legalStructure: payload.legalStructure,
+          legalBusinessName: payload.legalBusinessName,
+          tradingName: payload.sameAsLegalBusinessName
+            ? payload.legalBusinessName
+            : payload.tradingName,
+          companyNumber: payload.companyNumber,
+          vatNumber: payload.vatNumber,
+          countryOfRegistration: payload.countryOfRegistration,
+          addressLine1: payload.addressLine1,
+          addressLine2: payload.addressLine2,
+          townCity: payload.townCity,
+          county: payload.county,
+          postcode: payload.postcode,
+          country: payload.country,
+        },
+      })
+    ),
     ...overrides,
   } as OperatorAccountWorkspacePageAdapters & {
     getDetails: Mock
     updateAccountDetails: Mock
+    updateBusinessDetails: Mock
   }
 }
 
@@ -361,5 +402,126 @@ describe("createOperatorAccountWorkspacePageModule", () => {
         workspaceName: "Camden Group",
       })
     )
+  })
+
+  it("dirties Business details on edit and enables Save", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "business-details",
+    })
+    await page.load()
+
+    expect(page.getSnapshot().saveEnabled).toBe(false)
+    page.setLegalBusinessName("Mehmet's Grill Ltd")
+
+    expect(page.getSnapshot().isDirty).toBe(true)
+    expect(page.getSnapshot().saveEnabled).toBe(true)
+    expect(page.getSnapshot().businessDetails.legalBusinessName).toBe(
+      "Mehmet's Grill Ltd"
+    )
+  })
+
+  it("empty Business details save calls updateBusinessDetails", async () => {
+    const adapters = createAdapters({
+      getDetails: vi.fn(async () =>
+        createDetails({
+          businessDetails: {
+            ...createDetails().businessDetails,
+            legalBusinessName: "Prior name",
+            tradingName: "Prior trading",
+          },
+        })
+      ),
+    })
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "business-details",
+    })
+    await page.load()
+
+    page.setLegalBusinessName("")
+    page.setTradingName("")
+    await page.requestSave()
+
+    expect(adapters.updateBusinessDetails).toHaveBeenCalledWith(
+      expect.objectContaining({
+        legalBusinessName: "",
+        tradingName: "",
+        sameAsLegalBusinessName: false,
+        country: "United Kingdom",
+        countryOfRegistration: "United Kingdom",
+      })
+    )
+    expect(page.getSnapshot().toast).toEqual({
+      kind: "success",
+      message: "Business details saved.",
+    })
+    expect(page.getSnapshot().isDirty).toBe(false)
+  })
+
+  it("sameAsLegal copies trading name on persist payload", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "business-details",
+    })
+    await page.load()
+
+    page.setLegalBusinessName("Mehmet's Grill Ltd")
+    page.setTradingName("Should Be Overwritten")
+    page.setSameAsLegalBusinessName(true)
+    expect(page.getSnapshot().businessDetails.tradingName).toBe(
+      "Mehmet's Grill Ltd"
+    )
+
+    await page.requestSave()
+
+    expect(adapters.updateBusinessDetails).toHaveBeenCalledWith(
+      expect.objectContaining({
+        legalBusinessName: "Mehmet's Grill Ltd",
+        tradingName: "Mehmet's Grill Ltd",
+        sameAsLegalBusinessName: true,
+      })
+    )
+  })
+
+  it("invalid UK postcode keeps draft and does not call adapter", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "business-details",
+    })
+    await page.load()
+
+    page.setLegalBusinessName("Draft Co")
+    page.setCountry("United Kingdom")
+    page.setPostcode("NOT A POSTCODE")
+    await page.requestSave()
+
+    expect(adapters.updateBusinessDetails).not.toHaveBeenCalled()
+    expect(page.getSnapshot().businessDetails.postcodeError).toBe(
+      "Enter a valid UK postcode."
+    )
+    expect(page.getSnapshot().businessDetails.legalBusinessName).toBe(
+      "Draft Co"
+    )
+    expect(page.getSnapshot().isDirty).toBe(true)
+  })
+
+  it("leave-dirty on Business details Save then continues", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "business-details",
+    })
+    await page.load()
+
+    page.setLegalBusinessName("Draft Co")
+    page.requestTabChange("account-details")
+    expect(page.getSnapshot().leaveDirtyOpen).toBe(true)
+    expect(page.getSnapshot().activeTabId).toBe("business-details")
+
+    await page.confirmLeaveDirtySave()
+
+    expect(adapters.updateBusinessDetails).toHaveBeenCalled()
+    expect(page.getSnapshot().activeTabId).toBe("account-details")
+    expect(page.getSnapshot().leaveDirtyOpen).toBe(false)
+    expect(page.getSnapshot().isDirty).toBe(false)
   })
 })

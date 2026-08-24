@@ -1,8 +1,12 @@
+import { isValidUkPostcode } from "@/lib/addressLookup"
 import {
+  ACCOUNT_WORKSPACE_DEFAULT_COUNTRY,
   ACCOUNT_WORKSPACE_PAGE_COPY,
   ACCOUNT_WORKSPACE_TAB_IDS,
   ACCOUNT_WORKSPACE_TAB_LABELS,
+  defaultAccountWorkspaceCountry,
   isAccountWorkspaceFormTab,
+  isUnitedKingdomCountry,
   resolveAccountWorkspaceTabId,
   type AccountWorkspaceTabId,
 } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
@@ -24,6 +28,21 @@ export type AccountWorkspaceStatus = {
   lastAccountUpdateAt: string
 }
 
+export type AccountWorkspaceBusinessDetails = {
+  legalStructure: string
+  legalBusinessName: string
+  tradingName: string
+  companyNumber: string
+  vatNumber: string
+  countryOfRegistration: string
+  addressLine1: string
+  addressLine2: string
+  townCity: string
+  county: string
+  postcode: string
+  country: string
+}
+
 export type AccountWorkspaceDetails = {
   workspaceName: string
   accountStructure: string
@@ -34,6 +53,23 @@ export type AccountWorkspaceDetails = {
   brandLogoPublicUrl: string | null
   lastSavedAt: string | null
   status: AccountWorkspaceStatus
+  businessDetails: AccountWorkspaceBusinessDetails
+}
+
+export type UpdateBusinessDetailsPayload = {
+  legalStructure: string
+  legalBusinessName: string
+  tradingName: string
+  sameAsLegalBusinessName: boolean
+  companyNumber: string
+  vatNumber: string
+  countryOfRegistration: string
+  addressLine1: string
+  addressLine2: string
+  townCity: string
+  county: string
+  postcode: string
+  country: string
 }
 
 export type AccountWorkspaceToast = {
@@ -47,6 +83,9 @@ export type OperatorAccountWorkspacePageAdapters = {
     name: string
     logo: File | null
   }) => Promise<AccountWorkspaceDetails>
+  updateBusinessDetails: (
+    payload: UpdateBusinessDetailsPayload
+  ) => Promise<AccountWorkspaceDetails>
   /** Refresh shell readers of Restaurant.Name / Brand logo after persist. */
   onIdentityPersisted?: (details: AccountWorkspaceDetails) => void
 }
@@ -64,6 +103,10 @@ type AccountDetailsDraft = {
   workspaceName: string
   stagedLogo: File | null
   stagedLogoPreviewUrl: string | null
+}
+
+type BusinessDetailsDraft = AccountWorkspaceBusinessDetails & {
+  sameAsLegalBusinessName: boolean
 }
 
 export type OperatorAccountWorkspacePageSnapshot = {
@@ -85,6 +128,9 @@ export type OperatorAccountWorkspacePageSnapshot = {
     brandLogoPreviewUrl: string | null
     status: AccountWorkspaceStatus | null
   }
+  businessDetails: BusinessDetailsDraft & {
+    postcodeError: string | null
+  }
   renameConfirmOpen: boolean
   leaveDirtyOpen: boolean
   pendingNavigationHref: string | null
@@ -98,6 +144,19 @@ export type OperatorAccountWorkspacePageModule = {
   setActiveTabFromUrl: (raw: string | null | undefined) => void
   setWorkspaceName: (name: string) => void
   stageBrandLogo: (file: File | null) => void
+  setLegalStructure: (value: string) => void
+  setLegalBusinessName: (value: string) => void
+  setTradingName: (value: string) => void
+  setSameAsLegalBusinessName: (checked: boolean) => void
+  setCompanyNumber: (value: string) => void
+  setVatNumber: (value: string) => void
+  setCountryOfRegistration: (value: string) => void
+  setAddressLine1: (value: string) => void
+  setAddressLine2: (value: string) => void
+  setTownCity: (value: string) => void
+  setCounty: (value: string) => void
+  setPostcode: (value: string) => void
+  setCountry: (value: string) => void
   requestSave: () => Promise<void>
   confirmRename: () => Promise<void>
   cancelRenameConfirm: () => void
@@ -113,6 +172,53 @@ export type OperatorAccountWorkspacePageModule = {
 
 const WORKSPACE_NAME_REQUIRED_ERROR = "Workspace name is required."
 const WORKSPACE_NAME_MAX_ERROR = "Workspace name must be 200 characters or fewer."
+
+function emptyBusinessDetails(): AccountWorkspaceBusinessDetails {
+  return {
+    legalStructure: "",
+    legalBusinessName: "",
+    tradingName: "",
+    companyNumber: "",
+    vatNumber: "",
+    countryOfRegistration: ACCOUNT_WORKSPACE_DEFAULT_COUNTRY,
+    addressLine1: "",
+    addressLine2: "",
+    townCity: "",
+    county: "",
+    postcode: "",
+    country: ACCOUNT_WORKSPACE_DEFAULT_COUNTRY,
+  }
+}
+
+function normalizeBusinessDetails(
+  details: AccountWorkspaceBusinessDetails | null | undefined
+): AccountWorkspaceBusinessDetails {
+  const base = details ?? emptyBusinessDetails()
+  return {
+    legalStructure: base.legalStructure ?? "",
+    legalBusinessName: base.legalBusinessName ?? "",
+    tradingName: base.tradingName ?? "",
+    companyNumber: base.companyNumber ?? "",
+    vatNumber: base.vatNumber ?? "",
+    countryOfRegistration: defaultAccountWorkspaceCountry(
+      base.countryOfRegistration
+    ),
+    addressLine1: base.addressLine1 ?? "",
+    addressLine2: base.addressLine2 ?? "",
+    townCity: base.townCity ?? "",
+    county: base.county ?? "",
+    postcode: base.postcode ?? "",
+    country: defaultAccountWorkspaceCountry(base.country),
+  }
+}
+
+function deriveSameAsLegalBusinessName(
+  details: AccountWorkspaceBusinessDetails
+): boolean {
+  const legal = details.legalBusinessName.trim()
+  const trading = details.tradingName.trim()
+  return legal !== "" && legal === trading
+}
 
 export function createOperatorAccountWorkspacePageModule(
   adapters: OperatorAccountWorkspacePageAdapters,
@@ -130,10 +236,15 @@ export function createOperatorAccountWorkspacePageModule(
   let pendingNavigationHref: string | null = null
   let toast: AccountWorkspaceToast = null
   let workspaceNameError: string | null = null
+  let postcodeError: string | null = null
   let draft: AccountDetailsDraft = {
     workspaceName: "",
     stagedLogo: null,
     stagedLogoPreviewUrl: null,
+  }
+  let businessDraft: BusinessDetailsDraft = {
+    ...emptyBusinessDetails(),
+    sameAsLegalBusinessName: false,
   }
 
   const listeners = new Set<() => void>()
@@ -157,10 +268,19 @@ export function createOperatorAccountWorkspacePageModule(
       stagedLogo: null,
       stagedLogoPreviewUrl: null,
     }
+    const business = normalizeBusinessDetails(persisted?.businessDetails)
+    businessDraft = {
+      ...business,
+      sameAsLegalBusinessName: deriveSameAsLegalBusinessName(business),
+    }
+    postcodeError = null
   }
 
   function applyPersisted(details: AccountWorkspaceDetails) {
-    persisted = details
+    persisted = {
+      ...details,
+      businessDetails: normalizeBusinessDetails(details.businessDetails),
+    }
     // Header Last saved shares the form-save clock; CreatedAt until first save.
     lastSavedAt =
       details.lastSavedAt ?? details.status.lastAccountUpdateAt
@@ -182,6 +302,20 @@ export function createOperatorAccountWorkspacePageModule(
     return true
   }
 
+  function validateBusinessDetailsDraft(): boolean {
+    const postcode = businessDraft.postcode.trim()
+    if (
+      isUnitedKingdomCountry(businessDraft.country)
+      && postcode.length > 0
+      && !isValidUkPostcode(postcode)
+    ) {
+      postcodeError = ACCOUNT_WORKSPACE_PAGE_COPY.ukPostcodeError
+      return false
+    }
+    postcodeError = null
+    return true
+  }
+
   function isAccountDetailsDirty(): boolean {
     if (persisted == null) {
       return false
@@ -191,12 +325,36 @@ export function createOperatorAccountWorkspacePageModule(
     return nameChanged || draft.stagedLogo != null
   }
 
+  function isBusinessDetailsDirty(): boolean {
+    if (persisted == null) {
+      return false
+    }
+    const saved = normalizeBusinessDetails(persisted.businessDetails)
+    return (
+      businessDraft.legalStructure !== saved.legalStructure
+      || businessDraft.legalBusinessName !== saved.legalBusinessName
+      || businessDraft.tradingName !== saved.tradingName
+      || businessDraft.companyNumber !== saved.companyNumber
+      || businessDraft.vatNumber !== saved.vatNumber
+      || businessDraft.countryOfRegistration !== saved.countryOfRegistration
+      || businessDraft.addressLine1 !== saved.addressLine1
+      || businessDraft.addressLine2 !== saved.addressLine2
+      || businessDraft.townCity !== saved.townCity
+      || businessDraft.county !== saved.county
+      || businessDraft.postcode !== saved.postcode
+      || businessDraft.country !== saved.country
+    )
+  }
+
   function activeTabDirty(): boolean {
     if (!isAccountWorkspaceFormTab(activeTabId)) {
       return false
     }
     if (activeTabId === "account-details") {
       return isAccountDetailsDirty()
+    }
+    if (activeTabId === "business-details") {
+      return isBusinessDetailsDirty()
     }
     // Later tickets own other form tabs.
     return false
@@ -207,6 +365,23 @@ export function createOperatorAccountWorkspacePageModule(
       return false
     }
     return draft.workspaceName.trim() !== persisted.workspaceName.trim()
+  }
+
+  function patchBusinessDraft(
+    patch: Partial<BusinessDetailsDraft>
+  ): void {
+    businessDraft = { ...businessDraft, ...patch }
+    if (
+      businessDraft.sameAsLegalBusinessName
+      && Object.prototype.hasOwnProperty.call(patch, "legalBusinessName")
+    ) {
+      businessDraft = {
+        ...businessDraft,
+        tradingName: businessDraft.legalBusinessName,
+      }
+    }
+    postcodeError = null
+    emit()
   }
 
   function getSnapshot(): OperatorAccountWorkspacePageSnapshot {
@@ -231,13 +406,17 @@ export function createOperatorAccountWorkspacePageModule(
         businessCategory: persisted?.businessCategory ?? null,
         businessCategoryLabel: persisted?.businessCategoryLabel ?? null,
         mainOperatingCountry:
-          persisted?.mainOperatingCountry ?? "United Kingdom",
+          persisted?.mainOperatingCountry ?? ACCOUNT_WORKSPACE_DEFAULT_COUNTRY,
         brandLogoPreviewUrl:
           draft.stagedLogoPreviewUrl
           ?? persisted?.brandLogoPublicUrl
           ?? persisted?.brandLogoOperatorUrl
           ?? null,
         status: persisted?.status ?? null,
+      },
+      businessDetails: {
+        ...businessDraft,
+        postcodeError,
       },
       renameConfirmOpen,
       leaveDirtyOpen,
@@ -287,9 +466,68 @@ export function createOperatorAccountWorkspacePageModule(
     }
   }
 
+  async function persistBusinessDetails(): Promise<boolean> {
+    if (persisted == null) {
+      return false
+    }
+
+    if (!validateBusinessDetailsDraft()) {
+      emit()
+      return false
+    }
+
+    const tradingName = businessDraft.sameAsLegalBusinessName
+      ? businessDraft.legalBusinessName
+      : businessDraft.tradingName
+
+    const payload: UpdateBusinessDetailsPayload = {
+      legalStructure: businessDraft.legalStructure,
+      legalBusinessName: businessDraft.legalBusinessName,
+      tradingName,
+      sameAsLegalBusinessName: businessDraft.sameAsLegalBusinessName,
+      companyNumber: businessDraft.companyNumber,
+      vatNumber: businessDraft.vatNumber,
+      countryOfRegistration: businessDraft.countryOfRegistration,
+      addressLine1: businessDraft.addressLine1,
+      addressLine2: businessDraft.addressLine2,
+      townCity: businessDraft.townCity,
+      county: businessDraft.county,
+      postcode: businessDraft.postcode,
+      country: businessDraft.country,
+    }
+
+    isSaving = true
+    toast = null
+    emit()
+
+    try {
+      const result = await adapters.updateBusinessDetails(payload)
+      applyPersisted(result)
+      toast = {
+        kind: "success",
+        message: ACCOUNT_WORKSPACE_PAGE_COPY.businessDetailsSaveSuccess,
+      }
+      isSaving = false
+      emit()
+      return true
+    } catch {
+      toast = {
+        kind: "error",
+        message: ACCOUNT_WORKSPACE_PAGE_COPY.businessDetailsSaveError,
+      }
+      isSaving = false
+      emit()
+      return false
+    }
+  }
+
   async function runSaveFlow(): Promise<boolean> {
     if (!activeTabDirty() || isSaving) {
       return false
+    }
+
+    if (activeTabId === "business-details") {
+      return persistBusinessDetails()
     }
 
     if (activeTabId === "account-details" && !validateAccountDetailsDraft()) {
@@ -303,7 +541,11 @@ export function createOperatorAccountWorkspacePageModule(
       return false
     }
 
-    return persistAccountDetails()
+    if (activeTabId === "account-details") {
+      return persistAccountDetails()
+    }
+
+    return false
   }
 
   function continuePendingLeave() {
@@ -373,6 +615,74 @@ export function createOperatorAccountWorkspacePageModule(
       emit()
     },
 
+    setLegalStructure(value) {
+      patchBusinessDraft({ legalStructure: value })
+    },
+
+    setLegalBusinessName(value) {
+      patchBusinessDraft({ legalBusinessName: value })
+    },
+
+    setTradingName(value) {
+      patchBusinessDraft({
+        tradingName: value,
+        sameAsLegalBusinessName: false,
+      })
+    },
+
+    setSameAsLegalBusinessName(checked) {
+      if (checked) {
+        businessDraft = {
+          ...businessDraft,
+          sameAsLegalBusinessName: true,
+          tradingName: businessDraft.legalBusinessName,
+        }
+      } else {
+        businessDraft = {
+          ...businessDraft,
+          sameAsLegalBusinessName: false,
+        }
+      }
+      postcodeError = null
+      emit()
+    },
+
+    setCompanyNumber(value) {
+      patchBusinessDraft({ companyNumber: value })
+    },
+
+    setVatNumber(value) {
+      patchBusinessDraft({ vatNumber: value })
+    },
+
+    setCountryOfRegistration(value) {
+      patchBusinessDraft({ countryOfRegistration: value })
+    },
+
+    setAddressLine1(value) {
+      patchBusinessDraft({ addressLine1: value })
+    },
+
+    setAddressLine2(value) {
+      patchBusinessDraft({ addressLine2: value })
+    },
+
+    setTownCity(value) {
+      patchBusinessDraft({ townCity: value })
+    },
+
+    setCounty(value) {
+      patchBusinessDraft({ county: value })
+    },
+
+    setPostcode(value) {
+      patchBusinessDraft({ postcode: value })
+    },
+
+    setCountry(value) {
+      patchBusinessDraft({ country: value })
+    },
+
     async requestSave() {
       await runSaveFlow()
     },
@@ -434,6 +744,17 @@ export function createOperatorAccountWorkspacePageModule(
       }
       leaveDirtyOpen = false
       emit()
+
+      if (activeTabId === "business-details") {
+        const ok = await persistBusinessDetails()
+        if (ok) {
+          continuePendingLeave()
+        } else {
+          pendingLeave = null
+        }
+        emit()
+        return
+      }
 
       if (activeTabId === "account-details" && !validateAccountDetailsDraft()) {
         pendingLeave = null

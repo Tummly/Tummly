@@ -1,12 +1,21 @@
-import { useEffect, useRef, useSyncExternalStore } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
 import brandLogoPlaceholder from "@/assets/images/brand-logo-placeholder.png"
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
 import { useAccountWorkspacePageModuleApi } from "@/components/dashboard/operator/AccountWorkspace/utils/accountWorkspacePageModuleContext"
+import { AddressPostcodeFields } from "@/components/form/AddressPostcodeFields"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Tabs,
   TabsContent,
@@ -15,7 +24,10 @@ import {
 } from "@/components/ui/tabs"
 import {
   ACCOUNT_WORKSPACE_PAGE_COPY,
+  ACCOUNT_WORKSPACE_SELECT_MENU_CLASS,
+  LEGAL_STRUCTURE_OPTIONS,
   formatAccountWorkspaceLastSaved,
+  isUnitedKingdomCountry,
 } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 import type { AccountWorkspaceTabId } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 import { resolveBrandLogoSrc } from "@/lib/brandLogo/resolveBrandLogoSrc"
@@ -36,9 +48,15 @@ import {
   GUESTS_PAGE_SUBTITLE_CLASS,
   GUESTS_PAGE_TITLE_CLASS,
   GUESTS_SECTION_CLASS,
+  GUESTS_SECTION_SUBTITLE_CLASS,
   GUESTS_SECTION_TITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import { cn } from "@/lib/utils"
+
+const FIELD_LABEL_CLASS = "text-sm font-medium text-foreground"
+const FIELD_HELPER_CLASS = "m-0 text-xs font-medium text-muted-foreground"
+const FIELD_STACK_CLASS = "flex flex-col gap-2"
+const FIELD_GRID_CLASS = "grid grid-cols-1 gap-6 lg:grid-cols-2"
 
 function StatusRow({ label, value }: { label: string; value: string }) {
   return (
@@ -72,6 +90,7 @@ export function AccountWorkspacePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [addressOverridden, setAddressOverridden] = useState(false)
 
   useEffect(() => {
     const current = searchParams.get("tab")
@@ -131,6 +150,8 @@ export function AccountWorkspacePage() {
 
   const status = snap.accountDetails.status
   const workspaceNameError = snap.accountDetails.workspaceNameError
+  const business = snap.businessDetails
+  const isUkAddress = isUnitedKingdomCountry(business.country)
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
@@ -356,7 +377,352 @@ export function AccountWorkspacePage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="business-details" className="mt-0" />
+        <TabsContent value="business-details" className="mt-0">
+          <div className="flex flex-col gap-6">
+            <section className={GUESTS_SECTION_CLASS}>
+              <div className="flex flex-col gap-2">
+                <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.businessIdentityTitle}
+                </h2>
+                <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.businessIdentitySubtitle}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-6">
+                <div className={FIELD_STACK_CLASS}>
+                  <label
+                    htmlFor="legal-structure"
+                    className={FIELD_LABEL_CLASS}
+                  >
+                    {ACCOUNT_WORKSPACE_PAGE_COPY.legalStructure}
+                  </label>
+                  <Select
+                    value={
+                      business.legalStructure === ""
+                        ? undefined
+                        : business.legalStructure
+                    }
+                    onValueChange={(value) => {
+                      pageModule.setLegalStructure(value)
+                    }}
+                  >
+                    <SelectTrigger id="legal-structure" className="h-8 w-full">
+                      <SelectValue
+                        placeholder={
+                          ACCOUNT_WORKSPACE_PAGE_COPY.legalStructurePlaceholder
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent
+                      position="popper"
+                      align="start"
+                      className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
+                    >
+                      {LEGAL_STRUCTURE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className={FIELD_GRID_CLASS}>
+                  <div className={FIELD_STACK_CLASS}>
+                    <label
+                      htmlFor="legal-business-name"
+                      className={FIELD_LABEL_CLASS}
+                    >
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.legalBusinessName}
+                    </label>
+                    <Input
+                      id="legal-business-name"
+                      value={business.legalBusinessName}
+                      maxLength={200}
+                      onChange={(event) => {
+                        pageModule.setLegalBusinessName(event.target.value)
+                      }}
+                    />
+                    <p className={FIELD_HELPER_CLASS}>
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.legalBusinessNameHelper}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <div className={FIELD_STACK_CLASS}>
+                      <label
+                        htmlFor="trading-name"
+                        className={FIELD_LABEL_CLASS}
+                      >
+                        {ACCOUNT_WORKSPACE_PAGE_COPY.tradingName}
+                      </label>
+                      <Input
+                        id="trading-name"
+                        value={business.tradingName}
+                        maxLength={200}
+                        disabled={business.sameAsLegalBusinessName}
+                        onChange={(event) => {
+                          pageModule.setTradingName(event.target.value)
+                        }}
+                      />
+                      <p className={FIELD_HELPER_CLASS}>
+                        {ACCOUNT_WORKSPACE_PAGE_COPY.tradingNameHelper}
+                      </p>
+                    </div>
+                    <CheckboxLabel
+                      id="same-as-legal-business-name"
+                      checked={business.sameAsLegalBusinessName}
+                      onCheckedChange={(checked) => {
+                        pageModule.setSameAsLegalBusinessName(checked)
+                      }}
+                    >
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.sameAsLegalBusinessName}
+                    </CheckboxLabel>
+                  </div>
+                </div>
+
+                <div className={FIELD_GRID_CLASS}>
+                  <div className={FIELD_STACK_CLASS}>
+                    <label
+                      htmlFor="company-number"
+                      className={FIELD_LABEL_CLASS}
+                    >
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.companyNumber}
+                    </label>
+                    <Input
+                      id="company-number"
+                      value={business.companyNumber}
+                      maxLength={50}
+                      onChange={(event) => {
+                        pageModule.setCompanyNumber(event.target.value)
+                      }}
+                    />
+                    <p className={FIELD_HELPER_CLASS}>
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.companyNumberHelper}
+                    </p>
+                  </div>
+                  <div className={FIELD_STACK_CLASS}>
+                    <label htmlFor="vat-number" className={FIELD_LABEL_CLASS}>
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.vatNumber}
+                    </label>
+                    <Input
+                      id="vat-number"
+                      value={business.vatNumber}
+                      maxLength={50}
+                      onChange={(event) => {
+                        pageModule.setVatNumber(event.target.value)
+                      }}
+                    />
+                    <p className={FIELD_HELPER_CLASS}>
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.vatNumberHelper}
+                    </p>
+                  </div>
+                </div>
+
+                <div className={FIELD_STACK_CLASS}>
+                  <label
+                    htmlFor="country-of-registration"
+                    className={FIELD_LABEL_CLASS}
+                  >
+                    {ACCOUNT_WORKSPACE_PAGE_COPY.countryOfRegistration}
+                  </label>
+                  <Input
+                    id="country-of-registration"
+                    value={business.countryOfRegistration}
+                    maxLength={100}
+                    onChange={(event) => {
+                      pageModule.setCountryOfRegistration(event.target.value)
+                    }}
+                  />
+                  <p className={FIELD_HELPER_CLASS}>
+                    {ACCOUNT_WORKSPACE_PAGE_COPY.countryOfRegistrationHelper}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className={GUESTS_SECTION_CLASS}>
+              <div className="flex flex-col gap-2">
+                <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.businessAddressTitle}
+                </h2>
+                <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.businessAddressSubtitle}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-6">
+                {isUkAddress ? (
+                  <AddressPostcodeFields
+                    address={business.addressLine1}
+                    postcode={business.postcode}
+                    addressOverridden={addressOverridden}
+                    onAddressChange={(value) => {
+                      pageModule.setAddressLine1(value)
+                    }}
+                    onPostcodeChange={(value) => {
+                      pageModule.setPostcode(value)
+                    }}
+                    onAddressOverriddenChange={setAddressOverridden}
+                    postcodeError={business.postcodeError ?? undefined}
+                    required={false}
+                  />
+                ) : (
+                  <div className={FIELD_GRID_CLASS}>
+                    <div className={FIELD_STACK_CLASS}>
+                      <label
+                        htmlFor="address-line-1"
+                        className={FIELD_LABEL_CLASS}
+                      >
+                        {ACCOUNT_WORKSPACE_PAGE_COPY.addressLine1}
+                      </label>
+                      <Input
+                        id="address-line-1"
+                        value={business.addressLine1}
+                        maxLength={500}
+                        onChange={(event) => {
+                          pageModule.setAddressLine1(event.target.value)
+                        }}
+                      />
+                    </div>
+                    <div className={FIELD_STACK_CLASS}>
+                      <label
+                        htmlFor="address-line-2-non-uk"
+                        className={FIELD_LABEL_CLASS}
+                      >
+                        {ACCOUNT_WORKSPACE_PAGE_COPY.addressLine2}
+                      </label>
+                      <Input
+                        id="address-line-2-non-uk"
+                        value={business.addressLine2}
+                        maxLength={500}
+                        onChange={(event) => {
+                          pageModule.setAddressLine2(event.target.value)
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {isUkAddress ? (
+                  <div className={FIELD_STACK_CLASS}>
+                    <label
+                      htmlFor="address-line-2"
+                      className={FIELD_LABEL_CLASS}
+                    >
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.addressLine2}
+                    </label>
+                    <Input
+                      id="address-line-2"
+                      value={business.addressLine2}
+                      maxLength={500}
+                      onChange={(event) => {
+                        pageModule.setAddressLine2(event.target.value)
+                      }}
+                    />
+                  </div>
+                ) : null}
+
+                <div className={FIELD_GRID_CLASS}>
+                  <div className={FIELD_STACK_CLASS}>
+                    <label htmlFor="town-city" className={FIELD_LABEL_CLASS}>
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.townCity}
+                    </label>
+                    <Input
+                      id="town-city"
+                      value={business.townCity}
+                      maxLength={150}
+                      onChange={(event) => {
+                        pageModule.setTownCity(event.target.value)
+                      }}
+                    />
+                  </div>
+                  <div className={FIELD_STACK_CLASS}>
+                    <label htmlFor="county" className={FIELD_LABEL_CLASS}>
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.county}
+                    </label>
+                    <Input
+                      id="county"
+                      value={business.county}
+                      maxLength={150}
+                      onChange={(event) => {
+                        pageModule.setCounty(event.target.value)
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {isUkAddress ? (
+                  <div className={FIELD_STACK_CLASS}>
+                    <label
+                      htmlFor="address-country"
+                      className={FIELD_LABEL_CLASS}
+                    >
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.country}
+                    </label>
+                    <Input
+                      id="address-country"
+                      value={business.country}
+                      maxLength={100}
+                      onChange={(event) => {
+                        pageModule.setCountry(event.target.value)
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className={FIELD_GRID_CLASS}>
+                    <div className={FIELD_STACK_CLASS}>
+                      <label
+                        htmlFor="postcode-non-uk"
+                        className={FIELD_LABEL_CLASS}
+                      >
+                        {ACCOUNT_WORKSPACE_PAGE_COPY.postcode}
+                      </label>
+                      <Input
+                        id="postcode-non-uk"
+                        value={business.postcode}
+                        maxLength={20}
+                        aria-invalid={business.postcodeError != null}
+                        aria-describedby={
+                          business.postcodeError != null
+                            ? "postcode-error"
+                            : undefined
+                        }
+                        onChange={(event) => {
+                          pageModule.setPostcode(event.target.value)
+                        }}
+                      />
+                      {business.postcodeError != null ? (
+                        <p
+                          id="postcode-error"
+                          className="m-0 text-sm text-destructive"
+                        >
+                          {business.postcodeError}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className={FIELD_STACK_CLASS}>
+                      <label
+                        htmlFor="address-country-non-uk"
+                        className={FIELD_LABEL_CLASS}
+                      >
+                        {ACCOUNT_WORKSPACE_PAGE_COPY.country}
+                      </label>
+                      <Input
+                        id="address-country-non-uk"
+                        value={business.country}
+                        maxLength={100}
+                        onChange={(event) => {
+                          pageModule.setCountry(event.target.value)
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+        </TabsContent>
         <TabsContent value="key-contacts" className="mt-0" />
         <TabsContent value="workspace-defaults" className="mt-0" />
         <TabsContent value="account-controls" className="mt-0" />

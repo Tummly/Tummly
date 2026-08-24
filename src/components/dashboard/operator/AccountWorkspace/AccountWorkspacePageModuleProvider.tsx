@@ -10,6 +10,7 @@ import { toast } from "sonner"
 
 import {
   getAccountWorkspaceDetails,
+  updateAccountWorkspaceBusinessDetails,
   updateAccountWorkspaceDetails,
 } from "@/api/accountWorkspaceApi"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
@@ -36,6 +37,7 @@ export function AccountWorkspacePageModuleProvider({
       {
         getDetails: getAccountWorkspaceDetails,
         updateAccountDetails: updateAccountWorkspaceDetails,
+        updateBusinessDetails: updateAccountWorkspaceBusinessDetails,
         onIdentityPersisted: (details) => {
           applyIdentityRef.current({
             restaurantName: details.workspaceName,

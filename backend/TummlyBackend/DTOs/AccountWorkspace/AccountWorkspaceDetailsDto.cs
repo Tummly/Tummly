@@ -22,7 +22,7 @@ namespace TummlyBackend.DTOs.AccountWorkspace
 
         public AccountWorkspaceStatusDto Status { get; set; } = new();
 
-        public object? BusinessDetails { get; set; }
+        public RestaurantBusinessDetailsDto? BusinessDetails { get; set; }
 
         public object? KeyContacts { get; set; }
 

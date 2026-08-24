@@ -36,6 +36,9 @@ namespace TummlyBackend.Data
 
         public DbSet<Restaurant> Restaurants { get; set; }
 
+        public DbSet<RestaurantBusinessDetails> RestaurantBusinessDetails
+        { get; set; }
+
         public DbSet<RestaurantLocation> RestaurantLocations { get; set; }
 
         public DbSet<QrCode> QrCodes { get; set; }
@@ -295,6 +298,66 @@ namespace TummlyBackend.Data
                 .WithOne(r => r.GuestLoopSetup)
                 .HasForeignKey<GuestLoopSetup>(g => g.RestaurantId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            /*
+             =========================================
+             RESTAURANT -> BUSINESS DETAILS (1:1)
+             =========================================
+            */
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .HasOne(d => d.Restaurant)
+                .WithOne(r => r.BusinessDetails)
+                .HasForeignKey<RestaurantBusinessDetails>(d => d.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.LegalStructure)
+                .HasMaxLength(32);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.LegalBusinessName)
+                .HasMaxLength(200);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.TradingName)
+                .HasMaxLength(200);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.CompanyNumber)
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.VatNumber)
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.CountryOfRegistration)
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.AddressLine1)
+                .HasMaxLength(500);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.AddressLine2)
+                .HasMaxLength(500);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.TownCity)
+                .HasMaxLength(150);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.County)
+                .HasMaxLength(150);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.Postcode)
+                .HasMaxLength(20);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.Country)
+                .HasMaxLength(100);
 
             /*
              =========================================

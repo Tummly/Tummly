@@ -13,6 +13,12 @@ namespace TummlyBackend.Interfaces
                 IFormFile? logo
             );
 
+        Task<(AccountWorkspaceDetailsDto? Details, string? Error, int StatusCode)>
+            UpdateBusinessDetailsAsync(
+                int ownerUserId,
+                UpdateBusinessDetailsRequest request
+            );
+
         Task<(Stream Stream, string ContentType)?> OpenBrandLogoAsync(
             int ownerUserId
         );

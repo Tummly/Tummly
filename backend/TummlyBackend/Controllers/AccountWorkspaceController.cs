@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TummlyBackend.DTOs.AccountWorkspace;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 
@@ -64,6 +65,40 @@ namespace TummlyBackend.Controllers
                     userId,
                     name,
                     logo
+                );
+
+            if (error != null)
+            {
+                return StatusCode(
+                    statusCode,
+                    new
+                    {
+                        success = false,
+                        message = error,
+                    }
+                );
+            }
+
+            return Ok(details);
+        }
+
+        [HttpPut("business-details")]
+        public async Task<IActionResult> UpdateBusinessDetails(
+            [FromBody] UpdateBusinessDetailsRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var (details, error, statusCode) =
+                await _accountWorkspace.UpdateBusinessDetailsAsync(
+                    userId,
+                    request
                 );
 
             if (error != null)

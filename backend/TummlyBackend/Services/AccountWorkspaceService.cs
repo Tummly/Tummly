@@ -9,6 +9,8 @@ namespace TummlyBackend.Services
 {
     public class AccountWorkspaceService : IAccountWorkspaceService
     {
+        private const string DefaultCountry = "United Kingdom";
+
         private readonly ApplicationDbContext _context;
         private readonly IQueryAttachmentStorage _attachmentStorage;
 
@@ -155,6 +157,78 @@ namespace TummlyBackend.Services
             return (details, null, StatusCodes.Status200OK);
         }
 
+        public async Task<(
+            AccountWorkspaceDetailsDto? Details,
+            string? Error,
+            int StatusCode
+        )> UpdateBusinessDetailsAsync(
+            int ownerUserId,
+            UpdateBusinessDetailsRequest request
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .FirstOrDefaultAsync(r => r.OwnerUserId == ownerUserId);
+
+            if (restaurant == null)
+            {
+                return (null, "Restaurant not found.", StatusCodes.Status404NotFound);
+            }
+
+            var validationError = ValidateBusinessDetails(request);
+            if (validationError != null)
+            {
+                return (
+                    null,
+                    validationError,
+                    StatusCodes.Status400BadRequest
+                );
+            }
+
+            var row = await _context.RestaurantBusinessDetails
+                .FirstOrDefaultAsync(d => d.RestaurantId == restaurant.Id);
+
+            if (row == null)
+            {
+                row = new RestaurantBusinessDetails
+                {
+                    RestaurantId = restaurant.Id,
+                };
+                _context.RestaurantBusinessDetails.Add(row);
+            }
+
+            var legalName = TrimToNull(request.LegalBusinessName, 200);
+            var tradingName = TrimToNull(request.TradingName, 200);
+
+            if (request.SameAsLegalBusinessName == true)
+            {
+                tradingName = legalName;
+            }
+
+            row.LegalStructure = LegalStructureOptions.Normalize(
+                request.LegalStructure
+            );
+            row.LegalBusinessName = legalName;
+            row.TradingName = tradingName;
+            row.CompanyNumber = TrimToNull(request.CompanyNumber, 50);
+            row.VatNumber = TrimToNull(request.VatNumber, 50);
+            row.CountryOfRegistration = TrimToNull(
+                request.CountryOfRegistration,
+                100
+            );
+            row.AddressLine1 = TrimToNull(request.AddressLine1, 500);
+            row.AddressLine2 = TrimToNull(request.AddressLine2, 500);
+            row.TownCity = TrimToNull(request.TownCity, 150);
+            row.County = TrimToNull(request.County, 150);
+            row.Postcode = TrimToNull(request.Postcode, 20);
+            row.Country = TrimToNull(request.Country, 100);
+
+            restaurant.AccountWorkspaceLastSavedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            var details = await BuildDetailsAsync(restaurant);
+            return (details, null, StatusCodes.Status200OK);
+        }
+
         public async Task<(Stream Stream, string ContentType)?> OpenBrandLogoAsync(
             int ownerUserId
         )
@@ -233,6 +307,10 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .CountAsync(g => g.RestaurantId == restaurant.Id);
 
+            var businessDetails = await _context.RestaurantBusinessDetails
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.RestaurantId == restaurant.Id);
+
             var workspaceStatus = restaurant.WorkspaceStatus.ToString();
             var lastAccountUpdate =
                 restaurant.AccountWorkspaceLastSavedAt ?? restaurant.CreatedAt;
@@ -248,7 +326,7 @@ namespace TummlyBackend.Services
                 BusinessCategoryLabel = BusinessCategoryLabels.ResolveLabel(
                     restaurant.BusinessCategory
                 ),
-                MainOperatingCountry = "United Kingdom",
+                MainOperatingCountry = DefaultCountry,
                 BrandLogoOperatorUrl = hasLogo
                     ? BrandLogoRules.OperatorBrandLogoUrl
                     : null,
@@ -271,10 +349,146 @@ namespace TummlyBackend.Services
                             : "Paused",
                     LastAccountUpdateAt = lastAccountUpdate,
                 },
-                BusinessDetails = null,
+                BusinessDetails = MapBusinessDetails(businessDetails),
                 KeyContacts = null,
                 WorkspaceDefaults = null,
             };
+        }
+
+        private static RestaurantBusinessDetailsDto MapBusinessDetails(
+            RestaurantBusinessDetails? row
+        )
+        {
+            if (row == null)
+            {
+                return new RestaurantBusinessDetailsDto
+                {
+                    CountryOfRegistration = DefaultCountry,
+                    Country = DefaultCountry,
+                };
+            }
+
+            return new RestaurantBusinessDetailsDto
+            {
+                LegalStructure = row.LegalStructure,
+                LegalBusinessName = row.LegalBusinessName,
+                TradingName = row.TradingName,
+                CompanyNumber = row.CompanyNumber,
+                VatNumber = row.VatNumber,
+                CountryOfRegistration =
+                    string.IsNullOrWhiteSpace(row.CountryOfRegistration)
+                        ? DefaultCountry
+                        : row.CountryOfRegistration,
+                AddressLine1 = row.AddressLine1,
+                AddressLine2 = row.AddressLine2,
+                TownCity = row.TownCity,
+                County = row.County,
+                Postcode = row.Postcode,
+                Country =
+                    string.IsNullOrWhiteSpace(row.Country)
+                        ? DefaultCountry
+                        : row.Country,
+            };
+        }
+
+        private static string? ValidateBusinessDetails(
+            UpdateBusinessDetailsRequest request
+        )
+        {
+            if (!LegalStructureOptions.IsValid(request.LegalStructure))
+            {
+                return "Legal structure is not a recognised option.";
+            }
+
+            if (Exceeds(request.LegalBusinessName, 200))
+            {
+                return "Legal business name must be 200 characters or fewer.";
+            }
+
+            if (Exceeds(request.TradingName, 200))
+            {
+                return "Trading name must be 200 characters or fewer.";
+            }
+
+            if (Exceeds(request.CompanyNumber, 50))
+            {
+                return "Company number must be 50 characters or fewer.";
+            }
+
+            if (Exceeds(request.VatNumber, 50))
+            {
+                return "VAT number must be 50 characters or fewer.";
+            }
+
+            if (Exceeds(request.CountryOfRegistration, 100))
+            {
+                return "Country of registration must be 100 characters or fewer.";
+            }
+
+            if (Exceeds(request.AddressLine1, 500))
+            {
+                return "Address line 1 must be 500 characters or fewer.";
+            }
+
+            if (Exceeds(request.AddressLine2, 500))
+            {
+                return "Address line 2 must be 500 characters or fewer.";
+            }
+
+            if (Exceeds(request.TownCity, 150))
+            {
+                return "Town or city must be 150 characters or fewer.";
+            }
+
+            if (Exceeds(request.County, 150))
+            {
+                return "County must be 150 characters or fewer.";
+            }
+
+            if (Exceeds(request.Postcode, 20))
+            {
+                return "Postcode must be 20 characters or fewer.";
+            }
+
+            if (Exceeds(request.Country, 100))
+            {
+                return "Country must be 100 characters or fewer.";
+            }
+
+            var country = request.Country?.Trim() ?? string.Empty;
+            var postcode = request.Postcode?.Trim() ?? string.Empty;
+            var isUnitedKingdom = string.Equals(
+                country,
+                DefaultCountry,
+                StringComparison.OrdinalIgnoreCase
+            );
+
+            if (
+                isUnitedKingdom
+                && postcode.Length > 0
+                && !UkPostcode.IsValidFormat(postcode)
+            )
+            {
+                return "Enter a valid UK postcode.";
+            }
+
+            return null;
+        }
+
+        private static bool Exceeds(string? value, int max)
+        {
+            return value != null && value.Trim().Length > max;
+        }
+
+        private static string? TrimToNull(string? value, int max)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            var trimmed = value.Trim();
+            return trimmed.Length > max ? trimmed[..max] : trimmed;
         }
 
         private static string ResolveAccountStructure(string accountType)
