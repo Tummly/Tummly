@@ -569,6 +569,27 @@ namespace TummlyBackend.Services
                         $"campaign-recommendation:{ownerUserId}:{locationId}:{period}"
                     );
                 }
+
+                var offerIds = await _context.CatalogOffers
+                    .AsNoTracking()
+                    .Where(offer => offer.RestaurantLocationId == locationId)
+                    .Select(offer => offer.Id)
+                    .ToListAsync();
+
+                foreach (var offerId in offerIds)
+                {
+                    foreach (var period in WorkspaceDefaultsOptions.ReportingPeriodValues)
+                    {
+                        await _cache.RemoveAsync(
+                            OfferRecommendationContract.BuildCacheKey(
+                                ownerUserId,
+                                locationId,
+                                offerId,
+                                period
+                            )
+                        );
+                    }
+                }
             }
         }
 

@@ -53,6 +53,10 @@ import type {
   OpenVoidAttentionApiResponse,
 } from "@/types/operatorCampaigns"
 import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCatalogPresentation"
+import type {
+  OfferRecommendationRequest,
+  OfferRecommendationResponse,
+} from "@/lib/operatorOffers/offerRecommendationContract"
 import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
 import {
   CampaignBillingReserveUnavailableError,
@@ -298,6 +302,29 @@ export const getCatalogOfferById = async (
     { params }
   )
   return response.data
+}
+
+export const getOfferRecommendation = async (
+  offerId: number,
+  body: OfferRecommendationRequest,
+  signal?: AbortSignal
+): Promise<OfferRecommendationResponse> => {
+  try {
+    const response = await axiosInstance.post<OfferRecommendationResponse>(
+      `/offers/${offerId}/recommendation`,
+      body,
+      { signal }
+    )
+    return response.data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data != null) {
+      const data = error.response.data as OfferRecommendationResponse
+      if (typeof data.success === "boolean") {
+        return data
+      }
+    }
+    throw error
+  }
 }
 
 export const listCatalogOffers = async (

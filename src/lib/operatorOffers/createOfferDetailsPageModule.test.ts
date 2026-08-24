@@ -64,7 +64,8 @@ describe("createOfferDetailsPageModule", () => {
     await pageModule.syncWorkspace(workspace)
 
     expect(getOffer).toHaveBeenCalledWith(10)
-    expect(statuses).toEqual(["loading", "loaded"])
+    expect(statuses[0]).toBe("loading")
+    expect(statuses.at(-1)).toBe("loaded")
     const snapshot = pageModule.getSnapshot()
     expect(snapshot.loadStatus).toBe("loaded")
     expect(snapshot.viewModel?.title).toBe("10% off next visit")
@@ -543,5 +544,174 @@ describe("createOfferDetailsPageModule", () => {
     expect(
       pageModule.getSnapshot().viewModel?.campaigns.linked.rows[0]?.campaignName
     ).toBe("Summer thank-you")
+  })
+
+  it("generates Offer recommendation on workspace sync for any tab", async () => {
+    const getOfferRecommendation = vi.fn().mockResolvedValue({
+      success: true,
+      recommendation: { type: "none" as const },
+    })
+    const pageModule = createOfferDetailsPageModule({
+      getOffer: vi.fn().mockResolvedValue(sampleOffer()),
+      getOfferRecommendation,
+    })
+
+    await pageModule.syncWorkspace({
+      ...workspace,
+      initialTabId: "claims",
+    })
+
+    expect(getOfferRecommendation).toHaveBeenCalledTimes(1)
+    expect(getOfferRecommendation).toHaveBeenCalledWith({
+      offerId: 10,
+      request: { locationId: 42, refresh: false },
+    })
+    const recommendation =
+      pageModule.getSnapshot().viewModel?.overview.recommendation
+    expect(recommendation?.status).toBe("ready")
+    expect(recommendation?.isNone).toBe(true)
+    expect(recommendation?.emptyCopy).toBe(
+      OFFER_DETAILS_COPY.recommendedEmptyCopy
+    )
+    expect(pageModule.getSnapshot().viewModel?.activeTabId).toBe("claims")
+  })
+
+  it("maps retryable and non-retryable recommendation errors", async () => {
+    const getOfferRecommendation = vi
+      .fn()
+      .mockResolvedValueOnce({
+        success: false,
+        message: "Could not load a recommendation. Please try again.",
+        retryable: true,
+      })
+      .mockResolvedValueOnce({
+        success: false,
+        message: "Recommendation is not available.",
+        retryable: false,
+      })
+    const pageModule = createOfferDetailsPageModule({
+      getOffer: vi.fn().mockResolvedValue(sampleOffer()),
+      getOfferRecommendation,
+    })
+
+    await pageModule.syncWorkspace(workspace)
+    let recommendation =
+      pageModule.getSnapshot().viewModel?.overview.recommendation
+    expect(recommendation?.status).toBe("error")
+    expect(recommendation?.errorRetryable).toBe(true)
+
+    await pageModule.retryRecommendation()
+    recommendation =
+      pageModule.getSnapshot().viewModel?.overview.recommendation
+    expect(getOfferRecommendation).toHaveBeenCalledTimes(2)
+    expect(getOfferRecommendation).toHaveBeenLastCalledWith({
+      offerId: 10,
+      request: { locationId: 42, refresh: true },
+    })
+    expect(recommendation?.status).toBe("error")
+    expect(recommendation?.errorRetryable).toBe(false)
+    expect(recommendation?.errorMessage).toBe(
+      "Recommendation is not available."
+    )
+  })
+
+  it("Overview KPI range change does not refetch Offer recommendation", async () => {
+    const getOfferRecommendation = vi.fn().mockResolvedValue({
+      success: true,
+      recommendation: { type: "none" as const },
+    })
+    const getOfferMetrics = vi.fn().mockResolvedValue({
+      claims: 1,
+      redemptions: 0,
+      expiredUnused: 0,
+      failedAttempts: 0,
+    })
+    const pageModule = createOfferDetailsPageModule({
+      getOffer: vi.fn().mockResolvedValue(sampleOffer()),
+      getOfferRecommendation,
+      getOfferMetrics,
+    })
+
+    await pageModule.syncWorkspace(workspace)
+    expect(getOfferRecommendation).toHaveBeenCalledTimes(1)
+
+    await pageModule.setOverviewDateRange({
+      kind: "preset",
+      presetId: "last30",
+    })
+
+    expect(getOfferRecommendation).toHaveBeenCalledTimes(1)
+    expect(getOfferMetrics).toHaveBeenCalledTimes(2)
+    expect(
+      pageModule.getSnapshot().viewModel?.overview.recommendation.status
+    ).toBe("ready")
+  })
+
+  it("remount with the same soft-cache key keeps last ready recommendation", async () => {
+    const getOfferRecommendation = vi.fn().mockResolvedValue({
+      success: true,
+      recommendation: { type: "none" as const },
+    })
+    const pageModule = createOfferDetailsPageModule({
+      getOffer: vi.fn().mockResolvedValue(sampleOffer()),
+      getOfferRecommendation,
+    })
+
+    await pageModule.syncWorkspace(workspace)
+    expect(
+      pageModule.getSnapshot().viewModel?.overview.recommendation.status
+    ).toBe("ready")
+    expect(
+      pageModule.getSnapshot().viewModel?.overview.recommendation.isNone
+    ).toBe(true)
+    expect(getOfferRecommendation).toHaveBeenCalledTimes(1)
+
+    await pageModule.syncWorkspace(workspace)
+    expect(
+      pageModule.getSnapshot().viewModel?.overview.recommendation.status
+    ).toBe("ready")
+    expect(
+      pageModule.getSnapshot().viewModel?.overview.recommendation.isNone
+    ).toBe(true)
+    expect(getOfferRecommendation).toHaveBeenCalledTimes(1)
+  })
+
+  it("shows loading while Offer recommendation generate is in flight", async () => {
+    let resolveRecommendation: ((value: {
+      success: boolean
+      recommendation: { type: "none" }
+    }) => void) | undefined
+    const getOfferRecommendation = vi.fn(
+      () =>
+        new Promise<{
+          success: boolean
+          recommendation: { type: "none" }
+        }>((resolve) => {
+          resolveRecommendation = resolve
+        })
+    )
+    const pageModule = createOfferDetailsPageModule({
+      getOffer: vi.fn().mockResolvedValue(sampleOffer()),
+      getOfferRecommendation,
+    })
+
+    const load = pageModule.syncWorkspace(workspace)
+    await vi.waitFor(() => {
+      expect(
+        pageModule.getSnapshot().viewModel?.overview.recommendation.status
+      ).toBe("loading")
+    })
+
+    resolveRecommendation?.({
+      success: true,
+      recommendation: { type: "none" },
+    })
+    await load
+    expect(
+      pageModule.getSnapshot().viewModel?.overview.recommendation.status
+    ).toBe("ready")
+    expect(
+      pageModule.getSnapshot().viewModel?.overview.recommendation.isNone
+    ).toBe(true)
   })
 })

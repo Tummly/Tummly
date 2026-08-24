@@ -9,6 +9,7 @@ import {
   getOfferIssuanceSources,
   getOfferLinkedCampaigns,
   getOfferMetrics,
+  getOfferRecommendation,
   getOfferRedemptions,
   getOfferVoidRequests,
   pauseCatalogOffer,
@@ -55,6 +56,8 @@ export function OfferDetailsPageModuleProvider({
         loadOfferDetailsOverviewMetrics(offerId, range, {
           fetchMetrics: getOfferMetrics,
         }),
+      getOfferRecommendation: ({ offerId, request }) =>
+        getOfferRecommendation(offerId, request),
       getClaims: (offerId) =>
         loadOfferDetailsClaims(offerId, { fetchClaims: getOfferClaims }),
       getRedemptions: (offerId) =>

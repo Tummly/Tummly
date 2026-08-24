@@ -42,9 +42,34 @@ import type {
   VoidRequestCorrectionId,
   VoidRequestReasonId,
 } from "@/lib/operatorOffers/voidRequestPresentation"
+import { recommendedNextStepSoftCacheGeneration } from "@/lib/operatorRecommendations/recommendationSoftCacheBust"
+import {
+  buildOfferRecommendationRequest,
+  type OfferRecommendation,
+  type OfferRecommendationRequest,
+  type OfferRecommendationResponse,
+} from "@/lib/operatorOffers/offerRecommendationContract"
 import type { CatalogOfferDetail } from "@/types/operatorCampaigns"
 
 export const OFFER_DETAILS_LOAD_ERROR_MESSAGE = OFFER_DETAILS_COPY.loadError
+export const OFFER_DETAILS_RECOMMENDATION_LOAD_ERROR_MESSAGE =
+  OFFER_DETAILS_COPY.recommendedFailCopy
+
+export type OperatorOfferRecommendationStatus =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "error"
+
+export type OperatorOfferRecommendationViewModel = {
+  status: OperatorOfferRecommendationStatus
+  /** Present when status is ready and type is not none. */
+  recommendation: OfferRecommendation | null
+  /** True when status is ready and type is none. */
+  isNone: boolean
+  errorMessage: string | null
+  errorRetryable: boolean
+}
 
 export type OfferDetailsWorkspaceLocation = {
   id: number
@@ -88,6 +113,11 @@ export type OfferDetailsOverviewViewModel = {
     title: string
     subtitle: string
     emptyCopy: string
+    status: OperatorOfferRecommendationStatus
+    recommendation: OfferRecommendation | null
+    isNone: boolean
+    errorMessage: string | null
+    errorRetryable: boolean
   }
 }
 
@@ -267,6 +297,11 @@ export type OfferDetailsAdapters = {
   getVoidRequests?: (
     offerId: number
   ) => Promise<readonly OfferDetailsVoidRequestRow[]>
+  /** Live Offer recommendation — optional until the generate adapter is wired. */
+  getOfferRecommendation?: (input: {
+    offerId: number
+    request: OfferRecommendationRequest
+  }) => Promise<OfferRecommendationResponse>
 }
 
 export type OfferDetailsPageModule = {
@@ -277,6 +312,8 @@ export type OfferDetailsPageModule = {
   setActiveTab: (tabId: OfferDetailsTabId) => void
   setCampaignsSubTab: (subTabId: OfferDetailsCampaignsSubTabId) => void
   setOverviewDateRange: (range: OfferDetailsDateRange) => Promise<void>
+  /** Explicit recommendation retry / refresh (bypasses server cache). */
+  retryRecommendation: () => Promise<void>
   requestHeaderAction: (actionId: OfferDetailsHeaderActionId) => void
   /** Runs the pending lifecycle write, clears confirm, and refreshes chrome. */
   confirmPendingHeaderAction: () => Promise<void>
@@ -313,6 +350,8 @@ type ModuleState = {
   pendingRowAction: OfferDetailsPendingRowAction | null
   lifecycleLists: LifecycleLists
   loadGeneration: number
+  recommendation: OperatorOfferRecommendationViewModel
+  recommendationGeneration: number
 }
 
 function emptyMetrics(): OfferDetailsOverviewMetrics {
@@ -431,6 +470,63 @@ function assembleLifecycleTabs(
   }
 }
 
+function idleRecommendation(): OperatorOfferRecommendationViewModel {
+  return {
+    status: "idle",
+    recommendation: null,
+    isNone: false,
+    errorMessage: null,
+    errorRetryable: false,
+  }
+}
+
+function quietNoneRecommendation(): OperatorOfferRecommendationViewModel {
+  return {
+    status: "ready",
+    recommendation: null,
+    isNone: true,
+    errorMessage: null,
+    errorRetryable: false,
+  }
+}
+
+/**
+ * Client soft-cache key — location + offer + Workspace-defaults generation.
+ * Server window follows Default reporting period (not Overview KPI range).
+ */
+function recommendationSoftCacheKey(
+  locationId: number,
+  offerId: number
+): string {
+  const generation = recommendedNextStepSoftCacheGeneration()
+  return `${locationId}:${offerId}:workspace-defaults:g${generation}`
+}
+
+function mapRecommendationResponse(
+  response: OfferRecommendationResponse
+): OperatorOfferRecommendationViewModel {
+  if (!response.success || response.recommendation == null) {
+    return {
+      status: "error",
+      recommendation: null,
+      isNone: false,
+      errorMessage:
+        response.message
+        ?? OFFER_DETAILS_RECOMMENDATION_LOAD_ERROR_MESSAGE,
+      errorRetryable: response.retryable !== false,
+    }
+  }
+
+  const isNone = response.recommendation.type === "none"
+  return {
+    status: "ready",
+    recommendation: isNone ? null : response.recommendation,
+    isNone,
+    errorMessage: null,
+    errorRetryable: false,
+  }
+}
+
 function assembleViewModel(state: ModuleState): OfferDetailsViewModel | null {
   if (state.offer == null || state.locationName == null) {
     return null
@@ -477,6 +573,11 @@ function assembleViewModel(state: ModuleState): OfferDetailsViewModel | null {
         title: OFFER_DETAILS_COPY.recommendedTitle,
         subtitle: OFFER_DETAILS_COPY.recommendedSubtitle,
         emptyCopy: OFFER_DETAILS_COPY.recommendedEmptyCopy,
+        status: state.recommendation.status,
+        recommendation: state.recommendation.recommendation,
+        isNone: state.recommendation.isNone,
+        errorMessage: state.recommendation.errorMessage,
+        errorRetryable: state.recommendation.errorRetryable,
       },
     },
     ...lifecycle,
@@ -505,6 +606,8 @@ export function createOfferDetailsPageModule(
     pendingRowAction: null,
     lifecycleLists: emptyLifecycleLists(),
     loadGeneration: 0,
+    recommendation: idleRecommendation(),
+    recommendationGeneration: 0,
   }
 
   let snapshot: OfferDetailsSnapshot = {
@@ -593,6 +696,127 @@ export function createOfferDetailsPageModule(
     }
   }
 
+  let softCachedRecommendation: {
+    cacheKey: string
+    viewModel: OperatorOfferRecommendationViewModel
+  } | null = null
+
+  const rememberSoftCachedRecommendation = (
+    cacheKey: string,
+    next: OperatorOfferRecommendationViewModel
+  ) => {
+    if (next.status !== "ready") {
+      return
+    }
+    softCachedRecommendation = {
+      cacheKey,
+      viewModel: { ...next },
+    }
+  }
+
+  const recommendationForSoftLoad = (input: {
+    refresh: boolean
+    cacheKey: string
+  }): OperatorOfferRecommendationViewModel => {
+    if (
+      !input.refresh
+      && softCachedRecommendation != null
+      && softCachedRecommendation.cacheKey === input.cacheKey
+      && softCachedRecommendation.viewModel.status === "ready"
+    ) {
+      return softCachedRecommendation.viewModel
+    }
+    return { ...idleRecommendation(), status: "loading" }
+  }
+
+  const patchRecommendation = (
+    next: OperatorOfferRecommendationViewModel,
+    options?: { softCacheKey?: string }
+  ) => {
+    if (options?.softCacheKey != null) {
+      rememberSoftCachedRecommendation(options.softCacheKey, next)
+    }
+    state = {
+      ...state,
+      recommendation: next,
+      viewModel:
+        state.viewModel == null
+          ? null
+          : assembleViewModel({ ...state, recommendation: next }),
+    }
+    publish()
+  }
+
+  const loadRecommendation = async (options?: { refresh?: boolean }) => {
+    const workspace = state.workspace
+    const offer = state.offer
+    const locationId = workspace?.selectedLocationId
+    if (workspace == null || offer == null || locationId == null) {
+      return
+    }
+
+    if (adapters.getOfferRecommendation == null) {
+      patchRecommendation(quietNoneRecommendation())
+      return
+    }
+
+    const request = buildOfferRecommendationRequest({
+      locationId,
+      refresh: options?.refresh === true,
+    })
+    const cacheKey = recommendationSoftCacheKey(locationId, offer.id)
+    if (options?.refresh !== true) {
+      const cached = recommendationForSoftLoad({
+        refresh: false,
+        cacheKey,
+      })
+      if (cached.status === "ready") {
+        patchRecommendation(cached, { softCacheKey: cacheKey })
+        return
+      }
+    }
+    const generation = state.recommendationGeneration + 1
+    const nextRecommendation = recommendationForSoftLoad({
+      refresh: options?.refresh === true,
+      cacheKey,
+    })
+    state = {
+      ...state,
+      recommendationGeneration: generation,
+      recommendation: nextRecommendation,
+      viewModel: assembleViewModel({
+        ...state,
+        recommendationGeneration: generation,
+        recommendation: nextRecommendation,
+      }),
+    }
+    publish()
+
+    try {
+      const response = await adapters.getOfferRecommendation({
+        offerId: offer.id,
+        request,
+      })
+      if (generation !== state.recommendationGeneration) {
+        return
+      }
+      patchRecommendation(mapRecommendationResponse(response), {
+        softCacheKey: cacheKey,
+      })
+    } catch {
+      if (generation !== state.recommendationGeneration) {
+        return
+      }
+      patchRecommendation({
+        status: "error",
+        recommendation: null,
+        isNone: false,
+        errorMessage: OFFER_DETAILS_RECOMMENDATION_LOAD_ERROR_MESSAGE,
+        errorRetryable: true,
+      })
+    }
+  }
+
   const loadForWorkspace = async (input: OfferDetailsWorkspaceInput) => {
     const generation = state.loadGeneration + 1
     state = {
@@ -616,6 +840,7 @@ export function createOfferDetailsPageModule(
         loadError: null,
         overviewMetrics: emptyMetrics(),
         lifecycleLists: emptyLifecycleLists(),
+        recommendation: idleRecommendation(),
       }
       publish()
       return
@@ -634,6 +859,7 @@ export function createOfferDetailsPageModule(
         loadError: OFFER_DETAILS_LOAD_ERROR_MESSAGE,
         overviewMetrics: emptyMetrics(),
         lifecycleLists: emptyLifecycleLists(),
+        recommendation: idleRecommendation(),
       }
       publish()
       return
@@ -670,6 +896,7 @@ export function createOfferDetailsPageModule(
         viewModel: assembleViewModel(state),
       }
       publish()
+      await loadRecommendation()
     } catch {
       if (generation !== state.loadGeneration) {
         return
@@ -683,6 +910,7 @@ export function createOfferDetailsPageModule(
         loadError: OFFER_DETAILS_LOAD_ERROR_MESSAGE,
         overviewMetrics: emptyMetrics(),
         lifecycleLists: emptyLifecycleLists(),
+        recommendation: idleRecommendation(),
       }
       publish()
     }
@@ -757,6 +985,9 @@ export function createOfferDetailsPageModule(
         viewModel: assembleViewModel(state),
       }
       publish()
+    },
+    retryRecommendation() {
+      return loadRecommendation({ refresh: true })
     },
     requestHeaderAction(actionId) {
       if (state.viewModel == null) {

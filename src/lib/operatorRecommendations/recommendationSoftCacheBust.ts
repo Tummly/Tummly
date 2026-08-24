@@ -1,4 +1,4 @@
-/** Soft-cache bust for Home / Campaigns Recommended next step (ticket 10). */
+/** Soft-cache bust for Home / Campaigns / Offer Details Recommended next step. */
 
 let generation = 0
 
