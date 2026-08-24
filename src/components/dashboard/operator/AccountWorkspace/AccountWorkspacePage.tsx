@@ -1123,6 +1123,9 @@ export function AccountWorkspacePage() {
                   type="button"
                   variant="op-secondary"
                   disabled={dangerZoneDisabled}
+                  onClick={() => {
+                    void pageModule.requestTransferOwnership()
+                  }}
                 >
                   {ACCOUNT_WORKSPACE_PAGE_COPY.transferOwnership}
                 </Button>
@@ -1130,6 +1133,9 @@ export function AccountWorkspacePage() {
                   type="button"
                   variant="op-tertiary"
                   disabled={dangerZoneDisabled}
+                  onClick={() => {
+                    void pageModule.requestAccountExport()
+                  }}
                 >
                   {ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountExport}
                 </Button>
@@ -1137,6 +1143,9 @@ export function AccountWorkspacePage() {
                   type="button"
                   variant="op-tertiary"
                   disabled={dangerZoneDisabled}
+                  onClick={() => {
+                    void pageModule.requestAccountClosure()
+                  }}
                 >
                   {ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountClosure}
                 </Button>
@@ -1212,6 +1221,43 @@ export function AccountWorkspacePage() {
         }}
         onCancel={() => {
           pageModule.cancelWorkspaceStatusConfirm()
+        }}
+      />
+
+      <AccountWorkspaceConfirmDialog
+        open={snap.accountRequestConfirm != null}
+        title={
+          snap.accountRequestConfirm === "TransferOwnership"
+            ? ACCOUNT_WORKSPACE_PAGE_COPY.transferOwnershipTitle
+            : snap.accountRequestConfirm === "AccountExport"
+              ? ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountExportTitle
+              : ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountClosureTitle
+        }
+        body={
+          snap.accountRequestConfirm === "TransferOwnership"
+            ? ACCOUNT_WORKSPACE_PAGE_COPY.transferOwnershipBody
+            : snap.accountRequestConfirm === "AccountExport"
+              ? ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountExportBody
+              : ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountClosureBody
+        }
+        primaryLabel={
+          snap.accountRequestConfirm === "TransferOwnership"
+            ? ACCOUNT_WORKSPACE_PAGE_COPY.transferOwnershipConfirm
+            : snap.accountRequestConfirm === "AccountExport"
+              ? ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountExportConfirm
+              : ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountClosureConfirm
+        }
+        busy={snap.isSaving}
+        onOpenChange={(open) => {
+          if (!open) {
+            pageModule.closeAccountRequestConfirm()
+          }
+        }}
+        onPrimary={() => {
+          void pageModule.confirmAccountRequest()
+        }}
+        onCancel={() => {
+          pageModule.cancelAccountRequestConfirm()
         }}
       />
 

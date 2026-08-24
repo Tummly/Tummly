@@ -209,6 +209,25 @@ export const ACCOUNT_WORKSPACE_PAGE_COPY = {
   transferOwnership: "Transfer ownership",
   requestAccountExport: "Request account export",
   requestAccountClosure: "Request account closure",
+  transferOwnershipTitle: "Transfer ownership?",
+  transferOwnershipBody:
+    "This sends a Support request. It does not change the Account owner now. Tummly Support will contact you to complete the transfer.",
+  transferOwnershipConfirm: "Transfer ownership",
+  requestAccountExportTitle: "Request account export?",
+  requestAccountExportBody:
+    "This sends a Support request for a full account data package. It does not download guest data now. Use Export guest data for a self-serve guest file.",
+  requestAccountExportConfirm: "Request account export",
+  requestAccountClosureTitle: "Request account closure?",
+  requestAccountClosureBody:
+    "This sends a Support request to close the account. It does not pause or delete this workspace now.",
+  requestAccountClosureConfirm: "Request account closure",
+  transferOwnershipSuccess: "Ownership transfer request sent.",
+  requestAccountExportSuccess: "Account export request sent.",
+  requestAccountClosureSuccess: "Account closure request sent.",
+  accountRequestError: "Could not send the Support request. Please try again.",
+  accountRequestAlreadyOpen:
+    "This request is already open.",
+  accountRequestViewThread: "View thread",
 } as const
 
 /** Select menus above leave-dirty / rename dialogs on this page. */

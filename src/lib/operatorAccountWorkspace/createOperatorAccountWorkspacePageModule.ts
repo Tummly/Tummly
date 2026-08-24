@@ -16,6 +16,7 @@ import {
   type WeekStartsOnValue,
 } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 import { bumpRecommendedNextStepSoftCaches } from "@/lib/operatorRecommendations/recommendationSoftCacheBust"
+import { helpCentreMyQueryUrl } from "@/config/support"
 
 export {
   ACCOUNT_WORKSPACE_TAB_IDS,
@@ -83,6 +84,7 @@ export type AccountWorkspaceDetails = {
   brandLogoPublicUrl: string | null
   lastSavedAt: string | null
   isAccountOwner: boolean
+  restaurantId: number
   status: AccountWorkspaceStatus
   businessDetails: AccountWorkspaceBusinessDetails
   keyContacts: AccountWorkspaceKeyContacts
@@ -119,9 +121,18 @@ export type UpdateWorkspaceDefaultsPayload = {
 
 export type AccountWorkspaceGuestDataExportFormat = "xlsx" | "csv"
 
+export type AccountRequestKind =
+  | "TransferOwnership"
+  | "AccountExport"
+  | "AccountClosure"
+
 export type AccountWorkspaceToast = {
   kind: "success" | "error"
   message: string
+  action?: {
+    label: string
+    href: string
+  }
 } | null
 
 export type OperatorAccountWorkspacePageAdapters = {
@@ -144,6 +155,17 @@ export type OperatorAccountWorkspacePageAdapters = {
   exportGuestData: (
     format: AccountWorkspaceGuestDataExportFormat
   ) => Promise<{ blob: Blob; filename: string }>
+  findOpenAccountRequest: (
+    restaurantId: number,
+    kind: AccountRequestKind
+  ) => Promise<number | null>
+  createAccountRequest: (payload: {
+    kind: AccountRequestKind
+    restaurantId: number
+    businessName: string
+    submitterName: string
+    submitterEmail: string
+  }) => Promise<{ id: number; emailWarning?: string | null }>
   triggerBrowserDownload: (blob: Blob, filename: string) => void
   /** Refresh shell readers of Restaurant.Name / Brand logo after persist. */
   onIdentityPersisted?: (details: AccountWorkspaceDetails) => void
@@ -218,6 +240,7 @@ export type OperatorAccountWorkspacePageSnapshot = {
   toast: AccountWorkspaceToast
   isAccountOwner: boolean
   workspaceStatusConfirm: null | "pause" | "resume"
+  accountRequestConfirm: AccountRequestKind | null
   guestDataExportDialog: {
     format: AccountWorkspaceGuestDataExportFormat
     isPreparing: boolean
@@ -272,6 +295,12 @@ export type OperatorAccountWorkspacePageModule = {
   ) => void
   downloadGuestDataExport: () => Promise<void>
   closeGuestDataExportDialog: () => void
+  requestTransferOwnership: () => Promise<void>
+  requestAccountExport: () => Promise<void>
+  requestAccountClosure: () => Promise<void>
+  confirmAccountRequest: () => Promise<void>
+  cancelAccountRequestConfirm: () => void
+  closeAccountRequestConfirm: () => void
 }
 
 const WORKSPACE_NAME_REQUIRED_ERROR = "Workspace name is required."
@@ -400,6 +429,7 @@ export function createOperatorAccountWorkspacePageModule(
   let pendingNavigationHref: string | null = null
   let toast: AccountWorkspaceToast = null
   let workspaceStatusConfirm: null | "pause" | "resume" = null
+  let accountRequestConfirm: AccountRequestKind | null = null
   let guestDataExportFormat: AccountWorkspaceGuestDataExportFormat = "xlsx"
   let guestDataExportOpen = false
   let guestDataExportPreparing = false
@@ -688,6 +718,7 @@ export function createOperatorAccountWorkspacePageModule(
       toast,
       isAccountOwner: persisted?.isAccountOwner ?? false,
       workspaceStatusConfirm,
+      accountRequestConfirm,
       guestDataExportDialog: guestDataExportOpen
         ? {
             format: guestDataExportFormat,
@@ -917,6 +948,45 @@ export function createOperatorAccountWorkspacePageModule(
       pendingNavigationHref = pendingLeave.href
     }
     pendingLeave = null
+  }
+
+  async function beginAccountRequest(kind: AccountRequestKind) {
+    if (persisted?.isAccountOwner === false || persisted == null || isSaving) {
+      return
+    }
+
+    try {
+      const existingQueryId = await adapters.findOpenAccountRequest(
+        persisted.restaurantId,
+        kind
+      )
+
+      if (existingQueryId != null) {
+        showDuplicateAccountRequestToast(existingQueryId)
+        return
+      }
+
+      accountRequestConfirm = kind
+      emit()
+    } catch {
+      toast = {
+        kind: "error",
+        message: ACCOUNT_WORKSPACE_PAGE_COPY.accountRequestError,
+      }
+      emit()
+    }
+  }
+
+  function showDuplicateAccountRequestToast(queryId: number) {
+    toast = {
+      kind: "error",
+      message: ACCOUNT_WORKSPACE_PAGE_COPY.accountRequestAlreadyOpen,
+      action: {
+        label: ACCOUNT_WORKSPACE_PAGE_COPY.accountRequestViewThread,
+        href: helpCentreMyQueryUrl(queryId),
+      },
+    }
+    emit()
   }
 
   return {
@@ -1317,5 +1387,116 @@ export function createOperatorAccountWorkspacePageModule(
       guestDataExportFormat = "xlsx"
       emit()
     },
+
+    async requestTransferOwnership() {
+      await beginAccountRequest("TransferOwnership")
+    },
+
+    async requestAccountExport() {
+      await beginAccountRequest("AccountExport")
+    },
+
+    async requestAccountClosure() {
+      await beginAccountRequest("AccountClosure")
+    },
+
+    async confirmAccountRequest() {
+      if (accountRequestConfirm == null || isSaving || persisted == null) {
+        return
+      }
+
+      const kind = accountRequestConfirm
+      accountRequestConfirm = null
+      isSaving = true
+      toast = null
+      emit()
+
+      try {
+        const owner = persisted.keyContacts.accountOwner
+        const result = await adapters.createAccountRequest({
+          kind,
+          restaurantId: persisted.restaurantId,
+          businessName: persisted.workspaceName,
+          submitterName: owner.fullName,
+          submitterEmail: owner.email,
+        })
+
+        let message = accountRequestSuccessMessage(kind)
+        if (result.emailWarning) {
+          message = `${message} ${result.emailWarning}`
+        }
+
+        toast = {
+          kind: "success",
+          message,
+          action: {
+            label: ACCOUNT_WORKSPACE_PAGE_COPY.accountRequestViewThread,
+            href: helpCentreMyQueryUrl(result.id),
+          },
+        }
+
+        isSaving = false
+        emit()
+      } catch (error) {
+        const duplicateQueryId = readDuplicateAccountRequestQueryId(error)
+        if (duplicateQueryId != null) {
+          showDuplicateAccountRequestToast(duplicateQueryId)
+        } else {
+          toast = {
+            kind: "error",
+            message: ACCOUNT_WORKSPACE_PAGE_COPY.accountRequestError,
+          }
+        }
+        isSaving = false
+        emit()
+      }
+    },
+
+    cancelAccountRequestConfirm() {
+      accountRequestConfirm = null
+      emit()
+    },
+
+    closeAccountRequestConfirm() {
+      accountRequestConfirm = null
+      emit()
+    },
   }
+}
+
+function accountRequestSuccessMessage(kind: AccountRequestKind): string {
+  switch (kind) {
+    case "TransferOwnership":
+      return ACCOUNT_WORKSPACE_PAGE_COPY.transferOwnershipSuccess
+    case "AccountExport":
+      return ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountExportSuccess
+    case "AccountClosure":
+      return ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountClosureSuccess
+  }
+}
+
+function readDuplicateAccountRequestQueryId(error: unknown): number | null {
+  if (
+    typeof error !== "object"
+    || error == null
+    || !("response" in error)
+  ) {
+    return null
+  }
+
+  const response = (error as { response?: { data?: unknown } }).response
+  const data = response?.data
+
+  if (typeof data !== "object" || data == null) {
+    return null
+  }
+
+  const existingQueryId = (data as { existingQueryId?: unknown })
+    .existingQueryId
+
+  if (typeof existingQueryId !== "number") {
+    return null
+  }
+
+  return existingQueryId
 }

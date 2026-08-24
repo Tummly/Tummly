@@ -47,6 +47,25 @@ namespace TummlyBackend.Services
             IReadOnlyList<IFormFile>? attachments = null
         )
         {
+            HelpCentreAccountRequestKind? accountRequestKind = null;
+
+            if (!string.IsNullOrWhiteSpace(dto.AccountRequestKind))
+            {
+                accountRequestKind =
+                    HelpCentreAccountRequestKindExtensions.FromWireString(
+                        dto.AccountRequestKind
+                    );
+            }
+
+            if (accountRequestKind.HasValue)
+            {
+                return await CreateAccountRequestQueryAsync(
+                    dto,
+                    userId,
+                    accountRequestKind.Value
+                );
+            }
+
             var attachmentFiles = attachments?
                 .Where(file => file.Length > 0)
                 .ToList();
@@ -261,6 +280,229 @@ namespace TummlyBackend.Services
                 emailDispatched,
                 emailWarning = EmailDispatch.WarningOrNull(emailDispatched),
             };
+        }
+
+        public async Task<object?> GetOpenAccountRequestAsync(
+            int userId,
+            int restaurantId,
+            string accountRequestKind
+        )
+        {
+            if (
+                !HelpCentreAccountRequestKindExtensions.TryParseWireString(
+                    accountRequestKind,
+                    out var kind
+                )
+            )
+            {
+                throw new InvalidOperationException(
+                    "Invalid account request kind."
+                );
+            }
+
+            await EnsureAccountRequestOwnerAsync(userId, restaurantId);
+
+            var existingQueryId = await FindOpenAccountRequestQueryIdAsync(
+                restaurantId,
+                kind
+            );
+
+            if (existingQueryId == null)
+            {
+                return new { queryId = (int?)null };
+            }
+
+            return new { queryId = existingQueryId };
+        }
+
+        private async Task<object> CreateAccountRequestQueryAsync(
+            CreateHelpCentreQueryDto dto,
+            int? userId,
+            HelpCentreAccountRequestKind accountRequestKind
+        )
+        {
+            if (!userId.HasValue)
+            {
+                throw new InvalidOperationException(
+                    "Account requests require a signed-in operator."
+                );
+            }
+
+            if (!dto.RestaurantId.HasValue)
+            {
+                throw new InvalidOperationException(
+                    "Restaurant id is required for account requests."
+                );
+            }
+
+            if (dto.RestaurantLocationId.HasValue)
+            {
+                throw new InvalidOperationException(
+                    "Query location must be unset for account requests."
+                );
+            }
+
+            var restaurant = await EnsureAccountRequestOwnerAsync(
+                userId.Value,
+                dto.RestaurantId.Value
+            );
+
+            var existingQueryId = await FindOpenAccountRequestQueryIdAsync(
+                restaurant.Id,
+                accountRequestKind
+            );
+
+            if (existingQueryId != null)
+            {
+                throw new DuplicateOpenAccountRequestException(
+                    existingQueryId.Value
+                );
+            }
+
+            var topic =
+                HelpCentreAccountRequestKindExtensions.TopicForKind(
+                    accountRequestKind
+                );
+            var email = dto.SubmitterEmail.Trim().ToLower();
+            var message = BuildAccountRequestMessage(
+                accountRequestKind,
+                restaurant.Name,
+                restaurant.Id,
+                email
+            );
+
+            var query = new HelpCentreQuery
+            {
+                Topic = topic,
+                SubmitterName = dto.SubmitterName.Trim(),
+                SubmitterEmail = email,
+                Phone = string.IsNullOrWhiteSpace(dto.Phone)
+                    ? null
+                    : dto.Phone.Trim(),
+                BusinessName = dto.BusinessName.Trim(),
+                UserId = userId,
+                RestaurantLocationId = null,
+                AccountRequestKind = accountRequestKind,
+                RestaurantId = restaurant.Id,
+                Status = HelpCentreQueryStatus.New,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Messages =
+                [
+                    new HelpCentreQueryMessage
+                    {
+                        AuthorKind = HelpCentreQueryAuthorKind.Submitter,
+                        AuthorUserId = userId,
+                        Body = message,
+                        CreatedAt = DateTime.UtcNow,
+                    },
+                ],
+            };
+
+            _context.HelpCentreQueries.Add(query);
+            await _context.SaveChangesAsync();
+
+            var emailDispatched = await EmailDispatch.TrySendAsync(
+                () => _emailService.SendHelpCentreNewQueryEmailAsync(
+                    query.Topic.ToDisplayLabel(),
+                    query.SubmitterName,
+                    query.SubmitterEmail,
+                    query.BusinessName,
+                    locationLabel: null,
+                    message,
+                    attachmentCount: 0,
+                    BuildSupportDashboardUrl()
+                ),
+                _logger,
+                "Failed to send new query email for query {QueryId}",
+                query.Id
+            );
+
+            return new
+            {
+                id = query.Id,
+                status = query.Status.ToWireString(),
+                emailDispatched,
+                emailWarning = EmailDispatch.WarningOrNull(emailDispatched),
+            };
+        }
+
+        private async Task<Restaurant> EnsureAccountRequestOwnerAsync(
+            int userId,
+            int restaurantId
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.Id == restaurantId);
+
+            if (restaurant == null)
+            {
+                throw new InvalidOperationException(
+                    "Restaurant not found."
+                );
+            }
+
+            if (restaurant.OwnerUserId != userId)
+            {
+                throw new InvalidOperationException(
+                    "Only the account owner can submit account requests."
+                );
+            }
+
+            return restaurant;
+        }
+
+        private async Task<int?> FindOpenAccountRequestQueryIdAsync(
+            int restaurantId,
+            HelpCentreAccountRequestKind accountRequestKind
+        )
+        {
+            return await _context.HelpCentreQueries
+                .AsNoTracking()
+                .Where(q =>
+                    q.RestaurantId == restaurantId
+                    && q.AccountRequestKind == accountRequestKind
+                    && (
+                        q.Status == HelpCentreQueryStatus.New
+                        || q.Status == HelpCentreQueryStatus.InProgress
+                        || q.Status
+                            == HelpCentreQueryStatus.WaitingOnCustomer
+                        || q.Status
+                            == HelpCentreQueryStatus.EscalatedToAdmin
+                    )
+                )
+                .OrderByDescending(q => q.UpdatedAt)
+                .Select(q => (int?)q.Id)
+                .FirstOrDefaultAsync();
+        }
+
+        private static string BuildAccountRequestMessage(
+            HelpCentreAccountRequestKind accountRequestKind,
+            string workspaceName,
+            int restaurantId,
+            string actorEmail
+        )
+        {
+            var closingLine = accountRequestKind switch
+            {
+                HelpCentreAccountRequestKind.TransferOwnership =>
+                    "Ownership transfer requested from Account controls.",
+                HelpCentreAccountRequestKind.AccountExport =>
+                    "Account export requested from Account controls.",
+                HelpCentreAccountRequestKind.AccountClosure =>
+                    "Account closure requested from Account controls.",
+                _ => "Account request submitted from Account controls.",
+            };
+
+            return string.Join(
+                "\n",
+                $"Account request kind: {accountRequestKind.ToDisplayLabel()}",
+                $"Workspace name: {workspaceName}",
+                $"Restaurant id: {restaurantId}",
+                $"Actor email: {actorEmail}",
+                closingLine
+            );
         }
 
         public async Task<object> ListMyQueriesAsync(int userId)

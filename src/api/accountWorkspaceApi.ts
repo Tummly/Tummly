@@ -79,6 +79,7 @@ type AccountWorkspaceApiDetails = {
   brandLogoPublicUrl: string | null
   lastSavedAt: string | null
   isAccountOwner?: boolean
+  restaurantId?: number
   status: AccountWorkspaceApiStatus
   businessDetails?: AccountWorkspaceApiBusinessDetails | null
   keyContacts?: AccountWorkspaceApiKeyContacts | null
@@ -159,6 +160,7 @@ function mapDetails(
     brandLogoPublicUrl: data.brandLogoPublicUrl,
     lastSavedAt: data.lastSavedAt,
     isAccountOwner: data.isAccountOwner ?? false,
+    restaurantId: data.restaurantId ?? 0,
     status: data.status,
     businessDetails: mapBusinessDetails(data.businessDetails),
     keyContacts: mapKeyContacts(data.keyContacts),

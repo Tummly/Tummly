@@ -22,9 +22,16 @@ export interface CreateHelpCentreQueryPayload {
   submitterEmail: string
   phone?: string
   restaurantLocationId?: number
+  accountRequestKind?: string
+  restaurantId?: number
   message: string
   attachments?: File[]
 }
+
+export type AccountRequestKind =
+  | "TransferOwnership"
+  | "AccountExport"
+  | "AccountClosure"
 
 function normalizeAttachment(
   raw: Record<string, unknown>
@@ -124,6 +131,14 @@ export async function createHelpCentreQuery(
     )
   }
 
+  if (payload.accountRequestKind) {
+    formData.append("accountRequestKind", payload.accountRequestKind)
+  }
+
+  if (payload.restaurantId) {
+    formData.append("restaurantId", String(payload.restaurantId))
+  }
+
   payload.attachments?.forEach((file) => {
     formData.append("attachments", file)
   })
@@ -144,6 +159,47 @@ export async function createHelpCentreQuery(
     id: Number(data.id),
     ...parseEmailDispatchMeta(data),
   }
+}
+
+export async function getOpenAccountRequest(
+  restaurantId: number,
+  kind: AccountRequestKind
+): Promise<number | null> {
+  const response = await axiosInstance.get(
+    "/help-centre/account-requests/open",
+    {
+      params: {
+        restaurantId,
+        kind,
+      },
+    }
+  )
+  const data = unwrapDataObject(response.data) ?? {}
+  const queryId = data.queryId
+
+  if (queryId == null) {
+    return null
+  }
+
+  return Number(queryId)
+}
+
+export async function createAccountRequestQuery(payload: {
+  kind: AccountRequestKind
+  restaurantId: number
+  businessName: string
+  submitterName: string
+  submitterEmail: string
+}): Promise<{ id: number } & EmailDispatchMeta> {
+  return createHelpCentreQuery({
+    topic: "",
+    businessName: payload.businessName,
+    submitterName: payload.submitterName,
+    submitterEmail: payload.submitterEmail,
+    accountRequestKind: payload.kind,
+    restaurantId: payload.restaurantId,
+    message: "",
+  })
 }
 
 export async function getMyHelpCentreQueries(): Promise<HelpCentreQueryListItem[]> {

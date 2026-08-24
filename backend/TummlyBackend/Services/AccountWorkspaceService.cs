@@ -519,6 +519,7 @@ namespace TummlyBackend.Services
                     : null,
                 LastSavedAt = restaurant.AccountWorkspaceLastSavedAt,
                 IsAccountOwner = restaurant.OwnerUserId == actorUserId,
+                RestaurantId = restaurant.Id,
                 Status = new AccountWorkspaceStatusDto
                 {
                     WorkspaceStatus = workspaceStatus,

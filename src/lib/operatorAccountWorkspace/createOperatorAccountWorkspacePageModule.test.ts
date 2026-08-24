@@ -21,6 +21,7 @@ function createDetails(
     brandLogoPublicUrl: null,
     lastSavedAt: "2026-07-22T13:41:00.000Z",
     isAccountOwner: true,
+    restaurantId: 7,
     status: {
       workspaceStatus: "Active",
       planStatus: "Pilot",
@@ -176,6 +177,8 @@ function createAdapters(
       blob: new Blob(["xlsx"]),
       filename: "tummly-guest-data-1-20260824-120000Z.xlsx",
     })),
+    findOpenAccountRequest: vi.fn(async () => null),
+    createAccountRequest: vi.fn(async () => ({ id: 99 })),
     triggerBrowserDownload: vi.fn(),
     ...overrides,
   } as OperatorAccountWorkspacePageAdapters & {
@@ -936,6 +939,90 @@ describe("createOperatorAccountWorkspacePageModule", () => {
 
     expect(adapters.exportGuestData).not.toHaveBeenCalled()
     expect(page.getSnapshot().guestDataExportDialog).toBeNull()
+  })
+
+  it("opens transfer ownership confirm when no open request exists", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "account-controls",
+    })
+    await page.load()
+
+    await page.requestTransferOwnership()
+
+    expect(adapters.findOpenAccountRequest).toHaveBeenCalledWith(
+      7,
+      "TransferOwnership"
+    )
+    expect(page.getSnapshot().accountRequestConfirm).toBe("TransferOwnership")
+  })
+
+  it("shows duplicate toast instead of confirm when request is already open", async () => {
+    const adapters = createAdapters({
+      findOpenAccountRequest: vi.fn(async () => 55),
+    })
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "account-controls",
+    })
+    await page.load()
+
+    await page.requestAccountExport()
+
+    expect(page.getSnapshot().accountRequestConfirm).toBeNull()
+    expect(page.getSnapshot().toast).toEqual({
+      kind: "error",
+      message: "This request is already open.",
+      action: {
+        label: "View thread",
+        href: "/help-center/my-queries/55",
+      },
+    })
+  })
+
+  it("creates account request on confirm and stays on Account controls", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "account-controls",
+    })
+    await page.load()
+    const lastSavedBefore = page.getSnapshot().lastSavedAt
+
+    await page.requestTransferOwnership()
+    await page.confirmAccountRequest()
+
+    expect(adapters.createAccountRequest).toHaveBeenCalledWith({
+      kind: "TransferOwnership",
+      restaurantId: 7,
+      businessName: "Camden Group",
+      submitterName: "Alex Owner",
+      submitterEmail: "alex@example.com",
+    })
+    expect(page.getSnapshot().accountRequestConfirm).toBeNull()
+    expect(page.getSnapshot().activeTabId).toBe("account-controls")
+    expect(page.getSnapshot().lastSavedAt).toBe(lastSavedBefore)
+    expect(page.getSnapshot().toast).toEqual({
+      kind: "success",
+      message: "Ownership transfer request sent.",
+      action: {
+        label: "View thread",
+        href: "/help-center/my-queries/99",
+      },
+    })
+  })
+
+  it("does not open account request confirms for non-owners", async () => {
+    const adapters = createAdapters({
+      getDetails: vi.fn(async () => createDetails({ isAccountOwner: false })),
+    })
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "account-controls",
+    })
+    await page.load()
+
+    await page.requestAccountClosure()
+
+    expect(adapters.findOpenAccountRequest).not.toHaveBeenCalled()
+    expect(page.getSnapshot().accountRequestConfirm).toBeNull()
   })
 
 })

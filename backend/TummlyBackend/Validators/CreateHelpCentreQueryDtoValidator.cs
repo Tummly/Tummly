@@ -11,7 +11,8 @@ namespace TummlyBackend.Validators
             RuleFor(x => x.Topic)
                 .NotEmpty()
                 .Must(BeValidTopic)
-                .WithMessage("Invalid query topic.");
+                .WithMessage("Invalid query topic.")
+                .When(x => !HasAccountRequestKind(x));
 
             RuleFor(x => x.BusinessName)
                 .NotEmpty()
@@ -32,8 +33,29 @@ namespace TummlyBackend.Validators
 
             RuleFor(x => x.Message)
                 .NotEmpty()
-                .MaximumLength(5000);
+                .MaximumLength(5000)
+                .When(x => !HasAccountRequestKind(x));
+
+            RuleFor(x => x.AccountRequestKind)
+                .Must(BeValidAccountRequestKind)
+                .WithMessage("Invalid account request kind.")
+                .When(x => !string.IsNullOrWhiteSpace(x.AccountRequestKind));
+
+            RuleFor(x => x.RestaurantId)
+                .NotNull()
+                .WithMessage("Restaurant id is required for account requests.")
+                .When(x => HasAccountRequestKind(x));
+
+            RuleFor(x => x.RestaurantLocationId)
+                .Null()
+                .WithMessage("Query location must be unset for account requests.")
+                .When(x => HasAccountRequestKind(x));
         }
+
+        private static bool HasAccountRequestKind(
+            DTOs.HelpCentre.CreateHelpCentreQueryDto dto
+        ) =>
+            !string.IsNullOrWhiteSpace(dto.AccountRequestKind);
 
         private static bool BeValidTopic(string topic)
         {
@@ -51,6 +73,19 @@ namespace TummlyBackend.Validators
             {
                 return false;
             }
+        }
+
+        private static bool BeValidAccountRequestKind(string? kind)
+        {
+            if (string.IsNullOrWhiteSpace(kind))
+            {
+                return false;
+            }
+
+            return HelpCentreAccountRequestKindExtensions.TryParseWireString(
+                kind,
+                out _
+            );
         }
     }
 }

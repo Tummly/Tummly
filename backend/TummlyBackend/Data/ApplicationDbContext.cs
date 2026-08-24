@@ -957,6 +957,21 @@ namespace TummlyBackend.Data
                 .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<HelpCentreQuery>()
+                .Property(q => q.AccountRequestKind)
+                .HasConversion(
+                    v => v.HasValue ? v.Value.ToWireString() : null,
+                    v => string.IsNullOrWhiteSpace(v)
+                        ? null
+                        : HelpCentreAccountRequestKindExtensions.FromWireString(v)
+                );
+
+            modelBuilder.Entity<HelpCentreQuery>()
+                .HasOne(q => q.Restaurant)
+                .WithMany()
+                .HasForeignKey(q => q.RestaurantId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<HelpCentreQuery>()
                 .HasIndex(q => q.Status);
 
             modelBuilder.Entity<HelpCentreQuery>()

@@ -84,5 +84,13 @@ namespace TummlyBackend.Models
 
             return HelpCentreQueryStatus.New;
         }
+
+        public static bool IsOpenAccountRequestStatus(
+            HelpCentreQueryStatus status
+        ) =>
+            status is HelpCentreQueryStatus.New
+                or HelpCentreQueryStatus.InProgress
+                or HelpCentreQueryStatus.WaitingOnCustomer
+                or HelpCentreQueryStatus.EscalatedToAdmin;
     }
 }

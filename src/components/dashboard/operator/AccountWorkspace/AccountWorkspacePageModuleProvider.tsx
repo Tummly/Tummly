@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { useOutletContext, useSearchParams } from "react-router-dom"
+import { useOutletContext, useSearchParams, useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
 import {
@@ -18,6 +18,10 @@ import {
   updateAccountWorkspaceKeyContacts,
   updateAccountWorkspaceWorkspaceDefaults,
 } from "@/api/accountWorkspaceApi"
+import {
+  createAccountRequestQuery,
+  getOpenAccountRequest,
+} from "@/api/helpCentreApi"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { accountWorkspacePageModuleContext } from "@/components/dashboard/operator/AccountWorkspace/utils/accountWorkspacePageModuleContext"
 import { triggerBrowserDownload } from "@/lib/operatorHome/homeActions"
@@ -32,6 +36,7 @@ export function AccountWorkspacePageModuleProvider({
   children: ReactNode
 }) {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const initialTabId = searchParams.get("tab")
   const { applyRestaurantIdentity } =
     useOutletContext<DashboardOutletContext>()
@@ -49,6 +54,8 @@ export function AccountWorkspacePageModuleProvider({
         pauseWorkspace: pauseAccountWorkspace,
         resumeWorkspace: resumeAccountWorkspace,
         exportGuestData: exportAccountWorkspaceGuestData,
+        findOpenAccountRequest: getOpenAccountRequest,
+        createAccountRequest: createAccountRequestQuery,
         triggerBrowserDownload,
         onIdentityPersisted: (details) => {
           applyIdentityRef.current({
@@ -72,9 +79,27 @@ export function AccountWorkspacePageModuleProvider({
         return
       }
       if (snap.toast.kind === "success") {
-        toast.success(snap.toast.message)
+        toast.success(snap.toast.message, snap.toast.action
+          ? {
+              action: {
+                label: snap.toast.action.label,
+                onClick: () => {
+                  navigate(snap.toast!.action!.href)
+                },
+              },
+            }
+          : undefined)
       } else {
-        toast.error(snap.toast.message)
+        toast.error(snap.toast.message, snap.toast.action
+          ? {
+              action: {
+                label: snap.toast.action.label,
+                onClick: () => {
+                  navigate(snap.toast!.action!.href)
+                },
+              },
+            }
+          : undefined)
       }
       pageModule.clearToast()
     })

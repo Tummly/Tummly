@@ -22,6 +22,8 @@ namespace TummlyBackend.DTOs.AccountWorkspace
 
         public bool IsAccountOwner { get; set; }
 
+        public int RestaurantId { get; set; }
+
         public AccountWorkspaceStatusDto Status { get; set; } = new();
 
         public RestaurantBusinessDetailsDto? BusinessDetails { get; set; }
