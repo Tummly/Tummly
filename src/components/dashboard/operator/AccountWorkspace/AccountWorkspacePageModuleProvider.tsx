@@ -10,6 +10,8 @@ import { toast } from "sonner"
 
 import {
   getAccountWorkspaceDetails,
+  pauseAccountWorkspace,
+  resumeAccountWorkspace,
   updateAccountWorkspaceBusinessDetails,
   updateAccountWorkspaceDetails,
   updateAccountWorkspaceKeyContacts,
@@ -42,6 +44,8 @@ export function AccountWorkspacePageModuleProvider({
         updateBusinessDetails: updateAccountWorkspaceBusinessDetails,
         updateKeyContacts: updateAccountWorkspaceKeyContacts,
         updateWorkspaceDefaults: updateAccountWorkspaceWorkspaceDefaults,
+        pauseWorkspace: pauseAccountWorkspace,
+        resumeWorkspace: resumeAccountWorkspace,
         onIdentityPersisted: (details) => {
           applyIdentityRef.current({
             restaurantName: details.workspaceName,

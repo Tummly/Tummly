@@ -184,6 +184,64 @@ namespace TummlyBackend.Controllers
             return Ok(details);
         }
 
+        [HttpPost("pause")]
+        public async Task<IActionResult> PauseWorkspace()
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var (details, error, statusCode) =
+                await _accountWorkspace.PauseWorkspaceAsync(userId);
+
+            if (error != null)
+            {
+                return StatusCode(
+                    statusCode,
+                    new
+                    {
+                        success = false,
+                        message = error,
+                    }
+                );
+            }
+
+            return Ok(details);
+        }
+
+        [HttpPost("resume")]
+        public async Task<IActionResult> ResumeWorkspace()
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var (details, error, statusCode) =
+                await _accountWorkspace.ResumeWorkspaceAsync(userId);
+
+            if (error != null)
+            {
+                return StatusCode(
+                    statusCode,
+                    new
+                    {
+                        success = false,
+                        message = error,
+                    }
+                );
+            }
+
+            return Ok(details);
+        }
+
         [HttpGet("brand-logo")]
         public async Task<IActionResult> GetBrandLogo()
         {

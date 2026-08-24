@@ -82,6 +82,7 @@ export type AccountWorkspaceDetails = {
   brandLogoOperatorUrl: string | null
   brandLogoPublicUrl: string | null
   lastSavedAt: string | null
+  isAccountOwner: boolean
   status: AccountWorkspaceStatus
   businessDetails: AccountWorkspaceBusinessDetails
   keyContacts: AccountWorkspaceKeyContacts
@@ -136,6 +137,8 @@ export type OperatorAccountWorkspacePageAdapters = {
   updateWorkspaceDefaults: (
     payload: UpdateWorkspaceDefaultsPayload
   ) => Promise<AccountWorkspaceDetails>
+  pauseWorkspace: () => Promise<AccountWorkspaceDetails>
+  resumeWorkspace: () => Promise<AccountWorkspaceDetails>
   /** Refresh shell readers of Restaurant.Name / Brand logo after persist. */
   onIdentityPersisted?: (details: AccountWorkspaceDetails) => void
 }
@@ -207,6 +210,8 @@ export type OperatorAccountWorkspacePageSnapshot = {
   leaveDirtyOpen: boolean
   pendingNavigationHref: string | null
   toast: AccountWorkspaceToast
+  isAccountOwner: boolean
+  workspaceStatusConfirm: null | "pause" | "resume"
 }
 
 export type OperatorAccountWorkspacePageModule = {
@@ -246,6 +251,11 @@ export type OperatorAccountWorkspacePageModule = {
   closeLeaveDirty: () => void
   clearToast: () => void
   consumePendingNavigation: () => string | null
+  requestPauseWorkspace: () => void
+  requestResumeWorkspace: () => void
+  confirmWorkspaceStatusChange: () => Promise<void>
+  cancelWorkspaceStatusConfirm: () => void
+  closeWorkspaceStatusConfirm: () => void
 }
 
 const WORKSPACE_NAME_REQUIRED_ERROR = "Workspace name is required."
@@ -373,6 +383,7 @@ export function createOperatorAccountWorkspacePageModule(
   let pendingLeave: PendingLeave = null
   let pendingNavigationHref: string | null = null
   let toast: AccountWorkspaceToast = null
+  let workspaceStatusConfirm: null | "pause" | "resume" = null
   let workspaceNameError: string | null = null
   let postcodeError: string | null = null
   let draft: AccountDetailsDraft = {
@@ -439,6 +450,7 @@ export function createOperatorAccountWorkspacePageModule(
   function applyPersisted(details: AccountWorkspaceDetails) {
     persisted = {
       ...details,
+      isAccountOwner: details.isAccountOwner ?? true,
       businessDetails: normalizeBusinessDetails(details.businessDetails),
       keyContacts: normalizeKeyContacts(details.keyContacts),
       workspaceDefaults: normalizeWorkspaceDefaults(details.workspaceDefaults),
@@ -446,6 +458,20 @@ export function createOperatorAccountWorkspacePageModule(
     // Header Last saved shares the form-save clock; CreatedAt until first save.
     lastSavedAt =
       details.lastSavedAt ?? details.status.lastAccountUpdateAt
+    workspaceNameError = null
+    resetDraftFromPersisted()
+  }
+
+  function applyWorkspaceStatusPersisted(details: AccountWorkspaceDetails) {
+    const savedLastSavedAt = lastSavedAt
+    persisted = {
+      ...details,
+      isAccountOwner: details.isAccountOwner ?? true,
+      businessDetails: normalizeBusinessDetails(details.businessDetails),
+      keyContacts: normalizeKeyContacts(details.keyContacts),
+      workspaceDefaults: normalizeWorkspaceDefaults(details.workspaceDefaults),
+    }
+    lastSavedAt = savedLastSavedAt
     workspaceNameError = null
     resetDraftFromPersisted()
   }
@@ -641,6 +667,8 @@ export function createOperatorAccountWorkspacePageModule(
       leaveDirtyOpen,
       pendingNavigationHref,
       toast,
+      isAccountOwner: persisted?.isAccountOwner ?? true,
+      workspaceStatusConfirm,
     }
   }
 
@@ -1141,6 +1169,71 @@ export function createOperatorAccountWorkspacePageModule(
       const href = pendingNavigationHref
       pendingNavigationHref = null
       return href
+    },
+
+    requestPauseWorkspace() {
+      if (persisted?.isAccountOwner === false) {
+        return
+      }
+      workspaceStatusConfirm = "pause"
+      emit()
+    },
+
+    requestResumeWorkspace() {
+      if (persisted?.isAccountOwner === false) {
+        return
+      }
+      workspaceStatusConfirm = "resume"
+      emit()
+    },
+
+    async confirmWorkspaceStatusChange() {
+      if (workspaceStatusConfirm == null || isSaving) {
+        return
+      }
+
+      const action = workspaceStatusConfirm
+      workspaceStatusConfirm = null
+      isSaving = true
+      toast = null
+      emit()
+
+      try {
+        const result =
+          action === "pause"
+            ? await adapters.pauseWorkspace()
+            : await adapters.resumeWorkspace()
+        applyWorkspaceStatusPersisted(result)
+        toast = {
+          kind: "success",
+          message:
+            action === "pause"
+              ? ACCOUNT_WORKSPACE_PAGE_COPY.pauseSuccess
+              : ACCOUNT_WORKSPACE_PAGE_COPY.resumeSuccess,
+        }
+        isSaving = false
+        emit()
+      } catch {
+        toast = {
+          kind: "error",
+          message:
+            action === "pause"
+              ? ACCOUNT_WORKSPACE_PAGE_COPY.pauseError
+              : ACCOUNT_WORKSPACE_PAGE_COPY.resumeError,
+        }
+        isSaving = false
+        emit()
+      }
+    },
+
+    cancelWorkspaceStatusConfirm() {
+      workspaceStatusConfirm = null
+      emit()
+    },
+
+    closeWorkspaceStatusConfirm() {
+      workspaceStatusConfirm = null
+      emit()
     },
   }
 }

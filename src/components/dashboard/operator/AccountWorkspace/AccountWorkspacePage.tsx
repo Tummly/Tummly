@@ -224,6 +224,8 @@ export function AccountWorkspacePage() {
     keyContacts.accountOwner != null
       ? [keyContacts.accountOwner]
       : eligibleMembers
+  const isPaused = status?.workspaceStatus.toLowerCase() === "paused"
+  const dangerZoneDisabled = !snap.isAccountOwner || snap.isSaving
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
@@ -973,7 +975,164 @@ export function AccountWorkspacePage() {
             </div>
           </section>
         </TabsContent>
-        <TabsContent value="account-controls" className="mt-0" />
+        <TabsContent value="account-controls" className="mt-0">
+          <div className="flex flex-col gap-6">
+            <section className={GUESTS_SECTION_CLASS}>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-4">
+                  <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+                    {ACCOUNT_WORKSPACE_PAGE_COPY.accountControlsStatusTitle}
+                  </h2>
+                  {status != null ? (
+                    <Badge variant="soft">{status.workspaceStatus}</Badge>
+                  ) : null}
+                </div>
+                <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.accountControlsStatusSubtitle}
+                </p>
+              </div>
+              {status != null ? (
+                <div className={GUESTS_DETAIL_ROWS_STACK_CLASS}>
+                  <StatusRow
+                    label="Workspace status"
+                    value={status.workspaceStatus}
+                  />
+                  <StatusRow label="Plan status" value={status.planStatus} />
+                  <StatusRow
+                    label="Billing status"
+                    value={status.billingStatus}
+                  />
+                  <StatusRow
+                    label="Account created"
+                    value={formatDateOnly(status.accountCreatedAt)}
+                  />
+                  <StatusRow
+                    label="Active locations"
+                    value={String(status.activeLocations)}
+                  />
+                  <StatusRow
+                    label="Team members"
+                    value={String(status.teamMembers)}
+                  />
+                  <StatusRow
+                    label="Guest profiles"
+                    value={String(status.guestProfiles)}
+                  />
+                  <StatusRow
+                    label="Guest form status"
+                    value={status.guestFormStatus}
+                  />
+                  <StatusRow
+                    label="Last account update"
+                    value={formatDateOnly(status.lastAccountUpdateAt)}
+                  />
+                </div>
+              ) : null}
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  type="button"
+                  variant="op-secondary"
+                  className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+                  disabled
+                >
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.viewBilling}
+                </Button>
+                <Button
+                  type="button"
+                  variant="op-secondary"
+                  className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+                  disabled
+                >
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.viewActivity}
+                </Button>
+              </div>
+            </section>
+
+            <section className={GUESTS_SECTION_CLASS}>
+              <div className="flex flex-col gap-2">
+                <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.dataOwnershipTitle}
+                </h2>
+                <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.dataOwnershipSubtitle}
+                </p>
+              </div>
+              <p className="m-0 text-sm font-medium text-muted-foreground">
+                {ACCOUNT_WORKSPACE_PAGE_COPY.dataOwnershipBody}
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Button type="button" variant="op-secondary" disabled>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.viewPrivacySettings}
+                </Button>
+                <Button type="button" variant="op-tertiary" disabled>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.exportGuestData}
+                </Button>
+              </div>
+            </section>
+
+            <section className={GUESTS_SECTION_CLASS}>
+              <div className="flex flex-col gap-2">
+                <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.dangerZoneTitle}
+                </h2>
+                <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.dangerZoneSubtitle}
+                </p>
+              </div>
+              <p className="m-0 text-sm font-medium text-muted-foreground">
+                {ACCOUNT_WORKSPACE_PAGE_COPY.dangerZoneBody}
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {isPaused ? (
+                  <Button
+                    type="button"
+                    variant="op-primary"
+                    className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+                    disabled={dangerZoneDisabled}
+                    onClick={() => {
+                      pageModule.requestResumeWorkspace()
+                    }}
+                  >
+                    {ACCOUNT_WORKSPACE_PAGE_COPY.resumeWorkspace}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="op-primary"
+                    className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+                    disabled={dangerZoneDisabled}
+                    onClick={() => {
+                      pageModule.requestPauseWorkspace()
+                    }}
+                  >
+                    {ACCOUNT_WORKSPACE_PAGE_COPY.pauseWorkspace}
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="op-secondary"
+                  disabled
+                >
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.transferOwnership}
+                </Button>
+                <Button
+                  type="button"
+                  variant="op-tertiary"
+                  disabled
+                >
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountExport}
+                </Button>
+                <Button
+                  type="button"
+                  variant="op-tertiary"
+                  disabled
+                >
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountClosure}
+                </Button>
+              </div>
+            </section>
+          </div>
+        </TabsContent>
       </Tabs>
 
       <AccountWorkspaceConfirmDialog
@@ -1011,6 +1170,37 @@ export function AccountWorkspacePage() {
         }}
         onCancel={() => {
           void pageModule.confirmLeaveDirtyCancel()
+        }}
+      />
+
+      <AccountWorkspaceConfirmDialog
+        open={snap.workspaceStatusConfirm != null}
+        title={
+          snap.workspaceStatusConfirm === "resume"
+            ? ACCOUNT_WORKSPACE_PAGE_COPY.resumeTitle
+            : ACCOUNT_WORKSPACE_PAGE_COPY.pauseTitle
+        }
+        body={
+          snap.workspaceStatusConfirm === "resume"
+            ? ACCOUNT_WORKSPACE_PAGE_COPY.resumeBody
+            : ACCOUNT_WORKSPACE_PAGE_COPY.pauseBody
+        }
+        primaryLabel={
+          snap.workspaceStatusConfirm === "resume"
+            ? ACCOUNT_WORKSPACE_PAGE_COPY.resumeWorkspace
+            : ACCOUNT_WORKSPACE_PAGE_COPY.pauseWorkspace
+        }
+        busy={snap.isSaving}
+        onOpenChange={(open) => {
+          if (!open) {
+            pageModule.closeWorkspaceStatusConfirm()
+          }
+        }}
+        onPrimary={() => {
+          void pageModule.confirmWorkspaceStatusChange()
+        }}
+        onCancel={() => {
+          pageModule.cancelWorkspaceStatusConfirm()
         }}
       />
     </div>

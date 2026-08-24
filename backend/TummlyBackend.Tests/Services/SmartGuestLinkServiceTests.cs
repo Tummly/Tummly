@@ -175,6 +175,60 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task ResolveForGuestAsync_ReturnsNull_WhenWorkspacePaused_ActiveQrUnchanged()
+        {
+            const string token = "paused-ws-token-123456789012345";
+            var location = await CreateLocationAsync();
+            await AddQrCodeAsync(location, token, QrType.SmartGuest);
+
+            var restaurant = await _context.Restaurants.SingleAsync(
+                r => r.Id == location.RestaurantId
+            );
+            restaurant.WorkspaceStatus = WorkspaceStatus.Paused;
+            await _context.SaveChangesAsync();
+
+            var blocked = await _service.ResolveForGuestAsync(token);
+            Assert.Null(blocked);
+
+            var qr = await _context.QrCodes.SingleAsync(q => q.Token == token);
+            Assert.Equal(QrCodeStatus.Active, qr.Status);
+
+            restaurant.WorkspaceStatus = WorkspaceStatus.Active;
+            await _context.SaveChangesAsync();
+
+            var allowed = await _service.ResolveForGuestAsync(token);
+            Assert.NotNull(allowed);
+            Assert.Equal(QrCodeStatus.Active, qr.Status);
+        }
+
+        [Fact]
+        public async Task ResolveLocationForWriteAsync_ReturnsNull_WhenWorkspacePaused_ActiveQrUnchanged()
+        {
+            const string token = "paused-write-token-123456789012";
+            var location = await CreateLocationAsync();
+            await AddQrCodeAsync(location, token, QrType.CounterCard);
+
+            var restaurant = await _context.Restaurants.SingleAsync(
+                r => r.Id == location.RestaurantId
+            );
+            restaurant.WorkspaceStatus = WorkspaceStatus.Paused;
+            await _context.SaveChangesAsync();
+
+            var blocked = await _service.ResolveLocationForWriteAsync(token);
+            Assert.Null(blocked);
+
+            var qr = await _context.QrCodes.SingleAsync(q => q.Token == token);
+            Assert.Equal(QrCodeStatus.Active, qr.Status);
+
+            restaurant.WorkspaceStatus = WorkspaceStatus.Active;
+            await _context.SaveChangesAsync();
+
+            var allowed = await _service.ResolveLocationForWriteAsync(token);
+            Assert.NotNull(allowed);
+            Assert.Equal(QrCodeStatus.Active, qr.Status);
+        }
+
         [Theory]
         [InlineData(QrCodeStatus.Paused)]
         [InlineData(QrCodeStatus.Archived)]

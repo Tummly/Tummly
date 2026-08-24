@@ -97,6 +97,12 @@ namespace TummlyBackend.Models
         public WorkspaceStatus WorkspaceStatus { get; set; }
             = WorkspaceStatus.Active;
 
+        public DateTime? WorkspaceStatusChangedAt { get; set; }
+
+        public int? WorkspaceStatusChangedByUserId { get; set; }
+
+        public User? WorkspaceStatusChangedByUser { get; set; }
+
         [MaxLength(500)]
         public string? BrandLogoObjectKey { get; set; }
 

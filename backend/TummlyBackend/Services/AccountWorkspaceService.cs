@@ -40,7 +40,7 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            return await BuildDetailsAsync(restaurant);
+            return await BuildDetailsAsync(restaurant, ownerUserId);
         }
 
         public async Task<(
@@ -157,7 +157,7 @@ namespace TummlyBackend.Services
             restaurant.AccountWorkspaceLastSavedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            var details = await BuildDetailsAsync(restaurant);
+            var details = await BuildDetailsAsync(restaurant, ownerUserId);
             return (details, null, StatusCodes.Status200OK);
         }
 
@@ -229,7 +229,7 @@ namespace TummlyBackend.Services
             restaurant.AccountWorkspaceLastSavedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            var details = await BuildDetailsAsync(restaurant);
+            var details = await BuildDetailsAsync(restaurant, ownerUserId);
             return (details, null, StatusCodes.Status200OK);
         }
 
@@ -297,7 +297,7 @@ namespace TummlyBackend.Services
             restaurant.AccountWorkspaceLastSavedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            var details = await BuildDetailsAsync(restaurant);
+            var details = await BuildDetailsAsync(restaurant, ownerUserId);
             return (details, null, StatusCodes.Status200OK);
         }
 
@@ -350,7 +350,66 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var details = await BuildDetailsAsync(restaurant);
+            var details = await BuildDetailsAsync(restaurant, ownerUserId);
+            return (details, null, StatusCodes.Status200OK);
+        }
+
+        public async Task<(
+            AccountWorkspaceDetailsDto? Details,
+            string? Error,
+            int StatusCode
+        )> PauseWorkspaceAsync(int actorUserId)
+        {
+            return await SetWorkspaceStatusAsync(
+                actorUserId,
+                WorkspaceStatus.Paused
+            );
+        }
+
+        public async Task<(
+            AccountWorkspaceDetailsDto? Details,
+            string? Error,
+            int StatusCode
+        )> ResumeWorkspaceAsync(int actorUserId)
+        {
+            return await SetWorkspaceStatusAsync(
+                actorUserId,
+                WorkspaceStatus.Active
+            );
+        }
+
+        private async Task<(
+            AccountWorkspaceDetailsDto? Details,
+            string? Error,
+            int StatusCode
+        )> SetWorkspaceStatusAsync(
+            int actorUserId,
+            WorkspaceStatus nextStatus
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .FirstOrDefaultAsync(r => r.OwnerUserId == actorUserId);
+
+            if (restaurant == null)
+            {
+                return (null, "Restaurant not found.", StatusCodes.Status404NotFound);
+            }
+
+            if (restaurant.OwnerUserId != actorUserId)
+            {
+                return (
+                    null,
+                    "Only the account owner can change workspace status.",
+                    StatusCodes.Status403Forbidden
+                );
+            }
+
+            restaurant.WorkspaceStatus = nextStatus;
+            restaurant.WorkspaceStatusChangedAt = DateTime.UtcNow;
+            restaurant.WorkspaceStatusChangedByUserId = actorUserId;
+            await _context.SaveChangesAsync();
+
+            var details = await BuildDetailsAsync(restaurant, actorUserId);
             return (details, null, StatusCodes.Status200OK);
         }
 
@@ -418,7 +477,8 @@ namespace TummlyBackend.Services
         }
 
         private async Task<AccountWorkspaceDetailsDto> BuildDetailsAsync(
-            Restaurant restaurant
+            Restaurant restaurant,
+            int actorUserId
         )
         {
             var activeLocations = await _context.RestaurantLocations
@@ -467,6 +527,7 @@ namespace TummlyBackend.Services
                     ? BrandLogoRules.BuildPublicUrl(restaurant.BrandLogoObjectKey!)
                     : null,
                 LastSavedAt = restaurant.AccountWorkspaceLastSavedAt,
+                IsAccountOwner = restaurant.OwnerUserId == actorUserId,
                 Status = new AccountWorkspaceStatusDto
                 {
                     WorkspaceStatus = workspaceStatus,
