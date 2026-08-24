@@ -305,6 +305,12 @@ namespace TummlyBackend.Data
                 .HasForeignKey(r => r.SupportContactUserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<Restaurant>()
+                .HasOne(r => r.WorkspaceStatusChangedByUser)
+                .WithMany()
+                .HasForeignKey(r => r.WorkspaceStatusChangedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
             /*
              =========================================
              RESTAURANT -> GUEST LOOP

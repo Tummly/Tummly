@@ -809,6 +809,194 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
 
+        [Fact]
+        public async Task PostPause_SetsPaused_AuditFields_GuestFormPaused_DoesNotTouchLastSaved()
+        {
+            var seeded = await SeedOwnerAsync(email: "aw-pause-ok@example.com");
+            DateTime? lastSavedBefore;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var restaurant = context.Restaurants.Single(
+                    r => r.Id == seeded.RestaurantId
+                );
+                restaurant.AccountWorkspaceLastSavedAt =
+                    DateTime.UtcNow.AddHours(-2);
+                lastSavedBefore = restaurant.AccountWorkspaceLastSavedAt;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/account-workspace/pause"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.True(body.GetProperty("isAccountOwner").GetBoolean());
+            var status = body.GetProperty("status");
+            Assert.Equal("Paused", status.GetProperty("workspaceStatus").GetString());
+            Assert.Equal("Paused", status.GetProperty("guestFormStatus").GetString());
+            Assert.Equal(
+                lastSavedBefore!.Value.ToUniversalTime().ToString("O")[..19],
+                DateTime.Parse(
+                    body.GetProperty("lastSavedAt").GetString()!
+                ).ToUniversalTime().ToString("O")[..19]
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var restaurant = context.Restaurants.Single(
+                    r => r.Id == seeded.RestaurantId
+                );
+                Assert.Equal(WorkspaceStatus.Paused, restaurant.WorkspaceStatus);
+                Assert.NotNull(restaurant.WorkspaceStatusChangedAt);
+                Assert.Equal(
+                    seeded.OwnerUserId,
+                    restaurant.WorkspaceStatusChangedByUserId
+                );
+                Assert.Equal(
+                    lastSavedBefore,
+                    restaurant.AccountWorkspaceLastSavedAt
+                );
+            }
+        }
+
+        [Fact]
+        public async Task PostResume_RestoresActiveAndLive_WithAudit_DoesNotTouchLastSaved()
+        {
+            var seeded = await SeedOwnerAsync(email: "aw-resume-ok@example.com");
+            DateTime? lastSavedBefore;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var restaurant = context.Restaurants.Single(
+                    r => r.Id == seeded.RestaurantId
+                );
+                restaurant.WorkspaceStatus = WorkspaceStatus.Paused;
+                restaurant.WorkspaceStatusChangedAt =
+                    DateTime.UtcNow.AddDays(-1);
+                restaurant.WorkspaceStatusChangedByUserId = seeded.OwnerUserId;
+                restaurant.AccountWorkspaceLastSavedAt =
+                    DateTime.UtcNow.AddHours(-3);
+                lastSavedBefore = restaurant.AccountWorkspaceLastSavedAt;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/account-workspace/resume"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.True(body.GetProperty("isAccountOwner").GetBoolean());
+            var status = body.GetProperty("status");
+            Assert.Equal("Active", status.GetProperty("workspaceStatus").GetString());
+            Assert.Equal("Live", status.GetProperty("guestFormStatus").GetString());
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var restaurant = context.Restaurants.Single(
+                    r => r.Id == seeded.RestaurantId
+                );
+                Assert.Equal(WorkspaceStatus.Active, restaurant.WorkspaceStatus);
+                Assert.NotNull(restaurant.WorkspaceStatusChangedAt);
+                Assert.True(
+                    restaurant.WorkspaceStatusChangedAt
+                        > DateTime.UtcNow.AddMinutes(-2)
+                );
+                Assert.Equal(
+                    seeded.OwnerUserId,
+                    restaurant.WorkspaceStatusChangedByUserId
+                );
+                Assert.Equal(
+                    lastSavedBefore,
+                    restaurant.AccountWorkspaceLastSavedAt
+                );
+            }
+        }
+
+        [Fact]
+        public async Task PostPause_Returns401_WhenUnauthenticated()
+        {
+            var response = await _client.PostAsync(
+                "/api/account-workspace/pause",
+                null
+            );
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostResume_Returns401_WhenUnauthenticated()
+        {
+            var response = await _client.PostAsync(
+                "/api/account-workspace/resume",
+                null
+            );
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostPause_Returns404_WhenCallerHasNoOwnedRestaurant()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var nonOwner = new User
+            {
+                FullName = "Not An Owner",
+                Email = "aw-pause-nonowner@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900999",
+                Role = "Owner",
+                AccountType = "Single",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(nonOwner);
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                nonOwner.Id.ToString(),
+                nonOwner.Email,
+                nonOwner.Role
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/account-workspace/pause"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
         private HttpClient CreateClientWithStorage(
             IQueryAttachmentStorage storage
         )
@@ -837,7 +1025,8 @@ namespace TummlyBackend.Tests.Integration
         private async Task<(
             string Jwt,
             int RestaurantId,
-            int LocationId
+            int LocationId,
+            int OwnerUserId
         )> SeedOwnerAsync(
             string email = "aw-owner@example.com",
             string? businessCategory = "cafe",
@@ -899,7 +1088,7 @@ namespace TummlyBackend.Tests.Integration
                 user.Role
             );
 
-            return (jwt, restaurant.Id, location.Id);
+            return (jwt, restaurant.Id, location.Id, user.Id);
         }
 
         private static async Task<JsonElement> ReadJsonAsync(

@@ -20,6 +20,8 @@ namespace TummlyBackend.DTOs.AccountWorkspace
 
         public DateTime? LastSavedAt { get; set; }
 
+        public bool IsAccountOwner { get; set; }
+
         public AccountWorkspaceStatusDto Status { get; set; } = new();
 
         public RestaurantBusinessDetailsDto? BusinessDetails { get; set; }

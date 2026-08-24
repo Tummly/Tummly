@@ -20,6 +20,7 @@ function createDetails(
     brandLogoOperatorUrl: null,
     brandLogoPublicUrl: null,
     lastSavedAt: "2026-07-22T13:41:00.000Z",
+    isAccountOwner: true,
     status: {
       workspaceStatus: "Active",
       planStatus: "Pilot",
@@ -83,6 +84,8 @@ function createAdapters(
   updateBusinessDetails: Mock
   updateKeyContacts: Mock
   updateWorkspaceDefaults: Mock
+  pauseWorkspace: Mock
+  resumeWorkspace: Mock
 } {
   return {
     getDetails: vi.fn(async () => createDetails()),
@@ -151,6 +154,24 @@ function createAdapters(
         },
       })
     ),
+    pauseWorkspace: vi.fn(async () =>
+      createDetails({
+        status: {
+          ...createDetails().status,
+          workspaceStatus: "Paused",
+          guestFormStatus: "Paused",
+        },
+      })
+    ),
+    resumeWorkspace: vi.fn(async () =>
+      createDetails({
+        status: {
+          ...createDetails().status,
+          workspaceStatus: "Active",
+          guestFormStatus: "Live",
+        },
+      })
+    ),
     ...overrides,
   } as OperatorAccountWorkspacePageAdapters & {
     getDetails: Mock
@@ -158,6 +179,8 @@ function createAdapters(
     updateBusinessDetails: Mock
     updateKeyContacts: Mock
     updateWorkspaceDefaults: Mock
+    pauseWorkspace: Mock
+    resumeWorkspace: Mock
   }
 }
 
@@ -709,6 +732,56 @@ describe("createOperatorAccountWorkspacePageModule", () => {
     expect(adapters.updateWorkspaceDefaults).toHaveBeenCalled()
     expect(page.getSnapshot().activeTabId).toBe("account-details")
     expect(page.getSnapshot().leaveDirtyOpen).toBe(false)
+  })
+
+  it("pause success updates workspaceStatus and guestFormStatus without changing lastSavedAt", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "account-controls",
+    })
+    await page.load()
+
+    const lastSavedBefore = page.getSnapshot().lastSavedAt
+    page.requestPauseWorkspace()
+    expect(page.getSnapshot().workspaceStatusConfirm).toBe("pause")
+
+    await page.confirmWorkspaceStatusChange()
+
+    expect(adapters.pauseWorkspace).toHaveBeenCalled()
+    expect(adapters.resumeWorkspace).not.toHaveBeenCalled()
+    expect(page.getSnapshot().workspaceStatusConfirm).toBeNull()
+    expect(page.getSnapshot().accountDetails.status?.workspaceStatus).toBe(
+      "Paused"
+    )
+    expect(page.getSnapshot().accountDetails.status?.guestFormStatus).toBe(
+      "Paused"
+    )
+    expect(page.getSnapshot().lastSavedAt).toBe(lastSavedBefore)
+    expect(page.getSnapshot().isDirty).toBe(false)
+    expect(page.getSnapshot().saveEnabled).toBe(false)
+    expect(page.getSnapshot().toast).toEqual({
+      kind: "success",
+      message: "Workspace paused.",
+    })
+  })
+
+  it("cancel workspace status confirm does not call adapter", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "account-controls",
+    })
+    await page.load()
+
+    page.requestPauseWorkspace()
+    expect(page.getSnapshot().workspaceStatusConfirm).toBe("pause")
+
+    page.cancelWorkspaceStatusConfirm()
+
+    expect(adapters.pauseWorkspace).not.toHaveBeenCalled()
+    expect(page.getSnapshot().workspaceStatusConfirm).toBeNull()
+    expect(page.getSnapshot().accountDetails.status?.workspaceStatus).toBe(
+      "Active"
+    )
   })
 
 })

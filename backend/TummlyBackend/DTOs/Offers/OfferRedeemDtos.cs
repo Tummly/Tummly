@@ -40,6 +40,7 @@ namespace TummlyBackend.DTOs.Offers
         public const string AlreadyUsed = "already_used";
         public const string Voided = "voided";
         public const string WrongLocation = "wrong_location";
+        public const string WorkspacePaused = "workspace_paused";
     }
 
     public abstract record OfferRedeemCheckResult

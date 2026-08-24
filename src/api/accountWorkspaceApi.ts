@@ -76,6 +76,7 @@ type AccountWorkspaceApiDetails = {
   brandLogoOperatorUrl: string | null
   brandLogoPublicUrl: string | null
   lastSavedAt: string | null
+  isAccountOwner?: boolean
   status: AccountWorkspaceApiStatus
   businessDetails?: AccountWorkspaceApiBusinessDetails | null
   keyContacts?: AccountWorkspaceApiKeyContacts | null
@@ -155,6 +156,7 @@ function mapDetails(
     brandLogoOperatorUrl: data.brandLogoOperatorUrl,
     brandLogoPublicUrl: data.brandLogoPublicUrl,
     lastSavedAt: data.lastSavedAt,
+    isAccountOwner: data.isAccountOwner ?? true,
     status: data.status,
     businessDetails: mapBusinessDetails(data.businessDetails),
     keyContacts: mapKeyContacts(data.keyContacts),
@@ -212,6 +214,20 @@ export async function updateAccountWorkspaceWorkspaceDefaults(
   const response = await axiosInstance.put<AccountWorkspaceApiDetails>(
     "/account-workspace/workspace-defaults",
     payload
+  )
+  return mapDetails(response.data)
+}
+
+export async function pauseAccountWorkspace(): Promise<AccountWorkspaceDetails> {
+  const response = await axiosInstance.post<AccountWorkspaceApiDetails>(
+    "/account-workspace/pause"
+  )
+  return mapDetails(response.data)
+}
+
+export async function resumeAccountWorkspace(): Promise<AccountWorkspaceDetails> {
+  const response = await axiosInstance.post<AccountWorkspaceApiDetails>(
+    "/account-workspace/resume"
   )
   return mapDetails(response.data)
 }

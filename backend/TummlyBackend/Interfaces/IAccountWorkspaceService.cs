@@ -31,6 +31,12 @@ namespace TummlyBackend.Interfaces
                 UpdateWorkspaceDefaultsRequest request
             );
 
+        Task<(AccountWorkspaceDetailsDto? Details, string? Error, int StatusCode)>
+            PauseWorkspaceAsync(int actorUserId);
+
+        Task<(AccountWorkspaceDetailsDto? Details, string? Error, int StatusCode)>
+            ResumeWorkspaceAsync(int actorUserId);
+
         Task<(Stream Stream, string ContentType)?> OpenBrandLogoAsync(
             int ownerUserId
         );

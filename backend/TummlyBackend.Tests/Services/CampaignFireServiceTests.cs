@@ -96,6 +96,47 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task FireAsync_WorkspacePaused_SetsFailedAndReleases_WithoutSending()
+        {
+            var seeded = await SeedScheduledCampaignAsync(
+                frozenEligibleCount: 2,
+                scheduledAtUtc: _now.AddMinutes(-5)
+            );
+
+            var campaign = await _context.Campaigns
+                .Include(c => c.RestaurantLocation)
+                .SingleAsync(c => c.Id == seeded.CampaignId);
+            var restaurant = await _context.Restaurants.SingleAsync(
+                r => r.Id == campaign.RestaurantLocation!.RestaurantId
+            );
+            restaurant.WorkspaceStatus = WorkspaceStatus.Paused;
+            await _context.SaveChangesAsync();
+
+            var pausedGate = new ClearCampaignSendStartGate(_context);
+            var fire = new CampaignFireService(
+                _context,
+                _eligibility,
+                _reserve,
+                _outbound,
+                pausedGate,
+                utcNow: () => _now
+            );
+
+            var result = await fire.FireAsync(seeded.CampaignId);
+
+            var failed = Assert.IsType<CampaignFireResult.CannotStart>(result);
+            Assert.Equal(CampaignFireService.FailedStatus, failed.Campaign.Status);
+            Assert.Single(_reserve.ReleaseCalls);
+            Assert.Empty(_outbound.Calls);
+
+            var reloaded = await _context.Campaigns.SingleAsync(
+                c => c.Id == seeded.CampaignId
+            );
+            Assert.Equal(CampaignFireService.FailedStatus, reloaded.Status);
+            Assert.Null(reloaded.BillingReservationRef);
+        }
+
+        [Fact]
         public async Task FireAsync_Success_SettlesAcceptedOnlyAndSetsSent()
         {
             var seeded = await SeedSendingCampaignAsync(frozenEligibleCount: 2);

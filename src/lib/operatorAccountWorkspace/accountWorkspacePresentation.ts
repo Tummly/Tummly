@@ -165,6 +165,38 @@ export const ACCOUNT_WORKSPACE_PAGE_COPY = {
   postcode: "Postcode",
   country: "Country",
   ukPostcodeError: "Enter a valid UK postcode.",
+  accountControlsStatusTitle: "Account status",
+  accountControlsStatusSubtitle:
+    "Review the current status of your Tummly workspace.",
+  viewBilling: "View billing",
+  viewActivity: "View activity",
+  dataOwnershipTitle: "Data ownership",
+  dataOwnershipSubtitle:
+    "Your restaurant owns its identifiable guest data.",
+  dataOwnershipBody:
+    "Tummly helps you collect, manage and use guest feedback, consent records, offers and campaign activity for this workspace. Tummly does not sell guest contact details or share identifiable guest data with other restaurants.",
+  viewPrivacySettings: "View privacy settings",
+  exportGuestData: "Export guest data",
+  dangerZoneTitle: "Danger zone",
+  dangerZoneSubtitle:
+    "These actions can affect access, guest forms, campaigns and account data. Only account owners can make these changes.",
+  dangerZoneBody:
+    "Pause takes effect immediately after you confirm. Transfer ownership, account export, and account closure create a Support request. They do not change the account until Support completes the work.",
+  pauseWorkspace: "Pause workspace",
+  resumeWorkspace: "Resume workspace",
+  pauseTitle: "Pause workspace?",
+  pauseBody:
+    "This sets Workspace status to Paused. Guest forms, Campaigns, Offers, and later billing for this Restaurant stop. You can still open Account & workspace to resume.",
+  resumeTitle: "Resume workspace?",
+  resumeBody:
+    "This sets Workspace status to Active and starts guest forms and outbound product work again.",
+  pauseSuccess: "Workspace paused.",
+  resumeSuccess: "Workspace resumed.",
+  pauseError: "Could not pause the workspace. Please try again.",
+  resumeError: "Could not resume the workspace. Please try again.",
+  transferOwnership: "Transfer ownership",
+  requestAccountExport: "Request account export",
+  requestAccountClosure: "Request account closure",
 } as const
 
 /** Select menus above leave-dirty / rename dialogs on this page. */
