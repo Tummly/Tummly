@@ -31,6 +31,10 @@ export type OperatorWorkspaceSession = {
   retry: () => Promise<void>
   selectLocation: (locationId: number) => void
   preferLocationFromQuery: (queryLocationId: number | null) => void
+  applyRestaurantIdentity: (input: {
+    restaurantName: string
+    brandLogoPublicUrl: string | null
+  }) => void
 }
 
 type WorkspaceState = OperatorWorkspaceSnapshot & {
@@ -53,6 +57,11 @@ type WorkspaceAction =
   | { type: "load_failed" }
   | { type: "select_location"; locationId: number }
   | { type: "remember_query_location"; queryLocationId: number | null }
+  | {
+      type: "apply_restaurant_identity"
+      restaurantName: string
+      brandLogoPublicUrl: string | null
+    }
 
 function isOwnedLocationId(
   locations: LocationItem[],
@@ -90,6 +99,12 @@ function reduce(
       return { ...state, selectedLocationId: action.locationId }
     case "remember_query_location":
       return { ...state, lastQueryLocationId: action.queryLocationId }
+    case "apply_restaurant_identity":
+      return {
+        ...state,
+        restaurantName: action.restaurantName,
+        brandLogoPublicUrl: action.brandLogoPublicUrl,
+      }
     default:
       return state
   }
@@ -240,6 +255,16 @@ export function createOperatorWorkspaceSession(
         return
       }
       commitSelection(queryLocationId)
+    },
+    applyRestaurantIdentity: ({ restaurantName, brandLogoPublicUrl }) => {
+      if (state.status !== "loaded") {
+        return
+      }
+      dispatch({
+        type: "apply_restaurant_identity",
+        restaurantName: restaurantName.trim(),
+        brandLogoPublicUrl,
+      })
     },
   }
 }

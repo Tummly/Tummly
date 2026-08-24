@@ -10,6 +10,7 @@ import type {
   OperatorSidebarPrimaryNavId,
 } from "@/lib/operatorHome/sidebarNav"
 import { resolveSettingsDisclosureOpen } from "@/lib/operatorHome/sidebarNav"
+import { tryLeaveDirtyNavigate } from "@/lib/operatorNavigation/leaveDirtyGuard"
 
 import chevronIcon from "@/assets/operator-home/sidenav/chevron.svg"
 import homeIcon from "@/assets/operator-home/sidenav/home.svg"
@@ -265,7 +266,14 @@ export function DashboardSidebar({
                   aria-label={item.label}
                   title={collapsed ? item.label : undefined}
                   className={rowClass}
-                  onClick={onNavigate}
+                  onClick={(event) => {
+                    const href = item.to ?? ""
+                    if (!tryLeaveDirtyNavigate(href)) {
+                      event.preventDefault()
+                      return
+                    }
+                    onNavigate?.()
+                  }}
                 >
                   <NavRowContent
                     label={item.label}
@@ -384,7 +392,14 @@ export function DashboardSidebar({
                             childClassName,
                             "flex items-center"
                           )}
-                          onClick={onNavigate}
+                          onClick={(event) => {
+                            const href = child.to ?? ""
+                            if (!tryLeaveDirtyNavigate(href)) {
+                              event.preventDefault()
+                              return
+                            }
+                            onNavigate?.()
+                          }}
                         >
                           {label}
                         </NavLink>

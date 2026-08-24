@@ -47,6 +47,8 @@ export type OperatorAccountWorkspacePageAdapters = {
     name: string
     logo: File | null
   }) => Promise<AccountWorkspaceDetails>
+  /** Refresh shell readers of Restaurant.Name / Brand logo after persist. */
+  onIdentityPersisted?: (details: AccountWorkspaceDetails) => void
 }
 
 export type OperatorAccountWorkspacePageOptions = {
@@ -75,6 +77,7 @@ export type OperatorAccountWorkspacePageSnapshot = {
   saveEnabled: boolean
   accountDetails: {
     workspaceName: string
+    workspaceNameError: string | null
     accountStructure: string
     businessCategory: string | null
     businessCategoryLabel: string | null
@@ -108,19 +111,8 @@ export type OperatorAccountWorkspacePageModule = {
   consumePendingNavigation: () => string | null
 }
 
-function emptyStatus(): AccountWorkspaceStatus {
-  return {
-    workspaceStatus: "Active",
-    planStatus: "Pilot",
-    billingStatus: "Active",
-    accountCreatedAt: "",
-    activeLocations: 0,
-    teamMembers: 1,
-    guestProfiles: 0,
-    guestFormStatus: "Live",
-    lastAccountUpdateAt: "",
-  }
-}
+const WORKSPACE_NAME_REQUIRED_ERROR = "Workspace name is required."
+const WORKSPACE_NAME_MAX_ERROR = "Workspace name must be 200 characters or fewer."
 
 export function createOperatorAccountWorkspacePageModule(
   adapters: OperatorAccountWorkspacePageAdapters,
@@ -137,6 +129,7 @@ export function createOperatorAccountWorkspacePageModule(
   let pendingLeave: PendingLeave = null
   let pendingNavigationHref: string | null = null
   let toast: AccountWorkspaceToast = null
+  let workspaceNameError: string | null = null
   let draft: AccountDetailsDraft = {
     workspaceName: "",
     stagedLogo: null,
@@ -168,8 +161,25 @@ export function createOperatorAccountWorkspacePageModule(
 
   function applyPersisted(details: AccountWorkspaceDetails) {
     persisted = details
-    lastSavedAt = details.lastSavedAt
+    // Header Last saved shares the form-save clock; CreatedAt until first save.
+    lastSavedAt =
+      details.lastSavedAt ?? details.status.lastAccountUpdateAt
+    workspaceNameError = null
     resetDraftFromPersisted()
+  }
+
+  function validateAccountDetailsDraft(): boolean {
+    const name = draft.workspaceName.trim()
+    if (name.length === 0) {
+      workspaceNameError = WORKSPACE_NAME_REQUIRED_ERROR
+      return false
+    }
+    if (name.length > 200) {
+      workspaceNameError = WORKSPACE_NAME_MAX_ERROR
+      return false
+    }
+    workspaceNameError = null
+    return true
   }
 
   function isAccountDetailsDirty(): boolean {
@@ -216,6 +226,7 @@ export function createOperatorAccountWorkspacePageModule(
       saveEnabled: !onControls && dirty && !isSaving,
       accountDetails: {
         workspaceName: draft.workspaceName,
+        workspaceNameError,
         accountStructure: persisted?.accountStructure ?? "",
         businessCategory: persisted?.businessCategory ?? null,
         businessCategoryLabel: persisted?.businessCategoryLabel ?? null,
@@ -224,6 +235,7 @@ export function createOperatorAccountWorkspacePageModule(
         brandLogoPreviewUrl:
           draft.stagedLogoPreviewUrl
           ?? persisted?.brandLogoPublicUrl
+          ?? persisted?.brandLogoOperatorUrl
           ?? null,
         status: persisted?.status ?? null,
       },
@@ -239,15 +251,12 @@ export function createOperatorAccountWorkspacePageModule(
       return false
     }
 
-    const name = draft.workspaceName.trim()
-    if (name.length === 0 || name.length > 200) {
-      toast = {
-        kind: "error",
-        message: ACCOUNT_WORKSPACE_PAGE_COPY.saveError,
-      }
+    if (!validateAccountDetailsDraft()) {
       emit()
       return false
     }
+
+    const name = draft.workspaceName.trim()
 
     isSaving = true
     toast = null
@@ -259,6 +268,7 @@ export function createOperatorAccountWorkspacePageModule(
         logo: draft.stagedLogo,
       })
       applyPersisted(result)
+      adapters.onIdentityPersisted?.(result)
       toast = {
         kind: "success",
         message: ACCOUNT_WORKSPACE_PAGE_COPY.saveSuccess,
@@ -279,6 +289,11 @@ export function createOperatorAccountWorkspacePageModule(
 
   async function runSaveFlow(): Promise<boolean> {
     if (!activeTabDirty() || isSaving) {
+      return false
+    }
+
+    if (activeTabId === "account-details" && !validateAccountDetailsDraft()) {
+      emit()
       return false
     }
 
@@ -343,6 +358,7 @@ export function createOperatorAccountWorkspacePageModule(
 
     setWorkspaceName(name) {
       draft = { ...draft, workspaceName: name }
+      workspaceNameError = null
       emit()
     },
 
@@ -418,6 +434,12 @@ export function createOperatorAccountWorkspacePageModule(
       }
       leaveDirtyOpen = false
       emit()
+
+      if (activeTabId === "account-details" && !validateAccountDetailsDraft()) {
+        pendingLeave = null
+        emit()
+        return
+      }
 
       if (activeTabId === "account-details" && nameChanged()) {
         renameConfirmOpen = true

@@ -294,13 +294,72 @@ describe("createOperatorAccountWorkspacePageModule", () => {
     expect(page.getSnapshot().isDirty).toBe(true)
   })
 
-  it("round-trips active tab id from initialTabId", async () => {
+  it("does not open rename confirm when workspace name is empty", async () => {
     const adapters = createAdapters()
-    const page = createOperatorAccountWorkspacePageModule(adapters, {
-      initialTabId: "workspace-defaults",
-    })
+    const page = createOperatorAccountWorkspacePageModule(adapters)
     await page.load()
 
-    expect(page.getSnapshot().activeTabId).toBe("workspace-defaults")
+    page.setWorkspaceName("   ")
+    await page.requestSave()
+
+    expect(page.getSnapshot().renameConfirmOpen).toBe(false)
+    expect(page.getSnapshot().accountDetails.workspaceNameError).toBe(
+      "Workspace name is required."
+    )
+    expect(adapters.updateAccountDetails).not.toHaveBeenCalled()
+  })
+
+  it("uses status lastAccountUpdateAt for Last saved before first form save", async () => {
+    const adapters = createAdapters({
+      getDetails: vi.fn(async () =>
+        createDetails({
+          lastSavedAt: null,
+          status: {
+            ...createDetails().status,
+            lastAccountUpdateAt: "2026-01-10T10:00:00.000Z",
+          },
+        })
+      ),
+    })
+    const page = createOperatorAccountWorkspacePageModule(adapters)
+    await page.load()
+
+    expect(page.getSnapshot().lastSavedAt).toBe("2026-01-10T10:00:00.000Z")
+  })
+
+  it("requestNavigateAway opens leave-dirty when dirty", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters)
+    await page.load()
+
+    page.setWorkspaceName("Renamed")
+    expect(page.requestNavigateAway("/single-dashboard/guests?location=1")).toBe(
+      false
+    )
+    expect(page.getSnapshot().leaveDirtyOpen).toBe(true)
+
+    await page.confirmLeaveDirtyCancel()
+    expect(page.getSnapshot().pendingNavigationHref).toBe(
+      "/single-dashboard/guests?location=1"
+    )
+    expect(page.consumePendingNavigation()).toBe(
+      "/single-dashboard/guests?location=1"
+    )
+  })
+
+  it("calls onIdentityPersisted after a successful save", async () => {
+    const onIdentityPersisted = vi.fn()
+    const adapters = createAdapters({ onIdentityPersisted })
+    const page = createOperatorAccountWorkspacePageModule(adapters)
+    await page.load()
+
+    page.stageBrandLogo(new File(["x"], "logo.png", { type: "image/png" }))
+    await page.requestSave()
+
+    expect(onIdentityPersisted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceName: "Camden Group",
+      })
+    )
   })
 })

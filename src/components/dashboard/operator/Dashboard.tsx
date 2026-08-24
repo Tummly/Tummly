@@ -389,6 +389,7 @@ function DashboardContent({ mode }: DashboardProps) {
           locations: workspace.snapshot.locations,
           mode,
           selectLocation: workspace.selectLocation,
+          applyRestaurantIdentity: workspace.applyRestaurantIdentity,
         }}
       />
     </DashboardShell>
@@ -423,4 +424,8 @@ export type DashboardOutletContext = {
   locations: Array<{ id: number; locationName: string; address: string }>
   mode: DashboardProps["mode"]
   selectLocation: (locationId: number) => void
+  applyRestaurantIdentity: (input: {
+    restaurantName: string
+    brandLogoPublicUrl: string | null
+  }) => void
 }

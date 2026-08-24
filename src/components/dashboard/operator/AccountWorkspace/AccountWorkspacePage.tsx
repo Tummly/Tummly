@@ -20,6 +20,10 @@ import {
 import type { AccountWorkspaceTabId } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 import { resolveBrandLogoSrc } from "@/lib/brandLogo/resolveBrandLogoSrc"
 import {
+  BROWSER_BACK_HREF,
+  registerLeaveDirtyGuard,
+} from "@/lib/operatorNavigation/leaveDirtyGuard"
+import {
   GUESTS_DETAIL_FIELD_CLASS,
   GUESTS_DETAIL_FIELD_LABEL_CLASS,
   GUESTS_DETAIL_FIELD_VALUE_CLASS,
@@ -84,12 +88,49 @@ export function AccountWorkspacePage() {
       return
     }
     const href = pageModule.consumePendingNavigation()
-    if (href != null) {
-      navigate(href)
+    if (href == null) {
+      return
     }
+    if (href === BROWSER_BACK_HREF) {
+      navigate(-1)
+      return
+    }
+    navigate(href)
   }, [snap.pendingNavigationHref, pageModule, navigate])
 
+  useEffect(() => {
+    registerLeaveDirtyGuard({
+      isBlocked: () => pageModule.getSnapshot().isDirty,
+      requestLeave: (href) => pageModule.requestNavigateAway(href),
+    })
+    return () => {
+      registerLeaveDirtyGuard(null)
+    }
+  }, [pageModule])
+
+  useEffect(() => {
+    if (!snap.isDirty) {
+      return
+    }
+
+    const onPopState = () => {
+      if (!pageModule.getSnapshot().isDirty) {
+        return
+      }
+      // Stay on this URL until Unsaved changes resolves.
+      window.history.pushState(null, "", window.location.href)
+      pageModule.requestNavigateAway(BROWSER_BACK_HREF)
+    }
+
+    window.history.pushState(null, "", window.location.href)
+    window.addEventListener("popstate", onPopState)
+    return () => {
+      window.removeEventListener("popstate", onPopState)
+    }
+  }, [snap.isDirty, pageModule])
+
   const status = snap.accountDetails.status
+  const workspaceNameError = snap.accountDetails.workspaceNameError
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
@@ -144,7 +185,7 @@ export function AccountWorkspacePage() {
               key={tab.id}
               value={tab.id}
               className={cn(
-                "rounded-none px-3 py-2 text-sm font-medium text-[#a6a6a6]",
+                "rounded-none px-3 py-2 text-sm font-medium text-op-button-date-text",
                 "data-active:font-semibold data-active:text-foreground",
                 "group-data-[variant=line]/tabs-list:data-active:after:bg-op-button-primary-background"
               )}
@@ -170,10 +211,24 @@ export function AccountWorkspacePage() {
                     id="workspace-name"
                     value={snap.accountDetails.workspaceName}
                     maxLength={200}
+                    aria-invalid={workspaceNameError != null}
+                    aria-describedby={
+                      workspaceNameError != null
+                        ? "workspace-name-error"
+                        : undefined
+                    }
                     onChange={(event) => {
                       pageModule.setWorkspaceName(event.target.value)
                     }}
                   />
+                  {workspaceNameError != null ? (
+                    <p
+                      id="workspace-name-error"
+                      className="m-0 text-sm text-destructive"
+                    >
+                      {workspaceNameError}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex flex-col gap-2">
                   <p className="text-sm font-medium text-foreground">

@@ -1,11 +1,18 @@
-import { createElement, useEffect, useState, type ReactNode } from "react"
-import { useSearchParams } from "react-router-dom"
+import {
+  createElement,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
+import { useOutletContext, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import {
   getAccountWorkspaceDetails,
   updateAccountWorkspaceDetails,
 } from "@/api/accountWorkspaceApi"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { accountWorkspacePageModuleContext } from "@/components/dashboard/operator/AccountWorkspace/utils/accountWorkspacePageModuleContext"
 import {
   createOperatorAccountWorkspacePageModule,
@@ -19,11 +26,22 @@ export function AccountWorkspacePageModuleProvider({
 }) {
   const [searchParams] = useSearchParams()
   const initialTabId = searchParams.get("tab")
+  const { applyRestaurantIdentity } =
+    useOutletContext<DashboardOutletContext>()
+  const applyIdentityRef = useRef(applyRestaurantIdentity)
+  applyIdentityRef.current = applyRestaurantIdentity
+
   const [pageModule] = useState(() =>
     createOperatorAccountWorkspacePageModule(
       {
         getDetails: getAccountWorkspaceDetails,
         updateAccountDetails: updateAccountWorkspaceDetails,
+        onIdentityPersisted: (details) => {
+          applyIdentityRef.current({
+            restaurantName: details.workspaceName,
+            brandLogoPublicUrl: details.brandLogoPublicUrl,
+          })
+        },
       },
       { initialTabId }
     )
