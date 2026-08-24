@@ -477,5 +477,48 @@ namespace TummlyBackend.Tests.Helpers
                 StringComparison.Ordinal
             );
         }
+
+        [Fact]
+        public void Overlay_IncompleteModel_KeepsParsedPercent()
+        {
+            var parsed = AssistantOfferPathTerms.Parse(
+                "Draft a campaign with 50% off offer",
+                Utc2026
+            );
+            var model = new AssistantOfferPathTermsState
+            {
+                OfferType = "percentage_discount",
+            };
+
+            var overlaid = AssistantOfferPathTerms.Overlay(model, parsed);
+
+            Assert.Equal("percentage_discount", overlaid.OfferType);
+            Assert.Equal(50m, overlaid.DiscountPercentage);
+            Assert.Null(overlaid.Validity);
+        }
+
+        [Fact]
+        public void Parse_ThirtyDaysAfterTheyGetIt_SetsThirtyDayValidity()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "30 days after they get it",
+                Utc2026
+            );
+
+            Assert.Equal("30_days_after_issue", state.Validity);
+            Assert.Null(state.ExpiryDate);
+        }
+
+        [Fact]
+        public void Parse_NamedCalendarDate_SetsFixedExpiry()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "it should end on 30 September 2026",
+                Utc2026
+            );
+
+            Assert.Equal("choose_expiry_date", state.Validity);
+            Assert.Equal("2026-09-30", state.ExpiryDate);
+        }
     }
 }

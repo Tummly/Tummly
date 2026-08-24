@@ -19,7 +19,7 @@ using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Services
 {
-    public class AssistantConversationServiceTests : IDisposable
+    public partial class AssistantConversationServiceTests : IDisposable
     {
         private readonly ApplicationDbContext _context;
         private readonly FakeAssistantLiveAnswerProvider _fake;
@@ -614,7 +614,7 @@ namespace TummlyBackend.Tests.Services
             var answer = ok.Conversation.Messages[^1];
             Assert.Equal("gap", answer.Class);
             Assert.Equal(
-                "Which Owned location should this Campaign Draft use? Name one.",
+                AssistantGapAsk.ForLocation("Campaign Draft"),
                 answer.Body
             );
             Assert.DoesNotContain("Soho", answer.Body, StringComparison.Ordinal);
@@ -638,7 +638,7 @@ namespace TummlyBackend.Tests.Services
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             var answer = ok.Conversation.Messages[^1];
             Assert.Equal("gap", answer.Class);
-            Assert.Contains("Name one", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("venue", answer.Body, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("Camden", answer.Body, StringComparison.Ordinal);
             Assert.Equal(0, await _context.Campaigns.CountAsync());
         }
@@ -2036,7 +2036,7 @@ namespace TummlyBackend.Tests.Services
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             Assert.Equal("gap", ok.Conversation.Messages[^1].Class);
             Assert.Contains(
-                "Which Campaign Draft should this attach to",
+                AssistantGapAsk.CampaignTitleAskPrefix,
                 ok.Conversation.Messages[^1].Body,
                 StringComparison.Ordinal
             );
@@ -2061,7 +2061,7 @@ namespace TummlyBackend.Tests.Services
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             var answer = ok.Conversation.Messages[^1];
             Assert.Equal("gap", answer.Class);
-            Assert.Contains("Name one", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("venue", answer.Body, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("validity", answer.Body, StringComparison.OrdinalIgnoreCase);
             Assert.Equal(0, await _context.Campaigns.CountAsync());
             Assert.Equal(0, await _context.CatalogOffers.CountAsync());
@@ -2430,7 +2430,7 @@ namespace TummlyBackend.Tests.Services
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             var answer = ok.Conversation.Messages[^1];
             Assert.Equal("gap", answer.Class);
-            Assert.Equal(question, answer.Body);
+            Assert.Equal(AssistantGapAsk.EndDateAsk, answer.Body);
             Assert.Empty(answer.Actions);
             Assert.Equal(0, await _context.CatalogOffers.CountAsync());
 
@@ -2440,7 +2440,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(AssistantTask.OfferPath, gapState.AssistantTask);
             Assert.Equal(ask, gapState.SourceUserMessage);
             Assert.Equal(["validity"], gapState.OpenRules);
-            Assert.Null(gapState.OfferTermsJson);
+            Assert.NotNull(gapState.OfferTermsJson);
         }
 
         [Fact]
@@ -2701,7 +2701,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_OfferAsk_ProviderWithoutTerms_GapUsesModelBody()
+        public async Task SendTurn_OfferAsk_ProviderWithoutTerms_GapUsesProductAsk()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             _fake.SucceedWith(
@@ -2720,10 +2720,8 @@ namespace TummlyBackend.Tests.Services
 
             var answer = outcome.Conversation.Messages[^1];
             Assert.Equal("gap", answer.Class);
-            Assert.Equal(
-                "Which validity should the lunch offer use?",
-                answer.Body
-            );
+            Assert.Equal(AssistantGapAsk.EndDateAsk, answer.Body);
+            Assert.DoesNotContain("validity", answer.Body, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("Name the Offer type", answer.Body);
         }
 
@@ -2963,7 +2961,7 @@ namespace TummlyBackend.Tests.Services
             );
             var gap = started.Conversation.Messages[^1];
             Assert.Equal("gap", gap.Class);
-            Assert.Contains("Name one", gap.Body, StringComparison.Ordinal);
+            Assert.Contains("venue", gap.Body, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("Soho", gap.Body, StringComparison.Ordinal);
             Assert.Empty(gap.Actions);
             Assert.Equal(0, await _context.CatalogOffers.CountAsync());
@@ -3068,7 +3066,7 @@ namespace TummlyBackend.Tests.Services
             Assert.NotNull(gapState);
             Assert.Equal(AssistantGapTurn.KindOfferTerms, gapState!.Kind);
             Assert.Equal(AssistantTask.OfferPath, gapState.AssistantTask);
-            Assert.Null(gapState.OfferTermsJson);
+            Assert.NotNull(gapState.OfferTermsJson);
             Assert.Contains("value", gapState.OpenRules);
         }
 
@@ -3094,7 +3092,7 @@ namespace TummlyBackend.Tests.Services
 
             var gapState = await StoredGapStateAsync(started.Conversation.Id);
             Assert.NotNull(gapState);
-            Assert.Null(gapState!.OfferTermsJson);
+            Assert.NotNull(gapState!.OfferTermsJson);
             Assert.Contains("value", gapState.OpenRules);
         }
 
@@ -3125,7 +3123,7 @@ namespace TummlyBackend.Tests.Services
             Assert.NotNull(gapState);
             Assert.Equal(AssistantGapTurn.KindOfferTerms, gapState!.Kind);
             Assert.Equal(AssistantTask.OfferPath, gapState.AssistantTask);
-            Assert.Null(gapState.OfferTermsJson);
+            Assert.NotNull(gapState.OfferTermsJson);
             Assert.Contains("placement", gapState.OpenRules);
         }
 
@@ -3155,7 +3153,7 @@ namespace TummlyBackend.Tests.Services
             Assert.NotNull(gapState);
             Assert.Equal(AssistantGapTurn.KindOfferTerms, gapState!.Kind);
             Assert.Equal(AssistantTask.OfferPath, gapState.AssistantTask);
-            Assert.Null(gapState.OfferTermsJson);
+            Assert.NotNull(gapState.OfferTermsJson);
             Assert.Contains("value", gapState.OpenRules);
             Assert.Null(
                 _context.RestaurantLocations.Single(row => row.Id == locationId).ThankYouCatalogOfferId
@@ -5524,7 +5522,7 @@ namespace TummlyBackend.Tests.Services
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             var answer = ok.Conversation.Messages[^1];
             Assert.Equal("gap", answer.Class);
-            Assert.Contains("Name one", answer.Body, StringComparison.Ordinal);
+            Assert.Contains("venue", answer.Body, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("Soho", answer.Body, StringComparison.Ordinal);
             Assert.Empty(answer.Actions);
             Assert.Equal(0, await _context.Campaigns.CountAsync());
@@ -5554,7 +5552,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_RetrieveDuringLocationGap_ReplacesGapAndPersistsNothing()
+        public async Task SendTurn_RetrieveDuringLocationGap_KeepsGapAndPersistsNothing()
         {
             var soho = await SeedLocationAsync(ownerUserId: 7, "Soho");
             await SeedSecondLocationAsync(ownerUserId: 7, "Camden");
@@ -5567,18 +5565,20 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.Equal("gap", started.Conversation.Messages[^1].Class);
 
-            var replaced = Assert.IsType<AssistantTurnOutcome.Ok>(
+            var retrieved = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await _service.SendTurnAsync(
                     ownerUserId: 7,
                     FirstSendRequest(soho, "Show me Camden", started.Conversation.Id)
                 )
             );
             Assert.Equal(0, await _context.Campaigns.CountAsync());
-            Assert.NotEqual("gap", replaced.Conversation.Messages[^1].Class);
+            Assert.NotEqual("gap", retrieved.Conversation.Messages[^1].Class);
             Assert.DoesNotContain(
-                replaced.Conversation.Messages[^1].Actions,
+                retrieved.Conversation.Messages[^1].Actions,
                 action => action.Type == "review-campaign"
             );
+            var kept = await StoredGapStateAsync(started.Conversation.Id);
+            Assert.Equal(AssistantGapTurn.KindLocation, kept.Kind);
         }
 
         [Fact]
@@ -6053,7 +6053,9 @@ namespace TummlyBackend.Tests.Services
         [InlineData("respond to the guest")]
         [InlineData("help me recover")]
         [InlineData("Draft a recovery response")]
-        public async Task SendTurn_DraftInterview_TargetSwitch_StaysOnOfferPath(string recoveryAsk)
+        public async Task SendTurn_DraftInterview_TargetSwitch_DropsOfferGapAndRunsRecovery(
+            string recoveryAsk
+        )
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
@@ -6066,30 +6068,30 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("gap", offer.Conversation.Messages[^1].Class);
             await AssertOfferPathGap(offer.Conversation.Id, AssistantGapTurn.KindOfferTerms);
 
-            _fake.SucceedWith(
-                AssistantMessageClass.Clarify,
-                null,
-                "Which benefit should the Offer give, and how long should it run?",
-                AssistantTask.OfferPath,
-                null,
-                new AssistantOfferPathTermsState()
-            );
-
-            var stayed = Assert.IsType<AssistantTurnOutcome.Ok>(
+            var switched = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await _service.SendTurnAsync(
                     ownerUserId: 7,
                     FirstSendRequest(locationId, recoveryAsk, offer.Conversation.Id)
                 )
             );
-            Assert.Equal("gap", stayed.Conversation.Messages[^1].Class);
-            Assert.Null(stayed.Conversation.PendingRecoveryDraft);
-            Assert.Empty(stayed.Conversation.Messages[^1].Actions);
+            Assert.Contains(
+                AssistantGapAsk.PreviousDraftDropped,
+                switched.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
             Assert.Equal(0, await _context.CatalogOffers.CountAsync());
-            await AssertOfferPathGap(offer.Conversation.Id, AssistantGapTurn.KindOfferTerms);
+            Assert.NotEqual(
+                AssistantGapTurn.KindOfferTerms,
+                AssistantGapTurn.Parse(
+                    (await _context.AssistantConversations.SingleAsync(
+                        row => row.Id == offer.Conversation.Id
+                    )).DraftInterviewJson
+                )?.Kind
+            );
         }
 
         [Fact]
-        public async Task SendTurn_OfferPathTermsGap_DetectMultiTarget_StaysOnOfferPath()
+        public async Task SendTurn_OfferPathTermsGap_DetectMultiTarget_DropsOfferGap()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
@@ -6101,20 +6103,7 @@ namespace TummlyBackend.Tests.Services
             );
             await AssertOfferPathGap(started.Conversation.Id, AssistantGapTurn.KindOfferTerms);
 
-            _fake.SucceedWith(
-                AssistantMessageClass.Clarify,
-                null,
-                "How long should the 25% discount stay valid?",
-                AssistantTask.OfferPath,
-                null,
-                new AssistantOfferPathTermsState
-                {
-                    OfferType = "percentage_discount",
-                    DiscountPercentage = 25m,
-                }
-            );
-
-            var stayed = Assert.IsType<AssistantTurnOutcome.Ok>(
+            var replaced = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await _service.SendTurnAsync(
                     ownerUserId: 7,
                     FirstSendRequest(
@@ -6124,11 +6113,26 @@ namespace TummlyBackend.Tests.Services
                     )
                 )
             );
-            Assert.Equal("gap", stayed.Conversation.Messages[^1].Class);
-            Assert.Null(stayed.Conversation.PendingRecoveryDraft);
-            Assert.Empty(stayed.Conversation.Messages[^1].Actions);
+            Assert.Equal("gap", replaced.Conversation.Messages[^1].Class);
+            Assert.Contains(
+                AssistantGapAsk.PreviousDraftDropped,
+                replaced.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("Offer", replaced.Conversation.Messages[^1].Body, StringComparison.Ordinal);
+            Assert.Contains(
+                "Feedback recovery",
+                replaced.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                "Reply with one exact label",
+                replaced.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
             Assert.Equal(0, await _context.CatalogOffers.CountAsync());
-            await AssertOfferPathGap(started.Conversation.Id, AssistantGapTurn.KindOfferTerms);
+            var gap = await StoredGapStateAsync(started.Conversation.Id);
+            Assert.Equal(AssistantGapTurn.KindCreateTarget, gap.Kind);
         }
 
         [Fact]

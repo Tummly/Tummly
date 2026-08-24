@@ -17,6 +17,8 @@ namespace TummlyBackend.Services
 
         public AssistantLiveAnswerInput? LastInput { get; private set; }
 
+        public int CompleteCount { get; private set; }
+
         public TimeSpan Delay { get; set; } = TimeSpan.Zero;
 
         public void SucceedWith(
@@ -97,6 +99,7 @@ namespace TummlyBackend.Services
             Delay = TimeSpan.Zero;
             _forcedResult = null;
             _resultQueue.Clear();
+            CompleteCount = 0;
         }
 
         public async Task<AssistantLiveAnswerResult> CompleteAsync(
@@ -105,6 +108,7 @@ namespace TummlyBackend.Services
         )
         {
             LastInput = input;
+            CompleteCount++;
 
             if (Delay > TimeSpan.Zero)
             {

@@ -210,7 +210,7 @@ namespace TummlyBackend.Helpers
             var labels = options.Count == 0
                 ? AssistantCreateTargets.UnnamedOptions
                 : options;
-            return $"Which should I create: {AssistantCreateLocationGap.Join(labels)}?";
+            return $"{AssistantGapAsk.CreateTargetAskPrefix} {AssistantCreateLocationGap.Join(labels)}?";
         }
 
         public static bool LooksLikeContinueAnswer(string message)
@@ -235,17 +235,7 @@ namespace TummlyBackend.Helpers
             );
 
         public static string RepeatBindBody(AssistantGapState state)
-            => state.Kind switch
-            {
-                KindOffer => AssistantCampaignDraftBind.OfferClashBody(state.Options),
-                KindAudience => AssistantCampaignDraftBind.AudienceClashBody(state.Options),
-                KindChannel => AssistantCampaignDraftBind.ChannelClashBody(),
-                KindCampaignTitle =>
-                    AssistantCombinedCreateCampaignResolve.CampaignTitleClashBody(
-                        state.Options
-                    ),
-                _ => RepeatLocationBody(state),
-            };
+            => AssistantGapAsk.ExplainBind(state.Kind, state.Options);
 
         public static string LocationDraftNoun(string? assistantTask)
             => string.Equals(

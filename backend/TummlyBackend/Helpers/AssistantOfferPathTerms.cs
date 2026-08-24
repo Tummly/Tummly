@@ -69,6 +69,73 @@ namespace TummlyBackend.Helpers
             return state;
         }
 
+        /// <summary>
+        /// Field-wise merge: preferred wins when it has a value. Null or
+        /// empty preferred fields keep the fallback so an incomplete model
+        /// extract cannot wipe named facts from the operator send.
+        /// </summary>
+        public static AssistantOfferPathTermsState Overlay(
+            AssistantOfferPathTermsState? preferred,
+            AssistantOfferPathTermsState? fallback
+        )
+        {
+            if (preferred is null)
+            {
+                return Clone(fallback) ?? new AssistantOfferPathTermsState();
+            }
+
+            if (fallback is null)
+            {
+                return Clone(preferred);
+            }
+
+            return new AssistantOfferPathTermsState
+            {
+                OfferType = preferred.OfferType ?? fallback.OfferType,
+                DiscountPercentage =
+                    preferred.DiscountPercentage ?? fallback.DiscountPercentage,
+                DiscountAmount = preferred.DiscountAmount ?? fallback.DiscountAmount,
+                FreeItemText = FirstNonBlank(
+                    preferred.FreeItemText,
+                    fallback.FreeItemText
+                ),
+                PurchaseRequirement =
+                    preferred.PurchaseRequirement ?? fallback.PurchaseRequirement,
+                MinimumSpend = preferred.MinimumSpend ?? fallback.MinimumSpend,
+                ReplacementItemText = FirstNonBlank(
+                    preferred.ReplacementItemText,
+                    fallback.ReplacementItemText
+                ),
+                Validity = preferred.Validity ?? fallback.Validity,
+                ExpiryDate = FirstNonBlank(preferred.ExpiryDate, fallback.ExpiryDate),
+                Title = FirstNonBlank(preferred.Title, fallback.Title),
+                Description = FirstNonBlank(preferred.Description, fallback.Description),
+                OperatorDelegatedTerms = preferred.OperatorDelegatedTerms
+                    || fallback.OperatorDelegatedTerms,
+                ConflictingBenefits = preferred.OfferType is not null
+                || preferred.ConflictingBenefits.Count > 0
+                    ? [.. preferred.ConflictingBenefits]
+                    : [.. fallback.ConflictingBenefits],
+                WantsActivate = preferred.WantsActivate || fallback.WantsActivate,
+                WantsAttach = preferred.WantsAttach || fallback.WantsAttach,
+                Placement = preferred.Placement ?? fallback.Placement,
+            };
+        }
+
+        public static bool HasNewlyFilledRule(
+            AssistantOfferPathTermsState prior,
+            AssistantOfferPathTermsState merged
+        )
+        {
+            if (merged.ConflictingBenefits.Count < 2
+                && prior.ConflictingBenefits.Count >= 2)
+            {
+                return true;
+            }
+
+            return MissingFields(merged).Count < MissingFields(prior).Count;
+        }
+
         public static AssistantOfferPathTermsState? FromJson(string? json)
         {
             if (string.IsNullOrWhiteSpace(json))
@@ -520,24 +587,46 @@ namespace TummlyBackend.Helpers
                 return;
             }
 
-            if (lower.Contains("30 days", StringComparison.Ordinal))
+            if (ContainsAny(
+                    lower,
+                    "end of this month",
+                    "end of the month",
+                    "month-end",
+                    "month end"
+                ))
+            {
+                var lastDay = DateTime.DaysInMonth(utcNow.Year, utcNow.Month);
+                state.Validity = "choose_expiry_date";
+                state.ExpiryDate = new DateTime(utcNow.Year, utcNow.Month, lastDay)
+                    .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                return;
+            }
+
+            if (LooksLikeDaysAfterIssue(lower, 30))
             {
                 state.Validity = "30_days_after_issue";
                 state.ExpiryDate = null;
                 return;
             }
 
-            if (lower.Contains("14 days", StringComparison.Ordinal))
+            if (LooksLikeDaysAfterIssue(lower, 14))
             {
                 state.Validity = "14_days_after_issue";
                 state.ExpiryDate = null;
                 return;
             }
 
-            if (lower.Contains("7 days", StringComparison.Ordinal))
+            if (LooksLikeDaysAfterIssue(lower, 7))
             {
                 state.Validity = "7_days_after_issue";
                 state.ExpiryDate = null;
+                return;
+            }
+
+            if (TryParseNamedExpiryDate(lower, utcNow, out var expiry))
+            {
+                state.Validity = "choose_expiry_date";
+                state.ExpiryDate = expiry;
             }
         }
 
@@ -636,9 +725,71 @@ namespace TummlyBackend.Helpers
                     "year-end",
                     "year end"
                 )
-                || lower.Contains("30 days", StringComparison.Ordinal)
-                || lower.Contains("14 days", StringComparison.Ordinal)
-                || lower.Contains("7 days", StringComparison.Ordinal);
+                || LooksLikeDaysAfterIssue(lower, 30)
+                || LooksLikeDaysAfterIssue(lower, 14)
+                || LooksLikeDaysAfterIssue(lower, 7)
+                || ContainsAny(
+                    lower,
+                    "end of this month",
+                    "end of the month",
+                    "month-end",
+                    "month end"
+                )
+                || TryParseNamedExpiryDate(lower, DateTime.UtcNow, out _);
+
+        private static bool LooksLikeDaysAfterIssue(string lower, int days)
+            => lower.Contains($"{days} days", StringComparison.Ordinal)
+                || lower.Contains($"{days}-day", StringComparison.Ordinal);
+
+        private static bool TryParseNamedExpiryDate(
+            string lower,
+            DateTime utcNow,
+            out string expiry
+        )
+        {
+            expiry = string.Empty;
+            if (LooksLikeDaysAfterIssue(lower, 7)
+                || LooksLikeDaysAfterIssue(lower, 14)
+                || LooksLikeDaysAfterIssue(lower, 30))
+            {
+                return false;
+            }
+
+            var match = NamedDateRegex().Match(lower);
+            if (!match.Success)
+            {
+                return false;
+            }
+
+            var raw = match.Value.Trim();
+            var cultures = new[]
+            {
+                CultureInfo.GetCultureInfo("en-GB"),
+                CultureInfo.GetCultureInfo("en-US"),
+            };
+            foreach (var culture in cultures)
+            {
+                if (DateTime.TryParse(
+                        raw,
+                        culture,
+                        DateTimeStyles.AllowWhiteSpaces,
+                        out var parsed))
+                {
+                    if (parsed.Year < 1000)
+                    {
+                        parsed = parsed.AddYears(utcNow.Year - parsed.Year);
+                    }
+
+                    expiry = parsed.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static string? FirstNonBlank(string? preferred, string? fallback)
+            => string.IsNullOrWhiteSpace(preferred) ? fallback : preferred;
 
         private static bool IsFreeItemMatchInsideReplacementPhrase(
             string text,
@@ -736,5 +887,11 @@ namespace TummlyBackend.Helpers
             RegexOptions.IgnoreCase
         )]
         private static partial Regex FillerWordRegex();
+
+        [GeneratedRegex(
+            @"\b(?:\d{1,2}(?:st|nd|rd|th)?\s+(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+\d{4})?|(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?(?:\s+\d{4})?|\d{4}-\d{2}-\d{2})\b",
+            RegexOptions.IgnoreCase
+        )]
+        private static partial Regex NamedDateRegex();
     }
 }

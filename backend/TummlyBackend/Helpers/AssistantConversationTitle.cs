@@ -47,18 +47,14 @@ namespace TummlyBackend.Helpers
 
             var liveAnswerTitle = liveAnswerMessageTitle?.Trim();
             if (liveAnswerTitle is { Length: > 0 }
-                && string.Equals(
-                    firstLine,
-                    liveAnswerTitle,
-                    StringComparison.Ordinal
-                ))
+                && EchoesLiveAnswerTitle(firstLine, liveAnswerTitle))
             {
                 return null;
             }
 
             var cut = CutToMax(firstLine);
             if (liveAnswerTitle is { Length: > 0 }
-                && string.Equals(cut, liveAnswerTitle, StringComparison.Ordinal))
+                && EchoesLiveAnswerTitle(cut, liveAnswerTitle))
             {
                 return null;
             }
@@ -93,6 +89,28 @@ namespace TummlyBackend.Helpers
             {
                 conversation.Title = accepted;
             }
+        }
+
+        /// <summary>
+        /// Generated title duplicates the live-answer title, including after
+        /// empty-grounded replacement shortens the displayed title.
+        /// </summary>
+        private static bool EchoesLiveAnswerTitle(string proposed, string liveAnswerTitle)
+        {
+            if (string.Equals(proposed, liveAnswerTitle, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            var cutLive = CutToMax(liveAnswerTitle);
+            if (string.Equals(proposed, cutLive, StringComparison.Ordinal)
+                || string.Equals(CutToMax(proposed), cutLive, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            return proposed.StartsWith(liveAnswerTitle, StringComparison.Ordinal)
+                || liveAnswerTitle.StartsWith(proposed, StringComparison.Ordinal);
         }
 
         private static string CutToMax(string trimmed)

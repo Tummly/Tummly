@@ -147,7 +147,7 @@ namespace TummlyBackend.Helpers
         }
 
         public static string CampaignTitleClashBody(IReadOnlyList<string> titles)
-            => $"Which Campaign Draft should this attach to: {AssistantCreateLocationGap.Join(titles)}?";
+            => AssistantGapAsk.ForBind(AssistantGapTurn.KindCampaignTitle, titles);
 
         private static List<AssistantCombinedCreateCampaignRef> MatchTitles(
             string userMessage,

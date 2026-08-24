@@ -135,7 +135,7 @@ namespace TummlyBackend.Helpers
         )
         {
             var token = FirstMatchingToken(userMessage, names) ?? names[0];
-            return $"More than one Owned location matches {token}. Which one: {Join(names)}?";
+            return $"More than one venue matches {token}. Which venue: {Join(names)}?";
         }
 
         private static string ConflictBody(
@@ -143,16 +143,16 @@ namespace TummlyBackend.Helpers
             string namedName,
             string draftNoun = "Campaign Draft"
         )
-            => $"Analysis scope is {analysisScopeName}. This {draftNoun} names {namedName}. Which Owned location should I use: {Join([analysisScopeName, namedName])}?";
+            => $"Analysis scope is {analysisScopeName}. This {draftNoun} names {namedName}. Which venue should I use: {Join([analysisScopeName, namedName])}?";
 
         private static string TwoNamedBody(
             IReadOnlyList<string> names,
             string draftNoun = "Campaign Draft"
         )
-            => $"This {draftNoun} names {Join(names)}. Which Owned location should I use: {Join(names)}?";
+            => $"This {draftNoun} names {Join(names)}. Which venue should I use: {Join(names)}?";
 
         public static string AllLocationsBody(string draftNoun)
-            => $"Which Owned location should this {draftNoun} use? Name one.";
+            => AssistantGapAsk.ForLocation(draftNoun);
 
         public static string Join(IReadOnlyList<string> names)
         {
@@ -189,7 +189,7 @@ namespace TummlyBackend.Helpers
         private static string AmbiguousRepeat(IReadOnlyList<string> options)
         {
             var token = options.Count == 0 ? "that name" : options[0];
-            return $"More than one Owned location matches {token}. Which one: {Join(options)}?";
+            return $"More than one venue matches {token}. Which venue: {Join(options)}?";
         }
 
         private static List<AssistantGapLocation> FindNamedMatches(

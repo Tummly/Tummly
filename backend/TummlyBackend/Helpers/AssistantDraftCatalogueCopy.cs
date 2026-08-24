@@ -6,7 +6,7 @@ namespace TummlyBackend.Helpers
             string prompt,
             string catalogueTitle,
             IEnumerable<string> labels,
-            string? footer = "Reply with one exact label."
+            string? footer = null
         )
         {
             var body = prompt.TrimEnd()
@@ -27,7 +27,7 @@ namespace TummlyBackend.Helpers
             IReadOnlyList<string> candidates,
             string emptyMessage,
             string? moreNote = null,
-            string? footer = "Reply with one exact title."
+            string? footer = null
         )
         {
             if (candidates.Count == 0)
