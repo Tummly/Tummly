@@ -287,6 +287,24 @@ namespace TummlyBackend.Data
                 .HasForeignKey(r => r.OwnerUserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            modelBuilder.Entity<Restaurant>()
+                .HasOne(r => r.BillingContactUser)
+                .WithMany()
+                .HasForeignKey(r => r.BillingContactUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Restaurant>()
+                .HasOne(r => r.PrivacyContactUser)
+                .WithMany()
+                .HasForeignKey(r => r.PrivacyContactUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Restaurant>()
+                .HasOne(r => r.SupportContactUser)
+                .WithMany()
+                .HasForeignKey(r => r.SupportContactUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             /*
              =========================================
              RESTAURANT -> GUEST LOOP
@@ -1327,12 +1345,14 @@ namespace TummlyBackend.Data
 
         public override int SaveChanges()
         {
+            EnsureRestaurantKeyContactDefaults();
             StampInMemoryCampaignRowVersions();
             return base.SaveChanges();
         }
 
         public override int SaveChanges(bool acceptAllChangesOnSuccess)
         {
+            EnsureRestaurantKeyContactDefaults();
             StampInMemoryCampaignRowVersions();
             return base.SaveChanges(acceptAllChangesOnSuccess);
         }
@@ -1341,6 +1361,7 @@ namespace TummlyBackend.Data
             CancellationToken cancellationToken = default
         )
         {
+            EnsureRestaurantKeyContactDefaults();
             StampInMemoryCampaignRowVersions();
             return base.SaveChangesAsync(cancellationToken);
         }
@@ -1350,8 +1371,48 @@ namespace TummlyBackend.Data
             CancellationToken cancellationToken = default
         )
         {
+            EnsureRestaurantKeyContactDefaults();
             StampInMemoryCampaignRowVersions();
             return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+
+        /// <summary>
+        /// Key contacts default to Account owner until set. Keeps Operator Setup
+        /// and tests that only set OwnerUserId valid.
+        /// </summary>
+        private void EnsureRestaurantKeyContactDefaults()
+        {
+            foreach (var entry in ChangeTracker.Entries<Restaurant>())
+            {
+                if (
+                    entry.State != EntityState.Added
+                    && entry.State != EntityState.Modified
+                )
+                {
+                    continue;
+                }
+
+                var restaurant = entry.Entity;
+                if (restaurant.OwnerUserId == 0)
+                {
+                    continue;
+                }
+
+                if (restaurant.BillingContactUserId == 0)
+                {
+                    restaurant.BillingContactUserId = restaurant.OwnerUserId;
+                }
+
+                if (restaurant.PrivacyContactUserId == 0)
+                {
+                    restaurant.PrivacyContactUserId = restaurant.OwnerUserId;
+                }
+
+                if (restaurant.SupportContactUserId == 0)
+                {
+                    restaurant.SupportContactUserId = restaurant.OwnerUserId;
+                }
+            }
         }
 
         /// <summary>

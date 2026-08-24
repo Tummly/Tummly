@@ -64,6 +64,18 @@ export const ACCOUNT_WORKSPACE_PAGE_COPY = {
   businessDetailsSaveSuccess: "Business details saved.",
   businessDetailsSaveError:
     "Could not save business details. Please try again.",
+  keyContactsSaveSuccess: "Key contacts saved.",
+  keyContactsSaveError: "Could not save key contacts. Please try again.",
+  primaryResponsibilitiesTitle: "Primary responsibilities",
+  primaryResponsibilitiesSubtitle:
+    "Choose authorised users who should own account, billing, privacy and support responsibilities.",
+  accountOwner: "Account owner",
+  billingContact: "Billing contact",
+  privacyContact: "Privacy contact",
+  supportContact: "Support contact",
+  selectUserPlaceholder: "Select user",
+  keyContactsTeamHelper:
+    "More people appear here after they join in Team & permissions.",
   manageGuestFacingBrand: "Manage guest-facing brand",
   uploadImage: "Upload image",
   businessIdentityTitle: "Business identity",

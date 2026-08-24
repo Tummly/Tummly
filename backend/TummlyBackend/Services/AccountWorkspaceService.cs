@@ -229,6 +229,61 @@ namespace TummlyBackend.Services
             return (details, null, StatusCodes.Status200OK);
         }
 
+        public async Task<(
+            AccountWorkspaceDetailsDto? Details,
+            string? Error,
+            int StatusCode
+        )> UpdateKeyContactsAsync(
+            int ownerUserId,
+            UpdateKeyContactsRequest request
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .FirstOrDefaultAsync(r => r.OwnerUserId == ownerUserId);
+
+            if (restaurant == null)
+            {
+                return (null, "Restaurant not found.", StatusCodes.Status404NotFound);
+            }
+
+            EnsureContactDefaults(restaurant);
+
+            if (
+                request.AccountOwnerUserId is int claimedOwner
+                && claimedOwner != restaurant.OwnerUserId
+            )
+            {
+                return (
+                    null,
+                    "Account owner cannot be changed on this tab.",
+                    StatusCodes.Status400BadRequest
+                );
+            }
+
+            var eligibleIds = await GetEligibleMemberIdsAsync(restaurant);
+            if (
+                !eligibleIds.Contains(request.BillingContactUserId)
+                || !eligibleIds.Contains(request.PrivacyContactUserId)
+                || !eligibleIds.Contains(request.SupportContactUserId)
+            )
+            {
+                return (
+                    null,
+                    "Each contact must be an eligible team member.",
+                    StatusCodes.Status400BadRequest
+                );
+            }
+
+            restaurant.BillingContactUserId = request.BillingContactUserId;
+            restaurant.PrivacyContactUserId = request.PrivacyContactUserId;
+            restaurant.SupportContactUserId = request.SupportContactUserId;
+            restaurant.AccountWorkspaceLastSavedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            var details = await BuildDetailsAsync(restaurant);
+            return (details, null, StatusCodes.Status200OK);
+        }
+
         public async Task<(Stream Stream, string ContentType)?> OpenBrandLogoAsync(
             int ownerUserId
         )
@@ -311,6 +366,14 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.RestaurantId == restaurant.Id);
 
+            EnsureContactDefaults(restaurant);
+
+            var owner = await _context.Users
+                .AsNoTracking()
+                .FirstAsync(u => u.Id == restaurant.OwnerUserId);
+
+            var keyContacts = MapKeyContacts(restaurant, owner);
+
             var workspaceStatus = restaurant.WorkspaceStatus.ToString();
             var lastAccountUpdate =
                 restaurant.AccountWorkspaceLastSavedAt ?? restaurant.CreatedAt;
@@ -350,8 +413,60 @@ namespace TummlyBackend.Services
                     LastAccountUpdateAt = lastAccountUpdate,
                 },
                 BusinessDetails = MapBusinessDetails(businessDetails),
-                KeyContacts = null,
+                KeyContacts = keyContacts,
                 WorkspaceDefaults = null,
+            };
+        }
+
+        private static void EnsureContactDefaults(Restaurant restaurant)
+        {
+            if (restaurant.BillingContactUserId == 0)
+            {
+                restaurant.BillingContactUserId = restaurant.OwnerUserId;
+            }
+
+            if (restaurant.PrivacyContactUserId == 0)
+            {
+                restaurant.PrivacyContactUserId = restaurant.OwnerUserId;
+            }
+
+            if (restaurant.SupportContactUserId == 0)
+            {
+                restaurant.SupportContactUserId = restaurant.OwnerUserId;
+            }
+        }
+
+        private static Task<HashSet<int>> GetEligibleMemberIdsAsync(
+            Restaurant restaurant
+        )
+        {
+            // Until Team & permissions ships, directory is { Account owner }.
+            return Task.FromResult(new HashSet<int> { restaurant.OwnerUserId });
+        }
+
+        private static AccountWorkspaceKeyContactsDto MapKeyContacts(
+            Restaurant restaurant,
+            User owner
+        )
+        {
+            var ownerItem = MapPickerItem(owner);
+            return new AccountWorkspaceKeyContactsDto
+            {
+                AccountOwner = ownerItem,
+                BillingContactUserId = restaurant.BillingContactUserId,
+                PrivacyContactUserId = restaurant.PrivacyContactUserId,
+                SupportContactUserId = restaurant.SupportContactUserId,
+                EligibleMembers = [ownerItem],
+            };
+        }
+
+        private static TeamMemberPickerItemDto MapPickerItem(User user)
+        {
+            return new TeamMemberPickerItemDto
+            {
+                UserId = user.Id,
+                FullName = user.FullName,
+                Email = user.Email,
             };
         }
 

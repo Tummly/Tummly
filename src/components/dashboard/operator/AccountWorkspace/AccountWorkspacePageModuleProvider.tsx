@@ -12,6 +12,7 @@ import {
   getAccountWorkspaceDetails,
   updateAccountWorkspaceBusinessDetails,
   updateAccountWorkspaceDetails,
+  updateAccountWorkspaceKeyContacts,
 } from "@/api/accountWorkspaceApi"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { accountWorkspacePageModuleContext } from "@/components/dashboard/operator/AccountWorkspace/utils/accountWorkspacePageModuleContext"
@@ -38,6 +39,7 @@ export function AccountWorkspacePageModuleProvider({
         getDetails: getAccountWorkspaceDetails,
         updateAccountDetails: updateAccountWorkspaceDetails,
         updateBusinessDetails: updateAccountWorkspaceBusinessDetails,
+        updateKeyContacts: updateAccountWorkspaceKeyContacts,
         onIdentityPersisted: (details) => {
           applyIdentityRef.current({
             restaurantName: details.workspaceName,

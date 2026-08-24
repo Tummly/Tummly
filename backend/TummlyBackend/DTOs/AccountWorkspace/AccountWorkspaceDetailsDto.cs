@@ -24,7 +24,7 @@ namespace TummlyBackend.DTOs.AccountWorkspace
 
         public RestaurantBusinessDetailsDto? BusinessDetails { get; set; }
 
-        public object? KeyContacts { get; set; }
+        public AccountWorkspaceKeyContactsDto? KeyContacts { get; set; }
 
         public object? WorkspaceDefaults { get; set; }
     }

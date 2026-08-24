@@ -688,7 +688,7 @@ A User who may operate this Restaurant and therefore appear in the **Key contact
 _Avoid_: Authorised user (as the glossary noun); seat; invitee (when meaning an active picker option)
 
 **Team & permissions**:
-The later Settings nav child that owns Restaurant membership (invite, activate, deactivate) and permission roles. **Key contacts** consumes its member directory as a read-only picker list. It does not implement membership.
+The later Settings nav child that owns Restaurant membership (invite, activate, deactivate) and permission roles. **Key contacts** consumes its member directory as a read-only picker list. It does not implement membership. When Team later removes a member who holds a writable Key contact role, Team must reassign that role to the **Account owner** before membership ends so Key contacts never keep a dangling User id.
 _Avoid_: Team management; RBAC admin (as the settings child name)
 
 **Tummly Shop**:

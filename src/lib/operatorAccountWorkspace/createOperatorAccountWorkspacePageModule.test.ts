@@ -45,6 +45,23 @@ function createDetails(
       postcode: "",
       country: "United Kingdom",
     },
+    keyContacts: {
+      accountOwner: {
+        userId: 42,
+        fullName: "Alex Owner",
+        email: "alex@example.com",
+      },
+      billingContactUserId: 42,
+      privacyContactUserId: 42,
+      supportContactUserId: 42,
+      eligibleMembers: [
+        {
+          userId: 42,
+          fullName: "Alex Owner",
+          email: "alex@example.com",
+        },
+      ],
+    },
     ...overrides,
   }
 }
@@ -55,6 +72,7 @@ function createAdapters(
   getDetails: Mock
   updateAccountDetails: Mock
   updateBusinessDetails: Mock
+  updateKeyContacts: Mock
 } {
   return {
     getDetails: vi.fn(async () => createDetails()),
@@ -93,11 +111,27 @@ function createAdapters(
         },
       })
     ),
+    updateKeyContacts: vi.fn(async (payload) =>
+      createDetails({
+        lastSavedAt: "2026-08-24T14:00:00.000Z",
+        status: {
+          ...createDetails().status,
+          lastAccountUpdateAt: "2026-08-24T14:00:00.000Z",
+        },
+        keyContacts: {
+          ...createDetails().keyContacts,
+          billingContactUserId: payload.billingContactUserId,
+          privacyContactUserId: payload.privacyContactUserId,
+          supportContactUserId: payload.supportContactUserId,
+        },
+      })
+    ),
     ...overrides,
   } as OperatorAccountWorkspacePageAdapters & {
     getDetails: Mock
     updateAccountDetails: Mock
     updateBusinessDetails: Mock
+    updateKeyContacts: Mock
   }
 }
 
@@ -539,5 +573,69 @@ describe("createOperatorAccountWorkspacePageModule", () => {
     expect(page.getSnapshot().activeTabId).toBe("account-details")
     expect(page.getSnapshot().leaveDirtyOpen).toBe(false)
     expect(page.getSnapshot().isDirty).toBe(false)
+  })
+
+  it("dirties Key contacts on edit and enables Save", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "key-contacts",
+    })
+    await page.load()
+
+    expect(page.getSnapshot().saveEnabled).toBe(false)
+    expect(page.getSnapshot().keyContacts.billingContactUserId).toBe(42)
+
+    // Same id is not dirty; force a no-op then re-set after load keeps clean.
+    page.setBillingContactUserId(42)
+    expect(page.getSnapshot().isDirty).toBe(false)
+
+    // Until Team ships there is one member; dirty still works if values change
+    // then restore — use a temporary different id then back.
+    page.setBillingContactUserId(99)
+    expect(page.getSnapshot().isDirty).toBe(true)
+    expect(page.getSnapshot().saveEnabled).toBe(true)
+    page.setBillingContactUserId(42)
+    expect(page.getSnapshot().isDirty).toBe(false)
+  })
+
+  it("Key contacts Save calls updateKeyContacts", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "key-contacts",
+    })
+    await page.load()
+
+    page.setPrivacyContactUserId(42)
+    page.setBillingContactUserId(99)
+    await page.requestSave()
+
+    expect(adapters.updateKeyContacts).toHaveBeenCalledWith({
+      billingContactUserId: 99,
+      privacyContactUserId: 42,
+      supportContactUserId: 42,
+    })
+    expect(page.getSnapshot().toast).toEqual({
+      kind: "success",
+      message: "Key contacts saved.",
+    })
+    expect(page.getSnapshot().isDirty).toBe(false)
+  })
+
+  it("leave-dirty on Key contacts Save then continues", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "key-contacts",
+    })
+    await page.load()
+
+    page.setSupportContactUserId(99)
+    page.requestTabChange("account-details")
+    expect(page.getSnapshot().leaveDirtyOpen).toBe(true)
+
+    await page.confirmLeaveDirtySave()
+
+    expect(adapters.updateKeyContacts).toHaveBeenCalled()
+    expect(page.getSnapshot().activeTabId).toBe("account-details")
+    expect(page.getSnapshot().leaveDirtyOpen).toBe(false)
   })
 })

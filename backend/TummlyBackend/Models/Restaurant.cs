@@ -40,12 +40,30 @@ namespace TummlyBackend.Models
 
         /*
          =========================================
-         CREATED DATE
+         KEY CONTACTS
+         Nominations only — not RBAC. Defaults to OwnerUserId.
+         When Team & permissions later removes a member who holds a
+         writable contact, reassign that role to OwnerUserId first.
          =========================================
         */
 
+        public int BillingContactUserId { get; set; }
 
+        public User BillingContactUser { get; set; } = null!;
 
+        public int PrivacyContactUserId { get; set; }
+
+        public User PrivacyContactUser { get; set; } = null!;
+
+        public int SupportContactUserId { get; set; }
+
+        public User SupportContactUser { get; set; } = null!;
+
+        /*
+         =========================================
+         CREATED DATE
+         =========================================
+        */
 
         public DateTime CreatedAt { get; set; }
             = DateTime.UtcNow;

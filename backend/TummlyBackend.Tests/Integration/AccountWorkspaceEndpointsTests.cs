@@ -106,8 +106,198 @@ namespace TummlyBackend.Tests.Integration
             );
 
             Assert.True(body.TryGetProperty("businessDetails", out _));
-            Assert.True(body.TryGetProperty("keyContacts", out _));
+            Assert.True(body.TryGetProperty("keyContacts", out var keyContacts));
+            Assert.Equal(JsonValueKind.Object, keyContacts.ValueKind);
+            var accountOwner = keyContacts.GetProperty("accountOwner");
+            Assert.Equal(
+                "Account Workspace Owner",
+                accountOwner.GetProperty("fullName").GetString()
+            );
+            Assert.Equal(
+                "aw-get@example.com",
+                accountOwner.GetProperty("email").GetString()
+            );
+            var ownerId = accountOwner.GetProperty("userId").GetInt32();
+            Assert.Equal(
+                ownerId,
+                keyContacts.GetProperty("billingContactUserId").GetInt32()
+            );
+            Assert.Equal(
+                ownerId,
+                keyContacts.GetProperty("privacyContactUserId").GetInt32()
+            );
+            Assert.Equal(
+                ownerId,
+                keyContacts.GetProperty("supportContactUserId").GetInt32()
+            );
+            var eligible = keyContacts.GetProperty("eligibleMembers");
+            Assert.Equal(1, eligible.GetArrayLength());
+            Assert.Equal(
+                ownerId,
+                eligible[0].GetProperty("userId").GetInt32()
+            );
             Assert.True(body.TryGetProperty("workspaceDefaults", out _));
+        }
+
+        [Fact]
+        public async Task PutKeyContacts_HappyPath_PersistsWritableContacts()
+        {
+            var seeded = await SeedOwnerAsync(email: "aw-kc-ok@example.com");
+
+            int ownerId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                ownerId = context.Restaurants
+                    .Single(r => r.Id == seeded.RestaurantId)
+                    .OwnerUserId;
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/account-workspace/key-contacts"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                billingContactUserId = ownerId,
+                privacyContactUserId = ownerId,
+                supportContactUserId = ownerId,
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.False(
+                string.IsNullOrWhiteSpace(
+                    body.GetProperty("lastSavedAt").GetString()
+                )
+            );
+            var keyContacts = body.GetProperty("keyContacts");
+            Assert.Equal(
+                ownerId,
+                keyContacts.GetProperty("billingContactUserId").GetInt32()
+            );
+            Assert.Equal(
+                ownerId,
+                keyContacts.GetProperty("privacyContactUserId").GetInt32()
+            );
+            Assert.Equal(
+                ownerId,
+                keyContacts.GetProperty("supportContactUserId").GetInt32()
+            );
+
+            using var verifyScope = _factory.Services.CreateScope();
+            var verifyContext = verifyScope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurant = Assert.Single(
+                verifyContext.Restaurants.Where(r => r.Id == seeded.RestaurantId)
+            );
+            Assert.Equal(ownerId, restaurant.BillingContactUserId);
+            Assert.Equal(ownerId, restaurant.PrivacyContactUserId);
+            Assert.Equal(ownerId, restaurant.SupportContactUserId);
+            Assert.NotNull(restaurant.AccountWorkspaceLastSavedAt);
+        }
+
+        [Fact]
+        public async Task PutKeyContacts_RejectsAccountOwnerChange()
+        {
+            var seeded = await SeedOwnerAsync(email: "aw-kc-owner@example.com");
+
+            int ownerId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                ownerId = context.Restaurants
+                    .Single(r => r.Id == seeded.RestaurantId)
+                    .OwnerUserId;
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/account-workspace/key-contacts"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                billingContactUserId = ownerId,
+                privacyContactUserId = ownerId,
+                supportContactUserId = ownerId,
+                accountOwnerUserId = ownerId + 999,
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Contains(
+                "Account owner",
+                body.GetProperty("message").GetString(),
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public async Task PutKeyContacts_RejectsUnknownMember()
+        {
+            var seeded = await SeedOwnerAsync(email: "aw-kc-unknown@example.com");
+
+            int ownerId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                ownerId = context.Restaurants
+                    .Single(r => r.Id == seeded.RestaurantId)
+                    .OwnerUserId;
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/account-workspace/key-contacts"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                billingContactUserId = ownerId + 50_000,
+                privacyContactUserId = ownerId,
+                supportContactUserId = ownerId,
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Contains(
+                "eligible",
+                body.GetProperty("message").GetString(),
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public async Task PutKeyContacts_Returns401_WhenUnauthenticated()
+        {
+            var response = await _client.PutAsJsonAsync(
+                "/api/account-workspace/key-contacts",
+                new
+                {
+                    billingContactUserId = 1,
+                    privacyContactUserId = 1,
+                    supportContactUserId = 1,
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
 
         [Fact]
@@ -446,6 +636,9 @@ namespace TummlyBackend.Tests.Integration
                 Name = "Account Workspace Venue",
                 AccountType = accountType,
                 OwnerUserId = user.Id,
+                BillingContactUserId = user.Id,
+                PrivacyContactUserId = user.Id,
+                SupportContactUserId = user.Id,
                 CreatedAt = DateTime.UtcNow.AddDays(-10),
                 BusinessCategory = businessCategory,
             };

@@ -19,6 +19,12 @@ namespace TummlyBackend.Interfaces
                 UpdateBusinessDetailsRequest request
             );
 
+        Task<(AccountWorkspaceDetailsDto? Details, string? Error, int StatusCode)>
+            UpdateKeyContactsAsync(
+                int ownerUserId,
+                UpdateKeyContactsRequest request
+            );
+
         Task<(Stream Stream, string ContentType)?> OpenBrandLogoAsync(
             int ownerUserId
         );

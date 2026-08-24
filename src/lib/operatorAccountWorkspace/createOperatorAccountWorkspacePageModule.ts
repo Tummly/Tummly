@@ -44,6 +44,20 @@ export type AccountWorkspaceBusinessDetails = {
   country: string
 }
 
+export type TeamMemberPickerItem = {
+  userId: number
+  fullName: string
+  email: string
+}
+
+export type AccountWorkspaceKeyContacts = {
+  accountOwner: TeamMemberPickerItem
+  billingContactUserId: number
+  privacyContactUserId: number
+  supportContactUserId: number
+  eligibleMembers: TeamMemberPickerItem[]
+}
+
 export type AccountWorkspaceDetails = {
   workspaceName: string
   accountStructure: string
@@ -55,6 +69,7 @@ export type AccountWorkspaceDetails = {
   lastSavedAt: string | null
   status: AccountWorkspaceStatus
   businessDetails: AccountWorkspaceBusinessDetails
+  keyContacts: AccountWorkspaceKeyContacts
 }
 
 export type UpdateBusinessDetailsPayload = {
@@ -73,6 +88,12 @@ export type UpdateBusinessDetailsPayload = {
   country: string
 }
 
+export type UpdateKeyContactsPayload = {
+  billingContactUserId: number
+  privacyContactUserId: number
+  supportContactUserId: number
+}
+
 export type AccountWorkspaceToast = {
   kind: "success" | "error"
   message: string
@@ -86,6 +107,9 @@ export type OperatorAccountWorkspacePageAdapters = {
   }) => Promise<AccountWorkspaceDetails>
   updateBusinessDetails: (
     payload: UpdateBusinessDetailsPayload
+  ) => Promise<AccountWorkspaceDetails>
+  updateKeyContacts: (
+    payload: UpdateKeyContactsPayload
   ) => Promise<AccountWorkspaceDetails>
   /** Refresh shell readers of Restaurant.Name / Brand logo after persist. */
   onIdentityPersisted?: (details: AccountWorkspaceDetails) => void
@@ -110,6 +134,12 @@ type BusinessDetailsDraft = AccountWorkspaceBusinessDetails & {
   sameAsLegalBusinessName: boolean
 }
 
+type KeyContactsDraft = {
+  billingContactUserId: number
+  privacyContactUserId: number
+  supportContactUserId: number
+}
+
 export type OperatorAccountWorkspacePageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
   loadError: string | null
@@ -131,6 +161,10 @@ export type OperatorAccountWorkspacePageSnapshot = {
   }
   businessDetails: BusinessDetailsDraft & {
     postcodeError: string | null
+  }
+  keyContacts: KeyContactsDraft & {
+    accountOwner: TeamMemberPickerItem | null
+    eligibleMembers: TeamMemberPickerItem[]
   }
   renameConfirmOpen: boolean
   leaveDirtyOpen: boolean
@@ -158,6 +192,9 @@ export type OperatorAccountWorkspacePageModule = {
   setCounty: (value: string) => void
   setPostcode: (value: string) => void
   setCountry: (value: string) => void
+  setBillingContactUserId: (userId: number) => void
+  setPrivacyContactUserId: (userId: number) => void
+  setSupportContactUserId: (userId: number) => void
   requestSave: () => Promise<void>
   confirmRename: () => Promise<void>
   cancelRenameConfirm: () => void
@@ -191,6 +228,16 @@ function emptyBusinessDetails(): AccountWorkspaceBusinessDetails {
   }
 }
 
+function emptyKeyContacts(): AccountWorkspaceKeyContacts {
+  return {
+    accountOwner: { userId: 0, fullName: "", email: "" },
+    billingContactUserId: 0,
+    privacyContactUserId: 0,
+    supportContactUserId: 0,
+    eligibleMembers: [],
+  }
+}
+
 function normalizeBusinessDetails(
   details: AccountWorkspaceBusinessDetails | null | undefined
 ): AccountWorkspaceBusinessDetails {
@@ -210,6 +257,29 @@ function normalizeBusinessDetails(
     county: base.county ?? "",
     postcode: base.postcode ?? "",
     country: defaultAccountWorkspaceCountry(base.country),
+  }
+}
+
+function normalizeKeyContacts(
+  details: AccountWorkspaceKeyContacts | null | undefined
+): AccountWorkspaceKeyContacts {
+  const base = details ?? emptyKeyContacts()
+  const owner = base.accountOwner ?? emptyKeyContacts().accountOwner
+  const ownerId = owner.userId
+  return {
+    accountOwner: {
+      userId: owner.userId,
+      fullName: owner.fullName ?? "",
+      email: owner.email ?? "",
+    },
+    billingContactUserId: base.billingContactUserId || ownerId,
+    privacyContactUserId: base.privacyContactUserId || ownerId,
+    supportContactUserId: base.supportContactUserId || ownerId,
+    eligibleMembers: (base.eligibleMembers ?? []).map((member) => ({
+      userId: member.userId,
+      fullName: member.fullName ?? "",
+      email: member.email ?? "",
+    })),
   }
 }
 
@@ -247,6 +317,11 @@ export function createOperatorAccountWorkspacePageModule(
     ...emptyBusinessDetails(),
     sameAsLegalBusinessName: false,
   }
+  let keyContactsDraft: KeyContactsDraft = {
+    billingContactUserId: 0,
+    privacyContactUserId: 0,
+    supportContactUserId: 0,
+  }
 
   const listeners = new Set<() => void>()
 
@@ -274,6 +349,12 @@ export function createOperatorAccountWorkspacePageModule(
       ...business,
       sameAsLegalBusinessName: deriveSameAsLegalBusinessName(business),
     }
+    const contacts = normalizeKeyContacts(persisted?.keyContacts)
+    keyContactsDraft = {
+      billingContactUserId: contacts.billingContactUserId,
+      privacyContactUserId: contacts.privacyContactUserId,
+      supportContactUserId: contacts.supportContactUserId,
+    }
     postcodeError = null
   }
 
@@ -281,6 +362,7 @@ export function createOperatorAccountWorkspacePageModule(
     persisted = {
       ...details,
       businessDetails: normalizeBusinessDetails(details.businessDetails),
+      keyContacts: normalizeKeyContacts(details.keyContacts),
     }
     // Header Last saved shares the form-save clock; CreatedAt until first save.
     lastSavedAt =
@@ -349,6 +431,18 @@ export function createOperatorAccountWorkspacePageModule(
     )
   }
 
+  function isKeyContactsDirty(): boolean {
+    if (persisted == null) {
+      return false
+    }
+    const saved = normalizeKeyContacts(persisted.keyContacts)
+    return (
+      keyContactsDraft.billingContactUserId !== saved.billingContactUserId
+      || keyContactsDraft.privacyContactUserId !== saved.privacyContactUserId
+      || keyContactsDraft.supportContactUserId !== saved.supportContactUserId
+    )
+  }
+
   function activeTabDirty(): boolean {
     if (!isAccountWorkspaceFormTab(activeTabId)) {
       return false
@@ -358,6 +452,9 @@ export function createOperatorAccountWorkspacePageModule(
     }
     if (activeTabId === "business-details") {
       return isBusinessDetailsDirty()
+    }
+    if (activeTabId === "key-contacts") {
+      return isKeyContactsDirty()
     }
     // Later tickets own other form tabs.
     return false
@@ -415,6 +512,11 @@ export function createOperatorAccountWorkspacePageModule(
           ? businessDraft.legalBusinessName
           : businessDraft.tradingName,
         postcodeError,
+      },
+      keyContacts: {
+        ...keyContactsDraft,
+        accountOwner: persisted?.keyContacts.accountOwner ?? null,
+        eligibleMembers: persisted?.keyContacts.eligibleMembers ?? [],
       },
       renameConfirmOpen,
       leaveDirtyOpen,
@@ -519,6 +621,42 @@ export function createOperatorAccountWorkspacePageModule(
     }
   }
 
+  async function persistKeyContacts(): Promise<boolean> {
+    if (persisted == null) {
+      return false
+    }
+
+    const payload: UpdateKeyContactsPayload = {
+      billingContactUserId: keyContactsDraft.billingContactUserId,
+      privacyContactUserId: keyContactsDraft.privacyContactUserId,
+      supportContactUserId: keyContactsDraft.supportContactUserId,
+    }
+
+    isSaving = true
+    toast = null
+    emit()
+
+    try {
+      const result = await adapters.updateKeyContacts(payload)
+      applyPersisted(result)
+      toast = {
+        kind: "success",
+        message: ACCOUNT_WORKSPACE_PAGE_COPY.keyContactsSaveSuccess,
+      }
+      isSaving = false
+      emit()
+      return true
+    } catch {
+      toast = {
+        kind: "error",
+        message: ACCOUNT_WORKSPACE_PAGE_COPY.keyContactsSaveError,
+      }
+      isSaving = false
+      emit()
+      return false
+    }
+  }
+
   async function runSaveFlow(): Promise<boolean> {
     if (!activeTabDirty() || isSaving) {
       return false
@@ -526,6 +664,10 @@ export function createOperatorAccountWorkspacePageModule(
 
     if (activeTabId === "business-details") {
       return persistBusinessDetails()
+    }
+
+    if (activeTabId === "key-contacts") {
+      return persistKeyContacts()
     }
 
     if (activeTabId === "account-details" && !validateAccountDetailsDraft()) {
@@ -669,6 +811,30 @@ export function createOperatorAccountWorkspacePageModule(
       patchBusinessDraft({ country: value })
     },
 
+    setBillingContactUserId(userId) {
+      keyContactsDraft = {
+        ...keyContactsDraft,
+        billingContactUserId: userId,
+      }
+      emit()
+    },
+
+    setPrivacyContactUserId(userId) {
+      keyContactsDraft = {
+        ...keyContactsDraft,
+        privacyContactUserId: userId,
+      }
+      emit()
+    },
+
+    setSupportContactUserId(userId) {
+      keyContactsDraft = {
+        ...keyContactsDraft,
+        supportContactUserId: userId,
+      }
+      emit()
+    },
+
     async requestSave() {
       await runSaveFlow()
     },
@@ -733,6 +899,17 @@ export function createOperatorAccountWorkspacePageModule(
 
       if (activeTabId === "business-details") {
         const ok = await persistBusinessDetails()
+        if (ok) {
+          continuePendingLeave()
+        } else {
+          pendingLeave = null
+        }
+        emit()
+        return
+      }
+
+      if (activeTabId === "key-contacts") {
+        const ok = await persistKeyContacts()
         if (ok) {
           continuePendingLeave()
         } else {

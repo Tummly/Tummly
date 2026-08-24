@@ -116,6 +116,40 @@ namespace TummlyBackend.Controllers
             return Ok(details);
         }
 
+        [HttpPut("key-contacts")]
+        public async Task<IActionResult> UpdateKeyContacts(
+            [FromBody] UpdateKeyContactsRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var (details, error, statusCode) =
+                await _accountWorkspace.UpdateKeyContactsAsync(
+                    userId,
+                    request
+                );
+
+            if (error != null)
+            {
+                return StatusCode(
+                    statusCode,
+                    new
+                    {
+                        success = false,
+                        message = error,
+                    }
+                );
+            }
+
+            return Ok(details);
+        }
+
         [HttpGet("brand-logo")]
         public async Task<IActionResult> GetBrandLogo()
         {

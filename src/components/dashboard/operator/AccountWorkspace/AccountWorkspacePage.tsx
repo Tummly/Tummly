@@ -67,6 +67,69 @@ function StatusRow({ label, value }: { label: string; value: string }) {
   )
 }
 
+function ContactMemberSelect({
+  id,
+  label,
+  value,
+  members,
+  disabled = false,
+  onValueChange,
+}: {
+  id: string
+  label: string
+  value: number
+  members: ReadonlyArray<{ userId: number; fullName: string; email: string }>
+  disabled?: boolean
+  onValueChange?: (userId: number) => void
+}) {
+  const selected = members.find((member) => member.userId === value)
+  const selectValue = value > 0 ? String(value) : undefined
+
+  return (
+    <div className={FIELD_STACK_CLASS}>
+      <label htmlFor={id} className={FIELD_LABEL_CLASS}>
+        {label}
+      </label>
+      <Select
+        value={selectValue}
+        disabled={disabled}
+        onValueChange={(next) => {
+          const parsed = Number(next)
+          if (!Number.isFinite(parsed)) {
+            return
+          }
+          onValueChange?.(parsed)
+        }}
+      >
+        <SelectTrigger id={id} className="h-8 w-full">
+          <SelectValue
+            placeholder={ACCOUNT_WORKSPACE_PAGE_COPY.selectUserPlaceholder}
+          >
+            {selected?.fullName
+              ?? ACCOUNT_WORKSPACE_PAGE_COPY.selectUserPlaceholder}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent
+          position="popper"
+          align="start"
+          className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
+        >
+          {members.map((member) => (
+            <SelectItem key={member.userId} value={String(member.userId)}>
+              <span className="flex flex-col gap-0.5 text-left">
+                <span>{member.fullName}</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  {member.email}
+                </span>
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
 function formatDateOnly(iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) {
@@ -151,7 +214,13 @@ export function AccountWorkspacePage() {
   const status = snap.accountDetails.status
   const workspaceNameError = snap.accountDetails.workspaceNameError
   const business = snap.businessDetails
+  const keyContacts = snap.keyContacts
   const isUkAddress = isUnitedKingdomCountry(business.country)
+  const eligibleMembers = keyContacts.eligibleMembers
+  const ownerMember =
+    keyContacts.accountOwner != null
+      ? [keyContacts.accountOwner]
+      : eligibleMembers
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
@@ -728,7 +797,62 @@ export function AccountWorkspacePage() {
             </section>
           </div>
         </TabsContent>
-        <TabsContent value="key-contacts" className="mt-0" />
+        <TabsContent value="key-contacts" className="mt-0">
+          <section className={GUESTS_SECTION_CLASS}>
+            <div className="flex flex-col gap-2">
+              <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+                {ACCOUNT_WORKSPACE_PAGE_COPY.primaryResponsibilitiesTitle}
+              </h2>
+              <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+                {ACCOUNT_WORKSPACE_PAGE_COPY.primaryResponsibilitiesSubtitle}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-6">
+              <div className={FIELD_GRID_CLASS}>
+                <ContactMemberSelect
+                  id="account-owner"
+                  label={ACCOUNT_WORKSPACE_PAGE_COPY.accountOwner}
+                  value={keyContacts.accountOwner?.userId ?? 0}
+                  members={ownerMember}
+                  disabled
+                />
+                <ContactMemberSelect
+                  id="billing-contact"
+                  label={ACCOUNT_WORKSPACE_PAGE_COPY.billingContact}
+                  value={keyContacts.billingContactUserId}
+                  members={eligibleMembers}
+                  onValueChange={(userId) => {
+                    pageModule.setBillingContactUserId(userId)
+                  }}
+                />
+              </div>
+              <div className={FIELD_GRID_CLASS}>
+                <ContactMemberSelect
+                  id="privacy-contact"
+                  label={ACCOUNT_WORKSPACE_PAGE_COPY.privacyContact}
+                  value={keyContacts.privacyContactUserId}
+                  members={eligibleMembers}
+                  onValueChange={(userId) => {
+                    pageModule.setPrivacyContactUserId(userId)
+                  }}
+                />
+                <ContactMemberSelect
+                  id="support-contact"
+                  label={ACCOUNT_WORKSPACE_PAGE_COPY.supportContact}
+                  value={keyContacts.supportContactUserId}
+                  members={eligibleMembers}
+                  onValueChange={(userId) => {
+                    pageModule.setSupportContactUserId(userId)
+                  }}
+                />
+              </div>
+              <p className={FIELD_HELPER_CLASS}>
+                {ACCOUNT_WORKSPACE_PAGE_COPY.keyContactsTeamHelper}
+              </p>
+            </div>
+          </section>
+        </TabsContent>
         <TabsContent value="workspace-defaults" className="mt-0" />
         <TabsContent value="account-controls" className="mt-0" />
       </Tabs>

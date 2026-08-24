@@ -5,7 +5,10 @@ import {
 import type {
   AccountWorkspaceBusinessDetails,
   AccountWorkspaceDetails,
+  AccountWorkspaceKeyContacts,
+  TeamMemberPickerItem,
   UpdateBusinessDetailsPayload,
+  UpdateKeyContactsPayload,
 } from "@/lib/operatorAccountWorkspace/createOperatorAccountWorkspacePageModule"
 
 type AccountWorkspaceApiStatus = {
@@ -35,6 +38,20 @@ type AccountWorkspaceApiBusinessDetails = {
   country: string | null
 }
 
+type AccountWorkspaceApiPickerItem = {
+  userId: number
+  fullName: string
+  email: string
+}
+
+type AccountWorkspaceApiKeyContacts = {
+  accountOwner: AccountWorkspaceApiPickerItem
+  billingContactUserId: number
+  privacyContactUserId: number
+  supportContactUserId: number
+  eligibleMembers: AccountWorkspaceApiPickerItem[]
+}
+
 type AccountWorkspaceApiDetails = {
   success: boolean
   workspaceName: string
@@ -47,6 +64,7 @@ type AccountWorkspaceApiDetails = {
   lastSavedAt: string | null
   status: AccountWorkspaceApiStatus
   businessDetails?: AccountWorkspaceApiBusinessDetails | null
+  keyContacts?: AccountWorkspaceApiKeyContacts | null
 }
 
 function mapBusinessDetails(
@@ -70,6 +88,30 @@ function mapBusinessDetails(
   }
 }
 
+function mapPickerItem(
+  data: AccountWorkspaceApiPickerItem | null | undefined
+): TeamMemberPickerItem {
+  return {
+    userId: data?.userId ?? 0,
+    fullName: data?.fullName ?? "",
+    email: data?.email ?? "",
+  }
+}
+
+function mapKeyContacts(
+  data: AccountWorkspaceApiKeyContacts | null | undefined
+): AccountWorkspaceKeyContacts {
+  const accountOwner = mapPickerItem(data?.accountOwner)
+  const ownerId = accountOwner.userId
+  return {
+    accountOwner,
+    billingContactUserId: data?.billingContactUserId || ownerId,
+    privacyContactUserId: data?.privacyContactUserId || ownerId,
+    supportContactUserId: data?.supportContactUserId || ownerId,
+    eligibleMembers: (data?.eligibleMembers ?? []).map(mapPickerItem),
+  }
+}
+
 function mapDetails(
   data: AccountWorkspaceApiDetails
 ): AccountWorkspaceDetails {
@@ -84,6 +126,7 @@ function mapDetails(
     lastSavedAt: data.lastSavedAt,
     status: data.status,
     businessDetails: mapBusinessDetails(data.businessDetails),
+    keyContacts: mapKeyContacts(data.keyContacts),
   }
 }
 
@@ -116,6 +159,16 @@ export async function updateAccountWorkspaceBusinessDetails(
 ): Promise<AccountWorkspaceDetails> {
   const response = await axiosInstance.put<AccountWorkspaceApiDetails>(
     "/account-workspace/business-details",
+    payload
+  )
+  return mapDetails(response.data)
+}
+
+export async function updateAccountWorkspaceKeyContacts(
+  payload: UpdateKeyContactsPayload
+): Promise<AccountWorkspaceDetails> {
+  const response = await axiosInstance.put<AccountWorkspaceApiDetails>(
+    "/account-workspace/key-contacts",
     payload
   )
   return mapDetails(response.data)
