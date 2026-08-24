@@ -63,9 +63,9 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Null(state.OfferType);
             Assert.True(state.ConflictingBenefits.Count >= 2);
             Assert.Contains(
-                "authorised benefit",
-                AssistantOfferPathTerms.GapBody(state),
-                StringComparison.OrdinalIgnoreCase
+                "one authorised benefit",
+                AssistantOfferPathTerms.OpenRuleNames(state),
+                StringComparer.OrdinalIgnoreCase
             );
         }
 
@@ -406,40 +406,28 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void GapBody_PlacementOnly_UsesOperatorLabelNotWireWord()
+        public void OpenRules_PlacementOnly_UsesPlacementRuleNotCatalogFields()
         {
             var state = AssistantOfferPathTerms.Parse(
                 "Create a 25% Offer valid 14 days and attach it",
                 Utc2026
             );
 
-            var body = AssistantOfferPathTerms.GapBody(state);
-            Assert.DoesNotContain("placement", body, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("Guest form thank-you", body, StringComparison.Ordinal);
-            Assert.DoesNotContain("Campaign", body, StringComparison.Ordinal);
-            Assert.DoesNotContain("recovery", body, StringComparison.OrdinalIgnoreCase);
-            Assert.Equal(
-                "Name Guest form thank-you if this Offers catalog Draft should attach there.",
-                body
-            );
+            var openRules = AssistantOfferPathTerms.OpenRuleNames(state);
+            Assert.Equal(["placement"], openRules);
         }
 
         [Fact]
-        public void GapBody_CatalogAndPlacement_AppendsDedicatedSentence()
+        public void OpenRules_CatalogAndPlacement_ListsBoth()
         {
             var state = AssistantOfferPathTerms.Parse(
                 "Create a replacement item offer and attach it",
                 Utc2026
             );
 
-            var body = AssistantOfferPathTerms.GapBody(state);
-            Assert.DoesNotContain("placement", body, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("value", body, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains(
-                "Name Guest form thank-you if this Offers catalog Draft should attach there.",
-                body,
-                StringComparison.Ordinal
-            );
+            var openRules = AssistantOfferPathTerms.OpenRuleNames(state);
+            Assert.Contains("value", openRules, StringComparer.Ordinal);
+            Assert.Contains("placement", openRules, StringComparer.Ordinal);
         }
 
         [Fact]

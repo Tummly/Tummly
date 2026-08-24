@@ -175,45 +175,6 @@ namespace TummlyBackend.Helpers
                 ? ["one authorised benefit"]
                 : MissingFields(state);
 
-        public static string GapBody(AssistantOfferPathTermsState state)
-        {
-            if (state.ConflictingBenefits.Count >= 2)
-            {
-                return "Which authorised benefit should this Offers catalog Draft use: "
-                    + AssistantCreateLocationGap.Join(state.ConflictingBenefits)
-                    + "?";
-            }
-
-            if (state.OperatorDelegatedTerms && !HasAnyAuthorisedBenefit(state))
-            {
-                return "Name the Offer type, value, required usage, and validity. I will not invent terms.";
-            }
-
-            var missing = MissingFields(state);
-            var catalogMissing = missing
-                .Where(field => field != "placement")
-                .ToList();
-            var needsPlacement = missing.Contains("placement", StringComparer.Ordinal);
-
-            if (catalogMissing.Count == 0 && !needsPlacement)
-            {
-                return "Name the missing Offer terms.";
-            }
-
-            if (catalogMissing.Count == 0 && needsPlacement)
-            {
-                return PlacementGapSentence;
-            }
-
-            var catalogSentence = CatalogMissingGapSentence(catalogMissing);
-            if (needsPlacement)
-            {
-                return catalogSentence + " " + PlacementGapSentence;
-            }
-
-            return catalogSentence;
-        }
-
         public static void ProposeCopy(AssistantOfferPathTermsState state)
         {
             if (!IsComplete(state))
@@ -297,9 +258,6 @@ namespace TummlyBackend.Helpers
                 _ => state.Validity ?? string.Empty,
             };
 
-        private const string PlacementGapSentence =
-            "Name Guest form thank-you if this Offers catalog Draft should attach there.";
-
         private static readonly string[] GuestFormThankYouPhrases =
         [
             "guest form thank-you",
@@ -311,22 +269,6 @@ namespace TummlyBackend.Helpers
             "thank-you screen",
             "thank you screen",
         ];
-
-        private static string CatalogMissingGapSentence(IReadOnlyList<string> missing)
-        {
-            if (missing.Count == 1)
-            {
-                return $"Which {missing[0]} should this Offers catalog Draft use?";
-            }
-
-            if (missing.Count == 2)
-            {
-                return $"Which {missing[0]} and {missing[1]} should this Offers catalog Draft use?";
-            }
-
-            var head = string.Join(", ", missing.Take(missing.Count - 1));
-            return $"Which {head}, and {missing[^1]} should this Offers catalog Draft use?";
-        }
 
         private static void Apply(
             AssistantOfferPathTermsState state,
