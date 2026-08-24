@@ -1086,8 +1086,7 @@ export function AccountWorkspacePage() {
                 {isPaused ? (
                   <Button
                     type="button"
-                    variant="op-primary"
-                    className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+                    variant="op-secondary"
                     disabled={dangerZoneDisabled}
                     onClick={() => {
                       pageModule.requestResumeWorkspace()
@@ -1098,8 +1097,7 @@ export function AccountWorkspacePage() {
                 ) : (
                   <Button
                     type="button"
-                    variant="op-primary"
-                    className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+                    variant="op-secondary"
                     disabled={dangerZoneDisabled}
                     onClick={() => {
                       pageModule.requestPauseWorkspace()
@@ -1111,21 +1109,21 @@ export function AccountWorkspacePage() {
                 <Button
                   type="button"
                   variant="op-secondary"
-                  disabled
+                  disabled={dangerZoneDisabled}
                 >
                   {ACCOUNT_WORKSPACE_PAGE_COPY.transferOwnership}
                 </Button>
                 <Button
                   type="button"
                   variant="op-tertiary"
-                  disabled
+                  disabled={dangerZoneDisabled}
                 >
                   {ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountExport}
                 </Button>
                 <Button
                   type="button"
                   variant="op-tertiary"
-                  disabled
+                  disabled={dangerZoneDisabled}
                 >
                   {ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountClosure}
                 </Button>
