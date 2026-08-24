@@ -211,6 +211,76 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(issue.RedeemedAtUtc);
         }
 
+        [Fact]
+        public async Task CheckAndRedeem_FailWhileWorkspacePaused_SucceedAfterResume_CatalogUnchanged()
+        {
+            var seeded = await SeedRedeemableIssueAsync(claimCode: "TUM-PAUSE1");
+            var restaurant = await _context.Restaurants.SingleAsync(
+                r => r.Id == seeded.RestaurantId
+            );
+            var offerBefore = await _context.CatalogOffers.SingleAsync(
+                o => o.Id == seeded.CatalogOfferId
+            );
+            var offerStatusBefore = offerBefore.Status;
+
+            restaurant.WorkspaceStatus = WorkspaceStatus.Paused;
+            await _context.SaveChangesAsync();
+
+            var checkPaused = await _service.CheckClaimCodeAsync(
+                seeded.LocationId,
+                "TUM-PAUSE1",
+                _now
+            );
+            var checkFailed = Assert.IsType<OfferRedeemCheckResult.Failed>(checkPaused);
+            Assert.Equal(
+                OfferRedeemFailureReasons.WorkspacePaused,
+                checkFailed.Reason
+            );
+
+            var redeemPaused = await _service.RedeemClaimCodeAsync(
+                seeded.LocationId,
+                "TUM-PAUSE1",
+                seeded.IssueId.ToString(),
+                _now
+            );
+            var redeemFailed = Assert.IsType<OfferRedeemMarkResult.Failed>(
+                redeemPaused
+            );
+            Assert.Equal(
+                OfferRedeemFailureReasons.WorkspacePaused,
+                redeemFailed.Reason
+            );
+
+            var issueWhilePaused = await _context.OfferIssues.SingleAsync(
+                i => i.Id == seeded.IssueId
+            );
+            Assert.Null(issueWhilePaused.RedeemedAtUtc);
+
+            restaurant.WorkspaceStatus = WorkspaceStatus.Active;
+            await _context.SaveChangesAsync();
+
+            var checkOk = await _service.CheckClaimCodeAsync(
+                seeded.LocationId,
+                "TUM-PAUSE1",
+                _now
+            );
+            Assert.IsType<OfferRedeemCheckResult.Ok>(checkOk);
+
+            var redeemOk = await _service.RedeemClaimCodeAsync(
+                seeded.LocationId,
+                "TUM-PAUSE1",
+                seeded.IssueId.ToString(),
+                _now
+            );
+            Assert.IsType<OfferRedeemMarkResult.Ok>(redeemOk);
+
+            var offerAfter = await _context.CatalogOffers.SingleAsync(
+                o => o.Id == seeded.CatalogOfferId
+            );
+            Assert.Equal(offerStatusBefore, offerAfter.Status);
+            Assert.Equal(WorkspaceStatus.Active, restaurant.WorkspaceStatus);
+        }
+
         private async Task<(
             int LocationId,
             int RestaurantId,

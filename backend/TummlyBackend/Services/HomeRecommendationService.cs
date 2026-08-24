@@ -56,24 +56,32 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("locationId is required.");
             }
 
-            var preset = HomeRecommendationContract.NormalizePreset(
-                request.OverviewDatePreset
-            );
-            HomeRecommendationContract.EnsureResolvedWindow(
-                preset,
-                request.From,
-                request.To
-            );
+            var restaurantDefaults = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(location => location.Id == request.LocationId)
+                .Select(location => new
+                {
+                    Period = location.Restaurant != null
+                        ? location.Restaurant.DefaultReportingPeriod
+                        : null,
+                    LocationName = location.LocationName,
+                })
+                .FirstOrDefaultAsync(cancellationToken);
 
-            var fromUtc = EnsureUtc(request.From!.Value);
-            var toUtc = EnsureUtc(request.To!.Value);
+            var period = WorkspaceDefaultsOptions.NormalizeReportingPeriod(
+                restaurantDefaults?.Period
+            );
+            var (fromUtc, toUtc) = DefaultReportingPeriodWindow.Resolve(
+                period,
+                DateTime.UtcNow
+            );
 
             var cacheKey = HomeRecommendationContract.BuildCacheKey(
                 operatorUserId,
                 request.LocationId,
-                preset,
-                fromUtc,
-                toUtc
+                period,
+                fromUtc: null,
+                toUtc: null
             );
 
             if (!request.Refresh)
@@ -88,12 +96,7 @@ namespace TummlyBackend.Services
                 }
             }
 
-            var locationName = await _context.RestaurantLocations
-                .AsNoTracking()
-                .Where(location => location.Id == request.LocationId)
-                .Select(location => location.LocationName)
-                .FirstOrDefaultAsync(cancellationToken)
-                ?? string.Empty;
+            var locationName = restaurantDefaults?.LocationName ?? string.Empty;
 
             var metrics = await LoadMetricsAsync(
                 request.LocationId,
@@ -116,7 +119,10 @@ namespace TummlyBackend.Services
                 // Seam for ticket 06 — CampaignRecommendationService handoff.
                 return await CompleteCampaignRecommendationAsync(
                     operatorUserId,
-                    request,
+                    request.LocationId,
+                    period,
+                    fromUtc,
+                    toUtc,
                     selectedType,
                     metrics,
                     locationName,
@@ -132,7 +138,7 @@ namespace TummlyBackend.Services
                     new HomeRecommendationProviderInput(
                         SelectedType: selectedType,
                         LocationName: locationName,
-                        OverviewDatePreset: preset,
+                        OverviewDatePreset: period,
                         FromUtc: fromUtc,
                         ToUtc: toUtc,
                         Metrics: metrics
@@ -198,26 +204,14 @@ namespace TummlyBackend.Services
         /// Completes a Home-selected campaign allow-list type via
         /// <see cref="ICampaignRecommendationService"/> — same draft prefill,
         /// echoed counts, and channel. Does not call the Home Azure schema.
+        /// Window follows Default reporting period (not Home performance KPI).
         /// </summary>
-        /// <remarks>
-        /// <para>
-        /// Date window: Home performance presets (<c>last7</c> | <c>last30</c> |
-        /// <c>thisMonth</c> | <c>custom</c>) map 1:1 into the Campaigns request
-        /// with the same resolved from/to via
-        /// <see cref="HomeRecommendationContract.NormalizePreset"/>. Home has no
-        /// <c>all-time</c>; Campaigns <c>all-time</c> is never passed from this path.
-        /// </para>
-        /// <para>
-        /// Type selection note: Home domain router only gates “show a campaign-family
-        /// recommendation”. Payload type + draft come from full
-        /// <see cref="ICampaignRecommendationService.RecommendAsync"/> (Campaigns
-        /// allow-list pick). Campaigns type may differ from Home <paramref name="selectedType"/>;
-        /// forcing Home’s type would need a typed complete API on Campaigns.
-        /// </para>
-        /// </remarks>
         private async Task<HomeRecommendationServiceResult> CompleteCampaignRecommendationAsync(
             int operatorUserId,
-            HomeRecommendationRequest request,
+            int locationId,
+            string period,
+            DateTime fromUtc,
+            DateTime toUtc,
             string selectedType,
             HomeRecommendationMetrics metrics,
             string locationName,
@@ -229,13 +223,11 @@ namespace TummlyBackend.Services
 
             var campaignRequest = new CampaignRecommendationRequest
             {
-                LocationId = request.LocationId,
-                OverviewDatePreset = HomeRecommendationContract.NormalizePreset(
-                    request.OverviewDatePreset
-                ),
-                From = request.From,
-                To = request.To,
-                Refresh = request.Refresh,
+                LocationId = locationId,
+                OverviewDatePreset = period,
+                From = fromUtc,
+                To = toUtc,
+                Refresh = true,
             };
 
             var campaignResult = await _campaignRecommendation.RecommendAsync(

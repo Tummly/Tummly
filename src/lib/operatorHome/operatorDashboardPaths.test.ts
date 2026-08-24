@@ -151,6 +151,15 @@ describe("operatorDashboardNavPath", () => {
       "/multi-dashboard/offers?location=7"
     )
   })
+
+  it("builds Account & workspace settings path with location query", () => {
+    expect(
+      operatorDashboardNavPath("single", "account-workspace", 42)
+    ).toBe("/single-dashboard/settings/account-workspace?location=42")
+    expect(
+      operatorDashboardNavPath("multi", "account-workspace", 7)
+    ).toBe("/multi-dashboard/settings/account-workspace?location=7")
+  })
 })
 
 describe("operatorDashboardOffersRedemptionLogPath", () => {
@@ -326,6 +335,19 @@ describe("resolveOperatorSidebarActiveId", () => {
     expect(
       resolveOperatorSidebarActiveId("/multi-dashboard/offers/redemption-log")
     ).toBe("offers")
+  })
+
+  it("marks Account & workspace active on settings child routes", () => {
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/single-dashboard/settings/account-workspace"
+      )
+    ).toBe("account-workspace")
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/multi-dashboard/settings/account-workspace"
+      )
+    ).toBe("account-workspace")
   })
 })
 

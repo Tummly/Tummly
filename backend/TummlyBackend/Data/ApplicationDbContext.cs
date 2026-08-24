@@ -36,6 +36,9 @@ namespace TummlyBackend.Data
 
         public DbSet<Restaurant> Restaurants { get; set; }
 
+        public DbSet<RestaurantBusinessDetails> RestaurantBusinessDetails
+        { get; set; }
+
         public DbSet<RestaurantLocation> RestaurantLocations { get; set; }
 
         public DbSet<QrCode> QrCodes { get; set; }
@@ -284,6 +287,30 @@ namespace TummlyBackend.Data
                 .HasForeignKey(r => r.OwnerUserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            modelBuilder.Entity<Restaurant>()
+                .HasOne(r => r.BillingContactUser)
+                .WithMany()
+                .HasForeignKey(r => r.BillingContactUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Restaurant>()
+                .HasOne(r => r.PrivacyContactUser)
+                .WithMany()
+                .HasForeignKey(r => r.PrivacyContactUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Restaurant>()
+                .HasOne(r => r.SupportContactUser)
+                .WithMany()
+                .HasForeignKey(r => r.SupportContactUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Restaurant>()
+                .HasOne(r => r.WorkspaceStatusChangedByUser)
+                .WithMany()
+                .HasForeignKey(r => r.WorkspaceStatusChangedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
             /*
              =========================================
              RESTAURANT -> GUEST LOOP
@@ -295,6 +322,66 @@ namespace TummlyBackend.Data
                 .WithOne(r => r.GuestLoopSetup)
                 .HasForeignKey<GuestLoopSetup>(g => g.RestaurantId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            /*
+             =========================================
+             RESTAURANT -> BUSINESS DETAILS (1:1)
+             =========================================
+            */
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .HasOne(d => d.Restaurant)
+                .WithOne(r => r.BusinessDetails)
+                .HasForeignKey<RestaurantBusinessDetails>(d => d.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.LegalStructure)
+                .HasMaxLength(32);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.LegalBusinessName)
+                .HasMaxLength(200);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.TradingName)
+                .HasMaxLength(200);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.CompanyNumber)
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.VatNumber)
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.CountryOfRegistration)
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.AddressLine1)
+                .HasMaxLength(500);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.AddressLine2)
+                .HasMaxLength(500);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.TownCity)
+                .HasMaxLength(150);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.County)
+                .HasMaxLength(150);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.Postcode)
+                .HasMaxLength(20);
+
+            modelBuilder.Entity<RestaurantBusinessDetails>()
+                .Property(d => d.Country)
+                .HasMaxLength(100);
 
             /*
              =========================================
@@ -870,6 +957,21 @@ namespace TummlyBackend.Data
                 .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<HelpCentreQuery>()
+                .Property(q => q.AccountRequestKind)
+                .HasConversion(
+                    v => v.HasValue ? v.Value.ToWireString() : null,
+                    v => string.IsNullOrWhiteSpace(v)
+                        ? null
+                        : HelpCentreAccountRequestKindExtensions.FromWireString(v)
+                );
+
+            modelBuilder.Entity<HelpCentreQuery>()
+                .HasOne(q => q.Restaurant)
+                .WithMany()
+                .HasForeignKey(q => q.RestaurantId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<HelpCentreQuery>()
                 .HasIndex(q => q.Status);
 
             modelBuilder.Entity<HelpCentreQuery>()
@@ -1251,7 +1353,7 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<WeeklyBrief>()
                 .Property(row => row.WeekKey)
-                .HasMaxLength(16);
+                .HasMaxLength(32);
 
             modelBuilder.Entity<WeeklyBrief>()
                 .Property(row => row.Status)
@@ -1264,12 +1366,14 @@ namespace TummlyBackend.Data
 
         public override int SaveChanges()
         {
+            EnsureRestaurantKeyContactDefaults();
             StampInMemoryCampaignRowVersions();
             return base.SaveChanges();
         }
 
         public override int SaveChanges(bool acceptAllChangesOnSuccess)
         {
+            EnsureRestaurantKeyContactDefaults();
             StampInMemoryCampaignRowVersions();
             return base.SaveChanges(acceptAllChangesOnSuccess);
         }
@@ -1278,6 +1382,7 @@ namespace TummlyBackend.Data
             CancellationToken cancellationToken = default
         )
         {
+            EnsureRestaurantKeyContactDefaults();
             StampInMemoryCampaignRowVersions();
             return base.SaveChangesAsync(cancellationToken);
         }
@@ -1287,8 +1392,48 @@ namespace TummlyBackend.Data
             CancellationToken cancellationToken = default
         )
         {
+            EnsureRestaurantKeyContactDefaults();
             StampInMemoryCampaignRowVersions();
             return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+
+        /// <summary>
+        /// Key contacts default to Account owner until set. Keeps Operator Setup
+        /// and tests that only set OwnerUserId valid.
+        /// </summary>
+        private void EnsureRestaurantKeyContactDefaults()
+        {
+            foreach (var entry in ChangeTracker.Entries<Restaurant>())
+            {
+                if (
+                    entry.State != EntityState.Added
+                    && entry.State != EntityState.Modified
+                )
+                {
+                    continue;
+                }
+
+                var restaurant = entry.Entity;
+                if (restaurant.OwnerUserId == 0)
+                {
+                    continue;
+                }
+
+                if (restaurant.BillingContactUserId == 0)
+                {
+                    restaurant.BillingContactUserId = restaurant.OwnerUserId;
+                }
+
+                if (restaurant.PrivacyContactUserId == 0)
+                {
+                    restaurant.PrivacyContactUserId = restaurant.OwnerUserId;
+                }
+
+                if (restaurant.SupportContactUserId == 0)
+                {
+                    restaurant.SupportContactUserId = restaurant.OwnerUserId;
+                }
+            }
         }
 
         /// <summary>

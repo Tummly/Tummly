@@ -6,9 +6,6 @@ import {
 } from "./buildCaptureOverviewKpis"
 
 const emptyFacts: CaptureOverviewFacts = {
-  activeLocations: 0,
-  totalLocations: 0,
-  activeQrPlacements: 0,
   qrScans: 0,
   qrScansPrevious: 0,
   feedbackSubmitted: 0,
@@ -20,11 +17,8 @@ const emptyFacts: CaptureOverviewFacts = {
 }
 
 describe("buildCaptureOverviewKpis", () => {
-  it("builds six KPI cards with Figma rate secondaries", () => {
+  it("builds four KPI cards with Figma rate secondaries", () => {
     const { kpis } = buildCaptureOverviewKpis({
-      activeLocations: 2,
-      totalLocations: 5,
-      activeQrPlacements: 7,
       qrScans: 12,
       qrScansPrevious: 10,
       feedbackSubmitted: 6,
@@ -36,40 +30,28 @@ describe("buildCaptureOverviewKpis", () => {
     })
 
     expect(kpis.map((kpi) => kpi.id)).toEqual([
-      "active-locations",
-      "active-qr-placements",
       "qr-scans",
       "feedback-submitted",
       "marketing-opt-ins",
       "offer-claims",
     ])
     expect(kpis[0]).toMatchObject({
-      primaryText: "2",
-      secondaryKind: "of-total",
-      secondaryText: "of 5",
-    })
-    expect(kpis[1]).toMatchObject({
-      primaryText: "7",
-      secondaryKind: "dash",
-      hasRealData: true,
-    })
-    expect(kpis[2]).toMatchObject({
-      label: "Guest form opens",
+      label: "Form starts",
       primaryText: "12",
       secondaryKind: "none",
       secondaryText: null,
     })
-    expect(kpis[3]).toMatchObject({
+    expect(kpis[1]).toMatchObject({
       primaryText: "6",
       secondaryKind: "rate",
       secondaryText: "50% completion rate",
     })
-    expect(kpis[4]).toMatchObject({
+    expect(kpis[2]).toMatchObject({
       primaryText: "3",
       secondaryKind: "rate",
       secondaryText: "50% of submissions",
     })
-    expect(kpis[5]).toMatchObject({
+    expect(kpis[3]).toMatchObject({
       primaryText: "0",
       secondaryKind: "dash",
       hasRealData: false,

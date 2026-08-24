@@ -198,6 +198,7 @@ export type OperatorGuestsPageModule = {
   reloadForOverviewDateRange: () => Promise<void>
   exportCsv: () => Promise<void>
   exportSelectedCsv: () => Promise<void>
+  exportGuestCsv: (guestId: string) => Promise<void>
   openAddTag: (guestIds?: readonly string[]) => Promise<void>
   closeAddTag: () => void
   stageAddTag: (tagId: string) => void
@@ -1063,6 +1064,20 @@ export function createOperatorGuestsPageModule(
         guestIds: selectionIdsInCheckOrder(selectedGuestIds).map((id) =>
           Number.parseInt(id, 10)
         ),
+      })
+    },
+    exportGuestCsv: async (guestId) => {
+      const locationId = state.workspace?.selectedLocationId
+      if (locationId == null) {
+        return
+      }
+
+      await runExport({
+        locationId,
+        smartGroup: "all-guests",
+        q: "",
+        sort: "recent-activity",
+        guestIds: [Number.parseInt(guestId, 10)],
       })
     },
     openAddTag: async (guestIds) => {

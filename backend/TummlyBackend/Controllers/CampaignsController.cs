@@ -833,6 +833,18 @@ namespace TummlyBackend.Controllers
                     _campaignLifecycle.DuplicateAsDraftAsync(id, body, ct)
             );
 
+        [HttpPost("{campaignId:int}/delete")]
+        public Task<IActionResult> DeleteDraftCampaign(
+            int campaignId,
+            [FromBody] CampaignLifecycleActionRequest request
+        ) =>
+            ExecuteLifecycleAsync(
+                campaignId,
+                request,
+                (id, body, ct) =>
+                    _campaignLifecycle.DeleteDraftAsync(id, body, ct)
+            );
+
         private async Task<IActionResult> ExecuteLifecycleAsync(
             int campaignId,
             CampaignLifecycleActionRequest request,
@@ -886,6 +898,10 @@ namespace TummlyBackend.Controllers
                 {
                     success = true,
                     campaign = duplicated.Campaign,
+                }),
+                CampaignLifecycleResult.Deleted => Ok(new
+                {
+                    success = true,
                 }),
                 CampaignLifecycleResult.NotFound => NotFound(new
                 {

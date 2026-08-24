@@ -22,7 +22,7 @@ namespace TummlyBackend.Tests.Services
         private readonly WeeklyBriefMondayJob _job;
 
         /// <summary>
-        /// London Monday 2026-08-17 00:00 BST — closed week becomes 2026-W33.
+        /// London Monday 2026-08-17 00:00 BST — closed week becomes monday:2026-08-10.
         /// </summary>
         private static readonly DateTime LondonMondayMidnightUtc = new(
             2026,
@@ -72,13 +72,13 @@ namespace TummlyBackend.Tests.Services
                 1,
                 await _context.WeeklyBriefs.CountAsync(row =>
                     row.LocationId == locationId
-                    && row.WeekKey == "2026-W33"
+                    && row.WeekKey == "monday:2026-08-10"
                     && row.Status == WeeklyBriefStatus.Succeeded
                 )
             );
             Assert.Single(_notifier.Calls);
             Assert.Equal(locationId, _notifier.Calls[0].LocationId);
-            Assert.Equal("2026-W33", _notifier.Calls[0].WeekKey);
+            Assert.Equal("monday:2026-08-10", _notifier.Calls[0].WeekKey);
         }
 
         [Fact]
@@ -88,7 +88,7 @@ namespace TummlyBackend.Tests.Services
             const string sentinelBody = "{\"headline\":\"keep-me\"}";
             await SeedSucceededBriefAsync(
                 locationId,
-                weekKey: "2026-W33",
+                weekKey: "monday:2026-08-10",
                 bodyJson: sentinelBody
             );
 
@@ -100,7 +100,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(0, _provider.CallCount);
             Assert.Empty(_notifier.Calls);
             var row = await _context.WeeklyBriefs.SingleAsync(brief =>
-                brief.LocationId == locationId && brief.WeekKey == "2026-W33"
+                brief.LocationId == locationId && brief.WeekKey == "monday:2026-08-10"
             );
             Assert.Equal(sentinelBody, row.BodyJson);
         }
@@ -112,7 +112,7 @@ namespace TummlyBackend.Tests.Services
             var alreadyReady = await SeedLocationAsync("Already Ready");
             await SeedSucceededBriefAsync(
                 alreadyReady,
-                weekKey: "2026-W33",
+                weekKey: "monday:2026-08-10",
                 bodyJson: "{\"headline\":\"existing\"}"
             );
 
@@ -124,7 +124,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(1, _provider.CallCount);
             Assert.True(
                 await _context.WeeklyBriefs.AnyAsync(row =>
-                    row.LocationId == needsGenerate && row.WeekKey == "2026-W33"
+                    row.LocationId == needsGenerate && row.WeekKey == "monday:2026-08-10"
                 )
             );
             Assert.Single(_notifier.Calls);
@@ -132,46 +132,9 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ProcessAsync_JustBeforeMonday_GeneratesPreviousClosedWeek()
+        public async Task ProcessAsync_JustBeforeMonday_SkipsWhenNotGenerateDay()
         {
             var locationId = await SeedLocationAsync("Harbour Kitchen");
-            var justBeforeMonday = new DateTime(
-                2026,
-                8,
-                16,
-                22,
-                59,
-                59,
-                DateTimeKind.Utc
-            );
-
-            var batch = await _job.ProcessAsync(justBeforeMonday);
-
-            Assert.Equal(1, batch.Generated);
-            Assert.Equal(
-                1,
-                await _context.WeeklyBriefs.CountAsync(row =>
-                    row.LocationId == locationId && row.WeekKey == "2026-W32"
-                )
-            );
-            Assert.Equal(
-                0,
-                await _context.WeeklyBriefs.CountAsync(row =>
-                    row.LocationId == locationId && row.WeekKey == "2026-W33"
-                )
-            );
-            Assert.Equal("2026-W32", _notifier.Calls[0].WeekKey);
-        }
-
-        [Fact]
-        public async Task ProcessAsync_JustBeforeMonday_DoesNotOpenNewWeekWhenPreviousExists()
-        {
-            var locationId = await SeedLocationAsync("Harbour Kitchen");
-            await SeedSucceededBriefAsync(
-                locationId,
-                weekKey: "2026-W32",
-                bodyJson: "{\"headline\":\"w32\"}"
-            );
             var justBeforeMonday = new DateTime(
                 2026,
                 8,
@@ -187,12 +150,88 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(0, batch.Generated);
             Assert.Equal(1, batch.Skipped);
             Assert.Equal(0, _provider.CallCount);
+            Assert.Empty(_notifier.Calls);
             Assert.Equal(
                 0,
                 await _context.WeeklyBriefs.CountAsync(row =>
-                    row.LocationId == locationId && row.WeekKey == "2026-W33"
+                    row.LocationId == locationId
                 )
             );
+        }
+
+        [Fact]
+        public async Task ProcessAsync_FridayStart_GeneratesOnFriday_NotMonday()
+        {
+            var mondayOnly = await SeedLocationAsync(
+                "Monday Venue",
+                weekStartsOn: "monday"
+            );
+            var fridayVenue = await SeedLocationAsync(
+                "Friday Venue",
+                weekStartsOn: "friday"
+            );
+            var fridayMidnight = new DateTime(
+                2026,
+                8,
+                20,
+                23,
+                0,
+                0,
+                DateTimeKind.Utc
+            );
+
+            var batch = await _job.ProcessAsync(fridayMidnight);
+
+            Assert.Equal(1, batch.Generated);
+            Assert.Equal(1, batch.Skipped);
+            Assert.Equal(
+                0,
+                await _context.WeeklyBriefs.CountAsync(row =>
+                    row.LocationId == mondayOnly
+                )
+            );
+            Assert.Equal(
+                1,
+                await _context.WeeklyBriefs.CountAsync(row =>
+                    row.LocationId == fridayVenue
+                    && row.WeekKey == "friday:2026-08-14"
+                    && row.Status == WeeklyBriefStatus.Succeeded
+                )
+            );
+        }
+
+        [Fact]
+        public async Task ProcessAsync_SkipsExistingSucceededRow_WithoutOverwrite_FridayKey()
+        {
+            var locationId = await SeedLocationAsync(
+                "Friday Venue",
+                weekStartsOn: "friday"
+            );
+            const string sentinelBody = "{\"headline\":\"keep-friday\"}";
+            await SeedSucceededBriefAsync(
+                locationId,
+                weekKey: "friday:2026-08-14",
+                bodyJson: sentinelBody
+            );
+            var fridayMidnight = new DateTime(
+                2026,
+                8,
+                20,
+                23,
+                0,
+                0,
+                DateTimeKind.Utc
+            );
+
+            var batch = await _job.ProcessAsync(fridayMidnight);
+
+            Assert.Equal(0, batch.Generated);
+            Assert.Equal(1, batch.Skipped);
+            Assert.Equal(0, _provider.CallCount);
+            var row = await _context.WeeklyBriefs.SingleAsync(brief =>
+                brief.LocationId == locationId && brief.WeekKey == "friday:2026-08-14"
+            );
+            Assert.Equal(sentinelBody, row.BodyJson);
         }
 
         [Fact]
@@ -214,7 +253,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(1, batch.Failed);
             Assert.True(
                 await _context.WeeklyBriefs.AnyAsync(row =>
-                    row.LocationId == succeedingId && row.WeekKey == "2026-W33"
+                    row.LocationId == succeedingId && row.WeekKey == "monday:2026-08-10"
                 )
             );
             Assert.False(
@@ -229,13 +268,17 @@ namespace TummlyBackend.Tests.Services
             _context.Dispose();
         }
 
-        private async Task<int> SeedLocationAsync(string locationName)
+        private async Task<int> SeedLocationAsync(
+            string locationName,
+            string? weekStartsOn = null
+        )
         {
             var restaurant = new Restaurant
             {
                 Name = "Weekly Brief Job Restaurant",
                 AccountType = "Single",
                 OwnerUserId = 7,
+                WeekStartsOn = weekStartsOn,
                 CreatedAt = DateTime.UtcNow,
             };
             _context.Restaurants.Add(restaurant);

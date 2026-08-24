@@ -41,14 +41,19 @@ const TABS: Array<{ id: OperatorHomeActivityTabId; label: string }> = [
 /** Row text CTAs — paint/geometry from `op-link`; keep disabled opacity. */
 const ACTIVITY_ROW_CTA_CLASS = "font-medium disabled:opacity-40"
 
+export type HomeLatestActivityViewAllTabId = Exclude<
+  OperatorHomeActivityTabId,
+  "all"
+>
+
 type HomeLatestActivityProps = {
   activityByTab: OperatorHomeViewModel["activityByTab"]
   activityEmpty: OperatorHomeActivityEmpty
   nowMs?: number
   onViewFeedback?: (feedbackId: number) => void
   onViewGuest?: (locationGuestId: number) => void
-  /** Full activity / Feedback page — unavailable until that surface ships. */
-  onViewAllActivity?: () => void
+  /** Opens the matching Operator section for the active non-All tab. */
+  onViewAllActivity?: (tabId: HomeLatestActivityViewAllTabId) => void
 }
 
 function ActivityRow({
@@ -108,19 +113,6 @@ function ActivityRow({
                 }}
               >
                 View guest
-              </Button>
-              <Button
-                type="button"
-                variant="op-link"
-                size={"link-sm"}
-                className={ACTIVITY_ROW_CTA_CLASS}
-                disabled={!item.canSendOffer}
-                aria-disabled={!item.canSendOffer}
-                aria-label={
-                  item.canSendOffer ? "Send offer" : "Send offer (unavailable)"
-                }
-              >
-                Send offer
               </Button>
             </div>
             <div className="sm:hidden">{timestamp}</div>
@@ -230,7 +222,35 @@ export function HomeLatestActivity({
   const allEmpty = Object.values(activityByTab).every(
     (list) => list.length === 0
   )
-  const canViewAllActivity = onViewAllActivity != null
+  const viewAllTabId: HomeLatestActivityViewAllTabId | null =
+    activeTab === "all" ? null : activeTab
+  const canViewAllActivity =
+    viewAllTabId != null && onViewAllActivity != null
+
+  const viewAllFooter =
+    viewAllTabId != null ? (
+      <div className={LATEST_ACTIVITY_FOOTER_CLASS}>
+        <Button
+          type="button"
+          variant="op-secondary"
+          disabled={!canViewAllActivity}
+          aria-disabled={!canViewAllActivity}
+          aria-label={
+            canViewAllActivity
+              ? LATEST_ACTIVITY_VIEW_ALL_LABEL
+              : `${LATEST_ACTIVITY_VIEW_ALL_LABEL} (unavailable)`
+          }
+          onClick={() => {
+            if (viewAllTabId == null || onViewAllActivity == null) {
+              return
+            }
+            onViewAllActivity(viewAllTabId)
+          }}
+        >
+          {LATEST_ACTIVITY_VIEW_ALL_LABEL}
+        </Button>
+      </div>
+    ) : null
 
   return (
     <section className={OPERATOR_HOME_CARD_STACK_CLASS}>
@@ -282,29 +302,32 @@ export function HomeLatestActivity({
 
       <div role="tabpanel" className="flex flex-col gap-6">
         {items.length === 0 ? (
-          <div
-            className={cn(
-              LATEST_ACTIVITY_EMPTY_SHELL_CLASS,
-              allEmpty ? null : "py-10"
-            )}
-          >
-            <div className={OPERATOR_HOME_EMPTY_COPY_STACK_CLASS}>
-              <p className={OPERATOR_HOME_EMPTY_TITLE_SEMIBOLD_CLASS}>
-                {allEmpty
-                  ? activityEmpty.emptyCopy
-                  : activeTab === "offers" ||
-                    activeTab === "campaigns" ||
-                    activeTab === "guests"
-                    ? `No ${activeTab} activity yet.`
-                    : "No recent feedback yet."}
-              </p>
-              {allEmpty ? (
-                <p className={OPERATOR_HOME_EMPTY_HELPER_CLASS}>
-                  {activityEmpty.emptyHelper}
+          <>
+            <div
+              className={cn(
+                LATEST_ACTIVITY_EMPTY_SHELL_CLASS,
+                allEmpty ? null : "py-10"
+              )}
+            >
+              <div className={OPERATOR_HOME_EMPTY_COPY_STACK_CLASS}>
+                <p className={OPERATOR_HOME_EMPTY_TITLE_SEMIBOLD_CLASS}>
+                  {allEmpty
+                    ? activityEmpty.emptyCopy
+                    : activeTab === "offers" ||
+                        activeTab === "campaigns" ||
+                        activeTab === "guests"
+                      ? `No ${activeTab} activity yet.`
+                      : "No recent feedback yet."}
                 </p>
-              ) : null}
+                {allEmpty ? (
+                  <p className={OPERATOR_HOME_EMPTY_HELPER_CLASS}>
+                    {activityEmpty.emptyHelper}
+                  </p>
+                ) : null}
+              </div>
             </div>
-          </div>
+            {!allEmpty ? viewAllFooter : null}
+          </>
         ) : (
           <>
             <div>
@@ -318,22 +341,7 @@ export function HomeLatestActivity({
                 />
               ))}
             </div>
-            <div className={LATEST_ACTIVITY_FOOTER_CLASS}>
-              <Button
-                type="button"
-                variant="op-secondary"
-                disabled={!canViewAllActivity}
-                aria-disabled={!canViewAllActivity}
-                aria-label={
-                  canViewAllActivity
-                    ? LATEST_ACTIVITY_VIEW_ALL_LABEL
-                    : `${LATEST_ACTIVITY_VIEW_ALL_LABEL} (unavailable)`
-                }
-                onClick={onViewAllActivity}
-              >
-                {LATEST_ACTIVITY_VIEW_ALL_LABEL}
-              </Button>
-            </div>
+            {viewAllFooter}
           </>
         )}
       </div>

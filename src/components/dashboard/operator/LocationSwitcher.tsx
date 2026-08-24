@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react"
 import { ChevronDownIcon, XIcon } from "lucide-react"
 
-import brandLogoPlaceholder from "@/assets/images/brand-logo-placeholder.png"
+import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,25 +26,6 @@ type LocationSwitcherProps = {
   locationSwitcher: OperatorShellPresentation["locationSwitcher"]
   onSelectLocation: (locationId: number) => void
   className?: string
-}
-
-/** Shared Brand logo until Settings upload + blob storage exist (CONTEXT.md). */
-function BrandLogoSlot({ sizeClass }: { sizeClass: string }) {
-  return (
-    <span
-      className={cn(
-        "relative shrink-0 overflow-hidden rounded-[2px]",
-        sizeClass
-      )}
-      aria-hidden
-    >
-      <img
-        src={brandLogoPlaceholder}
-        alt=""
-        className="size-full object-cover"
-      />
-    </span>
-  )
 }
 
 // Figma: same muted utility surface as search.
@@ -74,6 +55,7 @@ function formatLocationSwitcherStatusLine(
 type LocationSwitcherPanelProps = {
   selectedLocationName: string
   selectedLocationId: number
+  brandLogoPublicUrl: string | null
   options: OperatorHomeLocationOption[]
   onSelectLocation: (locationId: number) => void
 }
@@ -81,6 +63,7 @@ type LocationSwitcherPanelProps = {
 function LocationSwitcherPanel({
   selectedLocationName,
   selectedLocationId,
+  brandLogoPublicUrl,
   options,
   onSelectLocation,
 }: LocationSwitcherPanelProps) {
@@ -98,7 +81,10 @@ function LocationSwitcherPanel({
   return (
     <div className="flex w-full flex-col gap-px py-1">
       <div className="flex items-center gap-3 p-5">
-        <BrandLogoSlot sizeClass="size-8" />
+        <BrandLogoMark
+          className="size-8"
+          brandLogoPublicUrl={brandLogoPublicUrl}
+        />
         <div className="flex min-w-0 flex-col items-start overflow-hidden">
           <span
             className="truncate text-sm font-semibold leading-normal text-op-header-location-heading"
@@ -212,7 +198,10 @@ export function LocationSwitcher({
     <span className="flex min-w-0 items-center gap-3 overflow-hidden">
       <span className="flex min-w-0 items-center gap-2 overflow-hidden">
         <span className="hidden lg:contents">
-          <BrandLogoSlot sizeClass="size-[26px]" />
+          <BrandLogoMark
+            className="size-[26px]"
+            brandLogoPublicUrl={locationSwitcher.brandLogoPublicUrl}
+          />
         </span>
         <span className="flex min-w-0 flex-col items-start overflow-hidden text-left font-semibold">
           <span className="hidden text-[10px] leading-normal text-op-header-location-subheading lg:block">
@@ -295,6 +284,7 @@ export function LocationSwitcher({
             <LocationSwitcherPanel
               selectedLocationName={locationSwitcher.selectedLocationName}
               selectedLocationId={locationSwitcher.selectedLocationId}
+              brandLogoPublicUrl={locationSwitcher.brandLogoPublicUrl}
               options={locationSwitcher.options}
               onSelectLocation={(locationId) => {
                 onSelectLocation(locationId)

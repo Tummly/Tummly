@@ -12,13 +12,17 @@ import {
 } from "@/lib/operatorHome/relativeTime"
 import type {
   GuestProfileContactEligibilityRow,
+  GuestProfileLatestCampaignItem,
   GuestProfileLatestFeedbackItem,
+  GuestProfileLatestOfferItem,
   GuestProfileRecentNoteItem,
   GuestProfileResponse,
 } from "@/types/dashboard"
 import type { GuestMarketingStatusLabel } from "@/types/operatorGuests"
 import type {
+  OperatorGuestProfileLatestCampaignRow,
   OperatorGuestProfileLatestFeedbackRow,
+  OperatorGuestProfileLatestOfferRow,
   OperatorGuestProfileNoteRow,
   OperatorGuestProfileViewModel,
 } from "@/types/operatorGuestProfile"
@@ -163,6 +167,74 @@ function mapLatestFeedbackRow(
   }
 }
 
+function offerStatusDisplay(item: GuestProfileLatestOfferItem): string {
+  if (item.cancelledAt != null) {
+    return "Cancelled"
+  }
+  if (item.redeemedAt != null) {
+    return "Redeemed"
+  }
+  if (item.claimedAt != null) {
+    return "Claimed"
+  }
+  return "Issued"
+}
+
+function offerSourceDisplay(source: string): string {
+  switch (source) {
+    case "campaign":
+      return "Campaign"
+    case "guest_form_thank_you":
+      return "Thank-you offer"
+    case "recovery":
+      return "Recovery"
+    default:
+      return source
+  }
+}
+
+function offerActivityAt(item: GuestProfileLatestOfferItem): string {
+  return item.redeemedAt ?? item.claimedAt ?? item.issuedAt
+}
+
+function mapLatestOfferRow(
+  item: GuestProfileLatestOfferItem
+): OperatorGuestProfileLatestOfferRow {
+  return {
+    id: item.id,
+    title: item.title,
+    statusDisplay: offerStatusDisplay(item),
+    sourceDisplay: offerSourceDisplay(item.source),
+    dateDisplay: formatGuestProfileAbsoluteDateTime(offerActivityAt(item)),
+  }
+}
+
+function campaignOutcomeDisplay(outcome: string): string {
+  switch (outcome) {
+    case "accepted":
+      return "Sent"
+    case "skipped-ineligible":
+      return "Skipped"
+    case "rejected":
+      return "Rejected"
+    default:
+      return outcome
+  }
+}
+
+function mapLatestCampaignRow(
+  item: GuestProfileLatestCampaignItem
+): OperatorGuestProfileLatestCampaignRow {
+  return {
+    id: item.id,
+    campaignId: item.campaignId,
+    campaignName: item.campaignName,
+    channelDisplay: item.channel.toUpperCase(),
+    outcomeDisplay: campaignOutcomeDisplay(item.outcome),
+    dateDisplay: formatGuestProfileAbsoluteDateTime(item.activityAt),
+  }
+}
+
 export function mapGuestNoteItemToRow(
   item: GuestProfileRecentNoteItem
 ): OperatorGuestProfileNoteRow {
@@ -251,6 +323,8 @@ export function mapGuestProfileApiResponseToViewModel(
       detailDisplay: formatContactEligibilityDetail(row),
     })),
     latestFeedback: (response.latestFeedback ?? []).map(mapLatestFeedbackRow),
+    latestOffers: (response.latestOffers ?? []).map(mapLatestOfferRow),
+    latestCampaigns: (response.latestCampaigns ?? []).map(mapLatestCampaignRow),
     recentNotes: (response.recentNotes ?? []).map(mapGuestNoteItemToRow),
   }
 }

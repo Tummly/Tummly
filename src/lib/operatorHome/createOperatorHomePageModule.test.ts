@@ -2121,31 +2121,21 @@ describe("createOperatorHomePageModule", () => {
     expect(home.getSnapshot().recommendation.status).toBe("dismissed")
   })
 
-  it("date range change loads recommendation for the new soft-cache key", async () => {
+  it("date range change does not reload recommendation soft cache", async () => {
     let dateRange:
       | { kind: "preset"; presetId: "last7" | "last30" | "thisMonth" }
       | { kind: "custom"; startDate: string; endDate: string } = {
       kind: "preset",
       presetId: "last7",
     }
-    const loadHomeRecommendation = vi
-      .fn()
-      .mockResolvedValueOnce({
-        success: true,
-        recommendation: {
-          type: "review-open-feedback" as const,
-          title: "Review open feedback",
-          whyBullets: ["Open feedback"],
-        },
-      })
-      .mockResolvedValueOnce({
-        success: true,
-        recommendation: {
-          type: "thank-or-follow-guest" as const,
-          title: "Thank a recent guest",
-          whyBullets: ["New guest"],
-        },
-      })
+    const loadHomeRecommendation = vi.fn().mockResolvedValue({
+      success: true,
+      recommendation: {
+        type: "review-open-feedback" as const,
+        title: "Review open feedback",
+        whyBullets: ["Open feedback"],
+      },
+    })
     const home = createOperatorHomePageModule(
       createAdapters({
         loadHomeRecommendation,
@@ -2157,19 +2147,14 @@ describe("createOperatorHomePageModule", () => {
     expect(home.getSnapshot().recommendation.recommendation?.title).toBe(
       "Review open feedback"
     )
+    expect(loadHomeRecommendation).toHaveBeenCalledTimes(1)
 
     dateRange = { kind: "preset", presetId: "last30" }
     await home.reloadForHomePerformanceDateRange()
 
-    expect(loadHomeRecommendation).toHaveBeenCalledTimes(2)
-    expect(loadHomeRecommendation).toHaveBeenLastCalledWith({
-      request: expect.objectContaining({
-        overviewDatePreset: "last30",
-        refresh: false,
-      }),
-    })
+    expect(loadHomeRecommendation).toHaveBeenCalledTimes(1)
     expect(home.getSnapshot().recommendation.recommendation?.title).toBe(
-      "Thank a recent guest"
+      "Review open feedback"
     )
   })
 

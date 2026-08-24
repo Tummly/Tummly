@@ -362,7 +362,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(0, homeFake.CallCount);
             Assert.Equal(1, campaignFake.CallCount);
             Assert.NotNull(campaignFake.LastInput);
-            Assert.Equal("last7", campaignFake.LastInput!.OverviewDatePreset);
+            Assert.Equal("7days", campaignFake.LastInput!.OverviewDatePreset);
         }
 
         [Fact]

@@ -380,6 +380,10 @@ builder.Services.AddScoped<
     HomeRecommendationService
 >();
 builder.Services.AddScoped<
+    IOfferRecommendationService,
+    OfferRecommendationService
+>();
+builder.Services.AddScoped<
     IWeeklyBriefGenerateService,
     WeeklyBriefGenerateService
 >();
@@ -455,6 +459,9 @@ builder.Services.AddScoped<
 >();
 
 builder.Services.AddScoped<IOwnedLocationService, OwnedLocationService>();
+
+builder.Services.AddScoped<IAccountWorkspaceService, AccountWorkspaceService>();
+builder.Services.AddScoped<IGuestDataExportService, GuestDataExportService>();
 
 builder.Services.AddHttpClient(
     "Resend",
@@ -562,6 +569,10 @@ if (useFakeFeedbackClassification)
     builder.Services.AddSingleton<IHomeRecommendationProvider>(sp =>
         sp.GetRequiredService<FakeHomeRecommendationProvider>()
     );
+    builder.Services.AddSingleton<FakeOfferRecommendationProvider>();
+    builder.Services.AddSingleton<IOfferRecommendationProvider>(sp =>
+        sp.GetRequiredService<FakeOfferRecommendationProvider>()
+    );
     builder.Services.AddSingleton<FakeWeeklyBriefProvider>();
     builder.Services.AddSingleton<IWeeklyBriefProvider>(sp =>
         sp.GetRequiredService<FakeWeeklyBriefProvider>()
@@ -588,6 +599,10 @@ else
     builder.Services.AddSingleton<
         IHomeRecommendationProvider,
         AzureOpenAIHomeRecommendationProvider
+    >();
+    builder.Services.AddSingleton<
+        IOfferRecommendationProvider,
+        AzureOpenAIOfferRecommendationProvider
     >();
     builder.Services.AddSingleton<
         IWeeklyBriefProvider,
@@ -621,6 +636,22 @@ builder.Services.AddHttpClient(
 
 builder.Services.AddHttpClient(
     HomeRecommendationStructuredOutput.HttpClientName,
+    client =>
+    {
+        var endpoint = builder.Configuration[
+            $"{FeedbackClassificationSettings.SectionName}:Endpoint"
+        ];
+        if (!string.IsNullOrWhiteSpace(endpoint))
+        {
+            client.BaseAddress = new Uri(endpoint.TrimEnd('/') + "/");
+        }
+
+        client.Timeout = TimeSpan.FromSeconds(60);
+    }
+);
+
+builder.Services.AddHttpClient(
+    OfferRecommendationStructuredOutput.HttpClientName,
     client =>
     {
         var endpoint = builder.Configuration[

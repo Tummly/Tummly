@@ -14,6 +14,10 @@ namespace TummlyBackend.DTOs.HelpCentre
 
         public int? RestaurantLocationId { get; set; }
 
+        public string? AccountRequestKind { get; set; }
+
+        public int? RestaurantId { get; set; }
+
         public string Message { get; set; } = string.Empty;
     }
 }

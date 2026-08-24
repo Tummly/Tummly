@@ -4,6 +4,7 @@ import { toast } from "sonner"
 import { useGuestProfilePageModule } from "@/components/dashboard/operator/GuestProfile/utils/useGuestProfilePageModule"
 import { GuestProfileShell } from "@/components/dashboard/operator/GuestProfile/GuestProfileShell"
 import { ManageMarketingPreferencesDialog } from "@/components/dashboard/operator/GuestProfile/ManageMarketingPreferencesDialog"
+import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -84,6 +85,9 @@ export function GuestProfilePage({
     setMarketingPreferenceNote,
   } = useGuestProfilePageModule()
   const navigate = useNavigate()
+  const setCampaignsIntent = useDashboardUiStore(
+    (state) => state.setCampaignsIntent
+  )
   const guestsListPath = operatorDashboardNavPath(
     mode,
     "guests",
@@ -248,6 +252,12 @@ export function GuestProfilePage({
       }}
       onDeleteGuestData={() => {
         navigate(headerPaths.deleteGuestData)
+      }}
+      onCreateCampaign={() => {
+        setCampaignsIntent({ openBlankCreate: true })
+        navigate(
+          operatorDashboardNavPath(mode, "campaigns", selectedLocationId)
+        )
       }}
     />
       <ManageMarketingPreferencesDialog

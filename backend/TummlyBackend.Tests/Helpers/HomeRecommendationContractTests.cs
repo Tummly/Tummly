@@ -74,11 +74,33 @@ namespace TummlyBackend.Tests.Helpers
             var key = HomeRecommendationContract.BuildCacheKey(
                 operatorUserId: 7,
                 locationId: 42,
-                preset: "last7",
+                preset: "7days",
                 fromUtc: new DateTime(2026, 8, 14, 0, 0, 0, DateTimeKind.Utc),
                 toUtc: new DateTime(2026, 8, 21, 12, 0, 0, DateTimeKind.Utc)
             );
-            Assert.Equal("home-recommendation:7:42:last7", key);
+            Assert.Equal("home-recommendation:7:42:7days", key);
+        }
+
+        [Fact]
+        public void BuildCacheKey_DifferentPeriods_DoNotCollide()
+        {
+            var seven = HomeRecommendationContract.BuildCacheKey(
+                7,
+                42,
+                "7days",
+                null,
+                null
+            );
+            var thirty = HomeRecommendationContract.BuildCacheKey(
+                7,
+                42,
+                "30days",
+                null,
+                null
+            );
+            Assert.Equal("home-recommendation:7:42:7days", seven);
+            Assert.Equal("home-recommendation:7:42:30days", thirty);
+            Assert.NotEqual(seven, thirty);
         }
 
         [Fact]

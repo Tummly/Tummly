@@ -391,6 +391,54 @@ namespace TummlyBackend.Services
             };
         }
 
+        public async Task<CampaignLifecycleResult> DeleteDraftAsync(
+            int campaignId,
+            CampaignLifecycleActionRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var loaded = await LoadForMutationAsync(
+                campaignId,
+                request.RowVersion,
+                cancellationToken
+            );
+            if (loaded is not LoadResult.Found found)
+            {
+                return ToLifecycleResult(loaded);
+            }
+
+            var entity = found.Entity;
+            if (
+                !string.Equals(
+                    entity.Status,
+                    DraftStatus,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return new CampaignLifecycleResult.InvalidStatus
+                {
+                    Message = "Only draft campaigns can be deleted.",
+                };
+            }
+
+            // Drafts must not hold Billing reservation or freeze rows; clear
+            // defensively so InMemory matches SQL cascade behaviour.
+            ClearFreeze(entity.Id);
+            _context.Campaigns.Remove(entity);
+
+            try
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return new CampaignLifecycleResult.Conflict();
+            }
+
+            return new CampaignLifecycleResult.Deleted();
+        }
+
         private async Task<CampaignLifecycleResult> RevalidateReReserveAsync(
             Campaign entity,
             bool resumeTarget,

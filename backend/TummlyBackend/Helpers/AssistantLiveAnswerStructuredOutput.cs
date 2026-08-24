@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using TummlyBackend.DTOs.Assistant;
@@ -50,19 +51,11 @@ namespace TummlyBackend.Helpers
             var request = new JsonObject
             {
                 ["model"] = deploymentName,
-                ["messages"] = new JsonArray
-                {
-                    new JsonObject
-                    {
-                        ["role"] = "system",
-                        ["content"] = BuildSystemPrompt(promptSchemaVersion)
-                    },
-                    new JsonObject
-                    {
-                        ["role"] = "user",
-                        ["content"] = userPayload.ToJsonString(RequestJsonOptions)
-                    }
-                },
+                ["messages"] = BuildMessages(
+                    BuildSystemPrompt(promptSchemaVersion),
+                    input,
+                    userPayload
+                ),
                 ["response_format"] = new JsonObject
                 {
                     ["type"] = "json_schema",
@@ -78,6 +71,46 @@ namespace TummlyBackend.Helpers
             return request.ToJsonString(RequestJsonOptions);
         }
 
+        private static JsonArray BuildMessages(
+            string systemPrompt,
+            AssistantLiveAnswerInput input,
+            JsonObject userPayload
+        )
+        {
+            var messages = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["role"] = "system",
+                    ["content"] = systemPrompt,
+                },
+            };
+
+            if (input.History is { Count: > 0 } history)
+            {
+                foreach (var turn in history)
+                {
+                    messages.Add(
+                        new JsonObject
+                        {
+                            ["role"] = turn.Role.ToWireString(),
+                            ["content"] = turn.Body,
+                        }
+                    );
+                }
+            }
+
+            messages.Add(
+                new JsonObject
+                {
+                    ["role"] = "user",
+                    ["content"] = userPayload.ToJsonString(RequestJsonOptions),
+                }
+            );
+
+            return messages;
+        }
+
         public static JsonObject BuildSchema()
             => new()
             {
@@ -90,7 +123,8 @@ namespace TummlyBackend.Helpers
                     "body",
                     "actions",
                     "assistantTask",
-                    "conversationTitle"
+                    "conversationTitle",
+                    "offerTerms"
                 },
                 ["properties"] = new JsonObject
                 {
@@ -127,6 +161,14 @@ namespace TummlyBackend.Helpers
                         ["anyOf"] = new JsonArray
                         {
                             new JsonObject { ["type"] = "string" },
+                            new JsonObject { ["type"] = "null" }
+                        }
+                    },
+                    ["offerTerms"] = new JsonObject
+                    {
+                        ["anyOf"] = new JsonArray
+                        {
+                            OfferTermsObject(),
                             new JsonObject { ["type"] = "null" }
                         }
                     },
@@ -180,6 +222,95 @@ namespace TummlyBackend.Helpers
                 }
             };
 
+        private static readonly string[] OfferTypeWireValues =
+        [
+            "percentage_discount",
+            "fixed_discount",
+            "free_item",
+            "replacement_item"
+        ];
+
+        private static readonly string[] PurchaseRequirementWireValues =
+        [
+            "no_purchase_required",
+            "with_any_purchase",
+            "with_minimum_spend"
+        ];
+
+        private static readonly string[] ValidityWireValues =
+        [
+            "7_days_after_issue",
+            "14_days_after_issue",
+            "30_days_after_issue",
+            "choose_expiry_date"
+        ];
+
+        private static JsonObject OfferTermsObject()
+            => new()
+            {
+                ["type"] = "object",
+                ["additionalProperties"] = false,
+                ["required"] = new JsonArray(
+                    new[]
+                    {
+                        "offerType",
+                        "discountPercentage",
+                        "discountAmount",
+                        "freeItemText",
+                        "purchaseRequirement",
+                        "minimumSpend",
+                        "replacementItemText",
+                        "validity",
+                        "expiryDate",
+                        "placement"
+                    }
+                        .Select(name => (JsonNode?)name)
+                        .ToArray()
+                ),
+                ["properties"] = new JsonObject
+                {
+                    ["offerType"] = WireEnumOrNone(OfferTypeWireValues),
+                    ["discountPercentage"] = NullableNumber(),
+                    ["discountAmount"] = NullableNumber(),
+                    ["freeItemText"] = NullableString(),
+                    ["purchaseRequirement"] =
+                        WireEnumOrNone(PurchaseRequirementWireValues),
+                    ["minimumSpend"] = NullableNumber(),
+                    ["replacementItemText"] = NullableString(),
+                    ["validity"] = WireEnumOrNone(ValidityWireValues),
+                    ["expiryDate"] = NullableString(),
+                    ["placement"] = WireEnumOrNone(
+                        [AssistantOfferPathTermsState.PlacementGuestFormThankYou]
+                    ),
+                },
+            };
+
+        private static JsonObject WireEnumOrNone(string[] values)
+            => new()
+            {
+                ["anyOf"] = new JsonArray
+                {
+                    new JsonObject
+                    {
+                        ["type"] = "string",
+                        ["enum"] = new JsonArray(
+                            values.Select(value => (JsonNode)value).ToArray()
+                        )
+                    },
+                    new JsonObject { ["type"] = "null" },
+                },
+            };
+
+        private static JsonObject NullableNumber()
+            => new()
+            {
+                ["anyOf"] = new JsonArray
+                {
+                    new JsonObject { ["type"] = "number" },
+                    new JsonObject { ["type"] = "null" },
+                },
+            };
+
         public static string BuildSystemPrompt(string promptSchemaVersion)
             => $"""
                 You write one complete live answer for an operator AI Assistant.
@@ -202,8 +333,10 @@ namespace TummlyBackend.Helpers
                 first successful complete.
 
                 Every restaurant claim must come from retrieved evidence in the
-                user payload. Re-retrieve is already done. Prior assistant text is
-                not evidence. Vague time words map to the current Reporting period.
+                user payload. Re-retrieve is already done.
+                Prior turns are chat history for reference only;
+                prior assistant text is not evidence.
+                Vague time words map to the current Reporting period.
                 Title and body must use periodPhrase for windowed facts. Do not
                 write a hard-coded "this week". The server owns Gap turns: do not
                 ask Campaign name, catalogues, extra questions, or Location when
@@ -304,6 +437,35 @@ namespace TummlyBackend.Helpers
                 Class is grounded if any in-scope facts were retrieved. If
                 suppressMixedRefusal is true, return only the grounded retrieve
                 part. The service adds interview and refusal copy.
+
+                When assistantTask is offer-path, also emit offerTerms: every
+                Offer term extracted from the whole ask — type, value fields,
+                purchase requirement, validity, expiry date, placement — using
+                the catalogue wire values in the schema. Map natural wording to
+                the closest wire value and leave a term null when the ask does
+                not name it. Emit null offerTerms for every other task,
+                including retrieve, refusal, clarify, create-campaign-draft,
+                create-campaign-with-offer, and recovery-path. Never invent a
+                term the operator did not give. The server validates every term
+                with its own rules before it saves anything.
+
+                An Offer can be saved only when the whole conversation gives:
+                one benefit type and its matching value (a percentage number,
+                a £ amount, a free item, or a replacement item), a purchase
+                requirement with its minimum spend amount when the operator sets
+                one, and validity — fixed days after issue or an expiry date
+                when the operator wants to choose one. When any required term is
+                still unknown from the whole conversation, do not treat the
+                create ask as complete:
+                write ONE short natural sentence that asks only for the missing required terms,
+                in plain words a person would use.
+                Never ask about optional detail:
+                title and description are drafted for the operator,
+                staff instructions and exclusions are optional, and
+                placement is confirmed only when the operator asked to attach the Offer.
+                When you continue an open create task from an earlier turn,
+                keep assistantTask on that create task and re-extract every term from the whole conversation,
+                not only the last message.
 
                 Actions: choose typed rows only. Do not invent labels or destinations.
                 Max three. Catalog order. At most one per type. Navigate only.
@@ -455,13 +617,16 @@ namespace TummlyBackend.Helpers
                         : rawConversationTitle;
                 }
 
+                var offerTerms = ReadOfferTerms(root);
+
                 result = new AssistantLiveAnswerResult.Succeeded(
                     answerClass,
                     title,
                     body,
                     actions,
                     assistantTask,
-                    conversationTitle
+                    conversationTitle,
+                    offerTerms
                 );
                 return true;
             }
@@ -734,6 +899,102 @@ namespace TummlyBackend.Helpers
                     new JsonObject { ["type"] = "null" },
                 },
             };
+
+        private static AssistantOfferPathTermsState? ReadOfferTerms(JsonElement root)
+        {
+            if (!root.TryGetProperty("offerTerms", out var element)
+                || element.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            var state = new AssistantOfferPathTermsState
+            {
+                OfferType = ReadWireEnum(element, "offerType", OfferTypeWireValues),
+                DiscountPercentage = ReadNullableDecimal(element, "discountPercentage"),
+                DiscountAmount = ReadNullableDecimal(element, "discountAmount"),
+                FreeItemText = ReadNullableString(element, "freeItemText"),
+                PurchaseRequirement = ReadWireEnum(
+                    element,
+                    "purchaseRequirement",
+                    PurchaseRequirementWireValues
+                ),
+                MinimumSpend = ReadNullableDecimal(element, "minimumSpend"),
+                ReplacementItemText = ReadNullableString(element, "replacementItemText"),
+                Validity = ReadWireEnum(element, "validity", ValidityWireValues),
+                ExpiryDate = ReadExpiryDate(element),
+            };
+
+            var placement = ReadWireEnum(
+                element,
+                "placement",
+                [AssistantOfferPathTermsState.PlacementGuestFormThankYou]
+            );
+            if (placement is not null)
+            {
+                state.WantsAttach = true;
+                state.Placement = placement;
+            }
+
+            var hasAnyTerm =
+                state.OfferType is not null
+                || state.DiscountPercentage is not null
+                || state.DiscountAmount is not null
+                || !string.IsNullOrWhiteSpace(state.FreeItemText)
+                || state.PurchaseRequirement is not null
+                || state.MinimumSpend is not null
+                || !string.IsNullOrWhiteSpace(state.ReplacementItemText)
+                || state.Validity is not null
+                || state.Placement is not null;
+
+            return hasAnyTerm ? state : null;
+        }
+
+        private static string? ReadWireEnum(
+            JsonElement item,
+            string name,
+            IReadOnlyList<string> allowed
+        )
+        {
+            if (!item.TryGetProperty(name, out var element)
+                || element.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            var value = element.GetString()?.Trim();
+            return allowed.Contains(value, StringComparer.Ordinal) ? value : null;
+        }
+
+        private static decimal? ReadNullableDecimal(JsonElement item, string name)
+        {
+            if (!item.TryGetProperty(name, out var element)
+                || element.ValueKind != JsonValueKind.Number
+                || !element.TryGetDecimal(out var value))
+            {
+                return null;
+            }
+
+            return value;
+        }
+
+        private static string? ReadExpiryDate(JsonElement item)
+        {
+            var raw = ReadNullableString(item, "expiryDate");
+            if (raw is null)
+            {
+                return null;
+            }
+
+            return DateTime.TryParse(
+                raw,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsed
+            )
+                ? parsed.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                : null;
+        }
 
         private static List<AssistantActionDto> ParseActions(JsonElement root)
         {

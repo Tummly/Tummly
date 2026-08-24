@@ -28,6 +28,7 @@ export type OperatorGuestsPageModuleApi = {
   reloadForOverviewDateRange: OperatorGuestsPageModule["reloadForOverviewDateRange"]
   exportCsv: OperatorGuestsPageModule["exportCsv"]
   exportSelectedCsv: OperatorGuestsPageModule["exportSelectedCsv"]
+  exportGuestCsv: OperatorGuestsPageModule["exportGuestCsv"]
   openAddTag: OperatorGuestsPageModule["openAddTag"]
   closeAddTag: OperatorGuestsPageModule["closeAddTag"]
   stageAddTag: OperatorGuestsPageModule["stageAddTag"]
@@ -122,6 +123,7 @@ export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
     reloadForOverviewDateRange: pageModule.reloadForOverviewDateRange,
     exportCsv: pageModule.exportCsv,
     exportSelectedCsv: pageModule.exportSelectedCsv,
+    exportGuestCsv: pageModule.exportGuestCsv,
     openAddTag: pageModule.openAddTag,
     closeAddTag: pageModule.closeAddTag,
     stageAddTag: pageModule.stageAddTag,

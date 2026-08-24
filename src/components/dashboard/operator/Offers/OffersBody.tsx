@@ -15,6 +15,7 @@ import type { OffersNeedsAttentionOverviewRow } from "@/lib/operatorOffers/build
 import {
   OFFERS_PAGE_COPY,
   OFFERS_PAGE_META_CLASS,
+  OFFERS_PAGE_SUBTITLE_CLASS,
 } from "@/lib/operatorOffers/offersPresentation"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import type { FilterChip } from "@/lib/operatorFilterSheet"
@@ -25,7 +26,6 @@ import {
   GUESTS_PAGE_PRIMARY_BUTTON_CLASS,
   GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
   GUESTS_PAGE_STACK_CLASS,
-  GUESTS_PAGE_SUBTITLE_CLASS,
   GUESTS_PAGE_TITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import type {
@@ -101,7 +101,7 @@ export function OffersBody({
       <div className={GUESTS_PAGE_HEADER_ROW_CLASS}>
         <header className={GUESTS_PAGE_HEADER_COPY_CLASS}>
           <h1 className={GUESTS_PAGE_TITLE_CLASS}>{copy.title}</h1>
-          <p className={GUESTS_PAGE_SUBTITLE_CLASS}>{copy.subtitle}</p>
+          <p className={OFFERS_PAGE_SUBTITLE_CLASS}>{copy.subtitle}</p>
           <p className={OFFERS_PAGE_META_CLASS}>{viewModel.locationName}</p>
         </header>
 

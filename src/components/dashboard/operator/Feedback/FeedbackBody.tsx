@@ -38,6 +38,7 @@ type FeedbackBodyProps = {
   selectedDateRange: HomePerformanceDateRange
   onCommitDateRange: (range: HomePerformanceDateRange) => void
   onReviewNeedsAttention: () => void
+  onSummariseWithAi: () => void
   onChangePeriod: () => void
   onViewCapture: () => void
   inboxRef: RefObject<HTMLElement | null>
@@ -76,6 +77,7 @@ export function FeedbackBody({
   selectedDateRange,
   onCommitDateRange,
   onReviewNeedsAttention,
+  onSummariseWithAi,
   onChangePeriod,
   onViewCapture,
   inboxRef,
@@ -137,11 +139,8 @@ export function FeedbackBody({
           <Button
             type="button"
             variant="op-secondary"
-            disabled
-            aria-disabled
-            aria-label={`${copy.summariseWithAi} (unavailable)`}
-            title={`${copy.summariseWithAi} is unavailable`}
             className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            onClick={onSummariseWithAi}
           >
             {copy.summariseWithAi}
           </Button>

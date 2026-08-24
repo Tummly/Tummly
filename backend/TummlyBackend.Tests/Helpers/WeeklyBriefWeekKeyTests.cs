@@ -14,7 +14,7 @@ namespace TummlyBackend.Tests.Helpers
 
             var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(London, utcNow);
 
-            Assert.Equal("2026-W33", closed.WeekKey);
+            Assert.Equal("monday:2026-08-10", closed.WeekKey);
             Assert.Equal(
                 new DateTime(2026, 8, 9, 23, 0, 0, DateTimeKind.Utc),
                 closed.CoverageStartUtc
@@ -33,7 +33,7 @@ namespace TummlyBackend.Tests.Helpers
 
             var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(London, utcNow);
 
-            Assert.Equal("2026-W32", closed.WeekKey);
+            Assert.Equal("monday:2026-08-03", closed.WeekKey);
             Assert.Equal(
                 new DateTime(2026, 8, 2, 23, 0, 0, DateTimeKind.Utc),
                 closed.CoverageStartUtc
@@ -52,30 +52,52 @@ namespace TummlyBackend.Tests.Helpers
 
             var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(London, utcNow);
 
-            Assert.Equal("2026-W33", closed.WeekKey);
+            Assert.Equal("monday:2026-08-10", closed.WeekKey);
         }
 
         [Fact]
-        public void ForClosedPriorWeek_IsoYearBoundary_UsesIsoWeekYear()
+        public void ForClosedPriorWeek_FridayStart_DoesNotCollideWithMondayKey()
         {
-            // Monday 2026-01-05 00:00 GMT → closed week Mon 2025-12-29 (ISO 2026-W01)
-            var utcNow = new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc);
+            // Friday 2026-08-21 00:00 BST → closed Fri 2026-08-14 → Fri 2026-08-21
+            var utcNow = new DateTime(2026, 8, 20, 23, 0, 0, DateTimeKind.Utc);
 
-            var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(London, utcNow);
+            var friday = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                London,
+                utcNow,
+                "friday"
+            );
+            var monday = WeeklyBriefWeekKey.ForClosedPriorWeek(
+                London,
+                utcNow,
+                "monday"
+            );
 
-            Assert.Equal("2026-W01", closed.WeekKey);
+            Assert.Equal("friday:2026-08-14", friday.WeekKey);
+            Assert.Equal("monday:2026-08-10", monday.WeekKey);
+            Assert.NotEqual(friday.WeekKey, monday.WeekKey);
+        }
+
+        [Fact]
+        public void IsGenerateDay_MatchesConfiguredStartWeekday()
+        {
+            var fridayMidnight = new DateTime(2026, 8, 20, 23, 0, 0, DateTimeKind.Utc);
+            Assert.True(
+                WeeklyBriefWeekKey.IsGenerateDay(London, fridayMidnight, "friday")
+            );
+            Assert.False(
+                WeeklyBriefWeekKey.IsGenerateDay(London, fridayMidnight, "monday")
+            );
         }
 
         [Fact]
         public void ForClosedPriorWeek_LocalKind_ConvertsToUtcBeforeResolving()
         {
-            // Same instant as AtMondayLocalMidnight test: 2026-08-16 23:00 UTC
             var localNow = new DateTime(2026, 8, 16, 23, 0, 0, DateTimeKind.Utc)
                 .ToLocalTime();
 
             var closed = WeeklyBriefWeekKey.ForClosedPriorWeek(London, localNow);
 
-            Assert.Equal("2026-W33", closed.WeekKey);
+            Assert.Equal("monday:2026-08-10", closed.WeekKey);
         }
 
         [Fact]
@@ -97,8 +119,9 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Theory]
+        [InlineData("monday:2026-08-10", true)]
+        [InlineData("friday:2026-08-14", true)]
         [InlineData("2026-W33", true)]
-        [InlineData("2026-W01", true)]
         [InlineData(" 2026-W33 ", true)]
         [InlineData("2026-W3", false)]
         [InlineData("2026-w33", false)]
@@ -106,7 +129,7 @@ namespace TummlyBackend.Tests.Helpers
         [InlineData("", false)]
         [InlineData(null, false)]
         [InlineData("not-a-week", false)]
-        public void TryNormalizeWeekKey_MatchesIsoYyyyWwwForm(
+        public void TryNormalizeWeekKey_MatchesWorkspaceOrLegacyIsoForm(
             string? candidate,
             bool expected
         )
@@ -121,9 +144,12 @@ namespace TummlyBackend.Tests.Helpers
         public void TryNormalizeWeekKey_TrimsValidKey()
         {
             Assert.True(
-                WeeklyBriefWeekKey.TryNormalizeWeekKey(" 2026-W33 ", out var weekKey)
+                WeeklyBriefWeekKey.TryNormalizeWeekKey(
+                    " monday:2026-08-10 ",
+                    out var weekKey
+                )
             );
-            Assert.Equal("2026-W33", weekKey);
+            Assert.Equal("monday:2026-08-10", weekKey);
         }
 
         [Fact]

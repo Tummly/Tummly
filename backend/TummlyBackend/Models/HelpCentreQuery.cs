@@ -32,6 +32,12 @@ namespace TummlyBackend.Models
 
         public RestaurantLocation? RestaurantLocation { get; set; }
 
+        public HelpCentreAccountRequestKind? AccountRequestKind { get; set; }
+
+        public int? RestaurantId { get; set; }
+
+        public Restaurant? Restaurant { get; set; }
+
         public HelpCentreQueryStatus Status { get; set; }
             = HelpCentreQueryStatus.New;
 

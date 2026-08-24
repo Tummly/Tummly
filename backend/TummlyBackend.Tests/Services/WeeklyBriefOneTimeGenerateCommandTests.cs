@@ -24,7 +24,7 @@ namespace TummlyBackend.Tests.Services
         private readonly WeeklyBriefMondayJob _job;
 
         /// <summary>
-        /// London Monday 2026-08-17 00:00 BST — closed week becomes 2026-W33.
+        /// London Monday 2026-08-17 00:00 BST — closed week becomes monday:2026-08-10.
         /// </summary>
         private static readonly DateTime LondonMondayMidnightUtc = new(
             2026,
@@ -76,13 +76,13 @@ namespace TummlyBackend.Tests.Services
                 1,
                 await _context.WeeklyBriefs.CountAsync(row =>
                     row.LocationId == locationId
-                    && row.WeekKey == "2026-W33"
+                    && row.WeekKey == "monday:2026-08-10"
                     && row.Status == WeeklyBriefStatus.Succeeded
                 )
             );
             Assert.Single(_notifier.Calls);
             Assert.Equal(locationId, _notifier.Calls[0].LocationId);
-            Assert.Equal("2026-W33", _notifier.Calls[0].WeekKey);
+            Assert.Equal("monday:2026-08-10", _notifier.Calls[0].WeekKey);
         }
 
         [Fact]
@@ -92,7 +92,7 @@ namespace TummlyBackend.Tests.Services
             const string sentinelBody = "{\"headline\":\"keep-me\"}";
             await SeedSucceededBriefAsync(
                 locationId,
-                weekKey: "2026-W33",
+                weekKey: "monday:2026-08-10",
                 bodyJson: sentinelBody
             );
 
@@ -106,7 +106,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(0, _provider.CallCount);
             Assert.Empty(_notifier.Calls);
             var row = await _context.WeeklyBriefs.SingleAsync(brief =>
-                brief.LocationId == locationId && brief.WeekKey == "2026-W33"
+                brief.LocationId == locationId && brief.WeekKey == "monday:2026-08-10"
             );
             Assert.Equal(sentinelBody, row.BodyJson);
         }
@@ -133,7 +133,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(1, exitCode);
             Assert.True(
                 await _context.WeeklyBriefs.AnyAsync(row =>
-                    row.LocationId == succeedingId && row.WeekKey == "2026-W33"
+                    row.LocationId == succeedingId && row.WeekKey == "monday:2026-08-10"
                 )
             );
             Assert.False(

@@ -1,6 +1,5 @@
 import {
   ArrowUp,
-  Building2,
   Megaphone,
   MessageSquare,
   QrCode,
@@ -33,8 +32,6 @@ import {
 import { cn } from "@/lib/utils"
 
 const KPI_ICONS: Record<OperatorCaptureOverviewKpiId, LucideIcon> = {
-  "active-locations": Building2,
-  "active-qr-placements": QrCode,
   "qr-scans": QrCode,
   "feedback-submitted": MessageSquare,
   "marketing-opt-ins": Megaphone,
@@ -47,20 +44,11 @@ type CaptureOverviewKpiStripProps = {
 
 function OverviewKpiSecondary({ kpi }: { kpi: OperatorCaptureOverviewKpi }) {
   if (kpi.secondaryKind === "none") {
-    return null
-  }
-
-  if (kpi.secondaryKind === "of-total") {
     return (
-      <div className={PERFORMANCE_KPI_TREND_ROW_CLASS}>
+      <div className={PERFORMANCE_KPI_TREND_ROW_CLASS} aria-hidden>
         <div className="leading-[0]">
-          <p
-            className={cn(
-              PERFORMANCE_KPI_TREND_TEXT_CLASS,
-              resolveKpiTrendTextClass("unknown")
-            )}
-          >
-            {kpi.secondaryText}
+          <p className={cn(PERFORMANCE_KPI_TREND_TEXT_CLASS, "invisible")}>
+            —
           </p>
         </div>
       </div>
@@ -107,7 +95,7 @@ function OverviewKpiSecondary({ kpi }: { kpi: OperatorCaptureOverviewKpi }) {
   )
 }
 
-/** Capture overview KPI strip — six restaurant-wide metric cells (Figma strip chrome). */
+/** Capture overview KPI strip — four restaurant-wide metric cells (Figma strip chrome). */
 export function CaptureOverviewKpiStrip({ kpis }: CaptureOverviewKpiStripProps) {
   return (
     <div className={CAPTURE_KPI_STRIP_CLASS}>

@@ -698,7 +698,7 @@ export type CommitCampaignScheduleResponse = {
   campaign: CampaignScheduleCommitDetail
 }
 
-/** POST /campaigns/{id}/unschedule|pause|cancel|resume|retry-remaining|duplicate */
+/** POST /campaigns/{id}/unschedule|pause|cancel|resume|retry-remaining|duplicate|delete */
 export type CampaignLifecycleActionRequest = {
   rowVersion: string
 }
@@ -720,7 +720,7 @@ export type CampaignLifecycleDetail = {
 
 export type CampaignLifecycleActionResponse = {
   success: boolean
-  campaign: CampaignLifecycleDetail | CampaignDraftDetail
+  campaign?: CampaignLifecycleDetail | CampaignDraftDetail
 }
 
 export type CampaignRecommendationResponse = {

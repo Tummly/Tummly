@@ -12,6 +12,7 @@ type GuestsBulkBarProps = {
   selectionLabel: string
   onClearSelection: () => void
   onAddTag?: () => void
+  onCreateCampaign?: () => void
   onExportSelected?: () => void
   exportBusy?: boolean
 }
@@ -21,6 +22,7 @@ export function GuestsBulkBar({
   selectionLabel,
   onClearSelection,
   onAddTag,
+  onCreateCampaign,
   onExportSelected,
   exportBusy = false,
 }: GuestsBulkBarProps) {
@@ -36,9 +38,10 @@ export function GuestsBulkBar({
         <Button
           type="button"
           variant="op-primary"
-          disabled
-          aria-disabled
+          disabled={onCreateCampaign == null}
+          aria-disabled={onCreateCampaign == null}
           className={GUESTS_BULK_BAR_PRIMARY_BUTTON_CLASS}
+          onClick={onCreateCampaign}
         >
           Create campaign
         </Button>

@@ -212,9 +212,41 @@ describe("getOperatorSidebarNav", () => {
       forceExpanded: false,
     })
     expect(nav.settings.children).toHaveLength(6)
-    for (const child of nav.settings.children) {
+    expect(
+      nav.settings.children.find((c) => c.id === "account-workspace")
+    ).toMatchObject({
+      navigable: true,
+      active: false,
+      to: undefined,
+    })
+    for (const child of nav.settings.children.filter(
+      (c) => c.id !== "account-workspace"
+    )) {
       expect(child.navigable).toBe(false)
       expect(child.active).toBe(false)
+    }
+  })
+
+  it("makes Account & workspace navigable when nav targets are provided", () => {
+    const nav = getOperatorSidebarNav("account-workspace", {
+      mode: "single",
+      locationId: 10,
+    })
+
+    expect(
+      nav.settings.children.find((c) => c.id === "account-workspace")
+    ).toMatchObject({
+      label: "Account & workspace",
+      navigable: true,
+      active: true,
+      to: "/single-dashboard/settings/account-workspace?location=10",
+    })
+    expect(nav.settings.forceExpanded).toBe(true)
+    for (const child of nav.settings.children.filter(
+      (c) => c.id !== "account-workspace"
+    )) {
+      expect(child.navigable).toBe(false)
+      expect(child.to).toBeUndefined()
     }
   })
 

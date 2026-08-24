@@ -213,7 +213,7 @@ _Avoid_: Guest, Restaurant, Kind, submitter kind
 ## Help Centre
 
 **Help Centre**:
-The public support area at `/help-center` — hero, search, and a browsable list of **Help Centre articles** for self-service, plus routes to submit **Help Centre queries**. Article content is static in v1 (not CMS-driven). Search filters **Help Centre articles** by title and body client-side only — it does not search queries or pre-fill **Contact us**. Only submissions from the **Contact us** form create **Help Centre queries** for **Support**. Accessible without **Sign-in**; signed-in operators (including on the **Activation Code screen**) submit with account context auto-attached on **Contact us**. Distinct from `mailto:support@tummly.com` links in email templates — those remain a manual fallback in v1, not an automated intake channel.
+The public support area at `/help-center` — hero, search, and a browsable list of **Help Centre articles** for self-service, plus routes to submit **Help Centre queries**. Article content is static in v1 (not CMS-driven). Search filters **Help Centre articles** by title and body client-side only — it does not search queries or pre-fill **Contact us**. **Help Centre queries** for **Support** are created from the **Contact us** form and from **Account controls** **Account request** actions. Accessible without **Sign-in**; signed-in operators (including on the **Activation Code screen**) submit with account context auto-attached on **Contact us**. Distinct from `mailto:support@tummly.com` links in email templates — those remain a manual fallback in v1, not an automated intake channel.
 _Avoid_: Help center, support portal
 
 **Help Centre article**:
@@ -221,8 +221,28 @@ A self-service help page under `/help-center/articles/:slug` — step-by-step or
 _Avoid_: FAQ page, knowledge-base article, help doc
 
 **Help Centre query**:
-An inbound support request created from the **Contact us** form (`/help-center/contact`). Captures a **query topic**, submitter contact fields (name, email, optional phone), business name, an optional **query location** (signed-in operators only), an initial message, and optional **query attachments** (signed-in operators only). After submit, the submitter sees a generic confirmation screen — not topic-specific copy. Unsigned submitters provide contact fields manually and do not see **query location** or **query attachments** — one-shot intake only; they cannot continue the thread in the app. Signed-in operators have name, email, and business name prefilled, may optionally choose a **query location** from their **Owned location**s (same pattern as the operator dashboard location select), may attach files to aid diagnosis, and the query is linked to their operator account; they may view their queries and post follow-ups from **My queries** (`/help-center/my-queries`). Handled by **Support** from the **Support dashboard** as an in-app **query thread**; each **Support reply** is delivered to the submitter by email. The full conversation is stored in the app. Inbound email to `support@tummly.com` does not create or update queries in v1. Moves through **query status** values as Support works it.
+An inbound support request created from the **Contact us** form (`/help-center/contact`) or from an **Account request** on **Account controls**. Captures a **query topic**, submitter contact fields (name, email, optional phone), business name, an optional **query location** (signed-in operators only), an initial message, and optional **query attachments** (signed-in operators only). An **Account request** also stores an **Account request kind**. After **Contact us** submit, the submitter sees a generic confirmation screen — not topic-specific copy. After an **Account request**, the operator stays on **Account controls** and can open the thread from **My queries**. Unsigned submitters provide contact fields manually and do not see **query location** or **query attachments** — one-shot intake only; they cannot continue the thread in the app. Signed-in operators have name, email, and business name prefilled, may optionally choose a **query location** from their **Owned location**s on **Contact us** (same pattern as the operator dashboard location select), may attach files to aid diagnosis, and the query is linked to their operator account; they may view their queries and post follow-ups from **My queries** (`/help-center/my-queries`). Handled by **Support** from the **Support dashboard** as an in-app **query thread**; each **Support reply** is delivered to the submitter by email. The full conversation is stored in the app. Inbound email to `support@tummly.com` does not create or update queries in v1. Moves through **query status** values as Support works it.
 _Avoid_: Ticket, case, support request (acceptable in UI copy only)
+
+**Account request**:
+A **Help Centre query** created from **Account controls** Danger zone: **Ownership transfer request**, **Account export request**, or **Account closure request**. Uses the same **query status** model and Support email notification as **Contact us**. Does not mutate ownership, export the account, or close the account by itself.
+_Avoid_: Support ticket from settings, mailto request, danger-zone write
+
+**Account request kind**:
+The typed intent stored on an **Account request**. Canonical values: **TransferOwnership**, **AccountExport**, **AccountClosure**. Distinct from **query topic**. Not shown on the public **Contact us** **I need help with** list.
+_Avoid_: Request type, case reason, issue type
+
+**Ownership transfer request**:
+An **Account request** that asks Support to transfer Restaurant ownership. Creating the request does not change the owner.
+_Avoid_: Transfer owner action, change owner, immediate ownership write
+
+**Account export request**:
+An **Account request** that asks Support for a full account data package. Distinct from **Guest-data export**.
+_Avoid_: Account download, SAR dump (as the operator-facing name), Guest-data export
+
+**Account closure request**:
+An **Account request** that asks Support to close the operator account. Does not pause or delete the Restaurant when created.
+_Avoid_: Delete account, close workspace, immediate account deletion
 
 **Query attachment**:
 A file uploaded by a signed-in operator when submitting a **Help Centre query** from **Contact us** — screenshots, exports, or other evidence (images and PDF in v1). Optional; up to five files, ten megabytes each, fifty megabytes total per query; JPEG, PNG, WebP, GIF, and PDF only. Stored in object storage with metadata in the database. Visible to **Support** in the query thread on the **Support dashboard** and to the submitting operator on **My queries** (filename and download). Not available on guest **Contact us** or on **Operator query reply** follow-ups in v1.
@@ -233,7 +253,7 @@ The optional venue an operator associates with a **Help Centre query**, chosen f
 _Avoid_: Location field, site, venue
 
 **Query topic**:
-The category chosen on **Contact us** from the **I need help with** list — always selected manually by the submitter; never pre-filled from **Help Centre article** navigation or search. Canonical options: I need help setting up Tummly; My QR code is not working; My printed materials are damaged or missing; I need to reorder QR materials; I need help with guest feedback; I need help with an offer or redemption; I need help with a campaign; I have a billing or credits question; I need help with consent, privacy or data; I want to request a demo; Something else. Stored on every **Help Centre query**; shown in the **Support dashboard** inbox (table column label **Issue** is UI-only).
+The category stored on every **Help Centre query**; shown on the **Support dashboard** inbox (table column label **Issue** is UI-only). On **Contact us**, the submitter always selects it from the **I need help with** list; it is never pre-filled from **Help Centre article** navigation or search. Canonical **Contact us** options: I need help setting up Tummly; My QR code is not working; My printed materials are damaged or missing; I need to reorder QR materials; I need help with guest feedback; I need help with an offer or redemption; I need help with a campaign; I have a billing or credits question; I need help with consent, privacy or data; I want to request a demo; Something else. An **Account request** sets **query topic** in code (**privacy-data** for **Account export request** and **Account closure request**; **something-else** for **Ownership transfer request**) and does not add those intents to the public list.
 _Avoid_: Subject line, category, issue type (as a domain term)
 
 **My queries**:
@@ -375,6 +395,86 @@ _Avoid_: Resolution reason (alone), dismiss reason, no-action reason (as separat
 
 ## Operator workspace
 
+**Workspace name**:
+On **Account & workspace**, the operator-facing label for `Restaurant.Name`. Distinct from **Location name**, **Trading name**, **Legal business name**, **Workspace selection**, and **Operator workspace session**.
+_Avoid_: Location name, venue name (when meaning the Restaurant), Operator workspace session
+
+**Workspace status**:
+The Restaurant-wide operational state shown on **Account & workspace**: **Active** or **Paused**. Distinct from **Capture location status**, from a **QR code**’s Active / Paused / Archived status, and from a **Campaign**’s Paused status.
+_Avoid_: Account status (when meaning this Restaurant state), activation status, Soft lock
+
+**Account structure**:
+The read-only Account details label derived from `Restaurant.AccountType`: **Single location** or **Multi-location**. Not a stored enum and not **Legal structure**.
+_Avoid_: Independent group (as a stored value); account type (as the operator-facing label)
+
+**Main operating country**:
+The read-only Account details country for the Restaurant. v1 is always **United Kingdom**. Not **Country of registration** and not the country on **Business address**.
+_Avoid_: Operating region, market country
+
+**Guest form status**:
+The Account details summary label derived from **Workspace status**: **Live** when Active, **Paused** when Paused. Ignores per-location **Capture location status**.
+_Avoid_: Form live, QR status (when meaning this account row)
+
+**Pause workspace**:
+The operator action that sets **Workspace status** to **Paused**. While Paused, guest forms and outbound product work for that Restaurant stop (Campaigns, Offers, and later billing). The operator may still open the **Operator dashboard** and return to **Account & workspace** to **Resume workspace**. Distinct from **Pause location capture**.
+_Avoid_: Pause location, Pause campaign, Soft lock, Activation expired
+
+**Resume workspace**:
+The operator action that sets **Workspace status** from **Paused** back to **Active**. Restores the Restaurant-level guest-form and outbound-work gate only. Does not activate paused location capture, and does not unpause a Campaign or Offer that the operator already paused.
+_Avoid_: Activate workspace, Unpause account, Activate location capture
+
+**Workspace defaults**:
+The Restaurant-level defaults on the **Account & workspace** **Workspace defaults** tab. v1 editable fields: **Week starts on**, **Default reporting period**, and **Default Campaign Sender Name**. The same tab also shows read-only **Default timezone**, **Default currency**, **Default language**, and **Date format**. Distinct from visit-scoped page date ranges and from per-campaign edits.
+_Avoid_: Personal preferences, dashboard defaults, account preferences
+
+**Week starts on**:
+The Restaurant weekday that starts the workspace week. Default Monday. **Weekly brief** coverage and generate day follow this weekday in the location timezone.
+_Avoid_: ISO week (when meaning this setting), calendar Monday (when the operator picked another day)
+
+**Default reporting period**:
+The Restaurant generate window for **Recommended next step** cards. Closed set: **7 days**, **30 days**, **This month** (default **7 days**). **7 days** / **30 days** are rolling calendar days ending now; **This month** is the current calendar month; all in location timezone. Distinct from **Home performance date range** **Last 7 days** and from Assistant **Reporting period**.
+_Avoid_: Last 7 days (when meaning this field), Reporting period (when meaning Analysis scope)
+
+**Default Campaign Sender Name**:
+The Restaurant Email From display name for Campaign send and **Campaign send test**. When empty, send uses **Workspace name**, then Location name. Resolved at send time. Distinct from **Guest response email** branding. No per-campaign override in v1.
+_Avoid_: From name (unqualified), SMS sender ID, recovery sender
+
+**Default timezone**:
+The Restaurant IANA timezone shown on **Workspace defaults**. v1 is read-only `Europe/London`.
+_Avoid_: Location timezone (until a location field exists), browser timezone
+
+**Default currency**:
+The Restaurant currency shown on **Workspace defaults**. v1 is read-only GBP.
+_Avoid_: Billing currency (until Billing ships)
+
+**Default language**:
+The Restaurant language shown on **Workspace defaults**. v1 is read-only English.
+_Avoid_: Guest form language (when meaning this Restaurant default)
+
+**Date format**:
+The Restaurant date display format shown on **Workspace defaults**. v1 is read-only DD/MM/YYYY.
+_Avoid_: Last saved format (that line still uses `D MMMM YYYY`)
+
+**Guest-data export**:
+Operator self-serve download of identifiable guest data for the Restaurant (`csv` or `xlsx`). Distinct from a per-guest export on Guest Profile, from Feedback export, and from an **Account export request**.
+_Avoid_: Account export, guest dump, GDPR export (when meaning this download)
+
+**Workspace name**:
+On **Account & workspace** (Settings), the operator-facing label for the Restaurant's display name (`Restaurant.Name`). One Restaurant owns many **Owned location**s. Product copy may say "workspace"; the domain entity is the Restaurant. Distinct from **Workspace selection** and from **Operator workspace session**.
+_Avoid_: Location name, venue name (when meaning the Restaurant), Operator workspace session
+
+**Workspace status**:
+The Restaurant-wide operational state shown on **Account & workspace**: **Active** or **Paused**. Distinct from **Capture location status**, from a **QR code**’s Active / Paused / Archived status, and from a **Campaign**’s Paused status.
+_Avoid_: Account status (when meaning this Restaurant state), activation status, Soft lock
+
+**Pause workspace**:
+The operator action that sets **Workspace status** to **Paused**. While Paused, guest forms and outbound product work for that Restaurant stop (Campaigns, Offers, and later billing). The operator may still open **Account & workspace** to resume. Distinct from **Pause location capture**.
+_Avoid_: Pause location, Pause campaign, Soft lock, Activation expired
+
+**Workspace defaults**:
+The Restaurant-level defaults managed on the **Account & workspace** Settings tab. v1 fields: **Week starts on**, **Reporting period**, and **Default Campaign Sender Name**. Distinct from visit-scoped UI state and from per-campaign edits.
+_Avoid_: Personal preferences, dashboard defaults, account preferences
+
 **Workspace selection**:
 The post-authentication step where a multi-restaurant operator chooses which restaurant to work in. Triggered when the backend sets `workspaceSetupRequired` on the sign-in response. The operator sees a list of their restaurants, picks one, and is redirected to that restaurant's dashboard. Single-restaurant operators (single- and multi-location alike) skip this step entirely and land directly on their dashboard. Today every operator owns one restaurant, so workspace selection is dormant — the UI and API exist but are not triggered. The fields (`workspaceSetupRequired`, `selectedRestaurantId`) are not sent by the backend until multi-restaurant ownership is introduced.
 _Avoid_: Location picker, workspace picker
@@ -404,8 +504,8 @@ A saved **Analysis scope** mode (multi-location operators only) that resolves to
 _Avoid_: All locations (as the glossary noun), every location (as saved scope), aggregate scope
 
 **Reporting period**:
-The time window in an **Analysis scope**. Same preset vocabulary as **Home performance date range** (Last 7 days default on Assistant open; Last 30 days; This month; Custom ≤ 180 inclusive calendar days; no All time). Labels match that control, including **Custom** (not Custom range). Distinct from **Home performance date range** and other page date-range controls: after open, the two values do not sync.
-_Avoid_: Assistant date range, analysis window (when meaning the whole Analysis scope)
+The time window in an **Analysis scope**. Same preset vocabulary as **Home performance date range** (Last 7 days default on Assistant open; Last 30 days; This month; Custom ≤ 180 inclusive calendar days; no All time). Labels match that control, including **Custom** (not Custom range). Distinct from **Home performance date range**, from **Default reporting period**, and from other page date-range controls: after open, those values do not sync.
+_Avoid_: Assistant date range, analysis window (when meaning the whole Analysis scope), Default reporting period
 
 **Change analysis scope**:
 The **AI Assistant** dialog that sets **Analysis scope**. Mode `multi` shows **Owned location** (including **All owned locations**), and **Reporting period**. Mode `single` shows **Reporting period** only. The header **Change Scope** control opens it. **Apply** that changes **Owned location** starts **New chat**; **Apply** that changes **Reporting period** only updates scope on the current **Assistant conversation**.
@@ -563,13 +663,61 @@ _Avoid_: Recovery queue, negative guests (as the metric name); Positive feedback
 A disclosure in the Operator SideNav that groups future management destinations. It is not itself a destination or landing page.
 _Avoid_: Settings page, Settings landing, Operator Settings (when meaning a single SideNav route)
 
+**Key contacts**:
+The **Account & workspace** tab where the operator nominates **Account owner**, **Billing contact**, **Privacy contact**, and **Support contact** for the Restaurant. Card title in Figma: **Primary responsibilities**. Product lock: `.scratch/account-workspace-settings/issues/03-key-contacts-model-and-team-dependency.md`.
+_Avoid_: Summary contact; authorised users page; team picker (as the tab name)
+
+**Account owner**:
+The User who owns the Restaurant (`Restaurant.OwnerUserId`). Shown on **Key contacts** as a read-only picker. Change of Account owner is ownership transfer, not a Key contacts save. Distinct from `User.Role` value `Owner` (permission role on the User record).
+_Avoid_: Account holder (when meaning this Key contacts role); restaurant owner (as UI copy on this tab)
+
+**Billing contact**:
+The **Team member** nominated on **Key contacts** as the billing responsibility for the Restaurant. Exactly one User. May be the same person as other Key contacts roles. Distinct from the later **Billing & credits** settings child.
+_Avoid_: Invoice contact; finance owner (as the product name)
+
+**Privacy contact**:
+The **Team member** nominated on **Key contacts** as the privacy responsibility for the Restaurant. Exactly one User. May be the same person as other Key contacts roles. Distinct from the later **Privacy & consent** settings child.
+_Avoid_: DPO; data controller contact (as the product name)
+
+**Support contact**:
+The **Team member** nominated on **Key contacts** as the support responsibility for the Restaurant. Exactly one User. May be the same person as other Key contacts roles. Distinct from **Support** (Tummly staff).
+_Avoid_: Summary contact; Support (when meaning this operator nomination)
+
+**Team member**:
+A User who may operate this Restaurant and therefore appear in the **Key contacts** picker directory. Until **Team & permissions** ships, the only Team member is the **Account owner**.
+_Avoid_: Authorised user (as the glossary noun); seat; invitee (when meaning an active picker option)
+
+**Team & permissions**:
+The later Settings nav child that owns Restaurant membership (invite, activate, deactivate) and permission roles. **Key contacts** consumes its member directory as a read-only picker list. It does not implement membership. When Team later removes a member who holds a writable Key contact role, Team must reassign that role to the **Account owner** before membership ends so Key contacts never keep a dangling User id.
+_Avoid_: Team management; RBAC admin (as the settings child name)
+
 **Tummly Shop**:
 Operator surface for purchasing physical QR stickers and related materials. SideNav footer chrome exists today; full shop/fulfillment is not part of every product slice. Physical **QR code** stickers are obtained here — operators do not download QR PNGs from the dashboard.
 _Avoid_: Store, marketplace (when meaning the SideNav footer item)
 
 **Brand logo**:
-The operator-uploaded mark for their business, managed later under the **Settings nav group** (blob-backed). Shown on the Owned-location switcher and on the **Private feedback form** header for every location under that restaurant — the same mark on both surfaces. Until that upload exists, both surfaces use one shared placeholder mark for all operators — not per-location art, not scraped favicons.
-_Avoid_: Location logo, avatar, restaurant icon
+The operator-uploaded mark for the Restaurant, managed on **Account & workspace** (blob-backed). One Restaurant mark is shown on the Owned-location switcher, the **Private feedback form** header, and guest email chrome for every location under that restaurant. Until that upload exists, those surfaces use one shared placeholder — not per-location art, not scraped favicons.
+_Avoid_: Location logo, avatar, restaurant icon, Workspace logo (as a second file), guest-facing brand file (as a second upload)
+
+**Legal structure**:
+The optional UK business-form of the legal entity on **Business details**: Sole trader; Partnership; Limited company (Ltd); LLP; PLC; Other. Distinct from **Account structure**.
+_Avoid_: Company type, account structure (when meaning this legal form)
+
+**Legal business name**:
+The registered person or organisation responsible for this Tummly account, stored on **Business details**. Distinct from **Workspace name** and **Trading name**.
+_Avoid_: Registered name (as the glossary noun), company name (when meaning Workspace name)
+
+**Trading name**:
+The optional name commonly used with customers, stored on **Business details**. Does not write **Workspace name** or **Location name**.
+_Avoid_: Brand name (when meaning this legal/trading field), DBA
+
+**Country of registration**:
+The country where the legal business is registered, stored on **Business details**. Default **United Kingdom**. Distinct from **Main operating country**.
+_Avoid_: Operating country (when meaning this legal field)
+
+**Business address**:
+The registered or principal correspondence address for the Restaurant, stored on **Business details**. Distinct from an Owned location **Address**.
+_Avoid_: Main location, venue address (when meaning this legal address)
 
 **Operator appearance preference**:
 The operator's Light / Dark / System chrome choice for the **Operator dashboard** only. Device-local (browser). Applies only inside the Operator dashboard shells; Home, Sign-in, Activation, Workspace selection, Operator Setup, admin, Help Centre, and guest surfaces stay light regardless of this preference and of the OS color scheme. Default when unset is System (OS-following inside the shell only). Chosen from the account menu **Theme Switch** drill-down (System / Dark / Light); selecting an option updates the preference in place — the submenu stays open until the operator goes back or dismisses the menu.
@@ -596,16 +744,16 @@ The Operator Home section that shows guest-engagement KPIs for the selected Owne
 _Avoid_: Stats strip, Home analytics, KPI dashboard (when meaning this section)
 
 **Home performance date range**:
-The operator-selected time window that scopes **Performance overview** live KPI counts for the current Operator dashboard visit. Also the window on the **Home Recommended next step** request and cache key. Stored as `homePerformanceDateRange` on the visit-scoped dashboard UI store. Defaults to Last 7 days on first land of a dashboard visit; not persisted across visits or in `localStorage`. Does not filter Latest activity.
-_Avoid_: dashboardDateRange, KPI filter (as the store key), all-time stats window
+The operator-selected time window that scopes **Performance overview** live KPI counts for the current Operator dashboard visit. Stored as `homePerformanceDateRange` on the visit-scoped dashboard UI store. Defaults to Last 7 days on first land of a dashboard visit; not persisted across visits or in `localStorage`. Does not filter Latest activity. Does not feed **Home Recommended next step**.
+_Avoid_: dashboardDateRange, KPI filter (as the store key), all-time stats window, Default reporting period
 
 **Home Recommended next step**:
-The live Operator Home AI card for one next action at the selected Owned location, driven by recent guest activity in the **Home performance date range**. Allow-list domains: Guests, Feedback, Offers, Campaigns. Types: `review-open-feedback`, `thank-or-follow-guest`, `promote-or-fix-offer`, `thank-recent-guests`, `re-engage`, `recovery-follow-up`, or `none`. Rules pick the type. Azure writes Home-native copy. Campaign types reuse the Campaigns **Campaign recommendation** service for draft prefill and echoed counts. `POST /api/home/recommendation`. Server cache: operator + location + date window, TTL 30 min; client soft cache; session Not now. Free call (no **AI credit** debit, no credit UI). Owned by the **Operator Home page module** on the module snapshot, not the Home view-model. Distinct from **Campaign recommendation**, **Offer recommendation**, and **Weekly brief**. Does not approve, schedule, or send. Reports and setup-checklist types are out of v1.
-_Avoid_: Campaign recommendation (when meaning this Home card); Offer recommendation; Weekly brief; empty shell until a shared pipeline; Recommended next step (unqualified)
+The live Operator Home AI card for one next action at the selected Owned location, driven by recent guest activity in the Restaurant **Default reporting period**. Allow-list domains: Guests, Feedback, Offers, Campaigns. Types: `review-open-feedback`, `thank-or-follow-guest`, `promote-or-fix-offer`, `thank-recent-guests`, `re-engage`, `recovery-follow-up`, or `none`. Rules pick the type. Azure writes Home-native copy. Campaign types reuse the Campaigns **Campaign recommendation** service for draft prefill and echoed counts. `POST /api/home/recommendation`. Server cache: operator + location + **Default reporting period**, TTL 30 min; client soft cache; session Not now. A **Workspace defaults** save of **Default reporting period** busts that cache. Free call (no **AI credit** debit, no credit UI). Owned by the **Operator Home page module** on the module snapshot, not the Home view-model. Distinct from **Campaign recommendation**, **Offer recommendation**, **Offers Recommended next step**, and **Weekly brief**. Does not approve, schedule, or send. Reports and setup-checklist types are out of v1.
+_Avoid_: Campaign recommendation (when meaning this Home card); Offer recommendation; Weekly brief; empty shell until a shared pipeline; Recommended next step (when meaning only this Home card); Home performance date range (as this card’s window)
 
 **Weekly brief**:
-The live Operator Home AI summary for the selected Owned location covering the closed prior Mon–Sun week in that location’s timezone. Grain: one durable row per location + ISO week; immutable after success. Monday generate in location TZ (hourly job) with lazy generate on Home if the row is missing. On success: Notification type `weekly-brief-ready` under **Weekly brief reminders**; CTA opens Operator Home for that location (no standalone brief page). Free call. Owned by the **Operator Home page module**. Distinct from **Home Recommended next step**, **Campaign recommendation**, and **Offer recommendation**. Post-ship one-time all-locations generate is ops only, not ongoing product behaviour.
-_Avoid_: Home Recommended next step; Campaign recommendation; Offer recommendation; empty shell only
+The live Operator Home AI summary for the selected Owned location covering the closed prior workspace week in that location’s timezone. Workspace week bounds and generate day come from **Week starts on** (for example Friday–Thursday when the start day is Friday). Grain: one durable row per location + workspace week; immutable after success. Generate on the next configured start day in location TZ (hourly job) with lazy generate on Home if the row is missing. Changing **Week starts on** does not rewrite succeeded rows; Home and the job use the new closed week at once. On success: Notification type `weekly-brief-ready` under **Weekly brief reminders**; CTA opens Operator Home for that location (no standalone brief page). Free call. Owned by the **Operator Home page module**. Distinct from **Home Recommended next step**, **Campaign recommendation**, and **Offer recommendation**. Post-ship one-time all-locations generate is ops only, not ongoing product behaviour.
+_Avoid_: Home Recommended next step; Campaign recommendation; Offer recommendation; empty shell only; ISO week (when **Week starts on** is not Monday)
 
 **Capture performance**:
 The Capture section that shows location-level engagement KPIs for the selected **Owned location** (Guest form opens — UI label for QR-scan counts — Form starts, Feedback submitted, Marketing opt-ins, Offer claims) scoped by the **Capture performance date range**. Totals sum across all **QR type**s at that location; the **QR placements** and **Digital guest links** tables break the same window down per code. Distinct from Home **Performance overview**.
@@ -879,10 +1027,17 @@ Operator page for one **Offers catalog** definition: header (Edit offer, Open st
 _Avoid_: Campaign detail; Guest details; Offers page list; Cancelled as a catalog Offer status
 
 
-**Offer recommendation**:
-Per-offer AI **Recommended next step** on Offer Details Overview. Distinct from the main Offers **Needs attention** queue, from **Campaign recommendation**, and from **Home Recommended next step**. First Offers build ships card chrome with honest empty / none; when live, CTAs such as Create reminder campaign may open Campaign create with draft prefill. Does not approve, schedule, or send.
-_Avoid_: Campaign recommendation; Offers list Needs attention (main-page queue); Weekly brief; Home Recommended next step
+**Operator Offer Details page module**:
+The Offer Details–scoped module for one **Offers catalog** definition. Depends on the Operator workspace session for selected Owned location. Owns Details load, Overview KPI date range, header lifecycle, lifecycle tabs, and **Offer recommendation** load / retry / session Not now / soft cache on the module snapshot. Cache key: operator + location + offer + **Default reporting period**. Does not own the Offers list or **Offers Recommended next step**.
+_Avoid_: Operator Offers page module (when meaning Details); Offer Details view-model as owner of recommendation live state
 
+**Offer recommendation**:
+Per-offer AI next-action card on Offer Details Overview. This slice wires it live. `POST /api/offers/{offerId}/recommendation` (body: `locationId`, optional `refresh`). Types: `promote-this-offer`, `fix-this-offer`, or `none`. Rules pick the type; Azure writes copy and cannot change the type. Non-none types only when the offer is **Active**. Picker: Needs attention membership (7-day expiry or open Void) → `fix-this-offer`; else marketing-eligible guests > 0 and claims in **Default reporting period** = 0 → `promote-this-offer`; else `none`. Unredeemed-claim promote is out until Campaign audience **Offer not redeemed** is evaluable and scoped to this offer. Dedicated service (not **Campaign recommendation**). `fix-this-offer` primary CTA: open Void → Review void request (Void requests tab only; no row dialog this slice); 7-day expiry → Edit offer. `promote-this-offer` primary CTA is Review campaign draft. Draft is created on CTA. Promote `draftPrefill` includes required `offerId` (this offer) and `offerStance: "existing-offer"`. Rules also set `goalId = "promote-something-new"` and `audienceKey = "all-eligible-guests"`. Azure sets campaign name, subject, body, and channel (`email` | `sms`). View eligible audience on promote only. Generate runs when Offer Details loads (any tab). Session Not now dismisses this offer only. Header Pause / Archive / Duplicate busts this offer’s cache and reloads. Generate window is **Default reporting period**; it does not follow the Offer Details Overview KPI date range. Free call (no **AI credit** debit). Owned by the **Operator Offer Details page module** on the snapshot. Details chrome stays; live states follow Home/Campaigns patterns without extracting a shared component this slice. Distinct from the main Offers **Needs attention** queue (overlap allowed), from **Campaign recommendation**, from **Home Recommended next step**, and from **Offers Recommended next step** (not in this slice). Does not approve, schedule, or send.
+_Avoid_: Campaign recommendation; Offers list Needs attention (main-page queue); Weekly brief; Home Recommended next step; Offers Recommended next step
+
+**Offers Recommended next step**:
+The Offers page overview AI card that mirrors **Home Recommended next step** and **Campaign recommendation**. The generate window is **Default reporting period**. It does not follow the Offers Performance date range. It does not approve, schedule, or send. Distinct from per-offer **Offer recommendation**. Not in this slice.
+_Avoid_: Offer recommendation (when meaning the Offers page card); Campaign recommendation; Home Recommended next step; Offers list Needs attention (when meaning this card)
 
 **Dormant guests**:
 The Guests Smart Group (and Campaign Audience twin) of **Location Guests** whose latest feedback is older than **90 days** (rolling, UTC). Live membership and counts come from Guests. Distinct from Campaign audience **No recent Tummly activity**.
@@ -897,8 +1052,8 @@ Operator-chosen saved guest group or CRM-style list as a Campaign audience. **Ou
 _Avoid_: Smart Group (when meaning operator-saved lists); mock Weekday regulars / VIP as product capability
 
 **Campaign recommendation**:
-An AI-suggested next **Campaign** for the Campaigns overview, built from fed live metrics (or none when signals are too weak). May prepare a **Campaign Draft** the operator owns. Does not approve, schedule, or send. Distinct from **Home Recommended next step**, which may reuse this service only for campaign allow-list types.
-_Avoid_: Weekly brief (when meaning this Campaigns card); Home Recommended next step; Offer recommendation; autonomous campaign
+An AI-suggested next **Campaign** for the Campaigns overview, built from live metrics in the Restaurant **Default reporting period** (or none when signals are too weak). May prepare a **Campaign Draft** the operator owns. Does not approve, schedule, or send. Distinct from **Home Recommended next step**, which may reuse this service only for campaign allow-list types. Does not follow the Campaigns overview date-range control.
+_Avoid_: Weekly brief (when meaning this Campaigns card); Home Recommended next step; Offer recommendation; autonomous campaign; Campaigns overview date range (as this card’s window)
 
 **Campaign send test**:
 An operator-only transactional Resend of the current Campaign Email draft to a nominated Email address chosen in the **Send test email** dialog (operator account email prefilled; editable). Does not burn Email credits, does not use the Campaign Email adapter, and does not create a Campaign or guest send fact. Email channel only in MVP — SMS Send test stays unavailable. When the draft includes an offer, the test mail shows the offer block with a sample code only. Failures are synchronous only. Subject to the same QA redirect rules as other Resend mail. Distinct from **Guest preview send test** (Recovery → signed-in operator account email with no address dialog).

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.DTOs.HelpCentre;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Controllers
@@ -113,6 +114,57 @@ namespace TummlyBackend.Controllers
                 );
 
                 RecordSubmission();
+
+                return Ok(new
+                {
+                    success = true,
+                    data = result,
+                });
+            }
+            catch (DuplicateOpenAccountRequestException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                    existingQueryId = ex.ExistingQueryId,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpGet("account-requests/open")]
+        [Authorize(Roles = "Owner")]
+        public async Task<IActionResult> GetOpenAccountRequest(
+            [FromQuery] int restaurantId,
+            [FromQuery] string kind
+        )
+        {
+            var userId = GetUserId();
+
+            if (userId == null)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = "Invalid token.",
+                });
+            }
+
+            try
+            {
+                var result = await _helpCentreService.GetOpenAccountRequestAsync(
+                    userId.Value,
+                    restaurantId,
+                    kind
+                );
 
                 return Ok(new
                 {

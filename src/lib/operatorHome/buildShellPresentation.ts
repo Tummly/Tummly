@@ -25,6 +25,7 @@ export type BuildOperatorShellPresentationInput = {
   locations: OperatorHomeLocationOption[]
   selectedLocationId: number
   locationSwitcherInteractive: boolean
+  brandLogoPublicUrl?: string | null
   activeNavId?: OperatorSidebarActiveId
   navTargets?: OperatorSidebarNavTargets
 }
@@ -63,6 +64,7 @@ export function buildOperatorShellPresentation(
       interactive: input.locationSwitcherInteractive,
       selectedLocationId: selected?.id ?? input.selectedLocationId,
       selectedLocationName: selected?.name ?? "",
+      brandLogoPublicUrl: input.brandLogoPublicUrl ?? null,
       options: input.locations,
     },
   }

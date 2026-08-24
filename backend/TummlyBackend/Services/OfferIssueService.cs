@@ -345,7 +345,8 @@ namespace TummlyBackend.Services
         {
             return await _context.OfferIssues
                 .Include(i => i.LocationGuest)!
-                    .ThenInclude(g => g!.RestaurantLocation)
+                    .ThenInclude(g => g!.RestaurantLocation)!
+                        .ThenInclude(l => l!.Restaurant)
                 .FirstOrDefaultAsync(
                     i => i.ClaimCode == normalizedCode,
                     cancellationToken
@@ -354,7 +355,7 @@ namespace TummlyBackend.Services
 
         /// <summary>
         /// Returns failure reason when not redeemable; null when ok.
-        /// Order: wrong_location → voided → already_used → expired.
+        /// Order: workspace_paused → wrong_location → voided → already_used → expired.
         /// </summary>
         private async Task<string?> EvaluateRedeemGateAsync(
             OfferIssue issue,
@@ -366,8 +367,15 @@ namespace TummlyBackend.Services
         {
             string? reason = null;
 
+            var workspaceStatus =
+                issue.LocationGuest?.RestaurantLocation?.Restaurant?.WorkspaceStatus;
+
             var guestLocationId = issue.LocationGuest?.RestaurantLocationId;
-            if (guestLocationId is not int issueLocationId
+            if (workspaceStatus == WorkspaceStatus.Paused)
+            {
+                reason = OfferRedeemFailureReasons.WorkspacePaused;
+            }
+            else if (guestLocationId is not int issueLocationId
                 || issueLocationId != locationId)
             {
                 reason = OfferRedeemFailureReasons.WrongLocation;

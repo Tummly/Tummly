@@ -31,7 +31,7 @@ import {
 export function FeedbackPage() {
   const feedback = useFeedbackPageModule()
   const { snapshot, clearTabCache } = feedback
-  const { mode, selectedLocationId } =
+  const { mode, selectedLocationId, summariseFeedbackWithAi } =
     useOutletContext<DashboardOutletContext>()
 
   useEffect(
@@ -148,6 +148,9 @@ export function FeedbackPage() {
         onCommitDateRange={handleCommitDateRange}
         onReviewNeedsAttention={() => {
           feedback.reviewNeedsAttention()
+        }}
+        onSummariseWithAi={() => {
+          summariseFeedbackWithAi(feedbackPageDateRange)
         }}
         onChangePeriod={() => {
           feedback.requestOpenDateRange()

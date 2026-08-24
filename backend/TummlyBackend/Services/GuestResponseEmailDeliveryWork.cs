@@ -19,7 +19,8 @@ namespace TummlyBackend.Services
     {
         private sealed record DeliveryScope(
             ApplicationDbContext Context,
-            IEmailService EmailService
+            IEmailService EmailService,
+            IConfiguration Configuration
         );
 
         private readonly Channel<int> _wake =
@@ -208,7 +209,8 @@ namespace TummlyBackend.Services
         private static DeliveryScope ResolveScope(IServiceProvider services)
             => new(
                 services.GetRequiredService<ApplicationDbContext>(),
-                services.GetRequiredService<IEmailService>()
+                services.GetRequiredService<IEmailService>(),
+                services.GetRequiredService<IConfiguration>()
             );
 
         private async Task<FeedbackGuestResponse?> TryClaimAtomicAsync(
@@ -542,7 +544,10 @@ namespace TummlyBackend.Services
                 brandSubtitle,
                 location.Address,
                 row.Body,
-                brandLogoUrl: null,
+                brandLogoUrl: BrandLogoRules.BuildAbsolutePublicUrl(
+                    restaurant.BrandLogoObjectKey,
+                    deps.Configuration["PublicApi:BaseUrl"]
+                ),
                 offer: offer
             );
         }

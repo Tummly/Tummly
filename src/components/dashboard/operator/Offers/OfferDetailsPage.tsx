@@ -144,6 +144,7 @@ export function OfferDetailsPage({
     setActiveTab,
     setCampaignsSubTab,
     setOverviewDateRange,
+    retryRecommendation,
     requestHeaderAction,
     confirmPendingHeaderAction,
     cancelPendingHeaderAction,
@@ -221,6 +222,9 @@ export function OfferDetailsPage({
         onTabChange={setActiveTab}
         onCommitDateRange={(range) => {
           void setOverviewDateRange(range)
+        }}
+        onRetryRecommendation={() => {
+          void retryRecommendation()
         }}
         onShareOfferInCampaign={() => {
           navigate(shareOfferInCampaignHref)

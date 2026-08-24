@@ -54,6 +54,10 @@ export type AssistantCampaignsIntent =
         draftPrefill: CampaignRecommendationDraftPrefill
       }
     }
+  | {
+      /** Guests / Home Create campaign — blank wizard at Goal. */
+      openBlankCreate: true
+    }
 
 export type AssistantOffersIntent = {
   view: "drafts"

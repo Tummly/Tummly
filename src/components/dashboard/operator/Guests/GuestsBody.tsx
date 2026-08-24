@@ -41,6 +41,10 @@ type GuestsBodyProps = {
   onManageGuestTags: (guestId: string) => void
   onViewGuest: (guestId: string) => void
   onManageMarketingPermissions: (guestId: string) => void
+  onEditGuest: (guestId: string) => void
+  onExportGuest: (guestId: string) => void
+  onDeleteGuest: (guestId: string) => void
+  onCreateCampaign?: () => void
   onExportCsv: () => void
   onExportSelected?: () => void
   exportBusy?: boolean
@@ -76,6 +80,10 @@ export function GuestsBody({
   onManageGuestTags,
   onViewGuest,
   onManageMarketingPermissions,
+  onEditGuest,
+  onExportGuest,
+  onDeleteGuest,
+  onCreateCampaign,
   onExportCsv,
   onExportSelected,
   exportBusy = false,
@@ -103,15 +111,18 @@ export function GuestsBody({
         </header>
 
         <div className="flex shrink-0 flex-wrap items-center gap-3">
-          <Button variant="op-primary"
+          <Button
+            variant="op-primary"
             type="button"
-            disabled
-            aria-disabled
+            disabled={onCreateCampaign == null}
+            aria-disabled={onCreateCampaign == null}
             className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+            onClick={onCreateCampaign}
           >
             Create campaign
           </Button>
-          <Button variant="op-secondary"
+          <Button
+            variant="op-secondary"
             type="button"
             disabled={exportBusy}
             aria-disabled={exportBusy}
@@ -159,6 +170,10 @@ export function GuestsBody({
         onManageGuestTags={onManageGuestTags}
         onViewGuest={onViewGuest}
         onManageMarketingPermissions={onManageMarketingPermissions}
+        onEditGuest={onEditGuest}
+        onExportGuest={onExportGuest}
+        onDeleteGuest={onDeleteGuest}
+        onCreateCampaign={onCreateCampaign}
         onExportSelected={onExportSelected}
         exportBusy={exportBusy}
         filterChips={filterChips}

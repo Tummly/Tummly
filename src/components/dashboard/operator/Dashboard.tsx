@@ -28,6 +28,7 @@ import {
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
 import { resolveOperatorSidebarActiveId } from "@/lib/operatorHome/operatorDashboardPaths"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
+import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 
 type DashboardProps = {
   mode: "single" | "multi"
@@ -277,6 +278,7 @@ function DashboardContent({ mode }: DashboardProps) {
     selectedLocationId,
     locationSwitcherInteractive:
       workspace.snapshot.locationSwitcherInteractive,
+    brandLogoPublicUrl: workspace.snapshot.brandLogoPublicUrl,
     activeNavId: resolveOperatorSidebarActiveId(pathname),
     navTargets: {
       mode,
@@ -388,6 +390,13 @@ function DashboardContent({ mode }: DashboardProps) {
           locations: workspace.snapshot.locations,
           mode,
           selectLocation: workspace.selectLocation,
+          applyRestaurantIdentity: workspace.applyRestaurantIdentity,
+          summariseFeedbackWithAi: (reportingPeriod: HomePerformanceDateRange) => {
+            aiAssistant.summariseFeedbackForPeriod({
+              operatorFirstName: presentation.profileFirstName,
+              reportingPeriod,
+            })
+          },
         }}
       />
     </DashboardShell>
@@ -422,4 +431,9 @@ export type DashboardOutletContext = {
   locations: Array<{ id: number; locationName: string; address: string }>
   mode: DashboardProps["mode"]
   selectLocation: (locationId: number) => void
+  applyRestaurantIdentity: (input: {
+    restaurantName: string
+    brandLogoPublicUrl: string | null
+  }) => void
+  summariseFeedbackWithAi: (reportingPeriod: HomePerformanceDateRange) => void
 }

@@ -303,6 +303,17 @@ export function HomePage({
         }}
         onViewGuest={navigateToGuestProfile}
         onViewGuestProfile={navigateToGuestProfile}
+        onViewAllActivity={(tabId) => {
+          const navId =
+            tabId === "guests"
+              ? "guests"
+              : tabId === "offers"
+                ? "offers"
+                : tabId === "campaigns"
+                  ? "campaigns"
+                  : "feedback"
+          navigate(operatorDashboardNavPath(mode, navId, selectedLocationId))
+        }}
         onFeedbackDetailsOpenChange={(open) => {
           if (!open) {
             home.closeFeedbackDetails()

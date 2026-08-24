@@ -61,6 +61,7 @@ export type OperatorAiAssistantDashboardContext = {
 export type OperatorAiAssistantApi = {
   snapshot: OperatorAiAssistantSnapshot
   openDrawer: OperatorAiAssistantModule["openDrawer"]
+  summariseFeedbackForPeriod: OperatorAiAssistantModule["summariseFeedbackForPeriod"]
   closeDrawer: OperatorAiAssistantModule["closeDrawer"]
   setOpen: OperatorAiAssistantModule["setOpen"]
   startNewChat: OperatorAiAssistantModule["startNewChat"]
@@ -256,6 +257,7 @@ export function useAiAssistantModule(
   return {
     snapshot,
     openDrawer: assistant.openDrawer,
+    summariseFeedbackForPeriod: assistant.summariseFeedbackForPeriod,
     closeDrawer: assistant.closeDrawer,
     setOpen: assistant.setOpen,
     startNewChat: assistant.startNewChat,

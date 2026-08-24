@@ -30,6 +30,9 @@ export const OFFER_DETAILS_COPY = {
     "AI-assisted guidance based on your recent guest activity.",
   recommendedEmptyCopy:
     "A recommended action will appear once there is enough guest activity.",
+  recommendedFailCopy:
+    "Could not load a recommendation. Please try again.",
+  recommendedRetry: "Retry",
   claimsEmptyPlaceholder: "No claims to show yet.",
   redemptionsEmptyPlaceholder: "No redemptions to show yet.",
   campaignsEmptyPlaceholder: "No linked campaigns or issuance sources yet.",

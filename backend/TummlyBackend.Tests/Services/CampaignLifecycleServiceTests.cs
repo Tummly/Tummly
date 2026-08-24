@@ -398,6 +398,53 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task DeleteDraftAsync_RemovesDraft()
+        {
+            var seeded = await SeedCommittedAsync(
+                CampaignLifecycleService.DraftStatus,
+                reservationRef: null
+            );
+
+            var result = await _lifecycle.DeleteDraftAsync(
+                seeded.CampaignId,
+                new CampaignLifecycleActionRequest
+                {
+                    RowVersion = seeded.RowVersion,
+                }
+            );
+
+            Assert.IsType<CampaignLifecycleResult.Deleted>(result);
+            Assert.Empty(
+                await _context.Campaigns
+                    .Where(c => c.Id == seeded.CampaignId)
+                    .ToListAsync()
+            );
+        }
+
+        [Fact]
+        public async Task DeleteDraftAsync_RejectsNonDraft()
+        {
+            var seeded = await SeedCommittedAsync(
+                CampaignLifecycleService.ScheduledStatus
+            );
+
+            var result = await _lifecycle.DeleteDraftAsync(
+                seeded.CampaignId,
+                new CampaignLifecycleActionRequest
+                {
+                    RowVersion = seeded.RowVersion,
+                }
+            );
+
+            Assert.IsType<CampaignLifecycleResult.InvalidStatus>(result);
+            Assert.NotNull(
+                await _context.Campaigns.SingleOrDefaultAsync(c =>
+                    c.Id == seeded.CampaignId
+                )
+            );
+        }
+
+        [Fact]
         public void BuildDuplicateName_AppendsDraftSuffix()
         {
             Assert.Equal(

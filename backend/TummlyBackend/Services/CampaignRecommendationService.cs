@@ -50,15 +50,32 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("locationId is required.");
             }
 
-            var preset = NormalizePreset(request.OverviewDatePreset);
-            ValidateWindow(preset, request.From, request.To);
+            var restaurantDefaults = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(location => location.Id == request.LocationId)
+                .Select(location => new
+                {
+                    Period = location.Restaurant != null
+                        ? location.Restaurant.DefaultReportingPeriod
+                        : null,
+                    LocationName = location.LocationName,
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var period = WorkspaceDefaultsOptions.NormalizeReportingPeriod(
+                restaurantDefaults?.Period
+            );
+            var (fromUtc, toUtc) = DefaultReportingPeriodWindow.Resolve(
+                period,
+                DateTime.UtcNow
+            );
 
             var cacheKey = BuildCacheKey(
                 operatorUserId,
                 request.LocationId,
-                preset,
-                request.From,
-                request.To
+                period,
+                fromUtc: null,
+                toUtc: null
             );
 
             if (!request.Refresh)
@@ -73,18 +90,13 @@ namespace TummlyBackend.Services
                 }
             }
 
-            var locationName = await _context.RestaurantLocations
-                .AsNoTracking()
-                .Where(location => location.Id == request.LocationId)
-                .Select(location => location.LocationName)
-                .FirstOrDefaultAsync(cancellationToken)
-                ?? string.Empty;
+            var locationName = restaurantDefaults?.LocationName ?? string.Empty;
 
             var metrics = await LoadMetricsAsync(
                 request.LocationId,
-                preset,
-                request.From,
-                request.To,
+                period,
+                fromUtc,
+                toUtc,
                 cancellationToken
             );
 
@@ -101,9 +113,9 @@ namespace TummlyBackend.Services
                 providerResult = await _provider.RecommendAsync(
                     new CampaignRecommendationProviderInput(
                         LocationName: locationName,
-                        OverviewDatePreset: preset,
-                        FromUtc: request.From,
-                        ToUtc: request.To,
+                        OverviewDatePreset: period,
+                        FromUtc: fromUtc,
+                        ToUtc: toUtc,
                         Metrics: metrics
                     ),
                     cancellationToken

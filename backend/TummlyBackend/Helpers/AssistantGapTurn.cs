@@ -11,6 +11,7 @@ namespace TummlyBackend.Helpers
         public string SourceUserMessage { get; set; } = string.Empty;
         public string? LocationKind { get; set; }
         public string? OfferTermsJson { get; set; }
+        public List<string> OpenRules { get; set; } = [];
     }
 
     public static class AssistantGapTurn
@@ -57,7 +58,7 @@ namespace TummlyBackend.Helpers
 
         public static AssistantGapState CreateOfferTerms(
             string sourceUserMessage,
-            string? offerTermsJson,
+            IReadOnlyList<string> openRules,
             string assistantTask = AssistantTask.OfferPath
         )
             => new()
@@ -65,7 +66,21 @@ namespace TummlyBackend.Helpers
                 Kind = KindOfferTerms,
                 AssistantTask = assistantTask,
                 SourceUserMessage = sourceUserMessage,
-                OfferTermsJson = offerTermsJson,
+                OpenRules = openRules.ToList(),
+            };
+
+        public static AssistantGapState CreateCombinedOfferTerms(
+            string sourceUserMessage,
+            AssistantOfferPathTermsState terms,
+            string assistantTask
+        )
+            => new()
+            {
+                Kind = KindOfferTerms,
+                AssistantTask = assistantTask,
+                SourceUserMessage = sourceUserMessage,
+                OpenRules = AssistantOfferPathTerms.OpenRuleNames(terms).ToList(),
+                OfferTermsJson = AssistantOfferPathTerms.Serialize(terms),
             };
 
         public static AssistantGapState CreateCampaignTitle(

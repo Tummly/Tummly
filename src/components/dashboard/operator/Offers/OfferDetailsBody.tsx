@@ -49,6 +49,7 @@ type OfferDetailsBodyProps = {
   onHeaderAction: (actionId: OfferDetailsHeaderActionId) => void
   onTabChange: (tabId: OfferDetailsTabId) => void
   onCommitDateRange: (range: OfferDetailsDateRange) => void
+  onRetryRecommendation: () => void
   onShareOfferInCampaign?: () => void
   onCampaignsSubTabChange: (subTabId: OfferDetailsCampaignsSubTabId) => void
   onClaimsRowAction: (
@@ -73,6 +74,7 @@ export function OfferDetailsBody({
   onHeaderAction,
   onTabChange,
   onCommitDateRange,
+  onRetryRecommendation,
   onShareOfferInCampaign,
   onCampaignsSubTabChange,
   onClaimsRowAction,
@@ -181,6 +183,7 @@ export function OfferDetailsBody({
         <OfferDetailsOverviewPanel
           overview={viewModel.overview}
           onCommitDateRange={onCommitDateRange}
+          onRetryRecommendation={onRetryRecommendation}
         />
       ) : null}
       {viewModel.activeTabId === "claims" ? (

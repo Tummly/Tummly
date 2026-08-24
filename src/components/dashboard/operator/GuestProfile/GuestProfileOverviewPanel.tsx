@@ -1,6 +1,7 @@
 import { GuestProfileAddNoteButton } from "@/components/dashboard/operator/GuestProfile/GuestProfileAddNoteButton"
 import { GuestProfileDetailRows } from "@/components/dashboard/operator/GuestProfile/GuestProfileDetailRows"
 import { GuestProfileLatestFeedbackSection } from "@/components/dashboard/operator/GuestProfile/GuestProfileLatestFeedbackSection"
+import { GuestProfileOverviewActivitySection } from "@/components/dashboard/operator/GuestProfile/GuestProfileOverviewActivitySection"
 import { GuestProfileSectionEmptyCard } from "@/components/dashboard/operator/GuestProfile/GuestProfileSectionEmptyCard"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -11,7 +12,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { GUEST_PROFILE_EMPTY_COPY } from "@/lib/operatorGuestProfile/guestProfilePresentation"
+import {
+  GUEST_PROFILE_EMPTY_COPY,
+  GUEST_PROFILE_VIEW_ALL_CAMPAIGNS_LABEL,
+  GUEST_PROFILE_VIEW_ALL_OFFERS_LABEL,
+} from "@/lib/operatorGuestProfile/guestProfilePresentation"
 import {
   GUESTS_MARKETING_STATUS_BADGE_CLASS,
   GUESTS_SECTION_CLASS,
@@ -33,6 +38,8 @@ type GuestProfileOverviewPanelProps = {
   onOpenFeedback?: (feedbackId: number) => void
   onStartRecovery?: (feedbackId: number) => void
   onViewAllFeedbacks?: () => void
+  onViewAllOffers?: () => void
+  onViewAllCampaigns?: () => void
   onAddNote?: () => void
 }
 
@@ -144,6 +151,8 @@ export function GuestProfileOverviewPanel({
   onOpenFeedback,
   onStartRecovery,
   onViewAllFeedbacks,
+  onViewAllOffers,
+  onViewAllCampaigns,
   onAddNote,
 }: GuestProfileOverviewPanelProps) {
   const latestFeedback = GUEST_PROFILE_EMPTY_COPY.overviewLatestFeedback
@@ -223,15 +232,39 @@ export function GuestProfileOverviewPanel({
         onStartRecovery={onStartRecovery}
         onViewAllFeedbacks={onViewAllFeedbacks}
       />
-      <GuestProfileSectionEmptyCard
+      <GuestProfileOverviewActivitySection
         sectionTitle={offer.sectionTitle}
         emptyTitle={offer.emptyTitle}
         emptyHelper={offer.emptyHelper}
+        viewAllLabel={GUEST_PROFILE_VIEW_ALL_OFFERS_LABEL}
+        onViewAll={onViewAllOffers}
+        columns={["Offer", "Status", "Source", "Date"]}
+        rows={viewModel.latestOffers.map((row) => ({
+          id: row.id,
+          cells: [
+            row.title,
+            row.statusDisplay,
+            row.sourceDisplay,
+            row.dateDisplay,
+          ],
+        }))}
       />
-      <GuestProfileSectionEmptyCard
+      <GuestProfileOverviewActivitySection
         sectionTitle={campaign.sectionTitle}
         emptyTitle={campaign.emptyTitle}
         emptyHelper={campaign.emptyHelper}
+        viewAllLabel={GUEST_PROFILE_VIEW_ALL_CAMPAIGNS_LABEL}
+        onViewAll={onViewAllCampaigns}
+        columns={["Campaign", "Channel", "Status", "Date"]}
+        rows={viewModel.latestCampaigns.map((row) => ({
+          id: row.id,
+          cells: [
+            row.campaignName,
+            row.channelDisplay,
+            row.outcomeDisplay,
+            row.dateDisplay,
+          ],
+        }))}
       />
       <RecentNotesSection viewModel={viewModel} onAddNote={onAddNote} />
     </div>

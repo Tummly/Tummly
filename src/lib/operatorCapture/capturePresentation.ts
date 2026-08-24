@@ -293,12 +293,12 @@ export const CAPTURE_KPI_CELL_CLASS = "flex min-w-0 flex-1 flex-col"
 export const CAPTURE_KPI_CONTENT_CLASS =
   "flex min-w-0 w-full flex-col items-stretch gap-0.5 pb-[4.25px]"
 
-/** Six Capture overview KPI cells — multi Capture root strip (same chrome as performance). */
+/** Four Capture overview KPI cells — multi Capture root strip (same chrome as performance). */
 export const CAPTURE_OVERVIEW_KPI_ROW_CLASS =
-  "grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:flex xl:flex-row xl:items-center xl:gap-[30px]"
+  "grid grid-cols-1 gap-6 sm:grid-cols-2 lg:flex lg:flex-row lg:items-start lg:gap-[30px]"
 
 export const CAPTURE_OVERVIEW_KPI_DIVIDER_CLASS =
-  "hidden h-[76px] w-px shrink-0 self-center bg-op-card-border xl:block"
+  "hidden h-[76px] w-px shrink-0 self-center bg-op-card-border lg:block"
 
 export const OPERATOR_CAPTURE_SINGLE_COPY = {
   title: "Capture",

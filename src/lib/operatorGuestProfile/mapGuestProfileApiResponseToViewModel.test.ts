@@ -50,6 +50,8 @@ function createGuestProfileResponse(
       },
     ],
     latestFeedback: [],
+    latestOffers: [],
+    latestCampaigns: [],
     recentNotes: [],
     ...overrides,
   }

@@ -63,9 +63,10 @@ namespace TummlyBackend.Services
             var restaurant = location.Restaurant
                 ?? throw new InvalidOperationException("Restaurant not found.");
 
-            var brandTitle = string.IsNullOrWhiteSpace(restaurant.Name)
-                ? location.LocationName
-                : restaurant.Name.Trim();
+            var brandTitle = CampaignSenderDisplayName.Resolve(
+                restaurant,
+                location.LocationName
+            );
             var brandSubtitle =
                 string.Equals(
                     brandTitle,

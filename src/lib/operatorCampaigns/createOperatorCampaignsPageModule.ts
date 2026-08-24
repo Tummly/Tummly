@@ -29,6 +29,7 @@ import {
   type CampaignsOverviewDateRange,
 } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 import { buildCampaignRecommendationRequest } from "@/lib/operatorCampaigns/buildCampaignRecommendationRequest"
+import { recommendedNextStepSoftCacheGeneration } from "@/lib/operatorRecommendations/recommendationSoftCacheBust"
 import {
   CAMPAIGN_MESSAGING_BALANCES_LOAD_ERROR,
   resolveCampaignMessagingUsage,
@@ -321,21 +322,13 @@ function idleRecommendation(): OperatorCampaignsRecommendationViewModel {
 }
 
 /**
- * Client soft-cache key — location + overview selection identity.
- * Do not use resolved `from`/`to` timestamps: preset windows bind `to` to `now`,
- * so ISO strings change every call even when the operator selection is unchanged.
+ * Client soft-cache key — location + Workspace-defaults generation.
+ * Server window follows Default reporting period (not Campaigns overview range).
+ * Period save bumps generation via recommendationSoftCacheBust.
  */
-function recommendationSoftCacheKey(
-  locationId: number,
-  overviewDateRange: CampaignsOverviewDateRange
-): string {
-  if (overviewDateRange.kind === "all-time") {
-    return `${locationId}:all-time`
-  }
-  if (overviewDateRange.kind === "preset") {
-    return `${locationId}:preset:${overviewDateRange.presetId}`
-  }
-  return `${locationId}:custom:${overviewDateRange.startDate}:${overviewDateRange.endDate}`
+function recommendationSoftCacheKey(locationId: number): string {
+  const generation = recommendedNextStepSoftCacheGeneration()
+  return `${locationId}:workspace-defaults:g${generation}`
 }
 
 function mapRecommendationResponse(
@@ -851,10 +844,7 @@ export function createOperatorCampaignsPageModule(
       refresh: options?.refresh === true,
       now: getNow(),
     })
-    const cacheKey = recommendationSoftCacheKey(
-      selectedLocationId,
-      overviewDateRange
-    )
+    const cacheKey = recommendationSoftCacheKey(selectedLocationId)
     const generation = state.recommendationGeneration + 1
     const nextRecommendation = recommendationForSoftLoad({
       refresh: options?.refresh === true,
@@ -914,8 +904,7 @@ export function createOperatorCampaignsPageModule(
       now: getNow(),
     })
     const recommendationCacheKey = recommendationSoftCacheKey(
-      selectedLocationId,
-      overviewDateRange
+      selectedLocationId
     )
     const nextRecommendation = recommendationForSoftLoad({
       refresh: false,
@@ -1218,8 +1207,8 @@ export function createOperatorCampaignsPageModule(
       // Keep prior KPIs; date chrome reads the visit store.
     }
 
-    // Window change invalidates recommendation cache key — reload without refresh.
-    await loadRecommendation()
+    // Recommended next step follows Default reporting period, not this
+    // Campaigns overview window — do not invalidate the soft cache here.
   }
 
   return {

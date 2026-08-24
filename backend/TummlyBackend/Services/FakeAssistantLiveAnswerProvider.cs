@@ -12,6 +12,7 @@ namespace TummlyBackend.Services
         : IAssistantLiveAnswerProvider
     {
         private AssistantLiveAnswerResult? _forcedResult;
+        private readonly Queue<AssistantLiveAnswerResult> _resultQueue = new();
         private Exception? _throwOnComplete;
 
         public AssistantLiveAnswerInput? LastInput { get; private set; }
@@ -23,19 +24,60 @@ namespace TummlyBackend.Services
             string? title,
             string body,
             string assistantTask = AssistantTask.Retrieve,
-            string? conversationTitle = null
+            string? conversationTitle = null,
+            AssistantOfferPathTermsState? offerTerms = null
         )
         {
             _throwOnComplete = null;
-            _forcedResult = new AssistantLiveAnswerResult.Succeeded(
+            _forcedResult = SucceededResult(
+                answerClass,
+                title,
+                body,
+                assistantTask,
+                conversationTitle,
+                offerTerms
+            );
+        }
+
+        public void EnqueueSucceedWith(
+            AssistantMessageClass answerClass,
+            string? title,
+            string body,
+            string assistantTask = AssistantTask.Retrieve,
+            string? conversationTitle = null,
+            AssistantOfferPathTermsState? offerTerms = null
+        )
+        {
+            _throwOnComplete = null;
+            _resultQueue.Enqueue(
+                SucceededResult(
+                    answerClass,
+                    title,
+                    body,
+                    assistantTask,
+                    conversationTitle,
+                    offerTerms
+                )
+            );
+        }
+
+        private static AssistantLiveAnswerResult.Succeeded SucceededResult(
+            AssistantMessageClass answerClass,
+            string? title,
+            string body,
+            string assistantTask,
+            string? conversationTitle,
+            AssistantOfferPathTermsState? offerTerms
+        )
+            => new(
                 answerClass,
                 title,
                 body,
                 [],
                 assistantTask,
-                conversationTitle
+                conversationTitle,
+                offerTerms
             );
-        }
 
         public void Fail(bool retryable = true)
         {
@@ -54,6 +96,7 @@ namespace TummlyBackend.Services
             _throwOnComplete = null;
             Delay = TimeSpan.Zero;
             _forcedResult = null;
+            _resultQueue.Clear();
         }
 
         public async Task<AssistantLiveAnswerResult> CompleteAsync(
@@ -73,6 +116,11 @@ namespace TummlyBackend.Services
             if (_throwOnComplete is not null)
             {
                 throw _throwOnComplete;
+            }
+
+            if (_resultQueue.Count > 0)
+            {
+                return _resultQueue.Dequeue();
             }
 
             if (_forcedResult is not null)

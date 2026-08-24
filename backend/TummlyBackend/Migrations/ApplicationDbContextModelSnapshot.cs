@@ -1212,6 +1212,9 @@ namespace TummlyBackend.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AccountRequestKind")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("BusinessName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1227,6 +1230,9 @@ namespace TummlyBackend.Migrations
                     b.Property<string>("Phone")
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
+
+                    b.Property<int?>("RestaurantId")
+                        .HasColumnType("int");
 
                     b.Property<int?>("RestaurantLocationId")
                         .HasColumnType("int");
@@ -1256,6 +1262,8 @@ namespace TummlyBackend.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("RestaurantId");
 
                     b.HasIndex("RestaurantLocationId");
 
@@ -2172,6 +2180,20 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("AccountWorkspaceLastSavedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("BillingContactUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BrandLogoContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("BrandLogoObjectKey")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("BusinessCategory")
                         .HasColumnType("nvarchar(max)");
 
@@ -2181,6 +2203,14 @@ namespace TummlyBackend.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("DefaultCampaignSenderName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("DefaultReportingPeriod")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -2189,14 +2219,99 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("OwnerUserId")
                         .HasColumnType("int");
 
+                    b.Property<int>("PrivacyContactUserId")
+                        .HasColumnType("int");
+
                     b.Property<string>("PublicPhoneNumber")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("SupportContactUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("WeekStartsOn")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int>("WorkspaceStatus")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("WorkspaceStatusChangedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("WorkspaceStatusChangedByUserId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("BillingContactUserId");
 
                     b.HasIndex("OwnerUserId");
 
+                    b.HasIndex("PrivacyContactUserId");
+
+                    b.HasIndex("SupportContactUserId");
+
+                    b.HasIndex("WorkspaceStatusChangedByUserId");
+
                     b.ToTable("Restaurants");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.RestaurantBusinessDetails", b =>
+                {
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("AddressLine1")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("AddressLine2")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("CompanyNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CountryOfRegistration")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("County")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("LegalBusinessName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("LegalStructure")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Postcode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("TownCity")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("TradingName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("VatNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("RestaurantId");
+
+                    b.ToTable("RestaurantBusinessDetails");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.RestaurantLocation", b =>
@@ -2547,8 +2662,8 @@ namespace TummlyBackend.Migrations
 
                     b.Property<string>("WeekKey")
                         .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("nvarchar(16)");
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.HasKey("Id");
 
@@ -2931,6 +3046,11 @@ namespace TummlyBackend.Migrations
 
             modelBuilder.Entity("TummlyBackend.Models.HelpCentreQuery", b =>
                 {
+                    b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("TummlyBackend.Models.RestaurantLocation", "RestaurantLocation")
                         .WithMany()
                         .HasForeignKey("RestaurantLocationId")
@@ -2940,6 +3060,8 @@ namespace TummlyBackend.Migrations
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Restaurant");
 
                     b.Navigation("RestaurantLocation");
 
@@ -3245,13 +3367,55 @@ namespace TummlyBackend.Migrations
 
             modelBuilder.Entity("TummlyBackend.Models.Restaurant", b =>
                 {
+                    b.HasOne("TummlyBackend.Models.User", "BillingContactUser")
+                        .WithMany()
+                        .HasForeignKey("BillingContactUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("TummlyBackend.Models.User", "OwnerUser")
                         .WithMany("OwnedRestaurants")
                         .HasForeignKey("OwnerUserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("TummlyBackend.Models.User", "PrivacyContactUser")
+                        .WithMany()
+                        .HasForeignKey("PrivacyContactUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.User", "SupportContactUser")
+                        .WithMany()
+                        .HasForeignKey("SupportContactUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.User", "WorkspaceStatusChangedByUser")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceStatusChangedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("BillingContactUser");
+
                     b.Navigation("OwnerUser");
+
+                    b.Navigation("PrivacyContactUser");
+
+                    b.Navigation("SupportContactUser");
+
+                    b.Navigation("WorkspaceStatusChangedByUser");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.RestaurantBusinessDetails", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
+                        .WithOne("BusinessDetails")
+                        .HasForeignKey("TummlyBackend.Models.RestaurantBusinessDetails", "RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Restaurant");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.RestaurantLocation", b =>
@@ -3337,6 +3501,8 @@ namespace TummlyBackend.Migrations
 
             modelBuilder.Entity("TummlyBackend.Models.Restaurant", b =>
                 {
+                    b.Navigation("BusinessDetails");
+
                     b.Navigation("GuestLoopSetup");
 
                     b.Navigation("Locations");

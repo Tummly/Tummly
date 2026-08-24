@@ -10,7 +10,7 @@ import { useForm } from "react-hook-form"
 import { Link } from "react-router-dom"
 
 import { transcribeGuestAudio } from "@/api/scanApi"
-import brandLogoPlaceholder from "@/assets/images/brand-logo-placeholder.png"
+import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
 import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
 import { GuestFeedbackMicChrome } from "@/components/guest-feedback/GuestFeedbackMicChrome"
 import {
@@ -86,6 +86,7 @@ type GuestFeedbackFormProps = {
   token: string
   locationName: string
   address: string
+  brandLogoPublicUrl?: string | null
   isSubmitting: boolean
   submitError: string | null
   defaultValues?: GuestFeedbackFormValues
@@ -97,6 +98,7 @@ export function GuestFeedbackForm({
   token,
   locationName,
   address,
+  brandLogoPublicUrl = null,
   isSubmitting,
   submitError,
   defaultValues = guestFeedbackDefaultValues,
@@ -178,16 +180,11 @@ export function GuestFeedbackForm({
           variants={shouldReduceMotion ? undefined : itemVariants}
           className="flex items-center gap-3"
         >
-          <span
-            className="size-12 shrink-0 overflow-hidden rounded-md"
-            aria-hidden
-          >
-            <img
-              src={brandLogoPlaceholder}
-              alt=""
-              className="size-full object-cover"
-            />
-          </span>
+          <BrandLogoMark
+            brandLogoPublicUrl={brandLogoPublicUrl}
+            className="size-12"
+            roundedClassName="rounded-md"
+          />
           <span className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate text-base font-semibold leading-snug text-guest-feedback-text">
               {displayLocation}

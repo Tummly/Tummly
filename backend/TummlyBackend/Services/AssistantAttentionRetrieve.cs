@@ -179,9 +179,16 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            var weekStartsOn = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(l => l.Id == locationId)
+                .Select(l => l.Restaurant != null ? l.Restaurant.WeekStartsOn : null)
+                .FirstOrDefaultAsync(cancellationToken);
+
             var closedWeek = WeeklyBriefWeekKey.ForClosedPriorWeek(
                 WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
-                DateTime.UtcNow
+                DateTime.UtcNow,
+                weekStartsOn
             );
             var loaded = await TryLoadWeeklyBriefAsync(
                 locationId,

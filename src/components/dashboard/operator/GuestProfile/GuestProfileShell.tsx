@@ -124,6 +124,7 @@ type GuestProfileShellProps = {
   onManageMarketingPermissions: () => void
   onExportGuestRecord: () => void
   onDeleteGuestData: () => void
+  onCreateCampaign?: () => void
 }
 
 const PROFILE_SUMMARY_ROWS: Array<{
@@ -317,6 +318,8 @@ function GuestProfileTabPanel({
   onOpenFeedback,
   onStartRecovery,
   onViewAllFeedbacks,
+  onViewAllOffers,
+  onViewAllCampaigns,
   onAddNote,
   onRetryNotes,
   onEditNote,
@@ -328,6 +331,8 @@ function GuestProfileTabPanel({
   onOpenFeedback: (feedbackId: number) => void
   onStartRecovery: (feedbackId: number) => void
   onViewAllFeedbacks: () => void
+  onViewAllOffers: () => void
+  onViewAllCampaigns: () => void
   onAddNote: () => void
   onRetryNotes: () => void
   onEditNote: (noteId: number) => void
@@ -340,6 +345,8 @@ function GuestProfileTabPanel({
         onOpenFeedback={onOpenFeedback}
         onStartRecovery={onStartRecovery}
         onViewAllFeedbacks={onViewAllFeedbacks}
+        onViewAllOffers={onViewAllOffers}
+        onViewAllCampaigns={onViewAllCampaigns}
         onAddNote={onAddNote}
       />
     )
@@ -473,6 +480,7 @@ export function GuestProfileShell({
   onManageMarketingPermissions,
   onExportGuestRecord,
   onDeleteGuestData,
+  onCreateCampaign,
 }: GuestProfileShellProps) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -552,13 +560,15 @@ export function GuestProfileShell({
         </header>
 
         <div className="flex shrink-0 flex-wrap items-center gap-3">
-          <Button variant="op-primary"
+          <Button
+            variant="op-primary"
             type="button"
-            disabled
-            aria-disabled
-            aria-label="Create campaign (unavailable)"
-            title="Create campaign is unavailable"
             className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+            onClick={() => {
+              onCreateCampaign?.()
+            }}
+            disabled={onCreateCampaign == null}
+            aria-disabled={onCreateCampaign == null}
           >
             Create campaign
           </Button>
@@ -631,6 +641,12 @@ export function GuestProfileShell({
         onStartRecovery={onStartRecovery}
         onViewAllFeedbacks={() => {
           setActiveTabId("feedbacks")
+        }}
+        onViewAllOffers={() => {
+          setActiveTabId("offers")
+        }}
+        onViewAllCampaigns={() => {
+          setActiveTabId("campaigns")
         }}
         onAddNote={() => {
           setAddNoteOpen(true)

@@ -1,4 +1,7 @@
-import type { OperatorSidebarPrimaryNavId } from "@/lib/operatorHome/sidebarNav"
+import type {
+  OperatorSidebarPrimaryNavId,
+  OperatorSidebarSettingsChildId,
+} from "@/lib/operatorHome/sidebarNav"
 
 export type OperatorDashboardMode = "single" | "multi"
 
@@ -11,10 +14,23 @@ const NAVIGABLE_PRIMARY_NAV_IDS = new Set<OperatorSidebarPrimaryNavId>([
   "offers",
 ])
 
+const NAVIGABLE_SETTINGS_CHILD_IDS = new Set<OperatorSidebarSettingsChildId>([
+  "account-workspace",
+])
+
 export type NavigableOperatorSidebarPrimaryNavId = Extract<
   OperatorSidebarPrimaryNavId,
   "home" | "guests" | "capture" | "feedback" | "campaigns" | "offers"
 >
+
+export type NavigableOperatorSidebarSettingsChildId = Extract<
+  OperatorSidebarSettingsChildId,
+  "account-workspace"
+>
+
+export type NavigableOperatorSidebarNavId =
+  | NavigableOperatorSidebarPrimaryNavId
+  | NavigableOperatorSidebarSettingsChildId
 
 export function operatorDashboardRootPath(
   mode: OperatorDashboardMode
@@ -67,12 +83,16 @@ export function resolveMismatchedOperatorDashboardRedirect(options: {
 
 export function operatorDashboardNavPath(
   mode: OperatorDashboardMode,
-  navId: NavigableOperatorSidebarPrimaryNavId,
+  navId: NavigableOperatorSidebarNavId,
   locationId: number
 ): string {
   const root = operatorDashboardRootPath(mode)
   const path =
-    navId === "home" ? root : `${root}/${navId}`
+    navId === "home"
+      ? root
+      : navId === "account-workspace"
+        ? `${root}/settings/account-workspace`
+        : `${root}/${navId}`
   return `${path}?location=${locationId}`
 }
 
@@ -212,8 +232,11 @@ export function guestProfileHeaderActionPaths(
 
 export function resolveOperatorSidebarActiveId(
   pathname: string
-): NavigableOperatorSidebarPrimaryNavId {
+): NavigableOperatorSidebarNavId {
   const segments = pathname.split("/").filter(Boolean)
+  if (segments.includes("account-workspace")) {
+    return "account-workspace"
+  }
   if (segments.includes("guests")) {
     return "guests"
   }
@@ -237,4 +260,10 @@ export function isNavigableOperatorSidebarPrimaryNavId(
   id: OperatorSidebarPrimaryNavId
 ): id is NavigableOperatorSidebarPrimaryNavId {
   return NAVIGABLE_PRIMARY_NAV_IDS.has(id)
+}
+
+export function isNavigableOperatorSidebarSettingsChildId(
+  id: OperatorSidebarSettingsChildId
+): id is NavigableOperatorSidebarSettingsChildId {
+  return NAVIGABLE_SETTINGS_CHILD_IDS.has(id)
 }

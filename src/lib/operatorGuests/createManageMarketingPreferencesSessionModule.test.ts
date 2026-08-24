@@ -54,6 +54,8 @@ function sampleProfile(
       },
     ],
     latestFeedback: [],
+    latestOffers: [],
+    latestCampaigns: [],
     recentNotes: [],
     ...overrides,
   }

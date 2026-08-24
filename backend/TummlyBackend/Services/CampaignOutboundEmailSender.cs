@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Services
@@ -12,14 +13,17 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
+        private readonly IConfiguration _configuration;
 
         public CampaignOutboundEmailSender(
             ApplicationDbContext context,
-            IEmailService emailService
+            IEmailService emailService,
+            IConfiguration configuration
         )
         {
             _context = context;
             _emailService = emailService;
+            _configuration = configuration;
         }
 
         public async Task<CampaignOutboundSendResult> SendAsync(
@@ -55,10 +59,10 @@ namespace TummlyBackend.Services
 
             var location = campaign.RestaurantLocation;
             var restaurant = location.Restaurant;
-            var brandTitle =
-                restaurant != null && !string.IsNullOrWhiteSpace(restaurant.Name)
-                    ? restaurant.Name.Trim()
-                    : location.LocationName;
+            var brandTitle = CampaignSenderDisplayName.Resolve(
+                restaurant,
+                location.LocationName
+            );
             var brandSubtitle =
                 string.Equals(
                     brandTitle,
@@ -70,6 +74,11 @@ namespace TummlyBackend.Services
 
             try
             {
+                var brandLogoUrl = BrandLogoRules.BuildAbsolutePublicUrl(
+                    restaurant?.BrandLogoObjectKey,
+                    _configuration["PublicApi:BaseUrl"]
+                );
+
                 await _emailService.SendGuestResponseEmailAsync(
                     request.ToAddress,
                     request.Subject ?? string.Empty,
@@ -77,7 +86,7 @@ namespace TummlyBackend.Services
                     brandSubtitle,
                     location.Address,
                     request.Body,
-                    brandLogoUrl: null,
+                    brandLogoUrl: brandLogoUrl,
                     offer: request.Offer
                 );
                 return new CampaignOutboundSendResult.Accepted();

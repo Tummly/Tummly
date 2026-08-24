@@ -19,6 +19,7 @@ export type OperatorWorkspaceSessionApi = {
   retry: OperatorWorkspaceSession["retry"]
   selectLocation: OperatorWorkspaceSession["selectLocation"]
   preferLocationFromQuery: OperatorWorkspaceSession["preferLocationFromQuery"]
+  applyRestaurantIdentity: OperatorWorkspaceSession["applyRestaurantIdentity"]
 }
 
 export function useWorkspaceSession(
@@ -51,5 +52,6 @@ export function useWorkspaceSession(
     retry: session.retry,
     selectLocation: session.selectLocation,
     preferLocationFromQuery: session.preferLocationFromQuery,
+    applyRestaurantIdentity: session.applyRestaurantIdentity,
   }
 }

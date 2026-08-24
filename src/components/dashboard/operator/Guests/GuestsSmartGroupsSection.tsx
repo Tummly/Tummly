@@ -118,6 +118,10 @@ type GuestsSmartGroupsSectionProps = {
   onManageGuestTags: (guestId: string) => void
   onViewGuest: (guestId: string) => void
   onManageMarketingPermissions: (guestId: string) => void
+  onEditGuest: (guestId: string) => void
+  onExportGuest: (guestId: string) => void
+  onDeleteGuest: (guestId: string) => void
+  onCreateCampaign?: () => void
   onExportSelected?: () => void
   exportBusy?: boolean
   filterChips: readonly FilterChip[]
@@ -176,6 +180,10 @@ export function GuestsSmartGroupsSection({
   onManageGuestTags,
   onViewGuest,
   onManageMarketingPermissions,
+  onEditGuest,
+  onExportGuest,
+  onDeleteGuest,
+  onCreateCampaign,
   onExportSelected,
   exportBusy = false,
   filterChips,
@@ -303,6 +311,7 @@ export function GuestsSmartGroupsSection({
             selectionLabel={bulkSelectionLabel}
             onClearSelection={onClearSelection}
             onAddTag={onAddTag}
+            onCreateCampaign={onCreateCampaign}
             onExportSelected={onExportSelected}
             exportBusy={exportBusy}
           />
@@ -464,6 +473,9 @@ export function GuestsSmartGroupsSection({
                             onManageMarketingPermissions={
                               onManageMarketingPermissions
                             }
+                            onEditGuest={onEditGuest}
+                            onExportGuest={onExportGuest}
+                            onDeleteGuest={onDeleteGuest}
                           />
                         </div>
                       </TableCell>

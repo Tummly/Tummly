@@ -10,6 +10,7 @@ import type {
   OperatorSidebarPrimaryNavId,
 } from "@/lib/operatorHome/sidebarNav"
 import { resolveSettingsDisclosureOpen } from "@/lib/operatorHome/sidebarNav"
+import { tryLeaveDirtyNavigate } from "@/lib/operatorNavigation/leaveDirtyGuard"
 
 import chevronIcon from "@/assets/operator-home/sidenav/chevron.svg"
 import homeIcon from "@/assets/operator-home/sidenav/home.svg"
@@ -265,7 +266,14 @@ export function DashboardSidebar({
                   aria-label={item.label}
                   title={collapsed ? item.label : undefined}
                   className={rowClass}
-                  onClick={onNavigate}
+                  onClick={(event) => {
+                    const href = item.to ?? ""
+                    if (!tryLeaveDirtyNavigate(href)) {
+                      event.preventDefault()
+                      return
+                    }
+                    onNavigate?.()
+                  }}
                 >
                   <NavRowContent
                     label={item.label}
@@ -341,26 +349,63 @@ export function DashboardSidebar({
 
               {showSettingsChildren ? (
                 <ul className="flex flex-col pb-3">
-                  {sidebarNav.settings.children.map((child) => (
-                    <li key={child.id}>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        disabled
-                        aria-disabled="true"
-                        aria-label={child.label}
-                        className={cn(
-                          "h-auto min-h-0 w-full justify-start rounded-none border-0 px-1.5 py-0",
-                          "text-sm font-medium leading-5 text-op-sidebar-item-disabled",
-                          "hover:bg-transparent hover:text-op-sidebar-item-disabled disabled:opacity-100"
-                        )}
-                      >
-                        <span className="flex w-full items-center rounded-[4px] px-3 py-1.5 pl-10 text-inherit">
-                          {child.label}
-                        </span>
-                      </Button>
-                    </li>
-                  ))}
+                  {sidebarNav.settings.children.map((child) => {
+                    const childClassName = cn(
+                      "h-auto min-h-0 w-full justify-start rounded-none border-0 px-1.5 py-0",
+                      "text-sm font-medium leading-5",
+                      child.active
+                        ? "text-op-sidebar-item-active"
+                        : child.navigable
+                          ? "text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default"
+                          : "text-op-sidebar-item-disabled hover:bg-transparent hover:text-op-sidebar-item-disabled disabled:opacity-100"
+                    )
+                    const label = (
+                      <span className="flex w-full items-center rounded-[4px] px-3 py-1.5 pl-10 text-inherit">
+                        {child.label}
+                      </span>
+                    )
+
+                    if (!child.navigable) {
+                      return (
+                        <li key={child.id}>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            disabled
+                            aria-disabled="true"
+                            aria-label={child.label}
+                            className={childClassName}
+                          >
+                            {label}
+                          </Button>
+                        </li>
+                      )
+                    }
+
+                    return (
+                      <li key={child.id}>
+                        <NavLink
+                          to={child.to ?? ""}
+                          aria-current={child.active ? "page" : undefined}
+                          aria-label={child.label}
+                          className={cn(
+                            childClassName,
+                            "flex items-center"
+                          )}
+                          onClick={(event) => {
+                            const href = child.to ?? ""
+                            if (!tryLeaveDirtyNavigate(href)) {
+                              event.preventDefault()
+                              return
+                            }
+                            onNavigate?.()
+                          }}
+                        >
+                          {label}
+                        </NavLink>
+                      </li>
+                    )
+                  })}
                 </ul>
               ) : null}
             </div>

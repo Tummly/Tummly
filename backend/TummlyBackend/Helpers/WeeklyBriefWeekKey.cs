@@ -4,17 +4,16 @@ using System.Text.RegularExpressions;
 namespace TummlyBackend.Helpers
 {
     /// <summary>
-    /// Closed prior Mon–Sun week for a Weekly brief row, in the location timezone.
+    /// Closed prior seven-day span for a Weekly brief row, in the location timezone.
     /// </summary>
     /// <param name="WeekKey">
-    /// ISO week key <c>yyyy-Www</c> (ISO week-year, Monday-based).
+    /// Workspace-week identity <c>{weekStartsOn}:{yyyy-MM-dd}</c> (coverage start).
     /// </param>
     /// <param name="CoverageStartUtc">
-    /// Inclusive UTC instant of Monday 00:00 in the location timezone.
+    /// Inclusive UTC instant of start-weekday 00:00 in the location timezone.
     /// </param>
     /// <param name="CoverageEndUtcExclusive">
-    /// Exclusive UTC instant of the following Monday 00:00 in the location timezone
-    /// (end of Sunday local day).
+    /// Exclusive UTC instant of the following start-weekday 00:00.
     /// </param>
     public readonly record struct WeeklyBriefClosedWeek(
         string WeekKey,
@@ -23,10 +22,10 @@ namespace TummlyBackend.Helpers
     );
 
     /// <summary>
-    /// Location timezone → closed prior ISO week key for Weekly brief storage.
+    /// Location timezone → closed prior workspace-week key for Weekly brief storage.
     /// Grain: one row per Owned location + this key. Absence of a row means not
-    /// yet generated. Monday is local midnight in the location IANA timezone;
-    /// coverage is the prior full Mon–Sun week in that timezone.
+    /// yet generated. Coverage is the prior full seven-day span from the
+    /// configured start weekday in that timezone.
     /// </summary>
     public static class WeeklyBriefWeekKey
     {
@@ -37,12 +36,17 @@ namespace TummlyBackend.Helpers
         public const string DefaultLocationTimeZoneId = "Europe/London";
 
         private static readonly Regex WeekKeyPattern = new(
+            @"^(monday|tuesday|wednesday|thursday|friday|saturday|sunday):\d{4}-\d{2}-\d{2}$",
+            RegexOptions.CultureInvariant | RegexOptions.Compiled
+        );
+
+        private static readonly Regex LegacyIsoWeekKeyPattern = new(
             @"^\d{4}-W\d{2}$",
             RegexOptions.CultureInvariant | RegexOptions.Compiled
         );
 
         /// <summary>
-        /// Trim and accept an ISO week key <c>yyyy-Www</c>.
+        /// Trim and accept a workspace-week key or legacy ISO <c>yyyy-Www</c>.
         /// </summary>
         public static bool TryNormalizeWeekKey(
             string? weekKey,
@@ -56,49 +60,76 @@ namespace TummlyBackend.Helpers
             }
 
             var trimmed = weekKey.Trim();
-            if (!WeekKeyPattern.IsMatch(trimmed))
+            if (
+                WeekKeyPattern.IsMatch(trimmed)
+                || LegacyIsoWeekKeyPattern.IsMatch(trimmed)
+            )
             {
-                return false;
+                normalized = trimmed;
+                return true;
             }
 
-            normalized = trimmed;
-            return true;
+            return false;
         }
 
         /// <summary>
         /// Resolve the closed prior week for <paramref name="utcNow"/> in
-        /// <paramref name="ianaTimeZoneId"/>.
-        /// At Monday local midnight the week that just ended becomes the closed week;
-        /// just before that instant the previous closed week remains.
+        /// <paramref name="ianaTimeZoneId"/> using <paramref name="weekStartsOn"/>.
+        /// At start-weekday local midnight the week that just ended becomes the
+        /// closed week; just before that instant the previous closed week remains.
         /// </summary>
         public static WeeklyBriefClosedWeek ForClosedPriorWeek(
             string ianaTimeZoneId,
-            DateTime utcNow
+            DateTime utcNow,
+            string? weekStartsOn = null
         )
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(ianaTimeZoneId);
+
+            var startWeekday = WorkspaceDefaultsOptions.NormalizeWeekStartsOn(
+                weekStartsOn
+            );
+            var startDay = WorkspaceDefaultsOptions.ToDayOfWeek(startWeekday);
 
             var utc = EnsureUtc(utcNow);
             var timeZone = ResolveTimeZone(ianaTimeZoneId.Trim());
             var localNow = TimeZoneInfo.ConvertTimeFromUtc(utc, timeZone);
             var localDate = DateOnly.FromDateTime(localNow);
 
-            var daysFromMonday = ((int)localDate.DayOfWeek + 6) % 7;
-            var currentWeekMonday = localDate.AddDays(-daysFromMonday);
-            var closedWeekMonday = currentWeekMonday.AddDays(-7);
-            var closedWeekNextMonday = closedWeekMonday.AddDays(7);
+            var daysFromStart = ((int)localDate.DayOfWeek - (int)startDay + 7) % 7;
+            var currentWeekStart = localDate.AddDays(-daysFromStart);
+            var closedWeekStart = currentWeekStart.AddDays(-7);
+            var closedWeekNextStart = closedWeekStart.AddDays(7);
 
-            var weekYear = ISOWeek.GetYear(closedWeekMonday.ToDateTime(TimeOnly.MinValue));
-            var weekNumber = ISOWeek.GetWeekOfYear(
-                closedWeekMonday.ToDateTime(TimeOnly.MinValue)
-            );
-            var weekKey = $"{weekYear:D4}-W{weekNumber:D2}";
+            var weekKey =
+                $"{startWeekday}:{closedWeekStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}";
 
             return new WeeklyBriefClosedWeek(
                 weekKey,
-                LocalDateStartToUtc(closedWeekMonday, timeZone),
-                LocalDateStartToUtc(closedWeekNextMonday, timeZone)
+                LocalDateStartToUtc(closedWeekStart, timeZone),
+                LocalDateStartToUtc(closedWeekNextStart, timeZone)
             );
+        }
+
+        /// <summary>
+        /// Whether <paramref name="utcNow"/> is the configured generate day
+        /// (start weekday) in the location timezone.
+        /// </summary>
+        public static bool IsGenerateDay(
+            string ianaTimeZoneId,
+            DateTime utcNow,
+            string? weekStartsOn = null
+        )
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(ianaTimeZoneId);
+
+            var startDay = WorkspaceDefaultsOptions.ToDayOfWeek(
+                WorkspaceDefaultsOptions.NormalizeWeekStartsOn(weekStartsOn)
+            );
+            var utc = EnsureUtc(utcNow);
+            var timeZone = ResolveTimeZone(ianaTimeZoneId.Trim());
+            var localNow = TimeZoneInfo.ConvertTimeFromUtc(utc, timeZone);
+            return DateOnly.FromDateTime(localNow).DayOfWeek == startDay;
         }
 
         private static DateTime LocalDateStartToUtc(

@@ -43,5 +43,11 @@ namespace TummlyBackend.Interfaces
             CampaignLifecycleActionRequest request,
             CancellationToken cancellationToken = default
         );
+
+        Task<CampaignLifecycleResult> DeleteDraftAsync(
+            int campaignId,
+            CampaignLifecycleActionRequest request,
+            CancellationToken cancellationToken = default
+        );
     }
 }

@@ -155,6 +155,7 @@ export default function GuestFeedbackPage() {
               token={token}
               locationName={metadata.locationName}
               address={metadata.address}
+              brandLogoPublicUrl={metadata.brandLogoPublicUrl}
               isSubmitting={isSubmitting}
               submitError={submitError}
               onSubmit={handleSubmit}
@@ -175,6 +176,7 @@ export default function GuestFeedbackPage() {
             <GuestFeedbackSuccess
               locationName={metadata.locationName}
               address={metadata.address}
+              brandLogoPublicUrl={metadata.brandLogoPublicUrl}
               offer={issuedOffer}
             />
           </motion.div>

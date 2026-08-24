@@ -155,6 +155,9 @@ export function offersListEmptyCopy(input: {
 
 export const OFFERS_PAGE_SIZE = 25
 
+export const OFFERS_PAGE_SUBTITLE_CLASS =
+  "m-0 max-w-md text-base font-medium leading-normal text-muted-foreground dark:text-[#7c7c7c]"
+
 export const OFFERS_PAGE_META_CLASS =
   "m-0 text-sm font-normal leading-5 text-muted-foreground"
 

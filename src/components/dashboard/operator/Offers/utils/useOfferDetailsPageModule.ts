@@ -13,6 +13,7 @@ export type OfferDetailsPageModuleHookApi = {
   setActiveTab: OfferDetailsPageModule["setActiveTab"]
   setCampaignsSubTab: OfferDetailsPageModule["setCampaignsSubTab"]
   setOverviewDateRange: OfferDetailsPageModule["setOverviewDateRange"]
+  retryRecommendation: OfferDetailsPageModule["retryRecommendation"]
   requestHeaderAction: OfferDetailsPageModule["requestHeaderAction"]
   confirmPendingHeaderAction: OfferDetailsPageModule["confirmPendingHeaderAction"]
   cancelPendingHeaderAction: OfferDetailsPageModule["cancelPendingHeaderAction"]
@@ -36,6 +37,7 @@ export function useOfferDetailsPageModule(): OfferDetailsPageModuleHookApi {
     setActiveTab: pageModule.setActiveTab,
     setCampaignsSubTab: pageModule.setCampaignsSubTab,
     setOverviewDateRange: pageModule.setOverviewDateRange,
+    retryRecommendation: pageModule.retryRecommendation,
     requestHeaderAction: pageModule.requestHeaderAction,
     confirmPendingHeaderAction: pageModule.confirmPendingHeaderAction,
     cancelPendingHeaderAction: pageModule.cancelPendingHeaderAction,

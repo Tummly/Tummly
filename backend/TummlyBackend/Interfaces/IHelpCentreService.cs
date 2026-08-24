@@ -27,5 +27,11 @@ namespace TummlyBackend.Interfaces
             int queryId,
             int attachmentId
         );
+
+        Task<object?> GetOpenAccountRequestAsync(
+            int userId,
+            int restaurantId,
+            string accountRequestKind
+        );
     }
 }

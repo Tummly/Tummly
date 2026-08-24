@@ -5,7 +5,7 @@ import {
   type Variants,
 } from "framer-motion"
 
-import brandLogoPlaceholder from "@/assets/images/brand-logo-placeholder.png"
+import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
 import { GuestPreviewOfferCoupon } from "@/components/dashboard/operator/Feedback/GuestPreviewOfferCoupon"
 import type { GuestPreviewOfferCouponView } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import { cn } from "@/lib/utils"
@@ -45,6 +45,7 @@ const itemVariants: Variants = {
 type GuestFeedbackSuccessProps = {
   locationName: string
   address: string
+  brandLogoPublicUrl?: string | null
   className?: string
   /** Issued or preview-sample offer coupon painted under thank-you copy. */
   offer?: GuestPreviewOfferCouponView | null
@@ -53,6 +54,7 @@ type GuestFeedbackSuccessProps = {
 export function GuestFeedbackSuccess({
   locationName,
   address,
+  brandLogoPublicUrl = null,
   className,
   offer = null,
 }: GuestFeedbackSuccessProps) {
@@ -90,16 +92,11 @@ export function GuestFeedbackSuccess({
         }
         className="-mt-7 flex flex-col items-center gap-3"
       >
-        <span
-          className="size-13 shrink-0 overflow-hidden rounded-md"
-          aria-hidden
-        >
-          <img
-            src={brandLogoPlaceholder}
-            alt=""
-            className="size-full object-cover"
-          />
-        </span>
+        <BrandLogoMark
+          brandLogoPublicUrl={brandLogoPublicUrl}
+          className="size-13"
+          roundedClassName="rounded-md"
+        />
         <span className="flex flex-col items-center gap-1">
           <span className="text-[22px] font-semibold leading-normal text-guest-feedback-text">
             {displayLocation}
