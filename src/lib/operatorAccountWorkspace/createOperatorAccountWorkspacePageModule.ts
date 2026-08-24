@@ -9,6 +9,7 @@ import {
   isUnitedKingdomCountry,
   resolveAccountWorkspaceTabId,
   type AccountWorkspaceTabId,
+  type LegalStructureValue,
 } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 
 export {
@@ -29,7 +30,7 @@ export type AccountWorkspaceStatus = {
 }
 
 export type AccountWorkspaceBusinessDetails = {
-  legalStructure: string
+  legalStructure: LegalStructureValue | ""
   legalBusinessName: string
   tradingName: string
   companyNumber: string
@@ -57,7 +58,7 @@ export type AccountWorkspaceDetails = {
 }
 
 export type UpdateBusinessDetailsPayload = {
-  legalStructure: string
+  legalStructure: LegalStructureValue | ""
   legalBusinessName: string
   tradingName: string
   sameAsLegalBusinessName: boolean
@@ -330,10 +331,12 @@ export function createOperatorAccountWorkspacePageModule(
       return false
     }
     const saved = normalizeBusinessDetails(persisted.businessDetails)
+    const savedSameAs = deriveSameAsLegalBusinessName(saved)
     return (
       businessDraft.legalStructure !== saved.legalStructure
       || businessDraft.legalBusinessName !== saved.legalBusinessName
       || businessDraft.tradingName !== saved.tradingName
+      || businessDraft.sameAsLegalBusinessName !== savedSameAs
       || businessDraft.companyNumber !== saved.companyNumber
       || businessDraft.vatNumber !== saved.vatNumber
       || businessDraft.countryOfRegistration !== saved.countryOfRegistration
@@ -371,15 +374,6 @@ export function createOperatorAccountWorkspacePageModule(
     patch: Partial<BusinessDetailsDraft>
   ): void {
     businessDraft = { ...businessDraft, ...patch }
-    if (
-      businessDraft.sameAsLegalBusinessName
-      && Object.prototype.hasOwnProperty.call(patch, "legalBusinessName")
-    ) {
-      businessDraft = {
-        ...businessDraft,
-        tradingName: businessDraft.legalBusinessName,
-      }
-    }
     postcodeError = null
     emit()
   }
@@ -416,6 +410,10 @@ export function createOperatorAccountWorkspacePageModule(
       },
       businessDetails: {
         ...businessDraft,
+        // Preview only — persist still owns the same-as copy.
+        tradingName: businessDraft.sameAsLegalBusinessName
+          ? businessDraft.legalBusinessName
+          : businessDraft.tradingName,
         postcodeError,
       },
       renameConfirmOpen,
@@ -631,20 +629,8 @@ export function createOperatorAccountWorkspacePageModule(
     },
 
     setSameAsLegalBusinessName(checked) {
-      if (checked) {
-        businessDraft = {
-          ...businessDraft,
-          sameAsLegalBusinessName: true,
-          tradingName: businessDraft.legalBusinessName,
-        }
-      } else {
-        businessDraft = {
-          ...businessDraft,
-          sameAsLegalBusinessName: false,
-        }
-      }
-      postcodeError = null
-      emit()
+      // Checkbox is UI-only; Trading name copies on persist, not here.
+      patchBusinessDraft({ sameAsLegalBusinessName: checked })
     },
 
     setCompanyNumber(value) {

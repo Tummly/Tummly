@@ -468,6 +468,7 @@ describe("createOperatorAccountWorkspacePageModule", () => {
     page.setLegalBusinessName("Mehmet's Grill Ltd")
     page.setTradingName("Should Be Overwritten")
     page.setSameAsLegalBusinessName(true)
+    // Checkbox is UI-only until persist; snapshot may preview legal name.
     expect(page.getSnapshot().businessDetails.tradingName).toBe(
       "Mehmet's Grill Ltd"
     )
@@ -481,6 +482,21 @@ describe("createOperatorAccountWorkspacePageModule", () => {
         sameAsLegalBusinessName: true,
       })
     )
+  })
+
+  it("sameAsLegal does not mutate draft trading before persist", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "business-details",
+    })
+    await page.load()
+
+    page.setLegalBusinessName("Legal Co")
+    page.setTradingName("Trading Co")
+    page.setSameAsLegalBusinessName(true)
+    page.setSameAsLegalBusinessName(false)
+
+    expect(page.getSnapshot().businessDetails.tradingName).toBe("Trading Co")
   })
 
   it("invalid UK postcode keeps draft and does not call adapter", async () => {

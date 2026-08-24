@@ -400,11 +400,13 @@ export function AccountWorkspacePage() {
                   <Select
                     value={
                       business.legalStructure === ""
-                        ? undefined
+                        ? "__clear__"
                         : business.legalStructure
                     }
                     onValueChange={(value) => {
-                      pageModule.setLegalStructure(value)
+                      pageModule.setLegalStructure(
+                        value === "__clear__" ? "" : value
+                      )
                     }}
                   >
                     <SelectTrigger id="legal-structure" className="h-8 w-full">
@@ -419,6 +421,9 @@ export function AccountWorkspacePage() {
                       align="start"
                       className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
                     >
+                      <SelectItem value="__clear__">
+                        {ACCOUNT_WORKSPACE_PAGE_COPY.legalStructurePlaceholder}
+                      </SelectItem>
                       {LEGAL_STRUCTURE_OPTIONS.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
