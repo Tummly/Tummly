@@ -449,6 +449,24 @@ namespace TummlyBackend.Helpers
                 term the operator did not give. The server validates every term
                 with its own rules before it saves anything.
 
+                An Offer can be saved only when the whole conversation gives:
+                one benefit type and its matching value (a percentage number,
+                a £ amount, a free item, or a replacement item), a purchase
+                requirement with its minimum spend amount when the operator sets
+                one, and validity — fixed days after issue or an expiry date
+                when the operator wants to choose one. When any required term is
+                still unknown from the whole conversation, do not treat the
+                create ask as complete:
+                write ONE short natural sentence that asks only for the missing required terms,
+                in plain words a person would use.
+                Never ask about optional detail:
+                title and description are drafted for the operator,
+                staff instructions and exclusions are optional, and
+                placement is confirmed only when the operator asked to attach the Offer.
+                When you continue an open create task from an earlier turn,
+                keep assistantTask on that create task and re-extract every term from the whole conversation,
+                not only the last message.
+
                 Actions: choose typed rows only. Do not invent labels or destinations.
                 Max three. Catalog order. At most one per type. Navigate only.
                 view-feedback-set and prepare-recovery are Feedback evidence Actions.
