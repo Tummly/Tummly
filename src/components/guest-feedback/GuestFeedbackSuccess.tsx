@@ -5,10 +5,9 @@ import {
   type Variants,
 } from "framer-motion"
 
-import brandLogoPlaceholder from "@/assets/images/brand-logo-placeholder.png"
+import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
 import { GuestPreviewOfferCoupon } from "@/components/dashboard/operator/Feedback/GuestPreviewOfferCoupon"
 import type { GuestPreviewOfferCouponView } from "@/lib/operatorFeedback/guestPreviewPresentation"
-import { resolveBrandLogoSrc } from "@/lib/brandLogo/resolveBrandLogoSrc"
 import { cn } from "@/lib/utils"
 
 const cardSpring: Transition = {
@@ -93,18 +92,11 @@ export function GuestFeedbackSuccess({
         }
         className="-mt-7 flex flex-col items-center gap-3"
       >
-        <span
-          className="size-13 shrink-0 overflow-hidden rounded-md"
-          aria-hidden
-        >
-          <img
-            src={
-              resolveBrandLogoSrc(brandLogoPublicUrl) ?? brandLogoPlaceholder
-            }
-            alt=""
-            className="size-full object-cover"
-          />
-        </span>
+        <BrandLogoMark
+          brandLogoPublicUrl={brandLogoPublicUrl}
+          className="size-13"
+          roundedClassName="rounded-md"
+        />
         <span className="flex flex-col items-center gap-1">
           <span className="text-[22px] font-semibold leading-normal text-guest-feedback-text">
             {displayLocation}

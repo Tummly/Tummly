@@ -10,7 +10,7 @@ import { useForm } from "react-hook-form"
 import { Link } from "react-router-dom"
 
 import { transcribeGuestAudio } from "@/api/scanApi"
-import brandLogoPlaceholder from "@/assets/images/brand-logo-placeholder.png"
+import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
 import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
 import { GuestFeedbackMicChrome } from "@/components/guest-feedback/GuestFeedbackMicChrome"
 import {
@@ -36,7 +36,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
-import { resolveBrandLogoSrc } from "@/lib/brandLogo/resolveBrandLogoSrc"
 import { createBrowserGuestMicAdapters } from "@/lib/guestFeedback/createBrowserGuestMicAdapters"
 import { createGuestMicSttModule } from "@/lib/guestFeedback/createGuestMicSttModule"
 import { guestFeedbackCommentPresentation } from "@/lib/guestFeedback/guestFeedbackCommentPresentation"
@@ -181,18 +180,11 @@ export function GuestFeedbackForm({
           variants={shouldReduceMotion ? undefined : itemVariants}
           className="flex items-center gap-3"
         >
-          <span
-            className="size-12 shrink-0 overflow-hidden rounded-md"
-            aria-hidden
-          >
-            <img
-              src={
-                resolveBrandLogoSrc(brandLogoPublicUrl) ?? brandLogoPlaceholder
-              }
-              alt=""
-              className="size-full object-cover"
-            />
-          </span>
+          <BrandLogoMark
+            brandLogoPublicUrl={brandLogoPublicUrl}
+            className="size-12"
+            roundedClassName="rounded-md"
+          />
           <span className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate text-base font-semibold leading-snug text-guest-feedback-text">
               {displayLocation}
