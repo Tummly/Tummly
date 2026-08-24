@@ -2542,6 +2542,15 @@ namespace TummlyBackend.Tests.Services
         {
             var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
             var soho = await SeedSecondLocationAsync(ownerUserId: 7, "Soho");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(camden, "Create a 25% off lunch offer at Camden")
+                )
+            );
+            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
+
             _fake.SucceedWith(
                 AssistantMessageClass.Grounded,
                 "Lunch discount",
@@ -2556,18 +2565,6 @@ namespace TummlyBackend.Tests.Services
                 }
             );
 
-            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
-                await _service.SendTurnAsync(
-                    ownerUserId: 7,
-                    FirstSendRequest(camden, "Create a 25% off lunch offer at Camden")
-                )
-            );
-            Assert.True(
-                false,
-                $"class={started.Conversation.Messages[^1].Class} body={started.Conversation.Messages[^1].Body}"
-            );
-            Assert.Equal("gap", started.Conversation.Messages[^1].Class);
-
             var answered = Assert.IsType<AssistantTurnOutcome.Ok>(
                 await _service.SendTurnAsync(
                     ownerUserId: 7,
@@ -2577,10 +2574,6 @@ namespace TummlyBackend.Tests.Services
                         started.Conversation.Id
                     )
                 )
-            );
-            Assert.True(
-                false,
-                $"startedBody={started.Conversation.Messages[^1].Body}"
             );
 
             var offer = Assert.Single(_context.CatalogOffers);
