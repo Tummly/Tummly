@@ -269,8 +269,9 @@ describe("capturePresentation — operator token audit", () => {
     expect(CAPTURE_KPI_ROW_CLASS).toContain("lg:flex")
     expect(CAPTURE_KPI_DIVIDER_CLASS).toContain("bg-op-card-border")
     expect(CAPTURE_KPI_CELL_CLASS).not.toContain("bg-op-background-primary")
-    expect(CAPTURE_OVERVIEW_KPI_ROW_CLASS).toContain("xl:flex")
-    expect(CAPTURE_OVERVIEW_KPI_DIVIDER_CLASS).toContain("xl:block")
+    expect(CAPTURE_OVERVIEW_KPI_ROW_CLASS).toContain("lg:flex")
+    expect(CAPTURE_OVERVIEW_KPI_ROW_CLASS).toContain("lg:items-start")
+    expect(CAPTURE_OVERVIEW_KPI_DIVIDER_CLASS).toContain("lg:block")
     expect(CAPTURE_OVERVIEW_KPI_DIVIDER_CLASS).toContain("bg-op-card-border")
   })
 

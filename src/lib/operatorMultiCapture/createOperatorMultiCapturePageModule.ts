@@ -293,9 +293,6 @@ function factsFromResponse(
   response: CaptureOverviewResponse
 ): CaptureOverviewFacts {
   return {
-    activeLocations: response.activeLocations,
-    totalLocations: response.totalLocations,
-    activeQrPlacements: response.activeQrPlacements,
     qrScans: response.qrScans,
     qrScansPrevious: response.qrScansPrevious,
     feedbackSubmitted: response.feedbackSubmitted,

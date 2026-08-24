@@ -283,7 +283,7 @@ describe("createOperatorMultiCapturePageModule", () => {
     expect(snapshot.listLoadStatus).toBe("loaded")
     expect(snapshot.canCreateDigitalGuestLink).toBe(true)
     expect(snapshot.viewModel?.overview.isNoLocations).toBe(false)
-    expect(snapshot.viewModel?.overview.kpis).toHaveLength(6)
+    expect(snapshot.viewModel?.overview.kpis).toHaveLength(4)
     expect(snapshot.viewModel?.locationPerformance.rows).toHaveLength(1)
     expect(snapshot.viewModel?.locationPerformance.rows[0]).toMatchObject({
       locationName: "Camden",

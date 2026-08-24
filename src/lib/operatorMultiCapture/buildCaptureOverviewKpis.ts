@@ -1,7 +1,4 @@
 export type CaptureOverviewFacts = {
-  activeLocations: number
-  totalLocations: number
-  activeQrPlacements: number
   qrScans: number
   qrScansPrevious: number
   feedbackSubmitted: number
@@ -13,15 +10,12 @@ export type CaptureOverviewFacts = {
 }
 
 export type OperatorCaptureOverviewKpiId =
-  | "active-locations"
-  | "active-qr-placements"
   | "qr-scans"
   | "feedback-submitted"
   | "marketing-opt-ins"
   | "offer-claims"
 
 export type OperatorCaptureOverviewKpiSecondaryKind =
-  | "of-total"
   | "dash"
   | "rate"
   | "none"
@@ -31,7 +25,7 @@ export type OperatorCaptureOverviewKpi = {
   label: string
   primaryText: string
   secondaryKind: OperatorCaptureOverviewKpiSecondaryKind
-  /** Secondary copy — of-total (“of 5”) or rate (“50% completion rate”). */
+  /** Secondary copy — rate (“50% completion rate”). */
   secondaryText?: string | null
   hasRealData: boolean
 }
@@ -75,25 +69,8 @@ export function buildCaptureOverviewKpis(
 
   const kpis: OperatorCaptureOverviewKpi[] = [
     {
-      id: "active-locations",
-      label: "Active locations",
-      primaryText: String(facts.activeLocations),
-      secondaryKind: "of-total",
-      secondaryText: `of ${facts.totalLocations}`,
-      hasRealData: true,
-    },
-    {
-      id: "active-qr-placements",
-      label: "Active QR placements",
-      primaryText: String(facts.activeQrPlacements),
-      secondaryKind: "dash",
-      // Primary is live; hasRealData stays true so chrome does not treat the
-      // card like offer-claims. Secondary remains dash (no rate yet).
-      hasRealData: true,
-    },
-    {
       id: "qr-scans",
-      label: "Guest form opens",
+      label: "Form starts",
       primaryText: String(facts.qrScans),
       secondaryKind: "none",
       secondaryText: null,
