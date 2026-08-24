@@ -285,6 +285,73 @@ namespace TummlyBackend.Tests.Helpers
             );
         }
 
+        [Fact]
+        public void BuildSystemPrompt_ListsOfferHardRulesAndNaturalGapQuestionRule()
+        {
+            var prompt = AssistantLiveAnswerStructuredOutput.BuildSystemPrompt(
+                "2026-08-16"
+            );
+
+            Assert.Contains(
+                "An Offer can be saved only when the whole conversation gives",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "one benefit type and its matching value",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "validity",
+                prompt,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.Contains(
+                "write ONE short natural sentence that asks only for the missing required terms",
+                prompt,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public void BuildSystemPrompt_ForbidsOptionalDetailQuestions()
+        {
+            var prompt = AssistantLiveAnswerStructuredOutput.BuildSystemPrompt(
+                "2026-08-16"
+            );
+
+            Assert.Contains(
+                "Never ask about optional detail",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "title and description are drafted for the operator",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "placement is confirmed only when the operator asked to attach the Offer",
+                prompt,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public void BuildSystemPrompt_RequiresFullThreadReExtractionOnContinuation()
+        {
+            var prompt = AssistantLiveAnswerStructuredOutput.BuildSystemPrompt(
+                "2026-08-16"
+            );
+
+            Assert.Contains(
+                "keep assistantTask on that create task and re-extract every term from the whole conversation",
+                prompt,
+                StringComparison.Ordinal
+            );
+        }
+
         private static string ContentWithOfferTerms(string? offerTermsJson)
         {
             var terms = offerTermsJson ?? "null";

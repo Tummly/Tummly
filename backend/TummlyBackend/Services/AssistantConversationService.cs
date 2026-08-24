@@ -631,6 +631,12 @@ namespace TummlyBackend.Services
                 {
                     draftTargets = resumed.DraftTargets;
                 }
+
+                if (resumed.LocationId is int resumedLocationId)
+                {
+                    boundCreateLocationId = resumedLocationId;
+                    boundCreateLocationName = resumed.LocationName;
+                }
             }
             else if (draftTargets.Count > 1)
             {
@@ -1146,7 +1152,11 @@ namespace TummlyBackend.Services
                         userMessage,
                         terms,
                         replaceFailure,
-                        cancellationToken
+                        cancellationToken,
+                        questionBody:
+                            succeeded.OfferTerms is not null
+                                ? succeeded.Body
+                                : null
                     );
                     if (termsGap is not null)
                     {
@@ -1671,9 +1681,9 @@ namespace TummlyBackend.Services
                         [],
                         null,
                         null,
-                        AssistantGapTurn.CreateOfferTerms(
+                        AssistantGapTurn.CreateCombinedOfferTerms(
                             userMessage,
-                            AssistantOfferPathTerms.Serialize(terms),
+                            terms,
                             AssistantTask.CreateCampaignWithOffer
                         )
                     );
@@ -2147,9 +2157,9 @@ namespace TummlyBackend.Services
             {
                 return new CreateOfferDraftPersistTurn(
                     AssistantOfferPathPersistCopy.FailureTitle,
-                    AssistantOfferPathPersistCopy.FailureBody("Offer create")
-                        + " "
-                        + argumentError.Message,
+                    AssistantOfferPathPersistCopy.InvalidValueBody(
+                        argumentError.Message
+                    ),
                     [],
                     null
                 );
@@ -2735,7 +2745,8 @@ namespace TummlyBackend.Services
             AssistantOfferPathTermsState terms,
             AssistantMessage? replaceFailure,
             CancellationToken cancellationToken,
-            string assistantTask = AssistantTask.OfferPath
+            string assistantTask = AssistantTask.OfferPath,
+            string? questionBody = null
         )
         {
             if (AssistantOfferPathTerms.IsComplete(terms))
@@ -2743,14 +2754,21 @@ namespace TummlyBackend.Services
                 return null;
             }
 
+            var openRules = terms.ConflictingBenefits.Count >= 2
+                ? new List<string> { "one authorised benefit" }
+                : AssistantOfferPathTerms.MissingFields(terms).ToList();
+            var body = string.IsNullOrWhiteSpace(questionBody)
+                ? AssistantOfferPathTerms.GapBody(terms)
+                : questionBody.Trim();
+
             return await FinishGapTurnAsync(
                 conversation,
                 AssistantGapTurn.CreateOfferTerms(
                     sourceUserMessage,
-                    AssistantOfferPathTerms.Serialize(terms),
+                    openRules,
                     assistantTask
                 ),
-                AssistantOfferPathTerms.GapBody(terms),
+                body,
                 replaceFailure,
                 cancellationToken
             );
@@ -2758,7 +2776,9 @@ namespace TummlyBackend.Services
 
         private sealed record GapResume(
             AssistantTurnOutcome? Outcome,
-            IReadOnlyList<string>? DraftTargets
+            IReadOnlyList<string>? DraftTargets,
+            int? LocationId = null,
+            string? LocationName = null
         );
 
         private sealed record LocationFinish(
@@ -3265,14 +3285,14 @@ namespace TummlyBackend.Services
 
             if (gapState.Kind == AssistantGapTurn.KindOfferTerms)
             {
-                var prior = AssistantOfferPathTerms.FromJson(gapState.OfferTermsJson)
-                    ?? AssistantOfferPathTerms.Parse(gapState.SourceUserMessage);
                 if (string.Equals(
                         gapState.AssistantTask,
                         AssistantTask.CreateCampaignWithOffer,
                         StringComparison.Ordinal
                     ))
                 {
+                    var prior = AssistantOfferPathTerms.FromJson(gapState.OfferTermsJson)
+                        ?? AssistantOfferPathTerms.Parse(gapState.SourceUserMessage);
                     return await ResumeCombinedCreateAsync(
                         conversation,
                         gapState.SourceUserMessage,
@@ -3287,17 +3307,36 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                return await ResumeOfferPathAsync(
-                    conversation,
+                // Offer-path gaps resume through the live answer: the model
+                // re-extracts every term from the whole thread and the server
+                // re-validates. Only the location binding stays server-side.
+                var resumedLocationOutcome = ResolveCreateLocation(
                     gapState.SourceUserMessage,
-                    userMessage,
+                    conversation,
                     analysisScopeLocationName,
                     ownedLocations,
-                    prior,
-                    uniqueNameIsChoice: true,
-                    updateScope: false,
+                    uniqueNameIsChoice: false,
+                    gapState.AssistantTask
+                );
+                var resumedLocation = await TryFinishLocationOutcomeAsync(
+                    conversation,
+                    gapState.SourceUserMessage,
+                    analysisScopeLocationName,
+                    resumedLocationOutcome,
                     replaceFailure,
-                    cancellationToken
+                    cancellationToken,
+                    gapState.AssistantTask
+                );
+                if (resumedLocation.Outcome is not null)
+                {
+                    return new GapResume(resumedLocation.Outcome, null);
+                }
+
+                return new GapResume(
+                    null,
+                    null,
+                    resumedLocation.LocationId,
+                    resumedLocation.LocationName
                 );
             }
 

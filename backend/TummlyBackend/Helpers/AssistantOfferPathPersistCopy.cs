@@ -76,5 +76,10 @@ namespace TummlyBackend.Helpers
                 + $"The {failedStep} step failed. "
                 + AssistantNextTryCopy.Sentence
                 + " Retry this send, or create the Offer in Offers.";
+
+        public static string InvalidValueBody(string validatorReason)
+            => "I could not save this Offers catalog Draft. "
+                + validatorReason.Trim()
+                + " Send the corrected value and I will save the Draft.";
     }
 }
