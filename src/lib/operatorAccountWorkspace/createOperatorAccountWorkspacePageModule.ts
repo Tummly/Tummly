@@ -117,6 +117,8 @@ export type UpdateWorkspaceDefaultsPayload = {
   defaultCampaignSenderName: string
 }
 
+export type AccountWorkspaceGuestDataExportFormat = "xlsx" | "csv"
+
 export type AccountWorkspaceToast = {
   kind: "success" | "error"
   message: string
@@ -139,6 +141,10 @@ export type OperatorAccountWorkspacePageAdapters = {
   ) => Promise<AccountWorkspaceDetails>
   pauseWorkspace: () => Promise<AccountWorkspaceDetails>
   resumeWorkspace: () => Promise<AccountWorkspaceDetails>
+  exportGuestData: (
+    format: AccountWorkspaceGuestDataExportFormat
+  ) => Promise<{ blob: Blob; filename: string }>
+  triggerBrowserDownload: (blob: Blob, filename: string) => void
   /** Refresh shell readers of Restaurant.Name / Brand logo after persist. */
   onIdentityPersisted?: (details: AccountWorkspaceDetails) => void
 }
@@ -212,6 +218,10 @@ export type OperatorAccountWorkspacePageSnapshot = {
   toast: AccountWorkspaceToast
   isAccountOwner: boolean
   workspaceStatusConfirm: null | "pause" | "resume"
+  guestDataExportDialog: {
+    format: AccountWorkspaceGuestDataExportFormat
+    isPreparing: boolean
+  } | null
 }
 
 export type OperatorAccountWorkspacePageModule = {
@@ -256,6 +266,12 @@ export type OperatorAccountWorkspacePageModule = {
   confirmWorkspaceStatusChange: () => Promise<void>
   cancelWorkspaceStatusConfirm: () => void
   closeWorkspaceStatusConfirm: () => void
+  requestExportGuestData: () => void
+  setGuestDataExportFormat: (
+    format: AccountWorkspaceGuestDataExportFormat
+  ) => void
+  downloadGuestDataExport: () => Promise<void>
+  closeGuestDataExportDialog: () => void
 }
 
 const WORKSPACE_NAME_REQUIRED_ERROR = "Workspace name is required."
@@ -384,6 +400,9 @@ export function createOperatorAccountWorkspacePageModule(
   let pendingNavigationHref: string | null = null
   let toast: AccountWorkspaceToast = null
   let workspaceStatusConfirm: null | "pause" | "resume" = null
+  let guestDataExportFormat: AccountWorkspaceGuestDataExportFormat = "xlsx"
+  let guestDataExportOpen = false
+  let guestDataExportPreparing = false
   let workspaceNameError: string | null = null
   let postcodeError: string | null = null
   let draft: AccountDetailsDraft = {
@@ -669,6 +688,12 @@ export function createOperatorAccountWorkspacePageModule(
       toast,
       isAccountOwner: persisted?.isAccountOwner ?? false,
       workspaceStatusConfirm,
+      guestDataExportDialog: guestDataExportOpen
+        ? {
+            format: guestDataExportFormat,
+            isPreparing: guestDataExportPreparing,
+          }
+        : null,
     }
   }
 
@@ -1233,6 +1258,63 @@ export function createOperatorAccountWorkspacePageModule(
 
     closeWorkspaceStatusConfirm() {
       workspaceStatusConfirm = null
+      emit()
+    },
+
+    requestExportGuestData() {
+      if (guestDataExportPreparing) {
+        return
+      }
+      guestDataExportFormat = "xlsx"
+      guestDataExportOpen = true
+      emit()
+    },
+
+    setGuestDataExportFormat(format) {
+      if (!guestDataExportOpen || guestDataExportPreparing) {
+        return
+      }
+      guestDataExportFormat = format
+      emit()
+    },
+
+    async downloadGuestDataExport() {
+      if (!guestDataExportOpen || guestDataExportPreparing) {
+        return
+      }
+
+      const format = guestDataExportFormat
+      guestDataExportPreparing = true
+      toast = null
+      emit()
+
+      try {
+        const result = await adapters.exportGuestData(format)
+        adapters.triggerBrowserDownload(result.blob, result.filename)
+        guestDataExportOpen = false
+        guestDataExportPreparing = false
+        guestDataExportFormat = "xlsx"
+        toast = {
+          kind: "success",
+          message: ACCOUNT_WORKSPACE_PAGE_COPY.exportGuestDataSuccess,
+        }
+        emit()
+      } catch {
+        guestDataExportPreparing = false
+        toast = {
+          kind: "error",
+          message: ACCOUNT_WORKSPACE_PAGE_COPY.exportGuestDataError,
+        }
+        emit()
+      }
+    },
+
+    closeGuestDataExportDialog() {
+      if (guestDataExportPreparing) {
+        return
+      }
+      guestDataExportOpen = false
+      guestDataExportFormat = "xlsx"
       emit()
     },
   }

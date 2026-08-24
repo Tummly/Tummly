@@ -172,6 +172,11 @@ function createAdapters(
         },
       })
     ),
+    exportGuestData: vi.fn(async () => ({
+      blob: new Blob(["xlsx"]),
+      filename: "tummly-guest-data-1-20260824-120000Z.xlsx",
+    })),
+    triggerBrowserDownload: vi.fn(),
     ...overrides,
   } as OperatorAccountWorkspacePageAdapters & {
     getDetails: Mock
@@ -181,6 +186,8 @@ function createAdapters(
     updateWorkspaceDefaults: Mock
     pauseWorkspace: Mock
     resumeWorkspace: Mock
+    exportGuestData: Mock
+    triggerBrowserDownload: Mock
   }
 }
 
@@ -818,6 +825,117 @@ describe("createOperatorAccountWorkspacePageModule", () => {
     expect(page.getSnapshot().accountDetails.status?.guestFormStatus).toBe(
       "Paused"
     )
+  })
+
+  it("opens guest-data export dialog with xlsx default without dirtying the tab", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "account-controls",
+    })
+    await page.load()
+
+    const lastSavedBefore = page.getSnapshot().lastSavedAt
+    page.requestExportGuestData()
+
+    expect(page.getSnapshot().guestDataExportDialog).toEqual({
+      format: "xlsx",
+      isPreparing: false,
+    })
+    expect(page.getSnapshot().isDirty).toBe(false)
+    expect(page.getSnapshot().saveEnabled).toBe(false)
+    expect(page.getSnapshot().lastSavedAt).toBe(lastSavedBefore)
+    expect(adapters.exportGuestData).not.toHaveBeenCalled()
+  })
+
+  it("downloads csv guest data, closes the dialog, and does not change lastSavedAt", async () => {
+    const adapters = createAdapters({
+      exportGuestData: vi.fn(async () => ({
+        blob: new Blob(["csv"]),
+        filename: "tummly-guest-data-9-20260824-120000Z.csv",
+      })),
+    })
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "account-controls",
+    })
+    await page.load()
+    const lastSavedBefore = page.getSnapshot().lastSavedAt
+
+    page.requestExportGuestData()
+    page.setGuestDataExportFormat("csv")
+    await page.downloadGuestDataExport()
+
+    expect(adapters.exportGuestData).toHaveBeenCalledWith("csv")
+    expect(adapters.triggerBrowserDownload).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "tummly-guest-data-9-20260824-120000Z.csv"
+    )
+    expect(page.getSnapshot().guestDataExportDialog).toBeNull()
+    expect(page.getSnapshot().lastSavedAt).toBe(lastSavedBefore)
+    expect(page.getSnapshot().isDirty).toBe(false)
+    expect(page.getSnapshot().activeTabId).toBe("account-controls")
+    expect(page.getSnapshot().toast).toEqual({
+      kind: "success",
+      message: "Guest data exported.",
+    })
+  })
+
+  it("shows an error toast and stays on Account controls when guest-data export fails", async () => {
+    const adapters = createAdapters({
+      exportGuestData: vi.fn(async () => {
+        throw new Error("down")
+      }),
+    })
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "account-controls",
+    })
+    await page.load()
+    const lastSavedBefore = page.getSnapshot().lastSavedAt
+
+    page.requestExportGuestData()
+    await page.downloadGuestDataExport()
+
+    expect(adapters.triggerBrowserDownload).not.toHaveBeenCalled()
+    expect(page.getSnapshot().guestDataExportDialog).toEqual({
+      format: "xlsx",
+      isPreparing: false,
+    })
+    expect(page.getSnapshot().activeTabId).toBe("account-controls")
+    expect(page.getSnapshot().lastSavedAt).toBe(lastSavedBefore)
+    expect(page.getSnapshot().toast).toEqual({
+      kind: "error",
+      message: "Could not export guest data. Please try again.",
+    })
+  })
+
+  it("lets a non-owner export guest data", async () => {
+    const adapters = createAdapters({
+      getDetails: vi.fn(async () => createDetails({ isAccountOwner: false })),
+    })
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "account-controls",
+    })
+    await page.load()
+
+    page.requestExportGuestData()
+    await page.downloadGuestDataExport()
+
+    expect(adapters.exportGuestData).toHaveBeenCalledWith("xlsx")
+    expect(adapters.triggerBrowserDownload).toHaveBeenCalled()
+    expect(page.getSnapshot().toast?.kind).toBe("success")
+  })
+
+  it("closes guest-data export without calling the adapter", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "account-controls",
+    })
+    await page.load()
+
+    page.requestExportGuestData()
+    page.closeGuestDataExportDialog()
+
+    expect(adapters.exportGuestData).not.toHaveBeenCalled()
+    expect(page.getSnapshot().guestDataExportDialog).toBeNull()
   })
 
 })

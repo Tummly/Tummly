@@ -177,6 +177,16 @@ export const ACCOUNT_WORKSPACE_PAGE_COPY = {
     "Tummly helps you collect, manage and use guest feedback, consent records, offers and campaign activity for this workspace. Tummly does not sell guest contact details or share identifiable guest data with other restaurants.",
   viewPrivacySettings: "View privacy settings",
   exportGuestData: "Export guest data",
+  exportGuestDataTitle: "Export guest data",
+  exportGuestDataSubtitle:
+    "Download identifiable guest profiles and consent records for every location in this workspace.",
+  exportGuestDataFileFormat: "File format",
+  exportGuestDataFormatExcel: "Excel (.xlsx)",
+  exportGuestDataFormatCsv: "CSV (.csv)",
+  exportGuestDataDownload: "Download",
+  exportGuestDataPreparing: "Preparing download…",
+  exportGuestDataSuccess: "Guest data exported.",
+  exportGuestDataError: "Could not export guest data. Please try again.",
   dangerZoneTitle: "Danger zone",
   dangerZoneSubtitle:
     "These actions can affect access, guest forms, campaigns and account data. Only account owners can make these changes.",

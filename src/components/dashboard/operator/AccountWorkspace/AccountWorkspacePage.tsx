@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 
 import brandLogoPlaceholder from "@/assets/images/brand-logo-placeholder.png"
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
+import { GuestDataExportDialog } from "@/components/dashboard/operator/AccountWorkspace/GuestDataExportDialog"
 import { useAccountWorkspacePageModuleApi } from "@/components/dashboard/operator/AccountWorkspace/utils/accountWorkspacePageModuleContext"
 import { AddressPostcodeFields } from "@/components/form/AddressPostcodeFields"
 import { Badge } from "@/components/ui/badge"
@@ -1064,7 +1065,14 @@ export function AccountWorkspacePage() {
                 <Button type="button" variant="op-secondary" disabled>
                   {ACCOUNT_WORKSPACE_PAGE_COPY.viewPrivacySettings}
                 </Button>
-                <Button type="button" variant="op-tertiary" disabled>
+                <Button
+                  type="button"
+                  variant="op-tertiary"
+                  disabled={snap.isSaving}
+                  onClick={() => {
+                    pageModule.requestExportGuestData()
+                  }}
+                >
                   {ACCOUNT_WORKSPACE_PAGE_COPY.exportGuestData}
                 </Button>
               </div>
@@ -1206,6 +1214,24 @@ export function AccountWorkspacePage() {
           pageModule.cancelWorkspaceStatusConfirm()
         }}
       />
+
+      {snap.guestDataExportDialog != null ? (
+        <GuestDataExportDialog
+          format={snap.guestDataExportDialog.format}
+          isPreparing={snap.guestDataExportDialog.isPreparing}
+          onOpenChange={(open) => {
+            if (!open) {
+              pageModule.closeGuestDataExportDialog()
+            }
+          }}
+          onFormatChange={(format) => {
+            pageModule.setGuestDataExportFormat(format)
+          }}
+          onDownload={() => {
+            void pageModule.downloadGuestDataExport()
+          }}
+        />
+      ) : null}
     </div>
   )
 }

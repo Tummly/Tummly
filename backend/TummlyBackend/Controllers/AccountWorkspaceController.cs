@@ -12,12 +12,15 @@ namespace TummlyBackend.Controllers
     public class AccountWorkspaceController : ControllerBase
     {
         private readonly IAccountWorkspaceService _accountWorkspace;
+        private readonly IGuestDataExportService _guestDataExport;
 
         public AccountWorkspaceController(
-            IAccountWorkspaceService accountWorkspace
+            IAccountWorkspaceService accountWorkspace,
+            IGuestDataExportService guestDataExport
         )
         {
             _accountWorkspace = accountWorkspace;
+            _guestDataExport = guestDataExport;
         }
 
         [HttpGet]
@@ -240,6 +243,37 @@ namespace TummlyBackend.Controllers
             }
 
             return Ok(details);
+        }
+
+        [HttpGet("guest-data-export")]
+        public async Task<IActionResult> ExportGuestData(
+            [FromQuery] string format = "xlsx"
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var (result, error, statusCode) =
+                await _guestDataExport.ExportAsync(userId, format);
+
+            if (error != null)
+            {
+                return StatusCode(
+                    statusCode,
+                    new
+                    {
+                        success = false,
+                        message = error,
+                    }
+                );
+            }
+
+            return File(result!.Content, result.ContentType, result.FileName);
         }
 
         [HttpGet("brand-logo")]

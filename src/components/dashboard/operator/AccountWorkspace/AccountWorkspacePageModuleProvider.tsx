@@ -9,6 +9,7 @@ import { useOutletContext, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import {
+  exportAccountWorkspaceGuestData,
   getAccountWorkspaceDetails,
   pauseAccountWorkspace,
   resumeAccountWorkspace,
@@ -19,6 +20,7 @@ import {
 } from "@/api/accountWorkspaceApi"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { accountWorkspacePageModuleContext } from "@/components/dashboard/operator/AccountWorkspace/utils/accountWorkspacePageModuleContext"
+import { triggerBrowserDownload } from "@/lib/operatorHome/homeActions"
 import {
   createOperatorAccountWorkspacePageModule,
   resolveAccountWorkspaceTabId,
@@ -46,6 +48,8 @@ export function AccountWorkspacePageModuleProvider({
         updateWorkspaceDefaults: updateAccountWorkspaceWorkspaceDefaults,
         pauseWorkspace: pauseAccountWorkspace,
         resumeWorkspace: resumeAccountWorkspace,
+        exportGuestData: exportAccountWorkspaceGuestData,
+        triggerBrowserDownload,
         onIdentityPersisted: (details) => {
           applyIdentityRef.current({
             restaurantName: details.workspaceName,

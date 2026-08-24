@@ -1,4 +1,5 @@
 import axiosInstance from "@/api/axiosInstance"
+import { isAxiosError } from "axios"
 import {
   defaultAccountWorkspaceCountry,
   normalizeReportingPeriod,
@@ -7,6 +8,7 @@ import {
 import type {
   AccountWorkspaceBusinessDetails,
   AccountWorkspaceDetails,
+  AccountWorkspaceGuestDataExportFormat,
   AccountWorkspaceKeyContacts,
   AccountWorkspaceWorkspaceDefaults,
   TeamMemberPickerItem,
@@ -230,4 +232,52 @@ export async function resumeAccountWorkspace(): Promise<AccountWorkspaceDetails>
     "/account-workspace/resume"
   )
   return mapDetails(response.data)
+}
+
+export async function exportAccountWorkspaceGuestData(
+  format: AccountWorkspaceGuestDataExportFormat
+): Promise<{ blob: Blob; filename: string }> {
+  try {
+    const response = await axiosInstance.get<Blob>(
+      "/account-workspace/guest-data-export",
+      {
+        params: { format },
+        responseType: "blob",
+      }
+    )
+    const filename =
+      parseContentDispositionFilename(
+        response.headers["content-disposition"] as string | undefined
+      ) ?? `tummly-guest-data.${format}`
+    return { blob: response.data, filename }
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data instanceof Blob) {
+      try {
+        const text = await error.response.data.text()
+        const parsed = JSON.parse(text) as { message?: unknown }
+        if (typeof parsed.message === "string" && parsed.message.length > 0) {
+          throw new Error(parsed.message, { cause: error })
+        }
+      } catch (inner) {
+        if (inner instanceof Error && !(inner instanceof SyntaxError)) {
+          throw inner
+        }
+      }
+    }
+    throw error
+  }
+}
+
+function parseContentDispositionFilename(
+  header: string | undefined
+): string | null {
+  if (header == null || header.length === 0) {
+    return null
+  }
+  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(header)
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1].trim())
+  }
+  const plainMatch = /filename="?([^";]+)"?/i.exec(header)
+  return plainMatch?.[1]?.trim() ?? null
 }
