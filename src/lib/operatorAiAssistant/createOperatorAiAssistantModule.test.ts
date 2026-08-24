@@ -633,6 +633,102 @@ describe("createOperatorAiAssistantModule", () => {
     expect(adapters.conversations).toEqual([])
   })
 
+  it("summariseFeedbackForPeriod opens a new chat on the Feedback reporting period and sends a summarise prompt", async () => {
+    const closePeerRightDrawers = vi.fn()
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      closePeerRightDrawers,
+      getDashboardOwnedLocation: () => ({ id: 11, name: "Camden" }),
+      getRestaurantName: () => "Mehmet's Grill",
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.summariseFeedbackForPeriod({
+      operatorFirstName: "Mohamed",
+      reportingPeriod: { kind: "preset", presetId: "last30" },
+    })
+
+    expect(closePeerRightDrawers).toHaveBeenCalledTimes(1)
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(module.getSnapshot().widthMode).toBe("collapsed")
+    expect(module.getSnapshot().analysisScope).toMatchObject({
+      ownedLocationId: 11,
+      ownedLocationName: "Camden",
+      reportingPeriod: { kind: "preset", presetId: "last30" },
+    })
+    expect(module.getSnapshot().headerStatusLine).toBe(
+      "Mehmet's Grill · Camden · Last 30 days"
+    )
+
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(adapters.conversations).toHaveLength(1)
+    expect(adapters.conversations[0]?.title).toBe(
+      "Summarise feedback from the last 30 days"
+    )
+    expect(adapters.conversations[0]?.analysisScope.reportingPeriod).toEqual({
+      kind: "preset",
+      presetId: "last30",
+    })
+  })
+
+  it("summariseFeedbackForPeriod starts a new conversation instead of resuming the last thread", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardOwnedLocation: () => ({ id: 11, name: "Camden" }),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+    const previousId = module.getSnapshot().conversationId
+    expect(previousId).toBe("conv-1")
+    module.closeDrawer()
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.summariseFeedbackForPeriod({
+      operatorFirstName: "Mohamed",
+      reportingPeriod: { kind: "preset", presetId: "last30" },
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().conversationId).not.toBe(previousId)
+    expect(module.getSnapshot().analysisScope?.reportingPeriod).toEqual({
+      kind: "preset",
+      presetId: "last30",
+    })
+    expect(adapters.conversations).toHaveLength(2)
+    expect(adapters.conversations[1]?.title).toBe(
+      "Summarise feedback from the last 30 days"
+    )
+  })
+
+  it("summariseFeedbackForPeriod opens the drawer with the prompt when offline and does not send", () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardOwnedLocation: () => ({ id: 11, name: "Camden" }),
+    })
+    adapters.online = false
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.summariseFeedbackForPeriod({
+      operatorFirstName: "Mohamed",
+      reportingPeriod: { kind: "preset", presetId: "last30" },
+    })
+
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(module.getSnapshot().composerDraft).toBe(
+      "Summarise feedback from the last 30 days"
+    )
+    expect(module.getSnapshot().analysisScope?.reportingPeriod).toEqual({
+      kind: "preset",
+      presetId: "last30",
+    })
+    expect(adapters.conversations).toEqual([])
+  })
+
   it("Change Scope in mode multi shows Owned location and Reporting period", () => {
     const adapters = createInMemoryOperatorAiAssistantAdapters({
       getDashboardMode: () => "multi",

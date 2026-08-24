@@ -454,12 +454,6 @@ export function createOperatorAccountWorkspacePageModule(
 
   const listeners = new Set<() => void>()
 
-  function emit() {
-    for (const listener of listeners) {
-      listener()
-    }
-  }
-
   function revokePreview() {
     if (draft.stagedLogoPreviewUrl?.startsWith("blob:")) {
       URL.revokeObjectURL(draft.stagedLogoPreviewUrl)
@@ -655,7 +649,7 @@ export function createOperatorAccountWorkspacePageModule(
     emit()
   }
 
-  function getSnapshot(): OperatorAccountWorkspacePageSnapshot {
+  function buildSnapshot(): OperatorAccountWorkspacePageSnapshot {
     const dirty = activeTabDirty()
     const onControls = activeTabId === "account-controls"
     return {
@@ -722,6 +716,15 @@ export function createOperatorAccountWorkspacePageModule(
             isPreparing: guestDataExportPreparing,
           }
         : null,
+    }
+  }
+
+  let snapshot = buildSnapshot()
+
+  function emit() {
+    snapshot = buildSnapshot()
+    for (const listener of listeners) {
+      listener()
     }
   }
 
@@ -987,7 +990,7 @@ export function createOperatorAccountWorkspacePageModule(
   }
 
   return {
-    getSnapshot,
+    getSnapshot: () => snapshot,
     subscribe(listener) {
       listeners.add(listener)
       return () => {
@@ -1041,7 +1044,7 @@ export function createOperatorAccountWorkspacePageModule(
     },
 
     setLegalStructure(value) {
-      patchBusinessDraft({ legalStructure: value })
+      patchBusinessDraft({ legalStructure: value as LegalStructureValue })
     },
 
     setLegalBusinessName(value) {

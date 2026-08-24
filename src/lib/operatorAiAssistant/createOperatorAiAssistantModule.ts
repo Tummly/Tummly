@@ -383,6 +383,10 @@ export type OperatorAiAssistantModule = {
   getSnapshot: () => OperatorAiAssistantSnapshot
   subscribe: (listener: () => void) => () => void
   openDrawer: (input?: { operatorFirstName?: string }) => void
+  summariseFeedbackForPeriod: (input: {
+    operatorFirstName?: string
+    reportingPeriod: HomePerformanceDateRange
+  }) => void
   closeDrawer: () => void
   setOpen: (open: boolean) => void
   startNewChat: () => void
@@ -537,6 +541,12 @@ export function periodPhraseForReportingPeriod(
     case "thisMonth":
       return "this month"
   }
+}
+
+export function summariseFeedbackPromptForPeriod(
+  range: HomePerformanceDateRange
+): string {
+  return `Summarise feedback from ${periodPhraseForReportingPeriod(range)}`
 }
 
 export function buildEmptyComposerPlaceholders(
@@ -1611,6 +1621,9 @@ export function createOperatorAiAssistantModule(
       if (!state.drawerOpen) {
         return
       }
+      if (state.conversationId !== resumeId) {
+        return
+      }
       if (row == null) {
         showEmptyGreeting(operatorFirstName)
         state = { ...state, drawerOpen: true, widthMode: "collapsed" }
@@ -1894,6 +1907,38 @@ export function createOperatorAiAssistantModule(
       })
   }
 
+  const summariseFeedbackForPeriod = (input: {
+    operatorFirstName?: string
+    reportingPeriod: HomePerformanceDateRange
+  }) => {
+    adapters.closePeerRightDrawers()
+    const abandonedConversationId =
+      state.draftInterviewActive ? state.conversationId : null
+    abortInFlight()
+    mic.reset()
+    const operatorFirstName =
+      input.operatorFirstName?.trim() || state.operatorFirstName
+    const analysisScope: OperatorAiAssistantAnalysisScope = {
+      ...copyDashboardAnalysisScope(adapters),
+      reportingPeriod: input.reportingPeriod,
+    }
+    const prompt = summariseFeedbackPromptForPeriod(input.reportingPeriod)
+    state = {
+      ...emptyGreetingState(state, adapters, operatorFirstName, analysisScope),
+      drawerOpen: true,
+      widthMode: "collapsed",
+      composerDraft: prompt,
+    }
+    publish()
+    if (abandonedConversationId != null) {
+      void adapters.clearDraftInterview(abandonedConversationId)
+    }
+    if (state.bodyLoadError || mic.getSnapshot().submitLocked) {
+      return
+    }
+    runTurn(prompt, false)
+  }
+
   return {
     getSnapshot: () => snapshot,
     subscribe: (listener) => {
@@ -1903,6 +1948,7 @@ export function createOperatorAiAssistantModule(
       }
     },
     openDrawer,
+    summariseFeedbackForPeriod,
     closeDrawer,
     setOpen: (open) => {
       if (open) {
