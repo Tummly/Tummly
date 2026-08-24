@@ -204,6 +204,12 @@ namespace TummlyBackend.Tests.Integration
             fake.ResetToCannedStub();
         }
 
+        private static JsonElement LastMessage(JsonElement conversation)
+        {
+            var messages = conversation.GetProperty("messages");
+            return messages[messages.GetArrayLength() - 1];
+        }
+
         private FakeAssistantLiveAnswerProvider FakeLive =>
             _factory.Services.GetRequiredService<FakeAssistantLiveAnswerProvider>();
 
@@ -258,8 +264,16 @@ namespace TummlyBackend.Tests.Integration
                 owner.LocationId,
                 "Create a 25% off lunch offer"
             );
-            var startMessages = started.GetProperty("messages");
-            var gap = startMessages[startMessages.GetArrayLength() - 1];
+            var gap = LastMessage(started);
+            Assert.Equal(
+                "user",
+                started.GetProperty("messages")[0].GetProperty("role").GetString()
+            );
+            Assert.Equal("assistant", gap.GetProperty("role").GetString());
+            Assert.True(
+                gap.GetProperty("id").GetInt32()
+                > started.GetProperty("messages")[0].GetProperty("id").GetInt32()
+            );
             Assert.Equal("gap", gap.GetProperty("class").GetString());
             Assert.Equal(
                 "How long should the lunch offer stay valid?",
@@ -296,8 +310,7 @@ namespace TummlyBackend.Tests.Integration
                 "30 days after issue",
                 conversationId
             );
-            var answerMessages = answered.GetProperty("messages");
-            var reply = answerMessages[answerMessages.GetArrayLength() - 1];
+var reply = LastMessage(answered);
             Assert.Equal("grounded", reply.GetProperty("class").GetString());
             var actions = reply.GetProperty("actions");
             Assert.Equal(1, actions.GetArrayLength());
@@ -361,14 +374,66 @@ namespace TummlyBackend.Tests.Integration
                 owner.LocationId,
                 "Summarise recent feedback"
             );
-            var messages = conversation.GetProperty("messages");
-            var reply = messages[messages.GetArrayLength() - 1];
+var reply = LastMessage(conversation);
 
             Assert.Equal("grounded", reply.GetProperty("class").GetString());
             var body = reply.GetProperty("body").GetString() ?? string.Empty;
             Assert.Contains("nothing to summarise", body, StringComparison.Ordinal);
             Assert.DoesNotContain("###", body, StringComparison.Ordinal);
             Assert.DoesNotContain("<", body, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task SendTurn_CompareLocationsAsk_BehavesAsBefore()
+        {
+            var owner = await SeedOwnerAsync("assistant-e2e-compare-token-");
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var restaurantId = context.RestaurantLocations.Single(
+                    location => location.Id == owner.LocationId
+                ).RestaurantId;
+                context.RestaurantLocations.Add(
+                    new RestaurantLocation
+                    {
+                        RestaurantId = restaurantId,
+                        LocationName = "Soho",
+                        Address = "2 High Street",
+                        CreatedAt = DateTime.UtcNow,
+                    }
+                );
+                context.Restaurants.Single(
+                    restaurant => restaurant.Id == restaurantId
+                ).AccountType = "Multi";
+                await context.SaveChangesAsync();
+            }
+            ResetFake();
+
+            // Warm-up turn: keeps the one-shot title generation off the
+            // compare turn, so the fake's last input belongs to it.
+            var warmUp = await SendTurnAsync(
+                owner.Jwt,
+                owner.LocationId,
+                "Summarise recent feedback"
+            );
+            var conversation = await SendTurnAsync(
+                owner.Jwt,
+                owner.LocationId,
+                "Compare Camden and Soho",
+                warmUp.GetProperty("id").GetInt32()
+            );
+            var reply = LastMessage(conversation);
+
+            // The ask routes as a two-location compare before the model call.
+            var compareIds = FakeLive.LastInput?.CompareLocations?
+                .Select(location => location.OwnedLocationId)
+                .OrderBy(id => id)
+                .ToList();
+            Assert.NotNull(compareIds);
+            Assert.Equal(2, compareIds!.Count);
+
+            Assert.Equal("grounded", reply.GetProperty("class").GetString());
         }
 
         [Fact]
@@ -380,17 +445,20 @@ namespace TummlyBackend.Tests.Integration
             var conversation = await SendTurnAsync(
                 owner.Jwt,
                 owner.LocationId,
-                "What can Tummly Offers do?"
+                "What can you do?"
             );
-            var messages = conversation.GetProperty("messages");
-            var reply = messages[messages.GetArrayLength() - 1];
+var reply = LastMessage(conversation);
 
             Assert.Equal("grounded", reply.GetProperty("class").GetString());
+            var body = reply.GetProperty("body").GetString() ?? string.Empty;
+            Assert.Contains("**", body, StringComparison.Ordinal);
+            Assert.Contains("- ", body, StringComparison.Ordinal);
             Assert.DoesNotContain(
                 "Offer type catalogue",
-                reply.GetProperty("body").GetString(),
+                body,
                 StringComparison.Ordinal
             );
+            Assert.DoesNotContain("###", body, StringComparison.Ordinal);
         }
 
         [Fact]
@@ -404,8 +472,7 @@ namespace TummlyBackend.Tests.Integration
                 owner.LocationId,
                 "How many guests came last week?"
             );
-            var messages = conversation.GetProperty("messages");
-            var reply = messages[messages.GetArrayLength() - 1];
+var reply = LastMessage(conversation);
 
             Assert.Equal("grounded", reply.GetProperty("class").GetString());
             Assert.Contains(
@@ -453,8 +520,7 @@ namespace TummlyBackend.Tests.Integration
                 owner.LocationId,
                 "Respond to these guests"
             );
-            var messages = conversation.GetProperty("messages");
-            var reply = messages[messages.GetArrayLength() - 1];
+var reply = LastMessage(conversation);
 
             Assert.Equal(
                 "open-recovery",
@@ -470,10 +536,10 @@ namespace TummlyBackend.Tests.Integration
         {
             var owner = await SeedOwnerAsync("assistant-e2e-voice-token-12");
             ResetFake();
-            ResetFakeStt();
+            FakeStt.Reset();
             FakeStt.SucceedWith("Summarise recent feedback");
 
-            var transcript = await TranscribeAsync(owner);
+            var transcript = await TranscribeAsync(owner.Jwt);
 
             var conversation = await SendTurnAsync(
                 owner.Jwt,
@@ -492,13 +558,7 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
-        private void ResetFakeStt()
-        {
-            _factory.Services.GetRequiredService<FakeSpeechToTextProvider>()
-                .Reset();
-        }
-
-        private async Task<string> TranscribeAsync((string Jwt, int _) owner)
+        private async Task<string> TranscribeAsync(string jwt)
         {
             using var content = new MultipartFormDataContent();
             var fileContent = new ByteArrayContent(
@@ -516,7 +576,7 @@ namespace TummlyBackend.Tests.Integration
                 Content = content,
             };
             request.Headers.Authorization =
-                new AuthenticationHeaderValue("Bearer", owner.Jwt);
+                new AuthenticationHeaderValue("Bearer", jwt);
 
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
