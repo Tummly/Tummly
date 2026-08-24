@@ -1,9 +1,12 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -199,6 +202,327 @@ namespace TummlyBackend.Tests.Integration
             var fake = scope.ServiceProvider
                 .GetRequiredService<FakeAssistantLiveAnswerProvider>();
             fake.ResetToCannedStub();
+        }
+
+        private FakeAssistantLiveAnswerProvider FakeLive =>
+            _factory.Services.GetRequiredService<FakeAssistantLiveAnswerProvider>();
+
+        private FakeSpeechToTextProvider FakeStt =>
+            _factory.Services.GetRequiredService<FakeSpeechToTextProvider>();
+
+        private async Task<JsonElement> SendTurnAsync(
+            string jwt,
+            int locationId,
+            string message,
+            int? conversationId = null
+        )
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/assistant/turns"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+            request.Content = JsonContent.Create(new
+            {
+                message,
+                conversationId,
+                analysisScope = new
+                {
+                    ownedLocationId = locationId,
+                    reportingPeriod = new { kind = "preset", presetId = "last7" },
+                },
+            });
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            return body.GetProperty("conversation");
+        }
+
+        [Fact]
+        public async Task SendTurn_MultiTurnOfferThread_GapsOnceThenPersistsWithReviewAction()
+        {
+            var owner = await SeedOwnerAsync("assistant-e2e-offer-token-1");
+            ResetFake();
+            FakeLive.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Lunch offer",
+                "How long should the lunch offer stay valid?",
+                AssistantTask.OfferPath
+            );
+
+            var started = await SendTurnAsync(
+                owner.Jwt,
+                owner.LocationId,
+                "Create a 25% off lunch offer"
+            );
+            var startMessages = started.GetProperty("messages");
+            var gap = startMessages[startMessages.GetArrayLength() - 1];
+            Assert.Equal("gap", gap.GetProperty("class").GetString());
+            Assert.Equal(
+                "How long should the lunch offer stay valid?",
+                gap.GetProperty("body").GetString()
+            );
+            Assert.Equal(
+                0,
+                gap.GetProperty("actions").GetArrayLength()
+            );
+            Assert.False(started.GetProperty("draftInterviewActive").GetBoolean());
+            var conversationId = started.GetProperty("id").GetInt32();
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(0, await context.CatalogOffers.CountAsync());
+
+            FakeLive.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Lunch discount",
+                "Saving the lunch discount.",
+                AssistantTask.OfferPath,
+                null,
+                new AssistantOfferPathTermsState
+                {
+                    OfferType = "percentage_discount",
+                    DiscountPercentage = 25m,
+                    Validity = "30_days_after_issue",
+                }
+            );
+            var answered = await SendTurnAsync(
+                owner.Jwt,
+                owner.LocationId,
+                "30 days after issue",
+                conversationId
+            );
+            var answerMessages = answered.GetProperty("messages");
+            var reply = answerMessages[answerMessages.GetArrayLength() - 1];
+            Assert.Equal("grounded", reply.GetProperty("class").GetString());
+            var actions = reply.GetProperty("actions");
+            Assert.Equal(1, actions.GetArrayLength());
+            Assert.Equal(
+                "review-offer",
+                actions[0].GetProperty("type").GetString()
+            );
+
+            var offers = await context.CatalogOffers.ToListAsync();
+            var offer = Assert.Single(offers);
+            Assert.Equal(CatalogOfferStatus.Draft, offer.Status);
+            Assert.Equal(25m, offer.DiscountPercentage);
+            Assert.Equal(
+                CatalogOfferValidity.Days30AfterIssue,
+                offer.Validity
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_MultiTurnThread_KeepsTitleFromFirstTurn()
+        {
+            var owner = await SeedOwnerAsync("assistant-e2e-title-token-1");
+            ResetFake();
+
+            var started = await SendTurnAsync(
+                owner.Jwt,
+                owner.LocationId,
+                "Summarise recent feedback"
+            );
+            await SendTurnAsync(
+                owner.Jwt,
+                owner.LocationId,
+                "Show me recent feedback again",
+                started.GetProperty("id").GetInt32()
+            );
+
+            using var listRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/assistant/conversations"
+            );
+            listRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", owner.Jwt);
+            var listed = await _client.SendAsync(listRequest);
+            Assert.Equal(HttpStatusCode.OK, listed.StatusCode);
+            var listBody = await ReadJsonAsync(listed);
+            var conversation = listBody.GetProperty("conversations")[0];
+            Assert.Equal(
+                "Summarise recent feedback",
+                conversation.GetProperty("title").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_RetrieveAnswer_KeepsGroundedMarkdownAllowListShape()
+        {
+            var owner = await SeedOwnerAsync("assistant-e2e-grounded-token-");
+            ResetFake();
+
+            var conversation = await SendTurnAsync(
+                owner.Jwt,
+                owner.LocationId,
+                "Summarise recent feedback"
+            );
+            var messages = conversation.GetProperty("messages");
+            var reply = messages[messages.GetArrayLength() - 1];
+
+            Assert.Equal("grounded", reply.GetProperty("class").GetString());
+            var body = reply.GetProperty("body").GetString() ?? string.Empty;
+            Assert.Contains("nothing to summarise", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("###", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("<", body, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task SendTurn_ProductExpertAsk_BehavesAsBefore()
+        {
+            var owner = await SeedOwnerAsync("assistant-e2e-product-token-");
+            ResetFake();
+
+            var conversation = await SendTurnAsync(
+                owner.Jwt,
+                owner.LocationId,
+                "What can Tummly Offers do?"
+            );
+            var messages = conversation.GetProperty("messages");
+            var reply = messages[messages.GetArrayLength() - 1];
+
+            Assert.Equal("grounded", reply.GetProperty("class").GetString());
+            Assert.DoesNotContain(
+                "Offer type catalogue",
+                reply.GetProperty("body").GetString(),
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_AttentionAsk_BehavesAsBefore()
+        {
+            var owner = await SeedOwnerAsync("assistant-e2e-attention-token");
+            ResetFake();
+
+            var conversation = await SendTurnAsync(
+                owner.Jwt,
+                owner.LocationId,
+                "How many guests came last week?"
+            );
+            var messages = conversation.GetProperty("messages");
+            var reply = messages[messages.GetArrayLength() - 1];
+
+            Assert.Equal("grounded", reply.GetProperty("class").GetString());
+            Assert.Contains(
+                "Weekly brief covers the closed prior week",
+                reply.GetProperty("body").GetString(),
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "Camden",
+                reply.GetProperty("body").GetString(),
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_RecoveryAsk_BehavesAsBefore()
+        {
+            var owner = await SeedOwnerAsync("assistant-e2e-recovery-token");
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                context.Feedbacks.Add(
+                    new Feedback
+                    {
+                        RestaurantLocationId = owner.LocationId,
+                        GuestName = "Pat Guest",
+                        GuestContact = "pat@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = "Slow service at dinner",
+                        OffersOptOut = false,
+                        CreatedAt = DateTime.UtcNow.AddHours(-1),
+                        ClassificationStatus = ClassificationStatus.Succeeded,
+                        Sentiment = FeedbackSentiment.Negative,
+                        DetectedTagsJson = "[\"Service\"]",
+                        WorkflowStatus = FeedbackWorkflowStatus.New,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+            ResetFake();
+
+            var conversation = await SendTurnAsync(
+                owner.Jwt,
+                owner.LocationId,
+                "Respond to these guests"
+            );
+            var messages = conversation.GetProperty("messages");
+            var reply = messages[messages.GetArrayLength() - 1];
+
+            Assert.Equal(
+                "open-recovery",
+                reply.GetProperty("actions")[0].GetProperty("type").GetString()
+            );
+            Assert.NotNull(
+                conversation.GetProperty("pendingRecoveryDraft")
+            );
+        }
+
+        [Fact]
+        public async Task SpeechTranscript_FeedANormalAssistantReply()
+        {
+            var owner = await SeedOwnerAsync("assistant-e2e-voice-token-12");
+            ResetFake();
+            ResetFakeStt();
+            FakeStt.SucceedWith("Summarise recent feedback");
+
+            var transcript = await TranscribeAsync(owner);
+
+            var conversation = await SendTurnAsync(
+                owner.Jwt,
+                owner.LocationId,
+                transcript
+            );
+            var messages = conversation.GetProperty("messages");
+            Assert.Equal(2, messages.GetArrayLength());
+            Assert.Equal(
+                transcript,
+                messages[0].GetProperty("body").GetString()
+            );
+            Assert.Equal(
+                "grounded",
+                messages[1].GetProperty("class").GetString()
+            );
+        }
+
+        private void ResetFakeStt()
+        {
+            _factory.Services.GetRequiredService<FakeSpeechToTextProvider>()
+                .Reset();
+        }
+
+        private async Task<string> TranscribeAsync((string Jwt, int _) owner)
+        {
+            using var content = new MultipartFormDataContent();
+            var fileContent = new ByteArrayContent(
+                Encoding.UTF8.GetBytes("fake-webm-audio-bytes")
+            );
+            fileContent.Headers.ContentType =
+                new MediaTypeHeaderValue("audio/webm");
+            content.Add(fileContent, "audio", "clip.webm");
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/assistant/stt"
+            )
+            {
+                Content = content,
+            };
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", owner.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            return body.GetProperty("text").GetString()!;
         }
 
         private static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response)
