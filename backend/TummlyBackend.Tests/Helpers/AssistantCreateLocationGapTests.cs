@@ -105,7 +105,7 @@ namespace TummlyBackend.Tests.Helpers
             var gap = Assert.IsType<AssistantLocationGapOutcome.Gap>(outcome);
             Assert.Equal(AssistantCreateLocationGap.KindAll, gap.Kind);
             Assert.Empty(gap.Options);
-            Assert.Contains("Name one", gap.Body, StringComparison.Ordinal);
+            Assert.Contains("venue", gap.Body, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("Soho", gap.Body, StringComparison.Ordinal);
             Assert.DoesNotContain("Camden East", gap.Body, StringComparison.Ordinal);
         }
@@ -153,7 +153,7 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal(AssistantCreateLocationGap.KindAll, gap.Kind);
             Assert.Empty(gap.Options);
             Assert.Equal(
-                "Which Owned location should this Campaign Draft use? Name one.",
+                AssistantGapAsk.ForLocation("Campaign Draft"),
                 gap.Body
             );
             Assert.DoesNotContain("Camden", gap.Body, StringComparison.Ordinal);

@@ -276,7 +276,7 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal("gap", gap.GetProperty("class").GetString());
             Assert.Equal(
-                "How long should the lunch offer stay valid?",
+                AssistantGapAsk.EndDateAsk,
                 gap.GetProperty("body").GetString()
             );
             Assert.Equal(

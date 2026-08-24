@@ -121,13 +121,10 @@ namespace TummlyBackend.Helpers
         }
 
         public static string RepeatGapBody(IReadOnlyList<string> options)
-            => WhichFeedbackQuestion(options)
-                + " Reply with one guest Name and date.";
+            => AssistantGapAsk.ExplainBind(AssistantGapTurn.KindFeedback, options);
 
         private static string WhichFeedbackQuestion(IReadOnlyList<string> labels)
-            => "Which Feedback should I recover: "
-                + AssistantCreateLocationGap.Join(labels)
-                + "?";
+            => AssistantGapAsk.ForBind(AssistantGapTurn.KindFeedback, labels);
 
         private static bool MentionsRow(string userMessage, AssistantFeedbackEvidenceRow row)
         {

@@ -214,13 +214,13 @@ namespace TummlyBackend.Helpers
         }
 
         public static string OfferClashBody(IReadOnlyList<string> titles)
-            => $"Which Offer should this Campaign Draft use: {AssistantCreateLocationGap.Join(titles)}?";
+            => AssistantGapAsk.ForBind(AssistantGapTurn.KindOffer, titles);
 
         public static string AudienceClashBody(IReadOnlyList<string> labels)
-            => $"Which audience should this Campaign Draft use: {AssistantCreateLocationGap.Join(labels)}?";
+            => AssistantGapAsk.ForBind(AssistantGapTurn.KindAudience, labels);
 
         public static string ChannelClashBody()
-            => "Which channel should this Campaign Draft use: Email, SMS?";
+            => AssistantGapAsk.ChannelAsk;
 
         public static string UnevaluableAudienceBody()
             => "This audience cannot be evaluated yet. I did not save a Campaign Draft.";
@@ -247,28 +247,46 @@ namespace TummlyBackend.Helpers
                     option.Equals(exact[0], StringComparison.OrdinalIgnoreCase));
             }
 
-            var contained = options
-                .Where(option => ContainsPhrase(text, option))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderByDescending(option => option.Length)
-                .ToList();
-            if (contained.Count >= 1)
+            var contained = UniqueNaturalMatches(options, text);
+            if (contained.Count == 1)
             {
-                if (contained.Count == 1
-                    || contained[0].Length > contained[1].Length)
-                {
-                    return options.First(option =>
-                        option.Equals(
-                            contained[0],
-                            StringComparison.OrdinalIgnoreCase
-                        ));
-                }
+                return options.First(option =>
+                    option.Equals(contained[0], StringComparison.OrdinalIgnoreCase));
+            }
 
+            if (contained.Count >= 2)
+            {
                 return null;
             }
 
             var normalized = text.Trim('.', ',', ';', ':').ToLowerInvariant();
             return AssistantGapOptionOrdinal.TryBind(options, normalized);
+        }
+
+        public static IReadOnlyList<string> UniqueNaturalMatches(
+            IReadOnlyList<string> options,
+            string message
+        )
+        {
+            var text = message.Trim();
+            if (text.Length == 0 || options.Count == 0)
+            {
+                return [];
+            }
+
+            var contained = options
+                .Where(option =>
+                    ContainsPhrase(text, option) || ContainsPhrase(option, text))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(option => option.Length)
+                .ToList();
+            if (contained.Count >= 2
+                && contained[0].Length > contained[1].Length)
+            {
+                return [contained[0]];
+            }
+
+            return contained;
         }
 
         private static ChannelBind ResolveChannel(string lower, string? chosenLabel)
