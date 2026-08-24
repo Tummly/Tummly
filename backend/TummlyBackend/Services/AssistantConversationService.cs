@@ -1077,14 +1077,17 @@ namespace TummlyBackend.Services
                         conversation,
                         userMessage
                     );
-                    // Hard-rule gate after the live answer: the gap question
-                    // text comes from the model body, never from canned
-                    // generators.
-                    var combinedTerms = combinedResume?.PriorTerms
-                        ?? AssistantOfferPathTerms.Parse(userMessage);
+                    // Hard-rule gate after the live answer: model-extracted
+                    // terms win, stored resume terms next, and the gap
+                    // question text comes from the model body — never from
+                    // canned generators.
+                    var combinedTerms = succeeded.OfferTerms is not null
+                        ? AssistantOfferPathTerms.Clone(succeeded.OfferTerms)
+                        : combinedResume?.PriorTerms
+                            ?? AssistantOfferPathTerms.Parse(userMessage);
                     var combinedTermsGap = await TryFinishOfferTermsGapAsync(
                         conversation,
-                        userMessage,
+                        combinedResume?.SourceUserMessage ?? userMessage,
                         combinedTerms,
                         replaceFailure,
                         cancellationToken,
@@ -1115,7 +1118,8 @@ namespace TummlyBackend.Services
                         ownedLocationIds,
                         cancellationToken,
                         preparedBind: preparedCombinedBind,
-                        priorTerms: combinedResume?.PriorTerms,
+                        priorTerms: combinedResume?.PriorTerms
+                            ?? AssistantOfferPathTerms.Parse(userMessage),
                         questionBody: succeeded.Body
                     );
                     conversation.DraftInterviewJson = persist.GapState is null
@@ -1718,9 +1722,16 @@ namespace TummlyBackend.Services
                 AssistantOfferPathTerms.ProposeCopy(terms);
                 if (!AssistantOfferPathTerms.IsComplete(terms))
                 {
-                    // Resume callers gate completeness before reaching this
-                    // point; fresh turns pass the model body. Empty question
-                    // text here means a missed gate, not canned copy.
+                    // Fresh turns pass the model body; resume callers gate
+                    // completeness before reaching this point. A blank body
+                    // here means a missed gate upstream, never canned copy.
+                    if (string.IsNullOrWhiteSpace(questionBody))
+                    {
+                        throw new InvalidOperationException(
+                            "Combined create terms gate reached without model question text."
+                        );
+                    }
+
                     return new CombinedCreateTurn(
                         AssistantMessageClass.Gap,
                         string.Empty,

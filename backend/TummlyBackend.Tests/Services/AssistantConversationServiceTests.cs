@@ -1886,11 +1886,7 @@ namespace TummlyBackend.Tests.Services
             );
             var gap = started.Conversation.Messages[^1];
             Assert.Equal("gap", gap.Class);
-            var startedGapState = AssistantGapTurn.Parse(
-                (await _context.AssistantConversations.SingleAsync(
-                    row => row.Id == started.Conversation.Id
-                )).DraftInterviewJson
-            );
+            var startedGapState = await StoredGapStateAsync(started.Conversation.Id);
             Assert.NotNull(startedGapState);
             Assert.Contains(
                 "validity",
@@ -2438,10 +2434,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(answer.Actions);
             Assert.Equal(0, await _context.CatalogOffers.CountAsync());
 
-            var row = await _context.AssistantConversations
-                .AsNoTracking()
-                .SingleAsync(conversation => conversation.Id == ok.Conversation.Id);
-            var gapState = AssistantGapTurn.Parse(row.DraftInterviewJson);
+            var gapState = await StoredGapStateAsync(ok.Conversation.Id);
             Assert.NotNull(gapState);
             Assert.Equal(AssistantGapTurn.KindOfferTerms, gapState!.Kind);
             Assert.Equal(AssistantTask.OfferPath, gapState.AssistantTask);
@@ -2528,11 +2521,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(20m, offer.DiscountPercentage);
             Assert.Equal(CatalogOfferValidity.ChooseExpiryDate, offer.Validity);
             Assert.Equal(monthEnd, offer.CustomExpiryDate);
-            Assert.Null(AssistantGapTurn.Parse(
-                (await _context.AssistantConversations.SingleAsync(
-                    row => row.Id == started.Conversation.Id
-                )).DraftInterviewJson
-            ));
+            Assert.Null(await StoredGapStateAsync(started.Conversation.Id));
         }
 
         [Fact]
@@ -2607,11 +2596,7 @@ namespace TummlyBackend.Tests.Services
             var cancelAnswer = cancelled.Conversation.Messages[^1];
             Assert.Equal("grounded", cancelAnswer.Class);
             Assert.False(cancelled.Conversation.DraftInterviewActive);
-            Assert.Null(AssistantGapTurn.Parse(
-                (await _context.AssistantConversations.SingleAsync(
-                    row => row.Id == started.Conversation.Id
-                )).DraftInterviewJson
-            ));
+            Assert.Null(await StoredGapStateAsync(started.Conversation.Id));
 
             _fake.SucceedWith(
                 AssistantMessageClass.Grounded,
@@ -3020,11 +3005,7 @@ namespace TummlyBackend.Tests.Services
             );
             var gap = started.Conversation.Messages[^1];
             Assert.Equal("gap", gap.Class);
-            var startedGapState = AssistantGapTurn.Parse(
-                (await _context.AssistantConversations.SingleAsync(
-                    row => row.Id == started.Conversation.Id
-                )).DraftInterviewJson
-            );
+            var startedGapState = await StoredGapStateAsync(started.Conversation.Id);
             Assert.NotNull(startedGapState);
             Assert.Contains(
                 "validity",
@@ -3083,10 +3064,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(gap.Actions);
             Assert.Equal(0, await _context.CatalogOffers.CountAsync());
 
-            var row = await _context.AssistantConversations.SingleAsync(
-                c => c.Id == started.Conversation.Id
-            );
-            var gapState = AssistantGapTurn.Parse(row.DraftInterviewJson);
+            var gapState = await StoredGapStateAsync(started.Conversation.Id);
             Assert.NotNull(gapState);
             Assert.Equal(AssistantGapTurn.KindOfferTerms, gapState!.Kind);
             Assert.Equal(AssistantTask.OfferPath, gapState.AssistantTask);
@@ -3114,10 +3092,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(gap.Actions);
             Assert.Equal(0, await _context.CatalogOffers.CountAsync());
 
-            var row = await _context.AssistantConversations.SingleAsync(
-                c => c.Id == started.Conversation.Id
-            );
-            var gapState = AssistantGapTurn.Parse(row.DraftInterviewJson);
+            var gapState = await StoredGapStateAsync(started.Conversation.Id);
             Assert.NotNull(gapState);
             Assert.Null(gapState!.OfferTermsJson);
             Assert.Contains("value", gapState.OpenRules);
@@ -3202,11 +3177,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("gap", answer.Class);
             Assert.Empty(answer.Actions);
             Assert.Equal(0, await _context.CatalogOffers.CountAsync());
-            var delegatedGapState = AssistantGapTurn.Parse(
-                (await _context.AssistantConversations.SingleAsync(
-                    row => row.Id == ok.Conversation.Id
-                )).DraftInterviewJson
-            );
+            var delegatedGapState = await StoredGapStateAsync(ok.Conversation.Id);
             Assert.NotNull(delegatedGapState);
             Assert.Contains(
                 "type",
@@ -3228,11 +3199,7 @@ namespace TummlyBackend.Tests.Services
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             var answer = ok.Conversation.Messages[^1];
             Assert.Equal("gap", answer.Class);
-            var conflictGapState = AssistantGapTurn.Parse(
-                (await _context.AssistantConversations.SingleAsync(
-                    row => row.Id == ok.Conversation.Id
-                )).DraftInterviewJson
-            );
+            var conflictGapState = await StoredGapStateAsync(ok.Conversation.Id);
             Assert.NotNull(conflictGapState);
             Assert.Equal(
                 new[] { "one authorised benefit" },
@@ -3258,11 +3225,7 @@ namespace TummlyBackend.Tests.Services
             );
             var gap = started.Conversation.Messages[^1];
             Assert.Equal("gap", gap.Class);
-            var conflictStartGapState = AssistantGapTurn.Parse(
-                (await _context.AssistantConversations.SingleAsync(
-                    row => row.Id == started.Conversation.Id
-                )).DraftInterviewJson
-            );
+            var conflictStartGapState = await StoredGapStateAsync(started.Conversation.Id);
             Assert.NotNull(conflictStartGapState);
             Assert.Equal(
                 new[] { "one authorised benefit" },
@@ -3325,11 +3288,7 @@ namespace TummlyBackend.Tests.Services
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             var answer = ok.Conversation.Messages[^1];
             Assert.Equal("gap", answer.Class);
-            var gapState = AssistantGapTurn.Parse(
-                (await _context.AssistantConversations.SingleAsync(
-                    row => row.Id == ok.Conversation.Id
-                )).DraftInterviewJson
-            );
+            var gapState = await StoredGapStateAsync(ok.Conversation.Id);
             Assert.NotNull(gapState);
             Assert.Contains(
                 "validity",
@@ -5440,13 +5399,8 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(repeated.Conversation.PendingRecoveryDraft);
             Assert.Equal(0, await _context.Campaigns.CountAsync());
             Assert.Equal(0, await _context.CatalogOffers.CountAsync());
-            var gap = AssistantGapTurn.Parse(
-                (await _context.AssistantConversations.FindAsync(
-                    started.Conversation.Id
-                ))!.DraftInterviewJson
-            );
-            Assert.NotNull(gap);
-            Assert.Equal(AssistantGapTurn.KindCreateTarget, gap!.Kind);
+            var gap = await StoredGapStateAsync(started.Conversation.Id);
+            Assert.Equal(AssistantGapTurn.KindCreateTarget, gap.Kind);
         }
 
         [Fact]
@@ -6016,10 +5970,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(CatalogOfferStatus.Draft, offer.Status);
             Assert.Equal(CatalogOfferValidity.Days14AfterIssue, offer.Validity);
             Assert.Equal("review-offer", Assert.Single(answered.Conversation.Messages[^1].Actions).Type);
-            Assert.Null(AssistantGapTurn.Parse(
-                (await _context.AssistantConversations.SingleAsync(row => row.Id == started.Conversation.Id))
-                    .DraftInterviewJson
-            ));
+            Assert.Null(await StoredGapStateAsync(started.Conversation.Id));
         }
 
         [Fact]
@@ -6199,10 +6150,7 @@ namespace TummlyBackend.Tests.Services
                     FirstSendRequest(locationId, "cancel the draft", offer.Conversation.Id)
                 )
             );
-            Assert.Null(AssistantGapTurn.Parse(
-                (await _context.AssistantConversations.SingleAsync(row => row.Id == offer.Conversation.Id))
-                    .DraftInterviewJson
-            ));
+            Assert.Null(await StoredGapStateAsync(offer.Conversation.Id));
             Assert.Null(cancelled.Conversation.PendingRecoveryDraft);
 
             var recovery = Assert.IsType<AssistantTurnOutcome.Ok>(
@@ -9643,6 +9591,14 @@ namespace TummlyBackend.Tests.Services
             Assert.DoesNotContain("pat@example.com", body, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("07700900999", title ?? string.Empty, StringComparison.Ordinal);
             Assert.DoesNotContain("07700900999", body, StringComparison.Ordinal);
+        }
+
+        private async Task<AssistantGapState> StoredGapStateAsync(int conversationId)
+        {
+            var row = await _context.AssistantConversations.SingleAsync(
+                conversation => conversation.Id == conversationId
+            );
+            return AssistantGapTurn.Parse(row.DraftInterviewJson)!;
         }
 
         private async Task AssertOfferPathGap(int conversationId, string kind)
