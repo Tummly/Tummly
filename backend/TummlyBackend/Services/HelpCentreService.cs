@@ -347,6 +347,17 @@ namespace TummlyBackend.Services
                 dto.RestaurantId.Value
             );
 
+            var actor = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId.Value);
+
+            if (actor == null)
+            {
+                throw new InvalidOperationException(
+                    "Signed-in operator not found."
+                );
+            }
+
             var existingQueryId = await FindOpenAccountRequestQueryIdAsync(
                 restaurant.Id,
                 accountRequestKind
@@ -363,19 +374,20 @@ namespace TummlyBackend.Services
                 HelpCentreAccountRequestKindExtensions.TopicForKind(
                     accountRequestKind
                 );
-            var email = dto.SubmitterEmail.Trim().ToLower();
+            var actorEmail = actor.Email.Trim().ToLower();
+            var submitterName = actor.FullName.Trim();
             var message = BuildAccountRequestMessage(
                 accountRequestKind,
                 restaurant.Name,
                 restaurant.Id,
-                email
+                actorEmail
             );
 
             var query = new HelpCentreQuery
             {
                 Topic = topic,
-                SubmitterName = dto.SubmitterName.Trim(),
-                SubmitterEmail = email,
+                SubmitterName = submitterName,
+                SubmitterEmail = actorEmail,
                 Phone = string.IsNullOrWhiteSpace(dto.Phone)
                     ? null
                     : dto.Phone.Trim(),

@@ -29,6 +29,7 @@ import {
   DEFAULT_REPORTING_PERIOD_OPTIONS,
   LEGAL_STRUCTURE_OPTIONS,
   WEEK_STARTS_ON_OPTIONS,
+  accountRequestConfirmLabels,
   formatAccountWorkspaceLastSaved,
   isUnitedKingdomCountry,
 } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
@@ -153,6 +154,10 @@ export function AccountWorkspacePage() {
     pageModule.getSnapshot,
     pageModule.getSnapshot
   )
+  const accountRequestConfirmCopy =
+    snap.accountRequestConfirm != null
+      ? accountRequestConfirmLabels(snap.accountRequestConfirm)
+      : null
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -1225,32 +1230,14 @@ export function AccountWorkspacePage() {
       />
 
       <AccountWorkspaceConfirmDialog
-        open={snap.accountRequestConfirm != null}
-        title={
-          snap.accountRequestConfirm === "TransferOwnership"
-            ? ACCOUNT_WORKSPACE_PAGE_COPY.transferOwnershipTitle
-            : snap.accountRequestConfirm === "AccountExport"
-              ? ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountExportTitle
-              : ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountClosureTitle
-        }
-        body={
-          snap.accountRequestConfirm === "TransferOwnership"
-            ? ACCOUNT_WORKSPACE_PAGE_COPY.transferOwnershipBody
-            : snap.accountRequestConfirm === "AccountExport"
-              ? ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountExportBody
-              : ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountClosureBody
-        }
-        primaryLabel={
-          snap.accountRequestConfirm === "TransferOwnership"
-            ? ACCOUNT_WORKSPACE_PAGE_COPY.transferOwnershipConfirm
-            : snap.accountRequestConfirm === "AccountExport"
-              ? ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountExportConfirm
-              : ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountClosureConfirm
-        }
+        open={accountRequestConfirmCopy != null}
+        title={accountRequestConfirmCopy?.title ?? ""}
+        body={accountRequestConfirmCopy?.body ?? ""}
+        primaryLabel={accountRequestConfirmCopy?.primaryLabel ?? ""}
         busy={snap.isSaving}
         onOpenChange={(open) => {
           if (!open) {
-            pageModule.closeAccountRequestConfirm()
+            pageModule.cancelAccountRequestConfirm()
           }
         }}
         onPrimary={() => {

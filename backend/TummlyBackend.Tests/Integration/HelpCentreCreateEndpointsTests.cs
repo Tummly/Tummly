@@ -233,6 +233,44 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PostQuery_AccountRequest_AllowsNewRequestAfterClosed()
+        {
+            var seeded = await SeedOwnerAsync(
+                email: "hc-closed@example.com"
+            );
+            await SeedOpenAccountRequestAsync(
+                seeded.RestaurantId,
+                seeded.OwnerUserId,
+                HelpCentreAccountRequestKind.AccountClosure,
+                HelpCentreQueryStatus.Closed
+            );
+
+            var client = CreateClientWithEmail(new TrackingHelpCentreEmailService());
+            var response = await PostAccountRequestAsync(
+                client,
+                seeded.Jwt,
+                seeded.RestaurantId,
+                "AccountClosure",
+                seeded.Email
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                2,
+                await context.HelpCentreQueries.CountAsync(
+                    q =>
+                        q.RestaurantId == seeded.RestaurantId
+                        && q.AccountRequestKind
+                            == HelpCentreAccountRequestKind.AccountClosure
+                )
+            );
+        }
+
+        [Fact]
         public async Task GetOpenAccountRequest_ReturnsExistingQueryId()
         {
             var seeded = await SeedOwnerAsync(email: "hc-open-get@example.com");

@@ -230,6 +230,38 @@ export const ACCOUNT_WORKSPACE_PAGE_COPY = {
   accountRequestViewThread: "View thread",
 } as const
 
+export type AccountRequestKindKey =
+  | "TransferOwnership"
+  | "AccountExport"
+  | "AccountClosure"
+
+export function accountRequestConfirmLabels(kind: AccountRequestKindKey): {
+  title: string
+  body: string
+  primaryLabel: string
+} {
+  switch (kind) {
+    case "TransferOwnership":
+      return {
+        title: ACCOUNT_WORKSPACE_PAGE_COPY.transferOwnershipTitle,
+        body: ACCOUNT_WORKSPACE_PAGE_COPY.transferOwnershipBody,
+        primaryLabel: ACCOUNT_WORKSPACE_PAGE_COPY.transferOwnershipConfirm,
+      }
+    case "AccountExport":
+      return {
+        title: ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountExportTitle,
+        body: ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountExportBody,
+        primaryLabel: ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountExportConfirm,
+      }
+    case "AccountClosure":
+      return {
+        title: ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountClosureTitle,
+        body: ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountClosureBody,
+        primaryLabel: ACCOUNT_WORKSPACE_PAGE_COPY.requestAccountClosureConfirm,
+      }
+  }
+}
+
 /** Select menus above leave-dirty / rename dialogs on this page. */
 export const ACCOUNT_WORKSPACE_SELECT_MENU_CLASS = "z-[130]"
 

@@ -78,32 +78,25 @@ export function AccountWorkspacePageModuleProvider({
       if (snap.toast == null) {
         return
       }
+      const toastOptions = snap.toast.action
+        ? {
+            action: {
+              label: snap.toast.action.label,
+              onClick: () => {
+                navigate(snap.toast!.action!.href)
+              },
+            },
+          }
+        : undefined
+
       if (snap.toast.kind === "success") {
-        toast.success(snap.toast.message, snap.toast.action
-          ? {
-              action: {
-                label: snap.toast.action.label,
-                onClick: () => {
-                  navigate(snap.toast!.action!.href)
-                },
-              },
-            }
-          : undefined)
+        toast.success(snap.toast.message, toastOptions)
       } else {
-        toast.error(snap.toast.message, snap.toast.action
-          ? {
-              action: {
-                label: snap.toast.action.label,
-                onClick: () => {
-                  navigate(snap.toast!.action!.href)
-                },
-              },
-            }
-          : undefined)
+        toast.error(snap.toast.message, toastOptions)
       }
       pageModule.clearToast()
     })
-  }, [pageModule])
+  }, [pageModule, navigate])
 
   useEffect(() => {
     const tab = resolveAccountWorkspaceTabId(searchParams.get("tab"))

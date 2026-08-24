@@ -17,6 +17,7 @@ import {
 } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 import { bumpRecommendedNextStepSoftCaches } from "@/lib/operatorRecommendations/recommendationSoftCacheBust"
 import { helpCentreMyQueryUrl } from "@/config/support"
+import type { AccountRequestKind } from "@/api/helpCentreApi"
 
 export {
   ACCOUNT_WORKSPACE_TAB_IDS,
@@ -121,10 +122,7 @@ export type UpdateWorkspaceDefaultsPayload = {
 
 export type AccountWorkspaceGuestDataExportFormat = "xlsx" | "csv"
 
-export type AccountRequestKind =
-  | "TransferOwnership"
-  | "AccountExport"
-  | "AccountClosure"
+export type { AccountRequestKind } from "@/api/helpCentreApi"
 
 export type AccountWorkspaceToast = {
   kind: "success" | "error"
@@ -300,7 +298,6 @@ export type OperatorAccountWorkspacePageModule = {
   requestAccountClosure: () => Promise<void>
   confirmAccountRequest: () => Promise<void>
   cancelAccountRequestConfirm: () => void
-  closeAccountRequestConfirm: () => void
 }
 
 const WORKSPACE_NAME_REQUIRED_ERROR = "Workspace name is required."
@@ -1453,11 +1450,6 @@ export function createOperatorAccountWorkspacePageModule(
     },
 
     cancelAccountRequestConfirm() {
-      accountRequestConfirm = null
-      emit()
-    },
-
-    closeAccountRequestConfirm() {
       accountRequestConfirm = null
       emit()
     },
