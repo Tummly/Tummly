@@ -367,11 +367,8 @@ namespace TummlyBackend.Services
         {
             string? reason = null;
 
-            var workspaceStatus = await _context.RestaurantLocations
-                .AsNoTracking()
-                .Where(l => l.Id == locationId)
-                .Select(l => (WorkspaceStatus?)l.Restaurant!.WorkspaceStatus)
-                .FirstOrDefaultAsync(cancellationToken);
+            var workspaceStatus =
+                issue.LocationGuest?.RestaurantLocation?.Restaurant?.WorkspaceStatus;
 
             var guestLocationId = issue.LocationGuest?.RestaurantLocationId;
             if (workspaceStatus == WorkspaceStatus.Paused)

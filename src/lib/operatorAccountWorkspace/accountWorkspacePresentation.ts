@@ -182,6 +182,8 @@ export const ACCOUNT_WORKSPACE_PAGE_COPY = {
     "These actions can affect access, guest forms, campaigns and account data. Only account owners can make these changes.",
   dangerZoneBody:
     "Pause takes effect immediately after you confirm. Transfer ownership, account export, and account closure create a Support request. They do not change the account until Support completes the work.",
+  dangerZoneOwnerOnlyHelper:
+    "Only the account owner can make these changes.",
   pauseWorkspace: "Pause workspace",
   resumeWorkspace: "Resume workspace",
   pauseTitle: "Pause workspace?",

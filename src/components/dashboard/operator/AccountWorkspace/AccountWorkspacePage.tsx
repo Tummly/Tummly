@@ -1082,6 +1082,11 @@ export function AccountWorkspacePage() {
               <p className="m-0 text-sm font-medium text-muted-foreground">
                 {ACCOUNT_WORKSPACE_PAGE_COPY.dangerZoneBody}
               </p>
+              {!snap.isAccountOwner ? (
+                <p className="m-0 text-sm font-medium text-[var(--op-color-gray-550)]">
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.dangerZoneOwnerOnlyHelper}
+                </p>
+              ) : null}
               <div className="flex flex-wrap gap-3">
                 {isPaused ? (
                   <Button

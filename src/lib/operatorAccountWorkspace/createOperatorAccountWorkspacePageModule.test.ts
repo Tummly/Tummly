@@ -784,4 +784,40 @@ describe("createOperatorAccountWorkspacePageModule", () => {
     )
   })
 
+  it("account controls never marks the page dirty or opens leave-dirty", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "account-controls",
+    })
+    await page.load()
+
+    page.requestTabChange("account-details")
+    expect(page.getSnapshot().leaveDirtyOpen).toBe(false)
+    expect(page.getSnapshot().isDirty).toBe(false)
+    expect(page.getSnapshot().activeTabId).toBe("account-details")
+
+    page.requestTabChange("account-controls")
+    expect(page.getSnapshot().isDirty).toBe(false)
+    expect(page.getSnapshot().saveEnabled).toBe(false)
+  })
+
+  it("pause success updates status on account details after tab switch", async () => {
+    const adapters = createAdapters()
+    const page = createOperatorAccountWorkspacePageModule(adapters, {
+      initialTabId: "account-controls",
+    })
+    await page.load()
+
+    page.requestPauseWorkspace()
+    await page.confirmWorkspaceStatusChange()
+
+    page.requestTabChange("account-details")
+    expect(page.getSnapshot().accountDetails.status?.workspaceStatus).toBe(
+      "Paused"
+    )
+    expect(page.getSnapshot().accountDetails.status?.guestFormStatus).toBe(
+      "Paused"
+    )
+  })
+
 })

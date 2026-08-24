@@ -156,7 +156,7 @@ function mapDetails(
     brandLogoOperatorUrl: data.brandLogoOperatorUrl,
     brandLogoPublicUrl: data.brandLogoPublicUrl,
     lastSavedAt: data.lastSavedAt,
-    isAccountOwner: data.isAccountOwner ?? true,
+    isAccountOwner: data.isAccountOwner ?? false,
     status: data.status,
     businessDetails: mapBusinessDetails(data.businessDetails),
     keyContacts: mapKeyContacts(data.keyContacts),

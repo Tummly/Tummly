@@ -450,7 +450,7 @@ export function createOperatorAccountWorkspacePageModule(
   function applyPersisted(details: AccountWorkspaceDetails) {
     persisted = {
       ...details,
-      isAccountOwner: details.isAccountOwner ?? true,
+      isAccountOwner: details.isAccountOwner ?? false,
       businessDetails: normalizeBusinessDetails(details.businessDetails),
       keyContacts: normalizeKeyContacts(details.keyContacts),
       workspaceDefaults: normalizeWorkspaceDefaults(details.workspaceDefaults),
@@ -466,7 +466,7 @@ export function createOperatorAccountWorkspacePageModule(
     const savedLastSavedAt = lastSavedAt
     persisted = {
       ...details,
-      isAccountOwner: details.isAccountOwner ?? true,
+      isAccountOwner: details.isAccountOwner ?? false,
       businessDetails: normalizeBusinessDetails(details.businessDetails),
       keyContacts: normalizeKeyContacts(details.keyContacts),
       workspaceDefaults: normalizeWorkspaceDefaults(details.workspaceDefaults),
@@ -667,7 +667,7 @@ export function createOperatorAccountWorkspacePageModule(
       leaveDirtyOpen,
       pendingNavigationHref,
       toast,
-      isAccountOwner: persisted?.isAccountOwner ?? true,
+      isAccountOwner: persisted?.isAccountOwner ?? false,
       workspaceStatusConfirm,
     }
   }

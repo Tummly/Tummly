@@ -395,15 +395,6 @@ namespace TummlyBackend.Services
                 return (null, "Restaurant not found.", StatusCodes.Status404NotFound);
             }
 
-            if (restaurant.OwnerUserId != actorUserId)
-            {
-                return (
-                    null,
-                    "Only the account owner can change workspace status.",
-                    StatusCodes.Status403Forbidden
-                );
-            }
-
             restaurant.WorkspaceStatus = nextStatus;
             restaurant.WorkspaceStatusChangedAt = DateTime.UtcNow;
             restaurant.WorkspaceStatusChangedByUserId = actorUserId;
