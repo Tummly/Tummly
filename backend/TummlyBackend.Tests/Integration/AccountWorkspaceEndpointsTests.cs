@@ -285,6 +285,46 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PutKeyContacts_RejectsMissingContactIds()
+        {
+            var seeded = await SeedOwnerAsync(email: "aw-kc-missing@example.com");
+
+            int ownerId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                ownerId = context.Restaurants
+                    .Single(r => r.Id == seeded.RestaurantId)
+                    .OwnerUserId;
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/account-workspace/key-contacts"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                billingContactUserId = 0,
+                privacyContactUserId = ownerId,
+                supportContactUserId = ownerId,
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Contains(
+                "required",
+                body.GetProperty("message").GetString(),
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
         public async Task PutKeyContacts_Returns401_WhenUnauthenticated()
         {
             var response = await _client.PutAsJsonAsync(

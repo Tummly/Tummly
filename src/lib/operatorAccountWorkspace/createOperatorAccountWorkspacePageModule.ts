@@ -475,6 +475,11 @@ export function createOperatorAccountWorkspacePageModule(
     emit()
   }
 
+  function patchKeyContactsDraft(patch: Partial<KeyContactsDraft>): void {
+    keyContactsDraft = { ...keyContactsDraft, ...patch }
+    emit()
+  }
+
   function getSnapshot(): OperatorAccountWorkspacePageSnapshot {
     const dirty = activeTabDirty()
     const onControls = activeTabId === "account-controls"
@@ -812,27 +817,15 @@ export function createOperatorAccountWorkspacePageModule(
     },
 
     setBillingContactUserId(userId) {
-      keyContactsDraft = {
-        ...keyContactsDraft,
-        billingContactUserId: userId,
-      }
-      emit()
+      patchKeyContactsDraft({ billingContactUserId: userId })
     },
 
     setPrivacyContactUserId(userId) {
-      keyContactsDraft = {
-        ...keyContactsDraft,
-        privacyContactUserId: userId,
-      }
-      emit()
+      patchKeyContactsDraft({ privacyContactUserId: userId })
     },
 
     setSupportContactUserId(userId) {
-      keyContactsDraft = {
-        ...keyContactsDraft,
-        supportContactUserId: userId,
-      }
-      emit()
+      patchKeyContactsDraft({ supportContactUserId: userId })
     },
 
     async requestSave() {

@@ -31,7 +31,8 @@ namespace TummlyBackend.DTOs.AccountWorkspace
         public int SupportContactUserId { get; set; }
 
         /// <summary>
-        /// Optional. When set to a value other than the current Account owner, reject.
+        /// Not part of the locked write payload. When a client sends a different
+        /// Account owner id, reject — ownership transfer is out of this tab.
         /// </summary>
         public int? AccountOwnerUserId { get; set; }
     }

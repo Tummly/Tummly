@@ -260,7 +260,20 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var eligibleIds = await GetEligibleMemberIdsAsync(restaurant);
+            if (
+                request.BillingContactUserId <= 0
+                || request.PrivacyContactUserId <= 0
+                || request.SupportContactUserId <= 0
+            )
+            {
+                return (
+                    null,
+                    "Billing, privacy, and support contacts are required.",
+                    StatusCodes.Status400BadRequest
+                );
+            }
+
+            var eligibleIds = GetEligibleMemberIds(restaurant);
             if (
                 !eligibleIds.Contains(request.BillingContactUserId)
                 || !eligibleIds.Contains(request.PrivacyContactUserId)
@@ -436,12 +449,10 @@ namespace TummlyBackend.Services
             }
         }
 
-        private static Task<HashSet<int>> GetEligibleMemberIdsAsync(
-            Restaurant restaurant
-        )
+        private static HashSet<int> GetEligibleMemberIds(Restaurant restaurant)
         {
             // Until Team & permissions ships, directory is { Account owner }.
-            return Task.FromResult(new HashSet<int> { restaurant.OwnerUserId });
+            return [restaurant.OwnerUserId];
         }
 
         private static AccountWorkspaceKeyContactsDto MapKeyContacts(
