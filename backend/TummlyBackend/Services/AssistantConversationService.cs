@@ -735,20 +735,6 @@ namespace TummlyBackend.Services
                         }
                     }
                 }
-                else if (offerTerms is not null)
-                {
-                    var termsGap = await TryFinishOfferTermsGapAsync(
-                        conversation,
-                        userMessage,
-                        offerTerms,
-                        replaceFailure,
-                        cancellationToken
-                    );
-                    if (termsGap is not null)
-                    {
-                        return termsGap;
-                    }
-                }
             }
             var hasExplicitRetrieveAsk =
                 AssistantAskIntent.HasExplicitRetrieveAsk(userMessage);
@@ -1150,7 +1136,11 @@ namespace TummlyBackend.Services
                 {
                     var persistLocationId = CreatePersistLocationId(boundCreateLocationId, conversation);
                     var persistLocationName = boundCreateLocationName ?? locationName;
-                    var terms = AssistantOfferPathTerms.Parse(userMessage);
+                    // Model-extracted terms win; the regex parser is only a
+                    // fallback for providers that did not emit offerTerms.
+                    var terms = succeeded.OfferTerms is not null
+                        ? AssistantOfferPathTerms.Clone(succeeded.OfferTerms)
+                        : AssistantOfferPathTerms.Parse(userMessage);
                     var termsGap = await TryFinishOfferTermsGapAsync(
                         conversation,
                         userMessage,
@@ -2152,6 +2142,17 @@ namespace TummlyBackend.Services
             catch (OperationCanceledException)
             {
                 throw;
+            }
+            catch (ArgumentException argumentError)
+            {
+                return new CreateOfferDraftPersistTurn(
+                    AssistantOfferPathPersistCopy.FailureTitle,
+                    AssistantOfferPathPersistCopy.FailureBody("Offer create")
+                        + " "
+                        + argumentError.Message,
+                    [],
+                    null
+                );
             }
             catch
             {

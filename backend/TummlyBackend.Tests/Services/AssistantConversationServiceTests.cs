@@ -2294,6 +2294,118 @@ namespace TummlyBackend.Tests.Services
             "Create a 25% Offer valid 30 days after issue and attach it to the thank-you page";
 
         [Fact]
+        public async Task SendTurn_OfferPath_ModelExtractedCompleteTerms_PersistsDraftInOneTurn()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var ask = "Create an offer my regulars will love";
+            Assert.False(
+                AssistantOfferPathTerms.IsComplete(AssistantOfferPathTerms.Parse(ask))
+            );
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Dessert offer",
+                "Here is a sweet deal for your guests.",
+                AssistantTask.OfferPath,
+                null,
+                new AssistantOfferPathTermsState
+                {
+                    OfferType = "free_item",
+                    FreeItemText = "dessert",
+                    PurchaseRequirement = "with_any_purchase",
+                    Validity = "7_days_after_issue",
+                }
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, ask)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.False(ok.Conversation.DraftInterviewActive);
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("review-offer", action.Type);
+
+            var offer = Assert.Single(_context.CatalogOffers);
+            Assert.Equal(CatalogOfferStatus.Draft, offer.Status);
+            Assert.Equal(CatalogOfferType.FreeItem, offer.OfferType);
+            Assert.Equal("dessert", offer.FreeItemText);
+            Assert.Equal(locationId, offer.RestaurantLocationId);
+            Assert.Equal(offer.Id, action.OfferId);
+            Assert.Equal(offer.Id, _context.AssistantConversations.Single().CreatedOfferId);
+            Assert.Empty(_context.Campaigns);
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferPath_ModelExtractedIncompleteTerms_DoesNotPersist()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Clarify,
+                null,
+                "How long should the lunch discount stay valid?",
+                AssistantTask.OfferPath,
+                null,
+                new AssistantOfferPathTermsState
+                {
+                    OfferType = "percentage_discount",
+                    DiscountPercentage = 20m,
+                }
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Create a 20% off lunch offer")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("gap", answer.Class);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+            Assert.Empty(_context.Campaigns);
+            Assert.Null(_context.AssistantConversations.Single().CreatedOfferId);
+        }
+
+        [Fact]
+        public async Task SendTurn_OfferPath_ModelExtractsInvalidValue_RejectsWithValidatorReason()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "Happy hour offer",
+                "Saving the happy hour offer.",
+                AssistantTask.OfferPath,
+                null,
+                new AssistantOfferPathTermsState
+                {
+                    OfferType = "percentage_discount",
+                    DiscountPercentage = -5m,
+                    Validity = "30_days_after_issue",
+                }
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Create a happy hour percentage offer")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal(AssistantOfferPathPersistCopy.FailureTitle, answer.Title);
+            Assert.Contains(
+                "Discount percentage must be greater than 0.",
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Empty(answer.Actions);
+            Assert.Equal(0, await _context.CatalogOffers.CountAsync());
+            Assert.Null(_context.AssistantConversations.Single().CreatedOfferId);
+        }
+
+
+        [Fact]
         public async Task SendTurn_CompleteCreateAndGuestFormThankYou_PersistsDraftAttachesAndReviews()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
