@@ -67,11 +67,13 @@ namespace TummlyBackend.Controllers
                     {
                         success = false,
                         message = "Offer not found.",
+                        retryable = false,
                     }),
                     OfferRecommendationServiceResult.WrongLocation => BadRequest(new
                     {
                         success = false,
                         message = "Offer is not at this location.",
+                        retryable = false,
                     }),
                     OfferRecommendationServiceResult.Failed failed => StatusCode(
                         StatusCodes.Status502BadGateway,
@@ -99,6 +101,7 @@ namespace TummlyBackend.Controllers
                 {
                     success = false,
                     message = ex.Message,
+                    retryable = false,
                 });
             }
         }

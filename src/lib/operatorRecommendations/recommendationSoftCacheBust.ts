@@ -1,4 +1,4 @@
-/** Soft-cache bust for Home / Campaigns / Offer Details Recommended next step. */
+/** Soft-cache bust for Home Recommended next step, Campaign recommendation, and Offer recommendation. */
 
 let generation = 0
 

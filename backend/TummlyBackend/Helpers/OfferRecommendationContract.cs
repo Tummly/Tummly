@@ -2,7 +2,7 @@ namespace TummlyBackend.Helpers
 {
     /// <summary>
     /// Offer recommendation allow-list + cache key (ticket 02).
-    /// Cache TTL matches Home and Campaigns Recommended next step.
+    /// Cache TTL matches Home Recommended next step and Campaign recommendation.
     /// </summary>
     public static class OfferRecommendationContract
     {

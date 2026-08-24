@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   createOfferDetailsPageModule,
   OFFER_DETAILS_LOAD_ERROR_MESSAGE,
+  resetOfferRecommendationClientSoftCache,
 } from "@/lib/operatorOffers/createOfferDetailsPageModule"
 import { OFFER_DETAILS_COPY } from "@/lib/operatorOffers/offerDetailsPresentation"
 import type { CatalogOfferDetail } from "@/types/operatorCampaigns"
@@ -41,6 +42,10 @@ const workspace = {
 } as const
 
 describe("createOfferDetailsPageModule", () => {
+  beforeEach(() => {
+    resetOfferRecommendationClientSoftCache()
+  })
+
   it("starts idle with an empty snapshot", () => {
     const pageModule = createOfferDetailsPageModule({
       getOffer: vi.fn(),
@@ -615,6 +620,24 @@ describe("createOfferDetailsPageModule", () => {
     )
   })
 
+  it("treats generate failures without retryable as non-retryable", async () => {
+    const getOfferRecommendation = vi.fn().mockResolvedValue({
+      success: false,
+      message: "Offer not found.",
+    })
+    const pageModule = createOfferDetailsPageModule({
+      getOffer: vi.fn().mockResolvedValue(sampleOffer()),
+      getOfferRecommendation,
+    })
+
+    await pageModule.syncWorkspace(workspace)
+    const recommendation =
+      pageModule.getSnapshot().viewModel?.overview.recommendation
+    expect(recommendation?.status).toBe("error")
+    expect(recommendation?.errorRetryable).toBe(false)
+    expect(recommendation?.errorMessage).toBe("Offer not found.")
+  })
+
   it("Overview KPI range change does not refetch Offer recommendation", async () => {
     const getOfferRecommendation = vi.fn().mockResolvedValue({
       success: true,
@@ -652,26 +675,30 @@ describe("createOfferDetailsPageModule", () => {
       success: true,
       recommendation: { type: "none" as const },
     })
-    const pageModule = createOfferDetailsPageModule({
+    const firstModule = createOfferDetailsPageModule({
       getOffer: vi.fn().mockResolvedValue(sampleOffer()),
       getOfferRecommendation,
     })
 
-    await pageModule.syncWorkspace(workspace)
+    await firstModule.syncWorkspace(workspace)
     expect(
-      pageModule.getSnapshot().viewModel?.overview.recommendation.status
+      firstModule.getSnapshot().viewModel?.overview.recommendation.status
     ).toBe("ready")
     expect(
-      pageModule.getSnapshot().viewModel?.overview.recommendation.isNone
+      firstModule.getSnapshot().viewModel?.overview.recommendation.isNone
     ).toBe(true)
     expect(getOfferRecommendation).toHaveBeenCalledTimes(1)
 
-    await pageModule.syncWorkspace(workspace)
+    const remounted = createOfferDetailsPageModule({
+      getOffer: vi.fn().mockResolvedValue(sampleOffer()),
+      getOfferRecommendation,
+    })
+    await remounted.syncWorkspace(workspace)
     expect(
-      pageModule.getSnapshot().viewModel?.overview.recommendation.status
+      remounted.getSnapshot().viewModel?.overview.recommendation.status
     ).toBe("ready")
     expect(
-      pageModule.getSnapshot().viewModel?.overview.recommendation.isNone
+      remounted.getSnapshot().viewModel?.overview.recommendation.isNone
     ).toBe(true)
     expect(getOfferRecommendation).toHaveBeenCalledTimes(1)
   })

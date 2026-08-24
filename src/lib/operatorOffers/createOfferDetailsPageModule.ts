@@ -297,7 +297,7 @@ export type OfferDetailsAdapters = {
   getVoidRequests?: (
     offerId: number
   ) => Promise<readonly OfferDetailsVoidRequestRow[]>
-  /** Live Offer recommendation — optional until the generate adapter is wired. */
+  /** Live Offer recommendation. Absent in older tests — those specs stay on honest empty. */
   getOfferRecommendation?: (input: {
     offerId: number
     request: OfferRecommendationRequest
@@ -470,6 +470,16 @@ function assembleLifecycleTabs(
   }
 }
 
+const offerRecommendationSoftCache = new Map<
+  string,
+  OperatorOfferRecommendationViewModel
+>()
+
+/** Test seam — remount reuse must not leak ready cards across specs. */
+export function resetOfferRecommendationClientSoftCache(): void {
+  offerRecommendationSoftCache.clear()
+}
+
 function idleRecommendation(): OperatorOfferRecommendationViewModel {
   return {
     status: "idle",
@@ -513,7 +523,7 @@ function mapRecommendationResponse(
       errorMessage:
         response.message
         ?? OFFER_DETAILS_RECOMMENDATION_LOAD_ERROR_MESSAGE,
-      errorRetryable: response.retryable !== false,
+      errorRetryable: response.retryable === true,
     }
   }
 
@@ -696,11 +706,6 @@ export function createOfferDetailsPageModule(
     }
   }
 
-  let softCachedRecommendation: {
-    cacheKey: string
-    viewModel: OperatorOfferRecommendationViewModel
-  } | null = null
-
   const rememberSoftCachedRecommendation = (
     cacheKey: string,
     next: OperatorOfferRecommendationViewModel
@@ -708,23 +713,20 @@ export function createOfferDetailsPageModule(
     if (next.status !== "ready") {
       return
     }
-    softCachedRecommendation = {
-      cacheKey,
-      viewModel: { ...next },
-    }
+    offerRecommendationSoftCache.set(cacheKey, { ...next })
   }
 
   const recommendationForSoftLoad = (input: {
     refresh: boolean
     cacheKey: string
   }): OperatorOfferRecommendationViewModel => {
+    const cached = offerRecommendationSoftCache.get(input.cacheKey)
     if (
       !input.refresh
-      && softCachedRecommendation != null
-      && softCachedRecommendation.cacheKey === input.cacheKey
-      && softCachedRecommendation.viewModel.status === "ready"
+      && cached != null
+      && cached.status === "ready"
     ) {
-      return softCachedRecommendation.viewModel
+      return cached
     }
     return { ...idleRecommendation(), status: "loading" }
   }

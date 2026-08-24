@@ -320,7 +320,14 @@ export const getOfferRecommendation = async (
     if (isAxiosError(error) && error.response?.data != null) {
       const data = error.response.data as OfferRecommendationResponse
       if (typeof data.success === "boolean") {
-        return data
+        if (data.retryable != null) {
+          return data
+        }
+        const status = error.response.status
+        return {
+          ...data,
+          retryable: status >= 500,
+        }
       }
     }
     throw error
