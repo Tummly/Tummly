@@ -64,6 +64,26 @@ export const DEFAULT_REPORTING_PERIOD_OPTIONS = [
 export type DefaultReportingPeriodValue =
   (typeof DEFAULT_REPORTING_PERIOD_OPTIONS)[number]["value"]
 
+export function normalizeWeekStartsOn(
+  value: string | null | undefined
+): WeekStartsOnValue {
+  const trimmed = (value ?? "").trim().toLowerCase()
+  const match = WEEK_STARTS_ON_OPTIONS.find(
+    (option) => option.value === trimmed
+  )
+  return match?.value ?? "monday"
+}
+
+export function normalizeReportingPeriod(
+  value: string | null | undefined
+): DefaultReportingPeriodValue {
+  const trimmed = (value ?? "").trim()
+  const match = DEFAULT_REPORTING_PERIOD_OPTIONS.find(
+    (option) => option.value.toLowerCase() === trimmed.toLowerCase()
+  )
+  return match?.value ?? "7days"
+}
+
 export const ACCOUNT_WORKSPACE_DEFAULT_COUNTRY = "United Kingdom"
 
 export const ACCOUNT_WORKSPACE_PAGE_COPY = {

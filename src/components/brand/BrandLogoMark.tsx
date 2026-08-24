@@ -13,7 +13,7 @@ type BrandLogoMarkProps = {
 
 /**
  * Brand mark — public logo URL when persisted; else Building2 on a rounded
- * square (light: gray fill + black icon; dark: black fill + white icon).
+ * square. Fill matches the Operator nav shell; icon uses primary text tokens.
  */
 export function BrandLogoMark({
   brandLogoPublicUrl,
@@ -28,8 +28,7 @@ export function BrandLogoMark({
         "relative flex shrink-0 items-center justify-center overflow-hidden",
         roundedClassName,
         className,
-        resolvedSrc == null &&
-          "bg-op-color-gray-200 text-black dark:bg-black dark:text-white"
+        resolvedSrc == null && "bg-op-header-background text-op-text-primary"
       )}
       aria-hidden
     >

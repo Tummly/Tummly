@@ -48,9 +48,6 @@ export function AccountWorkspacePageModuleProvider({
             brandLogoPublicUrl: details.brandLogoPublicUrl,
           })
         },
-        onWorkspaceDefaultsPersisted: (_details) => {
-          // Soft-cache generation already bumped in the page module.
-        },
       },
       { initialTabId }
     )

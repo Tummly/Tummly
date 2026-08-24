@@ -203,6 +203,48 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("Main", _emailService.LastBrandSubtitle);
         }
 
+        [Fact]
+        public async Task SendAsync_FallsBackToWorkspaceName_WhenSenderUnset()
+        {
+            var locationId = await SeedLocationAsync(
+                restaurantName: "Workspace Name",
+                locationName: "Main",
+                address: "1 High Street"
+            );
+
+            var result = await _service.SendAsync(
+                locationId,
+                toEmail: "team@example.com",
+                subject: "Thanks",
+                body: "Hello"
+            );
+
+            Assert.True(result);
+            Assert.Equal("Workspace Name", _emailService.LastBrandTitle);
+            Assert.Equal("Main", _emailService.LastBrandSubtitle);
+        }
+
+        [Fact]
+        public async Task SendAsync_FallsBackToLocationName_WhenWorkspaceNameEmpty()
+        {
+            var locationId = await SeedLocationAsync(
+                restaurantName: "  ",
+                locationName: "Main Street",
+                address: "1 High Street"
+            );
+
+            var result = await _service.SendAsync(
+                locationId,
+                toEmail: "team@example.com",
+                subject: "Thanks",
+                body: "Hello"
+            );
+
+            Assert.True(result);
+            Assert.Equal("Main Street", _emailService.LastBrandTitle);
+            Assert.Null(_emailService.LastBrandSubtitle);
+        }
+
         public void Dispose() => _context.Dispose();
 
         private async Task<int> SeedLocationAsync(

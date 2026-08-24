@@ -1,6 +1,8 @@
 import axiosInstance from "@/api/axiosInstance"
 import {
   defaultAccountWorkspaceCountry,
+  normalizeReportingPeriod,
+  normalizeWeekStartsOn,
 } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 import type {
   AccountWorkspaceBusinessDetails,
@@ -12,10 +14,6 @@ import type {
   UpdateKeyContactsPayload,
   UpdateWorkspaceDefaultsPayload,
 } from "@/lib/operatorAccountWorkspace/createOperatorAccountWorkspacePageModule"
-import type {
-  DefaultReportingPeriodValue,
-  WeekStartsOnValue,
-} from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 
 type AccountWorkspaceApiStatus = {
   workspaceStatus: string
@@ -129,41 +127,14 @@ function mapKeyContacts(
   }
 }
 
-function mapWeekStartsOn(value: string | null | undefined): WeekStartsOnValue {
-  const allowed: WeekStartsOnValue[] = [
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-    "sunday",
-  ]
-  const trimmed = (value ?? "").trim().toLowerCase()
-  return allowed.find((item) => item === trimmed) ?? "monday"
-}
-
-function mapReportingPeriod(
-  value: string | null | undefined
-): DefaultReportingPeriodValue {
-  const allowed: DefaultReportingPeriodValue[] = [
-    "7days",
-    "30days",
-    "thisMonth",
-  ]
-  const trimmed = (value ?? "").trim()
-  return (
-    allowed.find((item) => item.toLowerCase() === trimmed.toLowerCase())
-    ?? "7days"
-  )
-}
-
 function mapWorkspaceDefaults(
   data: AccountWorkspaceApiWorkspaceDefaults | null | undefined
 ): AccountWorkspaceWorkspaceDefaults {
   return {
-    weekStartsOn: mapWeekStartsOn(data?.weekStartsOn),
-    defaultReportingPeriod: mapReportingPeriod(data?.defaultReportingPeriod),
+    weekStartsOn: normalizeWeekStartsOn(data?.weekStartsOn),
+    defaultReportingPeriod: normalizeReportingPeriod(
+      data?.defaultReportingPeriod
+    ),
     defaultCampaignSenderName: data?.defaultCampaignSenderName ?? "",
     defaultTimezone: data?.defaultTimezone || "Europe/London",
     defaultCurrency: data?.defaultCurrency || "GBP",

@@ -686,19 +686,13 @@ function weeklyBriefErrorFrom(
 }
 
 /**
- * Client soft-cache key — location + Home performance selection identity.
- * Do not use resolved `from`/`to` timestamps: preset windows bind `to` to `now`,
- * so ISO strings change every call even when the operator selection is unchanged.
+ * Client soft-cache key — location + Workspace-defaults generation.
+ * Server window follows Default reporting period (not Home performance range).
+ * Period save bumps generation via recommendationSoftCacheBust.
  */
-function recommendationSoftCacheKey(
-  locationId: number,
-  dateRange: HomePerformanceDateRange
-): string {
+function recommendationSoftCacheKey(locationId: number): string {
   const generation = recommendedNextStepSoftCacheGeneration()
-  if (dateRange.kind === "preset") {
-    return `${locationId}:preset:${dateRange.presetId}:g${generation}`
-  }
-  return `${locationId}:custom:${dateRange.startDate}:${dateRange.endDate}:g${generation}`
+  return `${locationId}:workspace-defaults:g${generation}`
 }
 
 function mapRecommendationResponse(
@@ -999,10 +993,7 @@ export function createOperatorHomePageModule(
       performanceDateRange,
       refresh: options?.refresh === true,
     })
-    const cacheKey = recommendationSoftCacheKey(
-      selectedLocationId,
-      performanceDateRange
-    )
+    const cacheKey = recommendationSoftCacheKey(selectedLocationId)
     const generation = recommendationGeneration + 1
     recommendationGeneration = generation
     recommendation = recommendationForSoftLoad({
@@ -1385,8 +1376,7 @@ export function createOperatorHomePageModule(
     const generation = state.loadGeneration + 1
     const performanceDateRange = adapters.getHomePerformanceDateRange()
     const recommendationCacheKey = recommendationSoftCacheKey(
-      selectedLocationId,
-      performanceDateRange
+      selectedLocationId
     )
     const nextRecommendation = recommendationForSoftLoad({
       refresh: false,
@@ -1679,8 +1669,8 @@ export function createOperatorHomePageModule(
         })
       }
       await fetchPerformanceForSelectedLocation()
-      // Window change may invalidate soft-cache key — reload without refresh.
-      await loadRecommendation()
+      // Recommended next step follows Default reporting period, not this
+      // Home performance window — do not invalidate the soft cache here.
     },
     retryRecommendation: () => loadRecommendation({ refresh: true }),
     dismissRecommendation: () => {

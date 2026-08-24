@@ -7,6 +7,8 @@ import {
   defaultAccountWorkspaceCountry,
   isAccountWorkspaceFormTab,
   isUnitedKingdomCountry,
+  normalizeReportingPeriod,
+  normalizeWeekStartsOn,
   resolveAccountWorkspaceTabId,
   type AccountWorkspaceTabId,
   type DefaultReportingPeriodValue,
@@ -136,8 +138,6 @@ export type OperatorAccountWorkspacePageAdapters = {
   ) => Promise<AccountWorkspaceDetails>
   /** Refresh shell readers of Restaurant.Name / Brand logo after persist. */
   onIdentityPersisted?: (details: AccountWorkspaceDetails) => void
-  /** Bust Home / Campaigns Recommended next step soft caches after period save. */
-  onWorkspaceDefaultsPersisted?: (details: AccountWorkspaceDetails) => void
 }
 
 export type OperatorAccountWorkspacePageOptions = {
@@ -288,35 +288,6 @@ function emptyWorkspaceDefaults(): AccountWorkspaceWorkspaceDefaults {
     defaultLanguage: "English",
     dateFormat: "DD/MM/YYYY",
   }
-}
-
-function normalizeWeekStartsOn(value: string | null | undefined): WeekStartsOnValue {
-  const allowed: WeekStartsOnValue[] = [
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-    "sunday",
-  ]
-  const trimmed = (value ?? "").trim().toLowerCase()
-  return (allowed.find((item) => item === trimmed) ?? "monday") as WeekStartsOnValue
-}
-
-function normalizeReportingPeriod(
-  value: string | null | undefined
-): DefaultReportingPeriodValue {
-  const allowed: DefaultReportingPeriodValue[] = [
-    "7days",
-    "30days",
-    "thisMonth",
-  ]
-  const trimmed = (value ?? "").trim()
-  return (
-    allowed.find((item) => item.toLowerCase() === trimmed.toLowerCase())
-    ?? "7days"
-  )
 }
 
 function normalizeWorkspaceDefaults(
@@ -828,7 +799,6 @@ export function createOperatorAccountWorkspacePageModule(
         previousPeriod !== result.workspaceDefaults.defaultReportingPeriod
       ) {
         bumpRecommendedNextStepSoftCaches()
-        adapters.onWorkspaceDefaultsPersisted?.(result)
       }
       toast = {
         kind: "success",
