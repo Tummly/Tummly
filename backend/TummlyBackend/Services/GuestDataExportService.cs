@@ -12,7 +12,7 @@ namespace TummlyBackend.Services
         public const int ExportSoftMaxRows = 10_000;
 
         public const string ExportSoftMaxMessage =
-            "Export exceeds 10,000 rows. Narrow filters and try again.";
+            "Export exceeds 10,000 guest rows for this workspace.";
 
         private static readonly string[] ExportHeaders =
         [
