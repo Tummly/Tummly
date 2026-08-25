@@ -12,6 +12,7 @@ import {
   getTeamPermissionsPage,
   reactivateTeamMember,
   removeTeamMember,
+  saveTeamPermissionsMatrix,
   updateTeamMemberLocationScope,
   updateTeamMemberRole,
 } from "@/api/teamPermissionsApi"
@@ -51,6 +52,10 @@ export function TeamPermissionsPageModuleProvider({
         remove: async (membershipId) => {
           await removeTeamMember(membershipId)
           toast.success("Member removed.")
+        },
+        saveMatrix: async (cells) => {
+          await saveTeamPermissionsMatrix(cells)
+          toast.success("Permission matrix saved.")
         },
       },
       { initialTabId }

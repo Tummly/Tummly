@@ -1,10 +1,15 @@
 import { useEffect, useSyncExternalStore, useState } from "react"
 import { MoreVerticalIcon, XIcon } from "lucide-react"
-import { useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { useTeamPermissionsPageModuleApi } from "@/components/dashboard/operator/TeamPermissions/utils/teamPermissionsPageModuleContext"
+import { ACCOUNT_WORKSPACE_PAGE_COPY } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
+import {
+  BROWSER_BACK_HREF,
+  registerLeaveDirtyGuard,
+} from "@/lib/operatorNavigation/leaveDirtyGuard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckboxLabel } from "@/components/ui/checkbox-label"
@@ -35,10 +40,13 @@ import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { teamPermissionsFilterSheetSchema } from "@/lib/operatorTeamPermissions/teamPermissionsFilterSheetSchema"
-import { ASSIGNABLE_PERMISSION_ROLES, assignableRolesForActor } from "@/lib/operatorTeamPermissions/permissionRoles"
+import { assignableRolesForActor } from "@/lib/operatorTeamPermissions/permissionRoles"
 import type { TeamMemberRow } from "@/lib/operatorTeamPermissions/createOperatorTeamPermissionsPageModule"
 import {
   deactivateConfirmCopy,
+  displayPermissionLabel,
+  legalAdminLevels,
+  PERMISSION_MATRIX_ROLES,
   removeConfirmCopy,
   TEAM_PERMISSIONS_PAGE_COPY as copy,
   TEAM_PERMISSIONS_SELECT_MENU_CLASS,
@@ -56,6 +64,11 @@ import {
   GUESTS_SECTION_CLASS,
   GUESTS_SECTION_SUBTITLE_CLASS,
   GUESTS_SECTION_TITLE_CLASS,
+  GUESTS_TABLE_BODY_CELL_CLASS,
+  GUESTS_TABLE_BODY_ROW_CLASS,
+  GUESTS_TABLE_CLASS,
+  GUESTS_TABLE_HEAD_CELL_CLASS,
+  GUESTS_TABLE_HEAD_ROW_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import { cn } from "@/lib/utils"
 import {
@@ -88,13 +101,14 @@ export function TeamPermissionsPage() {
     pageModule.getSnapshot
   )
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteName, setInviteName] = useState("")
   const roleOptions = assignableRolesForActor(snap.actorPermissionRole)
+  const [inviteRole, setInviteRole] = useState(roleOptions[0] ?? "Admin")
   const [inviteScope, setInviteScope] = useState<"all" | "named">("all")
   const [inviteNamed, setInviteNamed] = useState<number[]>([])
   const [inviteMessage, setInviteMessage] = useState("")
-  const roleOptions = assignableRolesForActor(snap.actorPermissionRole)
 
   useEffect(() => {
     const current = searchParams.get("tab")
@@ -106,13 +120,56 @@ export function TeamPermissionsPage() {
     setSearchParams(next, { replace: true })
   }, [snap.activeTabId, searchParams, setSearchParams])
 
+  useEffect(() => {
+    const href = pageModule.consumePendingNavigation()
+    if (href == null) {
+      return
+    }
+    if (href === BROWSER_BACK_HREF) {
+      navigate(-1)
+      return
+    }
+    navigate(href)
+  }, [snap.pendingNavigationHref, pageModule, navigate])
+
+  useEffect(() => {
+    registerLeaveDirtyGuard({
+      isBlocked: () => pageModule.getSnapshot().isDirty,
+      requestLeave: (href) => pageModule.requestNavigateAway(href),
+    })
+    return () => {
+      registerLeaveDirtyGuard(null)
+    }
+  }, [pageModule])
+
+  useEffect(() => {
+    if (!snap.isDirty) {
+      return
+    }
+
+    const onPopState = () => {
+      if (!pageModule.getSnapshot().isDirty) {
+        return
+      }
+      window.history.pushState(null, "", window.location.href)
+      pageModule.requestNavigateAway(BROWSER_BACK_HREF)
+    }
+
+    window.history.pushState(null, "", window.location.href)
+    window.addEventListener("popstate", onPopState)
+    return () => {
+      window.removeEventListener("popstate", onPopState)
+    }
+  }, [pageModule, snap.isDirty])
+
   const schema = teamPermissionsFilterSheetSchema({
     isSingleLocation: snap.isSingleLocation,
     locations: snap.locations,
   })
+  const confirmDialog = snap.dialog
   const confirmMember =
-    snap.dialog.kind === "deactivate" || snap.dialog.kind === "remove"
-      ? snap.members.find((row) => row.membershipId === snap.dialog.membershipId)
+    confirmDialog.kind === "deactivate" || confirmDialog.kind === "remove"
+      ? snap.members.find((row) => row.membershipId === confirmDialog.membershipId)
       : null
   const confirmCopy =
     snap.dialog.kind === "deactivate" && confirmMember != null
@@ -177,7 +234,9 @@ export function TeamPermissionsPage() {
         <TabsContent value="members" className="mt-0">
           <MembersBody snap={snap} pageModule={pageModule} />
         </TabsContent>
-        <TabsContent value="roles-permissions" className="mt-0" />
+        <TabsContent value="roles-permissions" className="mt-0">
+          <RolesPermissionsBody snap={snap} pageModule={pageModule} />
+        </TabsContent>
         <TabsContent value="invitations" className="mt-0" />
         <TabsContent value="access-activity" className="mt-0" />
       </Tabs>
@@ -409,7 +468,157 @@ export function TeamPermissionsPage() {
           onCancel={() => pageModule.closeDialog()}
         />
       ) : null}
+
+      <AccountWorkspaceConfirmDialog
+        open={snap.leaveDirtyOpen}
+        title={ACCOUNT_WORKSPACE_PAGE_COPY.leaveDirtyTitle}
+        body={ACCOUNT_WORKSPACE_PAGE_COPY.leaveDirtyBody}
+        primaryLabel={ACCOUNT_WORKSPACE_PAGE_COPY.leaveDirtySave}
+        busy={snap.busy}
+        onOpenChange={(open) => {
+          if (!open) {
+            pageModule.closeLeaveDirty()
+          }
+        }}
+        onPrimary={() => {
+          void pageModule.confirmLeaveDirtySave()
+        }}
+        onCancel={() => {
+          void pageModule.confirmLeaveDirtyCancel()
+        }}
+      />
     </div>
+  )
+}
+
+function RolesPermissionsBody({
+  snap,
+  pageModule,
+}: {
+  snap: ReturnType<
+    ReturnType<typeof useTeamPermissionsPageModuleApi>["getSnapshot"]
+  >
+  pageModule: ReturnType<typeof useTeamPermissionsPageModuleApi>
+}) {
+  if (snap.loadStatus === "idle" || snap.loadStatus === "loading") {
+    return (
+      <div className="flex justify-center py-16" role="status">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (snap.loadStatus === "error") {
+    return (
+      <div className={GUESTS_SECTION_CLASS}>
+        <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.loadError}</h2>
+        <Button
+          type="button"
+          variant="op-secondary"
+          onClick={() => {
+            void pageModule.load()
+          }}
+        >
+          {copy.retry}
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <section className={GUESTS_SECTION_CLASS}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.matrixTitle}</h2>
+          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{copy.matrixSubtitle}</p>
+        </div>
+        {snap.saveEnabled ? (
+          <Button
+            type="button"
+            variant="op-primary"
+            disabled={snap.busy}
+            onClick={() => {
+              void pageModule.requestSave()
+            }}
+          >
+            {copy.saveChanges}
+          </Button>
+        ) : null}
+      </div>
+      <div className="w-full overflow-x-auto">
+        <table className={GUESTS_TABLE_CLASS}>
+          <thead>
+            <tr className={GUESTS_TABLE_HEAD_ROW_CLASS}>
+              <th
+                className={cn(GUESTS_TABLE_HEAD_CELL_CLASS, "w-[230px] min-w-[230px]")}
+              >
+                {copy.productArea}
+              </th>
+              {PERMISSION_MATRIX_ROLES.map((role) => (
+                <th key={role} className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  {role}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {snap.matrix.map((area) => (
+              <tr key={area.id} className={GUESTS_TABLE_BODY_ROW_CLASS}>
+                <th
+                  scope="row"
+                  className={cn(
+                    GUESTS_TABLE_BODY_CELL_CLASS,
+                    "w-[230px] min-w-[230px] text-sm font-semibold"
+                  )}
+                >
+                  {area.label}
+                </th>
+                {PERMISSION_MATRIX_ROLES.map((role) => {
+                  const stored = area.cells[role] ?? "No access"
+                  const editable =
+                    snap.canEditAdminColumn && role === "Admin"
+                  return (
+                    <td key={role} className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      {editable ? (
+                        <Select
+                          value={stored}
+                          disabled={snap.busy}
+                          onValueChange={(value) => {
+                            pageModule.setAdminCell(area.id, value)
+                          }}
+                        >
+                          <SelectTrigger
+                            size="sm"
+                            aria-label={`${area.label} Admin`}
+                            className="h-auto min-h-8 w-full min-w-[7.5rem] rounded-[2px]"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent
+                            position="popper"
+                            className={TEAM_PERMISSIONS_SELECT_MENU_CLASS}
+                          >
+                            {legalAdminLevels(area.id).map((level) => (
+                              <SelectItem key={level} value={level}>
+                                {level}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge variant="soft">
+                          {displayPermissionLabel(role, area.id, stored)}
+                        </Badge>
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   )
 }
 

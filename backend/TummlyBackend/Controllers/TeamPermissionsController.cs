@@ -169,6 +169,37 @@ namespace TummlyBackend.Controllers
             );
         }
 
+        [HttpPut("matrix")]
+        public async Task<IActionResult> UpdateMatrix(
+            [FromBody] UpdateAdminMatrixRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.TeamPermissions,
+                PermissionLevel.Manage
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var error = await _teamPermissions.UpdateAdminMatrixAsync(
+                userId,
+                decision.RestaurantId,
+                request.AdminCells
+            );
+            return MapWrite(error);
+        }
+
         private async Task<IActionResult> MutateAsync(
             int membershipId,
             Func<int, int, bool, Task<string?>> write

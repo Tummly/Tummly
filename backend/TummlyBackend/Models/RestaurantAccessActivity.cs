@@ -9,6 +9,7 @@ namespace TummlyBackend.Models
         public const string MemberDeactivated = "member-deactivated";
         public const string MemberReactivated = "member-reactivated";
         public const string MemberRemoved = "member-removed";
+        public const string PermissionCellChanged = "permission-cell-changed";
     }
 
     public class RestaurantAccessActivity

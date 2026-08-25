@@ -15,6 +15,29 @@ namespace TummlyBackend.DTOs.TeamPermissions
         public List<TeamPermissionsLocationDto> Locations { get; set; } = [];
 
         public List<TeamMemberRowDto> Members { get; set; } = [];
+
+        public List<PermissionMatrixAreaDto> Matrix { get; set; } = [];
+    }
+
+    public sealed class PermissionMatrixAreaDto
+    {
+        public string Id { get; set; } = string.Empty;
+
+        public string Label { get; set; } = string.Empty;
+
+        public Dictionary<string, string> Cells { get; set; } = [];
+    }
+
+    public sealed class UpdateAdminMatrixRequest
+    {
+        public List<AdminMatrixCellDto> AdminCells { get; set; } = [];
+    }
+
+    public sealed class AdminMatrixCellDto
+    {
+        public string AreaId { get; set; } = string.Empty;
+
+        public string Level { get; set; } = string.Empty;
     }
 
     public sealed class TeamPermissionsStatsDto

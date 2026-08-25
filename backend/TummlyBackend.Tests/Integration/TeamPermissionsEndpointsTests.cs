@@ -198,6 +198,171 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
+        [Fact]
+        public async Task Get_ReturnsEveryAreaRowOnThePermissionMatrix()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/team-permissions",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var matrix = body.GetProperty("matrix");
+            Assert.Equal(13, matrix.GetArrayLength());
+            Assert.Equal(
+                OperatorAreaIds.All,
+                matrix.EnumerateArray().Select(row => row.GetProperty("id").GetString())
+            );
+            var billing = matrix
+                .EnumerateArray()
+                .First(row => row.GetProperty("id").GetString() == OperatorAreaIds.BillingCredits);
+            Assert.Equal(
+                "View",
+                billing.GetProperty("cells").GetProperty("Admin").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PutMatrix_OwnerSavesAdminCells_AndEmitsActivityInAreaIdOrder()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var put = AuthorizedJson(
+                HttpMethod.Put,
+                "/api/team-permissions/matrix",
+                seeded.OwnerJwt,
+                new
+                {
+                    adminCells = new[]
+                    {
+                        new { areaId = OperatorAreaIds.BillingCredits, level = "Manage" },
+                        new { areaId = OperatorAreaIds.Locations, level = "View" },
+                    },
+                }
+            );
+            var putResponse = await _client.SendAsync(put);
+            Assert.Equal(HttpStatusCode.NoContent, putResponse.StatusCode);
+
+            using var get = Authorized(
+                HttpMethod.Get,
+                "/api/team-permissions",
+                seeded.OwnerJwt
+            );
+            var getResponse = await _client.SendAsync(get);
+            var body = await ReadJsonAsync(getResponse);
+            var cellsByArea = body
+                .GetProperty("matrix")
+                .EnumerateArray()
+                .ToDictionary(
+                    row => row.GetProperty("id").GetString()!,
+                    row => row.GetProperty("cells").GetProperty("Admin").GetString()
+                );
+            Assert.Equal("View", cellsByArea[OperatorAreaIds.Locations]);
+            Assert.Equal("Manage", cellsByArea[OperatorAreaIds.BillingCredits]);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var rows = await context.RestaurantAccessActivities
+                .Where(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.Kind == "permission-cell-changed"
+                )
+                .OrderBy(row => row.Id)
+                .ToListAsync();
+            Assert.Equal(2, rows.Count);
+            Assert.Equal($"{OperatorAreaIds.Locations}:Manage", rows[0].FromValue);
+            Assert.Equal($"{OperatorAreaIds.Locations}:View", rows[0].ToValue);
+            Assert.Equal($"{OperatorAreaIds.BillingCredits}:View", rows[1].FromValue);
+            Assert.Equal($"{OperatorAreaIds.BillingCredits}:Manage", rows[1].ToValue);
+            Assert.All(rows, row => Assert.Equal(seeded.OwnerUserId, row.ActorUserId));
+        }
+
+        [Fact]
+        public async Task PutMatrix_Returns403_ForAdminActor()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = AuthorizedJson(
+                HttpMethod.Put,
+                "/api/team-permissions/matrix",
+                seeded.AdminJwt,
+                new
+                {
+                    adminCells = new[]
+                    {
+                        new { areaId = OperatorAreaIds.BillingCredits, level = "Manage" },
+                    },
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Theory]
+        [InlineData(OperatorAreaIds.AccountWorkspace, "Scoped")]
+        [InlineData(OperatorAreaIds.TeamPermissions, "No access")]
+        public async Task PutMatrix_RejectsIllegalAdminValues(
+            string areaId,
+            string level
+        )
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = AuthorizedJson(
+                HttpMethod.Put,
+                "/api/team-permissions/matrix",
+                seeded.OwnerJwt,
+                new
+                {
+                    adminCells = new[] { new { areaId, level } },
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.False(
+                await context.RestaurantAccessActivities.AnyAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.Kind == "permission-cell-changed"
+                )
+            );
+        }
+
+        [Fact]
+        public async Task PutMatrix_DoesNotEmit_WhenFromEqualsTo()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = AuthorizedJson(
+                HttpMethod.Put,
+                "/api/team-permissions/matrix",
+                seeded.OwnerJwt,
+                new
+                {
+                    adminCells = new[]
+                    {
+                        new { areaId = OperatorAreaIds.BillingCredits, level = "View" },
+                    },
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.False(
+                await context.RestaurantAccessActivities.AnyAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.Kind == "permission-cell-changed"
+                )
+            );
+        }
+
         private async Task<Seeded> SeedWorkspaceAsync()
         {
             using var scope = _factory.Services.CreateScope();

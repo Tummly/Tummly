@@ -59,9 +59,93 @@ export const TEAM_PERMISSIONS_PAGE_COPY = {
   locationManagers: "Location managers",
   limitedAccessUsers: "Limited access users",
   owners: "Owners",
+  matrixTitle: "Permission matrix",
+  matrixSubtitle:
+    "Review what each role can view or manage. Owners always have full access.",
+  saveChanges: "Save changes",
+  productArea: "Product area",
+  noAccessDisplay: "—",
 } as const
 
 export const TEAM_PERMISSIONS_SELECT_MENU_CLASS = "z-[130]"
+
+export const PERMISSION_MATRIX_ROLES = [
+  "Owner",
+  "Admin",
+  "Area Manager",
+  "Location Manager",
+  "Marketing",
+  "Staff",
+  "Billing Admin",
+  "Reporting Only",
+] as const
+
+const RESTAURANT_WIDE_AREAS = new Set([
+  "account-workspace",
+  "team-permissions",
+  "billing-credits",
+  "privacy-consent",
+])
+
+const NEVER_NO_ACCESS_AREAS = new Set([
+  "account-workspace",
+  "team-permissions",
+])
+
+export const STORED_PERMISSION_LEVELS = [
+  "No access",
+  "View",
+  "Manage",
+  "Scoped",
+] as const
+
+export type StoredPermissionLevel = (typeof STORED_PERMISSION_LEVELS)[number]
+
+export function legalAdminLevels(areaId: string): StoredPermissionLevel[] {
+  return STORED_PERMISSION_LEVELS.filter((level) => {
+    if (level === "No access") {
+      return !NEVER_NO_ACCESS_AREAS.has(areaId)
+    }
+    if (level === "Scoped") {
+      return !RESTAURANT_WIDE_AREAS.has(areaId)
+    }
+    return true
+  })
+}
+
+export function displayPermissionLabel(
+  role: string,
+  areaId: string,
+  storedLevel: string
+): string {
+  if (storedLevel === "No access") {
+    return TEAM_PERMISSIONS_PAGE_COPY.noAccessDisplay
+  }
+  if (role === "Admin" && areaId === "team-permissions" && storedLevel === "Manage") {
+    return "Manage*"
+  }
+  if (role === "Staff" && areaId === "offers" && storedLevel === "Scoped") {
+    return "Redeem only"
+  }
+  if (role === "Reporting Only" && areaId === "feedback" && storedLevel === "View") {
+    return "View reports"
+  }
+  if (storedLevel === "View" && limitedViewCells.has(`${role}:${areaId}`)) {
+    return "Limited"
+  }
+  return storedLevel
+}
+
+const limitedViewCells = new Set([
+  "Marketing:guests",
+  "Billing Admin:reports",
+  "Marketing:billing-credits",
+  "Area Manager:privacy-consent",
+  "Location Manager:privacy-consent",
+  "Marketing:privacy-consent",
+  "Billing Admin:privacy-consent",
+  "Billing Admin:ai-assistant",
+])
 
 export function resolveTeamPermissionsTabId(
   raw: string | null | undefined,

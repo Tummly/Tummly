@@ -46,3 +46,9 @@ export async function reactivateTeamMember(
 export async function removeTeamMember(membershipId: number): Promise<void> {
   await axiosInstance.delete(`/team-permissions/members/${membershipId}`)
 }
+
+export async function saveTeamPermissionsMatrix(
+  adminCells: Array<{ areaId: string; level: string }>
+): Promise<void> {
+  await axiosInstance.put("/team-permissions/matrix", { adminCells })
+}

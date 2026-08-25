@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TummlyBackend.Data;
 
@@ -11,9 +12,11 @@ using TummlyBackend.Data;
 namespace TummlyBackend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260825220000_AddRestaurantAccessActivity")]
+    partial class AddRestaurantAccessActivity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2299,33 +2302,6 @@ namespace TummlyBackend.Migrations
                     b.ToTable("RestaurantAccessActivities");
                 });
 
-            modelBuilder.Entity("TummlyBackend.Models.RestaurantAdminPermissionCell", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AreaId")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<int>("Level")
-                        .HasColumnType("int");
-
-                    b.Property<int>("RestaurantId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RestaurantId", "AreaId")
-                        .IsUnique();
-
-                    b.ToTable("RestaurantAdminPermissionCells");
-                });
-
             modelBuilder.Entity("TummlyBackend.Models.RestaurantBusinessDetails", b =>
                 {
                     b.Property<int>("RestaurantId")
@@ -3523,17 +3499,6 @@ namespace TummlyBackend.Migrations
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.RestaurantAccessActivity", b =>
-                {
-                    b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
-                        .WithMany()
-                        .HasForeignKey("RestaurantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Restaurant");
-                });
-
-            modelBuilder.Entity("TummlyBackend.Models.RestaurantAdminPermissionCell", b =>
                 {
                     b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
                         .WithMany()

@@ -46,6 +46,24 @@ function page(
     },
     locations: [{ id: 10, name: "Camden" }],
     members: [member()],
+    matrix: [
+      {
+        id: "locations",
+        label: "Locations",
+        cells: {
+          Owner: "Manage",
+          Admin: "Manage",
+        },
+      },
+      {
+        id: "billing-credits",
+        label: "Billing & credits",
+        cells: {
+          Owner: "Manage",
+          Admin: "View",
+        },
+      },
+    ],
     ...overrides,
   }
 }
@@ -60,6 +78,7 @@ function adapters(
     deactivate: vi.fn(async () => undefined),
     reactivate: vi.fn(async () => undefined),
     remove: vi.fn(async () => undefined),
+    saveMatrix: vi.fn(async () => undefined),
     ...overrides,
   }
 }
@@ -166,5 +185,82 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     module.setFiltersSession(openSession(applied))
     expect(module.getSnapshot().visibleMembers).toHaveLength(1)
     expect(module.getSnapshot().stats.activeMembers).toBe(2)
+  })
+
+  it("Owner dirty matrix opens leave-dirty Save then continues", async () => {
+    const api = adapters()
+    const module = createOperatorTeamPermissionsPageModule(api, {
+      initialTabId: "roles-permissions",
+    })
+    await module.load()
+    module.setAdminCell("billing-credits", "Manage")
+    expect(module.getSnapshot().isDirty).toBe(true)
+    expect(module.getSnapshot().canEditAdminColumn).toBe(true)
+
+    module.requestTabChange("members")
+    expect(module.getSnapshot().leaveDirtyOpen).toBe(true)
+    expect(module.getSnapshot().activeTabId).toBe("roles-permissions")
+
+    await module.confirmLeaveDirtySave()
+    expect(api.saveMatrix).toHaveBeenCalledWith([
+      { areaId: "billing-credits", level: "Manage" },
+    ])
+    expect(module.getSnapshot().leaveDirtyOpen).toBe(false)
+    expect(module.getSnapshot().activeTabId).toBe("members")
+    expect(module.getSnapshot().isDirty).toBe(false)
+  })
+
+  it("leave-dirty Cancel discards matrix edits then continues", async () => {
+    const api = adapters()
+    const module = createOperatorTeamPermissionsPageModule(api, {
+      initialTabId: "roles-permissions",
+    })
+    await module.load()
+    module.setAdminCell("locations", "View")
+    module.requestTabChange("invitations")
+    await module.confirmLeaveDirtyCancel()
+
+    expect(api.saveMatrix).not.toHaveBeenCalled()
+    expect(module.getSnapshot().activeTabId).toBe("invitations")
+    expect(module.getSnapshot().isDirty).toBe(false)
+    expect(
+      module.getSnapshot().matrix.find((row) => row.id === "locations")
+        ?.cells.Admin
+    ).toBe("Manage")
+  })
+
+  it("leave-dirty Close stays on the matrix with the draft", async () => {
+    const api = adapters()
+    const module = createOperatorTeamPermissionsPageModule(api, {
+      initialTabId: "roles-permissions",
+    })
+    await module.load()
+    module.setAdminCell("locations", "View")
+    module.requestTabChange("members")
+    module.closeLeaveDirty()
+
+    expect(module.getSnapshot().leaveDirtyOpen).toBe(false)
+    expect(module.getSnapshot().activeTabId).toBe("roles-permissions")
+    expect(module.getSnapshot().isDirty).toBe(true)
+    expect(
+      module.getSnapshot().matrix.find((row) => row.id === "locations")
+        ?.cells.Admin
+    ).toBe("View")
+  })
+
+  it("Admin cannot edit the Admin column", async () => {
+    const api = adapters({
+      getPage: vi.fn(async () =>
+        page({ actorPermissionRole: "Admin", actorCanManage: true })
+      ),
+    })
+    const module = createOperatorTeamPermissionsPageModule(api, {
+      initialTabId: "roles-permissions",
+    })
+    await module.load()
+    module.setAdminCell("billing-credits", "Manage")
+    expect(module.getSnapshot().canEditAdminColumn).toBe(false)
+    expect(module.getSnapshot().isDirty).toBe(false)
+    expect(module.getSnapshot().saveEnabled).toBe(false)
   })
 })

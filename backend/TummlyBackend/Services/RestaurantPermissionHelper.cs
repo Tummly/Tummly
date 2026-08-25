@@ -382,13 +382,25 @@ namespace TummlyBackend.Services
                 restaurantId!.Value,
                 membership
             );
+            var adminOverrides = await LoadAdminOverridesAsync(restaurantId.Value);
 
             return new RestaurantAccess(
                 restaurantId.Value,
                 membership,
                 locationIds,
-                false
+                false,
+                adminOverrides
             );
+        }
+
+        private async Task<
+            IReadOnlyDictionary<string, PermissionLevel>
+        > LoadAdminOverridesAsync(int restaurantId)
+        {
+            return await _context.RestaurantAdminPermissionCells
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurantId)
+                .ToDictionaryAsync(row => row.AreaId, row => row.Level);
         }
 
         private async Task<IReadOnlyList<int>> ListLiveLocationIdsAsync(
@@ -433,7 +445,11 @@ namespace TummlyBackend.Services
 
             var permissionRole =
                 access.Membership?.PermissionRole ?? PermissionRoles.Owner;
-            var cell = DefaultPermissionMatrix.LevelFor(permissionRole, areaId);
+            var cell = DefaultPermissionMatrix.LevelFor(
+                permissionRole,
+                areaId,
+                access.AdminOverrides
+            );
 
             if (!DefaultPermissionMatrix.Meets(cell, minimum))
             {
@@ -490,7 +506,8 @@ namespace TummlyBackend.Services
             int RestaurantId,
             RestaurantMembership? Membership,
             IReadOnlyList<int> LocationIds,
-            bool EmptyNamedList
+            bool EmptyNamedList,
+            IReadOnlyDictionary<string, PermissionLevel> AdminOverrides
         )
         {
             public static RestaurantAccess ForEmptyNamedList(int restaurantId)
@@ -499,7 +516,8 @@ namespace TummlyBackend.Services
                     restaurantId,
                     null,
                     [],
-                    true
+                    true,
+                    new Dictionary<string, PermissionLevel>()
                 );
             }
         }

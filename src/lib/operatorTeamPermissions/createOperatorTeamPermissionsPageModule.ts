@@ -10,6 +10,7 @@ import {
 } from "@/lib/operatorFilterSheet"
 import { teamPermissionsFilterSheetSchema } from "@/lib/operatorTeamPermissions/teamPermissionsFilterSheetSchema"
 import {
+  legalAdminLevels,
   resolveTeamPermissionsTabId,
   TEAM_PERMISSIONS_TAB_IDS,
   type TeamPermissionsTabId,
@@ -32,6 +33,17 @@ export type TeamMemberRow = {
   actions: string[]
 }
 
+export type PermissionMatrixArea = {
+  id: string
+  label: string
+  cells: Record<string, string>
+}
+
+export type AdminMatrixCell = {
+  areaId: string
+  level: string
+}
+
 export type TeamPermissionsPageData = {
   actorCanManage: boolean
   actorPermissionRole: string
@@ -45,6 +57,7 @@ export type TeamPermissionsPageData = {
   }
   locations: Array<{ id: number; name: string }>
   members: TeamMemberRow[]
+  matrix: PermissionMatrixArea[]
 }
 
 export type TeamPermissionsPageAdapters = {
@@ -57,6 +70,7 @@ export type TeamPermissionsPageAdapters = {
   deactivate: (membershipId: number) => Promise<void>
   reactivate: (membershipId: number) => Promise<void>
   remove: (membershipId: number) => Promise<void>
+  saveMatrix: (cells: AdminMatrixCell[]) => Promise<void>
 }
 
 export type TeamPermissionsDialog =
@@ -92,6 +106,12 @@ export type TeamPermissionsSnapshot = {
   filtersOpen: boolean
   dialog: TeamPermissionsDialog
   busy: boolean
+  matrix: PermissionMatrixArea[]
+  isDirty: boolean
+  canEditAdminColumn: boolean
+  saveEnabled: boolean
+  leaveDirtyOpen: boolean
+  pendingNavigationHref: string | null
 }
 
 export type OperatorTeamPermissionsPageModule = {
@@ -120,6 +140,13 @@ export type OperatorTeamPermissionsPageModule = {
   ) => void
   confirmReactivate: (membershipId: number) => Promise<void>
   confirmDialogPrimary: () => Promise<void>
+  setAdminCell: (areaId: string, level: string) => void
+  requestSave: () => Promise<void>
+  requestNavigateAway: (href: string) => boolean
+  confirmLeaveDirtySave: () => Promise<void>
+  confirmLeaveDirtyCancel: () => Promise<void>
+  closeLeaveDirty: () => void
+  consumePendingNavigation: () => string | null
 }
 
 const TAB_LABELS: Record<TeamPermissionsTabId, string> = {
@@ -192,11 +219,88 @@ export function createOperatorTeamPermissionsPageModule(
   let filtersOpen = false
   let dialog: TeamPermissionsDialog = { kind: "none" }
   let busy = false
+  let adminDraft: Record<string, string> = {}
+  let leaveDirtyOpen = false
+  let pendingLeave:
+    | { kind: "tab"; tabId: TeamPermissionsTabId }
+    | { kind: "href"; href: string }
+    | null = null
   const listeners = new Set<() => void>()
 
   const emit = () => {
     for (const listener of listeners) {
       listener()
+    }
+  }
+
+  const canEditAdminColumn = () => data?.actorPermissionRole === "Owner"
+
+  const projectedMatrix = (): PermissionMatrixArea[] => {
+    return (data?.matrix ?? []).map((area) => ({
+      ...area,
+      cells: {
+        ...area.cells,
+        Admin: adminDraft[area.id] ?? area.cells.Admin,
+      },
+    }))
+  }
+
+  const dirtyCells = (): AdminMatrixCell[] => {
+    return (data?.matrix ?? [])
+      .filter((area) => {
+        const draft = adminDraft[area.id]
+        return draft != null && draft !== area.cells.Admin
+      })
+      .map((area) => ({
+        areaId: area.id,
+        level: adminDraft[area.id],
+      }))
+  }
+
+  const isDirty = () => dirtyCells().length > 0
+
+  const continuePendingLeave = () => {
+    if (pendingLeave?.kind === "tab") {
+      activeTabId = resolveTeamPermissionsTabId(
+        pendingLeave.tabId,
+        privacyConsentHasAccess
+      )
+      pendingLeave = null
+    }
+  }
+
+  const persistMatrix = async (): Promise<boolean> => {
+    const cells = dirtyCells()
+    if (cells.length === 0) {
+      return true
+    }
+    busy = true
+    emit()
+    try {
+      await adapters.saveMatrix(cells)
+      if (data != null) {
+        const saved = new Map(cells.map((cell) => [cell.areaId, cell.level]))
+        data = {
+          ...data,
+          matrix: data.matrix.map((area) => {
+            const next = saved.get(area.id)
+            if (next == null) {
+              return area
+            }
+            return {
+              ...area,
+              cells: { ...area.cells, Admin: next },
+            }
+          }),
+        }
+      }
+      adminDraft = {}
+      return true
+    } catch {
+      return false
+    } finally {
+      busy = false
+      emit()
     }
   }
 
@@ -224,6 +328,7 @@ export function createOperatorTeamPermissionsPageModule(
       (row) =>
         row.status === "active" && row.locationScope === "named"
     )
+    const dirty = isDirty()
     return {
       loadStatus,
       activeTabId: resolveTeamPermissionsTabId(
@@ -249,6 +354,13 @@ export function createOperatorTeamPermissionsPageModule(
       filtersOpen,
       dialog,
       busy,
+      matrix: projectedMatrix(),
+      isDirty: dirty,
+      canEditAdminColumn: canEditAdminColumn(),
+      saveEnabled: dirty && canEditAdminColumn() && !busy,
+      leaveDirtyOpen,
+      pendingNavigationHref:
+        pendingLeave?.kind === "href" ? pendingLeave.href : null,
     }
   }
 
@@ -262,6 +374,7 @@ export function createOperatorTeamPermissionsPageModule(
         activeTabId,
         privacyConsentHasAccess
       )
+      adminDraft = {}
       loadStatus = "loaded"
     } catch {
       loadStatus = "error"
@@ -286,10 +399,20 @@ export function createOperatorTeamPermissionsPageModule(
       emit()
     },
     requestTabChange: (tabId) => {
-      activeTabId = resolveTeamPermissionsTabId(
+      const next = resolveTeamPermissionsTabId(
         tabId,
         privacyConsentHasAccess
       )
+      if (next === activeTabId) {
+        return
+      }
+      if (isDirty()) {
+        pendingLeave = { kind: "tab", tabId: next }
+        leaveDirtyOpen = true
+        emit()
+        return
+      }
+      activeTabId = next
       emit()
     },
     setSearchQuery: (query) => {
@@ -502,6 +625,75 @@ export function createOperatorTeamPermissionsPageModule(
           emit()
         }
       }
+    },
+    setAdminCell: (areaId, level) => {
+      if (!canEditAdminColumn()) {
+        return
+      }
+      if (!legalAdminLevels(areaId).includes(level as never)) {
+        return
+      }
+      const persisted = data?.matrix.find((row) => row.id === areaId)
+        ?.cells.Admin
+      if (persisted === level) {
+        const next = { ...adminDraft }
+        delete next[areaId]
+        adminDraft = next
+      } else {
+        adminDraft = { ...adminDraft, [areaId]: level }
+      }
+      emit()
+    },
+    requestSave: async () => {
+      if (!canEditAdminColumn() || busy) {
+        return
+      }
+      await persistMatrix()
+    },
+    requestNavigateAway: (href) => {
+      if (!isDirty()) {
+        return true
+      }
+      pendingLeave = { kind: "href", href }
+      leaveDirtyOpen = true
+      emit()
+      return false
+    },
+    confirmLeaveDirtySave: async () => {
+      if (!leaveDirtyOpen) {
+        return
+      }
+      leaveDirtyOpen = false
+      emit()
+      const ok = await persistMatrix()
+      if (ok) {
+        continuePendingLeave()
+      } else {
+        pendingLeave = null
+      }
+      emit()
+    },
+    confirmLeaveDirtyCancel: async () => {
+      if (!leaveDirtyOpen) {
+        return
+      }
+      leaveDirtyOpen = false
+      adminDraft = {}
+      continuePendingLeave()
+      emit()
+    },
+    closeLeaveDirty: () => {
+      leaveDirtyOpen = false
+      pendingLeave = null
+      emit()
+    },
+    consumePendingNavigation: () => {
+      if (pendingLeave?.kind !== "href") {
+        return null
+      }
+      const href = pendingLeave.href
+      pendingLeave = null
+      return href
     },
   }
 }

@@ -61,6 +61,13 @@ namespace TummlyBackend.Services
 
             var namesById = locations.ToDictionary(row => row.Id, row => row.Name);
 
+            var adminOverrides = await LoadAdminOverridesAsync(restaurantId);
+            var actorLevel = DefaultPermissionMatrix.LevelFor(
+                actorRole,
+                OperatorAreaIds.PrivacyConsent,
+                adminOverrides
+            );
+
             var members = memberships
                 .Select(row => MapMember(
                     row,
@@ -83,10 +90,7 @@ namespace TummlyBackend.Services
                 ActorCanManage = actorCanManage,
                 ActorPermissionRole = actorRole,
                 PrivacyConsentHasAccess = DefaultPermissionMatrix.Meets(
-                    DefaultPermissionMatrix.LevelFor(
-                        actorRole,
-                        OperatorAreaIds.PrivacyConsent
-                    ),
+                    actorLevel,
                     PermissionLevel.View
                 ),
                 IsSingleLocation = locations.Count <= 1,
@@ -103,6 +107,7 @@ namespace TummlyBackend.Services
                 },
                 Locations = locations,
                 Members = members,
+                Matrix = BuildMatrix(adminOverrides),
             };
         }
 
@@ -363,6 +368,95 @@ namespace TummlyBackend.Services
             return null;
         }
 
+        public async Task<string?> UpdateAdminMatrixAsync(
+            int actorUserId,
+            int restaurantId,
+            IReadOnlyList<AdminMatrixCellDto> adminCells
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .FirstOrDefaultAsync(row => row.Id == restaurantId);
+            if (restaurant == null)
+            {
+                return "Restaurant not found.";
+            }
+
+            if (restaurant.OwnerUserId != actorUserId)
+            {
+                return "forbidden";
+            }
+
+            var parsed = new List<(string AreaId, PermissionLevel Level)>();
+            foreach (var cell in adminCells)
+            {
+                if (
+                    !PermissionLevelWire.TryParse(cell.Level, out var level)
+                    || !AdminPermissionRules.IsLegal(cell.AreaId, level)
+                )
+                {
+                    return "That Admin permission value is not allowed.";
+                }
+
+                parsed.Add((cell.AreaId, level));
+            }
+
+            var storedRows = await _context.RestaurantAdminPermissionCells
+                .Where(row => row.RestaurantId == restaurantId)
+                .ToListAsync();
+            var byArea = storedRows.ToDictionary(row => row.AreaId);
+            var overlay = storedRows.ToDictionary(
+                row => row.AreaId,
+                row => row.Level
+            );
+
+            var changed = parsed
+                .GroupBy(cell => cell.AreaId)
+                .Select(group => group.Last())
+                .OrderBy(cell => IndexOfArea(cell.AreaId))
+                .ToList();
+
+            foreach (var (areaId, level) in changed)
+            {
+                var current = DefaultPermissionMatrix.LevelFor(
+                    PermissionRoles.Admin,
+                    areaId,
+                    overlay
+                );
+                if (current == level)
+                {
+                    continue;
+                }
+
+                if (byArea.TryGetValue(areaId, out var stored))
+                {
+                    stored.Level = level;
+                }
+                else
+                {
+                    var created = new RestaurantAdminPermissionCell
+                    {
+                        RestaurantId = restaurantId,
+                        AreaId = areaId,
+                        Level = level,
+                    };
+                    _context.RestaurantAdminPermissionCells.Add(created);
+                    byArea[areaId] = created;
+                }
+
+                overlay[areaId] = level;
+                AddMatrixActivity(
+                    restaurantId,
+                    actorUserId,
+                    areaId,
+                    current,
+                    level
+                );
+            }
+
+            await _context.SaveChangesAsync();
+            return null;
+        }
+
         private async Task<(
             RestaurantMembership? Target,
             Restaurant? Restaurant,
@@ -516,6 +610,76 @@ namespace TummlyBackend.Services
             {
                 restaurant.SupportContactUserId = restaurant.OwnerUserId;
             }
+        }
+
+        private async Task<
+            IReadOnlyDictionary<string, PermissionLevel>
+        > LoadAdminOverridesAsync(int restaurantId)
+        {
+            return await _context.RestaurantAdminPermissionCells
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurantId)
+                .ToDictionaryAsync(row => row.AreaId, row => row.Level);
+        }
+
+        private static List<PermissionMatrixAreaDto> BuildMatrix(
+            IReadOnlyDictionary<string, PermissionLevel> adminOverrides
+        )
+        {
+            return OperatorAreaIds.All
+                .Select(areaId => new PermissionMatrixAreaDto
+                {
+                    Id = areaId,
+                    Label = OperatorAreaLabels.For(areaId),
+                    Cells = DefaultPermissionMatrix.ColumnRoles.ToDictionary(
+                        role => role,
+                        role => PermissionLevelWire.Format(
+                            DefaultPermissionMatrix.LevelFor(
+                                role,
+                                areaId,
+                                adminOverrides
+                            )
+                        )
+                    ),
+                })
+                .ToList();
+        }
+
+        private static int IndexOfArea(string areaId)
+        {
+            var index = 0;
+            foreach (var id in OperatorAreaIds.All)
+            {
+                if (id == areaId)
+                {
+                    return index;
+                }
+
+                index++;
+            }
+
+            return int.MaxValue;
+        }
+
+        private void AddMatrixActivity(
+            int restaurantId,
+            int actorUserId,
+            string areaId,
+            PermissionLevel from,
+            PermissionLevel to
+        )
+        {
+            _context.RestaurantAccessActivities.Add(
+                new RestaurantAccessActivity
+                {
+                    RestaurantId = restaurantId,
+                    ActorUserId = actorUserId,
+                    Kind = AccessActivityKinds.PermissionCellChanged,
+                    FromValue = $"{areaId}:{PermissionLevelWire.Format(from)}",
+                    ToValue = $"{areaId}:{PermissionLevelWire.Format(to)}",
+                    OccurredAt = DateTime.UtcNow,
+                }
+            );
         }
 
         private void AddActivity(

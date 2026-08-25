@@ -48,5 +48,11 @@ namespace TummlyBackend.Interfaces
             bool actorCanManage,
             int membershipId
         );
+
+        Task<string?> UpdateAdminMatrixAsync(
+            int actorUserId,
+            int restaurantId,
+            IReadOnlyList<AdminMatrixCellDto> adminCells
+        );
     }
 }

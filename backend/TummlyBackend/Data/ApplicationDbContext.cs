@@ -42,6 +42,9 @@ namespace TummlyBackend.Data
         public DbSet<RestaurantAccessActivity> RestaurantAccessActivities
         { get; set; }
 
+        public DbSet<RestaurantAdminPermissionCell> RestaurantAdminPermissionCells
+        { get; set; }
+
         public DbSet<RestaurantBusinessDetails> RestaurantBusinessDetails
         { get; set; }
 
@@ -327,6 +330,20 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<RestaurantAccessActivity>()
                 .Property(row => row.Kind)
+                .HasMaxLength(40);
+
+            modelBuilder.Entity<RestaurantAdminPermissionCell>()
+                .HasOne(row => row.Restaurant)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RestaurantAdminPermissionCell>()
+                .HasIndex(row => new { row.RestaurantId, row.AreaId })
+                .IsUnique();
+
+            modelBuilder.Entity<RestaurantAdminPermissionCell>()
+                .Property(row => row.AreaId)
                 .HasMaxLength(40);
 
             modelBuilder.Entity<Restaurant>()

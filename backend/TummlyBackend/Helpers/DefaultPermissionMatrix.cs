@@ -130,8 +130,33 @@ namespace TummlyBackend.Helpers
             },
         };
 
-        public static PermissionLevel LevelFor(string permissionRole, string areaId)
+        public static readonly IReadOnlyList<string> ColumnRoles =
+        [
+            PermissionRoles.Owner,
+            PermissionRoles.Admin,
+            PermissionRoles.AreaManager,
+            PermissionRoles.LocationManager,
+            PermissionRoles.Marketing,
+            PermissionRoles.Staff,
+            PermissionRoles.BillingAdmin,
+            PermissionRoles.ReportingOnly,
+        ];
+
+        public static PermissionLevel LevelFor(
+            string permissionRole,
+            string areaId,
+            IReadOnlyDictionary<string, PermissionLevel>? adminOverrides = null
+        )
         {
+            if (
+                permissionRole == PermissionRoles.Admin
+                && adminOverrides != null
+                && adminOverrides.TryGetValue(areaId, out var overlay)
+            )
+            {
+                return overlay;
+            }
+
             if (
                 Cells.TryGetValue(permissionRole, out var row)
                 && row.TryGetValue(areaId, out var level)
