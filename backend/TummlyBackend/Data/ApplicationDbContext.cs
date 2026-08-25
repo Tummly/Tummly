@@ -390,7 +390,9 @@ namespace TummlyBackend.Data
                 .HasOne(r => r.WorkspaceStatusChangedByUser)
                 .WithMany()
                 .HasForeignKey(r => r.WorkspaceStatusChangedByUserId)
-                .OnDelete(DeleteBehavior.SetNull);
+                // NoAction: SQL Server rejects SET NULL alongside OwnerUser
+                // CASCADE (error 1785, multiple cascade paths).
+                .OnDelete(DeleteBehavior.NoAction);
 
             /*
              =========================================

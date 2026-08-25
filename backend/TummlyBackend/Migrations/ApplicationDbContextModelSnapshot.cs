@@ -3588,7 +3588,7 @@ namespace TummlyBackend.Migrations
                     b.HasOne("TummlyBackend.Models.User", "WorkspaceStatusChangedByUser")
                         .WithMany()
                         .HasForeignKey("WorkspaceStatusChangedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("BillingContactUser");
 
