@@ -339,8 +339,10 @@ export function createOperatorTeamPermissionsPageModule(
   let auditLogTotalCount = 0
   const listeners = new Set<() => void>()
   const getNow = options.getNow ?? (() => new Date())
+  let snapshot: TeamPermissionsSnapshot
 
   const emit = () => {
+    snapshot = projectSnapshot()
     for (const listener of listeners) {
       listener()
     }
@@ -431,7 +433,7 @@ export function createOperatorTeamPermissionsPageModule(
     }).map((id) => ({ id, label: TAB_LABELS[id] }))
   }
 
-  const getSnapshot = (): TeamPermissionsSnapshot => {
+  const projectSnapshot = (): TeamPermissionsSnapshot => {
     const members = data?.members ?? []
     const isSingleLocation = data?.isSingleLocation ?? true
     const schema = teamPermissionsFilterSheetSchema({
@@ -492,6 +494,8 @@ export function createOperatorTeamPermissionsPageModule(
       auditLogHasPrevious: auditLogPage > 1,
     }
   }
+
+  snapshot = projectSnapshot()
 
   const mapRows = (items: AccessActivityItem[]): AccessActivityViewRow[] => {
     const now = getNow()
@@ -580,7 +584,7 @@ export function createOperatorTeamPermissionsPageModule(
         listeners.delete(listener)
       }
     },
-    getSnapshot,
+    getSnapshot: () => snapshot,
     load: reload,
     setActiveTabFromUrl: (raw) => {
       activeTabId = resolveTeamPermissionsTabId(raw, privacyConsentHasAccess)

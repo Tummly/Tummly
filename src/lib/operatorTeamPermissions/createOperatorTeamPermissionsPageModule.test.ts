@@ -113,6 +113,11 @@ describe("resolveTeamPermissionsTabId", () => {
 })
 
 describe("createOperatorTeamPermissionsPageModule", () => {
+  it("returns the same snapshot object until emit", () => {
+    const module = createOperatorTeamPermissionsPageModule(adapters())
+    expect(module.getSnapshot()).toBe(module.getSnapshot())
+  })
+
   it("hides the Invite action when the actor cannot Manage", async () => {
     const api = adapters({
       getPage: vi.fn(async () => page({ actorCanManage: false })),
