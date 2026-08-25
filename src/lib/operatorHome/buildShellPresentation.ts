@@ -28,6 +28,7 @@ export type BuildOperatorShellPresentationInput = {
   brandLogoPublicUrl?: string | null
   activeNavId?: OperatorSidebarActiveId
   navTargets?: OperatorSidebarNavTargets
+  hideTeamPermissions?: boolean
 }
 
 /**
@@ -59,7 +60,9 @@ export function buildOperatorShellPresentation(
     profileInitials: getOperatorInitials(input.operatorDisplayName),
     profileSelfRoleSubtitle: formatSelfRoleSubtitle(input.selfRole ?? null),
     omittedNavbarControls: [...OMITTED_NAVBAR_CONTROLS],
-    sidebarNav: getOperatorSidebarNav(activeNavId, input.navTargets),
+    sidebarNav: getOperatorSidebarNav(activeNavId, input.navTargets, {
+      hideTeamPermissions: input.hideTeamPermissions,
+    }),
     locationSwitcher: {
       interactive: input.locationSwitcherInteractive,
       selectedLocationId: selected?.id ?? input.selectedLocationId,

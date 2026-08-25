@@ -284,6 +284,8 @@ function DashboardContent({ mode }: DashboardProps) {
       mode,
       locationId: selectedLocationId,
     },
+    hideTeamPermissions:
+      workspace.snapshot.teamPermissionsAccess === "none",
   })
 
   return (

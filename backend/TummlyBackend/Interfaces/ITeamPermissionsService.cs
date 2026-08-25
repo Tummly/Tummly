@@ -1,0 +1,52 @@
+using TummlyBackend.DTOs.TeamPermissions;
+
+namespace TummlyBackend.Interfaces
+{
+    public interface ITeamPermissionsService
+    {
+        Task<TeamPermissionsPageDto?> GetPageAsync(
+            int actorUserId,
+            int restaurantId,
+            bool actorCanManage
+        );
+
+        Task<string?> UpdateRoleAsync(
+            int actorUserId,
+            int restaurantId,
+            bool actorCanManage,
+            int membershipId,
+            string permissionRole
+        );
+
+        Task<string?> UpdateLocationScopeAsync(
+            int actorUserId,
+            int restaurantId,
+            bool actorCanManage,
+            int membershipId,
+            IReadOnlyList<int> allowedLocationIds,
+            string locationScope,
+            int[] namedLocationIds
+        );
+
+        Task<string?> DeactivateAsync(
+            int actorUserId,
+            int restaurantId,
+            bool actorCanManage,
+            int membershipId
+        );
+
+        Task<string?> ReactivateAsync(
+            int actorUserId,
+            int restaurantId,
+            bool actorCanManage,
+            int membershipId
+        );
+
+        Task<string?> RemoveAsync(
+            int actorUserId,
+            int restaurantId,
+            bool actorCanManage,
+            int membershipId
+        );
+    }
+}

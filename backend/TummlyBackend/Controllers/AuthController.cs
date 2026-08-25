@@ -24,17 +24,21 @@ namespace TummlyBackend.Controllers
 
         private readonly IWebHostEnvironment _environment;
 
+        private readonly IRestaurantPermissionHelper _permissions;
+
         public AuthController(
             IAuthService authService,
             IProvisioningService provisioningService,
             ApplicationDbContext context,
-            IWebHostEnvironment environment
+            IWebHostEnvironment environment,
+            IRestaurantPermissionHelper permissions
         )
         {
             _authService = authService;
             _provisioningService = provisioningService;
             _context = context;
             _environment = environment;
+            _permissions = permissions;
         }
 
         /*
@@ -294,6 +298,25 @@ namespace TummlyBackend.Controllers
              =========================================
             */
 
+            var teamPermissionsAccess = "none";
+            var viewTeam = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.TeamPermissions,
+                PermissionLevel.View
+            );
+            if (viewTeam.Status == RestaurantPermissionStatus.Allowed)
+            {
+                var manageTeam = await _permissions.AuthorizeAsync(
+                    User,
+                    OperatorAreaIds.TeamPermissions,
+                    PermissionLevel.Manage
+                );
+                teamPermissionsAccess =
+                    manageTeam.Status == RestaurantPermissionStatus.Allowed
+                        ? "manage"
+                        : "view";
+            }
+
             return Ok(new
             {
                 success = true,
@@ -306,6 +329,7 @@ namespace TummlyBackend.Controllers
                     user.Role,
                     user.AccountType,
                     selfRole,
+                    teamPermissionsAccess,
                     workspaceSetupRequired =
                         routing.WorkspaceSetupRequired,
                     selectedLocationId = routing.SelectedLocationId,

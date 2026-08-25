@@ -220,7 +220,7 @@ describe("getOperatorSidebarNav", () => {
       to: undefined,
     })
     for (const child of nav.settings.children.filter(
-      (c) => c.id !== "account-workspace"
+      (c) => c.id !== "account-workspace" && c.id !== "team-permissions"
     )) {
       expect(child.navigable).toBe(false)
       expect(child.active).toBe(false)
@@ -243,11 +243,38 @@ describe("getOperatorSidebarNav", () => {
     })
     expect(nav.settings.forceExpanded).toBe(true)
     for (const child of nav.settings.children.filter(
-      (c) => c.id !== "account-workspace"
+      (c) => c.id !== "account-workspace" && c.id !== "team-permissions"
     )) {
       expect(child.navigable).toBe(false)
       expect(child.to).toBeUndefined()
     }
+  })
+
+  it("makes Team & permissions navigable when nav targets are provided", () => {
+    const nav = getOperatorSidebarNav("team-permissions", {
+      mode: "single",
+      locationId: 10,
+    })
+
+    expect(
+      nav.settings.children.find((c) => c.id === "team-permissions")
+    ).toMatchObject({
+      label: "Team & permissions",
+      navigable: true,
+      active: true,
+      to: "/single-dashboard/settings/team-permissions?location=10",
+    })
+  })
+
+  it("hides Team & permissions when the actor has No access", () => {
+    const nav = getOperatorSidebarNav("home", {
+      mode: "single",
+      locationId: 10,
+    }, { hideTeamPermissions: true })
+
+    expect(
+      nav.settings.children.find((c) => c.id === "team-permissions")
+    ).toBeUndefined()
   })
 
   it("models Tummly Shop as non-navigable footer chrome", () => {

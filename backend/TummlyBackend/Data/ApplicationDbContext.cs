@@ -39,6 +39,9 @@ namespace TummlyBackend.Data
 
         public DbSet<RestaurantMembership> RestaurantMemberships { get; set; }
 
+        public DbSet<RestaurantAccessActivity> RestaurantAccessActivities
+        { get; set; }
+
         public DbSet<RestaurantBusinessDetails> RestaurantBusinessDetails
         { get; set; }
 
@@ -315,6 +318,16 @@ namespace TummlyBackend.Data
                 .WithMany()
                 .HasForeignKey(m => m.RestaurantId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RestaurantAccessActivity>()
+                .HasOne(row => row.Restaurant)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RestaurantAccessActivity>()
+                .Property(row => row.Kind)
+                .HasMaxLength(40);
 
             modelBuilder.Entity<Restaurant>()
                 .HasOne(r => r.BillingContactUser)

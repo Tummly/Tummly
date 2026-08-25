@@ -117,10 +117,15 @@ export type OperatorSidebarNavTargets = {
   locationId: number;
 };
 
+export type OperatorSidebarNavOptions = {
+  hideTeamPermissions?: boolean;
+};
+
 /** Sidebar chrome for Operator Dashboard — navigable primary destinations. */
 export function getOperatorSidebarNav(
   activeId: OperatorSidebarActiveId = "home",
   navTargets?: OperatorSidebarNavTargets,
+  options?: OperatorSidebarNavOptions,
 ): OperatorSidebarNavModel {
   const primary = OPERATOR_SIDEBAR_PRIMARY_NAV.map((item) => ({
     id: item.id,
@@ -137,7 +142,12 @@ export function getOperatorSidebarNav(
         : undefined,
   }));
 
-  const children = OPERATOR_SIDEBAR_SETTINGS_CHILDREN.map((item) => ({
+  const children = OPERATOR_SIDEBAR_SETTINGS_CHILDREN.filter((item) => {
+    if (item.id === "team-permissions" && options?.hideTeamPermissions) {
+      return false
+    }
+    return true
+  }).map((item) => ({
     id: item.id,
     label: item.label,
     navigable: isNavigableOperatorSidebarSettingsChildId(item.id),

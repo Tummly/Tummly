@@ -1,5 +1,5 @@
 import { resolveInitialLocationId } from "@/lib/operatorHome/buildHomeViewModel"
-import { parseOperatorProfile } from "@/lib/operatorHome/parseOperatorProfile"
+import { parseOperatorProfile, type TeamPermissionsAccess } from "@/lib/operatorHome/parseOperatorProfile"
 import type { LocationItem, LocationsResponse } from "@/types/dashboard"
 
 export type OperatorWorkspaceMode = "single" | "multi"
@@ -14,6 +14,7 @@ export type OperatorWorkspaceSnapshot = {
   operatorDisplayName: string
   activationExpiresAt: string | null
   selfRole: string | null
+  teamPermissionsAccess: TeamPermissionsAccess
   locationSwitcherInteractive: boolean
 }
 
@@ -52,6 +53,7 @@ type WorkspaceAction =
       operatorDisplayName: string
       activationExpiresAt: string | null
       selfRole: string | null
+      teamPermissionsAccess: TeamPermissionsAccess
       queryLocationId: number | null
     }
   | { type: "load_failed" }
@@ -91,6 +93,7 @@ function reduce(
         operatorDisplayName: action.operatorDisplayName,
         activationExpiresAt: action.activationExpiresAt,
         selfRole: action.selfRole,
+        teamPermissionsAccess: action.teamPermissionsAccess,
         lastQueryLocationId: action.queryLocationId,
       }
     case "load_failed":
@@ -124,6 +127,7 @@ export function createOperatorWorkspaceSession(
     operatorDisplayName: "Operator",
     activationExpiresAt: null,
     selfRole: null,
+    teamPermissionsAccess: "none",
     locationSwitcherInteractive: config.mode === "multi",
     lastQueryLocationId: null,
   }
@@ -138,6 +142,7 @@ export function createOperatorWorkspaceSession(
     operatorDisplayName: state.operatorDisplayName,
     activationExpiresAt: state.activationExpiresAt,
     selfRole: state.selfRole,
+    teamPermissionsAccess: state.teamPermissionsAccess,
     locationSwitcherInteractive: state.locationSwitcherInteractive,
   }
 
@@ -160,6 +165,7 @@ export function createOperatorWorkspaceSession(
       operatorDisplayName: state.operatorDisplayName,
       activationExpiresAt: state.activationExpiresAt,
       selfRole: state.selfRole,
+      teamPermissionsAccess: state.teamPermissionsAccess,
       locationSwitcherInteractive: state.locationSwitcherInteractive,
     }
     emit()
@@ -211,6 +217,7 @@ export function createOperatorWorkspaceSession(
         operatorDisplayName: profile?.fullName ?? "Operator",
         activationExpiresAt: profile?.activationExpiresAt ?? null,
         selfRole: profile?.selfRole ?? null,
+        teamPermissionsAccess: profile?.teamPermissionsAccess ?? "none",
         queryLocationId,
       })
     } catch {
