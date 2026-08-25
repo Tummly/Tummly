@@ -35,7 +35,7 @@ namespace TummlyBackend.Services
             GuestDataExportResult? Result,
             string? Error,
             int StatusCode
-        )> ExportAsync(int actorUserId, string? format)
+        )>             ExportAsync(int restaurantId, string? format)
         {
             string normalizedFormat;
             try
@@ -53,7 +53,7 @@ namespace TummlyBackend.Services
 
             var restaurant = await _context.Restaurants
                 .AsNoTracking()
-                .FirstOrDefaultAsync(r => r.OwnerUserId == actorUserId);
+                .FirstOrDefaultAsync(r => r.Id == restaurantId);
 
             if (restaurant == null)
             {

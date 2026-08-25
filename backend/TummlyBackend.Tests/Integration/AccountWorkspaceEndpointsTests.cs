@@ -956,7 +956,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task PostPause_Returns404_WhenCallerHasNoOwnedRestaurant()
+        public async Task PostPause_Returns403_WhenCallerHasNoOwnedRestaurant()
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -994,7 +994,7 @@ namespace TummlyBackend.Tests.Integration
 
             var response = await _client.SendAsync(request);
 
-            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
         private HttpClient CreateClientWithStorage(

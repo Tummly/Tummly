@@ -11,37 +11,41 @@ namespace TummlyBackend.Interfaces
 
         Task<(AccountWorkspaceDetailsDto? Details, string? Error, int StatusCode)>
             UpdateAccountDetailsAsync(
-                int ownerUserId,
+                int actorUserId,
+                int restaurantId,
                 string? name,
                 IFormFile? logo
             );
 
         Task<(AccountWorkspaceDetailsDto? Details, string? Error, int StatusCode)>
             UpdateBusinessDetailsAsync(
-                int ownerUserId,
+                int actorUserId,
+                int restaurantId,
                 UpdateBusinessDetailsRequest request
             );
 
         Task<(AccountWorkspaceDetailsDto? Details, string? Error, int StatusCode)>
             UpdateKeyContactsAsync(
-                int ownerUserId,
+                int actorUserId,
+                int restaurantId,
                 UpdateKeyContactsRequest request
             );
 
         Task<(AccountWorkspaceDetailsDto? Details, string? Error, int StatusCode)>
             UpdateWorkspaceDefaultsAsync(
-                int ownerUserId,
+                int actorUserId,
+                int restaurantId,
                 UpdateWorkspaceDefaultsRequest request
             );
 
         Task<(AccountWorkspaceDetailsDto? Details, string? Error, int StatusCode)>
-            PauseWorkspaceAsync(int actorUserId);
+            PauseWorkspaceAsync(int actorUserId, int restaurantId);
 
         Task<(AccountWorkspaceDetailsDto? Details, string? Error, int StatusCode)>
-            ResumeWorkspaceAsync(int actorUserId);
+            ResumeWorkspaceAsync(int actorUserId, int restaurantId);
 
         Task<(Stream Stream, string ContentType)?> OpenBrandLogoAsync(
-            int ownerUserId
+            int restaurantId
         );
 
         Task<(Stream Stream, string ContentType)?> OpenPublicBrandLogoAsync(

@@ -164,6 +164,35 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void SelectType_EmptyAllowedSet_ReturnsNone()
+        {
+            var metrics = Empty() with { OpenFeedbackCount = 3 };
+            var type = HomeRecommendationDomainRouter.SelectType(
+                metrics,
+                new HashSet<string>(StringComparer.Ordinal)
+            );
+            Assert.Equal("none", type);
+        }
+
+        [Fact]
+        public void SelectType_SkipsDisallowedFirstMatch()
+        {
+            var metrics = Empty() with
+            {
+                OpenFeedbackCount = 3,
+                GuestsJoinedInWindow = 1,
+            };
+            var type = HomeRecommendationDomainRouter.SelectType(
+                metrics,
+                new HashSet<string>(StringComparer.Ordinal)
+                {
+                    "thank-or-follow-guest",
+                }
+            );
+            Assert.Equal("thank-or-follow-guest", type);
+        }
+
+        [Fact]
         public void SelectType_NeverEmitsOutsideAllowList()
         {
             var samples = new[]

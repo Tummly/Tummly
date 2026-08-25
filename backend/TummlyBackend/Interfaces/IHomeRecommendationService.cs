@@ -7,6 +7,7 @@ namespace TummlyBackend.Interfaces
         Task<HomeRecommendationServiceResult> RecommendAsync(
             int operatorUserId,
             HomeRecommendationRequest request,
+            IReadOnlySet<string>? allowedTypes = null,
             CancellationToken cancellationToken = default
         );
     }

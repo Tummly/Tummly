@@ -37,12 +37,7 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            var decision = await _permissions.AuthorizeAsync(
-                User,
-                OperatorAreaIds.AccountWorkspace,
-                PermissionLevel.View
-            );
-
+            var decision = await GateRestaurantAsync(PermissionLevel.View);
             var forbidden = decision.ToForbiddenResult();
             if (forbidden != null)
             {
@@ -81,9 +76,17 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
+            var decision = await GateRestaurantAsync(PermissionLevel.Manage);
+            var forbidden = decision.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
             var (details, error, statusCode) =
                 await _accountWorkspace.UpdateAccountDetailsAsync(
                     userId,
+                    decision.RestaurantId,
                     name,
                     logo
                 );
@@ -116,9 +119,17 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
+            var decision = await GateRestaurantAsync(PermissionLevel.Manage);
+            var forbidden = decision.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
             var (details, error, statusCode) =
                 await _accountWorkspace.UpdateBusinessDetailsAsync(
                     userId,
+                    decision.RestaurantId,
                     request
                 );
 
@@ -150,9 +161,17 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
+            var decision = await GateRestaurantAsync(PermissionLevel.Manage);
+            var forbidden = decision.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
             var (details, error, statusCode) =
                 await _accountWorkspace.UpdateKeyContactsAsync(
                     userId,
+                    decision.RestaurantId,
                     request
                 );
 
@@ -184,9 +203,17 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
+            var decision = await GateRestaurantAsync(PermissionLevel.Manage);
+            var forbidden = decision.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
             var (details, error, statusCode) =
                 await _accountWorkspace.UpdateWorkspaceDefaultsAsync(
                     userId,
+                    decision.RestaurantId,
                     request
                 );
 
@@ -216,8 +243,18 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
+            var decision = await GateRestaurantAsync(PermissionLevel.View);
+            var forbidden = decision.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
             var (details, error, statusCode) =
-                await _accountWorkspace.PauseWorkspaceAsync(userId);
+                await _accountWorkspace.PauseWorkspaceAsync(
+                    userId,
+                    decision.RestaurantId
+                );
 
             if (error != null)
             {
@@ -245,8 +282,18 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
+            var decision = await GateRestaurantAsync(PermissionLevel.View);
+            var forbidden = decision.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
             var (details, error, statusCode) =
-                await _accountWorkspace.ResumeWorkspaceAsync(userId);
+                await _accountWorkspace.ResumeWorkspaceAsync(
+                    userId,
+                    decision.RestaurantId
+                );
 
             if (error != null)
             {
@@ -269,15 +316,25 @@ namespace TummlyBackend.Controllers
         )
         {
             var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
+                OperatorAuth.TryRequireUserId(User, out _);
 
             if (unauthorized != null)
             {
                 return unauthorized;
             }
 
+            var decision = await GateRestaurantAsync(PermissionLevel.Manage);
+            var forbidden = decision.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
             var (result, error, statusCode) =
-                await _guestDataExport.ExportAsync(userId, format);
+                await _guestDataExport.ExportAsync(
+                    decision.RestaurantId,
+                    format
+                );
 
             if (error != null)
             {
@@ -298,14 +355,23 @@ namespace TummlyBackend.Controllers
         public async Task<IActionResult> GetBrandLogo()
         {
             var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
+                OperatorAuth.TryRequireUserId(User, out _);
 
             if (unauthorized != null)
             {
                 return unauthorized;
             }
 
-            var result = await _accountWorkspace.OpenBrandLogoAsync(userId);
+            var decision = await GateRestaurantAsync(PermissionLevel.View);
+            var forbidden = decision.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
+            var result = await _accountWorkspace.OpenBrandLogoAsync(
+                decision.RestaurantId
+            );
 
             if (result == null)
             {
@@ -317,6 +383,17 @@ namespace TummlyBackend.Controllers
             }
 
             return File(result.Value.Stream, result.Value.ContentType);
+        }
+
+        private Task<RestaurantPermissionDecision> GateRestaurantAsync(
+            PermissionLevel minimum
+        )
+        {
+            return _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.AccountWorkspace,
+                minimum
+            );
         }
     }
 }

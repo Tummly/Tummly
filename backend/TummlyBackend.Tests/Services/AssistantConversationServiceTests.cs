@@ -9939,6 +9939,7 @@ namespace TummlyBackend.Tests.Services
             public Task<HomeRecommendationServiceResult> RecommendAsync(
                 int operatorUserId,
                 HomeRecommendationRequest request,
+                IReadOnlySet<string>? allowedTypes = null,
                 CancellationToken cancellationToken = default
             )
             {
