@@ -144,7 +144,7 @@ export function formatAccessActivityCopy(
   const target = row.targetDisplayName ?? ""
   switch (row.kind) {
     case "invitation-sent":
-      return `${actor} invited ${target} as ${row.toValue} (${row.fromValue}).`
+      return `${actor} invited ${target} as ${row.fromValue} (${row.toValue}).`
     case "invitation-resent":
       return `${actor} resent the invitation to ${target}.`
     case "invitation-revoked":

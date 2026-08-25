@@ -48,6 +48,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { teamPermissionsFilterSheetSchema } from "@/lib/operatorTeamPermissions/teamPermissionsFilterSheetSchema"
 import { assignableRolesForActor } from "@/lib/operatorTeamPermissions/permissionRoles"
 import type {
+  AccessActivityViewRow,
   TeamInvitationRow,
   TeamMemberRow,
 } from "@/lib/operatorTeamPermissions/createOperatorTeamPermissionsPageModule"
@@ -886,25 +887,7 @@ function AccessActivityBody({
           </div>
         ) : (
           <>
-            <ul className="m-0 flex list-none flex-col gap-[22px] p-0">
-              {snap.accessActivityPreview.map((row, index) => (
-                <li
-                  key={row.id}
-                  className={
-                    index === 0
-                      ? "flex flex-col gap-2"
-                      : "flex flex-col gap-2 border-t border-op-border-default pt-[22px]"
-                  }
-                >
-                  <p className="m-0 text-sm font-medium text-foreground">
-                    {row.occurredAtLabel}
-                  </p>
-                  <p className="m-0 text-sm font-medium text-op-card-subtitle-color">
-                    {row.sentence}
-                  </p>
-                </li>
-              ))}
-            </ul>
+            <AccessActivityRows rows={snap.accessActivityPreview} />
             <div>
               <Button
                 type="button"
@@ -937,25 +920,10 @@ function AccessActivityBody({
               {copy.accessActivitySheetTitle}
             </SheetTitle>
           </SheetHeader>
-          <ul className="m-0 flex list-none flex-col gap-[22px] overflow-y-auto p-4">
-            {snap.auditLogRows.map((row, index) => (
-              <li
-                key={row.id}
-                className={
-                  index === 0
-                    ? "flex flex-col gap-2"
-                    : "flex flex-col gap-2 border-t border-op-border-default pt-[22px]"
-                }
-              >
-                <p className="m-0 text-sm font-medium text-foreground">
-                  {row.occurredAtLabel}
-                </p>
-                <p className="m-0 text-sm font-medium text-op-card-subtitle-color">
-                  {row.sentence}
-                </p>
-              </li>
-            ))}
-          </ul>
+          <AccessActivityRows
+            rows={snap.auditLogRows}
+            className="overflow-y-auto p-4"
+          />
           {snap.auditLogHasPrevious || snap.auditLogHasNext ? (
             <div className="flex gap-3 p-4">
               <Button
@@ -983,6 +951,41 @@ function AccessActivityBody({
         </SheetContent>
       </Sheet>
     </>
+  )
+}
+
+function AccessActivityRows({
+  rows,
+  className,
+}: {
+  rows: AccessActivityViewRow[]
+  className?: string
+}) {
+  return (
+    <ul
+      className={cn(
+        "m-0 flex list-none flex-col gap-[22px] p-0",
+        className
+      )}
+    >
+      {rows.map((row, index) => (
+        <li
+          key={row.id}
+          className={
+            index === 0
+              ? "flex flex-col gap-2"
+              : "flex flex-col gap-2 border-t border-op-border-default pt-[22px]"
+          }
+        >
+          <p className="m-0 text-sm font-medium text-foreground">
+            {row.occurredAtLabel}
+          </p>
+          <p className="m-0 text-sm font-medium text-op-card-subtitle-color">
+            {row.sentence}
+          </p>
+        </li>
+      ))}
+    </ul>
   )
 }
 

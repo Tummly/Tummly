@@ -196,11 +196,11 @@ namespace TummlyBackend.Tests.Integration
                 .ToArray();
             Assert.Equal(
                 $"{OperatorAreaIds.Locations}:View",
-                cells[1].GetProperty("toValue").GetString()
+                cells[0].GetProperty("toValue").GetString()
             );
             Assert.Equal(
                 $"{OperatorAreaIds.BillingCredits}:Manage",
-                cells[0].GetProperty("toValue").GetString()
+                cells[1].GetProperty("toValue").GetString()
             );
 
             var roleRow = items
@@ -260,6 +260,57 @@ namespace TummlyBackend.Tests.Integration
                 .ToArray();
             Assert.Contains(AccessActivityKinds.MemberDeactivated, kinds);
             Assert.Contains(AccessActivityKinds.MemberRemoved, kinds);
+        }
+
+        [Fact]
+        public async Task Get_ReturnsInvitationAndAcceptSnapshots()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                context.RestaurantAccessActivities.AddRange(
+                    new RestaurantAccessActivity
+                    {
+                        RestaurantId = seeded.RestaurantId,
+                        ActorUserId = seeded.OwnerUserId,
+                        ActorDisplayName = "Owner Fifteen",
+                        TargetDisplayName = "Mark Invitee",
+                        TargetEmail = "mark@example.com",
+                        Kind = AccessActivityKinds.InvitationSent,
+                        FromValue = PermissionRoles.ReportingOnly,
+                        ToValue = "All locations",
+                        OccurredAt = DateTime.UtcNow.AddMinutes(-2),
+                    },
+                    new RestaurantAccessActivity
+                    {
+                        RestaurantId = seeded.RestaurantId,
+                        ActorUserId = 9001,
+                        ActorDisplayName = "Mark Invitee",
+                        TargetUserId = 9001,
+                        TargetDisplayName = "Mark Invitee",
+                        TargetEmail = "mark@example.com",
+                        Kind = AccessActivityKinds.InvitationAccepted,
+                        ToValue = PermissionRoles.ReportingOnly,
+                        OccurredAt = DateTime.UtcNow.AddMinutes(-1),
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/team-permissions/access-activity",
+                seeded.OwnerJwt
+            );
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            var items = body.GetProperty("items").EnumerateArray().ToArray();
+            Assert.Equal(AccessActivityKinds.InvitationAccepted, items[0].GetProperty("kind").GetString());
+            Assert.Equal("Mark Invitee", items[0].GetProperty("actorDisplayName").GetString());
+            Assert.Equal(AccessActivityKinds.InvitationSent, items[1].GetProperty("kind").GetString());
+            Assert.Equal(PermissionRoles.ReportingOnly, items[1].GetProperty("fromValue").GetString());
+            Assert.Equal("All locations", items[1].GetProperty("toValue").GetString());
         }
 
         [Fact]

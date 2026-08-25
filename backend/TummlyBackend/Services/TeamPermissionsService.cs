@@ -151,7 +151,7 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .Where(row => row.RestaurantId == restaurantId)
                 .OrderByDescending(row => row.OccurredAt)
-                .ThenByDescending(row => row.Id);
+                .ThenBy(row => row.Id);
             var total = await query.CountAsync();
             var rows = await query
                 .Skip((safePage - 1) * safeSize)
@@ -483,6 +483,7 @@ namespace TummlyBackend.Services
                 .OrderBy(cell => IndexOfArea(cell.AreaId))
                 .ToList();
 
+            var occurredAt = DateTime.UtcNow;
             foreach (var (areaId, level) in changed)
             {
                 var current = DefaultPermissionMatrix.LevelFor(
@@ -517,7 +518,8 @@ namespace TummlyBackend.Services
                     actorUserId,
                     areaId,
                     current,
-                    level
+                    level,
+                    occurredAt
                 );
             }
 
@@ -639,8 +641,8 @@ namespace TummlyBackend.Services
                 existingUser?.FullName ?? fullName,
                 email,
                 AccessActivityKinds.InvitationSent,
-                MembershipLocationScope.FormatAccessLabel(kind, named, namesById),
-                request.PermissionRole
+                request.PermissionRole,
+                MembershipLocationScope.FormatAccessLabel(kind, named, namesById)
             );
             await _context.SaveChangesAsync();
             await TrySendInvitationEmailAsync(
@@ -1245,7 +1247,8 @@ namespace TummlyBackend.Services
             int actorUserId,
             string areaId,
             PermissionLevel from,
-            PermissionLevel to
+            PermissionLevel to,
+            DateTime occurredAt
         )
         {
             _context.RestaurantAccessActivities.Add(
@@ -1257,7 +1260,7 @@ namespace TummlyBackend.Services
                     Kind = AccessActivityKinds.PermissionCellChanged,
                     FromValue = $"{areaId}:{PermissionLevelWire.Format(from)}",
                     ToValue = $"{areaId}:{PermissionLevelWire.Format(to)}",
-                    OccurredAt = DateTime.UtcNow,
+                    OccurredAt = occurredAt,
                 }
             );
         }

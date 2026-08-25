@@ -38,8 +38,8 @@ describe("formatAccessActivityCopy", () => {
         kind: "invitation-sent",
         actorDisplayName: "Alex Owner",
         targetDisplayName: "Sam Staff",
-        fromValue: "Camden only",
-        toValue: "Staff",
+        fromValue: "Staff",
+        toValue: "Camden only",
       })
     ).toBe("Alex Owner invited Sam Staff as Staff (Camden only).")
   })
