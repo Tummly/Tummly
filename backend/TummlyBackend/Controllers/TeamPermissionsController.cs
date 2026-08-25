@@ -200,6 +200,96 @@ namespace TummlyBackend.Controllers
             return MapWrite(error);
         }
 
+        [HttpPost("invitations")]
+        public async Task<IActionResult> SendInvite(
+            [FromBody] SendTeamInvitationRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.TeamPermissions,
+                PermissionLevel.Manage
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var error = await _teamPermissions.SendInviteAsync(
+                userId,
+                decision.RestaurantId,
+                true,
+                decision.LocationIds,
+                request
+            );
+            return MapWrite(error);
+        }
+
+        [HttpPost("invitations/{invitationId:int}/resend")]
+        public async Task<IActionResult> ResendInvite(int invitationId)
+        {
+            return await MutateInvitationAsync(
+                invitationId,
+                (userId, restaurantId, canManage) =>
+                    _teamPermissions.ResendInviteAsync(
+                        userId,
+                        restaurantId,
+                        canManage,
+                        invitationId
+                    )
+            );
+        }
+
+        [HttpDelete("invitations/{invitationId:int}")]
+        public async Task<IActionResult> RevokeInvite(int invitationId)
+        {
+            return await MutateInvitationAsync(
+                invitationId,
+                (userId, restaurantId, canManage) =>
+                    _teamPermissions.RevokeInviteAsync(
+                        userId,
+                        restaurantId,
+                        canManage,
+                        invitationId
+                    )
+            );
+        }
+
+        private async Task<IActionResult> MutateInvitationAsync(
+            int invitationId,
+            Func<int, int, bool, Task<string?>> write
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.TeamPermissions,
+                PermissionLevel.Manage
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var error = await write(userId, decision.RestaurantId, true);
+            return MapWrite(error);
+        }
+
         private async Task<IActionResult> MutateAsync(
             int membershipId,
             Func<int, int, bool, Task<string?>> write
@@ -246,7 +336,7 @@ namespace TummlyBackend.Controllers
                 };
             }
 
-            if (error is "Restaurant not found." or "Member not found.")
+            if (error is "Restaurant not found." or "Member not found." or "Invitation not found.")
             {
                 return NotFound(new
                 {

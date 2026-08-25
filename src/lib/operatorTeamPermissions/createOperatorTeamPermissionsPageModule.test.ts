@@ -64,6 +64,7 @@ function page(
         },
       },
     ],
+    invitations: [],
     ...overrides,
   }
 }
@@ -79,6 +80,9 @@ function adapters(
     reactivate: vi.fn(async () => undefined),
     remove: vi.fn(async () => undefined),
     saveMatrix: vi.fn(async () => undefined),
+    sendInvite: vi.fn(async () => undefined),
+    resendInvite: vi.fn(async () => undefined),
+    revokeInvite: vi.fn(async () => undefined),
     ...overrides,
   }
 }
@@ -322,5 +326,99 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     expect(module.getSnapshot().pendingNavigationHref).toBeNull()
     expect(module.consumePendingNavigation()).toBeNull()
     expect(module.getSnapshot().isDirty).toBe(true)
+  })
+
+  it("shows inline email error and keeps the invite dialog open", async () => {
+    const sendInvite = vi.fn(async () => {
+      throw new Error("An invitation is already pending for this email.")
+    })
+    const api = adapters({ sendInvite })
+    const module = createOperatorTeamPermissionsPageModule(api)
+    await module.load()
+    module.openInvite()
+    module.setInviteDraft({
+      email: "mark@example.com",
+      fullName: "Mark Invitee",
+      permissionRole: "Reporting Only",
+      locationScope: "all",
+      namedLocationIds: [],
+      message: "",
+    })
+    await module.confirmDialogPrimary()
+    const snap = module.getSnapshot()
+    expect(sendInvite).toHaveBeenCalledTimes(1)
+    expect(snap.dialog.kind).toBe("invite")
+    expect(snap.inviteEmailError).toBe(
+      "An invitation is already pending for this email."
+    )
+    expect(snap.busy).toBe(false)
+  })
+
+  it("ignores a second send while the first send is busy", async () => {
+    let release!: () => void
+    const sendInvite = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve
+        })
+    )
+    const api = adapters({ sendInvite })
+    const module = createOperatorTeamPermissionsPageModule(api)
+    await module.load()
+    module.openInvite()
+    module.setInviteDraft({
+      email: "mark@example.com",
+      fullName: "Mark Invitee",
+      permissionRole: "Reporting Only",
+      locationScope: "all",
+      namedLocationIds: [],
+      message: "",
+    })
+    const first = module.confirmDialogPrimary()
+    expect(module.getSnapshot().busy).toBe(true)
+    await module.confirmDialogPrimary()
+    expect(sendInvite).toHaveBeenCalledTimes(1)
+    release()
+    await first
+    expect(module.getSnapshot().busy).toBe(false)
+    expect(module.getSnapshot().dialog.kind).toBe("none")
+  })
+
+  it("resends and revokes through adapters with a busy lock", async () => {
+    const resendInvite = vi.fn(async () => undefined)
+    const revokeInvite = vi.fn(async () => undefined)
+    const api = adapters({
+      getPage: vi.fn(async () =>
+        page({
+          invitations: [
+            {
+              invitationId: 9,
+              email: "mark@example.com",
+              permissionRole: "Reporting Only",
+              locationAccessLabel: "All locations",
+              invitedBy: "Owner Seventeen",
+              sentLabel: "18 Aug 2026",
+              expiresLabel: "25 Aug 2026",
+              expired: false,
+              actions: ["resend", "revoke"],
+            },
+          ],
+        })
+      ),
+      resendInvite,
+      revokeInvite,
+    })
+    const module = createOperatorTeamPermissionsPageModule(api)
+    await module.load()
+    await module.resendInvite(9)
+    expect(resendInvite).toHaveBeenCalledWith(9)
+    module.openRevoke(9)
+    expect(module.getSnapshot().dialog).toEqual({
+      kind: "revoke",
+      invitationId: 9,
+    })
+    await module.confirmDialogPrimary()
+    expect(revokeInvite).toHaveBeenCalledWith(9)
+    expect(module.getSnapshot().dialog.kind).toBe("none")
   })
 })

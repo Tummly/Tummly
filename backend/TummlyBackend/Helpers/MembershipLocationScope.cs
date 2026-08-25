@@ -23,6 +23,28 @@ namespace TummlyBackend.Helpers
             }
         }
 
+        public static string FormatAccessLabel(
+            LocationScopeKind scope,
+            IReadOnlyList<int> named,
+            IReadOnlyDictionary<int, string> namesById
+        )
+        {
+            if (scope != LocationScopeKind.NamedList)
+            {
+                return "All locations";
+            }
+
+            var names = named
+                .Select(id => namesById.TryGetValue(id, out var name) ? name : $"#{id}")
+                .ToList();
+            if (names.Count == 1)
+            {
+                return $"{names[0]} only";
+            }
+
+            return string.Join(", ", names);
+        }
+
         public static string SerializeNamedIds(IEnumerable<int> ids)
         {
             return JsonSerializer.Serialize(ids.Distinct().OrderBy(id => id).ToArray());

@@ -384,12 +384,18 @@ namespace TummlyBackend.Services
             );
             var adminOverrides = await LoadAdminOverridesAsync(restaurantId.Value);
 
+            var ownerGate = await OwnerGateMessageAsync(
+                restaurantId.Value,
+                userId
+            );
+
             return new RestaurantAccess(
                 restaurantId.Value,
                 membership,
                 locationIds,
                 false,
-                adminOverrides
+                adminOverrides,
+                ownerGate
             );
         }
 
@@ -401,6 +407,44 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .Where(row => row.RestaurantId == restaurantId)
                 .ToDictionaryAsync(row => row.AreaId, row => row.Level);
+        }
+
+        public const string OwnerPendingWaitMessage =
+            "This workspace is waiting for the Account owner to activate.";
+
+        private async Task<string?> OwnerGateMessageAsync(
+            int restaurantId,
+            int actorUserId
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurantId);
+            if (restaurant == null || restaurant.OwnerUserId == actorUserId)
+            {
+                return null;
+            }
+
+            var owner = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
+            if (owner == null)
+            {
+                return null;
+            }
+
+            var subject = ActivationSubject.FromUser(owner);
+            if (ActivationState.RequiresActivation(subject))
+            {
+                return OwnerPendingWaitMessage;
+            }
+
+            if (ActivationState.IsActivationExpired(subject))
+            {
+                return ActivationGate.ActivationExpiredMessage;
+            }
+
+            return null;
         }
 
         private async Task<IReadOnlyList<int>> ListLiveLocationIdsAsync(
@@ -436,6 +480,11 @@ namespace TummlyBackend.Services
             bool denyLocation
         )
         {
+            if (access.OwnerGateMessage != null)
+            {
+                return RestaurantPermissionDecision.DenyWith(access.OwnerGateMessage);
+            }
+
             if (access.EmptyNamedList)
             {
                 return denyLocation
@@ -507,7 +556,8 @@ namespace TummlyBackend.Services
             RestaurantMembership? Membership,
             IReadOnlyList<int> LocationIds,
             bool EmptyNamedList,
-            IReadOnlyDictionary<string, PermissionLevel> AdminOverrides
+            IReadOnlyDictionary<string, PermissionLevel> AdminOverrides,
+            string? OwnerGateMessage = null
         )
         {
             public static RestaurantAccess ForEmptyNamedList(int restaurantId)

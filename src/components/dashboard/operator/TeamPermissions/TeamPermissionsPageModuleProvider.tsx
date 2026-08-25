@@ -12,7 +12,10 @@ import {
   getTeamPermissionsPage,
   reactivateTeamMember,
   removeTeamMember,
+  resendTeamInvitation,
+  revokeTeamInvitation,
   saveTeamPermissionsMatrix,
+  sendTeamInvitation,
   updateTeamMemberLocationScope,
   updateTeamMemberRole,
 } from "@/api/teamPermissionsApi"
@@ -56,6 +59,36 @@ export function TeamPermissionsPageModuleProvider({
         saveMatrix: async (cells) => {
           await saveTeamPermissionsMatrix(cells)
           toast.success("Permission matrix saved.")
+        },
+        sendInvite: async (payload) => {
+          await sendTeamInvitation(payload)
+          toast.success("Invitation sent.")
+        },
+        resendInvite: async (invitationId) => {
+          try {
+            await resendTeamInvitation(invitationId)
+            toast.success("Invitation resent.")
+          } catch (error) {
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Could not resend invitation."
+            )
+            throw error
+          }
+        },
+        revokeInvite: async (invitationId) => {
+          try {
+            await revokeTeamInvitation(invitationId)
+            toast.success("Invitation revoked.")
+          } catch (error) {
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Could not revoke invitation."
+            )
+            throw error
+          }
         },
       },
       { initialTabId }

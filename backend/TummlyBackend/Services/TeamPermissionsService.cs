@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.TeamPermissions;
 using TummlyBackend.Helpers;
+using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -11,14 +12,23 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IRestaurantPermissionHelper _permissions;
+        private readonly IEmailService _email;
+        private readonly IConfiguration _configuration;
+        private readonly ILogger<TeamPermissionsService> _logger;
 
         public TeamPermissionsService(
             ApplicationDbContext context,
-            IRestaurantPermissionHelper permissions
+            IRestaurantPermissionHelper permissions,
+            IEmailService email,
+            IConfiguration configuration,
+            ILogger<TeamPermissionsService> logger
         )
         {
             _context = context;
             _permissions = permissions;
+            _email = email;
+            _configuration = configuration;
+            _logger = logger;
         }
 
         public async Task<TeamPermissionsPageDto?> GetPageAsync(
@@ -62,11 +72,6 @@ namespace TummlyBackend.Services
             var namesById = locations.ToDictionary(row => row.Id, row => row.Name);
 
             var adminOverrides = await LoadAdminOverridesAsync(restaurantId);
-            var actorLevel = DefaultPermissionMatrix.LevelFor(
-                actorRole,
-                OperatorAreaIds.PrivacyConsent,
-                adminOverrides
-            );
 
             var members = memberships
                 .Select(row => MapMember(
@@ -81,6 +86,24 @@ namespace TummlyBackend.Services
                 .ThenBy(row => row.FullName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            var invitations = await _context.TeamInvitations
+                .AsNoTracking()
+                .Include(row => row.InviterUser)
+                .Where(row => row.RestaurantId == restaurantId)
+                .ToListAsync();
+            var now = DateTime.UtcNow;
+            var invitationRows = invitations
+                .Select(row => MapInvitation(
+                    row,
+                    actorRole,
+                    actorCanManage,
+                    namesById,
+                    now
+                ))
+                .OrderByDescending(row => row.Expired ? 1 : 0)
+                .ThenByDescending(row => row.InvitationId)
+                .ToList();
+
             var active = memberships
                 .Where(row => row.Status == MembershipStatus.Active)
                 .ToList();
@@ -90,14 +113,18 @@ namespace TummlyBackend.Services
                 ActorCanManage = actorCanManage,
                 ActorPermissionRole = actorRole,
                 PrivacyConsentHasAccess = DefaultPermissionMatrix.Meets(
-                    actorLevel,
+                    DefaultPermissionMatrix.LevelFor(
+                        actorRole,
+                        OperatorAreaIds.PrivacyConsent,
+                        adminOverrides
+                    ),
                     PermissionLevel.View
                 ),
                 IsSingleLocation = locations.Count <= 1,
                 Stats = new TeamPermissionsStatsDto
                 {
                     ActiveMembers = active.Count,
-                    PendingInvites = 0,
+                    PendingInvites = invitations.Count(row => row.ExpiresAt > now),
                     LocationManagers = active.Count(row =>
                         row.PermissionRole == PermissionRoles.LocationManager
                     ),
@@ -108,6 +135,7 @@ namespace TummlyBackend.Services
                 Locations = locations,
                 Members = members,
                 Matrix = BuildMatrix(adminOverrides),
+                Invitations = invitationRows,
             };
         }
 
@@ -457,6 +485,481 @@ namespace TummlyBackend.Services
             return null;
         }
 
+        public async Task<string?> SendInviteAsync(
+            int actorUserId,
+            int restaurantId,
+            bool actorCanManage,
+            IReadOnlyList<int> allowedLocationIds,
+            SendTeamInvitationRequest request
+        )
+        {
+            var email = (request.Email ?? string.Empty).Trim();
+            var fullName = (request.FullName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
+            {
+                return "Enter a valid email address.";
+            }
+
+            if (string.IsNullOrWhiteSpace(fullName))
+            {
+                return "Full name is required.";
+            }
+
+            var loaded = await LoadInviteActorAsync(
+                actorUserId,
+                restaurantId,
+                actorCanManage,
+                request.PermissionRole
+            );
+            if (loaded.Error != null)
+            {
+                return loaded.Error;
+            }
+
+            var kind = request.LocationScope == "named"
+                ? LocationScopeKind.NamedList
+                : LocationScopeKind.AllLocations;
+            var named = (request.NamedLocationIds ?? []).Distinct().ToArray();
+            if (loaded.IsSingleLocation)
+            {
+                if (
+                    request.PermissionRole == PermissionRoles.AreaManager
+                    || request.PermissionRole == PermissionRoles.LocationManager
+                )
+                {
+                    kind = LocationScopeKind.NamedList;
+                    named = [loaded.Locations[0].Id];
+                }
+                else
+                {
+                    kind = LocationScopeKind.AllLocations;
+                    named = [];
+                }
+            }
+
+            var scopeError = MembershipLocationScope.Validate(
+                request.PermissionRole,
+                kind,
+                named
+            );
+            if (scopeError != null)
+            {
+                return scopeError;
+            }
+
+            if (kind == LocationScopeKind.NamedList)
+            {
+                var namedDecision =
+                    await _permissions.AuthorizeNamedLocationIdsAsync(
+                        allowedLocationIds,
+                        named
+                    );
+                if (namedDecision.Status != RestaurantPermissionStatus.Allowed)
+                {
+                    return namedDecision.Message;
+                }
+            }
+
+            var deny = await DenySendEmailAsync(
+                restaurantId,
+                loaded.Restaurant!,
+                email
+            );
+            if (deny != null)
+            {
+                return deny;
+            }
+
+            var existingUser = await FindUserByEmailAsync(email);
+            var invite = new TeamInvitation
+            {
+                RestaurantId = restaurantId,
+                Email = email,
+                FullName = fullName,
+                PermissionRole = request.PermissionRole,
+                LocationScope = kind,
+                NamedLocationIdsJson = kind == LocationScopeKind.NamedList
+                    ? MembershipLocationScope.SerializeNamedIds(named)
+                    : "[]",
+                Message = string.IsNullOrWhiteSpace(request.Message)
+                    ? null
+                    : request.Message.Trim(),
+                InviterUserId = actorUserId,
+                SentAt = DateTime.UtcNow,
+                ExpiresAt = DateTime.UtcNow.AddDays(TeamInvitation.LifetimeDays),
+                OpaqueReference = TeamInvitationReference.Create(),
+            };
+            _context.TeamInvitations.Add(invite);
+            AddInvitationActivity(
+                restaurantId,
+                actorUserId,
+                loaded.ActorName,
+                existingUser?.Id,
+                existingUser?.FullName ?? fullName,
+                email,
+                AccessActivityKinds.InvitationSent,
+                null,
+                request.PermissionRole
+            );
+            await _context.SaveChangesAsync();
+            await TrySendInvitationEmailAsync(
+                invite,
+                loaded.Restaurant!.Name,
+                loaded.ActorName,
+                existingUser?.FullName,
+                loaded.Locations
+            );
+            return null;
+        }
+
+        public async Task<string?> ResendInviteAsync(
+            int actorUserId,
+            int restaurantId,
+            bool actorCanManage,
+            int invitationId
+        )
+        {
+            var loaded = await LoadInvitationAsync(
+                actorUserId,
+                restaurantId,
+                actorCanManage,
+                invitationId
+            );
+            if (loaded.Error != null)
+            {
+                return loaded.Error;
+            }
+
+            var invite = loaded.Invite!;
+            invite.OpaqueReference = TeamInvitationReference.Create();
+            invite.SentAt = DateTime.UtcNow;
+            invite.ExpiresAt = DateTime.UtcNow.AddDays(TeamInvitation.LifetimeDays);
+            invite.PendingPasswordHash = null;
+            var existingUser = await FindUserByEmailAsync(invite.Email);
+            AddInvitationActivity(
+                restaurantId,
+                actorUserId,
+                loaded.ActorName,
+                existingUser?.Id,
+                existingUser?.FullName ?? invite.FullName,
+                invite.Email,
+                AccessActivityKinds.InvitationResent,
+                null,
+                invite.PermissionRole
+            );
+            await _context.SaveChangesAsync();
+            await TrySendInvitationEmailAsync(
+                invite,
+                loaded.Restaurant!.Name,
+                loaded.ActorName,
+                existingUser?.FullName,
+                loaded.Locations
+            );
+            return null;
+        }
+
+        public async Task<string?> RevokeInviteAsync(
+            int actorUserId,
+            int restaurantId,
+            bool actorCanManage,
+            int invitationId
+        )
+        {
+            var loaded = await LoadInvitationAsync(
+                actorUserId,
+                restaurantId,
+                actorCanManage,
+                invitationId
+            );
+            if (loaded.Error != null)
+            {
+                return loaded.Error;
+            }
+
+            var invite = loaded.Invite!;
+            var existingUser = await FindUserByEmailAsync(invite.Email);
+            AddInvitationActivity(
+                restaurantId,
+                actorUserId,
+                loaded.ActorName,
+                existingUser?.Id,
+                existingUser?.FullName ?? invite.FullName,
+                invite.Email,
+                AccessActivityKinds.InvitationRevoked,
+                invite.PermissionRole,
+                null
+            );
+            _context.TeamInvitations.Remove(invite);
+            await _context.SaveChangesAsync();
+            return null;
+        }
+
+        private async Task<(
+            Restaurant? Restaurant,
+            string ActorRole,
+            string ActorName,
+            bool IsSingleLocation,
+            List<TeamPermissionsLocationDto> Locations,
+            string? Error
+        )> LoadInviteActorAsync(
+            int actorUserId,
+            int restaurantId,
+            bool actorCanManage,
+            string inviteRole
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .FirstOrDefaultAsync(row => row.Id == restaurantId);
+            if (restaurant == null)
+            {
+                return (null, PermissionRoles.Owner, "", false, [], "Restaurant not found.");
+            }
+
+            var actor = await _context.Users.FirstAsync(row => row.Id == actorUserId);
+            var actorMembership = await ActorMembershipAsync(actorUserId, restaurantId);
+            var actorRole = actorMembership?.PermissionRole ?? PermissionRoles.Owner;
+            if (!TeamPermissionsActor.MayInvite(actorRole, actorCanManage, inviteRole))
+            {
+                return (restaurant, actorRole, actor.FullName, false, [], "forbidden");
+            }
+
+            var locations = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurantId)
+                .OrderBy(row => row.Id)
+                .Select(row => new TeamPermissionsLocationDto
+                {
+                    Id = row.Id,
+                    Name = row.LocationName,
+                })
+                .ToListAsync();
+            return (
+                restaurant,
+                actorRole,
+                actor.FullName,
+                locations.Count <= 1,
+                locations,
+                null
+            );
+        }
+
+        private async Task<(
+            TeamInvitation? Invite,
+            Restaurant? Restaurant,
+            string ActorName,
+            List<TeamPermissionsLocationDto> Locations,
+            string? Error
+        )> LoadInvitationAsync(
+            int actorUserId,
+            int restaurantId,
+            bool actorCanManage,
+            int invitationId
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .FirstOrDefaultAsync(row => row.Id == restaurantId);
+            if (restaurant == null)
+            {
+                return (null, null, "", [], "Restaurant not found.");
+            }
+
+            var actor = await _context.Users.FirstAsync(row => row.Id == actorUserId);
+            var actorMembership = await ActorMembershipAsync(actorUserId, restaurantId);
+            var actorRole = actorMembership?.PermissionRole ?? PermissionRoles.Owner;
+            var invite = await _context.TeamInvitations
+                .FirstOrDefaultAsync(row =>
+                    row.Id == invitationId && row.RestaurantId == restaurantId
+                );
+            if (invite == null)
+            {
+                return (null, restaurant, actor.FullName, [], "Invitation not found.");
+            }
+
+            if (
+                !TeamPermissionsActor.MayInvite(
+                    actorRole,
+                    actorCanManage,
+                    invite.PermissionRole
+                )
+            )
+            {
+                return (null, restaurant, actor.FullName, [], "forbidden");
+            }
+
+            var locations = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurantId)
+                .OrderBy(row => row.Id)
+                .Select(row => new TeamPermissionsLocationDto
+                {
+                    Id = row.Id,
+                    Name = row.LocationName,
+                })
+                .ToListAsync();
+            return (invite, restaurant, actor.FullName, locations, null);
+        }
+
+        private async Task<string?> DenySendEmailAsync(
+            int restaurantId,
+            Restaurant restaurant,
+            string email
+        )
+        {
+            var lower = email.ToLowerInvariant();
+            var owner = await _context.Users.FirstAsync(
+                row => row.Id == restaurant.OwnerUserId
+            );
+            if (owner.Email.ToLower() == lower)
+            {
+                return "You cannot invite the Account owner.";
+            }
+
+            var staff = await _context.Admins.AnyAsync(row =>
+                row.Email.ToLower() == lower
+                && (row.Role == "Admin" || row.Role == "Support")
+            );
+            var staffUser = await _context.Users.AnyAsync(row =>
+                row.Email.ToLower() == lower
+                && (row.Role == "Admin" || row.Role == "Support")
+            );
+            if (staff || staffUser)
+            {
+                return "This email belongs to Tummly staff.";
+            }
+
+            var openTrial = await _context.TrialRequests.AnyAsync(row =>
+                row.Email.ToLower() == lower && !row.IsAccountCreated
+            );
+            if (openTrial)
+            {
+                return "This email has an open trial request.";
+            }
+
+            var membership = await _context.RestaurantMemberships
+                .Include(row => row.User)
+                .FirstOrDefaultAsync(row =>
+                    row.RestaurantId == restaurantId
+                    && row.User.Email.ToLower() == lower
+                );
+            if (membership != null)
+            {
+                return membership.Status == MembershipStatus.Deactivated
+                    ? "This person is deactivated. Reactivate them instead of inviting."
+                    : "This email is already a member of this workspace.";
+            }
+
+            var pending = await _context.TeamInvitations.AnyAsync(row =>
+                row.RestaurantId == restaurantId && row.Email.ToLower() == lower
+            );
+            if (pending)
+            {
+                return "An invitation is already pending for this email.";
+            }
+
+            return null;
+        }
+
+        private async Task<User?> FindUserByEmailAsync(string email)
+        {
+            var lower = email.ToLowerInvariant();
+            return await _context.Users.FirstOrDefaultAsync(row =>
+                row.Email.ToLower() == lower
+            );
+        }
+
+        private async Task TrySendInvitationEmailAsync(
+            TeamInvitation invite,
+            string workspaceName,
+            string inviterName,
+            string? existingUserName,
+            IReadOnlyList<TeamPermissionsLocationDto> locations
+        )
+        {
+            var namesById = locations.ToDictionary(row => row.Id, row => row.Name);
+            var named = MembershipLocationScope.ParseNamedIds(
+                invite.NamedLocationIdsJson
+            );
+            var locationScope = MembershipLocationScope.FormatAccessLabel(
+                invite.LocationScope,
+                named,
+                namesById
+            );
+            var greetingSource = existingUserName ?? invite.FullName;
+            var firstName = TeamInvitationReference.FirstName(greetingSource);
+            var acceptUrl = TeamInvitationReference.AcceptUrl(
+                FrontendBaseUrl(),
+                invite.OpaqueReference
+            );
+            var subject = TeamInvitationEmailTemplate.Subject(workspaceName);
+            try
+            {
+                await _email.SendTeamInvitationEmailAsync(
+                    invite.Email,
+                    subject,
+                    acceptUrl,
+                    firstName,
+                    inviterName,
+                    workspaceName,
+                    invite.PermissionRole,
+                    locationScope,
+                    invite.Message
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Team invitation email failed for {Email}",
+                    invite.Email
+                );
+            }
+        }
+
+        private string FrontendBaseUrl()
+        {
+            var frontendBaseUrl =
+                _configuration["Frontend:BaseUrl"]?.Trim().TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(frontendBaseUrl))
+            {
+                return "http://localhost:5173";
+            }
+
+            return frontendBaseUrl;
+        }
+
+        private static TeamInvitationRowDto MapInvitation(
+            TeamInvitation row,
+            string actorRole,
+            bool actorCanManage,
+            IReadOnlyDictionary<int, string> namesById,
+            DateTime now
+        )
+        {
+            var named = MembershipLocationScope.ParseNamedIds(
+                row.NamedLocationIdsJson
+            );
+            return new TeamInvitationRowDto
+            {
+                InvitationId = row.Id,
+                Email = row.Email,
+                PermissionRole = row.PermissionRole,
+                LocationAccessLabel = MembershipLocationScope.FormatAccessLabel(
+                    row.LocationScope,
+                    named,
+                    namesById
+                ),
+                InvitedBy = row.InviterUser.FullName,
+                SentLabel = LondonDateFormat.DMmmYyyy(row.SentAt),
+                ExpiresLabel = LondonDateFormat.DMmmYyyy(row.ExpiresAt),
+                Expired = row.ExpiresAt <= now,
+                Actions = TeamPermissionsActor.InvitationActionsFor(
+                    actorRole,
+                    actorCanManage,
+                    row.PermissionRole
+                ).ToList(),
+            };
+        }
+
         private async Task<(
             RestaurantMembership? Target,
             Restaurant? Restaurant,
@@ -546,7 +1049,11 @@ namespace TummlyBackend.Services
                         ? "named"
                         : "all",
                 NamedLocationIds = named.ToList(),
-                LocationAccessLabel = FormatAccessLabel(row, named, namesById),
+                LocationAccessLabel = MembershipLocationScope.FormatAccessLabel(
+                    row.LocationScope,
+                    named,
+                    namesById
+                ),
                 Status =
                     row.Status == MembershipStatus.Active
                         ? "active"
@@ -562,26 +1069,33 @@ namespace TummlyBackend.Services
             };
         }
 
-        private static string FormatAccessLabel(
-            RestaurantMembership row,
-            IReadOnlyList<int> named,
-            IReadOnlyDictionary<int, string> namesById
+        private void AddInvitationActivity(
+            int restaurantId,
+            int actorUserId,
+            string actorDisplayName,
+            int? targetUserId,
+            string targetDisplayName,
+            string targetEmail,
+            string kind,
+            string? from,
+            string? to
         )
         {
-            if (row.LocationScope != LocationScopeKind.NamedList)
-            {
-                return "All locations";
-            }
-
-            var names = named
-                .Select(id => namesById.TryGetValue(id, out var name) ? name : $"#{id}")
-                .ToList();
-            if (names.Count == 1)
-            {
-                return $"{names[0]} only";
-            }
-
-            return string.Join(", ", names);
+            _context.RestaurantAccessActivities.Add(
+                new RestaurantAccessActivity
+                {
+                    RestaurantId = restaurantId,
+                    ActorUserId = actorUserId,
+                    ActorDisplayName = actorDisplayName,
+                    TargetUserId = targetUserId,
+                    TargetDisplayName = targetDisplayName,
+                    TargetEmail = targetEmail,
+                    Kind = kind,
+                    FromValue = from,
+                    ToValue = to,
+                    OccurredAt = DateTime.UtcNow,
+                }
+            );
         }
 
         private static string FormatScope(RestaurantMembership row)

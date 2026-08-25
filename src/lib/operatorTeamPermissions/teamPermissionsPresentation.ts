@@ -65,6 +65,12 @@ export const TEAM_PERMISSIONS_PAGE_COPY = {
   saveChanges: "Save changes",
   productArea: "Product area",
   noAccessDisplay: "—",
+  invitationsEmptyTitle: "No pending invitations",
+  invitationsEmptyHelper:
+    "Invite a team member to add someone to this workspace.",
+  expired: "Expired",
+  resend: "Resend",
+  revoke: "Revoke",
 } as const
 
 export const TEAM_PERMISSIONS_SELECT_MENU_CLASS = "z-[130]"
@@ -184,5 +190,17 @@ export function removeConfirmCopy(name: string): {
     title: `Remove ${name}?`,
     body: "This cannot be undone. You may invite this email again later. Writable Key contacts move to the Account owner.",
     primaryLabel: "Remove",
+  }
+}
+
+export function revokeConfirmCopy(email: string): {
+  title: string
+  body: string
+  primaryLabel: string
+} {
+  return {
+    title: `Revoke invitation to ${email}?`,
+    body: "The invite link stops working. No email is sent. You may invite this email again.",
+    primaryLabel: "Revoke",
   }
 }

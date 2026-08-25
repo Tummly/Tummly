@@ -4,6 +4,10 @@ namespace TummlyBackend.Models
 {
     public static class AccessActivityKinds
     {
+        public const string InvitationSent = "invitation-sent";
+        public const string InvitationResent = "invitation-resent";
+        public const string InvitationRevoked = "invitation-revoked";
+        public const string InvitationAccepted = "invitation-accepted";
         public const string RoleChanged = "role-changed";
         public const string LocationScopeChanged = "location-scope-changed";
         public const string MemberDeactivated = "member-deactivated";
@@ -22,7 +26,16 @@ namespace TummlyBackend.Models
 
         public int ActorUserId { get; set; }
 
+        [MaxLength(150)]
+        public string? ActorDisplayName { get; set; }
+
         public int? TargetUserId { get; set; }
+
+        [MaxLength(150)]
+        public string? TargetDisplayName { get; set; }
+
+        [MaxLength(200)]
+        public string? TargetEmail { get; set; }
 
         public int? TargetMembershipId { get; set; }
 

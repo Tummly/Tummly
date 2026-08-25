@@ -12,6 +12,7 @@ import ProtectedRoute from "./ProtectedRoute";
 import PublicOnlyRoute from "./PublicOnlyRoute";
 import RoleRoute from "./RoleRoute";
 import SetupAccountPage from "../auth/SetupAccountPage";
+import TeamInvitationAcceptPage from "../auth/TeamInvitationAcceptPage";
 
 import HomePage from "../public/HomePage";
 import LoginPage from "../auth/LoginPage";
@@ -69,6 +70,14 @@ function AppRoutes() {
         <CookieSettingsDialog />
         <Routes>
         {/* Full-viewport auth flows — no site navbar, wrapped in ErrorBoundary */}
+        <Route
+          path="start"
+          element={
+            <ErrorBoundary>
+              <TeamInvitationAcceptPage />
+            </ErrorBoundary>
+          }
+        />
         <Route
           path="login"
           element={

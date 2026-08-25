@@ -9,6 +9,7 @@ import {
   type OperatorFilterSelection,
 } from "@/lib/operatorFilterSheet"
 import { teamPermissionsFilterSheetSchema } from "@/lib/operatorTeamPermissions/teamPermissionsFilterSheetSchema"
+import { assignableRolesForActor } from "@/lib/operatorTeamPermissions/permissionRoles"
 import {
   legalAdminLevels,
   resolveTeamPermissionsTabId,
@@ -44,6 +45,27 @@ export type AdminMatrixCell = {
   level: string
 }
 
+export type TeamInvitationRow = {
+  invitationId: number
+  email: string
+  permissionRole: string
+  locationAccessLabel: string
+  invitedBy: string
+  sentLabel: string
+  expiresLabel: string
+  expired: boolean
+  actions: string[]
+}
+
+export type TeamInviteDraft = {
+  email: string
+  fullName: string
+  permissionRole: string
+  locationScope: "all" | "named"
+  namedLocationIds: number[]
+  message: string
+}
+
 export type TeamPermissionsPageData = {
   actorCanManage: boolean
   actorPermissionRole: string
@@ -58,6 +80,7 @@ export type TeamPermissionsPageData = {
   locations: Array<{ id: number; name: string }>
   members: TeamMemberRow[]
   matrix: PermissionMatrixArea[]
+  invitations: TeamInvitationRow[]
 }
 
 export type TeamPermissionsPageAdapters = {
@@ -71,6 +94,9 @@ export type TeamPermissionsPageAdapters = {
   reactivate: (membershipId: number) => Promise<void>
   remove: (membershipId: number) => Promise<void>
   saveMatrix: (cells: AdminMatrixCell[]) => Promise<void>
+  sendInvite: (payload: TeamInviteDraft) => Promise<void>
+  resendInvite: (invitationId: number) => Promise<void>
+  revokeInvite: (invitationId: number) => Promise<void>
 }
 
 export type TeamPermissionsDialog =
@@ -86,6 +112,7 @@ export type TeamPermissionsDialog =
     }
   | { kind: "deactivate"; membershipId: number }
   | { kind: "remove"; membershipId: number }
+  | { kind: "revoke"; invitationId: number }
 
 export type TeamPermissionsSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
@@ -100,6 +127,9 @@ export type TeamPermissionsSnapshot = {
   members: TeamMemberRow[]
   visibleMembers: TeamMemberRow[]
   namedListMembers: TeamMemberRow[]
+  invitations: TeamInvitationRow[]
+  inviteDraft: TeamInviteDraft
+  inviteEmailError: string | null
   searchQuery: string
   filtersSession: FilterSheetSession | null
   filterChips: FilterChip[]
@@ -132,8 +162,11 @@ export type OperatorTeamPermissionsPageModule = {
   openChangeLocation: (membershipId: number) => void
   openDeactivate: (membershipId: number) => void
   openRemove: (membershipId: number) => void
+  openRevoke: (invitationId: number) => void
+  resendInvite: (invitationId: number) => Promise<void>
   closeDialog: () => void
   setChangeRoleDraft: (role: string) => void
+  setInviteDraft: (draft: TeamInviteDraft) => void
   setChangeLocationDraft: (
     scope: "all" | "named",
     namedIds: number[]
@@ -163,6 +196,29 @@ function emptyStats(): TeamPermissionsPageData["stats"] {
     locationManagers: 0,
     limitedAccessUsers: 0,
   }
+}
+
+function emptyInviteDraft(actorRole: string): TeamInviteDraft {
+  const roles = assignableRolesForActor(actorRole)
+  return {
+    email: "",
+    fullName: "",
+    permissionRole: roles[0] ?? "Reporting Only",
+    locationScope: "all",
+    namedLocationIds: [],
+    message: "",
+  }
+}
+
+function needsNamedLocations(role: string): boolean {
+  return role === "Area Manager" || role === "Location Manager"
+}
+
+function applyInviteDraft(draft: TeamInviteDraft): TeamInviteDraft {
+  if (!needsNamedLocations(draft.permissionRole)) {
+    return draft
+  }
+  return { ...draft, locationScope: "named" }
 }
 
 function memberMatches(
@@ -226,6 +282,8 @@ export function createOperatorTeamPermissionsPageModule(
     | { kind: "href"; href: string }
     | null = null
   let pendingNavigationHref: string | null = null
+  let inviteDraft = emptyInviteDraft("")
+  let inviteEmailError: string | null = null
   const listeners = new Set<() => void>()
 
   const emit = () => {
@@ -351,6 +409,9 @@ export function createOperatorTeamPermissionsPageModule(
       members,
       visibleMembers,
       namedListMembers,
+      invitations: data?.invitations ?? [],
+      inviteDraft,
+      inviteEmailError,
       searchQuery,
       filtersSession,
       filterChips:
@@ -374,6 +435,11 @@ export function createOperatorTeamPermissionsPageModule(
     emit()
     try {
       data = await adapters.getPage()
+      data = {
+        ...data,
+        matrix: data.matrix ?? [],
+        invitations: data.invitations ?? [],
+      }
       privacyConsentHasAccess = data.privacyConsentHasAccess
       activeTabId = resolveTeamPermissionsTabId(
         activeTabId,
@@ -389,6 +455,25 @@ export function createOperatorTeamPermissionsPageModule(
 
   const findMember = (membershipId: number) =>
     data?.members.find((row) => row.membershipId === membershipId) ?? null
+
+  const findInvitation = (invitationId: number) =>
+    data?.invitations.find((row) => row.invitationId === invitationId) ?? null
+
+  const runWrite = async (work: () => Promise<void>) => {
+    busy = true
+    emit()
+    try {
+      await work()
+      await reload()
+      dialog = { kind: "none" }
+      inviteEmailError = null
+    } catch {
+      // Keep the current dialog. The adapter may surface the error.
+    } finally {
+      busy = false
+      emit()
+    }
+  }
 
   return {
     subscribe: (listener) => {
@@ -473,6 +558,8 @@ export function createOperatorTeamPermissionsPageModule(
       if (!(data?.actorCanManage ?? false)) {
         return
       }
+      inviteDraft = emptyInviteDraft(data?.actorPermissionRole ?? "")
+      inviteEmailError = null
       dialog = { kind: "invite" }
       emit()
     },
@@ -517,11 +604,29 @@ export function createOperatorTeamPermissionsPageModule(
       dialog = { kind: "remove", membershipId }
       emit()
     },
+    openRevoke: (invitationId) => {
+      const row = findInvitation(invitationId)
+      if (row == null || !row.actions.includes("revoke") || busy) {
+        return
+      }
+      dialog = { kind: "revoke", invitationId }
+      emit()
+    },
+    resendInvite: async (invitationId) => {
+      const row = findInvitation(invitationId)
+      if (row == null || !row.actions.includes("resend") || busy) {
+        return
+      }
+      await runWrite(async () => {
+        await adapters.resendInvite(invitationId)
+      })
+    },
     closeDialog: () => {
       if (busy) {
         return
       }
       dialog = { kind: "none" }
+      inviteEmailError = null
       emit()
     },
     setChangeRoleDraft: (role) => {
@@ -529,6 +634,14 @@ export function createOperatorTeamPermissionsPageModule(
         return
       }
       dialog = { ...dialog, draftRole: role }
+      emit()
+    },
+    setInviteDraft: (draft) => {
+      if (dialog.kind !== "invite") {
+        return
+      }
+      inviteDraft = applyInviteDraft(draft)
+      inviteEmailError = null
       emit()
     },
     setChangeLocationDraft: (scope, namedIds) => {
@@ -559,6 +672,24 @@ export function createOperatorTeamPermissionsPageModule(
         return
       }
       if (dialog.kind === "invite") {
+        busy = true
+        inviteEmailError = null
+        emit()
+        try {
+          await adapters.sendInvite(inviteDraft)
+          await reload()
+          dialog = { kind: "none" }
+          inviteDraft = emptyInviteDraft(data?.actorPermissionRole ?? "")
+          inviteEmailError = null
+        } catch (error) {
+          inviteEmailError =
+            error instanceof Error
+              ? error.message
+              : "Could not send invite."
+        } finally {
+          busy = false
+          emit()
+        }
         return
       }
       if (dialog.kind === "notes") {
@@ -619,16 +750,17 @@ export function createOperatorTeamPermissionsPageModule(
         return
       }
       if (dialog.kind === "remove") {
-        busy = true
-        emit()
-        try {
-          await adapters.remove(dialog.membershipId)
-          await reload()
-          dialog = { kind: "none" }
-        } finally {
-          busy = false
-          emit()
-        }
+        const membershipId = dialog.membershipId
+        await runWrite(async () => {
+          await adapters.remove(membershipId)
+        })
+        return
+      }
+      if (dialog.kind === "revoke") {
+        const invitationId = dialog.invitationId
+        await runWrite(async () => {
+          await adapters.revokeInvite(invitationId)
+        })
       }
     },
     setAdminCell: (areaId, level) => {

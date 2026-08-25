@@ -17,6 +17,8 @@ namespace TummlyBackend.DTOs.TeamPermissions
         public List<TeamMemberRowDto> Members { get; set; } = [];
 
         public List<PermissionMatrixAreaDto> Matrix { get; set; } = [];
+
+        public List<TeamInvitationRowDto> Invitations { get; set; } = [];
     }
 
     public sealed class PermissionMatrixAreaDto
@@ -81,6 +83,42 @@ namespace TummlyBackend.DTOs.TeamPermissions
         public bool IsAccountOwner { get; set; }
 
         public List<string> Actions { get; set; } = [];
+    }
+
+    public sealed class TeamInvitationRowDto
+    {
+        public int InvitationId { get; set; }
+
+        public string Email { get; set; } = string.Empty;
+
+        public string PermissionRole { get; set; } = string.Empty;
+
+        public string LocationAccessLabel { get; set; } = string.Empty;
+
+        public string InvitedBy { get; set; } = string.Empty;
+
+        public string SentLabel { get; set; } = string.Empty;
+
+        public string ExpiresLabel { get; set; } = string.Empty;
+
+        public bool Expired { get; set; }
+
+        public List<string> Actions { get; set; } = [];
+    }
+
+    public sealed class SendTeamInvitationRequest
+    {
+        public string Email { get; set; } = string.Empty;
+
+        public string FullName { get; set; } = string.Empty;
+
+        public string PermissionRole { get; set; } = string.Empty;
+
+        public string LocationScope { get; set; } = "all";
+
+        public int[] NamedLocationIds { get; set; } = [];
+
+        public string? Message { get; set; }
     }
 
     public sealed class UpdateMemberRoleRequest

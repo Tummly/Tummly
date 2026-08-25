@@ -62,6 +62,29 @@ namespace TummlyBackend.Helpers
             return actorRole == PermissionRoles.Owner;
         }
 
+        public static bool MayInvite(
+            string actorRole,
+            bool actorCanManage,
+            string inviteRole
+        )
+        {
+            return actorCanManage && MayAssignRole(actorRole, inviteRole);
+        }
+
+        public static IReadOnlyList<string> InvitationActionsFor(
+            string actorRole,
+            bool actorCanManage,
+            string inviteRole
+        )
+        {
+            if (!MayInvite(actorRole, actorCanManage, inviteRole))
+            {
+                return [];
+            }
+
+            return ["resend", "revoke"];
+        }
+
         public static bool MayAssignRole(
             string actorRole,
             string newRole
