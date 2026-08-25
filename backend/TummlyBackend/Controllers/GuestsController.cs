@@ -257,7 +257,7 @@ namespace TummlyBackend.Controllers
                     var selectedResult = await _guestsExport.ExportAsync(
                         new GuestsExportQuery
                         {
-                            LocationIds = new[] { locationId },
+                            LocationIds = ownedLocation.LocationIds,
                             LocationNamesById = new Dictionary<int, string>
                             {
                                 [locationId] =
@@ -343,6 +343,25 @@ namespace TummlyBackend.Controllers
                     result.ContentType,
                     result.FileName
                 );
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return new ObjectResult(new
+                {
+                    success = false,
+                    message = ex.Message,
+                })
+                {
+                    StatusCode = StatusCodes.Status403Forbidden,
+                };
             }
             catch (ArgumentException ex)
             {

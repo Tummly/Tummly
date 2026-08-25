@@ -27,34 +27,55 @@ namespace TummlyBackend.Helpers
         /// <summary>
         /// Picks exactly one allow-listed recommendation type from aggregate metrics.
         /// </summary>
-        public static string SelectType(HomeRecommendationMetrics metrics)
+        public static string SelectType(
+            HomeRecommendationMetrics metrics,
+            IReadOnlySet<string>? allowedTypes = null
+        )
         {
-            if (HasReviewOpenFeedbackSignal(metrics))
+            bool Allow(string type) =>
+                allowedTypes == null || allowedTypes.Contains(type);
+
+            if (
+                Allow("review-open-feedback")
+                && HasReviewOpenFeedbackSignal(metrics)
+            )
             {
                 return "review-open-feedback";
             }
 
-            if (HasThankOrFollowGuestSignal(metrics))
+            if (
+                Allow("thank-or-follow-guest")
+                && HasThankOrFollowGuestSignal(metrics)
+            )
             {
                 return "thank-or-follow-guest";
             }
 
-            if (HasPromoteOrFixOfferSignal(metrics))
+            if (
+                Allow("promote-or-fix-offer")
+                && HasPromoteOrFixOfferSignal(metrics)
+            )
             {
                 return "promote-or-fix-offer";
             }
 
-            if (HasRecoveryFollowUpSignal(metrics))
+            if (
+                Allow("recovery-follow-up")
+                && HasRecoveryFollowUpSignal(metrics)
+            )
             {
                 return "recovery-follow-up";
             }
 
-            if (HasThankRecentGuestsSignal(metrics))
+            if (
+                Allow("thank-recent-guests")
+                && HasThankRecentGuestsSignal(metrics)
+            )
             {
                 return "thank-recent-guests";
             }
 
-            if (HasReEngageSignal(metrics))
+            if (Allow("re-engage") && HasReEngageSignal(metrics))
             {
                 return "re-engage";
             }

@@ -49,13 +49,14 @@ namespace TummlyBackend.Services
             string? Error,
             int StatusCode
         )> UpdateAccountDetailsAsync(
-            int ownerUserId,
+            int actorUserId,
+            int restaurantId,
             string? name,
             IFormFile? logo
         )
         {
             var restaurant = await _context.Restaurants
-                .FirstOrDefaultAsync(r => r.OwnerUserId == ownerUserId);
+                .FirstOrDefaultAsync(r => r.Id == restaurantId);
 
             if (restaurant == null)
             {
@@ -158,7 +159,7 @@ namespace TummlyBackend.Services
             restaurant.AccountWorkspaceLastSavedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            var details = await BuildDetailsAsync(restaurant, ownerUserId);
+            var details = await BuildDetailsAsync(restaurant, actorUserId);
             return (details, null, StatusCodes.Status200OK);
         }
 
@@ -167,12 +168,13 @@ namespace TummlyBackend.Services
             string? Error,
             int StatusCode
         )> UpdateBusinessDetailsAsync(
-            int ownerUserId,
+            int actorUserId,
+            int restaurantId,
             UpdateBusinessDetailsRequest request
         )
         {
             var restaurant = await _context.Restaurants
-                .FirstOrDefaultAsync(r => r.OwnerUserId == ownerUserId);
+                .FirstOrDefaultAsync(r => r.Id == restaurantId);
 
             if (restaurant == null)
             {
@@ -230,7 +232,7 @@ namespace TummlyBackend.Services
             restaurant.AccountWorkspaceLastSavedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            var details = await BuildDetailsAsync(restaurant, ownerUserId);
+            var details = await BuildDetailsAsync(restaurant, actorUserId);
             return (details, null, StatusCodes.Status200OK);
         }
 
@@ -239,12 +241,13 @@ namespace TummlyBackend.Services
             string? Error,
             int StatusCode
         )> UpdateKeyContactsAsync(
-            int ownerUserId,
+            int actorUserId,
+            int restaurantId,
             UpdateKeyContactsRequest request
         )
         {
             var restaurant = await _context.Restaurants
-                .FirstOrDefaultAsync(r => r.OwnerUserId == ownerUserId);
+                .FirstOrDefaultAsync(r => r.Id == restaurantId);
 
             if (restaurant == null)
             {
@@ -298,7 +301,7 @@ namespace TummlyBackend.Services
             restaurant.AccountWorkspaceLastSavedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            var details = await BuildDetailsAsync(restaurant, ownerUserId);
+            var details = await BuildDetailsAsync(restaurant, actorUserId);
             return (details, null, StatusCodes.Status200OK);
         }
 
@@ -307,12 +310,13 @@ namespace TummlyBackend.Services
             string? Error,
             int StatusCode
         )> UpdateWorkspaceDefaultsAsync(
-            int ownerUserId,
+            int actorUserId,
+            int restaurantId,
             UpdateWorkspaceDefaultsRequest request
         )
         {
             var restaurant = await _context.Restaurants
-                .FirstOrDefaultAsync(r => r.OwnerUserId == ownerUserId);
+                .FirstOrDefaultAsync(r => r.Id == restaurantId);
 
             if (restaurant == null)
             {
@@ -346,12 +350,12 @@ namespace TummlyBackend.Services
             )
             {
                 await BustRecommendedNextStepCachesAsync(
-                    ownerUserId,
+                    actorUserId,
                     restaurant.Id
                 );
             }
 
-            var details = await BuildDetailsAsync(restaurant, ownerUserId);
+            var details = await BuildDetailsAsync(restaurant, actorUserId);
             return (details, null, StatusCodes.Status200OK);
         }
 
@@ -359,10 +363,11 @@ namespace TummlyBackend.Services
             AccountWorkspaceDetailsDto? Details,
             string? Error,
             int StatusCode
-        )> PauseWorkspaceAsync(int actorUserId)
+        )> PauseWorkspaceAsync(int actorUserId, int restaurantId)
         {
             return await SetWorkspaceStatusAsync(
                 actorUserId,
+                restaurantId,
                 WorkspaceStatus.Paused
             );
         }
@@ -371,10 +376,11 @@ namespace TummlyBackend.Services
             AccountWorkspaceDetailsDto? Details,
             string? Error,
             int StatusCode
-        )> ResumeWorkspaceAsync(int actorUserId)
+        )> ResumeWorkspaceAsync(int actorUserId, int restaurantId)
         {
             return await SetWorkspaceStatusAsync(
                 actorUserId,
+                restaurantId,
                 WorkspaceStatus.Active
             );
         }
@@ -385,15 +391,25 @@ namespace TummlyBackend.Services
             int StatusCode
         )> SetWorkspaceStatusAsync(
             int actorUserId,
+            int restaurantId,
             WorkspaceStatus nextStatus
         )
         {
             var restaurant = await _context.Restaurants
-                .FirstOrDefaultAsync(r => r.OwnerUserId == actorUserId);
+                .FirstOrDefaultAsync(r => r.Id == restaurantId);
 
             if (restaurant == null)
             {
                 return (null, "Restaurant not found.", StatusCodes.Status404NotFound);
+            }
+
+            if (restaurant.OwnerUserId != actorUserId)
+            {
+                return (
+                    null,
+                    "You do not have access to this restaurant.",
+                    StatusCodes.Status403Forbidden
+                );
             }
 
             restaurant.WorkspaceStatus = nextStatus;
@@ -406,12 +422,12 @@ namespace TummlyBackend.Services
         }
 
         public async Task<(Stream Stream, string ContentType)?> OpenBrandLogoAsync(
-            int ownerUserId
+            int restaurantId
         )
         {
             var restaurant = await _context.Restaurants
                 .AsNoTracking()
-                .FirstOrDefaultAsync(r => r.OwnerUserId == ownerUserId);
+                .FirstOrDefaultAsync(r => r.Id == restaurantId);
 
             if (
                 restaurant == null
@@ -652,6 +668,16 @@ namespace TummlyBackend.Services
                 )
                 .Select(m => m.UserId)
                 .ToListAsync();
+
+            if (ids.Count == 0)
+            {
+                var ownerId = await _context.Restaurants
+                    .AsNoTracking()
+                    .Where(r => r.Id == restaurantId)
+                    .Select(r => r.OwnerUserId)
+                    .FirstAsync();
+                ids.Add(ownerId);
+            }
 
             return ids.ToHashSet();
         }

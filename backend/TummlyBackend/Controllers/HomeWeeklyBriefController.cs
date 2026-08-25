@@ -19,19 +19,19 @@ namespace TummlyBackend.Controllers
     public class HomeWeeklyBriefController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
-        private readonly IOwnedLocationService _ownedLocation;
+        private readonly IRestaurantPermissionHelper _permissions;
         private readonly IWeeklyBriefGenerateService _generate;
         private readonly IWeeklyBriefReadyNotifier _notifier;
 
         public HomeWeeklyBriefController(
             ApplicationDbContext context,
-            IOwnedLocationService ownedLocation,
+            IRestaurantPermissionHelper permissions,
             IWeeklyBriefGenerateService generate,
             IWeeklyBriefReadyNotifier notifier
         )
         {
             _context = context;
-            _ownedLocation = ownedLocation;
+            _permissions = permissions;
             _generate = generate;
             _notifier = notifier;
         }
@@ -44,7 +44,7 @@ namespace TummlyBackend.Controllers
         )
         {
             var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
+                OperatorAuth.TryRequireUserId(User, out _);
 
             if (unauthorized != null)
             {
@@ -60,11 +60,8 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
+            var reports = await GateReportsViewAsync(locationId);
+            var denied = reports.ToHttpResult();
 
             if (denied != null)
             {
@@ -118,7 +115,7 @@ namespace TummlyBackend.Controllers
         )
         {
             var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
+                OperatorAuth.TryRequireUserId(User, out _);
 
             if (unauthorized != null)
             {
@@ -134,11 +131,8 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
+            var reports = await GateReportsViewAsync(locationId);
+            var denied = reports.ToHttpResult();
 
             if (denied != null)
             {
@@ -313,6 +307,18 @@ namespace TummlyBackend.Controllers
                 body,
                 metrics,
             });
+        }
+
+        private Task<RestaurantPermissionDecision> GateReportsViewAsync(
+            int locationId
+        )
+        {
+            return _permissions.AuthorizeLocationAsync(
+                User,
+                OperatorAreaIds.Reports,
+                PermissionLevel.View,
+                locationId
+            );
         }
     }
 }

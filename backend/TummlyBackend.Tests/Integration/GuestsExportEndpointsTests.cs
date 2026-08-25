@@ -241,7 +241,7 @@ namespace TummlyBackend.Tests.Integration
                 new AuthenticationHeaderValue("Bearer", owner.Jwt);
 
             var response = await _client.SendAsync(request);
-            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
 
             var body = await ReadJsonAsync(response);
             Assert.False(body.GetProperty("success").GetBoolean());

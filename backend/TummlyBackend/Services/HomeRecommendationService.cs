@@ -48,6 +48,7 @@ namespace TummlyBackend.Services
         public async Task<HomeRecommendationServiceResult> RecommendAsync(
             int operatorUserId,
             HomeRecommendationRequest request,
+            IReadOnlySet<string>? allowedTypes = null,
             CancellationToken cancellationToken = default
         )
         {
@@ -90,7 +91,10 @@ namespace TummlyBackend.Services
                     cacheKey,
                     cancellationToken
                 );
-                if (cached is not null)
+                if (
+                    cached is not null
+                    && CachedTypeIsAllowed(cached.Type, allowedTypes)
+                )
                 {
                     return new HomeRecommendationServiceResult.Ok(cached);
                 }
@@ -105,7 +109,10 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
-            var selectedType = HomeRecommendationDomainRouter.SelectType(metrics);
+            var selectedType = HomeRecommendationDomainRouter.SelectType(
+                metrics,
+                allowedTypes
+            );
 
             if (string.Equals(selectedType, "none", StringComparison.Ordinal))
             {
@@ -507,6 +514,24 @@ namespace TummlyBackend.Services
                 Type = "none",
                 LocationName = locationName,
             };
+
+        private static bool CachedTypeIsAllowed(
+            string type,
+            IReadOnlySet<string>? allowedTypes
+        )
+        {
+            if (allowedTypes == null)
+            {
+                return true;
+            }
+
+            if (string.Equals(type, "none", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            return allowedTypes.Contains(type);
+        }
 
         private async Task<HomeRecommendationDto?> TryGetCachedRecommendationAsync(
             string cacheKey,

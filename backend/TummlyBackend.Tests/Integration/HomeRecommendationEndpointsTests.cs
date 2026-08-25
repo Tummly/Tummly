@@ -519,7 +519,7 @@ namespace TummlyBackend.Tests.Integration
                     ContactType = ContactType.Email,
                     Comment = "Great food",
                     WorkflowStatus = FeedbackWorkflowStatus.New,
-                    CreatedAt = DateTime.Parse("2026-08-18T12:00:00Z").ToUniversalTime(),
+                    CreatedAt = DateTime.UtcNow.AddHours(-1),
                 }
             );
             await context.SaveChangesAsync();

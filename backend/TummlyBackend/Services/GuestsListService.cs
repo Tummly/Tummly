@@ -262,17 +262,22 @@ namespace TummlyBackend.Services
                     .Include(lg => lg.MasterGuest)
                     .Include(lg => lg.RestaurantLocation)!
                         .ThenInclude(l => l!.Restaurant)
-                    .Where(lg =>
-                        orderedIds.Contains(lg.Id)
-                        && lg.RestaurantLocation!.Restaurant!.OwnerUserId
-                            == query.OwnerUserId
-                    )
+                    .Where(lg => orderedIds.Contains(lg.Id))
                     .ToListAsync();
 
                 if (guests.Count != orderedIds.Count)
                 {
-                    throw new ArgumentException(
+                    throw new KeyNotFoundException(
                         "One or more guest ids are invalid."
+                    );
+                }
+
+                if (guests.Any(guest =>
+                    !query.LocationIds.Contains(guest.RestaurantLocationId)
+                ))
+                {
+                    throw new InvalidOperationException(
+                        "You do not have access to this location."
                     );
                 }
 

@@ -62,6 +62,20 @@ namespace TummlyBackend.Helpers
         public static bool IsCampaignType(string type)
             => CampaignTypes.Contains(type);
 
+        public static string? SourceAreaId(string type)
+        {
+            return type switch
+            {
+                "review-open-feedback" => OperatorAreaIds.Feedback,
+                "thank-or-follow-guest" => OperatorAreaIds.Guests,
+                "promote-or-fix-offer" => OperatorAreaIds.Offers,
+                "thank-recent-guests"
+                    or "re-engage"
+                    or "recovery-follow-up" => OperatorAreaIds.Campaigns,
+                _ => null,
+            };
+        }
+
         public static bool IsAllowedOverviewDatePreset(string preset)
             => AllowedOverviewDatePresets.Contains(preset);
 

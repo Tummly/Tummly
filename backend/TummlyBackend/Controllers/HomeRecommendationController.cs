@@ -12,15 +12,15 @@ namespace TummlyBackend.Controllers
     public class HomeRecommendationController : ControllerBase
     {
         private readonly IHomeRecommendationService _homeRecommendation;
-        private readonly IOwnedLocationService _ownedLocation;
+        private readonly IRestaurantPermissionHelper _permissions;
 
         public HomeRecommendationController(
             IHomeRecommendationService homeRecommendation,
-            IOwnedLocationService ownedLocation
+            IRestaurantPermissionHelper permissions
         )
         {
             _homeRecommendation = homeRecommendation;
-            _ownedLocation = ownedLocation;
+            _permissions = permissions;
         }
 
         [HttpPost]
@@ -36,22 +36,37 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, request.LocationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
-
-            if (denied != null)
+            var restaurant = await _permissions.AuthorizeLocationSetAsync(
+                User,
+                OperatorAreaIds.AccountWorkspace,
+                PermissionLevel.View
+            );
+            var deniedRestaurant = restaurant.ToHttpResult();
+            if (deniedRestaurant != null)
             {
-                return denied;
+                return deniedRestaurant;
             }
+
+            var location = await _permissions.AuthorizeNamedLocationIdsAsync(
+                restaurant.LocationIds,
+                [request.LocationId]
+            );
+            var deniedLocation = location.ToHttpResult();
+            if (deniedLocation != null)
+            {
+                return deniedLocation;
+            }
+
+            var allowedTypes = await AllowedRecommendationTypesAsync(
+                request.LocationId
+            );
 
             try
             {
                 var result = await _homeRecommendation.RecommendAsync(
                     userId,
-                    request
+                    request,
+                    allowedTypes
                 );
 
                 return result switch
@@ -89,6 +104,36 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 });
             }
+        }
+
+        private async Task<HashSet<string>> AllowedRecommendationTypesAsync(
+            int locationId
+        )
+        {
+            var allowed = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var type in HomeRecommendationContract.NativeTypes.Concat(
+                HomeRecommendationContract.CampaignTypes
+            ))
+            {
+                var areaId = HomeRecommendationContract.SourceAreaId(type);
+                if (areaId == null)
+                {
+                    continue;
+                }
+
+                var decision = await _permissions.AuthorizeLocationAsync(
+                    User,
+                    areaId,
+                    PermissionLevel.View,
+                    locationId
+                );
+                if (decision.Status == RestaurantPermissionStatus.Allowed)
+                {
+                    allowed.Add(type);
+                }
+            }
+
+            return allowed;
         }
     }
 }

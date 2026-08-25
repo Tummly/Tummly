@@ -449,7 +449,8 @@ namespace TummlyBackend.Services
                         From = window.FromUtc,
                         To = window.ToUtc,
                     },
-                    cancellationToken
+                    allowedTypes: null,
+                    cancellationToken: cancellationToken
                 );
                 return result is HomeRecommendationServiceResult.Ok ok
                     ? ok.Recommendation
