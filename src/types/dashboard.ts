@@ -25,6 +25,7 @@ export interface LocationsResponse {
   restaurantName?: string;
   brandLogoPublicUrl?: string | null;
   aiAssistantAccess?: boolean;
+  teamPermissionsAccess?: "none" | "view" | "manage";
   locations: LocationItem[];
 }
 

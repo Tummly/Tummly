@@ -21,8 +21,37 @@ describe("parseOperatorProfile", () => {
       email: "mohamed@example.com",
       activationExpiresAt: "2026-07-26T12:00:00.000Z",
       selfRole: "owner-operator",
-      teamPermissionsAccess: "none",
+      teamPermissionsAccess: "manage",
     })
+  })
+
+  it("hides Team & permissions only when /me sends none", () => {
+    expect(
+      parseOperatorProfile({
+        success: true,
+        data: {
+          fullName: "Salman Shahid",
+          email: "owner@example.com",
+          role: "Owner",
+          teamPermissionsAccess: "none",
+        },
+      })?.teamPermissionsAccess
+    ).toBe("none")
+  })
+
+  it("reads view and manage from /me", () => {
+    expect(
+      parseOperatorProfile({
+        success: true,
+        data: { fullName: "Alex", teamPermissionsAccess: "view" },
+      })?.teamPermissionsAccess
+    ).toBe("view")
+    expect(
+      parseOperatorProfile({
+        success: true,
+        data: { fullName: "Alex", teamPermissionsAccess: "manage" },
+      })?.teamPermissionsAccess
+    ).toBe("manage")
   })
 
   it("returns null when fullName is missing", () => {
@@ -52,7 +81,7 @@ describe("parseOperatorProfile", () => {
       email: null,
       activationExpiresAt: null,
       selfRole: null,
-      teamPermissionsAccess: "none",
+      teamPermissionsAccess: "manage",
     })
   })
 
@@ -71,7 +100,7 @@ describe("parseOperatorProfile", () => {
       email: null,
       activationExpiresAt: null,
       selfRole: null,
-      teamPermissionsAccess: "none",
+      teamPermissionsAccess: "manage",
     })
   })
 })

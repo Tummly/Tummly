@@ -53,6 +53,72 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task Me_ReturnsManage_ForAccountOwner()
+        {
+            var seeded = await SeedWorkspaceAsync();
+
+            using var request = Authorized(HttpMethod.Get, "/api/auth/me", seeded.OwnerJwt);
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var data = (await ReadJsonAsync(response)).GetProperty("data");
+            Assert.Equal(
+                "manage",
+                data.GetProperty("teamPermissionsAccess").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task Me_ReturnsNone_ForStaff()
+        {
+            var seeded = await SeedWorkspaceAsync();
+
+            using var request = Authorized(HttpMethod.Get, "/api/auth/me", seeded.StaffJwt);
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var data = (await ReadJsonAsync(response)).GetProperty("data");
+            Assert.Equal(
+                "none",
+                data.GetProperty("teamPermissionsAccess").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task RestaurantLocations_ReturnsTeamPermissionsAccess_ForOwnerAndStaff()
+        {
+            var seeded = await SeedWorkspaceAsync();
+
+            using var ownerRequest = Authorized(
+                HttpMethod.Get,
+                "/api/restaurant/locations",
+                seeded.OwnerJwt
+            );
+            var ownerResponse = await _client.SendAsync(ownerRequest);
+            Assert.Equal(HttpStatusCode.OK, ownerResponse.StatusCode);
+            Assert.Equal(
+                "manage",
+                (await ReadJsonAsync(ownerResponse))
+                    .GetProperty("teamPermissionsAccess")
+                    .GetString()
+            );
+
+            using var staffRequest = Authorized(
+                HttpMethod.Get,
+                "/api/restaurant/locations",
+                seeded.StaffJwt
+            );
+            var staffResponse = await _client.SendAsync(staffRequest);
+            Assert.Equal(HttpStatusCode.OK, staffResponse.StatusCode);
+            Assert.Equal(
+                "none",
+                (await ReadJsonAsync(staffResponse))
+                    .GetProperty("teamPermissionsAccess")
+                    .GetString()
+            );
+        }
+
+        [Fact]
         public async Task Get_Returns403_ForStaff()
         {
             var seeded = await SeedWorkspaceAsync();

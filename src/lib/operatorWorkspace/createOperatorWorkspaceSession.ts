@@ -1,5 +1,5 @@
 import { resolveInitialLocationId } from "@/lib/operatorHome/buildHomeViewModel"
-import { parseOperatorProfile, type TeamPermissionsAccess } from "@/lib/operatorHome/parseOperatorProfile"
+import { parseOperatorProfile, parseTeamPermissionsAccess, type TeamPermissionsAccess } from "@/lib/operatorHome/parseOperatorProfile"
 import type { LocationItem, LocationsResponse } from "@/types/dashboard"
 
 export type OperatorWorkspaceMode = "single" | "multi"
@@ -223,7 +223,10 @@ export function createOperatorWorkspaceSession(
         operatorDisplayName: profile?.fullName ?? "Operator",
         activationExpiresAt: profile?.activationExpiresAt ?? null,
         selfRole: profile?.selfRole ?? null,
-        teamPermissionsAccess: profile?.teamPermissionsAccess ?? "none",
+        teamPermissionsAccess:
+          parseTeamPermissionsAccess(locationsResult.teamPermissionsAccess)
+          ?? profile?.teamPermissionsAccess
+          ?? "manage",
         aiAssistantAccess: locationsResult.aiAssistantAccess !== false,
         queryLocationId,
       })

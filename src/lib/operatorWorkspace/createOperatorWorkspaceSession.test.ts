@@ -21,7 +21,13 @@ const locations: LocationItem[] = [
 ]
 
 function createAdapters(overrides: {
-  getLocations?: () => Promise<{ success: boolean; locations: LocationItem[] }>
+  getLocations?: () => Promise<{
+    success: boolean
+    locations: LocationItem[]
+    restaurantName?: string
+    aiAssistantAccess?: boolean
+    teamPermissionsAccess?: "none" | "view" | "manage"
+  }>
   fetchCurrentUser?: () => Promise<unknown>
   getPersistedLocationId?: () => number | null
   persistSelectedLocation?: (locationId: number) => void
@@ -69,7 +75,7 @@ describe("createOperatorWorkspaceSession", () => {
       operatorDisplayName: "Mohamed Mahmoud",
       activationExpiresAt: "2026-07-26T12:00:00.000Z",
       selfRole: null,
-      teamPermissionsAccess: "none",
+      teamPermissionsAccess: "manage",
       locationSwitcherInteractive: true,
     })
     expect(session.getSnapshot().locations).toHaveLength(2)
@@ -92,6 +98,23 @@ describe("createOperatorWorkspaceSession", () => {
     await session.load({ queryLocationId: null })
 
     expect(session.getSnapshot().aiAssistantAccess).toBe(false)
+  })
+
+  it("hides Team & permissions when locations payload sets teamPermissionsAccess none", async () => {
+    const session = createOperatorWorkspaceSession(
+      { mode: "multi" },
+      createAdapters({
+        getLocations: async () => ({
+          success: true,
+          locations,
+          teamPermissionsAccess: "none",
+        }),
+      })
+    )
+
+    await session.load({ queryLocationId: null })
+
+    expect(session.getSnapshot().teamPermissionsAccess).toBe("none")
   })
 
   it("carries Self role from /auth/me into the workspace snapshot", async () => {

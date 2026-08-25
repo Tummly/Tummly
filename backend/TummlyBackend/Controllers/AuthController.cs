@@ -298,24 +298,11 @@ namespace TummlyBackend.Controllers
              =========================================
             */
 
-            var teamPermissionsAccess = "none";
-            var viewTeam = await _permissions.AuthorizeAsync(
-                User,
-                OperatorAreaIds.TeamPermissions,
-                PermissionLevel.View
-            );
-            if (viewTeam.Status == RestaurantPermissionStatus.Allowed)
-            {
-                var manageTeam = await _permissions.AuthorizeAsync(
-                    User,
-                    OperatorAreaIds.TeamPermissions,
-                    PermissionLevel.Manage
+            var teamPermissionsAccess =
+                await OperatorChromeAccess.TeamPermissionsAsync(
+                    _permissions,
+                    User
                 );
-                teamPermissionsAccess =
-                    manageTeam.Status == RestaurantPermissionStatus.Allowed
-                        ? "manage"
-                        : "view";
-            }
 
             return Ok(new
             {

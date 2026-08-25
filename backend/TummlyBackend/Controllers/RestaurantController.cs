@@ -61,6 +61,7 @@ namespace TummlyBackend.Controllers
                     success = true,
                     restaurantName = "",
                     aiAssistantAccess = false,
+                    teamPermissionsAccess = "none",
                     locations = Array.Empty<object>()
                 });
             }
@@ -108,6 +109,12 @@ namespace TummlyBackend.Controllers
                 PermissionLevel.View
             );
 
+            var teamPermissionsAccess =
+                await OperatorChromeAccess.TeamPermissionsAsync(
+                    _permissions,
+                    User
+                );
+
             return Ok(new
             {
                 success = true,
@@ -115,6 +122,7 @@ namespace TummlyBackend.Controllers
                 brandLogoPublicUrl,
                 aiAssistantAccess =
                     assistant.Status == RestaurantPermissionStatus.Allowed,
+                teamPermissionsAccess,
                 locations = locations.Select(row => new
                 {
                     row.Id,

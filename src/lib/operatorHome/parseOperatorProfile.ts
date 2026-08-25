@@ -6,6 +6,15 @@ import {
 
 export type TeamPermissionsAccess = "none" | "view" | "manage"
 
+export function parseTeamPermissionsAccess(
+  raw: string | null | undefined
+): TeamPermissionsAccess | null {
+  if (raw === "none" || raw === "view" || raw === "manage") {
+    return raw
+  }
+  return null
+}
+
 export interface OperatorProfile {
   fullName: string
   /** Nominated account email from `/auth/me` — used to prefill Send test. */
@@ -38,12 +47,11 @@ export function parseOperatorProfile(result: unknown): OperatorProfile | null {
     readOptionalNullableString(data, "activationExpiresAt") ?? null
 
   const selfRole = readOptionalNullableString(data, "selfRole") ?? null
-  const accessRaw =
-    readOptionalNullableString(data, "teamPermissionsAccess") ?? "none"
+  // Omit means the session predates this field. Existing Account owners must
+  // still see Team & permissions. Explicit "none" still hides the SideNav row.
+  const accessRaw = readOptionalNullableString(data, "teamPermissionsAccess")
   const teamPermissionsAccess: TeamPermissionsAccess =
-    accessRaw === "none" || accessRaw === "view" || accessRaw === "manage"
-      ? accessRaw
-      : "manage"
+    parseTeamPermissionsAccess(accessRaw) ?? "manage"
 
   return {
     fullName,

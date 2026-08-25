@@ -310,33 +310,18 @@ namespace TummlyBackend.Services
                 membership = active.FirstOrDefault(row =>
                     row.RestaurantId == requiredRestaurantId.Value
                 );
-                if (membership == null && active.Count == 0)
+                if (membership == null)
                 {
-                    var hasMembershipRow = await _context.RestaurantMemberships
+                    var owned = await _context.Restaurants
                         .AsNoTracking()
-                        .AnyAsync(row => row.UserId == userId);
-
-                    if (!hasMembershipRow)
-                    {
-                        var owned = await _context.Restaurants
-                            .AsNoTracking()
-                            .AnyAsync(row =>
-                                row.Id == requiredRestaurantId.Value
-                                && row.OwnerUserId == userId
-                            );
-                        if (!owned)
-                        {
-                            return null;
-                        }
-                    }
-                    else
+                        .AnyAsync(row =>
+                            row.Id == requiredRestaurantId.Value
+                            && row.OwnerUserId == userId
+                        );
+                    if (!owned)
                     {
                         return null;
                     }
-                }
-                else if (membership == null)
-                {
-                    return null;
                 }
             }
             else
@@ -345,22 +330,15 @@ namespace TummlyBackend.Services
                     operatorUser,
                     active.Select(row => row.RestaurantId).ToList()
                 );
-                if (restaurantId == null && active.Count == 0)
+                if (restaurantId == null)
                 {
-                    var hasMembershipRow = await _context.RestaurantMemberships
+                    var owned = await _context.Restaurants
                         .AsNoTracking()
-                        .AnyAsync(row => row.UserId == userId);
+                        .Where(row => row.OwnerUserId == userId)
+                        .Select(row => row.Id)
+                        .ToListAsync();
 
-                    if (!hasMembershipRow)
-                    {
-                        var owned = await _context.Restaurants
-                            .AsNoTracking()
-                            .Where(row => row.OwnerUserId == userId)
-                            .Select(row => row.Id)
-                            .ToListAsync();
-
-                        restaurantId = ResolveRestaurantId(operatorUser, owned);
-                    }
+                    restaurantId = ResolveRestaurantId(operatorUser, owned);
                 }
 
                 if (restaurantId == null)
@@ -543,12 +521,7 @@ namespace TummlyBackend.Services
                 return selected;
             }
 
-            if (restaurantIds.Count == 1)
-            {
-                return restaurantIds[0];
-            }
-
-            return null;
+            return restaurantIds.OrderBy(id => id).First();
         }
 
         private sealed record RestaurantAccess(
