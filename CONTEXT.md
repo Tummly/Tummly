@@ -73,19 +73,19 @@ Authentication for returning operators, **Admin**, or **Support**, including pas
 _Avoid_: Login (acceptable in UI copy only)
 
 **Activation gate**:
-The access rule that blocks the **Operator dashboard** and operator APIs until **Account activation** succeeds, and blocks Sign-in entirely once **Activation expired**. **Admin** and **Support** are not subject to the Activation gate.
+The access rule that gates a Restaurant's **Operator dashboard** and operator APIs on that Restaurant's **Account owner** completing **Account activation**, and that blocks the Account owner's Sign-in once **Activation expired**. **Team member**s who are not the Account owner skip the **Activation Code** and follow the owner's state for that Restaurant; **Admin** and **Support** are not subject to the gate.
 _Avoid_: Activation middleware, paywall, trial lock
 
 **Account password**:
-The credential an operator creates during Operator Setup or password reset. Accepted only when the password strength indicator reaches **Good** or better.
+The credential an operator creates during Operator Setup, **Team invitation** accept for a new User, or password reset. Accepted only when the password strength indicator reaches **Good** or better.
 _Avoid_: Passphrase, secret, PIN
 
 **Password strength**:
-Five-tier indicator (Very weak → Weak → Good → Strong → Excellent) shown while choosing an Account password. **Good** is the minimum to save the password: at least 8 characters with uppercase and a number or symbol. **Excellent** is the top tier: 12+ characters with uppercase, a number, and a symbol. The same rules apply on Operator Setup and password reset.
+Five-tier indicator (Very weak → Weak → Good → Strong → Excellent) shown while choosing an Account password. **Good** is the minimum to save the password: at least 8 characters with uppercase and a number or symbol. **Excellent** is the top tier: 12+ characters with uppercase, a number, and a symbol. The same rules apply on Operator Setup, **Team invitation** accept for a new User, and password reset.
 _Avoid_: Password score, zxcvbn, complexity meter
 
 **First Sign-in**:
-The operator's first successful Sign-in after Operator Setup is complete — the first time they obtain a session through `/login`, not trial email verification or invite setup.
+The operator's first successful Sign-in after Operator Setup, or after a new User accepts a **Team invitation**. Distinct from trial email verification. Team accept stays on `/start` until membership exists.
 _Avoid_: First login, first visit
 
 **Trusted device**:
@@ -193,7 +193,7 @@ The Trial Request form field label for the applicant's self-selected job functio
 _Avoid_: Job title field
 
 **Self role**:
-The job function the applicant picks for themselves on the Trial Request form (field label: **Your role**). Canonical option values: Owner / operator; Founder / director; General manager; Area / operations manager; Marketing / growth; Admin / support; Agency / consultant; Other. Exposed to the signed-in operator as `selfRole` on `/auth/me`. Distinct from the account permission role on the User record (`user.Role`, e.g. `Owner`). In Operator dashboard account chrome, slash-joined labels show only the segment before the slash (e.g. Owner / operator → **Owner**, Founder / director → **Founder**); labels without a slash show as-is (e.g. **General manager**); **Other** is omitted (name only, no subtitle).
+The job function the applicant picks for themselves on the Trial Request form (field label: **Your role**). Canonical option values: Owner / operator; Founder / director; General manager; Area / operations manager; Marketing / growth; Admin / support; Agency / consultant; Other. Exposed to the signed-in operator as `selfRole` on `/auth/me`. Distinct from **Permission role**. In Operator dashboard account chrome, slash-joined labels show only the segment before the slash (e.g. Owner / operator → **Owner**, Founder / director → **Founder**); labels without a slash show as-is (e.g. **General manager**); **Other** is omitted (name only, no subtitle).
 _Avoid_: yourRole, job title, account role, store manager, registration role
 
 ## Platform staff
@@ -233,8 +233,8 @@ The typed intent stored on an **Account request**. Canonical values: **TransferO
 _Avoid_: Request type, case reason, issue type
 
 **Ownership transfer request**:
-An **Account request** that asks Support to transfer Restaurant ownership. Creating the request does not change the owner.
-_Avoid_: Transfer owner action, change owner, immediate ownership write
+An **Account request** that asks Support to transfer Restaurant ownership. Creating the request does not change the owner. Not a **Team & permissions** action. Support completion is a later Admin slice.
+_Avoid_: Transfer owner action, change owner, immediate ownership write, Team transfer
 
 **Account export request**:
 An **Account request** that asks Support for a full account data package. Distinct from **Guest-data export**.
@@ -476,7 +476,7 @@ The Restaurant-level defaults managed on the **Account & workspace** Settings ta
 _Avoid_: Personal preferences, dashboard defaults, account preferences
 
 **Workspace selection**:
-The post-authentication step where a multi-restaurant operator chooses which restaurant to work in. Triggered when the backend sets `workspaceSetupRequired` on the sign-in response. The operator sees a list of their restaurants, picks one, and is redirected to that restaurant's dashboard. Single-restaurant operators (single- and multi-location alike) skip this step entirely and land directly on their dashboard. Today every operator owns one restaurant, so workspace selection is dormant — the UI and API exist but are not triggered. The fields (`workspaceSetupRequired`, `selectedRestaurantId`) are not sent by the backend until multi-restaurant ownership is introduced.
+The post-authentication step where an operator with more than one **Active** **Restaurant membership** chooses which Restaurant to work in. Triggered when the backend sets `workspaceSetupRequired` on the sign-in response. The list is **Active** memberships, not `OwnerUserId` / owned restaurants only. An operator with one **Active** membership skips this step and lands on that Restaurant's dashboard (single- or multi-location). Dormant until a User has more than one **Active** membership.
 _Avoid_: Location picker, workspace picker
 
 **Operator dashboard**:
@@ -488,7 +488,7 @@ The Operator dashboard shell control that selects the current **Owned location**
 _Avoid_: location picker (when meaning this control), Analysis scope (when meaning dashboard selection)
 
 **AI Assistant**:
-The operator-facing chat surface on the Operator dashboard. Distinct from platform-side AI such as **AI classification**, and from guest-facing AI such as recovery drafts. Distinct from the Help Centre.
+The operator-facing chat surface on the Operator dashboard. Area `ai-assistant` gates the drawer and APIs; each retrieve and write still uses the source and target **Area** cell plus **Location scope**. Distinct from platform-side AI such as **AI classification**, and from guest-facing AI such as recovery drafts. Distinct from the Help Centre.
 _Avoid_: Copilot, AI copilot, Ask AI, wizard-in-chat, Draft interview (as the target create path)
 
 **Assistant conversation**:
@@ -500,7 +500,7 @@ The **AI Assistant**'s data window: one **Owned location** or **All owned locati
 _Avoid_: Location scope (alone), restaurant scope, copilot context, AI context
 
 **All owned locations**:
-A saved **Analysis scope** mode (multi-location operators only) that resolves to every **Owned location** on the operator's restaurant at each turn — a live set, not a stored id list. **Change analysis scope** and the glossary use this name; header status and Recent list use the short label **All Locations**. Mode `single` hides this option. Create **Assistant task**s still persist at one **Owned location**; that bind does not narrow saved scope to that venue unless the operator **Apply**s one location via **Change analysis scope**. Distinct from a **Compare turn** named subset and from multi-select of locations as saved scope.
+A saved **Analysis scope** mode (multi-location operators only) that resolves to this actor’s **Location scope** live set at each turn — not every **Owned location** on the Restaurant unless that membership is **All locations**. **Change analysis scope** and the glossary use this name; header status and Recent list use the short label **All Locations**. Mode `single` hides this option. Create **Assistant task**s still persist at one **Owned location**; that bind does not narrow saved scope to that venue unless the operator **Apply**s one location via **Change analysis scope**. Distinct from a **Compare turn** named subset and from multi-select of locations as saved scope.
 _Avoid_: All locations (as the glossary noun), every location (as saved scope), aggregate scope
 
 **Reporting period**:
@@ -672,7 +672,7 @@ The **Account & workspace** tab where the operator nominates **Account owner**, 
 _Avoid_: Summary contact; authorised users page; team picker (as the tab name)
 
 **Account owner**:
-The User who owns the Restaurant (`Restaurant.OwnerUserId`). Shown on **Key contacts** as a read-only picker. Change of Account owner is ownership transfer, not a Key contacts save. Distinct from `User.Role` value `Owner` (permission role on the User record).
+The User who owns the Restaurant (`Restaurant.OwnerUserId`). Exactly one. Shown on **Key contacts** as a read-only picker. **Team & permissions** does not change it. v1 change is an **Ownership transfer request**, not an in-product write. That User's **Restaurant membership** is always **permission role** **Owner**, **Active**, **All locations**. Distinct from Tummly staff **Admin** and from the platform `User.Role` Sign-in claim.
 _Avoid_: Account holder (when meaning this Key contacts role); restaurant owner (as UI copy on this tab)
 
 **Billing contact**:
@@ -688,12 +688,44 @@ The **Team member** nominated on **Key contacts** as the support responsibility 
 _Avoid_: Summary contact; Support (when meaning this operator nomination)
 
 **Team member**:
-A User who may operate this Restaurant and therefore appear in the **Key contacts** picker directory. Until **Team & permissions** ships, the only Team member is the **Account owner**.
-_Avoid_: Authorised user (as the glossary noun); seat; invitee (when meaning an active picker option)
+A User who has a **Restaurant membership** in this Restaurant (**Active** or **Deactivated**). **Key contacts** pickers list only **Active** memberships. Until **Team & permissions** ships, the only Team member is the **Account owner**.
+_Avoid_: Authorised user (as the glossary noun); seat; invitee (when meaning an Active picker option)
+
+**Restaurant membership**:
+The User × Restaurant link that lets a User operate that Restaurant. Holds exactly one **permission role**, a **Location scope**, and status **Active** or **Deactivated**. Unique per User and Restaurant. Created at Operator Setup for the **Account owner**, and at invite accept for others. Distinct from **Account owner** (`OwnerUserId`) and from `User.Role`. Product lock: `.scratch/team-and-permissions/issues/03-membership-roles-and-location-scope.md`.
+_Avoid_: seat; User.Role; invite (pending invite is not a membership)
+
+**Team invitation**:
+A pending email invite for one email to join one Restaurant as a **Team member**. Distinct from **Operator Setup invitation**. It is not a **Restaurant membership** until accept. Accept uses `/start?invite=` with an **opaque invitation reference**. Product lock: `.scratch/team-and-permissions/issues/05-invitation-lifecycle-and-accept-path.md`.
+_Avoid_: Operator Setup invitation; seat invite; invitee (when meaning a member)
+
+**Opaque invitation reference**:
+The unguessable secret in a **Team invitation** Accept URL (`/start?invite=`). Distinct from the Operator Setup `token` query. One-time; replaced on Resend.
+_Avoid_: setup token; invite token (when meaning the Operator Setup query)
+
+**Location scope**:
+The venue window on a **Restaurant membership**: **All locations** (live set of **Owned location**s) or a named non-empty list of **Owned location** ids. Filters location-shaped **Area**s; restaurant-wide Areas ignore it. A location-shaped request that names an id outside the set is denied; `all` on those APIs means this actor’s set. **Owner** is always **All locations**. **Area Manager** and **Location Manager** require a named list. Product lock: `.scratch/team-and-permissions/issues/03-membership-roles-and-location-scope.md`. Enforcement: `.scratch/team-and-permissions/issues/08-server-side-enforcement-on-apis-exports-and-ai.md`.
+_Avoid_: assigned locations (as a second noun); Scoped (a **Permission level**, not this field); Location access (Figma chrome label)
 
 **Team & permissions**:
-The later Settings nav child that owns Restaurant membership (invite, activate, deactivate) and permission roles. **Key contacts** consumes its member directory as a read-only picker list. It does not implement membership. When Team later removes a member who holds a writable Key contact role, Team must reassign that role to the **Account owner** before membership ends so Key contacts never keep a dangling User id.
-_Avoid_: Team management; RBAC admin (as the settings child name)
+The Settings nav child that owns **Restaurant membership** (invite, **Deactivate**, **Reactivate**, **Remove**) and **permission role**s. Only **Owner** and permission role **Admin** reach it; who may write is `.scratch/team-and-permissions/issues/04-who-may-invite-and-change-permissions.md`. Page chrome is `.scratch/team-and-permissions/issues/07-page-chrome-tabs-and-invite-modal.md`. It does not change **Account owner** and has no Transfer control. **Key contacts** consumes its **Active** member directory as a read-only picker list. It does not implement membership. When Team **Deactivate**s or **Remove**s a member who holds a writable Key contact role, Team silently reassigns that role to the **Account owner** in the same transaction so Key contacts never keep a dangling User id. **Reactivate** does not restore the nomination. Distinct from **Account activation**.
+_Avoid_: Team management; RBAC admin (as the settings child name); Account activation (when meaning membership status)
+
+**Permission role**:
+The named Restaurant access role on a **Restaurant membership**: **Owner**, **Admin**, **Area Manager**, **Location Manager**, **Marketing**, **Staff**, **Billing Admin**, **Reporting Only**. Distinct from **Self role**, from Tummly staff **Admin** / **Support**, from **Account owner**, and from the platform `User.Role` Sign-in claim. The first User from Operator Setup holds both **Account owner** and permission role **Owner**; v1 has no second **Owner** membership. Later **Owner** assignment is not Team; it is an **Ownership transfer request**.
+_Avoid_: User.Role (as the source of Restaurant access); job title; custom role (v1 has no custom-role designer)
+
+**Area**:
+A named product slice in the Restaurant permission matrix. Canonical ids: `account-workspace`, `locations`, `team-permissions`, `capture` (includes Brand & guest form), `feedback`, `guests`, `campaigns`, `offers`, `reports`, `tummly-shop`, `billing-credits`, `privacy-consent` (includes Access activity), `ai-assistant`. **Home** is not an Area; Home widgets follow the Area of their source queue. Product lock: `.scratch/team-and-permissions/issues/02-areas-and-default-permission-matrix.md`.
+_Avoid_: module, feature, SideNav row (Home and Settings disclosure are not Areas)
+
+**Permission level**:
+The value of one Area × **Permission role** cell. Canonical values: **No access** (hide nav; deny URL and API), **View** (show; read-only), **Manage** (show; only the actions that role may perform), **Scoped** (show; limit data and actions to assigned Locations). Hide-nav is UX only; the server repeats the check. Figma labels **Limited**, **View reports**, **Redeem only**, and **Manage\*** are display notes, not extra stored values. Product lock: `.scratch/team-and-permissions/issues/02-areas-and-default-permission-matrix.md`. Enforcement: `.scratch/team-and-permissions/issues/08-server-side-enforcement-on-apis-exports-and-ai.md`.
+_Avoid_: ACL, grant, Limited, Redeem only (as stored levels)
+
+**Access activity**:
+The Restaurant append-only log of successful **Team invitation**, **Restaurant membership**, and Admin-matrix writes. Shown on the **Team & permissions** Security tab. Viewing is Area `privacy-consent`, not `team-permissions`. Distinct from **Location Guest activity event**, from per-**Feedback** activity history, and from Sign-in. Product lock: `.scratch/team-and-permissions/issues/06-access-activity-and-security-tab.md`.
+_Avoid_: audit log (as the glossary noun; Figma button copy only); security log; session history
 
 **Tummly Shop**:
 Operator surface for purchasing physical QR stickers and related materials. SideNav footer chrome exists today; full shop/fulfillment is not part of every product slice. Physical **QR code** stickers are obtained here — operators do not download QR PNGs from the dashboard.

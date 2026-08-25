@@ -111,6 +111,33 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task AccountWorkspace_Returns403_WhenNamedLocationListIsEmpty()
+        {
+            var seeded = await SeedOwnerWithSecondMembershipAsync(
+                deactivateSecond: true
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var first = await context.RestaurantMemberships
+                .FirstAsync(m => m.RestaurantId == seeded.FirstRestaurantId);
+            first.LocationScope = LocationScopeKind.NamedList;
+            first.NamedLocationIdsJson = "[]";
+            await context.SaveChangesAsync();
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/account-workspace"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
         public async Task AccountWorkspace_Returns403_ForTummlyStaffJwt()
         {
             using var scope = _factory.Services.CreateScope();

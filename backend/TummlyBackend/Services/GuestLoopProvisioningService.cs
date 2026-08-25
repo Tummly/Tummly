@@ -113,6 +113,16 @@ namespace TummlyBackend.Services
                 _context.Restaurants.Add(restaurant);
                 await _context.SaveChangesAsync();
 
+                var scopeError = MembershipLocationScope.Validate(
+                    PermissionRoles.Owner,
+                    LocationScopeKind.AllLocations,
+                    []
+                );
+                if (scopeError != null)
+                {
+                    throw new ArgumentException(scopeError);
+                }
+
                 _context.RestaurantMemberships.Add(new RestaurantMembership
                 {
                     UserId = user.Id,

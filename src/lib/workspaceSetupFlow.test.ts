@@ -35,6 +35,8 @@ describe("parseWorkspaceLocation", () => {
       address: "",
     })
   })
+
+  it("reads PascalCase workspace fields", () => {
     expect(
       parseWorkspaceLocation({
         LocationId: 7,

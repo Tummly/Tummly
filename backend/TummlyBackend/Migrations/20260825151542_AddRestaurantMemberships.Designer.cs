@@ -2413,6 +2413,11 @@ namespace TummlyBackend.Migrations
 
                     b.HasIndex("RestaurantId");
 
+                    b.HasIndex("RestaurantId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_RestaurantMemberships_OneOwner")
+                        .HasFilter("[PermissionRole] = N'Owner'");
+
                     b.HasIndex("UserId", "RestaurantId")
                         .IsUnique();
 

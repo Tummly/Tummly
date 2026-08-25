@@ -57,6 +57,13 @@ namespace TummlyBackend.Migrations
                 columns: new[] { "UserId", "RestaurantId" },
                 unique: true);
 
+            migrationBuilder.CreateIndex(
+                name: "IX_RestaurantMemberships_OneOwner",
+                table: "RestaurantMemberships",
+                column: "RestaurantId",
+                unique: true,
+                filter: "[PermissionRole] = N'Owner'");
+
             migrationBuilder.Sql(
                 """
                 INSERT INTO RestaurantMemberships

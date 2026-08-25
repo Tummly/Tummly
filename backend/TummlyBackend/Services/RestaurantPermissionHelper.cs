@@ -54,7 +54,10 @@ namespace TummlyBackend.Services
                 )
                 .ToListAsync();
 
-            var restaurantId = ResolveRestaurantId(operatorUser, active);
+            var restaurantId = ResolveRestaurantId(
+                operatorUser,
+                active.Select(m => m.RestaurantId).ToList()
+            );
             if (restaurantId == null && active.Count == 0)
             {
                 var hasMembershipRow = await _context.RestaurantMemberships
@@ -69,7 +72,7 @@ namespace TummlyBackend.Services
                         .Select(r => r.Id)
                         .ToListAsync();
 
-                    restaurantId = ResolveOwnedFallback(operatorUser, owned);
+                    restaurantId = ResolveRestaurantId(operatorUser, owned);
                 }
             }
 
@@ -90,56 +93,47 @@ namespace TummlyBackend.Services
                 return RestaurantPermissionDecision.Deny();
             }
 
+            if (membership != null && NamedListIsEmpty(membership))
+            {
+                return RestaurantPermissionDecision.Deny();
+            }
+
             return RestaurantPermissionDecision.Allow(restaurantId.Value);
+        }
+
+        private static bool NamedListIsEmpty(RestaurantMembership membership)
+        {
+            if (membership.LocationScope != LocationScopeKind.NamedList)
+            {
+                return false;
+            }
+
+            return MembershipLocationScope
+                .ParseNamedIds(membership.NamedLocationIdsJson)
+                .Count == 0;
         }
 
         private static int? ResolveRestaurantId(
             User user,
-            IReadOnlyList<RestaurantMembership> active
+            IReadOnlyList<int> restaurantIds
         )
         {
-            if (active.Count == 0)
+            if (restaurantIds.Count == 0)
             {
                 return null;
             }
 
             if (
                 user.SelectedRestaurantId is int selected
-                && active.Any(m => m.RestaurantId == selected)
+                && restaurantIds.Contains(selected)
             )
             {
                 return selected;
             }
 
-            if (active.Count == 1)
+            if (restaurantIds.Count == 1)
             {
-                return active[0].RestaurantId;
-            }
-
-            return null;
-        }
-
-        private static int? ResolveOwnedFallback(
-            User user,
-            IReadOnlyList<int> ownedRestaurantIds
-        )
-        {
-            if (ownedRestaurantIds.Count == 0)
-            {
-                return null;
-            }
-
-            if (
-                user.SelectedRestaurantId is int selected
-                && ownedRestaurantIds.Contains(selected)
-            )
-            {
-                return selected;
-            }
-
-            if (ownedRestaurantIds.Count == 1)
-            {
-                return ownedRestaurantIds[0];
+                return restaurantIds[0];
             }
 
             return null;

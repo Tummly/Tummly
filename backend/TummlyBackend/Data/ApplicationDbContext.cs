@@ -295,6 +295,12 @@ namespace TummlyBackend.Data
                 .IsUnique();
 
             modelBuilder.Entity<RestaurantMembership>()
+                .HasIndex(m => m.RestaurantId)
+                .HasFilter("[PermissionRole] = N'Owner'")
+                .IsUnique()
+                .HasDatabaseName("IX_RestaurantMemberships_OneOwner");
+
+            modelBuilder.Entity<RestaurantMembership>()
                 .Property(m => m.PermissionRole)
                 .HasMaxLength(40);
 
