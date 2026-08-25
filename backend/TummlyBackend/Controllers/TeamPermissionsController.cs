@@ -69,6 +69,49 @@ namespace TummlyBackend.Controllers
             return Ok(page);
         }
 
+        [HttpGet("access-activity")]
+        public async Task<IActionResult> GetAccessActivity(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var team = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.TeamPermissions,
+                PermissionLevel.View
+            );
+            var teamDenied = team.ToForbiddenResult();
+            if (teamDenied != null)
+            {
+                return teamDenied;
+            }
+
+            var privacy = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.PrivacyConsent,
+                PermissionLevel.View
+            );
+            var privacyDenied = privacy.ToForbiddenResult();
+            if (privacyDenied != null)
+            {
+                return privacyDenied;
+            }
+
+            var list = await _teamPermissions.GetAccessActivityAsync(
+                team.RestaurantId,
+                page,
+                pageSize
+            );
+            return Ok(list);
+        }
+
         [HttpPatch("members/{membershipId:int}/role")]
         public async Task<IActionResult> UpdateRole(
             int membershipId,

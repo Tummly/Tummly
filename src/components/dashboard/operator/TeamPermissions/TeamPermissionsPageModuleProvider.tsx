@@ -10,6 +10,7 @@ import { useSearchParams } from "react-router-dom"
 import {
   deactivateTeamMember,
   getTeamPermissionsPage,
+  getTeamAccessActivity,
   reactivateTeamMember,
   removeTeamMember,
   resendTeamInvitation,
@@ -90,6 +91,7 @@ export function TeamPermissionsPageModuleProvider({
             throw error
           }
         },
+        getAccessActivity: getTeamAccessActivity,
       },
       { initialTabId }
     )

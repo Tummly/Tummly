@@ -71,7 +71,153 @@ export const TEAM_PERMISSIONS_PAGE_COPY = {
   expired: "Expired",
   resend: "Resend",
   revoke: "Revoke",
+  accessActivityTitle: "Security & access activity",
+  accessActivitySubtitle:
+    "Review recent changes to team access and permissions.",
+  accessActivityEmptyTitle: "No access activity yet.",
+  accessActivityEmptyHelper:
+    "Changes to invitations, members and permissions will show here.",
+  viewFullAuditLog: "View full audit log",
+  accessActivitySheetTitle: "Access activity",
 } as const
+
+export const ACCESS_ACTIVITY_AREA_LABELS: Record<string, string> = {
+  "account-workspace": "Account & workspace",
+  locations: "Locations",
+  "team-permissions": "Team & permissions",
+  capture: "Capture",
+  feedback: "Feedback",
+  guests: "Guests",
+  campaigns: "Campaigns",
+  offers: "Offers",
+  reports: "Reports",
+  "tummly-shop": "Tummly Shop",
+  "billing-credits": "Billing & credits",
+  "privacy-consent": "Privacy & consent",
+  "ai-assistant": "AI Assistant",
+}
+
+export type AccessActivityKind =
+  | "invitation-sent"
+  | "invitation-resent"
+  | "invitation-revoked"
+  | "invitation-accepted"
+  | "role-changed"
+  | "location-scope-changed"
+  | "member-deactivated"
+  | "member-reactivated"
+  | "member-removed"
+  | "permission-cell-changed"
+
+export type AccessActivitySnapshot = {
+  kind: AccessActivityKind | string
+  actorDisplayName: string
+  targetDisplayName: string | null
+  fromValue: string | null
+  toValue: string | null
+}
+
+function possessive(name: string): string {
+  return `${name}'s`
+}
+
+function parsePermissionCell(value: string | null): {
+  area: string
+  level: string
+} {
+  if (value == null || !value.includes(":")) {
+    return { area: value ?? "", level: "" }
+  }
+  const index = value.indexOf(":")
+  const areaId = value.slice(0, index)
+  const level = value.slice(index + 1)
+  return {
+    area: ACCESS_ACTIVITY_AREA_LABELS[areaId] ?? areaId,
+    level,
+  }
+}
+
+export function formatAccessActivityCopy(
+  row: AccessActivitySnapshot
+): string {
+  const actor = row.actorDisplayName
+  const target = row.targetDisplayName ?? ""
+  switch (row.kind) {
+    case "invitation-sent":
+      return `${actor} invited ${target} as ${row.toValue} (${row.fromValue}).`
+    case "invitation-resent":
+      return `${actor} resent the invitation to ${target}.`
+    case "invitation-revoked":
+      return `${actor} revoked the invitation to ${target}.`
+    case "invitation-accepted":
+      return `${target} accepted the invitation.`
+    case "role-changed":
+      return `${actor} changed ${possessive(target)} role from ${row.fromValue} to ${row.toValue}.`
+    case "location-scope-changed":
+      return `${actor} changed ${possessive(target)} location access from ${row.fromValue} to ${row.toValue}.`
+    case "member-deactivated":
+      return `${actor} deactivated ${target}.`
+    case "member-reactivated":
+      return `${actor} reactivated ${target}.`
+    case "member-removed":
+      return `${actor} removed ${target}.`
+    case "permission-cell-changed": {
+      const from = parsePermissionCell(row.fromValue)
+      const to = parsePermissionCell(row.toValue)
+      return `${actor} changed Admin permission for ${from.area} from ${from.level} to ${to.level}.`
+    }
+    default:
+      return ""
+  }
+}
+
+function londonYmd(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date)
+}
+
+function previousYmd(ymd: string): string {
+  const [year, month, day] = ymd.split("-").map(Number)
+  return new Date(Date.UTC(year, month - 1, day - 1))
+    .toISOString()
+    .slice(0, 10)
+}
+
+function londonTime(date: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date)
+}
+
+export function formatAccessActivityOccurredAt(
+  iso: string,
+  now: Date
+): string {
+  const occurred = new Date(iso)
+  const time = londonTime(occurred)
+  const occurredDay = londonYmd(occurred)
+  const today = londonYmd(now)
+  if (occurredDay === today) {
+    return `Today, ${time}`
+  }
+  if (occurredDay === previousYmd(today)) {
+    return `Yesterday, ${time}`
+  }
+  const datePart = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(occurred)
+  return `${datePart}, ${time}`
+}
 
 export const TEAM_PERMISSIONS_SELECT_MENU_CLASS = "z-[130]"
 

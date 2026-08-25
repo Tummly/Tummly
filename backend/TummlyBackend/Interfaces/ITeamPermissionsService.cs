@@ -10,6 +10,12 @@ namespace TummlyBackend.Interfaces
             bool actorCanManage
         );
 
+        Task<AccessActivityListDto> GetAccessActivityAsync(
+            int restaurantId,
+            int page,
+            int pageSize
+        );
+
         Task<string?> UpdateRoleAsync(
             int actorUserId,
             int restaurantId,

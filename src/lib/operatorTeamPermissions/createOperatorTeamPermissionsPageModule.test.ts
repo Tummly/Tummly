@@ -83,6 +83,12 @@ function adapters(
     sendInvite: vi.fn(async () => undefined),
     resendInvite: vi.fn(async () => undefined),
     revokeInvite: vi.fn(async () => undefined),
+    getAccessActivity: vi.fn(async () => ({
+      items: [],
+      totalCount: 0,
+      page: 1,
+      pageSize: 10,
+    })),
     ...overrides,
   }
 }
@@ -131,6 +137,50 @@ describe("createOperatorTeamPermissionsPageModule", () => {
       module.getSnapshot().tabs.map((tab) => tab.id)
     ).not.toContain("access-activity")
     expect(module.getSnapshot().activeTabId).toBe("members")
+    expect(api.getAccessActivity).not.toHaveBeenCalled()
+  })
+
+  it("loads 10 preview rows and pages the sheet at 20", async () => {
+    const items = Array.from({ length: 25 }, (_, index) => ({
+      id: index + 1,
+      kind: "member-removed" as const,
+      occurredAt: "2026-08-26T09:00:00.000Z",
+      actorDisplayName: "Alex Owner",
+      targetDisplayName: `Person ${index}`,
+      targetEmail: null,
+      fromValue: null,
+      toValue: null,
+    }))
+    const getAccessActivity = vi.fn(
+      async ({ pageSize }: { pageSize: number }) => ({
+        items: items.slice(0, pageSize),
+        totalCount: 25,
+        page: 1,
+        pageSize,
+      })
+    )
+    const api = adapters({ getAccessActivity })
+    const module = createOperatorTeamPermissionsPageModule(api, {
+      getNow: () => new Date("2026-08-26T12:00:00.000Z"),
+    })
+    await module.load()
+    expect(getAccessActivity).toHaveBeenCalledWith({ page: 1, pageSize: 10 })
+    expect(module.getSnapshot().accessActivityPreview).toHaveLength(10)
+    expect(module.getSnapshot().accessActivityEmpty).toBe(false)
+    await module.openAuditLog()
+    expect(getAccessActivity).toHaveBeenCalledWith({ page: 1, pageSize: 20 })
+    expect(module.getSnapshot().auditLogOpen).toBe(true)
+    expect(module.getSnapshot().auditLogRows).toHaveLength(20)
+    expect(module.getSnapshot().auditLogHasNext).toBe(true)
+  })
+
+  it("keeps the card empty copy when there are no rows", async () => {
+    const module = createOperatorTeamPermissionsPageModule(adapters())
+    await module.load()
+    expect(module.getSnapshot().accessActivityEmpty).toBe(true)
+    expect(module.getSnapshot().accessActivityPreview).toEqual([])
+    await module.openAuditLog()
+    expect(module.getSnapshot().auditLogOpen).toBe(false)
   })
 
   it("hides unauthorized row actions", async () => {

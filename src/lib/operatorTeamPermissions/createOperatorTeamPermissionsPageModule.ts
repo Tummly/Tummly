@@ -14,6 +14,8 @@ import {
   legalAdminLevels,
   resolveTeamPermissionsTabId,
   TEAM_PERMISSIONS_TAB_IDS,
+  formatAccessActivityCopy,
+  formatAccessActivityOccurredAt,
   type TeamPermissionsTabId,
 } from "@/lib/operatorTeamPermissions/teamPermissionsPresentation"
 
@@ -57,6 +59,30 @@ export type TeamInvitationRow = {
   actions: string[]
 }
 
+export type AccessActivityItem = {
+  id: number
+  kind: string
+  occurredAt: string
+  actorDisplayName: string
+  targetDisplayName: string | null
+  targetEmail: string | null
+  fromValue: string | null
+  toValue: string | null
+}
+
+export type AccessActivityList = {
+  items: AccessActivityItem[]
+  totalCount: number
+  page: number
+  pageSize: number
+}
+
+export type AccessActivityViewRow = {
+  id: number
+  occurredAtLabel: string
+  sentence: string
+}
+
 export type TeamInviteDraft = {
   email: string
   fullName: string
@@ -97,6 +123,10 @@ export type TeamPermissionsPageAdapters = {
   sendInvite: (payload: TeamInviteDraft) => Promise<void>
   resendInvite: (invitationId: number) => Promise<void>
   revokeInvite: (invitationId: number) => Promise<void>
+  getAccessActivity: (params: {
+    page: number
+    pageSize: number
+  }) => Promise<AccessActivityList>
 }
 
 export type TeamPermissionsDialog =
@@ -142,6 +172,15 @@ export type TeamPermissionsSnapshot = {
   saveEnabled: boolean
   leaveDirtyOpen: boolean
   pendingNavigationHref: string | null
+  accessActivityPreview: AccessActivityViewRow[]
+  accessActivityEmpty: boolean
+  auditLogOpen: boolean
+  auditLogRows: AccessActivityViewRow[]
+  auditLogPage: number
+  auditLogPageSize: number
+  auditLogTotalCount: number
+  auditLogHasNext: boolean
+  auditLogHasPrevious: boolean
 }
 
 export type OperatorTeamPermissionsPageModule = {
@@ -180,6 +219,10 @@ export type OperatorTeamPermissionsPageModule = {
   confirmLeaveDirtyCancel: () => Promise<void>
   closeLeaveDirty: () => void
   consumePendingNavigation: () => string | null
+  openAuditLog: () => Promise<void>
+  closeAuditLog: () => void
+  goToNextAuditPage: () => Promise<void>
+  goToPreviousAuditPage: () => Promise<void>
 }
 
 const TAB_LABELS: Record<TeamPermissionsTabId, string> = {
@@ -261,7 +304,10 @@ function memberMatches(
 
 export function createOperatorTeamPermissionsPageModule(
   adapters: TeamPermissionsPageAdapters,
-  options: { initialTabId?: string | null } = {}
+  options: {
+    initialTabId?: string | null
+    getNow?: () => Date
+  } = {}
 ): OperatorTeamPermissionsPageModule {
   let privacyConsentHasAccess = true
   let data: TeamPermissionsPageData | null = null
@@ -284,7 +330,15 @@ export function createOperatorTeamPermissionsPageModule(
   let pendingNavigationHref: string | null = null
   let inviteDraft = emptyInviteDraft("")
   let inviteEmailError: string | null = null
+  let accessActivityPreview: AccessActivityViewRow[] = []
+  let accessActivityEmpty = true
+  let auditLogOpen = false
+  let auditLogRows: AccessActivityViewRow[] = []
+  let auditLogPage = 1
+  let auditLogPageSize = 20
+  let auditLogTotalCount = 0
   const listeners = new Set<() => void>()
+  const getNow = options.getNow ?? (() => new Date())
 
   const emit = () => {
     for (const listener of listeners) {
@@ -427,7 +481,50 @@ export function createOperatorTeamPermissionsPageModule(
       saveEnabled: dirty && canEditAdminColumn() && !busy,
       leaveDirtyOpen,
       pendingNavigationHref,
+      accessActivityPreview,
+      accessActivityEmpty,
+      auditLogOpen,
+      auditLogRows,
+      auditLogPage,
+      auditLogPageSize,
+      auditLogTotalCount,
+      auditLogHasNext: auditLogPage * auditLogPageSize < auditLogTotalCount,
+      auditLogHasPrevious: auditLogPage > 1,
     }
+  }
+
+  const mapRows = (items: AccessActivityItem[]): AccessActivityViewRow[] => {
+    const now = getNow()
+    return items.map((item) => ({
+      id: item.id,
+      occurredAtLabel: formatAccessActivityOccurredAt(item.occurredAt, now),
+      sentence: formatAccessActivityCopy({
+        kind: item.kind,
+        actorDisplayName: item.actorDisplayName,
+        targetDisplayName: item.targetDisplayName,
+        fromValue: item.fromValue,
+        toValue: item.toValue,
+      }),
+    }))
+  }
+
+  const loadPreview = async () => {
+    if (!privacyConsentHasAccess) {
+      accessActivityPreview = []
+      accessActivityEmpty = true
+      return
+    }
+    const list = await adapters.getAccessActivity({ page: 1, pageSize: 10 })
+    accessActivityPreview = mapRows(list.items)
+    accessActivityEmpty = list.totalCount === 0
+  }
+
+  const loadAuditPage = async (page: number) => {
+    const list = await adapters.getAccessActivity({ page, pageSize: 20 })
+    auditLogRows = mapRows(list.items)
+    auditLogPage = list.page
+    auditLogPageSize = list.pageSize
+    auditLogTotalCount = list.totalCount
   }
 
   const reload = async () => {
@@ -446,6 +543,7 @@ export function createOperatorTeamPermissionsPageModule(
         privacyConsentHasAccess
       )
       adminDraft = {}
+      await loadPreview()
       loadStatus = "loaded"
     } catch {
       loadStatus = "error"
@@ -828,6 +926,32 @@ export function createOperatorTeamPermissionsPageModule(
       const href = pendingNavigationHref
       pendingNavigationHref = null
       return href
+    },
+    openAuditLog: async () => {
+      if (accessActivityEmpty || !privacyConsentHasAccess) {
+        return
+      }
+      await loadAuditPage(1)
+      auditLogOpen = true
+      emit()
+    },
+    closeAuditLog: () => {
+      auditLogOpen = false
+      emit()
+    },
+    goToNextAuditPage: async () => {
+      if (auditLogPage * auditLogPageSize >= auditLogTotalCount) {
+        return
+      }
+      await loadAuditPage(auditLogPage + 1)
+      emit()
+    },
+    goToPreviousAuditPage: async () => {
+      if (auditLogPage <= 1) {
+        return
+      }
+      await loadAuditPage(auditLogPage - 1)
+      emit()
     },
   }
 }

@@ -139,6 +139,45 @@ namespace TummlyBackend.Services
             };
         }
 
+        public async Task<AccessActivityListDto> GetAccessActivityAsync(
+            int restaurantId,
+            int page,
+            int pageSize
+        )
+        {
+            var safePage = page < 1 ? 1 : page;
+            var safeSize = pageSize is 10 or 20 ? pageSize : 10;
+            var query = _context.RestaurantAccessActivities
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurantId)
+                .OrderByDescending(row => row.OccurredAt)
+                .ThenByDescending(row => row.Id);
+            var total = await query.CountAsync();
+            var rows = await query
+                .Skip((safePage - 1) * safeSize)
+                .Take(safeSize)
+                .ToListAsync();
+            return new AccessActivityListDto
+            {
+                TotalCount = total,
+                Page = safePage,
+                PageSize = safeSize,
+                Items = rows
+                    .Select(row => new AccessActivityRowDto
+                    {
+                        Id = row.Id,
+                        Kind = row.Kind,
+                        OccurredAt = row.OccurredAt,
+                        ActorDisplayName = row.ActorDisplayName ?? "",
+                        TargetDisplayName = row.TargetDisplayName,
+                        TargetEmail = row.TargetEmail,
+                        FromValue = row.FromValue,
+                        ToValue = row.ToValue,
+                    })
+                    .ToList(),
+            };
+        }
+
         public async Task<string?> UpdateRoleAsync(
             int actorUserId,
             int restaurantId,
@@ -265,12 +304,13 @@ namespace TummlyBackend.Services
                 }
             }
 
-            var from = FormatScope(target);
+            var namesById = await LocationNamesAsync(restaurantId);
+            var from = FormatScopeLabel(target, namesById);
             target.LocationScope = kind;
             target.NamedLocationIdsJson = kind == LocationScopeKind.NamedList
                 ? MembershipLocationScope.SerializeNamedIds(named)
                 : "[]";
-            var to = FormatScope(target);
+            var to = FormatScopeLabel(target, namesById);
             if (from == to)
             {
                 return null;
@@ -590,6 +630,7 @@ namespace TummlyBackend.Services
                 OpaqueReference = TeamInvitationReference.Create(),
             };
             _context.TeamInvitations.Add(invite);
+            var namesById = loaded.Locations.ToDictionary(row => row.Id, row => row.Name);
             AddInvitationActivity(
                 restaurantId,
                 actorUserId,
@@ -598,7 +639,7 @@ namespace TummlyBackend.Services
                 existingUser?.FullName ?? fullName,
                 email,
                 AccessActivityKinds.InvitationSent,
-                null,
+                MembershipLocationScope.FormatAccessLabel(kind, named, namesById),
                 request.PermissionRole
             );
             await _context.SaveChangesAsync();
@@ -1098,14 +1139,38 @@ namespace TummlyBackend.Services
             );
         }
 
-        private static string FormatScope(RestaurantMembership row)
+        private async Task<Dictionary<int, string>> LocationNamesAsync(
+            int restaurantId
+        )
         {
-            if (row.LocationScope == LocationScopeKind.AllLocations)
-            {
-                return "all";
-            }
+            return await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurantId)
+                .ToDictionaryAsync(row => row.Id, row => row.LocationName);
+        }
 
-            return row.NamedLocationIdsJson;
+        private static string FormatScopeLabel(
+            RestaurantMembership row,
+            IReadOnlyDictionary<int, string> namesById
+        )
+        {
+            var named = MembershipLocationScope.ParseNamedIds(
+                row.NamedLocationIdsJson
+            );
+            return MembershipLocationScope.FormatAccessLabel(
+                row.LocationScope,
+                named,
+                namesById
+            );
+        }
+
+        private string UserDisplayName(int userId)
+        {
+            return _context.Users
+                .AsNoTracking()
+                .Where(row => row.Id == userId)
+                .Select(row => row.FullName)
+                .First();
         }
 
         private static void ReassignKeyContacts(Restaurant restaurant, int userId)
@@ -1188,6 +1253,7 @@ namespace TummlyBackend.Services
                 {
                     RestaurantId = restaurantId,
                     ActorUserId = actorUserId,
+                    ActorDisplayName = UserDisplayName(actorUserId),
                     Kind = AccessActivityKinds.PermissionCellChanged,
                     FromValue = $"{areaId}:{PermissionLevelWire.Format(from)}",
                     ToValue = $"{areaId}:{PermissionLevelWire.Format(to)}",
@@ -1215,7 +1281,9 @@ namespace TummlyBackend.Services
                 {
                     RestaurantId = restaurantId,
                     ActorUserId = actorUserId,
+                    ActorDisplayName = UserDisplayName(actorUserId),
                     TargetUserId = target.UserId,
+                    TargetDisplayName = UserDisplayName(target.UserId),
                     TargetMembershipId = target.Id,
                     Kind = kind,
                     FromValue = from,

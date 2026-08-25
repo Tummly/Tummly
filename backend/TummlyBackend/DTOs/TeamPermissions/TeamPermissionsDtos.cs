@@ -132,4 +132,34 @@ namespace TummlyBackend.DTOs.TeamPermissions
 
         public int[] NamedLocationIds { get; set; } = [];
     }
+
+    public sealed class AccessActivityListDto
+    {
+        public List<AccessActivityRowDto> Items { get; set; } = [];
+
+        public int TotalCount { get; set; }
+
+        public int Page { get; set; }
+
+        public int PageSize { get; set; }
+    }
+
+    public sealed class AccessActivityRowDto
+    {
+        public int Id { get; set; }
+
+        public string Kind { get; set; } = string.Empty;
+
+        public DateTime OccurredAt { get; set; }
+
+        public string ActorDisplayName { get; set; } = string.Empty;
+
+        public string? TargetDisplayName { get; set; }
+
+        public string? TargetEmail { get; set; }
+
+        public string? FromValue { get; set; }
+
+        public string? ToValue { get; set; }
+    }
 }

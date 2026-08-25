@@ -38,6 +38,12 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { teamPermissionsFilterSheetSchema } from "@/lib/operatorTeamPermissions/teamPermissionsFilterSheetSchema"
 import { assignableRolesForActor } from "@/lib/operatorTeamPermissions/permissionRoles"
@@ -256,7 +262,9 @@ export function TeamPermissionsPage() {
         <TabsContent value="invitations" className="mt-0">
           <InvitationsBody snap={snap} pageModule={pageModule} />
         </TabsContent>
-        <TabsContent value="access-activity" className="mt-0" />
+        <TabsContent value="access-activity" className="mt-0">
+          <AccessActivityBody snap={snap} pageModule={pageModule} />
+        </TabsContent>
       </Tabs>
 
       <OperatorFilterSheetDialog
@@ -821,6 +829,160 @@ function MembersBody({
         </section>
       ) : null}
     </div>
+  )
+}
+
+function AccessActivityBody({
+  snap,
+  pageModule,
+}: {
+  snap: ReturnType<
+    ReturnType<typeof useTeamPermissionsPageModuleApi>["getSnapshot"]
+  >
+  pageModule: ReturnType<typeof useTeamPermissionsPageModuleApi>
+}) {
+  if (snap.loadStatus === "idle" || snap.loadStatus === "loading") {
+    return (
+      <div className="flex justify-center py-16" role="status">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (snap.loadStatus === "error") {
+    return (
+      <div className="flex flex-col items-start gap-3 py-8">
+        <p className="m-0 font-semibold">{copy.loadError}</p>
+        <Button
+          type="button"
+          variant="op-secondary"
+          onClick={() => {
+            void pageModule.load()
+          }}
+        >
+          {copy.retry}
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <section className={GUESTS_SECTION_CLASS}>
+        <div className="flex flex-col gap-2">
+          <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+            {copy.accessActivityTitle}
+          </h2>
+          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+            {copy.accessActivitySubtitle}
+          </p>
+        </div>
+        {snap.accessActivityEmpty ? (
+          <div className="flex flex-col items-start gap-2">
+            <p className="m-0 font-semibold">{copy.accessActivityEmptyTitle}</p>
+            <p className="m-0 text-muted-foreground">
+              {copy.accessActivityEmptyHelper}
+            </p>
+          </div>
+        ) : (
+          <>
+            <ul className="m-0 flex list-none flex-col gap-[22px] p-0">
+              {snap.accessActivityPreview.map((row, index) => (
+                <li
+                  key={row.id}
+                  className={
+                    index === 0
+                      ? "flex flex-col gap-2"
+                      : "flex flex-col gap-2 border-t border-op-border-default pt-[22px]"
+                  }
+                >
+                  <p className="m-0 text-sm font-medium text-foreground">
+                    {row.occurredAtLabel}
+                  </p>
+                  <p className="m-0 text-sm font-medium text-op-card-subtitle-color">
+                    {row.sentence}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <div>
+              <Button
+                type="button"
+                variant="op-secondary"
+                onClick={() => {
+                  void pageModule.openAuditLog()
+                }}
+              >
+                {copy.viewFullAuditLog}
+              </Button>
+            </div>
+          </>
+        )}
+      </section>
+      <Sheet
+        open={snap.auditLogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            pageModule.closeAuditLog()
+          }
+        }}
+      >
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-lg"
+          showCloseButton
+        >
+          <SheetHeader>
+            <SheetTitle className="text-xl font-bold">
+              {copy.accessActivitySheetTitle}
+            </SheetTitle>
+          </SheetHeader>
+          <ul className="m-0 flex list-none flex-col gap-[22px] overflow-y-auto p-4">
+            {snap.auditLogRows.map((row, index) => (
+              <li
+                key={row.id}
+                className={
+                  index === 0
+                    ? "flex flex-col gap-2"
+                    : "flex flex-col gap-2 border-t border-op-border-default pt-[22px]"
+                }
+              >
+                <p className="m-0 text-sm font-medium text-foreground">
+                  {row.occurredAtLabel}
+                </p>
+                <p className="m-0 text-sm font-medium text-op-card-subtitle-color">
+                  {row.sentence}
+                </p>
+              </li>
+            ))}
+          </ul>
+          {snap.auditLogHasPrevious || snap.auditLogHasNext ? (
+            <div className="flex gap-3 p-4">
+              <Button
+                type="button"
+                variant="op-tertiary"
+                disabled={!snap.auditLogHasPrevious}
+                onClick={() => {
+                  void pageModule.goToPreviousAuditPage()
+                }}
+              >
+                Previous
+              </Button>
+              <Button
+                type="button"
+                variant="op-tertiary"
+                disabled={!snap.auditLogHasNext}
+                onClick={() => {
+                  void pageModule.goToNextAuditPage()
+                }}
+              >
+                Next
+              </Button>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+    </>
   )
 }
 

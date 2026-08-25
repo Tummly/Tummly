@@ -2,6 +2,7 @@ import { isAxiosError } from "axios"
 
 import axiosInstance from "@/api/axiosInstance"
 import type {
+  AccessActivityList,
   TeamInviteDraft,
   TeamPermissionsPageData,
 } from "@/lib/operatorTeamPermissions/createOperatorTeamPermissionsPageModule"
@@ -116,5 +117,21 @@ export async function revokeTeamInvitation(
     await axiosInstance.delete(`/team-permissions/invitations/${invitationId}`)
   } catch (error) {
     rethrow(error, "Could not revoke invitation.")
+  }
+}
+
+export async function getTeamAccessActivity(params: {
+  page: number
+  pageSize: number
+}): Promise<AccessActivityList> {
+  const { data } = await axiosInstance.get<AccessActivityList>(
+    "/team-permissions/access-activity",
+    { params }
+  )
+  return {
+    items: data.items ?? [],
+    totalCount: data.totalCount ?? 0,
+    page: data.page ?? params.page,
+    pageSize: data.pageSize ?? params.pageSize,
   }
 }
