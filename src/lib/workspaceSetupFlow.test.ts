@@ -22,7 +22,19 @@ describe("parseWorkspaceLocation", () => {
     })
   })
 
-  it("reads PascalCase workspace fields", () => {
+  it("reads restaurantId as the workspace key", () => {
+    expect(
+      parseWorkspaceLocation({
+        restaurantId: 44,
+        restaurantName: "Second Group",
+      })
+    ).toEqual({
+      locationId: 44,
+      locationName: "Second Group",
+      restaurantName: "Second Group",
+      address: "",
+    })
+  })
     expect(
       parseWorkspaceLocation({
         LocationId: 7,

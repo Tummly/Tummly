@@ -113,6 +113,16 @@ namespace TummlyBackend.Services
                 _context.Restaurants.Add(restaurant);
                 await _context.SaveChangesAsync();
 
+                _context.RestaurantMemberships.Add(new RestaurantMembership
+                {
+                    UserId = user.Id,
+                    RestaurantId = restaurant.Id,
+                    PermissionRole = PermissionRoles.Owner,
+                    LocationScope = LocationScopeKind.AllLocations,
+                    NamedLocationIdsJson = "[]",
+                    Status = MembershipStatus.Active,
+                });
+
                 foreach (var item in dto.Locations)
                 {
                     var location = new RestaurantLocation

@@ -589,5 +589,68 @@ namespace TummlyBackend.Controllers
                 success = true
             });
         }
+
+        [Authorize]
+        [HttpGet("workspaces")]
+        public async Task<IActionResult> ListWorkspaces()
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var workspaces =
+                await _authService.ListWorkspacesAsync(userId);
+
+            return Ok(new
+            {
+                success = true,
+                data = workspaces,
+            });
+        }
+
+        [Authorize]
+        [HttpPost("select-workspace")]
+        public async Task<IActionResult> SelectWorkspace(
+            [FromBody] SelectWorkspaceDto dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            try
+            {
+                var restaurantId = await _authService.SelectWorkspaceAsync(
+                    userId,
+                    dto.ResolveRestaurantId()
+                );
+
+                return Ok(new
+                {
+                    success = true,
+                    restaurantId,
+                    locationId = restaurantId,
+                });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        message = ex.Message,
+                    }
+                );
+            }
+        }
     }
 }

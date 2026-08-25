@@ -904,16 +904,70 @@ namespace TummlyBackend.Services
 
         private async Task<bool> RequiresWorkspaceSetupAsync(User user)
         {
-            if (user.SelectedLocationId != null)
+            if (user.SelectedRestaurantId != null)
             {
                 return false;
             }
 
-            var ownedRestaurantCount =
-                await _context.Restaurants
-                    .CountAsync(r => r.OwnerUserId == user.Id);
+            var activeCount = await _context.RestaurantMemberships
+                .CountAsync(m =>
+                    m.UserId == user.Id
+                    && m.Status == MembershipStatus.Active
+                );
 
-            return ownedRestaurantCount >= 2;
+            return activeCount >= 2;
+        }
+
+        public async Task<IReadOnlyList<WorkspaceRestaurantDto>> ListWorkspacesAsync(
+            int userId
+        )
+        {
+            var rows = await _context.RestaurantMemberships
+                .AsNoTracking()
+                .Where(m =>
+                    m.UserId == userId
+                    && m.Status == MembershipStatus.Active
+                )
+                .Select(m => new
+                {
+                    m.RestaurantId,
+                    RestaurantName = m.Restaurant.Name,
+                })
+                .OrderBy(m => m.RestaurantName)
+                .ToListAsync();
+
+            return rows
+                .Select(m => new WorkspaceRestaurantDto
+                {
+                    RestaurantId = m.RestaurantId,
+                    RestaurantName = m.RestaurantName,
+                    LocationId = m.RestaurantId,
+                    LocationName = m.RestaurantName,
+                    Address = string.Empty,
+                })
+                .ToList();
+        }
+
+        public async Task<int> SelectWorkspaceAsync(int userId, int restaurantId)
+        {
+            var membership = await _context.RestaurantMemberships
+                .FirstOrDefaultAsync(m =>
+                    m.UserId == userId
+                    && m.RestaurantId == restaurantId
+                    && m.Status == MembershipStatus.Active
+                );
+
+            if (membership == null)
+            {
+                throw new UnauthorizedAccessException(
+                    "You do not have access to this restaurant."
+                );
+            }
+
+            var user = await _context.Users.FirstAsync(u => u.Id == userId);
+            user.SelectedRestaurantId = restaurantId;
+            await _context.SaveChangesAsync();
+            return restaurantId;
         }
 
         private async Task<object> BuildUserSessionPayloadAsync(

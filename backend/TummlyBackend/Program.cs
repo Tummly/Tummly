@@ -797,6 +797,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ISmsService, TwilioVerifySmsService>();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IRestaurantPermissionHelper, RestaurantPermissionHelper>();
 
 builder.Services.AddScoped<IJwtService, JwtService>();
 

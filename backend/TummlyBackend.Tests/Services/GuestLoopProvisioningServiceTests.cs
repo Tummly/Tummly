@@ -159,6 +159,14 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains(qrCodes, q => q.QrType == QrType.PackagingSticker);
             Assert.Contains(qrCodes, q => q.QrType == QrType.DeliveryInsert);
             Assert.Contains(qrCodes, q => q.QrType == QrType.WindowSticker);
+
+            var membership = await _context.RestaurantMemberships.SingleAsync();
+            Assert.Equal(user.Id, membership.UserId);
+            Assert.Equal(restaurant.Id, membership.RestaurantId);
+            Assert.Equal(PermissionRoles.Owner, membership.PermissionRole);
+            Assert.Equal(LocationScopeKind.AllLocations, membership.LocationScope);
+            Assert.Equal(MembershipStatus.Active, membership.Status);
+            Assert.Equal("[]", membership.NamedLocationIdsJson);
         }
 
         [Fact]

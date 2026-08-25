@@ -28,19 +28,20 @@ namespace TummlyBackend.Services
         }
 
         public async Task<AccountWorkspaceDetailsDto?> GetDetailsAsync(
-            int ownerUserId
+            int actorUserId,
+            int restaurantId
         )
         {
             var restaurant = await _context.Restaurants
                 .AsNoTracking()
-                .FirstOrDefaultAsync(r => r.OwnerUserId == ownerUserId);
+                .FirstOrDefaultAsync(r => r.Id == restaurantId);
 
             if (restaurant == null)
             {
                 return null;
             }
 
-            return await BuildDetailsAsync(restaurant, ownerUserId);
+            return await BuildDetailsAsync(restaurant, actorUserId);
         }
 
         public async Task<(
@@ -277,7 +278,7 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var eligibleIds = GetEligibleMemberIds(restaurant);
+            var eligibleIds = await GetEligibleMemberIdsAsync(restaurant.Id);
             if (
                 !eligibleIds.Contains(request.BillingContactUserId)
                 || !eligibleIds.Contains(request.PrivacyContactUserId)
@@ -493,7 +494,16 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .FirstAsync(u => u.Id == restaurant.OwnerUserId);
 
-            var keyContacts = MapKeyContacts(restaurant, owner);
+            var activeMembers = await _context.RestaurantMemberships
+                .AsNoTracking()
+                .Where(m =>
+                    m.RestaurantId == restaurant.Id
+                    && m.Status == MembershipStatus.Active
+                )
+                .Select(m => m.User)
+                .ToListAsync();
+
+            var keyContacts = MapKeyContacts(restaurant, owner, activeMembers);
 
             var workspaceStatus = restaurant.WorkspaceStatus.ToString();
             var lastAccountUpdate =
@@ -527,7 +537,7 @@ namespace TummlyBackend.Services
                     BillingStatus = "Active",
                     AccountCreatedAt = restaurant.CreatedAt,
                     ActiveLocations = activeLocations,
-                    TeamMembers = 1,
+                    TeamMembers = activeMembers.Count == 0 ? 1 : activeMembers.Count,
                     GuestProfiles = guestProfiles,
                     GuestFormStatus =
                         restaurant.WorkspaceStatus == WorkspaceStatus.Active
@@ -632,25 +642,44 @@ namespace TummlyBackend.Services
             }
         }
 
-        private static HashSet<int> GetEligibleMemberIds(Restaurant restaurant)
+        private async Task<HashSet<int>> GetEligibleMemberIdsAsync(int restaurantId)
         {
-            // Until Team & permissions ships, directory is { Account owner }.
-            return [restaurant.OwnerUserId];
+            var ids = await _context.RestaurantMemberships
+                .AsNoTracking()
+                .Where(m =>
+                    m.RestaurantId == restaurantId
+                    && m.Status == MembershipStatus.Active
+                )
+                .Select(m => m.UserId)
+                .ToListAsync();
+
+            return ids.ToHashSet();
         }
 
         private static AccountWorkspaceKeyContactsDto MapKeyContacts(
             Restaurant restaurant,
-            User owner
+            User owner,
+            IReadOnlyList<User> activeMembers
         )
         {
             var ownerItem = MapPickerItem(owner);
+            var eligible = activeMembers
+                .OrderBy(u => u.FullName)
+                .Select(MapPickerItem)
+                .ToList();
+
+            if (eligible.Count == 0)
+            {
+                eligible = [ownerItem];
+            }
+
             return new AccountWorkspaceKeyContactsDto
             {
                 AccountOwner = ownerItem,
                 BillingContactUserId = restaurant.BillingContactUserId,
                 PrivacyContactUserId = restaurant.PrivacyContactUserId,
                 SupportContactUserId = restaurant.SupportContactUserId,
-                EligibleMembers = [ownerItem],
+                EligibleMembers = eligible,
             };
         }
 

@@ -4,7 +4,10 @@ namespace TummlyBackend.Interfaces
 {
     public interface IAccountWorkspaceService
     {
-        Task<AccountWorkspaceDetailsDto?> GetDetailsAsync(int ownerUserId);
+        Task<AccountWorkspaceDetailsDto?> GetDetailsAsync(
+            int actorUserId,
+            int restaurantId
+        );
 
         Task<(AccountWorkspaceDetailsDto? Details, string? Error, int StatusCode)>
             UpdateAccountDetailsAsync(

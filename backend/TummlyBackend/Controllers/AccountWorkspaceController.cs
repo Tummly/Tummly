@@ -13,14 +13,17 @@ namespace TummlyBackend.Controllers
     {
         private readonly IAccountWorkspaceService _accountWorkspace;
         private readonly IGuestDataExportService _guestDataExport;
+        private readonly IRestaurantPermissionHelper _permissions;
 
         public AccountWorkspaceController(
             IAccountWorkspaceService accountWorkspace,
-            IGuestDataExportService guestDataExport
+            IGuestDataExportService guestDataExport,
+            IRestaurantPermissionHelper permissions
         )
         {
             _accountWorkspace = accountWorkspace;
             _guestDataExport = guestDataExport;
+            _permissions = permissions;
         }
 
         [HttpGet]
@@ -34,7 +37,22 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            var details = await _accountWorkspace.GetDetailsAsync(userId);
+            var decision = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.AccountWorkspace,
+                PermissionLevel.View
+            );
+
+            var forbidden = decision.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
+            var details = await _accountWorkspace.GetDetailsAsync(
+                userId,
+                decision.RestaurantId
+            );
 
             if (details == null)
             {

@@ -1,5 +1,6 @@
 ﻿using System.Threading;
 using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Helpers;
 using TummlyBackend.Models;
 
 namespace TummlyBackend.Data
@@ -35,6 +36,8 @@ namespace TummlyBackend.Data
         public DbSet<AccountSetupInvite> AccountSetupInvites { get; set; }
 
         public DbSet<Restaurant> Restaurants { get; set; }
+
+        public DbSet<RestaurantMembership> RestaurantMemberships { get; set; }
 
         public DbSet<RestaurantBusinessDetails> RestaurantBusinessDetails
         { get; set; }
@@ -285,6 +288,26 @@ namespace TummlyBackend.Data
                 .HasOne(r => r.OwnerUser)
                 .WithMany(u => u.OwnedRestaurants)
                 .HasForeignKey(r => r.OwnerUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RestaurantMembership>()
+                .HasIndex(m => new { m.UserId, m.RestaurantId })
+                .IsUnique();
+
+            modelBuilder.Entity<RestaurantMembership>()
+                .Property(m => m.PermissionRole)
+                .HasMaxLength(40);
+
+            modelBuilder.Entity<RestaurantMembership>()
+                .HasOne(m => m.User)
+                .WithMany()
+                .HasForeignKey(m => m.UserId)
+                .OnDelete(DeleteBehavior.ClientCascade);
+
+            modelBuilder.Entity<RestaurantMembership>()
+                .HasOne(m => m.Restaurant)
+                .WithMany()
+                .HasForeignKey(m => m.RestaurantId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<Restaurant>()
@@ -1367,6 +1390,7 @@ namespace TummlyBackend.Data
         public override int SaveChanges()
         {
             EnsureRestaurantKeyContactDefaults();
+            DropArchivedLocationIdsFromNamedLists();
             StampInMemoryCampaignRowVersions();
             return base.SaveChanges();
         }
@@ -1374,6 +1398,7 @@ namespace TummlyBackend.Data
         public override int SaveChanges(bool acceptAllChangesOnSuccess)
         {
             EnsureRestaurantKeyContactDefaults();
+            DropArchivedLocationIdsFromNamedLists();
             StampInMemoryCampaignRowVersions();
             return base.SaveChanges(acceptAllChangesOnSuccess);
         }
@@ -1383,6 +1408,7 @@ namespace TummlyBackend.Data
         )
         {
             EnsureRestaurantKeyContactDefaults();
+            DropArchivedLocationIdsFromNamedLists();
             StampInMemoryCampaignRowVersions();
             return base.SaveChangesAsync(cancellationToken);
         }
@@ -1393,8 +1419,12 @@ namespace TummlyBackend.Data
         )
         {
             EnsureRestaurantKeyContactDefaults();
+            DropArchivedLocationIdsFromNamedLists();
             StampInMemoryCampaignRowVersions();
-            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+            return base.SaveChangesAsync(
+                acceptAllChangesOnSuccess,
+                cancellationToken
+            );
         }
 
         /// <summary>
@@ -1432,6 +1462,51 @@ namespace TummlyBackend.Data
                 if (restaurant.SupportContactUserId == 0)
                 {
                     restaurant.SupportContactUserId = restaurant.OwnerUserId;
+                }
+            }
+        }
+
+        private void DropArchivedLocationIdsFromNamedLists()
+        {
+            var removed = ChangeTracker
+                .Entries<RestaurantLocation>()
+                .Where(e => e.State == EntityState.Deleted)
+                .Select(e => e.Entity)
+                .ToList();
+
+            if (removed.Count == 0)
+            {
+                return;
+            }
+
+            var restaurantIds = removed
+                .Select(l => l.RestaurantId)
+                .Distinct()
+                .ToList();
+
+            var memberships = RestaurantMemberships
+                .Where(m => restaurantIds.Contains(m.RestaurantId))
+                .ToList();
+
+            foreach (var location in removed)
+            {
+                foreach (var membership in memberships)
+                {
+                    if (
+                        membership.RestaurantId != location.RestaurantId
+                        || membership.LocationScope != LocationScopeKind.NamedList
+                    )
+                    {
+                        continue;
+                    }
+
+                    var ids = MembershipLocationScope
+                        .ParseNamedIds(membership.NamedLocationIdsJson)
+                        .Where(id => id != location.Id)
+                        .ToList();
+
+                    membership.NamedLocationIdsJson =
+                        MembershipLocationScope.SerializeNamedIds(ids);
                 }
             }
         }

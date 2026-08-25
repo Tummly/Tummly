@@ -52,6 +52,12 @@ namespace TummlyBackend.Interfaces
          ACCOUNT ACTIVATION
          =========================================
          */
+        Task<IReadOnlyList<WorkspaceRestaurantDto>> ListWorkspacesAsync(
+            int userId
+        );
+
+        Task<int> SelectWorkspaceAsync(int userId, int restaurantId);
+
         Task<SessionRoutingFields> GetCurrentUserRoutingAsync(int userId);
 
         Task<SessionRoutingFields> ActivateAccountAsync(

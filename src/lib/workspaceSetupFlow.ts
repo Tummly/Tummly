@@ -61,13 +61,17 @@ export function parseWorkspaceLocation(
     return null
   }
 
-  const locationId = readNumber(source, "locationId")
+  const restaurantId = readNumber(source, "restaurantId")
+  const locationId = restaurantId ?? readNumber(source, "locationId")
 
   if (locationId == null) {
     return null
   }
 
-  const locationName = readString(source, "locationName") ?? ""
+  const locationName =
+    readString(source, "locationName")
+    ?? readString(source, "restaurantName")
+    ?? ""
   const restaurantName = readString(source, "restaurantName") ?? ""
   const address = readString(source, "address") ?? ""
 

@@ -124,6 +124,8 @@ namespace TummlyBackend.Models
         { get; set; }
             = new List<Restaurant>();
 
+        public int? SelectedRestaurantId { get; set; }
+
         /*
          =========================================
          REFRESH TOKENS
