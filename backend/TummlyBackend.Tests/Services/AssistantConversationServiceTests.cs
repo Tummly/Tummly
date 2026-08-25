@@ -118,6 +118,7 @@ namespace TummlyBackend.Tests.Services
                     _weeklyBriefGenerate
                 ),
                 thankYouOffers ?? new CaptureThankYouOfferService(_context, catalog),
+                new RestaurantPermissionHelper(_context),
                 timeProvider,
                 liveAnswerOptions
             );

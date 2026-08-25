@@ -30,6 +30,19 @@ namespace TummlyBackend.Interfaces
             IReadOnlyList<int> allowedLocationIds,
             int[] namedLocationIds
         );
+
+        Task<RestaurantPermissionDecision> AuthorizeUserAsync(
+            int userId,
+            string areaId,
+            PermissionLevel minimum
+        );
+
+        Task<RestaurantPermissionDecision> AuthorizeLocationForUserAsync(
+            int userId,
+            string areaId,
+            PermissionLevel minimum,
+            int locationId
+        );
     }
 
     public enum RestaurantPermissionStatus

@@ -82,7 +82,8 @@ namespace TummlyBackend.Tests.Services
                     new CaptureThankYouOfferService(
                         _context,
                         new OffersCatalogService(_context)
-                    )
+                    ),
+                    new RestaurantPermissionHelper(_context)
                 )
             );
         }

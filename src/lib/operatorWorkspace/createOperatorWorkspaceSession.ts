@@ -15,6 +15,7 @@ export type OperatorWorkspaceSnapshot = {
   activationExpiresAt: string | null
   selfRole: string | null
   teamPermissionsAccess: TeamPermissionsAccess
+  aiAssistantAccess: boolean
   locationSwitcherInteractive: boolean
 }
 
@@ -54,6 +55,7 @@ type WorkspaceAction =
       activationExpiresAt: string | null
       selfRole: string | null
       teamPermissionsAccess: TeamPermissionsAccess
+      aiAssistantAccess: boolean
       queryLocationId: number | null
     }
   | { type: "load_failed" }
@@ -94,6 +96,7 @@ function reduce(
         activationExpiresAt: action.activationExpiresAt,
         selfRole: action.selfRole,
         teamPermissionsAccess: action.teamPermissionsAccess,
+        aiAssistantAccess: action.aiAssistantAccess,
         lastQueryLocationId: action.queryLocationId,
       }
     case "load_failed":
@@ -128,6 +131,7 @@ export function createOperatorWorkspaceSession(
     activationExpiresAt: null,
     selfRole: null,
     teamPermissionsAccess: "none",
+    aiAssistantAccess: true,
     locationSwitcherInteractive: config.mode === "multi",
     lastQueryLocationId: null,
   }
@@ -143,6 +147,7 @@ export function createOperatorWorkspaceSession(
     activationExpiresAt: state.activationExpiresAt,
     selfRole: state.selfRole,
     teamPermissionsAccess: state.teamPermissionsAccess,
+    aiAssistantAccess: state.aiAssistantAccess,
     locationSwitcherInteractive: state.locationSwitcherInteractive,
   }
 
@@ -166,6 +171,7 @@ export function createOperatorWorkspaceSession(
       activationExpiresAt: state.activationExpiresAt,
       selfRole: state.selfRole,
       teamPermissionsAccess: state.teamPermissionsAccess,
+      aiAssistantAccess: state.aiAssistantAccess,
       locationSwitcherInteractive: state.locationSwitcherInteractive,
     }
     emit()
@@ -218,6 +224,7 @@ export function createOperatorWorkspaceSession(
         activationExpiresAt: profile?.activationExpiresAt ?? null,
         selfRole: profile?.selfRole ?? null,
         teamPermissionsAccess: profile?.teamPermissionsAccess ?? "none",
+        aiAssistantAccess: locationsResult.aiAssistantAccess !== false,
         queryLocationId,
       })
     } catch {

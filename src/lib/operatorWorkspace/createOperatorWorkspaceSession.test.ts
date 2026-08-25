@@ -69,10 +69,29 @@ describe("createOperatorWorkspaceSession", () => {
       operatorDisplayName: "Mohamed Mahmoud",
       activationExpiresAt: "2026-07-26T12:00:00.000Z",
       selfRole: null,
+      teamPermissionsAccess: "none",
       locationSwitcherInteractive: true,
     })
     expect(session.getSnapshot().locations).toHaveLength(2)
+    expect(session.getSnapshot().aiAssistantAccess).toBe(true)
     expect(adapters.persistSelectedLocation).toHaveBeenCalledWith(1)
+  })
+
+  it("hides Assistant when locations payload sets aiAssistantAccess false", async () => {
+    const session = createOperatorWorkspaceSession(
+      { mode: "multi" },
+      createAdapters({
+        getLocations: async () => ({
+          success: true,
+          locations,
+          aiAssistantAccess: false,
+        }),
+      })
+    )
+
+    await session.load({ queryLocationId: null })
+
+    expect(session.getSnapshot().aiAssistantAccess).toBe(false)
   })
 
   it("carries Self role from /auth/me into the workspace snapshot", async () => {
