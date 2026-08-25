@@ -784,14 +784,16 @@ namespace TummlyBackend.Services
         {
             try
             {
-                var ownerUserId = await context.RestaurantLocations
-                    .Where(location =>
-                        location.Id == feedback.RestaurantLocationId
-                    )
-                    .Select(location => location.Restaurant!.OwnerUserId)
+                var location = await context.RestaurantLocations
+                    .Where(row => row.Id == feedback.RestaurantLocationId)
+                    .Select(row => new
+                    {
+                        row.RestaurantId,
+                        OwnerUserId = row.Restaurant!.OwnerUserId,
+                    })
                     .FirstOrDefaultAsync(cancellationToken);
 
-                if (ownerUserId == 0)
+                if (location == null || location.OwnerUserId == 0)
                 {
                     _logger.LogWarning(
                         "Classification terminal for Feedback {FeedbackId} — owner not found for location {LocationId}",
@@ -801,11 +803,27 @@ namespace TummlyBackend.Services
                     return;
                 }
 
-                await realtime.PublishClassificationTerminalAsync(
-                    ownerUserId,
-                    feedback.Id,
-                    feedback.RestaurantLocationId
-                );
+                var memberIds = await context.RestaurantMemberships
+                    .Where(membership =>
+                        membership.RestaurantId == location.RestaurantId
+                        && membership.Status == MembershipStatus.Active
+                    )
+                    .Select(membership => membership.UserId)
+                    .ToListAsync(cancellationToken);
+
+                if (memberIds.Count == 0)
+                {
+                    memberIds.Add(location.OwnerUserId);
+                }
+
+                foreach (var userId in memberIds.Distinct())
+                {
+                    await realtime.PublishClassificationTerminalAsync(
+                        userId,
+                        feedback.Id,
+                        feedback.RestaurantLocationId
+                    );
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

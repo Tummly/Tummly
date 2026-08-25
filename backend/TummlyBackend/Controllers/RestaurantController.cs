@@ -60,6 +60,7 @@ namespace TummlyBackend.Controllers
                 {
                     success = true,
                     restaurantName = "",
+                    aiAssistantAccess = false,
                     locations = Array.Empty<object>()
                 });
             }
@@ -101,11 +102,19 @@ namespace TummlyBackend.Controllers
                         restaurant.BrandLogoObjectKey
                     );
 
+            var assistant = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.AiAssistant,
+                PermissionLevel.View
+            );
+
             return Ok(new
             {
                 success = true,
                 restaurantName = restaurant.Name,
                 brandLogoPublicUrl,
+                aiAssistantAccess =
+                    assistant.Status == RestaurantPermissionStatus.Allowed,
                 locations = locations.Select(row => new
                 {
                     row.Id,

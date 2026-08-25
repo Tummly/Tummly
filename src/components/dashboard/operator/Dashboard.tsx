@@ -315,7 +315,9 @@ function DashboardContent({ mode }: DashboardProps) {
         onCloseSettings: notifications.closeSettings,
         onSetPreference: notifications.setPreference,
       }}
-      aiAssistant={{
+      aiAssistant={
+        workspace.snapshot.aiAssistantAccess
+          ? {
         snapshot: aiAssistant.snapshot,
         onOpen: () => {
           notifications.closeDrawer()
@@ -381,7 +383,9 @@ function DashboardContent({ mode }: DashboardProps) {
         onDismissFromEscape: aiAssistant.dismissFromEscape,
         onViewUsage: aiAssistant.viewUsage,
         onAddCredits: aiAssistant.addCredits,
-      }}
+      }
+        : undefined
+      }
     >
       <Outlet
         context={{

@@ -14,6 +14,7 @@ export type OperatorWorkspaceSnapshot = {
   operatorDisplayName: string
   activationExpiresAt: string | null
   selfRole: string | null
+  aiAssistantAccess: boolean
   locationSwitcherInteractive: boolean
 }
 
@@ -52,6 +53,7 @@ type WorkspaceAction =
       operatorDisplayName: string
       activationExpiresAt: string | null
       selfRole: string | null
+      aiAssistantAccess: boolean
       queryLocationId: number | null
     }
   | { type: "load_failed" }
@@ -91,6 +93,7 @@ function reduce(
         operatorDisplayName: action.operatorDisplayName,
         activationExpiresAt: action.activationExpiresAt,
         selfRole: action.selfRole,
+        aiAssistantAccess: action.aiAssistantAccess,
         lastQueryLocationId: action.queryLocationId,
       }
     case "load_failed":
@@ -124,6 +127,7 @@ export function createOperatorWorkspaceSession(
     operatorDisplayName: "Operator",
     activationExpiresAt: null,
     selfRole: null,
+    aiAssistantAccess: true,
     locationSwitcherInteractive: config.mode === "multi",
     lastQueryLocationId: null,
   }
@@ -138,6 +142,7 @@ export function createOperatorWorkspaceSession(
     operatorDisplayName: state.operatorDisplayName,
     activationExpiresAt: state.activationExpiresAt,
     selfRole: state.selfRole,
+    aiAssistantAccess: state.aiAssistantAccess,
     locationSwitcherInteractive: state.locationSwitcherInteractive,
   }
 
@@ -160,6 +165,7 @@ export function createOperatorWorkspaceSession(
       operatorDisplayName: state.operatorDisplayName,
       activationExpiresAt: state.activationExpiresAt,
       selfRole: state.selfRole,
+      aiAssistantAccess: state.aiAssistantAccess,
       locationSwitcherInteractive: state.locationSwitcherInteractive,
     }
     emit()
@@ -211,6 +217,7 @@ export function createOperatorWorkspaceSession(
         operatorDisplayName: profile?.fullName ?? "Operator",
         activationExpiresAt: profile?.activationExpiresAt ?? null,
         selfRole: profile?.selfRole ?? null,
+        aiAssistantAccess: locationsResult.aiAssistantAccess !== false,
         queryLocationId,
       })
     } catch {

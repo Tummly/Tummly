@@ -139,6 +139,81 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task<RestaurantPermissionDecision> AuthorizeUserAsync(
+            int userId,
+            string areaId,
+            PermissionLevel minimum
+        )
+        {
+            var operatorUser = await LoadOperatorUserAsync(userId);
+            var access = await ResolveRestaurantAccessAsync(
+                userId,
+                operatorUser
+            );
+            if (access == null)
+            {
+                return RestaurantPermissionDecision.Deny();
+            }
+
+            return EvaluateArea(
+                access,
+                areaId,
+                minimum,
+                denyLocation: false
+            );
+        }
+
+        public async Task<RestaurantPermissionDecision> AuthorizeLocationForUserAsync(
+            int userId,
+            string areaId,
+            PermissionLevel minimum,
+            int locationId
+        )
+        {
+            var operatorUser = await LoadOperatorUserAsync(userId);
+            var location = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Include(row => row.Restaurant)
+                .FirstOrDefaultAsync(row => row.Id == locationId);
+
+            if (location == null)
+            {
+                return RestaurantPermissionDecision.NotFoundLocation();
+            }
+
+            var access = await ResolveRestaurantAccessAsync(
+                userId,
+                operatorUser,
+                location.RestaurantId
+            );
+            if (access == null)
+            {
+                return RestaurantPermissionDecision.DenyLocation();
+            }
+
+            var area = EvaluateArea(
+                access,
+                areaId,
+                minimum,
+                denyLocation: true
+            );
+            if (area.Status != RestaurantPermissionStatus.Allowed)
+            {
+                return area;
+            }
+
+            if (!access.LocationIds.Contains(locationId))
+            {
+                return RestaurantPermissionDecision.DenyLocation();
+            }
+
+            return RestaurantPermissionDecision.AllowLocation(
+                access.RestaurantId,
+                location,
+                access.LocationIds
+            );
+        }
+
         public async Task<RestaurantPermissionDecision> AuthorizeNamedLocationIdsAsync(
             IReadOnlyList<int> allowedLocationIds,
             int[] namedLocationIds
@@ -196,9 +271,7 @@ namespace TummlyBackend.Services
                 return (0, null, RestaurantPermissionDecision.Deny());
             }
 
-            var operatorUser = await _context.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(row => row.Id == userId);
+            var operatorUser = await LoadOperatorUserAsync(userId);
 
             if (operatorUser == null)
             {
@@ -208,9 +281,16 @@ namespace TummlyBackend.Services
             return (userId, operatorUser, null);
         }
 
+        private Task<User?> LoadOperatorUserAsync(int userId)
+        {
+            return _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == userId);
+        }
+
         private async Task<RestaurantAccess?> ResolveRestaurantAccessAsync(
             int userId,
-            User operatorUser,
+            User? operatorUser,
             int? requiredRestaurantId = null
         )
         {
@@ -381,7 +461,7 @@ namespace TummlyBackend.Services
         }
 
         private static int? ResolveRestaurantId(
-            User user,
+            User? user,
             IReadOnlyList<int> restaurantIds
         )
         {
@@ -391,7 +471,7 @@ namespace TummlyBackend.Services
             }
 
             if (
-                user.SelectedRestaurantId is int selected
+                user?.SelectedRestaurantId is int selected
                 && restaurantIds.Contains(selected)
             )
             {

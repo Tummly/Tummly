@@ -14,14 +14,17 @@ namespace TummlyBackend.Controllers
     {
         private readonly IAssistantConversationService _conversations;
         private readonly ISpeechToTextProvider _speechToText;
+        private readonly IRestaurantPermissionHelper _permissions;
 
         public AssistantController(
             IAssistantConversationService conversations,
-            ISpeechToTextProvider speechToText
+            ISpeechToTextProvider speechToText,
+            IRestaurantPermissionHelper permissions
         )
         {
             _conversations = conversations;
             _speechToText = speechToText;
+            _permissions = permissions;
         }
 
         [HttpPost("turns")]
@@ -30,10 +33,16 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
-            if (unauthorized != null)
+            var (userId, deniedView) = await GateAssistantViewAsync();
+            if (deniedView != null)
             {
-                return unauthorized;
+                return deniedView;
+            }
+
+            var denied = await GateAssistantScopeAsync(body.AnalysisScope);
+            if (denied != null)
+            {
+                return denied;
             }
 
             try
@@ -57,10 +66,10 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken = default
         )
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
-            if (unauthorized != null)
+            var (userId, denied) = await GateAssistantViewAsync();
+            if (denied != null)
             {
-                return unauthorized;
+                return denied;
             }
 
             var outcome = await _conversations.ListAsync(
@@ -89,10 +98,10 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
-            if (unauthorized != null)
+            var (userId, denied) = await GateAssistantViewAsync();
+            if (denied != null)
             {
-                return unauthorized;
+                return denied;
             }
 
             var outcome = await _conversations.GetAsync(
@@ -109,10 +118,10 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
-            if (unauthorized != null)
+            var (userId, denied) = await GateAssistantViewAsync();
+            if (denied != null)
             {
-                return unauthorized;
+                return denied;
             }
 
             try
@@ -137,10 +146,16 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
-            if (unauthorized != null)
+            var (userId, deniedView) = await GateAssistantViewAsync();
+            if (deniedView != null)
             {
-                return unauthorized;
+                return deniedView;
+            }
+
+            var deniedScope = await GateAssistantScopeAsync(body.AnalysisScope);
+            if (deniedScope != null)
+            {
+                return deniedScope;
             }
 
             var outcome = await _conversations.ApplyScopeAsync(
@@ -158,10 +173,10 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
-            if (unauthorized != null)
+            var (userId, denied) = await GateAssistantViewAsync();
+            if (denied != null)
             {
-                return unauthorized;
+                return denied;
             }
 
             return ToActionResult(
@@ -179,10 +194,10 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
-            if (unauthorized != null)
+            var (userId, denied) = await GateAssistantViewAsync();
+            if (denied != null)
             {
-                return unauthorized;
+                return denied;
             }
 
             var outcome = await _conversations.SetArchivedAsync(
@@ -200,10 +215,10 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
-            if (unauthorized != null)
+            var (userId, denied) = await GateAssistantViewAsync();
+            if (denied != null)
             {
-                return unauthorized;
+                return denied;
             }
 
             var outcome = await _conversations.SetArchivedAsync(
@@ -221,10 +236,10 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
-            if (unauthorized != null)
+            var (userId, denied) = await GateAssistantViewAsync();
+            if (denied != null)
             {
-                return unauthorized;
+                return denied;
             }
 
             var outcome = await _conversations.DeleteAsync(
@@ -262,10 +277,10 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken
         )
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out _);
-            if (unauthorized != null)
+            var (_, denied) = await GateAssistantViewAsync();
+            if (denied != null)
             {
-                return unauthorized;
+                return denied;
             }
 
             if (audio == null || audio.Length == 0)
@@ -309,6 +324,50 @@ namespace TummlyBackend.Controllers
                     }
                 ),
             };
+        }
+
+        private async Task<(int UserId, IActionResult? Denied)> GateAssistantViewAsync()
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return (0, unauthorized);
+            }
+
+            var decision = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.AiAssistant,
+                PermissionLevel.View
+            );
+            return (userId, decision.ToForbiddenResult());
+        }
+
+        private async Task<IActionResult?> GateAssistantScopeAsync(
+            AssistantAnalysisScopeDto scope
+        )
+        {
+            if (AssistantAnalysisScope.IsAll(scope))
+            {
+                var set = await _permissions.AuthorizeLocationSetAsync(
+                    User,
+                    OperatorAreaIds.AiAssistant,
+                    PermissionLevel.View
+                );
+                return set.ToHttpResult();
+            }
+
+            if (scope.OwnedLocationId is not int locationId || locationId <= 0)
+            {
+                return null;
+            }
+
+            var location = await _permissions.AuthorizeLocationAsync(
+                User,
+                OperatorAreaIds.AiAssistant,
+                PermissionLevel.View,
+                locationId
+            );
+            return location.ToHttpResult();
         }
 
         private IActionResult ToActionResult(AssistantTurnOutcome outcome)

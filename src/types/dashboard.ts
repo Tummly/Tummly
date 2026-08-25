@@ -24,6 +24,7 @@ export interface LocationsResponse {
   success: boolean;
   restaurantName?: string;
   brandLogoPublicUrl?: string | null;
+  aiAssistantAccess?: boolean;
   locations: LocationItem[];
 }
 

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using TummlyBackend.DTOs.Assistant;
+using TummlyBackend.Helpers;
 using TummlyBackend.Hubs;
 using TummlyBackend.Interfaces;
 
@@ -11,22 +12,35 @@ namespace TummlyBackend.Services
         public const string TurnProgressEvent = "TurnProgress";
 
         private readonly IHubContext<AssistantHub> _hub;
+        private readonly IRestaurantPermissionHelper _permissions;
 
         public SignalRAssistantProgressPublisher(
-            IHubContext<AssistantHub> hub
+            IHubContext<AssistantHub> hub,
+            IRestaurantPermissionHelper permissions
         )
         {
             _hub = hub;
+            _permissions = permissions;
         }
 
-        public Task PublishAsync(
+        public async Task PublishAsync(
             int userId,
             int conversationId,
             string step,
             CancellationToken cancellationToken = default
         )
         {
-            return _hub.Clients
+            var decision = await _permissions.AuthorizeUserAsync(
+                userId,
+                OperatorAreaIds.AiAssistant,
+                PermissionLevel.View
+            );
+            if (decision.Status != RestaurantPermissionStatus.Allowed)
+            {
+                return;
+            }
+
+            await _hub.Clients
                 .User(userId.ToString())
                 .SendAsync(
                     TurnProgressEvent,

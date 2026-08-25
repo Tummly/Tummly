@@ -36,6 +36,7 @@ namespace TummlyBackend.Services
         private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
         private readonly IAssistantAttentionRetrieve _attentionRetrieve;
         private readonly ICaptureThankYouOfferService _thankYouOffers;
+        private readonly IRestaurantPermissionHelper _permissions;
         private readonly TimeProvider _clock;
         private readonly FeedbackClassificationSettings _liveAnswerSettings;
         private string? _pendingAssistantBodyPrefix;
@@ -58,6 +59,7 @@ namespace TummlyBackend.Services
             IFeedbackRecoveryDraftsService recoveryDrafts,
             IAssistantAttentionRetrieve attentionRetrieve,
             ICaptureThankYouOfferService thankYouOffers,
+            IRestaurantPermissionHelper permissions,
             TimeProvider? timeProvider = null,
             IOptions<FeedbackClassificationSettings>? liveAnswerSettings = null
         )
@@ -79,6 +81,7 @@ namespace TummlyBackend.Services
             _recoveryDrafts = recoveryDrafts;
             _attentionRetrieve = attentionRetrieve;
             _thankYouOffers = thankYouOffers;
+            _permissions = permissions;
             _clock = timeProvider ?? TimeProvider.System;
             _liveAnswerSettings = liveAnswerSettings?.Value
                 ?? new FeedbackClassificationSettings();
@@ -844,6 +847,7 @@ namespace TummlyBackend.Services
             if (recoveryIdentityNeeded)
             {
                 recoveryIdentity = await RetrieveRecoveryIdentityUnionAsync(
+                    conversation.OwnerUserId,
                     ownedLocations,
                     window.FromUtc,
                     window.ToUtc,
@@ -925,6 +929,7 @@ namespace TummlyBackend.Services
                     }
 
                     var compareAll = await RetrieveCompareAllAsync(
+                        conversation.OwnerUserId,
                         compareIds,
                         locationRefs,
                         window.FromUtc,
@@ -960,6 +965,7 @@ namespace TummlyBackend.Services
                         );
                     }
                     var retrieved = await RetrieveForTurnAsync(
+                        conversation.OwnerUserId,
                         compareIds,
                         conversation.OwnedLocationId,
                         locationRefs,
@@ -1494,6 +1500,22 @@ namespace TummlyBackend.Services
             }
 
             CampaignDraftDto created;
+            if (!await CanPersistDraftAsync(
+                conversation.OwnerUserId,
+                OperatorAreaIds.Campaigns,
+                locationId
+            ))
+            {
+                return new CreateCampaignDraftTurn(
+                    AssistantMessageClass.Grounded,
+                    AssistantCampaignDraftPersistCopy.FailureTitle,
+                    AssistantCampaignDraftPersistCopy.FailureBody("Campaign create"),
+                    [],
+                    null,
+                    null
+                );
+            }
+
             try
             {
                 created = await _campaignDrafts.CreateAsync(
@@ -1747,6 +1769,17 @@ namespace TummlyBackend.Services
 
                 try
                 {
+                    if (!await CanPersistDraftAsync(
+                        conversation.OwnerUserId,
+                        OperatorAreaIds.Offers,
+                        locationId
+                    ))
+                    {
+                        return CombinedFullFailure(
+                            AssistantCombinedCreatePersistCopy.FullFailureBody("Offer create")
+                        );
+                    }
+
                     offer = await _offersCatalog.CreateDraftAsync(
                         AssistantOfferPathTerms.ToCreateRequest(terms, locationId),
                         conversation.OwnerUserId,
@@ -1996,6 +2029,17 @@ namespace TummlyBackend.Services
             }
 
             CampaignDraftDto created;
+            if (!await CanPersistDraftAsync(
+                conversation.OwnerUserId,
+                OperatorAreaIds.Campaigns,
+                locationId
+            ))
+            {
+                return CombinedFullFailure(
+                    AssistantCombinedCreatePersistCopy.FullFailureBody("Campaign create")
+                );
+            }
+
             try
             {
                 created = await _campaignDrafts.CreateAsync(
@@ -2197,6 +2241,20 @@ namespace TummlyBackend.Services
             }
 
             CatalogOfferDto created;
+            if (!await CanPersistDraftAsync(
+                conversation.OwnerUserId,
+                OperatorAreaIds.Offers,
+                locationId
+            ))
+            {
+                return new CreateOfferDraftPersistTurn(
+                    AssistantOfferPathPersistCopy.FailureTitle,
+                    AssistantOfferPathPersistCopy.FailureBody("Offer create"),
+                    [],
+                    null
+                );
+            }
+
             try
             {
                 created = await _offersCatalog.CreateDraftAsync(
@@ -2478,6 +2536,21 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (!await CanPersistDraftAsync(
+                conversation.OwnerUserId,
+                OperatorAreaIds.Feedback,
+                feedback.RestaurantLocationId
+            ))
+            {
+                return new RecoveryPersistTurn(
+                    AssistantRecoveryPersistCopy.FailureTitle,
+                    AssistantRecoveryPersistCopy.FailureBody("Recovery prepare"),
+                    none,
+                    null,
+                    null
+                );
+            }
+
             var persistLocationId = row.LocationId ?? feedback.RestaurantLocationId;
             var eligibility = AssistantRecoveryEligibility.Evaluate(feedback, intent);
             if (eligibility is AssistantRecoveryEligibility.Outcome.Blocked blocked)
@@ -2498,6 +2571,7 @@ namespace TummlyBackend.Services
                 if (AssistantAnalysisScope.IsAll(conversation))
                 {
                     var loadedOffers = await RetrieveOffersAtVenueAsync(
+                        conversation.OwnerUserId,
                         persistLocationId,
                         conversation,
                         cancellationToken
@@ -4051,31 +4125,40 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            int? restaurantId = null;
+            RestaurantPermissionDecision access;
             if (savedLocationId is int savedId)
             {
-                var saved = await _context.RestaurantLocations
-                    .AsNoTracking()
-                    .Include(location => location.Restaurant)
-                    .FirstOrDefaultAsync(
-                        location => location.Id == savedId,
-                        cancellationToken
-                    );
-                if (saved?.Restaurant is null || saved.Restaurant.OwnerUserId != ownerUserId)
-                {
-                    return [];
-                }
-
-                restaurantId = saved.RestaurantId;
+                access = await _permissions.AuthorizeLocationForUserAsync(
+                    ownerUserId,
+                    OperatorAreaIds.AiAssistant,
+                    PermissionLevel.View,
+                    savedId
+                );
+            }
+            else
+            {
+                access = await _permissions.AuthorizeUserAsync(
+                    ownerUserId,
+                    OperatorAreaIds.AiAssistant,
+                    PermissionLevel.View
+                );
             }
 
+            if (access.Status != RestaurantPermissionStatus.Allowed)
+            {
+                return [];
+            }
+
+            var scopedIds = access.LocationIds.ToHashSet();
             var query = _context.RestaurantLocations
                 .AsNoTracking()
                 .Include(location => location.Restaurant)
-                .Where(location => location.Restaurant!.OwnerUserId == ownerUserId);
-            if (restaurantId is int scopedRestaurantId)
+                .Where(location => scopedIds.Contains(location.Id));
+            if (access.RestaurantId > 0)
             {
-                query = query.Where(location => location.RestaurantId == scopedRestaurantId);
+                query = query.Where(location =>
+                    location.RestaurantId == access.RestaurantId
+                );
             }
 
             var rows = await query
@@ -4094,6 +4177,7 @@ namespace TummlyBackend.Services
         }
 
         private async Task<CompareAllRetrieve> RetrieveCompareAllAsync(
+            int ownerUserId,
             IReadOnlyList<int> locationIds,
             IReadOnlyList<AssistantOwnedLocationRef> locationRefs,
             DateTime fromUtc,
@@ -4122,6 +4206,7 @@ namespace TummlyBackend.Services
                 }
 
                 var evidence = await RetrieveLocationDomainsAsync(
+                    ownerUserId,
                     locationId,
                     fromUtc,
                     toUtc,
@@ -4148,6 +4233,7 @@ namespace TummlyBackend.Services
         }
 
         private async Task<AssistantFeedbackEvidence?> RetrieveRecoveryIdentityUnionAsync(
+            int ownerUserId,
             IReadOnlyList<OwnedLocationRow> ownedLocations,
             DateTime fromUtc,
             DateTime toUtc,
@@ -4157,6 +4243,15 @@ namespace TummlyBackend.Services
             var rows = new List<AssistantFeedbackEvidenceRow>();
             foreach (var location in ownedLocations)
             {
+                if (!await CanRetrieveAreaAsync(
+                    ownerUserId,
+                    OperatorAreaIds.Feedback,
+                    location.Id
+                ))
+                {
+                    continue;
+                }
+
                 var retrieved = await _feedbackRetrieve.RetrieveIdentityAsync(
                     location.Id,
                     location.Name,
@@ -4191,11 +4286,21 @@ namespace TummlyBackend.Services
         }
 
         private async Task<AssistantOffersEvidence?> RetrieveOffersAtVenueAsync(
+            int ownerUserId,
             int locationId,
             AssistantConversation conversation,
             CancellationToken cancellationToken
         )
         {
+            if (!await CanRetrieveAreaAsync(
+                ownerUserId,
+                OperatorAreaIds.Offers,
+                locationId
+            ))
+            {
+                return AssistantOffersEvidence.Empty;
+            }
+
             var scope = AssistantAnalysisScope.FromConversation(conversation);
             var window = AssistantReportingPeriodWindow.Resolve(
                 scope.ReportingPeriod,
@@ -4213,6 +4318,7 @@ namespace TummlyBackend.Services
         }
 
         private async Task<TurnRetrieve?> RetrieveForTurnAsync(
+            int ownerUserId,
             IReadOnlyList<int> locationIds,
             int? savedLocationId,
             IReadOnlyList<AssistantOwnedLocationRef> locationRefs,
@@ -4229,6 +4335,7 @@ namespace TummlyBackend.Services
             foreach (var locationId in locationIds.Distinct())
             {
                 var evidence = await RetrieveLocationDomainsAsync(
+                    ownerUserId,
                     locationId,
                     fromUtc,
                     toUtc,
@@ -4269,6 +4376,7 @@ namespace TummlyBackend.Services
                 else
                 {
                     savedEvidence = await RetrieveLocationDomainsAsync(
+                        ownerUserId,
                         savedId,
                         fromUtc,
                         toUtc,
@@ -4286,6 +4394,7 @@ namespace TummlyBackend.Services
         }
 
         private async Task<AssistantRetrievedEvidence?> RetrieveLocationDomainsAsync(
+            int ownerUserId,
             int locationId,
             DateTime fromUtc,
             DateTime toUtc,
@@ -4293,22 +4402,35 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            var feedbackRetrieve = await _feedbackRetrieve.RetrieveAsync(
-                locationId,
-                fromUtc,
-                toUtc,
-                cancellationToken
-            );
-            if (feedbackRetrieve is AssistantFeedbackRetrieveResult.Failed)
+            AssistantFeedbackEvidence feedback;
+            if (await CanRetrieveAreaAsync(
+                ownerUserId,
+                OperatorAreaIds.Feedback,
+                locationId
+            ))
             {
-                return null;
+                var feedbackRetrieve = await _feedbackRetrieve.RetrieveAsync(
+                    locationId,
+                    fromUtc,
+                    toUtc,
+                    cancellationToken
+                );
+                if (feedbackRetrieve is AssistantFeedbackRetrieveResult.Failed)
+                {
+                    return null;
+                }
+
+                feedback = feedbackRetrieve is AssistantFeedbackRetrieveResult.Ok feedbackOk
+                    ? feedbackOk.Evidence
+                    : AssistantFeedbackEvidence.Empty;
+            }
+            else
+            {
+                feedback = AssistantFeedbackEvidence.Empty;
             }
 
-            var feedback = feedbackRetrieve is AssistantFeedbackRetrieveResult.Ok feedbackOk
-                ? feedbackOk.Evidence
-                : AssistantFeedbackEvidence.Empty;
-
             return await RetrieveSavedDomainsAsync(
+                ownerUserId,
                 locationId,
                 fromUtc,
                 toUtc,
@@ -4319,6 +4441,7 @@ namespace TummlyBackend.Services
         }
 
         private async Task<AssistantRetrievedEvidence?> RetrieveSavedDomainsAsync(
+            int ownerUserId,
             int savedLocationId,
             DateTime fromUtc,
             DateTime toUtc,
@@ -4327,20 +4450,23 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            var offersRetrieve = await _offersRetrieve.RetrieveAsync(
+            var offersRetrieve = await RetrieveOffersIfAllowedAsync(
+                ownerUserId,
                 savedLocationId,
                 fromUtc,
                 toUtc,
                 cancellationToken
             );
-            var campaignsRetrieve = await _campaignsRetrieve.RetrieveAsync(
+            var campaignsRetrieve = await RetrieveCampaignsIfAllowedAsync(
+                ownerUserId,
                 savedLocationId,
                 fromUtc,
                 toUtc,
                 includeCampaignCopy,
                 cancellationToken
             );
-            var captureRetrieve = await _captureRetrieve.RetrieveAsync(
+            var captureRetrieve = await RetrieveCaptureIfAllowedAsync(
+                ownerUserId,
                 savedLocationId,
                 fromUtc,
                 toUtc,
@@ -4352,7 +4478,8 @@ namespace TummlyBackend.Services
                 toUtc,
                 cancellationToken
             );
-            var guestsRetrieve = await _guestsRetrieve.RetrieveAsync(
+            var guestsRetrieve = await RetrieveGuestsIfAllowedAsync(
+                ownerUserId,
                 savedLocationId,
                 cancellationToken
             );
@@ -4384,6 +4511,152 @@ namespace TummlyBackend.Services
                     ? guestsOk.Evidence
                     : EmptyEvidence.Guests
             );
+        }
+
+        private async Task<AssistantOffersRetrieveResult> RetrieveOffersIfAllowedAsync(
+            int ownerUserId,
+            int locationId,
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            if (!await CanRetrieveAreaAsync(
+                ownerUserId,
+                OperatorAreaIds.Offers,
+                locationId
+            ))
+            {
+                return new AssistantOffersRetrieveResult.Ok(
+                    AssistantOffersEvidence.Empty
+                );
+            }
+
+            return await _offersRetrieve.RetrieveAsync(
+                locationId,
+                fromUtc,
+                toUtc,
+                cancellationToken
+            );
+        }
+
+        private async Task<AssistantCampaignsRetrieveResult> RetrieveCampaignsIfAllowedAsync(
+            int ownerUserId,
+            int locationId,
+            DateTime fromUtc,
+            DateTime toUtc,
+            bool includeCampaignCopy,
+            CancellationToken cancellationToken
+        )
+        {
+            if (!await CanRetrieveAreaAsync(
+                ownerUserId,
+                OperatorAreaIds.Campaigns,
+                locationId
+            ))
+            {
+                return new AssistantCampaignsRetrieveResult.Ok(
+                    AssistantCampaignsEvidence.Empty
+                );
+            }
+
+            return await _campaignsRetrieve.RetrieveAsync(
+                locationId,
+                fromUtc,
+                toUtc,
+                includeCampaignCopy,
+                cancellationToken
+            );
+        }
+
+        private async Task<AssistantCaptureRetrieveResult> RetrieveCaptureIfAllowedAsync(
+            int ownerUserId,
+            int locationId,
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            if (!await CanRetrieveAreaAsync(
+                ownerUserId,
+                OperatorAreaIds.Capture,
+                locationId
+            ))
+            {
+                return new AssistantCaptureRetrieveResult.Ok(
+                    AssistantCaptureEvidence.Empty
+                );
+            }
+
+            return await _captureRetrieve.RetrieveAsync(
+                locationId,
+                fromUtc,
+                toUtc,
+                cancellationToken
+            );
+        }
+
+        private async Task<AssistantGuestsRetrieveResult> RetrieveGuestsIfAllowedAsync(
+            int ownerUserId,
+            int locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            if (!await CanRetrieveAreaAsync(
+                ownerUserId,
+                OperatorAreaIds.Guests,
+                locationId
+            ))
+            {
+                return new AssistantGuestsRetrieveResult.Ok(
+                    AssistantGuestsEvidence.Empty
+                );
+            }
+
+            return await _guestsRetrieve.RetrieveAsync(
+                locationId,
+                cancellationToken
+            );
+        }
+
+        private async Task<bool> CanRetrieveAreaAsync(
+            int userId,
+            string areaId,
+            int locationId
+        )
+        {
+            var decision = await _permissions.AuthorizeLocationForUserAsync(
+                userId,
+                areaId,
+                PermissionLevel.View,
+                locationId
+            );
+            return decision.Status == RestaurantPermissionStatus.Allowed;
+        }
+
+        private async Task<bool> CanPersistDraftAsync(
+            int userId,
+            string targetAreaId,
+            int locationId
+        )
+        {
+            var assistant = await _permissions.AuthorizeUserAsync(
+                userId,
+                OperatorAreaIds.AiAssistant,
+                PermissionLevel.Manage
+            );
+            if (assistant.Status != RestaurantPermissionStatus.Allowed)
+            {
+                return false;
+            }
+
+            var target = await _permissions.AuthorizeLocationForUserAsync(
+                userId,
+                targetAreaId,
+                PermissionLevel.Manage,
+                locationId
+            );
+            return target.Status == RestaurantPermissionStatus.Allowed;
         }
 
         private readonly record struct OwnedLocationRow(
@@ -4953,6 +5226,7 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
                 var retrieved = await RetrieveForTurnAsync(
+                    conversation.OwnerUserId,
                     [domainLocationId],
                     domainLocationId,
                     locationRefs,
