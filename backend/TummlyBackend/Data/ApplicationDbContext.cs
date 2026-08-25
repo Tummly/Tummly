@@ -42,6 +42,8 @@ namespace TummlyBackend.Data
         public DbSet<RestaurantAccessActivity> RestaurantAccessActivities
         { get; set; }
 
+        public DbSet<TeamInvitation> TeamInvitations { get; set; }
+
         public DbSet<RestaurantBusinessDetails> RestaurantBusinessDetails
         { get; set; }
 
@@ -328,6 +330,26 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<RestaurantAccessActivity>()
                 .Property(row => row.Kind)
                 .HasMaxLength(40);
+
+            modelBuilder.Entity<TeamInvitation>()
+                .HasIndex(row => row.OpaqueReference)
+                .IsUnique();
+
+            modelBuilder.Entity<TeamInvitation>()
+                .HasIndex(row => new { row.RestaurantId, row.Email })
+                .IsUnique();
+
+            modelBuilder.Entity<TeamInvitation>()
+                .HasOne(row => row.Restaurant)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TeamInvitation>()
+                .HasOne(row => row.InviterUser)
+                .WithMany()
+                .HasForeignKey(row => row.InviterUserId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Restaurant>()
                 .HasOne(r => r.BillingContactUser)

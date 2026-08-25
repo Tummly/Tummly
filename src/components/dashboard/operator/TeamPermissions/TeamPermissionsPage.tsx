@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore, useState } from "react"
+import { useEffect, useSyncExternalStore } from "react"
 import { MoreVerticalIcon, XIcon } from "lucide-react"
 import { useSearchParams } from "react-router-dom"
 
@@ -35,11 +35,15 @@ import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { teamPermissionsFilterSheetSchema } from "@/lib/operatorTeamPermissions/teamPermissionsFilterSheetSchema"
-import { ASSIGNABLE_PERMISSION_ROLES, assignableRolesForActor } from "@/lib/operatorTeamPermissions/permissionRoles"
-import type { TeamMemberRow } from "@/lib/operatorTeamPermissions/createOperatorTeamPermissionsPageModule"
+import { assignableRolesForActor } from "@/lib/operatorTeamPermissions/permissionRoles"
+import type {
+  TeamInvitationRow,
+  TeamMemberRow,
+} from "@/lib/operatorTeamPermissions/createOperatorTeamPermissionsPageModule"
 import {
   deactivateConfirmCopy,
   removeConfirmCopy,
+  revokeConfirmCopy,
   TEAM_PERMISSIONS_PAGE_COPY as copy,
   TEAM_PERMISSIONS_SELECT_MENU_CLASS,
 } from "@/lib/operatorTeamPermissions/teamPermissionsPresentation"
@@ -75,6 +79,10 @@ function actionLabel(action: string): string {
       return copy.reactivate
     case "remove":
       return copy.remove
+    case "resend":
+      return copy.resend
+    case "revoke":
+      return copy.revoke
     default:
       return action
   }
@@ -88,12 +96,6 @@ export function TeamPermissionsPage() {
     pageModule.getSnapshot
   )
   const [searchParams, setSearchParams] = useSearchParams()
-  const [inviteEmail, setInviteEmail] = useState("")
-  const [inviteName, setInviteName] = useState("")
-  const roleOptions = assignableRolesForActor(snap.actorPermissionRole)
-  const [inviteScope, setInviteScope] = useState<"all" | "named">("all")
-  const [inviteNamed, setInviteNamed] = useState<number[]>([])
-  const [inviteMessage, setInviteMessage] = useState("")
   const roleOptions = assignableRolesForActor(snap.actorPermissionRole)
 
   useEffect(() => {
@@ -110,16 +112,28 @@ export function TeamPermissionsPage() {
     isSingleLocation: snap.isSingleLocation,
     locations: snap.locations,
   })
-  const confirmMember =
+  const confirmMembershipId =
     snap.dialog.kind === "deactivate" || snap.dialog.kind === "remove"
-      ? snap.members.find((row) => row.membershipId === snap.dialog.membershipId)
+      ? snap.dialog.membershipId
+      : null
+  const confirmMember =
+    confirmMembershipId != null
+      ? snap.members.find((row) => row.membershipId === confirmMembershipId)
+      : null
+  const revokeInvitationId =
+    snap.dialog.kind === "revoke" ? snap.dialog.invitationId : null
+  const revokeInvitation =
+    revokeInvitationId != null
+      ? snap.invitations.find((row) => row.invitationId === revokeInvitationId)
       : null
   const confirmCopy =
     snap.dialog.kind === "deactivate" && confirmMember != null
       ? deactivateConfirmCopy(confirmMember.fullName)
       : snap.dialog.kind === "remove" && confirmMember != null
         ? removeConfirmCopy(confirmMember.fullName)
-        : null
+        : snap.dialog.kind === "revoke"
+          ? revokeConfirmCopy(revokeInvitation?.email ?? "")
+          : null
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
@@ -178,7 +192,9 @@ export function TeamPermissionsPage() {
           <MembersBody snap={snap} pageModule={pageModule} />
         </TabsContent>
         <TabsContent value="roles-permissions" className="mt-0" />
-        <TabsContent value="invitations" className="mt-0" />
+        <TabsContent value="invitations" className="mt-0">
+          <InvitationsBody snap={snap} pageModule={pageModule} />
+        </TabsContent>
         <TabsContent value="access-activity" className="mt-0" />
       </Tabs>
 
@@ -273,24 +289,44 @@ export function TeamPermissionsPage() {
             <label className="text-sm font-medium">
               {copy.email}
               <Input
-                value={inviteEmail}
+                value={snap.inviteDraft.email}
                 disabled={snap.busy}
-                onChange={(event) => setInviteEmail(event.target.value)}
+                onChange={(event) =>
+                  pageModule.setInviteDraft({
+                    ...snap.inviteDraft,
+                    email: event.target.value,
+                  })
+                }
               />
+              {snap.inviteEmailError != null ? (
+                <p className="mt-1 text-sm text-destructive" role="alert">
+                  {snap.inviteEmailError}
+                </p>
+              ) : null}
             </label>
             <label className="text-sm font-medium">
               {copy.fullName}
               <Input
-                value={inviteName}
+                value={snap.inviteDraft.fullName}
                 disabled={snap.busy}
-                onChange={(event) => setInviteName(event.target.value)}
+                onChange={(event) =>
+                  pageModule.setInviteDraft({
+                    ...snap.inviteDraft,
+                    fullName: event.target.value,
+                  })
+                }
               />
             </label>
             <label className="text-sm font-medium">
               {copy.role}
               <Select
-                value={inviteRole}
-                onValueChange={(value) => setInviteRole(value as typeof inviteRole)}
+                value={snap.inviteDraft.permissionRole}
+                onValueChange={(value) =>
+                  pageModule.setInviteDraft({
+                    ...snap.inviteDraft,
+                    permissionRole: value,
+                  })
+                }
                 disabled={snap.busy}
               >
                 <SelectTrigger className="h-8 w-full">
@@ -312,9 +348,12 @@ export function TeamPermissionsPage() {
               <div className="flex flex-col gap-2">
                 <p className="text-sm font-medium">{copy.locationAccess}</p>
                 <Select
-                  value={inviteScope}
+                  value={snap.inviteDraft.locationScope}
                   onValueChange={(value) =>
-                    setInviteScope(value as "all" | "named")
+                    pageModule.setInviteDraft({
+                      ...snap.inviteDraft,
+                      locationScope: value as "all" | "named",
+                    })
                   }
                   disabled={snap.busy}
                 >
@@ -331,7 +370,7 @@ export function TeamPermissionsPage() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                {inviteScope === "all" ? (
+                {snap.inviteDraft.locationScope === "all" ? (
                   <p className="text-sm text-muted-foreground">
                     {copy.allLocationsHelper}
                   </p>
@@ -340,13 +379,18 @@ export function TeamPermissionsPage() {
                     <CheckboxLabel
                       key={location.id}
                       id={`invite-loc-${location.id}`}
-                      checked={inviteNamed.includes(location.id)}
+                      checked={snap.inviteDraft.namedLocationIds.includes(
+                        location.id
+                      )}
                       onCheckedChange={(checked) => {
-                        setInviteNamed((current) =>
-                          checked
-                            ? [...current, location.id]
-                            : current.filter((id) => id !== location.id)
-                        )
+                        pageModule.setInviteDraft({
+                          ...snap.inviteDraft,
+                          namedLocationIds: checked
+                            ? [...snap.inviteDraft.namedLocationIds, location.id]
+                            : snap.inviteDraft.namedLocationIds.filter(
+                                (id) => id !== location.id
+                              ),
+                        })
                       }}
                     >
                       {location.name}
@@ -359,9 +403,14 @@ export function TeamPermissionsPage() {
               {copy.message}
               <Textarea
                 placeholder={copy.messagePlaceholder}
-                value={inviteMessage}
+                value={snap.inviteDraft.message}
                 disabled={snap.busy}
-                onChange={(event) => setInviteMessage(event.target.value)}
+                onChange={(event) =>
+                  pageModule.setInviteDraft({
+                    ...snap.inviteDraft,
+                    message: event.target.value,
+                  })
+                }
               />
             </label>
           </div>
@@ -560,6 +609,150 @@ function MembersBody({
           </div>
         </section>
       ) : null}
+    </div>
+  )
+}
+
+function InvitationsBody({
+  snap,
+  pageModule,
+}: {
+  snap: ReturnType<
+    ReturnType<typeof useTeamPermissionsPageModuleApi>["getSnapshot"]
+  >
+  pageModule: ReturnType<typeof useTeamPermissionsPageModuleApi>
+}) {
+  if (snap.loadStatus === "idle" || snap.loadStatus === "loading") {
+    return (
+      <div className="flex justify-center py-16" role="status">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (snap.loadStatus === "error") {
+    return (
+      <div className="flex flex-col items-start gap-3 py-8">
+        <p className="m-0 font-semibold">{copy.loadError}</p>
+        <Button
+          type="button"
+          variant="op-secondary"
+          onClick={() => {
+            void pageModule.load()
+          }}
+        >
+          {copy.retry}
+        </Button>
+      </div>
+    )
+  }
+
+  if (snap.invitations.length === 0) {
+    return (
+      <div className="flex flex-col items-start gap-3 py-8">
+        <p className="m-0 font-semibold">{copy.invitationsEmptyTitle}</p>
+        <p className="m-0 text-muted-foreground">
+          {copy.invitationsEmptyHelper}
+        </p>
+        {snap.actorCanManage ? (
+          <Button
+            type="button"
+            variant="op-primary"
+            onClick={() => pageModule.openInvite()}
+          >
+            {copy.invite}
+          </Button>
+        ) : null}
+      </div>
+    )
+  }
+
+  return (
+    <InvitationsTable rows={snap.invitations} pageModule={pageModule} />
+  )
+}
+
+function InvitationsTable({
+  rows,
+  pageModule,
+}: {
+  rows: TeamInvitationRow[]
+  pageModule: ReturnType<typeof useTeamPermissionsPageModuleApi>
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-b border-op-border-default">
+            <th className="py-2 font-semibold">{copy.email}</th>
+            <th className="py-2 font-semibold">{copy.role}</th>
+            <th className="py-2 font-semibold">{copy.locationAccess}</th>
+            <th className="py-2 font-semibold">Invited by</th>
+            <th className="py-2 font-semibold">Sent</th>
+            <th className="py-2 font-semibold">Expires</th>
+            <th className="py-2 font-semibold">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={row.invitationId}
+              className="border-b border-op-border-default"
+            >
+              <td className="py-3">
+                <span className="inline-flex items-center gap-2">
+                  {row.email}
+                  {row.expired ? (
+                    <Badge variant="soft">{copy.expired}</Badge>
+                  ) : null}
+                </span>
+              </td>
+              <td>{row.permissionRole}</td>
+              <td>{row.locationAccessLabel}</td>
+              <td>{row.invitedBy}</td>
+              <td>{row.sentLabel}</td>
+              <td>{row.expiresLabel}</td>
+              <td>
+                {row.actions.length === 0 ? null : (
+                  <DropdownMenu modal={false}>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Actions for ${row.email}`}
+                        className={GUESTS_ROW_ACTIONS_TRIGGER_CLASS}
+                      >
+                        <MoreVerticalIcon className="size-4" aria-hidden />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className={GUESTS_ROW_ACTIONS_MENU_CLASS}
+                    >
+                      {row.actions.map((action) => (
+                        <DropdownMenuItem
+                          key={action}
+                          className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+                          onSelect={() => {
+                            if (action === "resend") {
+                              void pageModule.resendInvite(row.invitationId)
+                            } else if (action === "revoke") {
+                              pageModule.openRevoke(row.invitationId)
+                            }
+                          }}
+                        >
+                          {actionLabel(action)}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

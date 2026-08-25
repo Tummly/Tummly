@@ -113,5 +113,17 @@ namespace TummlyBackend.Tests.Helpers
             string? brandLogoUrl = null,
             GuestResponseEmailOfferBlock? offer = null
         ) => Task.CompletedTask;
+
+        public virtual Task SendTeamInvitationEmailAsync(
+            string toEmail,
+            string subject,
+            string acceptUrl,
+            string firstName,
+            string inviterName,
+            string workspaceName,
+            string roleName,
+            string locationScope,
+            string? invitationMessage
+        ) => Task.CompletedTask;
     }
 }

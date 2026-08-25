@@ -462,6 +462,7 @@ builder.Services.AddScoped<IOwnedLocationService, OwnedLocationService>();
 
 builder.Services.AddScoped<IAccountWorkspaceService, AccountWorkspaceService>();
 builder.Services.AddScoped<ITeamPermissionsService, TeamPermissionsService>();
+builder.Services.AddScoped<ITeamInvitationAcceptService, TeamInvitationAcceptService>();
 builder.Services.AddScoped<IGuestDataExportService, GuestDataExportService>();
 
 builder.Services.AddHttpClient(

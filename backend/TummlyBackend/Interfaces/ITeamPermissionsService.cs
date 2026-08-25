@@ -48,5 +48,27 @@ namespace TummlyBackend.Interfaces
             bool actorCanManage,
             int membershipId
         );
+
+        Task<string?> SendInviteAsync(
+            int actorUserId,
+            int restaurantId,
+            bool actorCanManage,
+            IReadOnlyList<int> allowedLocationIds,
+            SendTeamInvitationRequest request
+        );
+
+        Task<string?> ResendInviteAsync(
+            int actorUserId,
+            int restaurantId,
+            bool actorCanManage,
+            int invitationId
+        );
+
+        Task<string?> RevokeInviteAsync(
+            int actorUserId,
+            int restaurantId,
+            bool actorCanManage,
+            int invitationId
+        );
     }
 }

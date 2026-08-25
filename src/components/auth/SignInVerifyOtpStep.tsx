@@ -28,7 +28,7 @@ type SignInVerifyOtpStepProps = {
   onOtpChange: (value: string) => void
   onVerify: (event: FormEvent<HTMLFormElement>) => void
   onResend: () => void
-  onChooseSignInMethod: () => void
+  onChooseSignInMethod?: () => void
 }
 
 function OtpFeedbackMessage({ feedback }: { feedback: OtpFeedback }) {
@@ -148,16 +148,18 @@ export function SignInVerifyOtpStep({
           )}
         </p>
 
-        <Button
-          type="button"
-          variant="link"
-          size="link-sm"
-          disabled={submitting}
-          onClick={onChooseSignInMethod}
-          className="self-start font-medium text-primary underline underline-offset-2"
-        >
-          Use a different sign-in method
-        </Button>
+        {onChooseSignInMethod != null ? (
+          <Button
+            type="button"
+            variant="link"
+            size="link-sm"
+            disabled={submitting}
+            onClick={onChooseSignInMethod}
+            className="self-start font-medium text-primary underline underline-offset-2"
+          >
+            Use a different sign-in method
+          </Button>
+        ) : null}
       </div>
     </form>
   )

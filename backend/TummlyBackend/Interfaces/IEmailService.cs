@@ -161,5 +161,17 @@ namespace TummlyBackend.Interfaces
             string? brandLogoUrl = null,
             GuestResponseEmailOfferBlock? offer = null
         );
+
+        Task SendTeamInvitationEmailAsync(
+            string toEmail,
+            string subject,
+            string acceptUrl,
+            string firstName,
+            string inviterName,
+            string workspaceName,
+            string roleName,
+            string locationScope,
+            string? invitationMessage
+        );
     }
 }

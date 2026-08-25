@@ -110,6 +110,15 @@ namespace TummlyBackend.Interfaces
             };
         }
 
+        public static RestaurantPermissionDecision DenyWith(string message)
+        {
+            return new RestaurantPermissionDecision
+            {
+                Status = RestaurantPermissionStatus.Forbidden,
+                Message = message,
+            };
+        }
+
         public static RestaurantPermissionDecision DenyLocation()
         {
             return new RestaurantPermissionDecision

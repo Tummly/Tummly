@@ -383,12 +383,56 @@ namespace TummlyBackend.Services
                 membership
             );
 
+            var ownerGate = await OwnerGateMessageAsync(
+                restaurantId.Value,
+                userId
+            );
+
             return new RestaurantAccess(
                 restaurantId.Value,
                 membership,
                 locationIds,
-                false
+                false,
+                ownerGate
             );
+        }
+
+        public const string OwnerPendingWaitMessage =
+            "This workspace is waiting for the Account owner to activate.";
+
+        private async Task<string?> OwnerGateMessageAsync(
+            int restaurantId,
+            int actorUserId
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurantId);
+            if (restaurant == null || restaurant.OwnerUserId == actorUserId)
+            {
+                return null;
+            }
+
+            var owner = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
+            if (owner == null)
+            {
+                return null;
+            }
+
+            var subject = ActivationSubject.FromUser(owner);
+            if (ActivationState.RequiresActivation(subject))
+            {
+                return OwnerPendingWaitMessage;
+            }
+
+            if (ActivationState.IsActivationExpired(subject))
+            {
+                return ActivationGate.ActivationExpiredMessage;
+            }
+
+            return null;
         }
 
         private async Task<IReadOnlyList<int>> ListLiveLocationIdsAsync(
@@ -424,6 +468,11 @@ namespace TummlyBackend.Services
             bool denyLocation
         )
         {
+            if (access.OwnerGateMessage != null)
+            {
+                return RestaurantPermissionDecision.DenyWith(access.OwnerGateMessage);
+            }
+
             if (access.EmptyNamedList)
             {
                 return denyLocation
@@ -490,7 +539,8 @@ namespace TummlyBackend.Services
             int RestaurantId,
             RestaurantMembership? Membership,
             IReadOnlyList<int> LocationIds,
-            bool EmptyNamedList
+            bool EmptyNamedList,
+            string? OwnerGateMessage = null
         )
         {
             public static RestaurantAccess ForEmptyNamedList(int restaurantId)

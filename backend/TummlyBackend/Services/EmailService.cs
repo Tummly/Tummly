@@ -734,6 +734,37 @@ namespace TummlyBackend.Services
             await SendEmailAsync(toEmail, subject, htmlBody);
         }
 
+        public async Task SendTeamInvitationEmailAsync(
+            string toEmail,
+            string subject,
+            string acceptUrl,
+            string firstName,
+            string inviterName,
+            string workspaceName,
+            string roleName,
+            string locationScope,
+            string? invitationMessage
+        )
+        {
+            var htmlBody = BaseEmailTemplate.Generate(
+                subject,
+                TeamInvitationEmailTemplate.GenerateBody(
+                    firstName,
+                    inviterName,
+                    workspaceName,
+                    roleName,
+                    locationScope,
+                    invitationMessage,
+                    acceptUrl
+                ),
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment),
+                EmailFooterVariant.Transactional
+            );
+
+            await SendEmailAsync(toEmail, subject, htmlBody);
+        }
+
         private sealed class ResendEmailPayload
         {
             [JsonPropertyName("from")]
