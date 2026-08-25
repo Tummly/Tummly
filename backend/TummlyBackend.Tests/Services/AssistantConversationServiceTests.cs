@@ -87,7 +87,7 @@ namespace TummlyBackend.Tests.Services
         )
         {
             var catalog = offersCatalog ?? new OffersCatalogService(_context);
-            return                 new(
+            return new(
                 _context,
                 new OwnedLocationService(_context),
                 _fake,

@@ -358,7 +358,17 @@ namespace TummlyBackend.Controllers
 
             if (scope.OwnedLocationId is not int locationId || locationId <= 0)
             {
-                return null;
+                var set = await _permissions.AuthorizeLocationSetAsync(
+                    User,
+                    OperatorAreaIds.AiAssistant,
+                    PermissionLevel.View
+                );
+                return set.ToHttpResult()
+                    ?? new BadRequestObjectResult(new
+                    {
+                        success = false,
+                        message = "Owned location is required.",
+                    });
             }
 
             var location = await _permissions.AuthorizeLocationAsync(
