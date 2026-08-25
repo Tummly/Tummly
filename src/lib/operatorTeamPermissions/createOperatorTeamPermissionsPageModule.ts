@@ -225,6 +225,7 @@ export function createOperatorTeamPermissionsPageModule(
     | { kind: "tab"; tabId: TeamPermissionsTabId }
     | { kind: "href"; href: string }
     | null = null
+  let pendingNavigationHref: string | null = null
   const listeners = new Set<() => void>()
 
   const emit = () => {
@@ -260,13 +261,18 @@ export function createOperatorTeamPermissionsPageModule(
   const isDirty = () => dirtyCells().length > 0
 
   const continuePendingLeave = () => {
-    if (pendingLeave?.kind === "tab") {
+    if (pendingLeave == null) {
+      return
+    }
+    if (pendingLeave.kind === "tab") {
       activeTabId = resolveTeamPermissionsTabId(
         pendingLeave.tabId,
         privacyConsentHasAccess
       )
-      pendingLeave = null
+    } else {
+      pendingNavigationHref = pendingLeave.href
     }
+    pendingLeave = null
   }
 
   const persistMatrix = async (): Promise<boolean> => {
@@ -359,8 +365,7 @@ export function createOperatorTeamPermissionsPageModule(
       canEditAdminColumn: canEditAdminColumn(),
       saveEnabled: dirty && canEditAdminColumn() && !busy,
       leaveDirtyOpen,
-      pendingNavigationHref:
-        pendingLeave?.kind === "href" ? pendingLeave.href : null,
+      pendingNavigationHref,
     }
   }
 
@@ -688,11 +693,8 @@ export function createOperatorTeamPermissionsPageModule(
       emit()
     },
     consumePendingNavigation: () => {
-      if (pendingLeave?.kind !== "href") {
-        return null
-      }
-      const href = pendingLeave.href
-      pendingLeave = null
+      const href = pendingNavigationHref
+      pendingNavigationHref = null
       return href
     },
   }

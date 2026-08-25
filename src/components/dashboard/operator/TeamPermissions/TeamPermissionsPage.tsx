@@ -121,6 +121,9 @@ export function TeamPermissionsPage() {
   }, [snap.activeTabId, searchParams, setSearchParams])
 
   useEffect(() => {
+    if (snap.pendingNavigationHref == null) {
+      return
+    }
     const href = pageModule.consumePendingNavigation()
     if (href == null) {
       return

@@ -263,4 +263,64 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     expect(module.getSnapshot().isDirty).toBe(false)
     expect(module.getSnapshot().saveEnabled).toBe(false)
   })
+
+  it("SideNav leave-dirty waits for Save before publishing the href", async () => {
+    const api = adapters()
+    const module = createOperatorTeamPermissionsPageModule(api, {
+      initialTabId: "roles-permissions",
+    })
+    await module.load()
+    module.setAdminCell("billing-credits", "Manage")
+
+    expect(
+      module.requestNavigateAway("/single-dashboard/guests?location=1")
+    ).toBe(false)
+    expect(module.getSnapshot().leaveDirtyOpen).toBe(true)
+    expect(module.getSnapshot().pendingNavigationHref).toBeNull()
+
+    await module.confirmLeaveDirtySave()
+    expect(api.saveMatrix).toHaveBeenCalledWith([
+      { areaId: "billing-credits", level: "Manage" },
+    ])
+    expect(module.getSnapshot().leaveDirtyOpen).toBe(false)
+    expect(module.getSnapshot().pendingNavigationHref).toBe(
+      "/single-dashboard/guests?location=1"
+    )
+    expect(module.consumePendingNavigation()).toBe(
+      "/single-dashboard/guests?location=1"
+    )
+  })
+
+  it("SideNav leave-dirty Cancel discards then publishes the href", async () => {
+    const api = adapters()
+    const module = createOperatorTeamPermissionsPageModule(api, {
+      initialTabId: "roles-permissions",
+    })
+    await module.load()
+    module.setAdminCell("locations", "View")
+    module.requestNavigateAway("/multi-dashboard/settings/account?location=1")
+    await module.confirmLeaveDirtyCancel()
+
+    expect(api.saveMatrix).not.toHaveBeenCalled()
+    expect(module.getSnapshot().isDirty).toBe(false)
+    expect(module.getSnapshot().pendingNavigationHref).toBe(
+      "/multi-dashboard/settings/account?location=1"
+    )
+  })
+
+  it("leave-dirty Close keeps the href unpublished", async () => {
+    const api = adapters()
+    const module = createOperatorTeamPermissionsPageModule(api, {
+      initialTabId: "roles-permissions",
+    })
+    await module.load()
+    module.setAdminCell("locations", "View")
+    module.requestNavigateAway("/single-dashboard/home?location=1")
+    module.closeLeaveDirty()
+
+    expect(module.getSnapshot().leaveDirtyOpen).toBe(false)
+    expect(module.getSnapshot().pendingNavigationHref).toBeNull()
+    expect(module.consumePendingNavigation()).toBeNull()
+    expect(module.getSnapshot().isDirty).toBe(true)
+  })
 })

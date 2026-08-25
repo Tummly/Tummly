@@ -6,7 +6,7 @@ namespace TummlyBackend.Helpers
         {
             return areaId switch
             {
-                OperatorAreaIds.AccountWorkspace => "Workspace & account",
+                OperatorAreaIds.AccountWorkspace => "Account & workspace",
                 OperatorAreaIds.Locations => "Locations",
                 OperatorAreaIds.TeamPermissions => "Team & permissions",
                 OperatorAreaIds.Capture => "Capture & Guest Forms",
