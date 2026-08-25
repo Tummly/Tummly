@@ -129,17 +129,10 @@ namespace TummlyBackend.Controllers
                     locationIds
                 );
 
-                if (effectiveLocations.Status
-                    == GuestsEffectiveLocationStatus.Forbidden)
+                var effectiveDenied = effectiveLocations.ToHttpResult();
+                if (effectiveDenied != null)
                 {
-                    return StatusCode(
-                        StatusCodes.Status403Forbidden,
-                        new
-                        {
-                            success = false,
-                            message = effectiveLocations.ErrorMessage,
-                        }
-                    );
+                    return effectiveDenied;
                 }
 
                 var result = await _guestsList.GetListAsync(
@@ -304,17 +297,10 @@ namespace TummlyBackend.Controllers
                     locationIds
                 );
 
-                if (effectiveLocations.Status
-                    == GuestsEffectiveLocationStatus.Forbidden)
+                var effectiveDenied = effectiveLocations.ToHttpResult();
+                if (effectiveDenied != null)
                 {
-                    return StatusCode(
-                        StatusCodes.Status403Forbidden,
-                        new
-                        {
-                            success = false,
-                            message = effectiveLocations.ErrorMessage,
-                        }
-                    );
+                    return effectiveDenied;
                 }
 
                 var scopeToken = _effectiveLocations.ResolveScopeToken(
@@ -401,17 +387,10 @@ namespace TummlyBackend.Controllers
                     locationIds
                 );
 
-                if (effectiveLocations.Status
-                    == GuestsEffectiveLocationStatus.Forbidden)
+                var effectiveDenied = effectiveLocations.ToHttpResult();
+                if (effectiveDenied != null)
                 {
-                    return StatusCode(
-                        StatusCodes.Status403Forbidden,
-                        new
-                        {
-                            success = false,
-                            message = effectiveLocations.ErrorMessage,
-                        }
-                    );
+                    return effectiveDenied;
                 }
 
                 var restaurantId = ownedLocation.Location!.RestaurantId;
@@ -846,6 +825,15 @@ namespace TummlyBackend.Controllers
             if (unauthorized != null)
             {
                 return unauthorized;
+            }
+
+            var ownedLocation = await GateLocationAsync(
+                locationId
+            );
+            var denied = ownedLocation.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
             }
 
             var outcome = await _guestDelete.DeleteAsync(

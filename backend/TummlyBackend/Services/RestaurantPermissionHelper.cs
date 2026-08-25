@@ -139,6 +139,42 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task<RestaurantPermissionDecision> AuthorizeNamedLocationIdsAsync(
+            IReadOnlyList<int> allowedLocationIds,
+            int[] namedLocationIds
+        )
+        {
+            var distinct = namedLocationIds.Distinct().ToList();
+            if (distinct.Count == 0)
+            {
+                return RestaurantPermissionDecision.AllowSet(
+                    0,
+                    allowedLocationIds
+                );
+            }
+
+            var found = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => distinct.Contains(row.Id))
+                .Select(row => row.Id)
+                .ToListAsync();
+
+            if (found.Count != distinct.Count)
+            {
+                return RestaurantPermissionDecision.NotFoundLocation();
+            }
+
+            if (distinct.Any(id => !allowedLocationIds.Contains(id)))
+            {
+                return RestaurantPermissionDecision.DenyLocation();
+            }
+
+            return RestaurantPermissionDecision.AllowSet(
+                0,
+                allowedLocationIds
+            );
+        }
+
         private async Task<(
             int UserId,
             User? User,

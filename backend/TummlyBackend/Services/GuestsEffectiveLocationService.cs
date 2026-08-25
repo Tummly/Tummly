@@ -103,24 +103,28 @@ namespace TummlyBackend.Services
             }
 
             var distinctIds = locationIds!.Distinct().ToList();
-            if (distinctIds.Any(id => !allowed.Contains(id)))
+            var found = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => distinctIds.Contains(row.Id))
+                .Select(row => new
+                {
+                    row.Id,
+                    row.RestaurantId,
+                    row.LocationName,
+                })
+                .ToListAsync();
+
+            if (found.Count != distinctIds.Count)
             {
-                return GuestsEffectiveLocationResult.Forbidden(
-                    "You do not have access to this location."
+                return GuestsEffectiveLocationResult.NotFound(
+                    "Location not found."
                 );
             }
 
-            var named = await _context.RestaurantLocations
-                .AsNoTracking()
-                .Where(row =>
-                    distinctIds.Contains(row.Id)
-                    && row.RestaurantId == shellLocation.RestaurantId
-                    && allowed.Contains(row.Id)
-                )
-                .Select(row => new { row.Id, row.LocationName })
-                .ToListAsync();
-
-            if (named.Count != distinctIds.Count)
+            if (found.Any(row =>
+                row.RestaurantId != shellLocation.RestaurantId
+                || !allowed.Contains(row.Id)
+            ))
             {
                 return GuestsEffectiveLocationResult.Forbidden(
                     "You do not have access to this location."
@@ -128,8 +132,8 @@ namespace TummlyBackend.Services
             }
 
             return GuestsEffectiveLocationResult.Ok(
-                named.Select(row => row.Id).ToList(),
-                named.ToDictionary(row => row.Id, row => row.LocationName)
+                found.Select(row => row.Id).ToList(),
+                found.ToDictionary(row => row.Id, row => row.LocationName)
             );
         }
     }

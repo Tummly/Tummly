@@ -180,6 +180,44 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GuestsRead_NamedUnknownId_Returns404()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Marketing,
+                namedInScopeOnly: true
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/guests?locationId={seeded.InScopeLocationId}&locationIds=999999"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.MemberJwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GuestsDelete_Returns403_WhenAreaIsNoAccess()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Staff,
+                namedInScopeOnly: true
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Delete,
+                $"/api/guests/1?locationId={seeded.InScopeLocationId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.MemberJwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
         public async Task GuestsRead_LocationScopeAll_UsesActorLiveSet()
         {
             var seeded = await SeedOwnerAndMemberAsync(
@@ -264,6 +302,68 @@ namespace TummlyBackend.Tests.Integration
                     + $"?from={Uri.EscapeDataString(from.ToString("o"))}"
                     + $"&to={Uri.EscapeDataString(to.ToString("o"))}"
                     + $"&locationIds={seeded.OutOfScopeLocationId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.MemberJwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task CaptureLocations_NamedUnknownId_Returns404()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.ReportingOnly,
+                namedInScopeOnly: true
+            );
+
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/capture/locations"
+                    + $"?from={Uri.EscapeDataString(from.ToString("o"))}"
+                    + $"&to={Uri.EscapeDataString(to.ToString("o"))}"
+                    + "&locationIds=999999"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.MemberJwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task CampaignsRead_Returns403_WhenAreaIsNoAccess()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Staff,
+                namedInScopeOnly: true
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/campaigns?locationId={seeded.InScopeLocationId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.MemberJwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task FeedbackRead_Returns403_WhenAreaIsNoAccess()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Staff,
+                namedInScopeOnly: true
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/feedback?locationId={seeded.InScopeLocationId}"
             );
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", seeded.MemberJwt);

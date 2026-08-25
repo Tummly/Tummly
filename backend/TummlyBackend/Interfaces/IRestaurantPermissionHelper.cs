@@ -25,6 +25,11 @@ namespace TummlyBackend.Interfaces
             string areaId,
             PermissionLevel minimum
         );
+
+        Task<RestaurantPermissionDecision> AuthorizeNamedLocationIdsAsync(
+            IReadOnlyList<int> allowedLocationIds,
+            int[] namedLocationIds
+        );
     }
 
     public enum RestaurantPermissionStatus

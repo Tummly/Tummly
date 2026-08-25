@@ -110,17 +110,10 @@ namespace TummlyBackend.Controllers
                     locationIds
                 );
 
-                if (effectiveLocations.Status
-                    == GuestsEffectiveLocationStatus.Forbidden)
+                var effectiveDenied = effectiveLocations.ToHttpResult();
+                if (effectiveDenied != null)
                 {
-                    return StatusCode(
-                        StatusCodes.Status403Forbidden,
-                        new
-                        {
-                            success = false,
-                            message = effectiveLocations.ErrorMessage,
-                        }
-                    );
+                    return effectiveDenied;
                 }
 
                 var response = await _campaignsList.ListAsync(

@@ -1,4 +1,4 @@
-using TummlyBackend.Models;
+using Microsoft.AspNetCore.Mvc;
 
 namespace TummlyBackend.DTOs.Guests
 {
@@ -6,6 +6,7 @@ namespace TummlyBackend.DTOs.Guests
     {
         Ok,
         Forbidden,
+        NotFound,
     }
 
     public sealed class GuestsEffectiveLocationResult
@@ -35,5 +36,41 @@ namespace TummlyBackend.DTOs.Guests
                 Status = GuestsEffectiveLocationStatus.Forbidden,
                 ErrorMessage = message,
             };
+
+        public static GuestsEffectiveLocationResult NotFound(string message) =>
+            new()
+            {
+                Status = GuestsEffectiveLocationStatus.NotFound,
+                ErrorMessage = message,
+            };
+
+        public IActionResult? ToHttpResult()
+        {
+            return Status switch
+            {
+                GuestsEffectiveLocationStatus.Ok => null,
+                GuestsEffectiveLocationStatus.Forbidden => new ObjectResult(new
+                {
+                    success = false,
+                    message = ErrorMessage,
+                })
+                {
+                    StatusCode = StatusCodes.Status403Forbidden,
+                },
+                GuestsEffectiveLocationStatus.NotFound => new NotFoundObjectResult(new
+                {
+                    success = false,
+                    message = ErrorMessage,
+                }),
+                _ => new ObjectResult(new
+                {
+                    success = false,
+                    message = ErrorMessage,
+                })
+                {
+                    StatusCode = StatusCodes.Status403Forbidden,
+                },
+            };
+        }
     }
 }

@@ -66,19 +66,17 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
-            if (
-                locationIds is { Length: > 0 }
-                && locationIds.Any(id => !set.LocationIds.Contains(id))
-            )
+            if (locationIds is { Length: > 0 })
             {
-                return StatusCode(
-                    StatusCodes.Status403Forbidden,
-                    new
-                    {
-                        success = false,
-                        message = "You do not have access to this location.",
-                    }
+                var named = await _permissions.AuthorizeNamedLocationIdsAsync(
+                    set.LocationIds,
+                    locationIds
                 );
+                var namedDenied = named.ToHttpResult();
+                if (namedDenied != null)
+                {
+                    return namedDenied;
+                }
             }
 
             try
