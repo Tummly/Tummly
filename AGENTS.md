@@ -4,7 +4,7 @@
 
 ### Issue tracker
 
-Local markdown — issues and PRDs live as files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
+Local markdown — issues and PRDs live as files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`. The map is the index for **lock** tickets and later **build** tickets.
 
 When creating **Wayfinder map tickets** OR **Issue Tickets** via **/to-tickets** that need UI or has any UI pieces, attach **full Figma URLs** (with `node-id`) on the ticket — see **Figma URLs on UI map tickets** in `docs/agents/issue-tracker.md`. Do not rely on node ids or frame names alone.
 
@@ -33,6 +33,10 @@ Before adding or styling custom markup:
 3. **Defer deliberate gaps** — some Operator patterns (filter tabs, spinners, empty states) are still duplicated on purpose; see `docs/adr/0014-extract-shared-operator-ui-primitives.md`. Prefer extracting or adopting a registry primitive when next touching those surfaces, not inventing a third copy.
 4. **Use Design Tokens for Operator Dashboard and it's children** - use design tokens when creating compoenents, compare hex codes from figma to the current design tokens and use the closest match. If the hex code is not in the design tokens, add it to the design tokens.
 5. For the dropdowns or popup or menus, if they are inside a sheet, drawer, dialogue or modal make surethey come on top of the parent and not behind it.
+
+### Review
+
+Operator settings review rules live in `CODING_STANDARDS.md` (review time, not implementation).
 
 ### Language
 

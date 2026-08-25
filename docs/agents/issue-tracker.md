@@ -6,9 +6,12 @@ Issues and PRDs for this repo live as markdown files in `.scratch/`.
 
 - One feature per directory: `.scratch/<feature-slug>/`
 - The PRD is `.scratch/<feature-slug>/PRD.md`
-- Implementation issues are `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01`
+- Tickets are `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01`
+- **Kind** near the top: `lock` (wayfinder decision) or `build` (tracer-bullet implementation). When a pack already has lock tickets, `/to-tickets` continues from the next number and writes **build** files. Do not reuse a lock number for a build ticket.
 - Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings)
 - Comments and conversation history append to the bottom of the file under a `## Comments` heading
+
+When a pack has a **map** and a **PRD**, the map is the index for **both** lock tickets and later build tickets. **Decisions so far** holds lock gists. **Frontier** lists every build ticket (number, name, status). Open locks still appear by scanning `issues/` as below.
 
 ## When a skill says "publish to the issue tracker"
 
@@ -23,9 +26,9 @@ Read the file at the referenced path. The user will normally pass the path or th
 Used by `/wayfinder`. The **map** is a file with one **child** file per ticket.
 
 - **Map**: `.scratch/<effort>/map.md` — the Notes / Decisions-so-far / Fog body.
-- **Child ticket**: `.scratch/<effort>/issues/NN-<slug>.md`, numbered from `01`, with the question in the body. A `Type:` line records the ticket type (`research`/`prototype`/`grilling`/`task`); a `Status:` line records `open`/`claimed`/`resolved`.
+- **Child ticket**: `.scratch/<effort>/issues/NN-<slug>.md`, numbered from `01`, with the question in the body. A `Kind: lock` line plus a `Type:` line (`research`/`prototype`/`grilling`/`task`); a `Status:` line records `open`/`claimed`/`resolved`.
 - **Blocking**: a `Blocked by: NN, NN` line near the top (empty if none). A ticket is unblocked when every file it lists is `resolved`.
-- **Frontier**: scan `.scratch/<effort>/issues/` for files that are open, unblocked, and unclaimed; first by number wins.
+- **Frontier**: during wayfinding, scan `.scratch/<effort>/issues/` for files that are open, unblocked, and unclaimed; first by number wins. After `/to-tickets`, the map **Frontier** table is the build index.
 - **Claim**: set `Status: claimed` and save before any work.
 - **Resolve**: append the answer under an `## Answer` heading, set `Status: resolved`, then append a context pointer (gist + link) to the map's Decisions-so-far in `map.md`.
 

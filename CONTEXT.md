@@ -396,7 +396,7 @@ _Avoid_: Resolution reason (alone), dismiss reason, no-action reason (as separat
 ## Operator workspace
 
 **Workspace name**:
-On **Account & workspace**, the operator-facing label for `Restaurant.Name`. Distinct from **Location name**, **Trading name**, **Legal business name**, **Workspace selection**, and **Operator workspace session**.
+On **Account & workspace**, the operator-facing label for `Restaurant.Name`. One Restaurant owns many **Owned location**s. Product copy may say "workspace"; the domain entity is the Restaurant. Distinct from **Location name**, **Trading name**, **Legal business name**, **Workspace selection**, and **Operator workspace session**.
 _Avoid_: Location name, venue name (when meaning the Restaurant), Operator workspace session
 
 **Workspace status**:
@@ -459,21 +459,9 @@ _Avoid_: Last saved format (that line still uses `D MMMM YYYY`)
 Operator self-serve download of identifiable guest data for the Restaurant (`csv` or `xlsx`). Distinct from a per-guest export on Guest Profile, from Feedback export, and from an **Account export request**.
 _Avoid_: Account export, guest dump, GDPR export (when meaning this download)
 
-**Workspace name**:
-On **Account & workspace** (Settings), the operator-facing label for the Restaurant's display name (`Restaurant.Name`). One Restaurant owns many **Owned location**s. Product copy may say "workspace"; the domain entity is the Restaurant. Distinct from **Workspace selection** and from **Operator workspace session**.
-_Avoid_: Location name, venue name (when meaning the Restaurant), Operator workspace session
-
-**Workspace status**:
-The Restaurant-wide operational state shown on **Account & workspace**: **Active** or **Paused**. Distinct from **Capture location status**, from a **QR code**’s Active / Paused / Archived status, and from a **Campaign**’s Paused status.
-_Avoid_: Account status (when meaning this Restaurant state), activation status, Soft lock
-
-**Pause workspace**:
-The operator action that sets **Workspace status** to **Paused**. While Paused, guest forms and outbound product work for that Restaurant stop (Campaigns, Offers, and later billing). The operator may still open **Account & workspace** to resume. Distinct from **Pause location capture**.
-_Avoid_: Pause location, Pause campaign, Soft lock, Activation expired
-
-**Workspace defaults**:
-The Restaurant-level defaults managed on the **Account & workspace** Settings tab. v1 fields: **Week starts on**, **Reporting period**, and **Default Campaign Sender Name**. Distinct from visit-scoped UI state and from per-campaign edits.
-_Avoid_: Personal preferences, dashboard defaults, account preferences
+**Unsaved changes**:
+The Operator confirm when the operator leaves a dirty Settings form tab (other tab, other SideNav destination, or browser back). **Save changes** persists then continues. **Cancel** discards then continues. Close, overlay, or Escape stays with the draft. Shared across Settings children. Distinct from **Change workspace name**.
+_Avoid_: browser beforeunload (as the product name), discard dialog
 
 **Workspace selection**:
 The post-authentication step where an operator with more than one **Active** **Restaurant membership** chooses which Restaurant to work in. Triggered when the backend sets `workspaceSetupRequired` on the sign-in response. The list is **Active** memberships, not `OwnerUserId` / owned restaurants only. An operator with one **Active** membership skips this step and lands on that Restaurant's dashboard (single- or multi-location). Dormant until a User has more than one **Active** membership.

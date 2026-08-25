@@ -32,6 +32,7 @@ Break the work into **tracer bullet** tickets.
 - A completed slice is demoable or verifiable on its own
 - Each slice is sized to fit in a single fresh context window
 - Any prefactoring should be done first
+- A slice that names more than one **consumer family** (page shell, persist, and downstream readers such as email, Weekly brief, or recommendation cache) is too large. Split unless the user keeps the coarse cut in the quiz.
 
 </vertical-slice-rules>
 
@@ -51,7 +52,7 @@ Ask the user:
 
 - Does the granularity feel right? (too coarse / too fine)
 - Are the blocking edges correct: does each ticket only depend on tickets that genuinely gate it?
-- Should any tickets be merged or split further?
+- Should any tickets be merged or split further — in particular any slice that names a page shell **and** persist **and** downstream consumers?
 
 Iterate until the user approves the breakdown.
 
@@ -59,16 +60,22 @@ Iterate until the user approves the breakdown.
 
 Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock-skills` configured; the tickets are the same either way, only the shape of the blocking edges changes:
 
-- **Local files** → write one file per ticket under `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` in dependency order (blockers first). Each file's "Blocked by" lists the numbers/titles it depends on. Use the per-ticket file template below: one ticket per file, never a single combined file.
+- **Local files** → write one file per ticket under `.scratch/<feature-slug>/issues/<NN>-<slug>.md`. If the folder already has tickets, continue from the next number. New files are **build** (`**Kind:** build`). Existing wayfinder children stay **lock**. Each file's "Blocked by" lists the numbers/titles it depends on. Use the per-ticket file template below: one ticket per file, never a single combined file.
 - **A real issue tracker (GitHub, Linear, …)** → publish one issue per ticket in dependency order (blockers first) so each ticket's blocking edges can reference real identifiers. Use the platform's native blocking / sub-issue relationship where it has one; otherwise set each ticket's "Blocked by" to the blocking issues. Apply the `ready-for-agent` triage label unless instructed otherwise; the tickets are agent-grabbable by construction.
 
 Work the **frontier**: any ticket whose blockers are all done. For a purely linear chain that means top to bottom.
 
-Do NOT close or modify any parent issue.
+Keep the parent map open. After publish, update the map **Frontier** table so it lists every new **build** ticket (number, name, status). Leave **Decisions so far** as the lock index; do not restate lock answers on the map. Done when Frontier shows each new ticket and each file has `Kind: build`.
+
+If a gate (for example HTTP **403**) cannot be tested until a later slice, write that gate under **Out of this ticket** as a lock.
+
+When the ticket lists tests, use the phrases `HTTP tests cover` and `Page-module tests cover` so review can match them.
 
 <local-ticket-template>
 
-# <NN>: <Ticket title>
+# <NN> — <Ticket title>
+
+**Kind:** build
 
 **What to build:** the end-to-end behaviour this ticket makes work, from the user's perspective, not a layer-by-layer implementation list.
 
@@ -78,6 +85,8 @@ Do NOT close or modify any parent issue.
 
 - [ ] Acceptance criterion 1
 - [ ] Acceptance criterion 2
+- [ ] HTTP tests cover …
+- [ ] Page-module tests cover …
 
 </local-ticket-template>
 
