@@ -350,6 +350,41 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetCaptureLocations_Returns403_ForTummlyStaffJwt()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+            var admin = new Admin
+            {
+                FullName = "Staff",
+                Email = "staff-capture-12@example.com",
+                PasswordHash = "hash",
+                Role = "Admin",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Admins.Add(admin);
+            await context.SaveChangesAsync();
+            var jwt = jwtService.GenerateAdminToken(admin);
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
         public async Task GetCaptureLocations_Returns401_WhenUnauthenticated()
         {
             var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
@@ -478,7 +513,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task GetCaptureLocations_ReturnsEmpty_WhenNoRestaurant()
+        public async Task GetCaptureLocations_Returns403_WhenNoRestaurant()
         {
             var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
             var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
@@ -495,10 +530,7 @@ namespace TummlyBackend.Tests.Integration
 
             var response = await _client.SendAsync(request);
 
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            var body = await ReadJsonAsync(response);
-            Assert.Equal(0, body.GetProperty("totalCount").GetInt32());
-            Assert.Equal(0, body.GetProperty("items").GetArrayLength());
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
         [Fact]

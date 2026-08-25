@@ -16,7 +16,7 @@ namespace TummlyBackend.Controllers
     public class FeedbackController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
-        private readonly IOwnedLocationService _ownedLocation;
+        private readonly IRestaurantPermissionHelper _permissions;
         private readonly IGuestTaggingService _guestTagging;
         private readonly IFeedbackInternalNotesService _internalNotes;
         private readonly IFeedbackClassificationCorrectionsService _corrections;
@@ -35,7 +35,7 @@ namespace TummlyBackend.Controllers
 
         public FeedbackController(
             ApplicationDbContext context,
-            IOwnedLocationService ownedLocation,
+            IRestaurantPermissionHelper permissions,
             IGuestTaggingService guestTagging,
             IFeedbackInternalNotesService internalNotes,
             IFeedbackClassificationCorrectionsService corrections,
@@ -54,7 +54,7 @@ namespace TummlyBackend.Controllers
         )
         {
             _context = context;
-            _ownedLocation = ownedLocation;
+            _permissions = permissions;
             _guestTagging = guestTagging;
             _internalNotes = internalNotes;
             _corrections = corrections;
@@ -91,12 +91,10 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
-
+            var ownedLocation = await GateLocationAsync(
+                locationId
+            );
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -204,12 +202,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
-
+            var ownedLocation = await GateLocationAsync(
+                locationId
+            );
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -366,12 +362,10 @@ namespace TummlyBackend.Controllers
             // all-time window so unresolved Negative Feedback still counts.
             // Summary and export keep the 180-day cap.
 
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
-
+            var ownedLocation = await GateLocationAsync(
+                locationId
+            );
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -500,12 +494,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
-
+            var ownedLocation = await GateLocationAsync(
+                locationId
+            );
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -572,12 +564,10 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
-
+            var ownedLocation = await GateLocationAsync(
+                locationId
+            );
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -645,13 +635,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -783,13 +770,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -870,13 +854,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -957,13 +938,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -1060,13 +1038,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -1235,13 +1210,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -1363,13 +1335,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -1502,13 +1471,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -1608,13 +1574,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -1764,13 +1727,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -1894,13 +1854,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -2036,13 +1993,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -2146,13 +2100,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -2194,13 +2145,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -2267,13 +2215,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -2407,13 +2352,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -2528,13 +2470,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation = await _ownedLocation.ResolveAsync(
-                userId,
+            var ownedLocation = await GateLocationAsync(
                 feedback.RestaurantLocationId
             );
-
-            var denied = OwnedLocationResponses.FromResult(ownedLocation);
-
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -2612,6 +2551,21 @@ namespace TummlyBackend.Controllers
                 DateTimeKind.Local => value.ToUniversalTime(),
                 _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
             };
+        }
+
+        private async Task<RestaurantPermissionDecision> GateLocationAsync(
+            int locationId
+        )
+        {
+            var minimum = HttpMethods.IsGet(Request.Method)
+                ? PermissionLevel.View
+                : PermissionLevel.Manage;
+            return await _permissions.AuthorizeLocationAsync(
+                User,
+                OperatorAreaIds.Feedback,
+                minimum,
+                locationId
+            );
         }
     }
 }

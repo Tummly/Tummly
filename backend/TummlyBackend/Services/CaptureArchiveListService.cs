@@ -37,17 +37,14 @@ namespace TummlyBackend.Services
             };
 
         private readonly ApplicationDbContext _context;
-        private readonly IOwnedLocationService _ownedLocation;
         private readonly ISmartGuestLinkService _smartGuestLink;
 
         public CaptureArchiveListService(
             ApplicationDbContext context,
-            IOwnedLocationService ownedLocation,
             ISmartGuestLinkService smartGuestLink
         )
         {
             _context = context;
-            _ownedLocation = ownedLocation;
             _smartGuestLink = smartGuestLink;
         }
 
@@ -62,18 +59,14 @@ namespace TummlyBackend.Services
 
             var restaurant = await _context.Restaurants
                 .AsNoTracking()
-                .FirstOrDefaultAsync(r => r.OwnerUserId == query.OwnerUserId);
+                .FirstOrDefaultAsync(r => r.Id == query.RestaurantId);
 
             if (restaurant == null)
             {
                 return EmptyPage(page, pageSize);
             }
 
-            var ownedLocationIds =
-                await _ownedLocation.ListOwnedLocationIdsAsync(
-                    restaurant.Id,
-                    query.OwnerUserId
-                );
+            var ownedLocationIds = query.ScopedLocationIds.ToList();
 
             if (ownedLocationIds.Count == 0)
             {
@@ -446,7 +439,12 @@ namespace TummlyBackend.Services
             }
 
             var owned = ownedLocationIds.ToHashSet();
-            return requested.Where(owned.Contains).Distinct().ToList();
+            if (requested.Any(id => !owned.Contains(id)))
+            {
+                throw new InvalidOperationException("location-scope-denied");
+            }
+
+            return requested.Distinct().ToList();
         }
 
         private static List<QrType> ParseQrTypes(string[]? qrTypes)

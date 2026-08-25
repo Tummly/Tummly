@@ -33,7 +33,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task GetArchived_ReturnsEmptyPage_WhenNoRestaurant()
+        public async Task GetArchived_Returns403_WhenNoRestaurant()
         {
             var jwt = await SeedUserWithoutRestaurantAsync(
                 "cap-arch-no-rest@example.com"
@@ -47,17 +47,7 @@ namespace TummlyBackend.Tests.Integration
                 new AuthenticationHeaderValue("Bearer", jwt);
 
             var response = await _client.SendAsync(request);
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            var body = await ReadJsonAsync(response);
-            Assert.True(body.GetProperty("success").GetBoolean());
-            Assert.Equal(0, body.GetProperty("placements").GetArrayLength());
-            Assert.Equal(0, body.GetProperty("totalCount").GetInt32());
-            Assert.Equal(1, body.GetProperty("page").GetInt32());
-            Assert.Equal(25, body.GetProperty("pageSize").GetInt32());
-            Assert.Equal(
-                0,
-                body.GetProperty("archiverOptions").GetArrayLength()
-            );
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
         [Fact]

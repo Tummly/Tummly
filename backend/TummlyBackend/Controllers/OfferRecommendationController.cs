@@ -11,16 +11,16 @@ namespace TummlyBackend.Controllers
     [Authorize]
     public class OfferRecommendationController : ControllerBase
     {
+        private readonly IRestaurantPermissionHelper _permissions;
         private readonly IOfferRecommendationService _offerRecommendation;
-        private readonly IOwnedLocationService _ownedLocation;
 
         public OfferRecommendationController(
-            IOfferRecommendationService offerRecommendation,
-            IOwnedLocationService ownedLocation
+            IRestaurantPermissionHelper permissions,
+            IOfferRecommendationService offerRecommendation
         )
         {
+            _permissions = permissions;
             _offerRecommendation = offerRecommendation;
-            _ownedLocation = ownedLocation;
         }
 
         [HttpPost]
@@ -37,12 +37,13 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, request.LocationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
-
+            var ownedLocation = await _permissions.AuthorizeLocationAsync(
+                User,
+                OperatorAreaIds.Offers,
+                PermissionLevel.Manage,
+                request.LocationId
+            );
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;

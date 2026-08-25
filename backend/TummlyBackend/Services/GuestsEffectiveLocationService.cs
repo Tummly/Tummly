@@ -41,12 +41,13 @@ namespace TummlyBackend.Services
         }
 
         public async Task<GuestsEffectiveLocationResult> ResolveAsync(
-            int ownerUserId,
+            IReadOnlyList<int> scopedLocationIds,
             RestaurantLocation shellLocation,
             string? locationScope,
             int[]? locationIds
         )
         {
+            var allowed = scopedLocationIds.ToHashSet();
             var hasScope = !string.IsNullOrWhiteSpace(locationScope);
             var hasIds = locationIds is { Length: > 0 };
 
@@ -59,6 +60,13 @@ namespace TummlyBackend.Services
 
             if (!hasScope && !hasIds)
             {
+                if (!allowed.Contains(shellLocation.Id))
+                {
+                    return GuestsEffectiveLocationResult.Forbidden(
+                        "You do not have access to this location."
+                    );
+                }
+
                 return GuestsEffectiveLocationResult.Ok(
                     new[] { shellLocation.Id },
                     new Dictionary<int, string>
@@ -79,34 +87,40 @@ namespace TummlyBackend.Services
                     throw new ArgumentException("Invalid locationScope.");
                 }
 
-                var allLocations = await _context.RestaurantLocations
+                var scoped = await _context.RestaurantLocations
                     .AsNoTracking()
-                    .Include(l => l.Restaurant)
-                    .Where(l =>
-                        l.RestaurantId == shellLocation.RestaurantId
-                        && l.Restaurant!.OwnerUserId == ownerUserId
+                    .Where(row =>
+                        row.RestaurantId == shellLocation.RestaurantId
+                        && allowed.Contains(row.Id)
                     )
-                    .Select(l => new { l.Id, l.LocationName })
+                    .Select(row => new { row.Id, row.LocationName })
                     .ToListAsync();
 
                 return GuestsEffectiveLocationResult.Ok(
-                    allLocations.Select(l => l.Id).ToList(),
-                    allLocations.ToDictionary(l => l.Id, l => l.LocationName)
+                    scoped.Select(row => row.Id).ToList(),
+                    scoped.ToDictionary(row => row.Id, row => row.LocationName)
                 );
             }
 
             var distinctIds = locationIds!.Distinct().ToList();
-            var owned = await _context.RestaurantLocations
+            if (distinctIds.Any(id => !allowed.Contains(id)))
+            {
+                return GuestsEffectiveLocationResult.Forbidden(
+                    "You do not have access to this location."
+                );
+            }
+
+            var named = await _context.RestaurantLocations
                 .AsNoTracking()
-                .Include(l => l.Restaurant)
-                .Where(l =>
-                    distinctIds.Contains(l.Id)
-                    && l.Restaurant!.OwnerUserId == ownerUserId
+                .Where(row =>
+                    distinctIds.Contains(row.Id)
+                    && row.RestaurantId == shellLocation.RestaurantId
+                    && allowed.Contains(row.Id)
                 )
-                .Select(l => new { l.Id, l.LocationName })
+                .Select(row => new { row.Id, row.LocationName })
                 .ToListAsync();
 
-            if (owned.Count != distinctIds.Count)
+            if (named.Count != distinctIds.Count)
             {
                 return GuestsEffectiveLocationResult.Forbidden(
                     "You do not have access to this location."
@@ -114,8 +128,8 @@ namespace TummlyBackend.Services
             }
 
             return GuestsEffectiveLocationResult.Ok(
-                owned.Select(l => l.Id).ToList(),
-                owned.ToDictionary(l => l.Id, l => l.LocationName)
+                named.Select(row => row.Id).ToList(),
+                named.ToDictionary(row => row.Id, row => row.LocationName)
             );
         }
     }

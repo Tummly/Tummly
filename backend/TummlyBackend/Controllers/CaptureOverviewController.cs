@@ -12,12 +12,15 @@ namespace TummlyBackend.Controllers
     public class CaptureOverviewController : ControllerBase
     {
         private readonly ICaptureMultiLocationReadsService _reads;
+        private readonly IRestaurantPermissionHelper _permissions;
 
         public CaptureOverviewController(
-            ICaptureMultiLocationReadsService reads
+            ICaptureMultiLocationReadsService reads,
+            IRestaurantPermissionHelper permissions
         )
         {
             _reads = reads;
+            _permissions = permissions;
         }
 
         [HttpGet]
@@ -27,11 +30,22 @@ namespace TummlyBackend.Controllers
         )
         {
             var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
+                OperatorAuth.TryRequireUserId(User, out _);
 
             if (unauthorized != null)
             {
                 return unauthorized;
+            }
+
+            var set = await _permissions.AuthorizeLocationSetAsync(
+                User,
+                OperatorAreaIds.Capture,
+                PermissionLevel.View
+            );
+            var denied = set.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
             }
 
             try
@@ -39,7 +53,8 @@ namespace TummlyBackend.Controllers
                 var result = await _reads.GetOverviewAsync(
                     new CaptureOverviewQuery
                     {
-                        OwnerUserId = userId,
+                        RestaurantId = set.RestaurantId,
+                        ScopedLocationIds = set.LocationIds,
                         From = from,
                         To = to,
                     }

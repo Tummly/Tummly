@@ -72,6 +72,39 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetGuests_Returns403_ForTummlyStaffJwt()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var admin = new Admin
+            {
+                FullName = "Staff",
+                Email = "staff-guests-12@example.com",
+                PasswordHash = "hash",
+                Role = "Admin",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Admins.Add(admin);
+            await context.SaveChangesAsync();
+            var jwt = jwtService.GenerateAdminToken(admin);
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/guests?locationId=1"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
         public async Task GetGuests_Returns400_WhenPageSizeNot25()
         {
             var owner = await SeedOwnerAsync("guests-pagesize-token-123456");

@@ -6,7 +6,7 @@ namespace TummlyBackend.Interfaces
     public interface IGuestsEffectiveLocationService
     {
         Task<GuestsEffectiveLocationResult> ResolveAsync(
-            int ownerUserId,
+            IReadOnlyList<int> scopedLocationIds,
             RestaurantLocation shellLocation,
             string? locationScope,
             int[]? locationIds

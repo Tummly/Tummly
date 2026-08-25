@@ -16,15 +16,15 @@ namespace TummlyBackend.Controllers
     {
         private const int MaxInclusiveCalendarDays = 180;
 
-        private readonly IOwnedLocationService _ownedLocation;
+        private readonly IRestaurantPermissionHelper _permissions;
         private readonly IOffersMetricsService _metrics;
 
         public OffersPerformanceController(
-            IOwnedLocationService ownedLocation,
+            IRestaurantPermissionHelper permissions,
             IOffersMetricsService metrics
         )
         {
-            _ownedLocation = ownedLocation;
+            _permissions = permissions;
             _metrics = metrics;
         }
 
@@ -74,12 +74,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
-
+            var ownedLocation = await GateLocationAsync(
+                locationId
+            );
+            var denied = ownedLocation.ToHttpResult();
             if (denied != null)
             {
                 return denied;
@@ -110,6 +108,21 @@ namespace TummlyBackend.Controllers
                 DateTimeKind.Local => value.ToUniversalTime(),
                 _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
             };
+        }
+
+        private async Task<RestaurantPermissionDecision> GateLocationAsync(
+            int locationId
+        )
+        {
+            var minimum = HttpMethods.IsGet(Request.Method)
+                ? PermissionLevel.View
+                : PermissionLevel.Manage;
+            return await _permissions.AuthorizeLocationAsync(
+                User,
+                OperatorAreaIds.Offers,
+                minimum,
+                locationId
+            );
         }
     }
 }

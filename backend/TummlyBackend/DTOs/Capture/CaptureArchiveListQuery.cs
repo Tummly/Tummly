@@ -5,7 +5,9 @@ namespace TummlyBackend.DTOs.Capture
     /// </summary>
     public sealed class CaptureArchiveListQuery
     {
-        public required int OwnerUserId { get; init; }
+        public required int RestaurantId { get; init; }
+
+        public required IReadOnlyList<int> ScopedLocationIds { get; init; }
 
         public string? Q { get; init; }
 

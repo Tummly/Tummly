@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -16,46 +15,44 @@ namespace TummlyBackend.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ISmartGuestLinkService _smartGuestLink;
+        private readonly IRestaurantPermissionHelper _permissions;
 
         public RestaurantController(
             ApplicationDbContext context,
-            ISmartGuestLinkService smartGuestLink
+            ISmartGuestLinkService smartGuestLink,
+            IRestaurantPermissionHelper permissions
         )
         {
             _context = context;
             _smartGuestLink = smartGuestLink;
+            _permissions = permissions;
         }
-
-        /*
-         =========================================
-         GET OPERATOR LOCATIONS
-         =========================================
-        */
 
         [HttpGet("locations")]
         public async Task<IActionResult> GetLocations()
         {
-            var userIdClaim =
-                User.FindFirstValue(
-                    ClaimTypes.NameIdentifier
-                );
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out _);
 
-            if (
-                string.IsNullOrEmpty(userIdClaim)
-                || !int.TryParse(userIdClaim, out var userId)
-            )
+            if (unauthorized != null)
             {
-                return Unauthorized(new
-                {
-                    success = false,
-                    message = "Invalid token."
-                });
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeLocationSetAsync(
+                User,
+                OperatorAreaIds.Locations,
+                PermissionLevel.View
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
             }
 
             var restaurant = await _context.Restaurants
-                .FirstOrDefaultAsync(r =>
-                    r.OwnerUserId == userId
-                );
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == decision.RestaurantId);
 
             if (restaurant == null)
             {
@@ -67,31 +64,35 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            var scopedIds = decision.LocationIds.ToHashSet();
             var locations = await _context.RestaurantLocations
                 .AsNoTracking()
-                .Where(l => l.RestaurantId == restaurant.Id)
-                .OrderBy(l => l.CreatedAt)
-                .Select(l => new
+                .Where(row =>
+                    row.RestaurantId == restaurant.Id
+                    && scopedIds.Contains(row.Id)
+                )
+                .OrderBy(row => row.CreatedAt)
+                .Select(row => new
                 {
-                    l.Id,
-                    l.LocationName,
-                    l.Address,
-                    l.LocationPhone,
-                    l.LocalContact,
-                    l.CreatedAt
+                    row.Id,
+                    row.LocationName,
+                    row.Address,
+                    row.LocationPhone,
+                    row.LocalContact,
+                    row.CreatedAt
                 })
                 .ToListAsync();
 
-            var locationIds = locations.Select(l => l.Id).ToList();
+            var locationIds = locations.Select(row => row.Id).ToList();
 
             var smartGuestTokensByLocationId = await _context.QrCodes
                 .AsNoTracking()
-                .Where(q =>
-                    locationIds.Contains(q.RestaurantLocationId)
-                    && q.QrType == QrType.SmartGuest
-                    && q.Status == QrCodeStatus.Active
+                .Where(qr =>
+                    locationIds.Contains(qr.RestaurantLocationId)
+                    && qr.QrType == QrType.SmartGuest
+                    && qr.Status == QrCodeStatus.Active
                 )
-                .ToDictionaryAsync(q => q.RestaurantLocationId, q => q.Token);
+                .ToDictionaryAsync(qr => qr.RestaurantLocationId, qr => qr.Token);
 
             var brandLogoPublicUrl =
                 string.IsNullOrWhiteSpace(restaurant.BrandLogoObjectKey)
@@ -105,18 +106,18 @@ namespace TummlyBackend.Controllers
                 success = true,
                 restaurantName = restaurant.Name,
                 brandLogoPublicUrl,
-                locations = locations.Select(l => new
+                locations = locations.Select(row => new
                 {
-                    l.Id,
-                    l.LocationName,
-                    l.Address,
+                    row.Id,
+                    row.LocationName,
+                    row.Address,
                     guestUrl = smartGuestTokensByLocationId
-                        .TryGetValue(l.Id, out var smartGuestToken)
+                        .TryGetValue(row.Id, out var smartGuestToken)
                         ? _smartGuestLink.BuildGuestUrl(smartGuestToken)
                         : "",
-                    l.LocationPhone,
-                    l.LocalContact,
-                    l.CreatedAt
+                    row.LocationPhone,
+                    row.LocalContact,
+                    row.CreatedAt
                 })
             });
         }

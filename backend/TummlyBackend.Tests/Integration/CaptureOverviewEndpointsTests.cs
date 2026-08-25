@@ -273,7 +273,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task GetCaptureOverview_ReturnsZeros_WhenNoRestaurant()
+        public async Task GetCaptureOverview_Returns403_WhenNoRestaurant()
         {
             var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
             var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
@@ -290,10 +290,7 @@ namespace TummlyBackend.Tests.Integration
 
             var response = await _client.SendAsync(request);
 
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            var body = await ReadJsonAsync(response);
-            Assert.Equal(0, body.GetProperty("activeLocations").GetInt32());
-            Assert.Equal(0, body.GetProperty("totalLocations").GetInt32());
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
         private static string OverviewUrl(DateTime from, DateTime to)

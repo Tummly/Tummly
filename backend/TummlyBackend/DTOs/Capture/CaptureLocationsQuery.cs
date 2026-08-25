@@ -2,7 +2,9 @@ namespace TummlyBackend.DTOs.Capture
 {
     public sealed class CaptureLocationsQuery
     {
-        public required int OwnerUserId { get; init; }
+        public required int RestaurantId { get; init; }
+
+        public required IReadOnlyList<int> ScopedLocationIds { get; init; }
 
         public DateTime? From { get; init; }
 

@@ -22,10 +22,133 @@ namespace TummlyBackend.Services
             PermissionLevel minimum
         )
         {
+            var identified = await IdentifyAsync(user);
+            if (identified.Deny != null)
+            {
+                return identified.Deny;
+            }
+
+            var access = await ResolveRestaurantAccessAsync(
+                identified.UserId,
+                identified.User!
+            );
+            if (access == null)
+            {
+                return RestaurantPermissionDecision.Deny();
+            }
+
+            return EvaluateArea(
+                access,
+                areaId,
+                minimum,
+                denyLocation: false
+            );
+        }
+
+        public async Task<RestaurantPermissionDecision> AuthorizeLocationAsync(
+            ClaimsPrincipal user,
+            string areaId,
+            PermissionLevel minimum,
+            int locationId
+        )
+        {
+            var identified = await IdentifyAsync(user);
+            if (identified.Deny != null)
+            {
+                return identified.Deny;
+            }
+
+            var location = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Include(row => row.Restaurant)
+                .FirstOrDefaultAsync(row => row.Id == locationId);
+
+            if (location == null)
+            {
+                return RestaurantPermissionDecision.NotFoundLocation();
+            }
+
+            var access = await ResolveRestaurantAccessAsync(
+                identified.UserId,
+                identified.User!,
+                location.RestaurantId
+            );
+            if (access == null)
+            {
+                return RestaurantPermissionDecision.DenyLocation();
+            }
+
+            var area = EvaluateArea(
+                access,
+                areaId,
+                minimum,
+                denyLocation: true
+            );
+            if (area.Status != RestaurantPermissionStatus.Allowed)
+            {
+                return area;
+            }
+
+            if (!access.LocationIds.Contains(locationId))
+            {
+                return RestaurantPermissionDecision.DenyLocation();
+            }
+
+            return RestaurantPermissionDecision.AllowLocation(
+                access.RestaurantId,
+                location,
+                access.LocationIds
+            );
+        }
+
+        public async Task<RestaurantPermissionDecision> AuthorizeLocationSetAsync(
+            ClaimsPrincipal user,
+            string areaId,
+            PermissionLevel minimum
+        )
+        {
+            var identified = await IdentifyAsync(user);
+            if (identified.Deny != null)
+            {
+                return identified.Deny;
+            }
+
+            var access = await ResolveRestaurantAccessAsync(
+                identified.UserId,
+                identified.User!
+            );
+            if (access == null)
+            {
+                return RestaurantPermissionDecision.Deny();
+            }
+
+            var area = EvaluateArea(
+                access,
+                areaId,
+                minimum,
+                denyLocation: false
+            );
+            if (area.Status != RestaurantPermissionStatus.Allowed)
+            {
+                return area;
+            }
+
+            return RestaurantPermissionDecision.AllowSet(
+                access.RestaurantId,
+                access.LocationIds
+            );
+        }
+
+        private async Task<(
+            int UserId,
+            User? User,
+            RestaurantPermissionDecision? Deny
+        )> IdentifyAsync(ClaimsPrincipal user)
+        {
             var role = user.FindFirstValue(ClaimTypes.Role);
             if (role is "Admin" or "Support")
             {
-                return RestaurantPermissionDecision.Deny();
+                return (0, null, RestaurantPermissionDecision.Deny());
             }
 
             var userIdClaim = user.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -34,71 +157,179 @@ namespace TummlyBackend.Services
                 || !int.TryParse(userIdClaim, out var userId)
             )
             {
-                return RestaurantPermissionDecision.Deny();
+                return (0, null, RestaurantPermissionDecision.Deny());
             }
 
             var operatorUser = await _context.Users
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == userId);
+                .FirstOrDefaultAsync(row => row.Id == userId);
 
             if (operatorUser == null)
             {
-                return RestaurantPermissionDecision.Deny();
+                return (0, null, RestaurantPermissionDecision.Deny());
             }
 
+            return (userId, operatorUser, null);
+        }
+
+        private async Task<RestaurantAccess?> ResolveRestaurantAccessAsync(
+            int userId,
+            User operatorUser,
+            int? requiredRestaurantId = null
+        )
+        {
             var active = await _context.RestaurantMemberships
                 .AsNoTracking()
-                .Where(m =>
-                    m.UserId == userId
-                    && m.Status == MembershipStatus.Active
+                .Where(membership =>
+                    membership.UserId == userId
+                    && membership.Status == MembershipStatus.Active
                 )
                 .ToListAsync();
 
-            var restaurantId = ResolveRestaurantId(
-                operatorUser,
-                active.Select(m => m.RestaurantId).ToList()
-            );
-            if (restaurantId == null && active.Count == 0)
+            int? restaurantId = requiredRestaurantId;
+            RestaurantMembership? membership = null;
+
+            if (requiredRestaurantId != null)
             {
-                var hasMembershipRow = await _context.RestaurantMemberships
-                    .AsNoTracking()
-                    .AnyAsync(m => m.UserId == userId);
-
-                if (!hasMembershipRow)
+                membership = active.FirstOrDefault(row =>
+                    row.RestaurantId == requiredRestaurantId.Value
+                );
+                if (membership == null && active.Count == 0)
                 {
-                    var owned = await _context.Restaurants
+                    var hasMembershipRow = await _context.RestaurantMemberships
                         .AsNoTracking()
-                        .Where(r => r.OwnerUserId == userId)
-                        .Select(r => r.Id)
-                        .ToListAsync();
+                        .AnyAsync(row => row.UserId == userId);
 
-                    restaurantId = ResolveRestaurantId(operatorUser, owned);
+                    if (!hasMembershipRow)
+                    {
+                        var owned = await _context.Restaurants
+                            .AsNoTracking()
+                            .AnyAsync(row =>
+                                row.Id == requiredRestaurantId.Value
+                                && row.OwnerUserId == userId
+                            );
+                        if (!owned)
+                        {
+                            return null;
+                        }
+                    }
+                    else
+                    {
+                        return null;
+                    }
+                }
+                else if (membership == null)
+                {
+                    return null;
                 }
             }
-
-            if (restaurantId == null)
+            else
             {
-                return RestaurantPermissionDecision.Deny();
-            }
+                restaurantId = ResolveRestaurantId(
+                    operatorUser,
+                    active.Select(row => row.RestaurantId).ToList()
+                );
+                if (restaurantId == null && active.Count == 0)
+                {
+                    var hasMembershipRow = await _context.RestaurantMemberships
+                        .AsNoTracking()
+                        .AnyAsync(row => row.UserId == userId);
 
-            var membership = active.FirstOrDefault(m =>
-                m.RestaurantId == restaurantId
-            );
+                    if (!hasMembershipRow)
+                    {
+                        var owned = await _context.Restaurants
+                            .AsNoTracking()
+                            .Where(row => row.OwnerUserId == userId)
+                            .Select(row => row.Id)
+                            .ToListAsync();
 
-            var permissionRole = membership?.PermissionRole ?? PermissionRoles.Owner;
-            var cell = DefaultPermissionMatrix.LevelFor(permissionRole, areaId);
+                        restaurantId = ResolveRestaurantId(operatorUser, owned);
+                    }
+                }
 
-            if (!DefaultPermissionMatrix.Meets(cell, minimum))
-            {
-                return RestaurantPermissionDecision.Deny();
+                if (restaurantId == null)
+                {
+                    return null;
+                }
+
+                membership = active.FirstOrDefault(row =>
+                    row.RestaurantId == restaurantId.Value
+                );
             }
 
             if (membership != null && NamedListIsEmpty(membership))
             {
-                return RestaurantPermissionDecision.Deny();
+                return RestaurantAccess.ForEmptyNamedList(restaurantId!.Value);
             }
 
-            return RestaurantPermissionDecision.Allow(restaurantId.Value);
+            var locationIds = await ListLiveLocationIdsAsync(
+                restaurantId!.Value,
+                membership
+            );
+
+            return new RestaurantAccess(
+                restaurantId.Value,
+                membership,
+                locationIds,
+                false
+            );
+        }
+
+        private async Task<IReadOnlyList<int>> ListLiveLocationIdsAsync(
+            int restaurantId,
+            RestaurantMembership? membership
+        )
+        {
+            var live = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurantId)
+                .Select(row => row.Id)
+                .ToListAsync();
+
+            if (
+                membership == null
+                || membership.LocationScope != LocationScopeKind.NamedList
+            )
+            {
+                return live;
+            }
+
+            var named = MembershipLocationScope
+                .ParseNamedIds(membership.NamedLocationIdsJson)
+                .ToHashSet();
+
+            return live.Where(named.Contains).ToList();
+        }
+
+        private static RestaurantPermissionDecision EvaluateArea(
+            RestaurantAccess access,
+            string areaId,
+            PermissionLevel minimum,
+            bool denyLocation
+        )
+        {
+            if (access.EmptyNamedList)
+            {
+                return denyLocation
+                    ? RestaurantPermissionDecision.DenyLocation()
+                    : RestaurantPermissionDecision.Deny();
+            }
+
+            var permissionRole =
+                access.Membership?.PermissionRole ?? PermissionRoles.Owner;
+            var cell = DefaultPermissionMatrix.LevelFor(permissionRole, areaId);
+
+            if (!DefaultPermissionMatrix.Meets(cell, minimum))
+            {
+                return denyLocation
+                    ? RestaurantPermissionDecision.DenyLocation()
+                    : RestaurantPermissionDecision.Deny();
+            }
+
+            return RestaurantPermissionDecision.AllowSet(
+                access.RestaurantId,
+                access.LocationIds
+            );
         }
 
         private static bool NamedListIsEmpty(RestaurantMembership membership)
@@ -137,6 +368,24 @@ namespace TummlyBackend.Services
             }
 
             return null;
+        }
+
+        private sealed record RestaurantAccess(
+            int RestaurantId,
+            RestaurantMembership? Membership,
+            IReadOnlyList<int> LocationIds,
+            bool EmptyNamedList
+        )
+        {
+            public static RestaurantAccess ForEmptyNamedList(int restaurantId)
+            {
+                return new RestaurantAccess(
+                    restaurantId,
+                    null,
+                    [],
+                    true
+                );
+            }
         }
     }
 }

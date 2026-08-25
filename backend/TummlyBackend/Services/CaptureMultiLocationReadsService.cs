@@ -27,17 +27,14 @@ namespace TummlyBackend.Services
         };
 
         private readonly ApplicationDbContext _context;
-        private readonly IOwnedLocationService _ownedLocation;
         private readonly CaptureWindowedEngagementAggregate _engagement;
 
         public CaptureMultiLocationReadsService(
             ApplicationDbContext context,
-            IOwnedLocationService ownedLocation,
             CaptureWindowedEngagementAggregate engagement
         )
         {
             _context = context;
-            _ownedLocation = ownedLocation;
             _engagement = engagement;
         }
 
@@ -47,18 +44,14 @@ namespace TummlyBackend.Services
 
             var restaurant = await _context.Restaurants
                 .AsNoTracking()
-                .FirstOrDefaultAsync(r => r.OwnerUserId == query.OwnerUserId);
+                .FirstOrDefaultAsync(r => r.Id == query.RestaurantId);
 
             if (restaurant == null)
             {
                 return EmptyOverview();
             }
 
-            var ownedLocationIds =
-                await _ownedLocation.ListOwnedLocationIdsAsync(
-                    restaurant.Id,
-                    query.OwnerUserId
-                );
+            var ownedLocationIds = query.ScopedLocationIds.ToList();
 
             // Capture location status: count only Active Owned locations.
             var totalLocations = ownedLocationIds.Count;
@@ -183,18 +176,14 @@ namespace TummlyBackend.Services
 
             var restaurant = await _context.Restaurants
                 .AsNoTracking()
-                .FirstOrDefaultAsync(r => r.OwnerUserId == query.OwnerUserId);
+                .FirstOrDefaultAsync(r => r.Id == query.RestaurantId);
 
             if (restaurant == null)
             {
                 return EmptyPage(query.Page, pageSize);
             }
 
-            var ownedLocationIds =
-                await _ownedLocation.ListOwnedLocationIdsAsync(
-                    restaurant.Id,
-                    query.OwnerUserId
-                );
+            var ownedLocationIds = query.ScopedLocationIds.ToList();
 
             if (ownedLocationIds.Count == 0)
             {
@@ -227,9 +216,14 @@ namespace TummlyBackend.Services
 
             if (query.LocationIds is { Length: > 0 })
             {
-                var allowed = query.LocationIds
-                    .Where(id => ownedLocationIds.Contains(id))
-                    .ToHashSet();
+                if (query.LocationIds.Any(id => !ownedLocationIds.Contains(id)))
+                {
+                    throw new InvalidOperationException(
+                        "location-scope-denied"
+                    );
+                }
+
+                var allowed = query.LocationIds.ToHashSet();
                 locations = locations
                     .Where(l => allowed.Contains(l.LocationId))
                     .ToList();
