@@ -30,6 +30,9 @@ jobs:
       - name: Migration ↔ Designer pairing
         run: bash scripts/check-migration-designer-pairs.sh Migrations
 
+      - name: Restaurants → Users SET NULL ban (SQL Server 1785)
+        run: bash scripts/check-restaurant-user-setnull-fks.sh Migrations
+
       - name: Restore local tools (dotnet-ef)
         run: dotnet tool restore
 

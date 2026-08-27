@@ -13,3 +13,21 @@ Read this during **review**, not during implementation. Repo UI reuse rules stay
 ## Leave-dirty
 
 Settings children that hold a form draft reuse one leave-dirty path. See [ADR 0033](docs/adr/0033-operator-leave-dirty-is-one-guard.md).
+
+## Page modules
+
+Operator page modules wired through `useSyncExternalStore` must return a **stable** snapshot object until the next `emit` / `publish`. Rebuilding a new object on every `getSnapshot` call trips React's max update depth.
+
+**Named test:** `expect(module.getSnapshot()).toBe(module.getSnapshot())` (same reference until a state change). Guests already caches this way; new modules must match.
+
+## Operator chrome access
+
+New Operator chrome flags (`*Access` on `/auth/me`, locations, or shell snapshots) must document **omit** behaviour.
+
+- During rollout, **omit must not hide** Account-owner chrome. Only an explicit deny (for example `"none"`) hides.
+- Front and back must land together, or the parser default must keep owner chrome visible until the API field is live.
+
+## EF migrations (SQL Server)
+
+1. **Generate, do not invent.** Create migrations with `dotnet ef migrations add`. Do not hand-author `*.Designer.cs` or invent snapshot fragments. Pairing CI (`check-migration-designer-pairs.sh`) is a gate, not a substitute for EF tooling. See [ADR 0015](docs/adr/0015-deploy-schema-safety.md).
+2. **No multiple cascade paths.** New FKs from `Restaurants` (or any table that already cascades with `Users`) must not use `SetNull` or a second `Cascade` onto `Users` without proving SQL Server accepts the graph. Prefer `NoAction` or `Restrict`, with a short comment naming error **1785**. Guest-note FKs already show the pattern. Static CI: `backend/TummlyBackend/scripts/check-restaurant-user-setnull-fks.sh`.

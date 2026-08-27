@@ -8,10 +8,11 @@ This ADR defines the policy. Implementation landed on the same branch (see **Imp
 
 Against `backend/TummlyBackend` (EF Core 8+), CI must fail the PR when either check fails:
 
-1. **Migration ↔ Designer pairing** — every `Migrations/*_*.cs` (excluding `*Designer.cs` / `*ModelSnapshot.cs`) has a matching `*.Designer.cs`, and vice versa. Pairing alone catches “ghost” migrations (Up committed, Designer missing) that `dotnet build` and pending-model checks still pass, because EF skips attribute-less `Migration` types and never runs `Up`.
+1. **Migration ↔ Designer pairing** — every `Migrations/*_*.cs` (excluding `*Designer.cs` / `*ModelSnapshot.cs`) has a matching `*.Designer.cs`, and vice versa. Pairing alone catches “ghost” migrations (Up committed, Designer missing) that `dotnet build` and pending-model checks still pass, because EF skips attribute-less `Migration` types and never runs `Up`. Generate with `dotnet ef migrations add`; do not hand-author Designers.
 2. **`dotnet ef migrations has-pending-model-changes`** — non-zero when the current model ≠ `ApplicationDbContextModelSnapshot` (forgotten migrations / snapshot drift).
+3. **Restaurants → Users SET NULL ban** — `scripts/check-restaurant-user-setnull-fks.sh` fails when a migration `Up` adds `FK` from `Restaurants` to `Users` with `ReferentialAction.SetNull` (SQL Server **1785** with `OwnerUserId` CASCADE). Prefer `NoAction` / `Restrict`.
 
-**Recommended (optional third):** reconcile `dotnet ef migrations list --no-connect` ids with migration class filenames (same class of undiscoverable migration as pairing).
+**Recommended (optional):** reconcile `dotnet ef migrations list --no-connect` ids with migration class filenames (same class of undiscoverable migration as pairing). Full migrate dry-run against SQL Server remains deferred (see Deferred).
 
 ## `/health/ready` contract
 
@@ -48,11 +49,13 @@ Default TCP probes (port open only) are **not** sufficient for this policy.
 - **Expected outcome of a bad schema/migrate push:** last healthy revision keeps serving; the new revision never takes traffic (failed activation / unhealthy revision).
 - **GitHub Actions green ≠ traffic cutover.** CI can pass and the Azure revision can still fail ready or crash on migrate. Do not treat a green workflow as proof the new revision is live.
 - **How we notice (v1):** Azure revision health, Container App logs, and the site still answering on the old revision. **No new paging/alerting** in this ADR.
+- **Stuck revision diagnosis (agents):** when a **new** API path returns empty 404 while a **known-old** path returns 401, treat it as a *stuck revision* first — see [docs/agents/stuck-revision.md](../agents/stuck-revision.md) and `scripts/probe-qa-api-revision.sh`.
 
 ## Deferred (explicit)
 
 - Separate migrate job (out of process from the API container).
 - Deep model-vs-database validation beyond pending migrations + successful migrate.
+- Full migrate dry-run against SQL Server in CI (Testcontainers); v1 uses the Restaurants→Users SET NULL static ban plus Ready fail-closed.
 - New operator paging/alerting when a revision fails ready.
 - Exact Prod bootstrap values once Prod infra exists (must still match this policy bar; numeric probe/retry details may mirror QA).
 
@@ -73,6 +76,7 @@ Default TCP probes (port open only) are **not** sufficient for this policy.
 Landed on the ADR branch (not a separate policy-only follow-up):
 
 - `DatabaseInitState` + fail-closed `/health/ready` + hard `Environment.Exit(1)` after migrate retries — `backend/TummlyBackend`
-- CI: `.github/workflows/backend-ci.yml` + gates in `qa-backend.yml`; scripts under `backend/TummlyBackend/scripts/`
+- CI: `.github/workflows/backend-ci.yml` + gates in `qa-backend.yml`; scripts under `backend/TummlyBackend/scripts/` (pairing, list↔files, Restaurants→Users SET NULL ban)
 - ACA probes + Single mode in `infra/qa/main.bicep` / `main.json`; probe patch step on QA deploy
+- Agent diagnosis for *stuck revision*: `docs/agents/stuck-revision.md`, `scripts/probe-qa-api-revision.sh`
 

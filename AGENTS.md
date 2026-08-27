@@ -36,7 +36,11 @@ Before adding or styling custom markup:
 
 ### Review
 
-Operator settings review rules live in `CODING_STANDARDS.md` (review time, not implementation).
+Operator settings review rules live in `CODING_STANDARDS.md` (review time, not implementation). That file also covers page-module `getSnapshot` identity, chrome access omit defaults, and EF migration cascade / Designer rules.
+
+### Stuck revision
+
+New API route empty **404** while `/api/auth/me` is **401** → *stuck revision* first. See `docs/agents/stuck-revision.md` and `scripts/probe-qa-api-revision.sh`. Do not assume the branch lacks the controller until Ready equals Latest.
 
 ### Language
 

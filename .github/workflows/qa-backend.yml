@@ -38,6 +38,7 @@ jobs:
           ConnectionStrings__DefaultConnection: "Server=127.0.0.1;Database=ci;User Id=ci;Password=ci;TrustServerCertificate=True"
         run: |
           bash scripts/check-migration-designer-pairs.sh Migrations
+          bash scripts/check-restaurant-user-setnull-fks.sh Migrations
           dotnet tool restore
           dotnet restore
           dotnet build --no-restore -c Release
