@@ -2,6 +2,7 @@ import { MailIcon, MessageSquareIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { CAMPAIGN_MESSAGING_BALANCES_LOAD_ERROR } from "@/lib/operatorCampaigns/campaignMessagingBalances"
+import type { CampaignsMessagingChromeAction } from "@/lib/operatorCampaigns/campaignsMessagingCreditChrome"
 import {
   CAMPAIGNS_MESSAGING_USAGE_ACTIONS_CLASS,
   CAMPAIGNS_MESSAGING_USAGE_METER_FILL_CLASS,
@@ -25,10 +26,7 @@ type CampaignsMessagingUsageProps = {
   id?: string
   messagingUsage: OperatorCampaignsMessagingUsageSection
   onRetry?: () => void
-  /** Billing-owned destination when present; inert until then. */
-  onViewUsage?: () => void
-  /** Billing-owned destination when present; inert until then. */
-  onBuySmsCredits?: () => void
+  onAction?: (action: CampaignsMessagingChromeAction) => void
 }
 
 function UsageMeter({
@@ -59,13 +57,46 @@ function UsageMeter({
   )
 }
 
-/** Messaging usage — fixtures pre-cutover; live Billing balances after (ticket 25). */
+function ChannelActions({
+  actions,
+  onAction,
+}: {
+  actions: CampaignsMessagingChromeAction[]
+  onAction?: (action: CampaignsMessagingChromeAction) => void
+}) {
+  if (actions.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {actions.map((action) => (
+        <Button
+          key={`${action.kind}:${action.label}`}
+          type="button"
+          variant={action.kind === "view-usage" ? "op-tertiary" : "op-link"}
+          className={
+            action.kind === "view-usage"
+              ? GUESTS_PAGE_SECONDARY_BUTTON_CLASS
+              : "h-auto min-h-0 w-fit p-0"
+          }
+          onClick={() => {
+            onAction?.(action)
+          }}
+        >
+          {action.label}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
+/** Messaging usage — Email + SMS meters; live Billing usage after cutover (ticket 23). */
 export function CampaignsMessagingUsage({
   id,
   messagingUsage,
   onRetry,
-  onViewUsage,
-  onBuySmsCredits,
+  onAction,
 }: CampaignsMessagingUsageProps) {
   if (messagingUsage.status === "load-failed") {
     return (
@@ -73,7 +104,8 @@ export function CampaignsMessagingUsage({
         id={id}
         className={GUESTS_SECTION_CLASS}
         aria-label="Messaging usage"
-      >        <header className="flex flex-col gap-2 leading-0">
+      >
+        <header className="flex flex-col gap-2 leading-0">
           <h2 className={GUESTS_SECTION_TITLE_CLASS}>Messaging usage</h2>
           <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
             {messagingUsage.errorMessage
@@ -101,7 +133,7 @@ export function CampaignsMessagingUsage({
     return null
   }
 
-  const { email, sms, plan } = viewModel
+  const { email, sms } = viewModel
 
   return (
     <section
@@ -127,12 +159,18 @@ export function CampaignsMessagingUsage({
                   {email.title}
                 </p>
                 <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
-                  {email.usageLine}
+                  {email.headline}
                 </p>
               </div>
               <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_DETAIL_CLASS}>
-                {email.detailLine}
+                {email.subline}
               </p>
+              {email.purchasedLine != null ? (
+                <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_DETAIL_CLASS}>
+                  {email.purchasedLine}
+                </p>
+              ) : null}
+              <ChannelActions actions={email.actions} onAction={onAction} />
             </div>
             <UsageMeter
               fillRatio={email.fillRatio}
@@ -151,12 +189,18 @@ export function CampaignsMessagingUsage({
                   {sms.title}
                 </p>
                 <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
-                  {sms.usageLine}
+                  {sms.headline}
                 </p>
               </div>
               <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_DETAIL_CLASS}>
-                {sms.detailLine}
+                {sms.subline}
               </p>
+              {sms.purchasedLine != null ? (
+                <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_DETAIL_CLASS}>
+                  {sms.purchasedLine}
+                </p>
+              ) : null}
+              <ChannelActions actions={sms.actions} onAction={onAction} />
             </div>
             <UsageMeter
               fillRatio={sms.fillRatio}
@@ -164,41 +208,13 @@ export function CampaignsMessagingUsage({
             />
           </div>
         </div>
-
-        <div className={CAMPAIGNS_MESSAGING_USAGE_TILE_CLASS}>
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1">
-              <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS}>
-                {plan.title}
-              </p>
-              <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
-                {plan.planLine}
-              </p>
-            </div>
-            <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_DETAIL_CLASS}>
-              {plan.billingLine}
-            </p>
-          </div>
-        </div>
       </div>
 
       <div className={CAMPAIGNS_MESSAGING_USAGE_ACTIONS_CLASS}>
-        <Button
-          type="button"
-          variant="op-tertiary"
-          className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-          onClick={onViewUsage}
-        >
-          {viewModel.viewUsageLabel}
-        </Button>
-        <Button
-          type="button"
-          variant="op-link"
-          className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-          onClick={onBuySmsCredits}
-        >
-          {viewModel.buySmsCreditsLabel}
-        </Button>
+        <ChannelActions
+          actions={viewModel.sectionActions}
+          onAction={onAction}
+        />
       </div>
     </section>
   )

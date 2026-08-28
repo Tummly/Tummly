@@ -1,3 +1,4 @@
+import { CampaignChannelShortfallBanner } from "@/components/dashboard/operator/Campaigns/CampaignChannelStep"
 import { CampaignMessageChooser } from "@/components/dashboard/operator/Campaigns/CampaignMessageChooser"
 import { GuestPreviewOverlay } from "@/components/dashboard/operator/Feedback/GuestPreviewOverlay"
 import { AiIcon } from "@/components/ui/ai-icon"
@@ -27,6 +28,8 @@ type CampaignMessageStepProps = {
   onCloseGuestPreview: () => void
   onSendTest: () => void
   sendTestBusy?: boolean
+  onBuyCredits?: () => void
+  onChangePlan?: () => void
 }
 
 function RewriteAiButton({
@@ -112,6 +115,8 @@ export function CampaignMessageStep({
   onCloseGuestPreview,
   onSendTest,
   sendTestBusy = false,
+  onBuyCredits,
+  onChangePlan,
 }: CampaignMessageStepProps) {
   const isEditor = message.writeEntry === "editor"
   const running = message.aiDraftStatus === "running"
@@ -270,6 +275,14 @@ export function CampaignMessageStep({
                 </div>
               </div>
             </>
+          ) : null}
+
+          {message.channelShortfall != null ? (
+            <CampaignChannelShortfallBanner
+              shortfall={message.channelShortfall}
+              onBuyCredits={onBuyCredits}
+              onChangePlan={onChangePlan}
+            />
           ) : null}
         </div>
 

@@ -264,29 +264,23 @@ describe("createOperatorCampaignsPageModule", () => {
     expect(messagingUsage?.status).toBe("ready")
     expect(messagingUsage?.viewModel).toMatchObject({
       title: "Messaging usage",
+      subtitle:
+        "Review the Email credits and SMS credits available to this operator account.",
       email: {
-        used: 3240,
-        allowance: 10000,
-        remaining: 6760,
-        usageLine: "3,240 of 10,000 used",
-        detailLine: "6,760 remaining · Refreshes 15 August",
-        meterMaxLabel: "10,000",
+        title: "Email credits",
+        headline: "6,760 remaining",
+        subline: "3,240 of 10,000 included used",
       },
       sms: {
-        total: 420,
-        reserved: 120,
-        available: 300,
-        usageLine: "420 total",
-        detailLine: "120 reserved · 300 available",
-        meterMaxLabel: "300",
+        title: "SMS credits",
+        headline: "300 remaining",
       },
-      plan: {
-        name: "Growth",
-        locationCount: 3,
-        planLine: "Growth · 3 locations",
-        billingLine: "Billed monthly · Next refresh 15 August",
-      },
+      sectionActions: [
+        { kind: "view-usage", label: "View usage" },
+        { kind: "buy-sms-credits", label: "Buy SMS credits" },
+      ],
     })
+    expect(messagingUsage?.viewModel).not.toHaveProperty("plan")
   })
 
   it("maps live Billing balances for Messaging usage and retries after load-failed", async () => {
@@ -295,19 +289,23 @@ describe("createOperatorCampaignsPageModule", () => {
       .mockRejectedValueOnce(new Error("billing down"))
       .mockResolvedValueOnce({
         email: {
-          used: 100,
-          allowance: 500,
-          remaining: 400,
-          refreshLabel: "1 September",
+          combinedRemaining: 400,
+          usedThisCycle: 100,
+          includedThisPeriod: 500,
+          purchasedRemaining: 0,
+          purchasedExpiryLabel: null,
         },
-        sms: { total: 50, reserved: 10, available: 40 },
-        plan: {
-          name: "Starter",
-          locationCount: 1,
-          billingLine: "Billed monthly · Next refresh 1 September",
+        sms: {
+          combinedRemaining: 40,
+          usedThisCycle: 10,
+          includedThisPeriod: 50,
+          purchasedRemaining: 0,
+          purchasedExpiryLabel: null,
         },
         ai: { available: 12 },
+        isPilot: false,
         softLocked: false,
+        lockCause: null,
       })
 
     const pageModule = createOperatorCampaignsPageModule(
@@ -330,12 +328,14 @@ describe("createOperatorCampaignsPageModule", () => {
     expect(pageModule.getSnapshot().viewModel?.messagingUsage).toMatchObject({
       status: "ready",
       viewModel: {
-        plan: { name: "Starter" },
-        email: { remaining: 400 },
-        sms: { available: 40 },
+        email: { headline: "400 remaining", title: "Email credits" },
+        sms: { headline: "40 remaining", title: "SMS credits" },
       },
       errorMessage: null,
     })
+    expect(
+      pageModule.getSnapshot().viewModel?.messagingUsage?.viewModel
+    ).not.toHaveProperty("plan")
   })
 
   it("surfaces load error and recovers on retry", async () => {

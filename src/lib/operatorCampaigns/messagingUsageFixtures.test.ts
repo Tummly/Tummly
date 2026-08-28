@@ -6,39 +6,44 @@ import {
 } from "@/lib/operatorCampaigns/messagingUsageFixtures"
 
 describe("messagingUsageFixtures", () => {
-  it("keeps Figma sample figures as the shared Channel-step source", () => {
+  it("keeps combined remaining sample figures as the shared Channel-step source", () => {
     expect(MESSAGING_USAGE_FIXTURE).toEqual({
       email: {
-        used: 3240,
-        allowance: 10000,
-        remaining: 6760,
-        refreshLabel: "15 August",
+        combinedRemaining: 6760,
+        usedThisCycle: 3240,
+        includedThisPeriod: 10000,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
       },
       sms: {
-        total: 420,
-        reserved: 120,
-        available: 300,
+        combinedRemaining: 300,
+        usedThisCycle: 120,
+        includedThisPeriod: 420,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
       },
-      plan: {
-        name: "Growth",
-        locationCount: 3,
-        billingLine: "Billed monthly · Next refresh 15 August",
-      },
+      isPilot: false,
+      softLocked: false,
+      lockCause: null,
     })
   })
 
-  it("builds overview presentation lines from the shared fixture", () => {
+  it("builds overview presentation lines from the shared fixture — no Current plan", () => {
     const viewModel = messagingUsageViewModelFromFixture()
 
     expect(viewModel.title).toBe("Messaging usage")
-    expect(viewModel.email.usageLine).toBe("3,240 of 10,000 used")
-    expect(viewModel.email.detailLine).toBe(
-      "6,760 remaining · Refreshes 15 August"
+    expect(viewModel.subtitle).toBe(
+      "Review the Email credits and SMS credits available to this operator account."
     )
-    expect(viewModel.sms.usageLine).toBe("420 total")
-    expect(viewModel.sms.detailLine).toBe("120 reserved · 300 available")
-    expect(viewModel.plan.planLine).toBe("Growth · 3 locations")
-    expect(viewModel.viewUsageLabel).toBe("View messaging usage")
-    expect(viewModel.buySmsCreditsLabel).toBe("Buy SMS credits")
+    expect(viewModel.email.title).toBe("Email credits")
+    expect(viewModel.email.headline).toBe("6,760 remaining")
+    expect(viewModel.email.subline).toBe("3,240 of 10,000 included used")
+    expect(viewModel.sms.title).toBe("SMS credits")
+    expect(viewModel.sms.headline).toBe("300 remaining")
+    expect(viewModel.sectionActions).toEqual([
+      { kind: "view-usage", label: "View usage" },
+      { kind: "buy-sms-credits", label: "Buy SMS credits" },
+    ])
+    expect(viewModel).not.toHaveProperty("plan")
   })
 })

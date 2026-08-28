@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react"
 import { BanIcon, SquarePenIcon, TagIcon } from "lucide-react"
 
+import { CampaignChannelShortfallBanner } from "@/components/dashboard/operator/Campaigns/CampaignChannelStep"
 import { CreateEditOfferDrawer } from "@/components/dashboard/operator/Offers/CreateEditOfferDrawer"
 import { ExistingOfferPicker } from "@/components/dashboard/operator/Offers/ExistingOfferPicker"
 import { Button } from "@/components/ui/button"
@@ -37,6 +38,8 @@ type CampaignOfferStepProps = {
   onSelectExistingOffer: (offerId: number) => void
   onRetryExistingOfferPicker: () => void
   onCreateNewOfferFromPicker: () => void
+  onBuyCredits?: () => void
+  onChangePlan?: () => void
 }
 
 function OfferStanceCard({
@@ -164,6 +167,8 @@ export function CampaignOfferStep({
   onSelectExistingOffer,
   onRetryExistingOfferPicker,
   onCreateNewOfferFromPicker,
+  onBuyCredits,
+  onChangePlan,
 }: CampaignOfferStepProps) {
   const picker = offer.existingOfferPicker
   const showAttachedSummary =
@@ -220,6 +225,14 @@ export function CampaignOfferStep({
                 ?? CAMPAIGN_OFFER_COPY.attachedSummaryFallbackTitle
               }
               onEdit={onEditAttachedOffer}
+            />
+          ) : null}
+
+          {offer.channelShortfall != null ? (
+            <CampaignChannelShortfallBanner
+              shortfall={offer.channelShortfall}
+              onBuyCredits={onBuyCredits}
+              onChangePlan={onChangePlan}
             />
           ) : null}
         </div>

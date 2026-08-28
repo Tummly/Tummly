@@ -1,15 +1,17 @@
 /**
  * Campaigns Messaging usage + AI debit cutover against Billing balances.
  * Prefer live Billing payload when available; fixtures only pre-cutover.
- * Ticket 25 / grilling 14 — no Campaigns-owned ledger.
+ * Ticket 23 / 25 — no Campaigns-owned ledger.
  */
 
+import type { BillingCreditsAccessLevel } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import {
-  MESSAGING_USAGE_FIXTURE,
-  messagingUsageViewModelFromFixture,
-  type MessagingUsageFixture,
-  type OperatorCampaignsMessagingUsageViewModel,
-} from "@/lib/operatorCampaigns/messagingUsageFixtures"
+  buildCampaignsMessagingUsageViewModel,
+  CAMPAIGNS_MESSAGING_BALANCES_FIXTURE,
+  type CampaignsMessagingBalancesFixture,
+  type CampaignsMessagingLockCause,
+  type CampaignsMessagingUsageViewModel,
+} from "@/lib/operatorCampaigns/campaignsMessagingCreditChrome"
 
 export const CAMPAIGN_MESSAGING_BALANCES_LOAD_ERROR =
   "Could not load messaging usage. Please try again."
@@ -23,28 +25,16 @@ export const CAMPAIGN_AI_PREPARE_BLOCKED_NO_CREDITS =
 export const CAMPAIGN_AI_PREPARE_BLOCKED_BALANCES =
   "Messaging usage is unavailable. Try again before using AI."
 
-/** Billing balances (+ plan) payload Campaigns maps for overview + Channel. */
+/** Billing usage (+ lock) payload Campaigns maps for overview + wizard. */
 export type CampaignBillingBalancesPayload = {
-  email: {
-    used: number
-    allowance: number
-    remaining: number
-    refreshLabel: string
-  }
-  sms: {
-    total: number
-    reserved: number
-    available: number
-  }
-  plan: {
-    name: string
-    locationCount: number
-    billingLine: string
-  }
+  email: CampaignsMessagingBalancesFixture["email"]
+  sms: CampaignsMessagingBalancesFixture["sms"]
   ai: {
     available: number
   }
+  isPilot: boolean
   softLocked: boolean
+  lockCause: CampaignsMessagingLockCause | null
 }
 
 export type CampaignMessagingUsageCutover = "fixtures" | "live"
@@ -53,11 +43,13 @@ export type CampaignMessagingUsageResolution =
   | {
       status: "ready"
       source: CampaignMessagingUsageCutover
-      fixture: MessagingUsageFixture
-      viewModel: OperatorCampaignsMessagingUsageViewModel
+      fixture: CampaignsMessagingBalancesFixture
+      viewModel: CampaignsMessagingUsageViewModel
       /** null before cutover — display-only AI chrome. */
       aiAvailable: number | null
       softLocked: boolean
+      lockCause: CampaignsMessagingLockCause | null
+      isPilot: boolean
     }
   | {
       status: "load-failed"
@@ -75,43 +67,53 @@ export type ConsumeDirectAiInput = {
   units: 1
 }
 
+export type CampaignMessagingChromeAccess = {
+  accessLevel: BillingCreditsAccessLevel
+  permissionRole: string
+}
+
 export function mapBillingBalancesToMessagingFixture(
   balances: CampaignBillingBalancesPayload
-): MessagingUsageFixture {
+): CampaignsMessagingBalancesFixture {
   return {
-    email: {
-      used: balances.email.used,
-      allowance: balances.email.allowance,
-      remaining: balances.email.remaining,
-      refreshLabel: balances.email.refreshLabel,
-    },
-    sms: {
-      total: balances.sms.total,
-      reserved: balances.sms.reserved,
-      available: balances.sms.available,
-    },
-    plan: {
-      name: balances.plan.name,
-      locationCount: balances.plan.locationCount,
-      billingLine: balances.plan.billingLine,
-    },
+    email: balances.email,
+    sms: balances.sms,
+    isPilot: balances.isPilot,
+    softLocked: balances.softLocked,
+    lockCause: balances.lockCause,
   }
 }
 
 export function resolveCampaignMessagingUsage(
   input:
-    | { cutover: "fixtures" }
-    | { cutover: "live"; balances: CampaignBillingBalancesPayload }
+    | {
+        cutover: "fixtures"
+        access?: CampaignMessagingChromeAccess
+      }
+    | {
+        cutover: "live"
+        balances: CampaignBillingBalancesPayload
+        access?: CampaignMessagingChromeAccess
+      }
     | { cutover: "live"; failed: true }
 ): CampaignMessagingUsageResolution {
+  const access = "access" in input && input.access != null
+    ? input.access
+    : { accessLevel: "manage" as const, permissionRole: "Owner" }
+
   if (input.cutover === "fixtures") {
     return {
       status: "ready",
       source: "fixtures",
-      fixture: MESSAGING_USAGE_FIXTURE,
-      viewModel: messagingUsageViewModelFromFixture(),
+      fixture: CAMPAIGNS_MESSAGING_BALANCES_FIXTURE,
+      viewModel: buildCampaignsMessagingUsageViewModel(
+        CAMPAIGNS_MESSAGING_BALANCES_FIXTURE,
+        access
+      ),
       aiAvailable: null,
       softLocked: false,
+      lockCause: null,
+      isPilot: CAMPAIGNS_MESSAGING_BALANCES_FIXTURE.isPilot,
     }
   }
 
@@ -137,9 +139,11 @@ export function resolveCampaignMessagingUsage(
     status: "ready",
     source: "live",
     fixture,
-    viewModel: messagingUsageViewModelFromFixture(fixture),
+    viewModel: buildCampaignsMessagingUsageViewModel(fixture, access),
     aiAvailable: balances.ai.available,
     softLocked: balances.softLocked,
+    lockCause: balances.lockCause,
+    isPilot: balances.isPilot,
   }
 }
 

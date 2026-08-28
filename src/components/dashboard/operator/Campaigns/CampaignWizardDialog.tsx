@@ -84,6 +84,9 @@ type CampaignWizardDialogProps = {
   onConfirmCommit: () => void
   onDismissSuccess: () => void
   onBrowseTemplates: () => void
+  onBuyCredits?: () => void
+  onChangePlan?: () => void
+  onLockHelper?: () => void
 }
 
 /**
@@ -135,6 +138,9 @@ export function CampaignWizardDialog({
   onConfirmCommit,
   onDismissSuccess,
   onBrowseTemplates,
+  onBuyCredits,
+  onChangePlan,
+  onLockHelper,
 }: CampaignWizardDialogProps) {
   const isSuccess = snapshot.stepId === "success" && snapshot.success != null
   const isGoal = snapshot.stepId === "goal"
@@ -245,20 +251,52 @@ export function CampaignWizardDialog({
                   {snapshot.review.sendBlockedReason}
                 </p>
               ) : null}
-              <Button
-                type="button"
-                variant="op-primary"
-                disabled={
-                  Boolean(aiRunning)
-                  || commitBusy
-                  || (snapshot.review != null
-                    ? !snapshot.review.sendAvailable
-                    : !snapshot.canContinue)
-                }
-                onClick={onContinue}
-              >
-                {snapshot.primaryActionLabel}
-              </Button>
+              {snapshot.review?.channelShortfall != null ? (
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  <Button
+                    type="button"
+                    variant="op-link"
+                    className="h-auto min-h-0 w-fit p-0"
+                    onClick={onBuyCredits}
+                  >
+                    {snapshot.review.channelShortfall.buyCreditsLabel}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="op-link"
+                    className="h-auto min-h-0 w-fit p-0"
+                    onClick={onChangePlan}
+                  >
+                    {snapshot.review.channelShortfall.changePlanLabel}
+                  </Button>
+                </div>
+              ) : null}
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                {snapshot.lockHelper != null ? (
+                  <Button
+                    type="button"
+                    variant="op-link"
+                    className="h-auto min-h-0 w-fit p-0"
+                    onClick={onLockHelper}
+                  >
+                    {snapshot.lockHelper.label}
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="op-primary"
+                  disabled={
+                    Boolean(aiRunning)
+                    || commitBusy
+                    || (snapshot.review != null
+                      ? !snapshot.review.sendAvailable
+                      : !snapshot.canContinue)
+                  }
+                  onClick={onContinue}
+                >
+                  {snapshot.primaryActionLabel}
+                </Button>
+              </div>
             </div>
           )
         }
@@ -294,6 +332,8 @@ export function CampaignWizardDialog({
             channel={snapshot.channel!}
             onSelectChannel={onSelectChannel}
             onRetryMessagingBalances={onRetryMessagingBalances}
+            onBuyCredits={onBuyCredits}
+            onChangePlan={onChangePlan}
           />
         ) : isOffer ? (
           <CampaignOfferStep
@@ -309,6 +349,8 @@ export function CampaignWizardDialog({
             onSelectExistingOffer={onSelectExistingOffer}
             onRetryExistingOfferPicker={onRetryExistingOfferPicker}
             onCreateNewOfferFromPicker={onCreateNewOfferFromPicker}
+            onBuyCredits={onBuyCredits}
+            onChangePlan={onChangePlan}
           />
         ) : isMessage ? (
           <CampaignMessageStep
@@ -324,6 +366,8 @@ export function CampaignWizardDialog({
             onCloseGuestPreview={onCloseGuestPreview}
             onSendTest={onOpenSendTest}
             sendTestBusy={Boolean(sendTestBusy)}
+            onBuyCredits={onBuyCredits}
+            onChangePlan={onChangePlan}
           />
         ) : isSchedule ? (
           <CampaignScheduleStep
@@ -331,6 +375,8 @@ export function CampaignWizardDialog({
             onSelectMode={onSelectScheduleMode}
             onScheduleDateChange={onScheduleDateChange}
             onScheduleTimeChange={onScheduleTimeChange}
+            onBuyCredits={onBuyCredits}
+            onChangePlan={onChangePlan}
           />
         ) : isReview ? (
           <CampaignReviewStep
