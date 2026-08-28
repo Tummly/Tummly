@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
 import {
   billingCreditsHeaderActions,
+  BILLING_CREDITS_PAGE_COPY,
   resolveBillingCreditsTabId,
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import {
@@ -13,6 +14,8 @@ function samplePage(overrides: Partial<BillingCreditsPageData> = {}): BillingCre
   return {
     actorPermissionRole: "Owner",
     actorCanManage: true,
+    paymentMethod: null,
+    invoices: [],
     planSubscription: {
       subscriptionPlan: "Pilot",
       billingStatus: "Pilot",
@@ -165,10 +168,10 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("breadcrumb returns to plan-subscription tab", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-      initialTabId: "credits-usage",
-    })
+    const module = createOperatorBillingCreditsPageModule(
+      { getPage: async () => samplePage() },
+      { initialTabId: "credits-usage" }
+    )
     module.setNavigationTargets({ mode: "single", locationId: 42 })
     await module.load()
 
@@ -188,10 +191,10 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("breadcrumb targets plan-subscription while Back keeps the prior tab", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-      initialSurface: "manage-plan",
-    })
+    const module = createOperatorBillingCreditsPageModule(
+      { getPage: async () => samplePage() },
+      { initialSurface: "manage-plan" }
+    )
     module.setNavigationTargets({ mode: "single", locationId: 42 })
     await module.load()
     module.requestTabChange("credits-usage")
@@ -219,13 +222,93 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("clears manage-plan section when scrolling to plan cards", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-      initialManagePlanSection: "credit-top-ups",
-      initialSurface: "manage-plan",
-    })
+    const module = createOperatorBillingCreditsPageModule(
+      { getPage: async () => samplePage() },
+      {
+        initialManagePlanSection: "credit-top-ups",
+        initialSurface: "manage-plan",
+      }
+    )
     await module.load()
     module.scrollManagePlanToCards()
     expect(module.getSnapshot().managePlanSection).toBeNull()
+  })
+
+  it("shows Pilot empty payment method and no invoices yet", async () => {
+    const module = createOperatorBillingCreditsPageModule({
+      getPage: async () => samplePage(),
+    })
+    await module.load()
+    const snap = module.getSnapshot()
+    expect(snap.showNoPaymentMethodOnFile).toBe(true)
+    expect(snap.showNoInvoicesYet).toBe(true)
+    expect(snap.showUpdatePaymentMethod).toBe(false)
+  })
+
+  it("exposes update payment method confirm copy", async () => {
+    const module = createOperatorBillingCreditsPageModule({
+      getPage: async () =>
+        samplePage({
+          planSubscription: {
+            ...samplePage().planSubscription,
+            isPilot: false,
+          },
+          paymentMethod: {
+            kind: "card",
+            brand: "Visa",
+            last4: "4242",
+            expiryLabel: "08/28",
+          },
+        }),
+    })
+    await module.load()
+    module.openUpdatePaymentMethodConfirm()
+    const snap = module.getSnapshot()
+    expect(snap.updatePaymentMethodConfirmOpen).toBe(true)
+    expect(snap.updatePaymentMethodConfirmCopy.body).toBe(
+      BILLING_CREDITS_PAGE_COPY.updatePaymentMethodConfirmBody
+    )
+  })
+
+  it("hides Update payment method for View snapshot", async () => {
+    const module = createOperatorBillingCreditsPageModule({
+      getPage: async () =>
+        samplePage({
+          actorCanManage: false,
+          actorPermissionRole: "Marketing",
+          planSubscription: {
+            ...samplePage().planSubscription,
+            isPilot: false,
+          },
+          paymentMethod: {
+            kind: "card",
+            brand: "Visa",
+            last4: "4242",
+            expiryLabel: "08/28",
+          },
+        }),
+    })
+    await module.load()
+    expect(module.getSnapshot().showUpdatePaymentMethod).toBe(false)
+  })
+
+  it("redirects to Revolut after confirming payment method update", async () => {
+    const module = createOperatorBillingCreditsPageModule({
+      getPage: async () =>
+        samplePage({
+          planSubscription: {
+            ...samplePage().planSubscription,
+            isPilot: false,
+          },
+        }),
+      createPaymentMethodUpdateSession: async () => ({
+        redirectUrl: "https://sandbox-merchant.revolut.com/hpp/update-payment-method",
+      }),
+    })
+    await module.load()
+    await module.confirmUpdatePaymentMethod()
+    expect(module.consumePendingPaymentMethodRedirect()).toBe(
+      "https://sandbox-merchant.revolut.com/hpp/update-payment-method"
+    )
   })
 })

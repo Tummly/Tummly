@@ -9,6 +9,45 @@ namespace TummlyBackend.DTOs.BillingCredits
         public bool ActorCanManage { get; set; }
 
         public PlanSubscriptionSnapshotDto PlanSubscription { get; set; } = new();
+
+        public PaymentMethodSnapshotDto? PaymentMethod { get; set; }
+
+        public List<InvoiceRowDto> Invoices { get; set; } = [];
+    }
+
+    public sealed class PaymentMethodSnapshotDto
+    {
+        public string Kind { get; set; } = "card";
+
+        public string? Brand { get; set; }
+
+        public string? Last4 { get; set; }
+
+        public string? ExpiryLabel { get; set; }
+
+        public string? WalletName { get; set; }
+    }
+
+    public sealed class InvoiceRowDto
+    {
+        public string InvoiceNo { get; set; } = string.Empty;
+
+        public string InvoiceDateLabel { get; set; } = string.Empty;
+
+        public string Description { get; set; } = string.Empty;
+
+        public string AmountLabel { get; set; } = string.Empty;
+
+        public string Status { get; set; } = string.Empty;
+
+        public bool ShowActions { get; set; }
+    }
+
+    public sealed class PaymentMethodUpdateSessionDto
+    {
+        public bool Success { get; set; } = true;
+
+        public string RedirectUrl { get; set; } = string.Empty;
     }
 
     public sealed class PlanSubscriptionSnapshotDto

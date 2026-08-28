@@ -9,5 +9,14 @@ namespace TummlyBackend.Interfaces
             int restaurantId,
             bool actorCanManage
         );
+
+        Task<(byte[] Content, string FileName)?> GetInvoicePdfAsync(
+            int restaurantId,
+            string invoiceNo
+        );
+
+        Task<PaymentMethodUpdateSessionDto?> CreatePaymentMethodUpdateSessionAsync(
+            int restaurantId
+        );
     }
 }
