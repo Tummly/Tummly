@@ -32,7 +32,7 @@ namespace TummlyBackend.Controllers
         public async Task<IActionResult> GetLocations()
         {
             var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out _);
+                OperatorAuth.TryRequireUserId(User, out var userId);
 
             if (unauthorized != null)
             {
@@ -121,6 +121,16 @@ namespace TummlyBackend.Controllers
                     User
                 );
 
+            var actorMembership = await _context.RestaurantMemberships
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row =>
+                    row.UserId == userId
+                    && row.RestaurantId == restaurant.Id
+                    && row.Status == MembershipStatus.Active
+                );
+            var permissionRole =
+                actorMembership?.PermissionRole ?? PermissionRoles.Owner;
+
             var owner = await _context.Users
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
@@ -139,6 +149,7 @@ namespace TummlyBackend.Controllers
                 restaurantName = restaurant.Name,
                 brandLogoPublicUrl,
                 subscriptionPlan,
+                permissionRole,
                 aiAssistantAccess =
                     assistant.Status == RestaurantPermissionStatus.Allowed,
                 teamPermissionsAccess,

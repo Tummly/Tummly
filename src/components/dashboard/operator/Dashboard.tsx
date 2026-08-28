@@ -274,6 +274,7 @@ function DashboardContent({ mode }: DashboardProps) {
     activationExpiresAt: workspace.snapshot.activationExpiresAt,
     subscriptionPlan: workspace.snapshot.subscriptionPlan,
     selfRole: workspace.snapshot.selfRole,
+    permissionRole: workspace.snapshot.permissionRole,
     billingCreditsAccess: workspace.snapshot.billingCreditsAccess,
     locations: workspace.snapshot.locations.map((location) => ({
       id: location.id,

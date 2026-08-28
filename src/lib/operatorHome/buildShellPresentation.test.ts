@@ -153,7 +153,7 @@ describe("buildOperatorShellPresentation", () => {
   it("exposes Choose a plan href only for Owner with Billing & credits Manage", () => {
     const ownerPresentation = buildOperatorShellPresentation(
       makeShellInput({
-        selfRole: "Owner",
+        permissionRole: "Owner",
         billingCreditsAccess: "manage",
         navTargets: { mode: "multi", locationId: 10 },
       }),
@@ -166,7 +166,7 @@ describe("buildOperatorShellPresentation", () => {
 
     const viewPresentation = buildOperatorShellPresentation(
       makeShellInput({
-        selfRole: "Admin",
+        permissionRole: "Admin",
         billingCreditsAccess: "view",
         navTargets: { mode: "multi", locationId: 10 },
       }),
@@ -174,6 +174,32 @@ describe("buildOperatorShellPresentation", () => {
     );
 
     expect(viewPresentation.activationPeriodBadge?.choosePlanHref).toBeNull();
+
+    const billingAdminPresentation = buildOperatorShellPresentation(
+      makeShellInput({
+        permissionRole: "Billing Admin",
+        billingCreditsAccess: "manage",
+        navTargets: { mode: "multi", locationId: 10 },
+      }),
+      now,
+    );
+
+    expect(
+      billingAdminPresentation.activationPeriodBadge?.choosePlanHref
+    ).toBeNull();
+
+    const omitAccessPresentation = buildOperatorShellPresentation(
+      makeShellInput({
+        permissionRole: "Owner",
+        billingCreditsAccess: undefined,
+        navTargets: { mode: "multi", locationId: 10 },
+      }),
+      now,
+    );
+
+    expect(omitAccessPresentation.activationPeriodBadge?.choosePlanHref).toBe(
+      "/multi-dashboard/settings/billing-credits/manage-plan?location=10",
+    );
   });
 
   it("presents a non-interactive location switcher for single-location operators", () => {

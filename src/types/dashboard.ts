@@ -29,6 +29,8 @@ export interface LocationsResponse {
   billingCreditsAccess?: "none" | "view" | "manage";
   /** Live subscription plan name for shell chrome (Pilot, Starter, Growth, Group). */
   subscriptionPlan?: string;
+  /** Restaurant membership Permission role (Owner, Admin, Billing Admin, …). */
+  permissionRole?: string;
   locations: LocationItem[];
 }
 

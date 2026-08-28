@@ -608,7 +608,11 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
 
-            var isPilot = await IsPilotRestaurantAsync(restaurantId, owner);
+            var isPilot = await BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
+                _context,
+                restaurantId,
+                owner
+            );
             if (isPilot)
             {
                 throw new InvalidOperationException("pilot-cancel-not-allowed");
@@ -674,7 +678,11 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
 
-            var isPilot = await IsPilotRestaurantAsync(restaurantId, owner);
+            var isPilot = await BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
+                _context,
+                restaurantId,
+                owner
+            );
             if (isPilot)
             {
                 throw new InvalidOperationException("not-group-plan");
@@ -1124,7 +1132,11 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
 
-            var isPilot = await IsPilotRestaurantAsync(restaurantId, owner);
+            var isPilot = await BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
+                _context,
+                restaurantId,
+                owner
+            );
             var billingAccount = await LoadOrCreateBillingAccountAsync(restaurantId);
 
             return new CreditTopUpContext(
@@ -1200,7 +1212,13 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
 
-            if (await IsPilotRestaurantAsync(restaurantId, owner))
+            if (
+                await BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
+                    _context,
+                    restaurantId,
+                    owner
+                )
+            )
             {
                 return new BillingActivityListDto
                 {

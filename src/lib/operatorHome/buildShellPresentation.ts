@@ -1,7 +1,10 @@
 import {
   resolveActivationPeriodBadgePresentation,
 } from "@/lib/operatorHome/activationPeriod"
-import { operatorDashboardBillingCreditsManagePlanPath } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import {
+  billingCreditsHeaderActions,
+  operatorDashboardBillingCreditsManagePlanPath,
+} from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import type { BillingCreditsAccessLevel } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
 import { formatSelfRoleSubtitle } from "@/lib/operatorHome/formatSelfRoleSubtitle"
@@ -25,6 +28,9 @@ export type BuildOperatorShellPresentationInput = {
   activationExpiresAt: string | null
   subscriptionPlan: string
   selfRole?: string | null
+  /** Restaurant Permission role; gates Choose a plan with Billing & credits access. */
+  permissionRole?: string | null
+  /** Omit defaults to manage so Account-owner chrome stays visible during rollout. */
   billingCreditsAccess?: BillingCreditsAccessLevel
   locations: OperatorHomeLocationOption[]
   selectedLocationId: number
@@ -53,9 +59,10 @@ export function buildOperatorShellPresentation(
   const mode: OperatorDashboardMode =
     input.navTargets?.mode ?? "multi"
   const locationId = input.navTargets?.locationId ?? input.selectedLocationId
-  const showChoosePlanCta =
-    input.selfRole === "Owner"
-    && input.billingCreditsAccess === "manage"
+  const showChoosePlanCta = billingCreditsHeaderActions({
+    accessLevel: input.billingCreditsAccess ?? "manage",
+    permissionRole: input.permissionRole ?? "",
+  }).showManagePlan
   const choosePlanHref = showChoosePlanCta
     ? operatorDashboardBillingCreditsManagePlanPath(mode, locationId)
     : null
