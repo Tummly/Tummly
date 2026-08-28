@@ -6,6 +6,30 @@ namespace TummlyBackend.Interfaces
             CreditLedgerConsumeRequest request,
             CancellationToken cancellationToken = default
         );
+
+        Task<CreditLedgerWriteResult> StaffManualAdjustAsync(
+            StaffManualAdjustRequest request,
+            CancellationToken cancellationToken = default
+        );
+    }
+
+    public sealed class StaffManualAdjustRequest
+    {
+        public int RestaurantId { get; init; }
+
+        public string Channel { get; init; } = string.Empty;
+
+        public string Direction { get; init; } = string.Empty;
+
+        public int Quantity { get; init; }
+
+        public string Reason { get; init; } = string.Empty;
+
+        public int ActorStaffUserId { get; init; }
+
+        public Guid? AllocationId { get; init; }
+
+        public int? HelpCentreQueryId { get; init; }
     }
 
     public sealed class CreditLedgerConsumeRequest

@@ -283,6 +283,175 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(result.Inserted);
         }
 
+        [Fact]
+        public async Task StaffManualAdjust_GrantIncreasesRemaining()
+        {
+            var harness = await SeedAsync();
+            var result = await harness.Ledger.StaffManualAdjustAsync(
+                new StaffManualAdjustRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    Direction = StaffManualAdjustDirections.Grant,
+                    Quantity = 25,
+                    Reason = "Goodwill credit for onboarding issue",
+                    ActorStaffUserId = 1,
+                }
+            );
+
+            Assert.True(result.Succeeded);
+            var snapshot = await harness.Snapshot.GetAccountAsync(harness.RestaurantId);
+            Assert.Equal(25, Channel(snapshot, CreditChannels.Email).Remaining);
+
+            var activity = await harness.Context.RestaurantBillingActivities
+                .SingleAsync(row => row.RestaurantId == harness.RestaurantId);
+            Assert.Equal(BillingActivityKinds.ManualCreditAdjusted, activity.Kind);
+            Assert.Equal(BillingActivityActors.TummlySupport, activity.ActorDisplayName);
+            Assert.Equal(BillingManualAdjustDirections.Add, activity.ManualAdjustDirection);
+            Assert.Equal(25, activity.Qty);
+        }
+
+        [Fact]
+        public async Task StaffManualAdjust_DebitExceedsBindableRefused()
+        {
+            var harness = await SeedAsync();
+            await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.IncludedAllocation,
+                10,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: _now.AddDays(20)
+            );
+
+            var result = await harness.Ledger.StaffManualAdjustAsync(
+                new StaffManualAdjustRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    Direction = StaffManualAdjustDirections.Debit,
+                    Quantity = 11,
+                    Reason = "Correct duplicate grant",
+                    ActorStaffUserId = 1,
+                }
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("insufficient_credits", result.Code);
+            Assert.Empty(result.Inserted);
+        }
+
+        [Fact]
+        public async Task StaffManualAdjust_DebitHeldRefused()
+        {
+            var harness = await SeedAsync();
+            var grantId = await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.IncludedAllocation,
+                10,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: _now.AddDays(20)
+            );
+            harness.Context.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    EntryType = CreditLedgerEntryTypes.Reservation,
+                    Quantity = 10,
+                    AllocationId = grantId,
+                    ReservationRef = Guid.NewGuid().ToString("D"),
+                    LocationId = harness.LocationId,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await harness.Context.SaveChangesAsync();
+
+            var result = await harness.Ledger.StaffManualAdjustAsync(
+                new StaffManualAdjustRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    Direction = StaffManualAdjustDirections.Debit,
+                    Quantity = 1,
+                    Reason = "Remove mistaken grant",
+                    ActorStaffUserId = 1,
+                    AllocationId = grantId,
+                }
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("held_credits", result.Code);
+            Assert.Empty(result.Inserted);
+        }
+
+        [Fact]
+        public async Task StaffManualAdjust_ReasonRequired()
+        {
+            var harness = await SeedAsync();
+            var result = await harness.Ledger.StaffManualAdjustAsync(
+                new StaffManualAdjustRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    Direction = StaffManualAdjustDirections.Grant,
+                    Quantity = 5,
+                    Reason = "   ",
+                    ActorStaffUserId = 1,
+                }
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("reason_required", result.Code);
+        }
+
+        [Fact]
+        public async Task StaffManualAdjust_NegativeRemainingRefused()
+        {
+            var harness = await SeedAsync();
+            var grantId = await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.IncludedAllocation,
+                5,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: _now.AddDays(20)
+            );
+            harness.Context.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    EntryType = CreditLedgerEntryTypes.Consumption,
+                    Quantity = 8,
+                    AllocationId = grantId,
+                    LocationId = harness.LocationId,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await harness.Context.SaveChangesAsync();
+
+            var result = await harness.Ledger.StaffManualAdjustAsync(
+                new StaffManualAdjustRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    Direction = StaffManualAdjustDirections.Debit,
+                    Quantity = 1,
+                    Reason = "Attempt over-debit on negative remaining",
+                    ActorStaffUserId = 1,
+                    AllocationId = grantId,
+                }
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("insufficient_credits", result.Code);
+            Assert.Empty(result.Inserted);
+        }
+
         public void Dispose()
         {
         }

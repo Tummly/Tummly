@@ -124,6 +124,51 @@ namespace TummlyBackend.Services
             return fills;
         }
 
+        public static IReadOnlyList<(Guid AllocationId, int Quantity)> BindDebit(
+            IReadOnlyList<CreditAllocationState> states,
+            int units,
+            Guid? allocationId = null
+        )
+        {
+            if (allocationId is Guid targetId)
+            {
+                var slice = states.FirstOrDefault(row => row.Id == targetId);
+                if (slice.Id == default || slice.Bindable < units)
+                {
+                    return [];
+                }
+
+                return [(targetId, units)];
+            }
+
+            var fills = new List<(Guid AllocationId, int Quantity)>();
+            var remainingNeed = units;
+
+            foreach (
+                var slice in states
+                    .Where(row => row.Bindable > 0)
+                    .OrderByDescending(DebitRank)
+                    .ThenBy(DebitExpiry)
+                    .ThenBy(row => row.CreatedAtUtc)
+            )
+            {
+                var take = Math.Min(remainingNeed, slice.Bindable);
+                fills.Add((slice.Id, take));
+                remainingNeed -= take;
+                if (remainingNeed == 0)
+                {
+                    break;
+                }
+            }
+
+            if (remainingNeed != 0)
+            {
+                return [];
+            }
+
+            return fills;
+        }
+
         public static int PoolAvailable(IReadOnlyList<CreditAllocationState> states)
         {
             return states.Sum(row => Math.Max(row.Bindable, 0));
@@ -187,15 +232,27 @@ namespace TummlyBackend.Services
             CreditAllocationState state
         )
         {
-            var rank = IsIncludedClass(state.EntryType)
-                ? 0
-                : state.EntryType == CreditLedgerEntryTypes.PilotAllocation
-                    ? 1
-                    : 2;
+            var rank = DebitRank(state);
             var expiry = rank == 2
                 ? state.ExpiresAtUtc ?? DateTime.MaxValue
                 : DateTime.MinValue;
             return (rank, expiry, state.CreatedAtUtc);
+        }
+
+        private static int DebitRank(CreditAllocationState state)
+        {
+            return IsIncludedClass(state.EntryType)
+                ? 0
+                : state.EntryType == CreditLedgerEntryTypes.PilotAllocation
+                    ? 1
+                    : 2;
+        }
+
+        private static DateTime DebitExpiry(CreditAllocationState state)
+        {
+            return DebitRank(state) == 2
+                ? state.ExpiresAtUtc ?? DateTime.MaxValue
+                : DateTime.MinValue;
         }
     }
 }

@@ -71,6 +71,247 @@ namespace TummlyBackend.Services
             return await ConsumeLockedAsync(request, cancellationToken);
         }
 
+        public async Task<CreditLedgerWriteResult> StaffManualAdjustAsync(
+            StaffManualAdjustRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var reason = request.Reason.Trim();
+            if (reason.Length is < 1 or > 500)
+            {
+                return CreditLedgerWriteResult.Fail("reason_required");
+            }
+
+            if (request.Quantity <= 0)
+            {
+                return CreditLedgerWriteResult.Fail("invalid_quantity");
+            }
+
+            if (
+                request.Channel is not (
+                    CreditChannels.Ai
+                    or CreditChannels.Email
+                    or CreditChannels.Sms
+                )
+            )
+            {
+                return CreditLedgerWriteResult.Fail("invalid_channel");
+            }
+
+            var isGrant = string.Equals(
+                request.Direction,
+                StaffManualAdjustDirections.Grant,
+                StringComparison.Ordinal
+            );
+            var isDebit = string.Equals(
+                request.Direction,
+                StaffManualAdjustDirections.Debit,
+                StringComparison.Ordinal
+            );
+            if (!isGrant && !isDebit)
+            {
+                return CreditLedgerWriteResult.Fail("invalid_direction");
+            }
+
+            if (!_context.Database.IsSqlServer())
+            {
+                var gate = AccountLocks.GetOrAdd(
+                    request.RestaurantId,
+                    _ => new SemaphoreSlim(1, 1)
+                );
+                await gate.WaitAsync(cancellationToken);
+                try
+                {
+                    return await StaffManualAdjustLockedAsync(
+                        request,
+                        reason,
+                        isGrant,
+                        cancellationToken
+                    );
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            }
+
+            return await StaffManualAdjustLockedAsync(
+                request,
+                reason,
+                isGrant,
+                cancellationToken
+            );
+        }
+
+        private async Task<CreditLedgerWriteResult> StaffManualAdjustLockedAsync(
+            StaffManualAdjustRequest request,
+            string reason,
+            bool isGrant,
+            CancellationToken cancellationToken
+        )
+        {
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync(
+                    IsolationLevel.ReadCommitted,
+                    cancellationToken
+                );
+
+            var billingAccount = await _context.BillingAccounts
+                .FirstOrDefaultAsync(
+                    row => row.RestaurantId == request.RestaurantId,
+                    cancellationToken
+                );
+            if (billingAccount == null)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "restaurant_not_found",
+                    cancellationToken
+                );
+            }
+
+            if (_context.Database.IsSqlServer())
+            {
+                await _context.Database.ExecuteSqlInterpolatedAsync(
+                    $"SELECT 1 FROM [BillingAccounts] WITH (UPDLOCK, ROWLOCK) WHERE [RestaurantId] = {request.RestaurantId}",
+                    cancellationToken
+                );
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            var entries = await _context.CreditLedgerEntries
+                .Where(row =>
+                    row.RestaurantId == request.RestaurantId
+                    && row.Channel == request.Channel
+                )
+                .ToListAsync(cancellationToken);
+
+            var states = CreditLedgerCalculator.Project(entries, now);
+            var inserted = new List<CreditLedgerEntry>();
+
+            if (isGrant)
+            {
+                var grantId = Guid.NewGuid();
+                inserted.Add(
+                    new CreditLedgerEntry
+                    {
+                        Id = grantId,
+                        RestaurantId = request.RestaurantId,
+                        Channel = request.Channel,
+                        EntryType = CreditLedgerEntryTypes.ManualAdjustment,
+                        Quantity = request.Quantity,
+                        AllocationId = null,
+                        PricebookVersion = billingAccount.ContractedPricebookId,
+                        ExpiresAtUtc = now.AddMonths(12),
+                        ActorStaffUserId = request.ActorStaffUserId,
+                        Reason = reason,
+                        HelpCentreQueryId = request.HelpCentreQueryId,
+                        CreatedAtUtc = now,
+                    }
+                );
+                _context.CreditLedgerEntries.Add(inserted[0]);
+            }
+            else
+            {
+                if (
+                    request.AllocationId is Guid allocationId
+                    && states.FirstOrDefault(row => row.Id == allocationId) is
+                    {
+                        Held: > 0,
+                        Bindable: 0,
+                    }
+                )
+                {
+                    return await AbortAsync(
+                        transaction,
+                        "held_credits",
+                        cancellationToken
+                    );
+                }
+
+                var fills = CreditLedgerCalculator.BindDebit(
+                    states,
+                    request.Quantity,
+                    request.AllocationId
+                );
+                if (fills.Count == 0)
+                {
+                    return await AbortAsync(
+                        transaction,
+                        "insufficient_credits",
+                        cancellationToken
+                    );
+                }
+
+                foreach (var fill in fills)
+                {
+                    var row = new CreditLedgerEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        RestaurantId = request.RestaurantId,
+                        Channel = request.Channel,
+                        EntryType = CreditLedgerEntryTypes.ManualAdjustment,
+                        Quantity = fill.Quantity,
+                        AllocationId = fill.AllocationId,
+                        ActorStaffUserId = request.ActorStaffUserId,
+                        Reason = reason,
+                        HelpCentreQueryId = request.HelpCentreQueryId,
+                        CreatedAtUtc = now,
+                    };
+                    inserted.Add(row);
+                    _context.CreditLedgerEntries.Add(row);
+                }
+            }
+
+            var postState = CreditLedgerCalculator.Project(
+                [.. entries, .. inserted],
+                now
+            );
+            if (!CreditLedgerCalculator.InvariantsHold(postState))
+            {
+                foreach (var row in inserted)
+                {
+                    _context.CreditLedgerEntries.Remove(row);
+                }
+
+                return await AbortAsync(
+                    transaction,
+                    "insufficient_credits",
+                    cancellationToken
+                );
+            }
+
+            BillingActivityWriter.TryAppend(
+                _context,
+                new BillingActivityAppendRequest
+                {
+                    RestaurantId = request.RestaurantId,
+                    Kind = BillingActivityKinds.ManualCreditAdjusted,
+                    OccurredAtUtc = now,
+                    ActorDisplayName = BillingActivityActors.TummlySupport,
+                    Channel = request.Channel,
+                    Qty = request.Quantity,
+                    ManualAdjustDirection = isGrant
+                        ? BillingManualAdjustDirections.Add
+                        : BillingManualAdjustDirections.Remove,
+                }
+            );
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return CreditLedgerWriteResult.Ok(
+                inserted.Select(row => new CreditLedgerInsertedRow
+                {
+                    Id = row.Id,
+                    AllocationId = row.AllocationId ?? row.Id,
+                    EntryType = row.EntryType,
+                    Quantity = row.Quantity,
+                    ReservationRef = row.ReservationRef,
+                }).ToList()
+            );
+        }
+
         private async Task<CreditLedgerWriteResult> ConsumeLockedAsync(
             CreditLedgerConsumeRequest request,
             CancellationToken cancellationToken
