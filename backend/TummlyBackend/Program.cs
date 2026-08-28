@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Billing;
 using TummlyBackend.Billing.Pricebook;
-using TummlyBackend.Billing;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;

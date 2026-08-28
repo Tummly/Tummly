@@ -186,31 +186,15 @@ namespace TummlyBackend.Controllers
         [HttpPost("members/{membershipId:int}/reactivate")]
         public async Task<IActionResult> Reactivate(int membershipId)
         {
-            var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
-            if (unauthorized != null)
-            {
-                return unauthorized;
-            }
-
-            var decision = await _permissions.AuthorizeAsync(
-                User,
-                OperatorAreaIds.TeamPermissions,
-                PermissionLevel.Manage
+            return await MutateWriteResultAsync(
+                (userId, restaurantId, canManage) =>
+                    _teamPermissions.ReactivateAsync(
+                        userId,
+                        restaurantId,
+                        canManage,
+                        membershipId
+                    )
             );
-            var denied = decision.ToHttpResult();
-            if (denied != null)
-            {
-                return denied;
-            }
-
-            var result = await _teamPermissions.ReactivateAsync(
-                userId,
-                decision.RestaurantId,
-                true,
-                membershipId
-            );
-            return MapWrite(result);
         }
 
         [HttpDelete("members/{membershipId:int}")]
@@ -347,6 +331,32 @@ namespace TummlyBackend.Controllers
 
             var error = await write(userId, decision.RestaurantId, true);
             return MapWrite(error);
+        }
+
+        private async Task<IActionResult> MutateWriteResultAsync(
+            Func<int, int, bool, Task<TeamPermissionsWriteResult>> write
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.TeamPermissions,
+                PermissionLevel.Manage
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await write(userId, decision.RestaurantId, true);
+            return MapWrite(result);
         }
 
         private async Task<IActionResult> MutateAsync(

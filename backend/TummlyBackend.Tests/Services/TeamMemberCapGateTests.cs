@@ -89,9 +89,26 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(2, decision.Cap);
         }
 
+        [Fact]
+        public async Task DenyIncrement_AddsTwoTeamMembersPerPaidExtraLocation()
+        {
+            var restaurantId = await SeedRestaurantAsync(
+                BillingSubscriptionPlans.Group,
+                includeOwnerMembership: true,
+                paidExtraLocationCount: 1
+            );
+
+            var decision = await _gate.DenyIncrementAsync(restaurantId);
+
+            Assert.True(decision.AllowIncrement);
+            Assert.Equal(1, decision.Current);
+            Assert.Equal(27, decision.Cap);
+        }
+
         private async Task<int> SeedRestaurantAsync(
             string subscriptionPlan,
-            bool includeOwnerMembership
+            bool includeOwnerMembership,
+            int paidExtraLocationCount = 0
         )
         {
             var owner = new User
@@ -127,6 +144,7 @@ namespace TummlyBackend.Tests.Services
                 "TUMMLY-UK-GBP-2026-08-V3"
             );
             account.SubscriptionPlan = subscriptionPlan;
+            account.PaidExtraLocationCount = paidExtraLocationCount;
             _context.BillingAccounts.Add(account);
 
             if (includeOwnerMembership)
