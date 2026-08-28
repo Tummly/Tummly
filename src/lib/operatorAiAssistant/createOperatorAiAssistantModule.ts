@@ -43,10 +43,22 @@ import {
   conversationCountLabel,
   type OperatorAiAssistantListChromeKind,
 } from "./assistantListPresentation"
+import type { BillingCreditsAccessLevel } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import {
   ASSISTANT_ADD_CREDITS_LABEL,
-  ASSISTANT_CREDITS_STUB_REMAINING_LINE,
+  ASSISTANT_CREDITS_STUB_ALLOWANCE,
+  ASSISTANT_CREDITS_STUB_REMAINING,
   ASSISTANT_VIEW_USAGE_LABEL,
+  assistantCreditsAddCreditsHref,
+  assistantCreditsDepleted,
+  assistantCreditsRemainingLine,
+  assistantCreditsRestorationHelper,
+  assistantCreditsShowAddCredits,
+  assistantCreditsShowViewUsage,
+  assistantCreditsViewUsageHref,
+  isAssistantAccountLocked,
+  resolveAssistantAccountLockCause,
+  type AssistantCreditsRestorationHelper,
 } from "./assistantCreditsPresentation"
 import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCatalogPresentation"
 import { ASSISTANT_NEXT_TRY_SCOPE_SENTENCE } from "./assistantNextTryCopy"
@@ -284,7 +296,21 @@ export type OperatorAiAssistantSnapshot = {
   creditsRemainingLine: string
   viewUsageLabel: string
   addCreditsLabel: string
+  showViewUsage: boolean
+  showAddCredits: boolean
+  restorationHelper: AssistantCreditsRestorationHelper | null
   deleteConfirm: OperatorAiAssistantDeleteConfirmSnapshot
+}
+
+export type OperatorAiAssistantCreditsChrome = {
+  remaining: number
+  allowance: number
+  accessLevel: BillingCreditsAccessLevel
+  permissionRole: string
+  billingStatus: string
+  isPilot: boolean
+  mode: "single" | "multi"
+  locationId: number
 }
 
 export type OperatorAiAssistantSendTurnInput = {
@@ -376,6 +402,10 @@ export type OperatorAiAssistantAdapters = {
   getRestaurantName: () => string
   getDashboardMode: () => "single" | "multi"
   listOwnedLocations: () => readonly OperatorAiAssistantOwnedLocationOption[]
+  /** Live AI remaining + Billing access for the composer credits bar. */
+  getCreditsChrome: () => Promise<OperatorAiAssistantCreditsChrome>
+  /** Navigate after the drawer has closed (View usage / Add credits / restoration). */
+  navigateBillingHref: (href: string) => void
   mic: OperatorAiAssistantMicAdapters
 }
 
@@ -429,6 +459,7 @@ export type OperatorAiAssistantModule = {
   dismissFromEscape: () => void
   viewUsage: () => void
   addCredits: () => void
+  followRestorationHelper: () => void
 }
 
 const EMPTY_HEADLINE = "What would you like help with?"
@@ -676,6 +707,7 @@ export function createInMemoryOperatorAiAssistantAdapters(
 ): OperatorAiAssistantAdapters & {
   conversations: OperatorAiAssistantConversationRow[]
   online: boolean
+  billingHrefs: string[]
   lastNavigate: {
     action: OperatorAiAssistantAction
     analysisScope: OperatorAiAssistantAnalysisScope
@@ -693,6 +725,7 @@ export function createInMemoryOperatorAiAssistantAdapters(
   const extras = {
     conversations,
     online: true,
+    billingHrefs: [] as string[],
     lastNavigate: null as {
       action: OperatorAiAssistantAction
       analysisScope: OperatorAiAssistantAnalysisScope
@@ -708,6 +741,19 @@ export function createInMemoryOperatorAiAssistantAdapters(
     isOnline: () => extras.online,
     navigateAction: (input) => {
       extras.lastNavigate = input
+    },
+    getCreditsChrome: async () => ({
+      remaining: ASSISTANT_CREDITS_STUB_REMAINING,
+      allowance: ASSISTANT_CREDITS_STUB_ALLOWANCE,
+      accessLevel: "manage",
+      permissionRole: "Owner",
+      billingStatus: "Active",
+      isPilot: false,
+      mode: "multi",
+      locationId: DEFAULT_OWNED_LOCATION.id,
+    }),
+    navigateBillingHref: (href) => {
+      extras.billingHrefs.push(href)
     },
     getCampaignDraft: async (campaignId) =>
       inMemoryOpenableCampaignDraft(campaignId),
@@ -829,6 +875,9 @@ export function createInMemoryOperatorAiAssistantAdapters(
     get lastNavigate() {
       return extras.lastNavigate
     },
+    get billingHrefs() {
+      return extras.billingHrefs
+    },
     get online() {
       return extras.online
     },
@@ -836,6 +885,11 @@ export function createInMemoryOperatorAiAssistantAdapters(
       extras.online = value
     },
     isOnline: overrides.isOnline ?? (() => extras.online),
+    navigateBillingHref:
+      overrides.navigateBillingHref
+      ?? ((href: string) => {
+        extras.billingHrefs.push(href)
+      }),
   }
 }
 
@@ -1225,7 +1279,8 @@ function toSnapshot(
   state: AssistantState,
   nowMs: number,
   mic: GuestMicSttSnapshot,
-  isOnline: boolean
+  isOnline: boolean,
+  credits: OperatorAiAssistantCreditsChrome
 ): OperatorAiAssistantSnapshot {
   const emptyConversation = isEmptyAssistantConversation(state)
   const storedMessages = state.messages.filter((message) => message.role !== "wait")
@@ -1332,7 +1387,12 @@ function toSnapshot(
     archiveRows: listPanel === "archive" ? presentedRows : [],
     listRows: presentedRows,
     bodyLoadError: state.bodyLoadError,
-    sendBlocked: state.turnInFlight || state.bodyLoadError || !isOnline,
+    sendBlocked:
+      state.turnInFlight
+      || state.bodyLoadError
+      || !isOnline
+      || assistantCreditsDepleted(credits.remaining)
+      || isAssistantAccountLocked(credits.billingStatus),
     micChrome: mic.chrome,
     micPhase: mic.phase,
     micAvailable: mic.micAvailable,
@@ -1340,12 +1400,32 @@ function toSnapshot(
       state.turnInFlight
       || state.bodyLoadError
       || !isOnline
-      || !mic.micAvailable,
+      || !mic.micAvailable
+      || assistantCreditsDepleted(credits.remaining)
+      || isAssistantAccountLocked(credits.billingStatus),
     composerLocked: mic.messageLocked,
     micError: mic.error,
-    creditsRemainingLine: ASSISTANT_CREDITS_STUB_REMAINING_LINE,
+    creditsRemainingLine: assistantCreditsRemainingLine(
+      credits.remaining,
+      credits.allowance
+    ),
     viewUsageLabel: ASSISTANT_VIEW_USAGE_LABEL,
     addCreditsLabel: ASSISTANT_ADD_CREDITS_LABEL,
+    showViewUsage: assistantCreditsShowViewUsage(credits.accessLevel),
+    showAddCredits: assistantCreditsShowAddCredits({
+      accessLevel: credits.accessLevel,
+      permissionRole: credits.permissionRole,
+    }),
+    restorationHelper: assistantCreditsRestorationHelper({
+      lockCause: resolveAssistantAccountLockCause({
+        billingStatus: credits.billingStatus,
+        isPilot: credits.isPilot,
+      }),
+      accessLevel: credits.accessLevel,
+      permissionRole: credits.permissionRole,
+      mode: credits.mode,
+      locationId: credits.locationId,
+    }),
     deleteConfirm: {
       open: state.deleteConfirmConversationId != null,
       conversationId: state.deleteConfirmConversationId,
@@ -1464,6 +1544,17 @@ export function createOperatorAiAssistantModule(
   const initialSwitcherOwnedLocationId = adapters.getDashboardOwnedLocation().id
   let lastSwitcherOwnedLocationId: number | null =
     initialSwitcherOwnedLocationId === 0 ? null : initialSwitcherOwnedLocationId
+  let creditsChrome: OperatorAiAssistantCreditsChrome = {
+    remaining: ASSISTANT_CREDITS_STUB_REMAINING,
+    allowance: ASSISTANT_CREDITS_STUB_ALLOWANCE,
+    accessLevel: "none",
+    permissionRole: "",
+    billingStatus: "Active",
+    isPilot: false,
+    mode: adapters.getDashboardMode(),
+    locationId: adapters.getDashboardOwnedLocation().id,
+  }
+  let creditsLoadGeneration = 0
 
   const stopCheckingWaitRotation = () => {
     if (waitTimer != null) {
@@ -1516,7 +1607,8 @@ export function createOperatorAiAssistantModule(
       state,
       adapters.nowMs(),
       mic.getSnapshot(),
-      adapters.isOnline()
+      adapters.isOnline(),
+      creditsChrome
     )
     for (const listener of listeners) {
       listener()
@@ -1529,11 +1621,38 @@ export function createOperatorAiAssistantModule(
     state,
     adapters.nowMs(),
     mic.getSnapshot(),
-    adapters.isOnline()
+    adapters.isOnline(),
+    creditsChrome
   )
 
+  const paidWriteBlocked = () =>
+    assistantCreditsDepleted(creditsChrome.remaining)
+    || isAssistantAccountLocked(creditsChrome.billingStatus)
+
   const composerControlsLocked = () =>
-    state.turnInFlight || state.bodyLoadError || !adapters.isOnline()
+    state.turnInFlight
+    || state.bodyLoadError
+    || !adapters.isOnline()
+    || paidWriteBlocked()
+
+  const refreshCreditsChrome = () => {
+    const generation = ++creditsLoadGeneration
+    void adapters
+      .getCreditsChrome()
+      .then((next) => {
+        if (generation !== creditsLoadGeneration) {
+          return
+        }
+        creditsChrome = next
+        publish()
+      })
+      .catch(() => {
+        if (generation !== creditsLoadGeneration) {
+          return
+        }
+        // Keep the last known chrome (stub until first success).
+      })
+  }
 
   const loadList = (archived: boolean) => {
     const generation = ++listGeneration
@@ -1592,6 +1711,7 @@ export function createOperatorAiAssistantModule(
 
   const openDrawer = (input?: { operatorFirstName?: string }) => {
     adapters.closePeerRightDrawers()
+    refreshCreditsChrome()
     const operatorFirstName =
       input?.operatorFirstName?.trim() || state.operatorFirstName
     const resumeId = state.conversationId
@@ -1817,6 +1937,9 @@ export function createOperatorAiAssistantModule(
       return
     }
     if (!adapters.isOnline()) {
+      return
+    }
+    if (paidWriteBlocked()) {
       return
     }
     const analysisScope = state.analysisScope
@@ -2337,6 +2460,9 @@ export function createOperatorAiAssistantModule(
       if (state.bodyLoadError || mic.getSnapshot().submitLocked) {
         return
       }
+      if (paidWriteBlocked()) {
+        return
+      }
       const text = state.composerDraft.trim()
       if (text.length === 0) {
         return
@@ -2350,6 +2476,9 @@ export function createOperatorAiAssistantModule(
       await mic.start()
     },
     confirmMic: async () => {
+      if (paidWriteBlocked()) {
+        return
+      }
       await mic.confirm()
     },
     cancelMic: async () => {
@@ -2573,10 +2702,39 @@ export function createOperatorAiAssistantModule(
       closeDrawer()
     },
     viewUsage: () => {
-      // Stub — Billing & credits is not live. Do not navigate or burn.
+      if (!assistantCreditsShowViewUsage(creditsChrome.accessLevel)) {
+        return
+      }
+      const href = assistantCreditsViewUsageHref(
+        adapters.getDashboardMode(),
+        adapters.getDashboardOwnedLocation().id
+      )
+      closeDrawer()
+      adapters.navigateBillingHref(href)
     },
     addCredits: () => {
-      // Stub — Billing & credits is not live. Do not navigate or burn.
+      if (
+        !assistantCreditsShowAddCredits({
+          accessLevel: creditsChrome.accessLevel,
+          permissionRole: creditsChrome.permissionRole,
+        })
+      ) {
+        return
+      }
+      const href = assistantCreditsAddCreditsHref(
+        adapters.getDashboardMode(),
+        adapters.getDashboardOwnedLocation().id
+      )
+      closeDrawer()
+      adapters.navigateBillingHref(href)
+    },
+    followRestorationHelper: () => {
+      const helper = snapshot.restorationHelper
+      if (helper == null) {
+        return
+      }
+      closeDrawer()
+      adapters.navigateBillingHref(helper.href)
     },
   }
 }

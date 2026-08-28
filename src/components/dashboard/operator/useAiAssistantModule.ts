@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 
 import {
+  getBillingCreditsPage,
+  getBillingCreditsUsage,
+} from "@/api/billingCreditsApi"
+import {
   applyAssistantScope,
   archiveAssistantConversation,
   deleteAssistantConversation,
@@ -24,6 +28,10 @@ import { createBrowserGuestMicAdapters } from "@/lib/guestFeedback/createBrowser
 import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudioLevel"
 import { connectAssistantHub } from "@/lib/operatorAiAssistant/connectAssistantHub"
 import {
+  ASSISTANT_CREDITS_STUB_ALLOWANCE,
+  ASSISTANT_CREDITS_STUB_REMAINING,
+} from "@/lib/operatorAiAssistant/assistantCreditsPresentation"
+import {
   createOperatorAiAssistantModule,
   type OperatorAiAssistantAction,
   type OperatorAiAssistantAnalysisScope,
@@ -32,6 +40,7 @@ import {
   type OperatorAiAssistantSnapshot,
   type AssistantSendScheduleRoute,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import type { BillingCreditsAccess } from "@/lib/operatorHome/parseOperatorProfile"
 import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
 import {
   RECOVERY_DRAFT_ACTION_TOASTS,
@@ -44,6 +53,8 @@ export type OperatorAiAssistantDashboardContext = {
   restaurantName: string
   selectedLocation: OperatorAiAssistantOwnedLocationOption | null
   locations: readonly OperatorAiAssistantOwnedLocationOption[]
+  billingCreditsAccess: BillingCreditsAccess
+  navigateBillingHref: (href: string) => void
   navigateAction: (input: {
     action: OperatorAiAssistantAction
     analysisScope: OperatorAiAssistantAnalysisScope
@@ -98,6 +109,7 @@ export type OperatorAiAssistantApi = {
   dismissFromEscape: OperatorAiAssistantModule["dismissFromEscape"]
   viewUsage: OperatorAiAssistantModule["viewUsage"]
   addCredits: OperatorAiAssistantModule["addCredits"]
+  followRestorationHelper: OperatorAiAssistantModule["followRestorationHelper"]
 }
 
 export function useAiAssistantModule(
@@ -205,6 +217,42 @@ export function useAiAssistantModule(
         getRestaurantName: () => contextRef.current.restaurantName,
         getDashboardMode: () => contextRef.current.mode,
         listOwnedLocations: () => contextRef.current.locations,
+        getCreditsChrome: async () => {
+          const current = contextRef.current
+          const locationId = current.selectedLocation?.id ?? 0
+          try {
+            const [usage, page] = await Promise.all([
+              getBillingCreditsUsage(),
+              getBillingCreditsPage(),
+            ])
+            const ai = usage.channels.find((channel) => channel.channel === "ai")
+            return {
+              remaining: ai?.combinedRemaining ?? ASSISTANT_CREDITS_STUB_REMAINING,
+              allowance:
+                ai?.includedThisPeriod ?? ASSISTANT_CREDITS_STUB_ALLOWANCE,
+              accessLevel: current.billingCreditsAccess,
+              permissionRole: page.actorPermissionRole,
+              billingStatus: page.planSubscription.billingStatus,
+              isPilot: usage.isPilot,
+              mode: current.mode,
+              locationId,
+            }
+          } catch {
+            return {
+              remaining: ASSISTANT_CREDITS_STUB_REMAINING,
+              allowance: ASSISTANT_CREDITS_STUB_ALLOWANCE,
+              accessLevel: current.billingCreditsAccess,
+              permissionRole: "",
+              billingStatus: "Active",
+              isPilot: false,
+              mode: current.mode,
+              locationId,
+            }
+          }
+        },
+        navigateBillingHref: (href) => {
+          contextRef.current.navigateBillingHref(href)
+        },
         mic: {
           startRecording: browserMic.adapters.startRecording,
           stopRecording: browserMic.adapters.stopRecording,
@@ -294,5 +342,6 @@ export function useAiAssistantModule(
     dismissFromEscape: assistant.dismissFromEscape,
     viewUsage: assistant.viewUsage,
     addCredits: assistant.addCredits,
+    followRestorationHelper: assistant.followRestorationHelper,
   }
 }

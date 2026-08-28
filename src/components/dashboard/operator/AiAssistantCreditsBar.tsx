@@ -4,15 +4,19 @@ type AiAssistantCreditsBarProps = {
   remainingLine: string
   viewUsageLabel: string
   addCreditsLabel: string
+  showViewUsage: boolean
+  showAddCredits: boolean
   onViewUsage: () => void
   onAddCredits: () => void
 }
 
-/** Composer credits strip — Figma 3454:56050. Stub counts; no metering. */
+/** Composer credits strip — Figma 3454:56050. Live Billing AI balances. */
 export function AiAssistantCreditsBar({
   remainingLine,
   viewUsageLabel,
   addCreditsLabel,
+  showViewUsage,
+  showAddCredits,
   onViewUsage,
   onAddCredits,
 }: AiAssistantCreditsBarProps) {
@@ -22,22 +26,26 @@ export function AiAssistantCreditsBar({
         {remainingLine}
       </p>
       <div className="flex shrink-0 items-center gap-3">
-        <Button
-          type="button"
-          variant="op-ghost"
-          className="h-auto min-h-0 px-0 py-0 text-xs font-medium text-op-text-primary hover:bg-transparent hover:text-op-text-primary"
-          onClick={onViewUsage}
-        >
-          {viewUsageLabel}
-        </Button>
-        <Button
-          type="button"
-          variant="op-ghost"
-          className="h-auto min-h-0 px-0 py-0 text-xs font-medium text-op-text-primary hover:bg-transparent hover:text-op-text-primary"
-          onClick={onAddCredits}
-        >
-          {addCreditsLabel}
-        </Button>
+        {showViewUsage ? (
+          <Button
+            type="button"
+            variant="op-ghost"
+            className="h-auto min-h-0 px-0 py-0 text-xs font-medium text-op-text-primary hover:bg-transparent hover:text-op-text-primary"
+            onClick={onViewUsage}
+          >
+            {viewUsageLabel}
+          </Button>
+        ) : null}
+        {showAddCredits ? (
+          <Button
+            type="button"
+            variant="op-ghost"
+            className="h-auto min-h-0 px-0 py-0 text-xs font-medium text-op-text-primary hover:bg-transparent hover:text-op-text-primary"
+            onClick={onAddCredits}
+          >
+            {addCreditsLabel}
+          </Button>
+        ) : null}
       </div>
     </div>
   )

@@ -76,6 +76,10 @@ function DashboardContent({ mode }: DashboardProps) {
       id: location.id,
       name: location.locationName,
     })),
+    billingCreditsAccess: workspace.snapshot.billingCreditsAccess,
+    navigateBillingHref: (href) => {
+      navigate(href)
+    },
     navigateAction: ({
       action,
       analysisScope,
@@ -395,6 +399,7 @@ function DashboardContent({ mode }: DashboardProps) {
         onDismissFromEscape: aiAssistant.dismissFromEscape,
         onViewUsage: aiAssistant.viewUsage,
         onAddCredits: aiAssistant.addCredits,
+        onFollowRestorationHelper: aiAssistant.followRestorationHelper,
       }
         : undefined
       }

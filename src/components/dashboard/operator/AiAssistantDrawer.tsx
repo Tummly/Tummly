@@ -103,6 +103,7 @@ type AiAssistantDrawerProps = {
   onDismissFromEscape: () => void
   onViewUsage: () => void
   onAddCredits: () => void
+  onFollowRestorationHelper: () => void
 }
 
 const HEADER_TEXT_ACTION_CLASS =
@@ -351,6 +352,7 @@ export function AiAssistantDrawer({
   onDismissFromEscape,
   onViewUsage,
   onAddCredits,
+  onFollowRestorationHelper,
 }: AiAssistantDrawerProps) {
   const [viewportAtLeastLg, setViewportAtLeastLg] = useState(readViewportAtLeastLg)
   const paintExpanded = paintsAssistantExpand({
@@ -674,6 +676,8 @@ export function AiAssistantDrawer({
                     remainingLine={snapshot.creditsRemainingLine}
                     viewUsageLabel={snapshot.viewUsageLabel}
                     addCreditsLabel={snapshot.addCreditsLabel}
+                    showViewUsage={snapshot.showViewUsage}
+                    showAddCredits={snapshot.showAddCredits}
                     onViewUsage={onViewUsage}
                     onAddCredits={onAddCredits}
                   />
@@ -735,20 +739,32 @@ export function AiAssistantDrawer({
                       onCancel={onCancelMic}
                     />
                     {snapshot.micChrome === "tick_cancel" ? null : (
-                      <Button
-                        type="button"
-                        variant="op-ghost"
-                        size="icon"
-                        disabled={!canSend}
-                        aria-label="Send"
-                        onClick={onSend}
-                        className={ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS}
-                      >
-                        <ArrowUpIcon
-                          className={ASSISTANT_COMPOSER_SEND_ICON_CLASS}
-                          aria-hidden
-                        />
-                      </Button>
+                      <div className="flex items-center gap-3">
+                        {snapshot.restorationHelper != null ? (
+                          <Button
+                            type="button"
+                            variant="op-ghost"
+                            className="h-auto min-h-0 px-0 py-0 text-xs font-medium text-op-text-primary hover:bg-transparent hover:text-op-text-primary"
+                            onClick={onFollowRestorationHelper}
+                          >
+                            {snapshot.restorationHelper.label}
+                          </Button>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="op-ghost"
+                          size="icon"
+                          disabled={!canSend}
+                          aria-label="Send"
+                          onClick={onSend}
+                          className={ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS}
+                        >
+                          <ArrowUpIcon
+                            className={ASSISTANT_COMPOSER_SEND_ICON_CLASS}
+                            aria-hidden
+                          />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>

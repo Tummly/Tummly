@@ -2,33 +2,157 @@ import { describe, expect, it } from "vitest"
 
 import {
   ASSISTANT_ADD_CREDITS_LABEL,
+  ASSISTANT_CHOOSE_PLAN_LABEL,
   ASSISTANT_COMPOSER_CIRCLE_CLASS,
   ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS,
   ASSISTANT_COMPOSER_SEND_ICON_CLASS,
   ASSISTANT_CREDITS_STUB_ALLOWANCE,
   ASSISTANT_CREDITS_STUB_REMAINING,
   ASSISTANT_CREDITS_STUB_REMAINING_LINE,
+  ASSISTANT_UPDATE_PAYMENT_LABEL,
   ASSISTANT_VIEW_USAGE_LABEL,
   assistantComposerBorderClass,
   assistantComposerFieldClass,
   assistantComposerMicActive,
   assistantComposerShellClass,
   assistantComposerTextareaClass,
+  assistantCreditsAddCreditsHref,
+  assistantCreditsDepleted,
   assistantCreditsRemainingLine,
+  assistantCreditsRestorationHelper,
+  assistantCreditsShowAddCredits,
+  assistantCreditsShowViewUsage,
+  assistantCreditsViewUsageHref,
+  isAssistantAccountLocked,
+  resolveAssistantAccountLockCause,
 } from "./assistantCreditsPresentation"
 
 describe("assistantCreditsPresentation", () => {
-  it("formats the Figma remaining line from stub remaining and allowance", () => {
+  it("formats the remaining line as monthly AI credits", () => {
     expect(ASSISTANT_CREDITS_STUB_REMAINING).toBe(20)
     expect(ASSISTANT_CREDITS_STUB_ALLOWANCE).toBe(20)
     expect(assistantCreditsRemainingLine(20, 20)).toBe(
-      "20 of 20 monthly AI actions remaining"
+      "20 of 20 monthly AI credits remaining"
+    )
+    expect(assistantCreditsRemainingLine(0, 20)).toBe(
+      "0 of 20 monthly AI credits remaining"
     )
     expect(ASSISTANT_CREDITS_STUB_REMAINING_LINE).toBe(
-      "20 of 20 monthly AI actions remaining"
+      "20 of 20 monthly AI credits remaining"
     )
     expect(ASSISTANT_VIEW_USAGE_LABEL).toBe("View usage")
     expect(ASSISTANT_ADD_CREDITS_LABEL).toBe("Add credits")
+  })
+
+  it("treats remaining at or below 0 as depleted", () => {
+    expect(assistantCreditsDepleted(1)).toBe(false)
+    expect(assistantCreditsDepleted(0)).toBe(true)
+    expect(assistantCreditsDepleted(-1)).toBe(true)
+  })
+
+  it("shows View usage for View and Manage; Add credits only for Manage writers", () => {
+    expect(assistantCreditsShowViewUsage("view")).toBe(true)
+    expect(assistantCreditsShowViewUsage("manage")).toBe(true)
+    expect(assistantCreditsShowViewUsage("none")).toBe(false)
+
+    expect(
+      assistantCreditsShowAddCredits({
+        accessLevel: "view",
+        permissionRole: "Admin",
+      })
+    ).toBe(false)
+    expect(
+      assistantCreditsShowAddCredits({
+        accessLevel: "manage",
+        permissionRole: "Owner",
+      })
+    ).toBe(true)
+    expect(
+      assistantCreditsShowAddCredits({
+        accessLevel: "manage",
+        permissionRole: "Billing Admin",
+      })
+    ).toBe(true)
+    expect(
+      assistantCreditsShowAddCredits({
+        accessLevel: "manage",
+        permissionRole: "Admin",
+      })
+    ).toBe(true)
+  })
+
+  it("builds View usage and Add credits landing hrefs", () => {
+    expect(assistantCreditsViewUsageHref("multi", 7)).toBe(
+      "/multi-dashboard/settings/billing-credits?location=7&tab=credits-usage"
+    )
+    expect(assistantCreditsAddCreditsHref("single", 42)).toBe(
+      "/single-dashboard/settings/billing-credits/manage-plan?location=42&section=credit-top-ups&channel=ai"
+    )
+  })
+
+  it("resolves Soft lock and Dormant causes and restoration helpers", () => {
+    expect(isAssistantAccountLocked("Active")).toBe(false)
+    expect(isAssistantAccountLocked("Soft lock")).toBe(true)
+    expect(isAssistantAccountLocked("Dormant")).toBe(true)
+
+    expect(
+      resolveAssistantAccountLockCause({
+        billingStatus: "Soft lock",
+        isPilot: true,
+      })
+    ).toBe("unpaid-pilot")
+    expect(
+      resolveAssistantAccountLockCause({
+        billingStatus: "Dormant",
+        isPilot: false,
+      })
+    ).toBe("dunning")
+
+    expect(
+      assistantCreditsRestorationHelper({
+        lockCause: "unpaid-pilot",
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        mode: "multi",
+        locationId: 7,
+      })
+    ).toEqual({
+      label: ASSISTANT_CHOOSE_PLAN_LABEL,
+      href: "/multi-dashboard/settings/billing-credits/manage-plan?location=7",
+    })
+
+    expect(
+      assistantCreditsRestorationHelper({
+        lockCause: "unpaid-pilot",
+        accessLevel: "manage",
+        permissionRole: "Billing Admin",
+        mode: "multi",
+        locationId: 7,
+      })
+    ).toBeNull()
+
+    expect(
+      assistantCreditsRestorationHelper({
+        lockCause: "dunning",
+        accessLevel: "manage",
+        permissionRole: "Billing Admin",
+        mode: "single",
+        locationId: 42,
+      })
+    ).toEqual({
+      label: ASSISTANT_UPDATE_PAYMENT_LABEL,
+      href: "/single-dashboard/settings/billing-credits?location=42&tab=payment-invoices",
+    })
+
+    expect(
+      assistantCreditsRestorationHelper({
+        lockCause: "dunning",
+        accessLevel: "view",
+        permissionRole: "Admin",
+        mode: "single",
+        locationId: 42,
+      })
+    ).toBeNull()
   })
 
   it("lifts the composer field fill while the mic is recording or transcribing", () => {

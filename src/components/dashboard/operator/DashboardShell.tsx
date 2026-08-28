@@ -103,6 +103,7 @@ type DashboardShellProps = {
     onDismissFromEscape: () => void
     onViewUsage: () => void
     onAddCredits: () => void
+    onFollowRestorationHelper: () => void
   }
   children?: ReactNode
 }
@@ -251,6 +252,7 @@ export function DashboardShell({
           onDismissFromEscape={aiAssistant.onDismissFromEscape}
           onViewUsage={aiAssistant.onViewUsage}
           onAddCredits={aiAssistant.onAddCredits}
+          onFollowRestorationHelper={aiAssistant.onFollowRestorationHelper}
         />
       ) : null}
       <div className="flex min-h-0 flex-1">
