@@ -277,6 +277,7 @@ function DashboardContent({ mode }: DashboardProps) {
     operatorDisplayName: workspace.snapshot.operatorDisplayName,
     activationExpiresAt: workspace.snapshot.activationExpiresAt,
     subscriptionPlan: workspace.snapshot.subscriptionPlan,
+    billingStatus: workspace.snapshot.billingStatus,
     selfRole: workspace.snapshot.selfRole,
     permissionRole: workspace.snapshot.permissionRole,
     billingCreditsAccess: workspace.snapshot.billingCreditsAccess,

@@ -510,12 +510,14 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .FirstAsync(u => u.Id == restaurant.OwnerUserId);
 
-            var isPilot = await BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
-                _context,
-                restaurant.Id,
-                owner
+            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
+                restaurant.Name,
+                owner.ActivationExpiresAt
             );
-            var planSnapshot = BillingPlanSnapshotHelper.ResolveSnapshot(isPilot);
+            var planSnapshot = (
+                SubscriptionPlan: lifecycle.SubscriptionPlan,
+                BillingStatus: lifecycle.BillingStatus
+            );
 
             var activeMembers = await _context.RestaurantMemberships
                 .AsNoTracking()

@@ -52,6 +52,10 @@ import {
   type CreditTopUpCardViewModel,
   type CreditTopUpConfirmViewModel,
 } from "@/lib/operatorBillingCredits/creditTopUpPresentation"
+import {
+  isAccountLockedBillingStatus,
+  resolveLockRestorationCause,
+} from "@/lib/operatorHome/lockAlertPresentation"
 
 export type TeamMemberPickerItem = {
   userId: number
@@ -238,9 +242,13 @@ export type BillingCreditsSnapshot = {
   actorCanPersistBillingContacts: boolean
   showManagePlan: boolean
   showBuyCredits: boolean
+  /** Soft lock / Dormant: Buy credits stays visible and disabled. */
+  buyCreditsDisabled: boolean
   showChangePlan: boolean
   managePlanSection: ManagePlanSection
   planSubscription: PlanSubscriptionSnapshot | null
+  /** Soft lock / Dormant paid-write lock mode for Manage plan CTAs. */
+  managePlanLockMode: "none" | "pilot-restore" | "dunning"
   creditsUsage: CreditsUsageSnapshot | null
   channelCards: CreditChannelCardViewModel[]
   usageTableRows: CreditsUsageTableRowViewModel[]
@@ -275,6 +283,8 @@ export type BillingCreditsSnapshot = {
   topUpConfirm: CreditTopUpConfirmViewModel | null
   focusedTopUpChannel: CreditChannelId | null
   showOwnerManagePlanWrites: boolean
+  /** Soft lock / Dormant: Owner Manage plan writes stay visible but disabled. */
+  ownerManagePlanWritesEnabled: boolean
   additionalGroupLocation: AdditionalGroupLocationViewModel | null
   showCancelPlan: boolean
   extraLocationConfirm: ManagePlanActionConfirmDialog | null
@@ -505,15 +515,35 @@ export function createOperatorBillingCreditsPageModule(
       return []
     }
 
+    const locked = isAccountLockedBillingStatus(
+      data.planSubscription.billingStatus
+    )
+
     return buildCreditTopUpCards({
       channels: creditsUsage.channels,
       subscriptionPlan: data.planSubscription.subscriptionPlan,
       allowSms5000TopUp: data.planSubscription.allowSms5000TopUp,
       isPilot: creditsUsage.isPilot,
-      canBuy: canBuyCreditTopUp(),
+      canBuy: canBuyCreditTopUp() && !locked,
       selectedPackByChannel,
       focusedChannel: focusedTopUpChannel,
     })
+  }
+
+  const resolveManagePlanLockMode = ():
+    | "none"
+    | "pilot-restore"
+    | "dunning" => {
+    const plan = data?.planSubscription
+    if (plan == null || !isAccountLockedBillingStatus(plan.billingStatus)) {
+      return "none"
+    }
+    const cause = resolveLockRestorationCause({
+      billingStatus: plan.billingStatus,
+      subscriptionPlan: plan.subscriptionPlan,
+      isPilot: plan.isPilot,
+    })
+    return cause === "pilot" ? "pilot-restore" : "dunning"
   }
 
   const showOwnerManagePlanWrites = (): boolean =>
@@ -617,11 +647,18 @@ export function createOperatorBillingCreditsPageModule(
     const paymentMethod = data?.paymentMethod ?? null
     const invoices = data?.invoices ?? []
     const plan = data?.planSubscription ?? null
+    const managePlanLockMode = resolveManagePlanLockMode()
+    const buyCreditsDisabled =
+      plan != null && isAccountLockedBillingStatus(plan.billingStatus)
     const showPlanCards =
       actions.showManagePlan && managePlanSection == null
     const managePlanCards =
       plan != null && showPlanCards
-        ? buildManagePlanCardViewModels({ plan, previewCadence })
+        ? buildManagePlanCardViewModels({
+            plan,
+            previewCadence,
+            lockMode: managePlanLockMode,
+          })
         : []
     const additionalGroupLocation =
       plan != null && showOwnerManagePlanWrites()
@@ -649,9 +686,11 @@ export function createOperatorBillingCreditsPageModule(
         data?.actorCanPersistBillingContacts ?? false,
       showManagePlan: actions.showManagePlan,
       showBuyCredits: actions.showBuyCredits,
+      buyCreditsDisabled,
       showChangePlan: actions.showChangePlan,
       managePlanSection,
       planSubscription: plan,
+      managePlanLockMode,
       creditsUsage,
       channelCards: projectChannelCards(),
       usageTableRows: projectUsageTableRows(),
@@ -693,6 +732,7 @@ export function createOperatorBillingCreditsPageModule(
       topUpConfirm,
       focusedTopUpChannel,
       showOwnerManagePlanWrites: showOwnerManagePlanWrites(),
+      ownerManagePlanWritesEnabled: managePlanLockMode === "none",
       additionalGroupLocation,
       showCancelPlan,
       extraLocationConfirm,

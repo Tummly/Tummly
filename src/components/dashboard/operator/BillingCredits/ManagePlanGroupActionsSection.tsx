@@ -26,11 +26,13 @@ function CountRow({ label, value }: { label: string; value: string }) {
 export function ManagePlanAdditionalGroupLocationSection({
   viewModel,
   showActions,
+  actionsEnabled = true,
   pageModule,
   extraLocationConfirm,
 }: {
   viewModel: AdditionalGroupLocationViewModel
   showActions: boolean
+  actionsEnabled?: boolean
   pageModule: ReturnType<typeof useBillingCreditsPageModuleApi>
   extraLocationConfirm: ReturnType<
     ReturnType<typeof useBillingCreditsPageModuleApi>["getSnapshot"]
@@ -67,7 +69,7 @@ export function ManagePlanAdditionalGroupLocationSection({
               type="button"
               variant="op-primary"
               className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-              disabled={!viewModel.canAdd}
+              disabled={!actionsEnabled || !viewModel.canAdd}
               onClick={() => {
                 pageModule.requestAddExtraLocation()
               }}
@@ -78,7 +80,7 @@ export function ManagePlanAdditionalGroupLocationSection({
               type="button"
               variant="op-secondary"
               className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-              disabled={!viewModel.canRemove}
+              disabled={!actionsEnabled || !viewModel.canRemove}
               onClick={() => {
                 pageModule.requestRemoveExtraLocation()
               }}
@@ -115,10 +117,12 @@ export function ManagePlanAdditionalGroupLocationSection({
 
 export function ManagePlanCancelPlanControl({
   showCancelPlan,
+  cancelEnabled = true,
   pageModule,
   cancelPlanConfirm,
 }: {
   showCancelPlan: boolean
+  cancelEnabled?: boolean
   pageModule: ReturnType<typeof useBillingCreditsPageModuleApi>
   cancelPlanConfirm: ReturnType<
     ReturnType<typeof useBillingCreditsPageModuleApi>["getSnapshot"]
@@ -134,6 +138,7 @@ export function ManagePlanCancelPlanControl({
         <Button
           type="button"
           variant="op-link"
+          disabled={!cancelEnabled}
           onClick={() => {
             pageModule.requestCancelPlan()
           }}

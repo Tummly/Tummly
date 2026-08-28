@@ -186,9 +186,17 @@ export function resolvePlanCardCta(options: {
   isPilot: boolean
   liveCadence: BillingCadence | null
   previewCadence: BillingCadence
+  /** Soft lock / Dormant: pilot-restore keeps convert; dunning disables plan writes. */
+  lockMode?: "none" | "pilot-restore" | "dunning"
 }): PlanCardCta {
-  const { cardPlanId, currentPlanId, isPilot, liveCadence, previewCadence } =
-    options
+  const {
+    cardPlanId,
+    currentPlanId,
+    isPilot,
+    liveCadence,
+    previewCadence,
+    lockMode = "none",
+  } = options
 
   if (cardPlanId === "Pilot" && !isPilot) {
     return {
@@ -204,6 +212,16 @@ export function resolvePlanCardCta(options: {
       && liveCadence != null
       && previewCadence !== liveCadence
     ) {
+      if (lockMode !== "none") {
+        return {
+          kind: "disabled",
+          label:
+            previewCadence === "annual"
+              ? MANAGE_PLAN_COPY.switchToAnnual
+              : MANAGE_PLAN_COPY.switchToMonthly,
+          disabled: true,
+        }
+      }
       return {
         kind: "action",
         label:
@@ -230,11 +248,32 @@ export function resolvePlanCardCta(options: {
   })
 
   if (changeKind === "convert") {
+    if (lockMode === "dunning") {
+      return {
+        kind: "disabled",
+        label: MANAGE_PLAN_COPY.choosePlan(cardPlanId),
+        disabled: true,
+      }
+    }
     return {
       kind: "action",
       label: MANAGE_PLAN_COPY.choosePlan(cardPlanId),
       disabled: false,
       changeKind,
+    }
+  }
+
+  if (lockMode !== "none") {
+    const isUpgrade =
+      changeKind === "upgrade"
+      || changeKind === "plan-and-cadence"
+        && PLAN_RANK[cardPlanId] > PLAN_RANK[currentPlanId]
+    return {
+      kind: "disabled",
+      label: isUpgrade
+        ? MANAGE_PLAN_COPY.upgradeTo(cardPlanId)
+        : MANAGE_PLAN_COPY.downgradeTo(cardPlanId),
+      disabled: true,
     }
   }
 
@@ -277,6 +316,7 @@ function formatPriceHeadline(
 export function buildManagePlanCardViewModels(options: {
   plan: PlanSubscriptionSnapshot
   previewCadence: BillingCadence
+  lockMode?: "none" | "pilot-restore" | "dunning"
 }): ManagePlanCardViewModel[] {
   const currentPlanId = normalizePlanId(options.plan.subscriptionPlan)
   const liveCadence = liveCadenceFromSnapshot(options.plan)
@@ -302,6 +342,7 @@ export function buildManagePlanCardViewModels(options: {
         isPilot: options.plan.isPilot,
         liveCadence,
         previewCadence: options.previewCadence,
+        lockMode: options.lockMode ?? "none",
       }),
     }
   })

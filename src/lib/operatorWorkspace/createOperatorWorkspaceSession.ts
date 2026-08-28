@@ -17,6 +17,7 @@ export type OperatorWorkspaceSnapshot = {
   teamPermissionsAccess: TeamPermissionsAccess
   billingCreditsAccess: BillingCreditsAccess
   subscriptionPlan: string
+  billingStatus: string
   permissionRole: string
   aiAssistantAccess: boolean
   locationSwitcherInteractive: boolean
@@ -60,6 +61,7 @@ type WorkspaceAction =
       teamPermissionsAccess: TeamPermissionsAccess
       billingCreditsAccess: BillingCreditsAccess
       subscriptionPlan: string
+      billingStatus: string
       permissionRole: string
       aiAssistantAccess: boolean
       queryLocationId: number | null
@@ -104,6 +106,7 @@ function reduce(
         teamPermissionsAccess: action.teamPermissionsAccess,
         billingCreditsAccess: action.billingCreditsAccess,
         subscriptionPlan: action.subscriptionPlan,
+        billingStatus: action.billingStatus,
         permissionRole: action.permissionRole,
         aiAssistantAccess: action.aiAssistantAccess,
         lastQueryLocationId: action.queryLocationId,
@@ -142,6 +145,7 @@ export function createOperatorWorkspaceSession(
     teamPermissionsAccess: "none",
     billingCreditsAccess: "none",
     subscriptionPlan: "Pilot",
+    billingStatus: "Pilot",
     permissionRole: "",
     aiAssistantAccess: true,
     locationSwitcherInteractive: config.mode === "multi",
@@ -161,6 +165,7 @@ export function createOperatorWorkspaceSession(
     teamPermissionsAccess: state.teamPermissionsAccess,
     billingCreditsAccess: state.billingCreditsAccess,
     subscriptionPlan: state.subscriptionPlan,
+    billingStatus: state.billingStatus,
     permissionRole: state.permissionRole,
     aiAssistantAccess: state.aiAssistantAccess,
     locationSwitcherInteractive: state.locationSwitcherInteractive,
@@ -188,6 +193,7 @@ export function createOperatorWorkspaceSession(
       teamPermissionsAccess: state.teamPermissionsAccess,
       billingCreditsAccess: state.billingCreditsAccess,
       subscriptionPlan: state.subscriptionPlan,
+      billingStatus: state.billingStatus,
       permissionRole: state.permissionRole,
       aiAssistantAccess: state.aiAssistantAccess,
       locationSwitcherInteractive: state.locationSwitcherInteractive,
@@ -250,6 +256,7 @@ export function createOperatorWorkspaceSession(
           ?? profile?.billingCreditsAccess
           ?? "manage",
         subscriptionPlan: locationsResult.subscriptionPlan ?? "Pilot",
+        billingStatus: locationsResult.billingStatus ?? "Pilot",
         permissionRole: locationsResult.permissionRole?.trim() ?? "",
         aiAssistantAccess: locationsResult.aiAssistantAccess !== false,
         queryLocationId,

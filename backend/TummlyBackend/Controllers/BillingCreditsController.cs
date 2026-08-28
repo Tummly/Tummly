@@ -226,7 +226,9 @@ namespace TummlyBackend.Controllers
                     message = "Pilot is not a valid plan-change target.",
                 });
             }
-            catch (InvalidOperationException ex) when (ex.Message == "forbidden")
+            catch (InvalidOperationException ex) when (
+                ex.Message is "forbidden" or "soft_lock" or "dormant"
+            )
             {
                 return Forbid();
             }
@@ -439,7 +441,9 @@ namespace TummlyBackend.Controllers
 
                 return Ok(result);
             }
-            catch (InvalidOperationException ex) when (ex.Message == "forbidden")
+            catch (InvalidOperationException ex) when (
+                ex.Message is "forbidden" or "soft_lock" or "dormant"
+            )
             {
                 return Forbid();
             }
@@ -499,7 +503,9 @@ namespace TummlyBackend.Controllers
 
                 return Ok(result);
             }
-            catch (InvalidOperationException ex) when (ex.Message == "forbidden")
+            catch (InvalidOperationException ex) when (
+                ex.Message is "forbidden" or "soft_lock" or "dormant"
+            )
             {
                 return Forbid();
             }
@@ -559,7 +565,9 @@ namespace TummlyBackend.Controllers
 
                 return Ok(result);
             }
-            catch (InvalidOperationException ex) when (ex.Message == "forbidden")
+            catch (InvalidOperationException ex) when (
+                ex.Message is "forbidden" or "soft_lock" or "dormant"
+            )
             {
                 return Forbid();
             }

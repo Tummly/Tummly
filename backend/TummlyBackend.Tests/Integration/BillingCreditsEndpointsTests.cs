@@ -851,7 +851,9 @@ namespace TummlyBackend.Tests.Integration
 
         private async Task<Seeded> SeedWorkspaceAsync(
             bool includeBillingAdmin = false,
-            bool scheduleTestRestaurant = false
+            bool scheduleTestRestaurant = false,
+            DateTime? activationExpiresAt = null,
+            string? restaurantName = null
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -861,13 +863,18 @@ namespace TummlyBackend.Tests.Integration
                 .GetRequiredService<IJwtService>();
 
             var owner = AddUser(context, "Owner Fifteen", "Owner");
+            if (activationExpiresAt != null)
+            {
+                owner.ActivationExpiresAt = activationExpiresAt;
+            }
             await context.SaveChangesAsync();
 
             var restaurant = new Restaurant
             {
-                Name = scheduleTestRestaurant
-                    ? "Billing Venue Schedule Test"
-                    : "Billing Venue",
+                Name = restaurantName
+                    ?? (scheduleTestRestaurant
+                        ? "Billing Venue Schedule Test"
+                        : "Billing Venue"),
                 AccountType = "Multi",
                 OwnerUserId = owner.Id,
                 BillingContactUserId = owner.Id,
@@ -1151,6 +1158,109 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(5000, body.GetProperty("quantity").GetInt32());
             Assert.Equal("£450", body.GetProperty("netLabel").GetString());
             Assert.Equal("£540", body.GetProperty("grossLabel").GetString());
+        }
+
+        [Fact]
+        public async Task Get_Returns200_SoftLock_ForAdminView()
+        {
+            var seeded = await SeedSoftLockPilotWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("actorCanManage").GetBoolean());
+            var plan = body.GetProperty("planSubscription");
+            Assert.Equal("Pilot", plan.GetProperty("subscriptionPlan").GetString());
+            Assert.Equal("Soft lock", plan.GetProperty("billingStatus").GetString());
+            Assert.True(plan.GetProperty("isPilot").GetBoolean());
+        }
+
+        [Fact]
+        public async Task Get_Returns200_Dormant_ForOwnerManage()
+        {
+            var seeded = await SeedDormantPilotWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var plan = (await ReadJsonAsync(response)).GetProperty("planSubscription");
+            Assert.Equal("Dormant", plan.GetProperty("billingStatus").GetString());
+            Assert.True(plan.GetProperty("isPilot").GetBoolean());
+        }
+
+        [Fact]
+        public async Task PostTopUpConfirm_Returns403_SoftLockPaid()
+        {
+            var seeded = await SeedNamedPaidWorkspaceAsync("Soft lock Paid Growth Venue");
+            using var request = AuthorizedTopUpConfirm(
+                seeded.OwnerJwt,
+                new { channel = "sms", quantity = 100 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("soft_lock", body.GetProperty("message").GetString());
+        }
+
+        [Fact]
+        public async Task PostPlanChange_Returns403_SoftLockPaid_NonRestoration()
+        {
+            var seeded = await SeedNamedPaidWorkspaceAsync("Soft lock Paid Growth Venue");
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change"
+            );
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                seeded.OwnerJwt
+            );
+            request.Content = JsonContent.Create(
+                new { targetPlan = "Group", targetCadence = "monthly" }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostPlanChange_AllowsUnpaidPilotRestoration_DuringSoftLock()
+        {
+            var seeded = await SeedSoftLockPilotWorkspaceAsync();
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change"
+            );
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                seeded.OwnerJwt
+            );
+            request.Content = JsonContent.Create(
+                new { targetPlan = "Starter", targetCadence = "monthly" }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("pay", body.GetProperty("outcome").GetString());
+        }
+
+        private Task<Seeded> SeedSoftLockPilotWorkspaceAsync()
+        {
+            return SeedWorkspaceAsync(restaurantName: "Soft lock Billing Venue");
+        }
+
+        private Task<Seeded> SeedDormantPilotWorkspaceAsync()
+        {
+            return SeedWorkspaceAsync(restaurantName: "Dormant Billing Venue");
         }
 
         [Fact]

@@ -135,13 +135,12 @@ namespace TummlyBackend.Controllers
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
 
-            var isPilot = await BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
-                _context,
-                restaurant.Id,
-                owner
+            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
+                restaurant.Name,
+                owner?.ActivationExpiresAt
             );
-            var subscriptionPlan =
-                BillingPlanSnapshotHelper.ResolveSnapshot(isPilot).SubscriptionPlan;
+            var subscriptionPlan = lifecycle.SubscriptionPlan;
+            var billingStatus = lifecycle.BillingStatus;
 
             return Ok(new
             {
@@ -149,6 +148,7 @@ namespace TummlyBackend.Controllers
                 restaurantName = restaurant.Name,
                 brandLogoPublicUrl,
                 subscriptionPlan,
+                billingStatus,
                 permissionRole,
                 aiAssistantAccess =
                     assistant.Status == RestaurantPermissionStatus.Allowed,

@@ -202,6 +202,58 @@ describe("buildOperatorShellPresentation", () => {
     );
   });
 
+  it("shows Lock Alert on Home and Billing & credits for Soft lock Pilot Owner", () => {
+    const home = buildOperatorShellPresentation(
+      makeShellInput({
+        billingStatus: "Soft lock",
+        subscriptionPlan: "Pilot",
+        permissionRole: "Owner",
+        billingCreditsAccess: "manage",
+        activeNavId: "home",
+        navTargets: { mode: "multi", locationId: 10 },
+      }),
+      now,
+    );
+    expect(home.lockAlert).toEqual({
+      title: "Soft lock",
+      body: "Your Pilot period has ended. Paid actions are paused. Existing Feedback links stay live.",
+      buttonLabel: "Choose a plan",
+      buttonHref:
+        "/multi-dashboard/settings/billing-credits/manage-plan?location=10",
+    });
+
+    const billing = buildOperatorShellPresentation(
+      makeShellInput({
+        billingStatus: "Soft lock",
+        subscriptionPlan: "Pilot",
+        permissionRole: "Owner",
+        billingCreditsAccess: "manage",
+        activeNavId: "billing-credits",
+        navTargets: { mode: "multi", locationId: 10 },
+      }),
+      now,
+    );
+    expect(billing.lockAlert?.title).toBe("Soft lock");
+    expect(billing.lockAlert?.buttonLabel).toBe("Choose a plan");
+  });
+
+  it("shows Lock Alert without Button for View", () => {
+    const presentation = buildOperatorShellPresentation(
+      makeShellInput({
+        billingStatus: "Dormant",
+        subscriptionPlan: "Pilot",
+        permissionRole: "Admin",
+        billingCreditsAccess: "view",
+        navTargets: { mode: "multi", locationId: 10 },
+      }),
+      now,
+    );
+
+    expect(presentation.lockAlert?.title).toBe("Dormant");
+    expect(presentation.lockAlert?.buttonLabel).toBeNull();
+    expect(presentation.lockAlert?.buttonHref).toBeNull();
+  });
+
   it("presents a non-interactive location switcher for single-location operators", () => {
     const presentation = buildOperatorShellPresentation(
       makeShellInput({

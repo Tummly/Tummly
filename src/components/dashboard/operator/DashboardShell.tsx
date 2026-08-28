@@ -1,10 +1,13 @@
 import { useState, type ReactNode } from "react"
+import { Link } from "react-router-dom"
 
 import { AiAssistantDrawer } from "@/components/dashboard/operator/AiAssistantDrawer"
 import { DashboardNavbar } from "@/components/dashboard/operator/DashboardNavbar"
 import { DashboardSidebar } from "@/components/dashboard/operator/DashboardSidebar"
 import { MobileNavSheetHeader } from "@/components/dashboard/operator/MobileNavSheetHeader"
 import { NotificationsDrawer } from "@/components/dashboard/operator/NotificationsDrawer"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import {
   Sheet,
   SheetContent,
@@ -333,9 +336,27 @@ export function DashboardShell({
               className={cn(
                 OPERATOR_SHELL_GUTTER_X,
                 OPERATOR_SHELL_GUTTER_Y,
-                "box-border flex min-h-full flex-col"
+                "box-border flex min-h-full flex-col gap-4"
               )}
             >
+              {presentation.lockAlert != null ? (
+                <Alert className="shrink-0">
+                  <AlertTitle>{presentation.lockAlert.title}</AlertTitle>
+                  <AlertDescription>
+                    <p>{presentation.lockAlert.body}</p>
+                  </AlertDescription>
+                  {presentation.lockAlert.buttonLabel != null
+                    && presentation.lockAlert.buttonHref != null ? (
+                    <div data-slot="alert-action" className="absolute top-2 right-2">
+                      <Button asChild variant="op-primary" className="h-8 px-3 text-sm">
+                        <Link to={presentation.lockAlert.buttonHref}>
+                          {presentation.lockAlert.buttonLabel}
+                        </Link>
+                      </Button>
+                    </div>
+                  ) : null}
+                </Alert>
+              ) : null}
               {children}
             </div>
           </div>

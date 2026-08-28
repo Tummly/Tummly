@@ -110,6 +110,7 @@ export function ManagePlanCardsSection({
           variant="outline"
           spacing={0}
           value={snap.previewCadence}
+          disabled={snap.managePlanLockMode !== "none"}
           onValueChange={(value) => {
             if (value === "monthly" || value === "annual") {
               pageModule.setPreviewCadence(value)

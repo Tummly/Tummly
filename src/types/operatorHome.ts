@@ -153,6 +153,13 @@ export interface OperatorHomeViewModel {
 export interface OperatorShellPresentation {
   /** Activation period badge; null hides the badge. Home hero renders it. */
   activationPeriodBadge: ActivationPeriodBadgePresentation | null;
+  /** Soft lock / Dormant Lock Alert; null hides. Shell renders in content column. */
+  lockAlert: {
+    title: "Soft lock" | "Dormant";
+    body: string;
+    buttonLabel: string | null;
+    buttonHref: string | null;
+  } | null;
   profileDisplayName: string;
   profileFirstName: string;
   profileInitials: string;

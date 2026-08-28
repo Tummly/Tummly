@@ -994,6 +994,7 @@ function BillingCreditsHeaderActions({
           type="button"
           variant="op-secondary"
           className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+          disabled={snap.buyCreditsDisabled}
           onClick={() => {
             pageModule.openBuyCredits()
           }}
@@ -1274,6 +1275,7 @@ export function ManagePlanPage() {
             <ManagePlanCardsSection snap={snap} pageModule={pageModule} />
             <ManagePlanCancelPlanControl
               showCancelPlan={snap.showCancelPlan}
+              cancelEnabled={snap.ownerManagePlanWritesEnabled}
               pageModule={pageModule}
               cancelPlanConfirm={snap.cancelPlanConfirm}
             />
@@ -1282,6 +1284,7 @@ export function ManagePlanPage() {
             <ManagePlanAdditionalGroupLocationSection
               viewModel={snap.additionalGroupLocation}
               showActions={snap.showOwnerManagePlanWrites}
+              actionsEnabled={snap.ownerManagePlanWritesEnabled}
               pageModule={pageModule}
               extraLocationConfirm={snap.extraLocationConfirm}
             />

@@ -50,12 +50,11 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .CountAsync(row => row.RestaurantId == restaurantId);
 
-            var isPilot = await BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
-                _context,
-                restaurantId,
-                owner
+            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
+                restaurant.Name,
+                owner?.ActivationExpiresAt
             );
-            var planSnapshot = BillingPlanSnapshotHelper.ResolveSnapshot(isPilot);
+            var isPilot = lifecycle.IsPilot;
             var billingAccount = await LoadOrCreateBillingAccountAsync(restaurantId);
             var eligibleMembers = await LoadEligibleMembersAsync(restaurantId);
             var pilotEndsAt = owner?.ActivationExpiresAt;
@@ -80,8 +79,8 @@ namespace TummlyBackend.Services
                 PlanSubscription = new PlanSubscriptionSnapshotDto
                 {
                     // planContext owns paid plan name stubs (Group / Growth); shared helper owns billing status labels.
-                    SubscriptionPlan = planContext.SubscriptionPlan,
-                    BillingStatus = planSnapshot.BillingStatus,
+                    SubscriptionPlan = isPilot ? "Pilot" : planContext.SubscriptionPlan,
+                    BillingStatus = lifecycle.BillingStatus,
                     RenewalDateLabel = renewalDateLabel,
                     EmailCreditsRemaining = isPilot ? 500 : 1200,
                     SmsCreditsRemaining = isPilot ? 20 : 80,
@@ -324,15 +323,34 @@ namespace TummlyBackend.Services
                 throw new InvalidOperationException("invalid-target");
             }
 
+            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
+                restaurant.Name,
+                owner?.ActivationExpiresAt
+            );
             var simulatePaidGrowth =
                 string.Equals(
                     restaurant.Name,
                     "Billing Venue Schedule Test",
                     StringComparison.Ordinal
                 );
-            var currentPlan = simulatePaidGrowth ? "Growth" : "Pilot";
-            var isPilot = !simulatePaidGrowth;
-            string? liveCadence = simulatePaidGrowth ? "monthly" : null;
+            var currentPlan = simulatePaidGrowth
+                ? "Growth"
+                : lifecycle.IsPilot
+                    ? "Pilot"
+                    : lifecycle.SubscriptionPlan;
+            var isPilot = simulatePaidGrowth ? false : lifecycle.IsPilot;
+            string? liveCadence = simulatePaidGrowth || !isPilot ? "monthly" : null;
+
+            if (
+                BillingPlanSnapshotHelper.IsAccountLocked(lifecycle.BillingStatus)
+                && !isPilot
+            )
+            {
+                throw new InvalidOperationException(
+                    BillingPlanSnapshotHelper.LockDenyCode(lifecycle.BillingStatus)
+                        ?? "forbidden"
+                );
+            }
 
             var payNow = ResolvePlanChangeRequiresPay(
                 currentPlan,
@@ -618,6 +636,18 @@ namespace TummlyBackend.Services
                 throw new InvalidOperationException("pilot-cancel-not-allowed");
             }
 
+            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
+                restaurant.Name,
+                owner?.ActivationExpiresAt
+            );
+            if (BillingPlanSnapshotHelper.IsAccountLocked(lifecycle.BillingStatus))
+            {
+                throw new InvalidOperationException(
+                    BillingPlanSnapshotHelper.LockDenyCode(lifecycle.BillingStatus)
+                        ?? "forbidden"
+                );
+            }
+
             var planContext = ResolveStubPlanContext(
                 restaurant.Name,
                 isPilot,
@@ -686,6 +716,18 @@ namespace TummlyBackend.Services
             if (isPilot)
             {
                 throw new InvalidOperationException("not-group-plan");
+            }
+
+            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
+                restaurant.Name,
+                owner?.ActivationExpiresAt
+            );
+            if (BillingPlanSnapshotHelper.IsAccountLocked(lifecycle.BillingStatus))
+            {
+                throw new InvalidOperationException(
+                    BillingPlanSnapshotHelper.LockDenyCode(lifecycle.BillingStatus)
+                        ?? "forbidden"
+                );
             }
 
             var activeLocations = await CountActiveLocationsAsync(restaurantId);
@@ -1076,6 +1118,15 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (BillingPlanSnapshotHelper.IsAccountLocked(context.BillingStatus))
+            {
+                return (
+                    null,
+                    StatusCodes.Status403Forbidden,
+                    BillingPlanSnapshotHelper.LockDenyCode(context.BillingStatus)
+                );
+            }
+
             var pack = CreditTopUpPricebook.FindPack(request.Channel, request.Quantity);
             if (pack == null)
             {
@@ -1114,6 +1165,7 @@ namespace TummlyBackend.Services
         private sealed record CreditTopUpContext(
             bool IsPilot,
             string SubscriptionPlan,
+            string BillingStatus,
             bool AllowSms5000TopUp
         );
 
@@ -1132,16 +1184,18 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
 
-            var isPilot = await BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
-                _context,
-                restaurantId,
-                owner
+            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
+                restaurant.Name,
+                owner?.ActivationExpiresAt
             );
             var billingAccount = await LoadOrCreateBillingAccountAsync(restaurantId);
 
             return new CreditTopUpContext(
-                isPilot,
-                ResolveSubscriptionPlan(restaurant.Name, isPilot),
+                lifecycle.IsPilot,
+                lifecycle.IsPilot
+                    ? "Pilot"
+                    : ResolveSubscriptionPlan(restaurant.Name, lifecycle.IsPilot),
+                lifecycle.BillingStatus,
                 billingAccount.AllowSms5000TopUp
             );
         }
@@ -1456,6 +1510,15 @@ namespace TummlyBackend.Services
                     Qty = 200,
                 },
             ];
+        }
+
+        private Task<bool> IsPilotRestaurantAsync(int restaurantId, User? owner)
+        {
+            return BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
+                _context,
+                restaurantId,
+                owner
+            );
         }
 
     }

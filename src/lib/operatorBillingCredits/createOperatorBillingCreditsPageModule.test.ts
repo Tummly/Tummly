@@ -315,6 +315,61 @@ describe("createOperatorBillingCreditsPageModule", () => {
     )
   })
 
+  it("disables Buy credits and keeps pilot convert CTAs during Soft lock", async () => {
+    const module = createOperatorBillingCreditsPageModule({
+      getPage: async () =>
+        samplePage({
+          planSubscription: {
+            ...samplePage().planSubscription,
+            billingStatus: "Soft lock",
+          },
+        }),
+      getUsage: async () => sampleUsage({ isPilot: true }),
+      submitPlanChange: vi.fn(),
+    })
+    module.setNavigationTargets({ mode: "multi", locationId: 10 })
+    await module.load()
+    module.openManagePlan()
+
+    const snap = module.getSnapshot()
+    expect(snap.buyCreditsDisabled).toBe(true)
+    expect(snap.showBuyCredits).toBe(true)
+    expect(snap.managePlanLockMode).toBe("pilot-restore")
+    expect(
+      snap.managePlanCards.find((card) => card.id === "Starter")?.cta
+    ).toMatchObject({ kind: "action", disabled: false, changeKind: "convert" })
+  })
+
+  it("disables plan-change CTAs during Soft lock dunning", async () => {
+    const module = createOperatorBillingCreditsPageModule({
+      getPage: async () =>
+        samplePage({
+          planSubscription: {
+            ...samplePage().planSubscription,
+            subscriptionPlan: "Growth",
+            billingStatus: "Soft lock",
+            isPilot: false,
+            billingCycle: "Monthly",
+            planPriceNet: "£99",
+            renewalDateLabel: "Renews 1 Oct 2026",
+          },
+        }),
+      getUsage: async () => sampleUsage({ isPilot: false }),
+      submitPlanChange: vi.fn(),
+    })
+    await module.load()
+    module.openManagePlan()
+
+    const snap = module.getSnapshot()
+    expect(snap.managePlanLockMode).toBe("dunning")
+    expect(snap.buyCreditsDisabled).toBe(true)
+    expect(
+      snap.managePlanCards
+        .filter((card) => card.id !== "Growth")
+        .every((card) => card.cta.disabled)
+    ).toBe(true)
+  })
+
   it("clears manage-plan section when scrolling to plan cards", async () => {
     const module = createOperatorBillingCreditsPageModule(
       {

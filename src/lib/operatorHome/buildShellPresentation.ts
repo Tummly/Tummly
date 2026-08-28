@@ -8,6 +8,7 @@ import {
 import type { BillingCreditsAccessLevel } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
 import { formatSelfRoleSubtitle } from "@/lib/operatorHome/formatSelfRoleSubtitle"
+import { resolveLockAlertPresentation } from "@/lib/operatorHome/lockAlertPresentation"
 import {
   getOperatorFirstName,
   getOperatorInitials,
@@ -27,6 +28,8 @@ export type BuildOperatorShellPresentationInput = {
   operatorDisplayName: string
   activationExpiresAt: string | null
   subscriptionPlan: string
+  /** Soft lock / Dormant drives Lock Alert; omit or Active hides it. */
+  billingStatus?: string | null
   selfRole?: string | null
   /** Restaurant Permission role; gates Choose a plan with Billing & credits access. */
   permissionRole?: string | null
@@ -59,9 +62,11 @@ export function buildOperatorShellPresentation(
   const mode: OperatorDashboardMode =
     input.navTargets?.mode ?? "multi"
   const locationId = input.navTargets?.locationId ?? input.selectedLocationId
+  const accessLevel = input.billingCreditsAccess ?? "manage"
+  const permissionRole = input.permissionRole ?? ""
   const showChoosePlanCta = billingCreditsHeaderActions({
-    accessLevel: input.billingCreditsAccess ?? "manage",
-    permissionRole: input.permissionRole ?? "",
+    accessLevel,
+    permissionRole,
   }).showManagePlan
   const choosePlanHref = showChoosePlanCta
     ? operatorDashboardBillingCreditsManagePlanPath(mode, locationId)
@@ -73,6 +78,14 @@ export function buildOperatorShellPresentation(
       activationExpiresAt: input.activationExpiresAt,
       choosePlanHref,
       now,
+    }),
+    lockAlert: resolveLockAlertPresentation({
+      billingStatus: input.billingStatus ?? "",
+      subscriptionPlan: input.subscriptionPlan,
+      accessLevel,
+      permissionRole,
+      mode,
+      locationId,
     }),
     profileDisplayName: input.operatorDisplayName,
     profileFirstName: getOperatorFirstName(input.operatorDisplayName),
