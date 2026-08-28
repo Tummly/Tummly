@@ -2,6 +2,17 @@
 
 Reverse chronological record of behaviour and documentation status changes.
 
+## 2026-08-28 — Billing pack v3.0 in repo
+
+### Added
+
+- `docs/product/billing-pack-v3.0/` — copy of the approved UK pricing and billing pack (sign-off, completed questionnaire, pricebook JSON, audit, workbook, handoff, manifest)
+
+### Updated
+
+- `docs/product/channel-credits-questionnaire.md` — points at the completed pack; empty answer boxes removed
+- `docs/product/README.md` — index rows for the pack and the questionnaire status
+
 ## 2026-08-06 — Channel credits / cost analysis (pre-Campaigns)
 
 ### Added

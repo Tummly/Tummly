@@ -35,7 +35,8 @@ Each feature block includes: user flow, states, backend actions, edge cases, scr
 | [analytics.md](./analytics.md) | Shipped page views + Target event map | 2 |
 | [security-and-rbac.md](./security-and-rbac.md) | Roles, isolation, sessions, audit gaps | 2 |
 | [support-playbooks.md](./support-playbooks.md) | Support topic index (SOPs TBD) | 2 |
-| [channel-credits-questionnaire.md](./channel-credits-questionnaire.md) | Product questions: plans, Soft lock, credit burn / allowances | Planned |
+| [channel-credits-questionnaire.md](./channel-credits-questionnaire.md) | Points at pack v3.0 completed answers (not a commercial source) | Completed |
+| [billing-pack-v3.0/](./billing-pack-v3.0/) | Approved UK pricing and billing pack; pricebook JSON `tummly_uk_billing_config_v3.0.json` | Approved |
 | [channel-cost-analysis.md](./channel-cost-analysis.md) | Resend / Twilio / Azure COGS for Email, SMS, AI (pre-Campaigns) | Planned |
 
 ## Status summary

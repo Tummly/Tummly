@@ -69,11 +69,11 @@ The three ordered preparation steps shown during Guest Loop provisioning: (1) Sm
 _Avoid_: Loading screen, fake progress
 
 **Sign-in**:
-Authentication for returning operators, **Admin**, or **Support**, including password reset and OTP verification for operator accounts. Operators in **Pending activation** may complete Sign-in but are held at the **Activation Code** screen by the **Activation gate** until **Account activation** succeeds. Operators in **Activation expired** are turned away at Sign-in with no session. **Admin** and **Support** sign in with email and password only — no Sign-in OTP, no **Activation gate**.
+Authentication for returning operators, **Admin**, or **Support**, including password reset and OTP verification for operator accounts. Operators in **Pending activation** may complete Sign-in but are held at the **Activation Code** screen by the **Activation gate** until **Account activation** succeeds. Operators in **Activation expired** may complete Sign-in; **Billing status** is then **Soft lock** or **Dormant**. **Admin** and **Support** sign in with email and password only — no Sign-in OTP, no **Activation gate**.
 _Avoid_: Login (acceptable in UI copy only)
 
 **Activation gate**:
-The access rule that gates a Restaurant's **Operator dashboard** and operator APIs on that Restaurant's **Account owner** completing **Account activation**, and that blocks the Account owner's Sign-in once **Activation expired**. **Team member**s who are not the Account owner skip the **Activation Code** and follow the owner's state for that Restaurant; **Admin** and **Support** are not subject to the gate.
+The access rule that gates a Restaurant's **Operator dashboard** and operator APIs on that Restaurant's **Account owner** completing **Account activation**. It does not block Sign-in after **Activation expired**. **Team member**s who are not the Account owner skip the **Activation Code** and follow the owner's state for that Restaurant; **Admin** and **Support** are not subject to the gate.
 _Avoid_: Activation middleware, paywall, trial lock
 
 **Account password**:
@@ -105,7 +105,7 @@ The account state after Operator Setup is complete but before the operator has e
 _Avoid_: Unactivated, trial pending, awaiting code
 
 **Account activation**:
-The operator action of entering a valid **Activation Code** on the **Activation Code screen** during Sign-in. On success the account leaves **Pending activation**, the **Activation period** begins, and the operator may access the **Operator dashboard**. The screen appears after Sign-in OTP (when required) or trust skip, and before **Workspace selection** and the **Operator dashboard**. Copy and layout per Figma `557:4543`. Wrong codes show an inline error; there is no skip and no self-service resend in v1.
+The operator action of entering a valid **Activation Code** on the **Activation Code screen** during Sign-in. On success the account leaves **Pending activation**, the **Activation period** begins, the one-time **Pilot** credit allowance is allocated, and the operator may access the **Operator dashboard**. The screen appears after Sign-in OTP (when required) or trust skip, and before **Workspace selection** and the **Operator dashboard**. Copy and layout per Figma `557:4543`. Wrong codes show an inline error; there is no skip and no self-service resend in v1.
 _Avoid_: Account unlock, trial start, verify account
 
 **Activation Code screen**:
@@ -121,19 +121,38 @@ The 30-day window after successful **Account activation** during which the opera
 _Avoid_: Free trial, trial window, grace period
 
 **Activation period badge**:
-Customer-facing Home chrome for the remaining **Activation period**: countdown days, calendar end date (`Ends {D MMM YYYY}`), and a **Choose a plan** affordance. Shown only in the Operator Home “Your Guest Loop is live” hero — not in the navbar and not on other dashboard pages. Hidden when Activation expiry is missing or the period has ended. **Choose a plan** is presentational until a plan surface exists (not a live navigation target in this slice). Distinct from the admin **Activation status badge**.
+Customer-facing Home chrome for the remaining **Activation period**: countdown days, calendar end date (`Ends {D MMM YYYY}`), and a **Choose a plan** affordance. Shown only in the Operator Home “Your Guest Loop is live” hero — not in the navbar and not on other dashboard pages. Shown only while the live **Subscription plan** is **Pilot** and the period still has time. Hidden when Activation expiry is missing, the period has ended, or the plan is **Starter**, **Growth**, or **Group**. Underlined **Choose a plan** is a same-shell link to **Manage plan** when the operator may open plan cards (**Owner** + **Manage**); otherwise countdown only. Distinct from the admin **Activation status badge**, from **Lock Alert**, and from **Soft lock** / **Dormant** restoration. Product lock: `.scratch/billing-credits-frontend/issues/13-home-choose-a-plan-and-account-workspace-billing-placeholders.md`.
 _Avoid_: Trial badge, Advanced trial badge (as a separate concept), Activation status badge
 
 **Activation expired**:
-The account state when the **Activation period** has ended and the operator has not moved to a paid **Subscription plan**. Intended product behaviour is a **soft lock**: the operator may still open the **Operator dashboard** and see a reduced data set, not the full customer/guest picture. Exact visible vs hidden surfaces are not settled. Today's shipped behaviour is a hard lock (Sign-in rejected; no dashboard). An admin may **Extend activation** from **Operator details** to restore a new **Activation period** without issuing a new **Activation Code**.
+The account state when the **Activation period** has ended and the operator has not moved to a paid **Subscription plan**. Unpaid **Pilot** then enters **Soft lock** at that instant and **Dormant** 15 days later; Sign-in stays allowed. An admin may **Extend activation** from **Operator details** to restore a new **Activation period** without issuing a new **Activation Code**.
 _Avoid_: Trial ended, deactivated account, suspended
+Product lock: `.scratch/credit-ledger-backend/issues/10-soft-lock-and-dormant-account-lifecycle.md`.
 
 **Soft lock**:
-The reduced-access mode for **Activation expired** (and potentially for unpaid **Pilot** after the timed window): some dashboard data remains visible; full guest/customer data and paid actions stay gated until the operator chooses **Starter**, **Growth**, or **Group**. Distinct from a hard lock that blocks Sign-in entirely.
-_Avoid_: Paywall, read-only mode (until the visible set is defined)
+The reduced-access mode for unpaid **Pilot** after the **Activation period**, and for failed-payment dunning from day 10. The operator may still open the **Operator dashboard**. Visible: Home, Feedback, Guests, existing Capture and QR records, existing Campaigns, Offers and Redemptions, existing Reports, Settings, Billing, Support, and authorised privacy routes. Blocked: recovery Email and SMS, new AI generation, Campaign create/edit/schedule/send, Offer create/edit/publish, new QR placements and print assets, general export, and Shop purchases other than restoration. Any successfully paid **Starter**, **Growth**, or **Group** plan ends Soft lock. Distinct from a hard lock that blocks Sign-in, from **Dormant**, and from **Pause workspace**.
+_Avoid_: Paywall, read-only mode
+Product lock: `.scratch/credit-ledger-backend/issues/10-soft-lock-and-dormant-account-lifecycle.md`.
+
+**Dormant**:
+The account state after **Soft lock** when unpaid **Pilot** is 15 days past period end, or failed-payment dunning reaches day 24. The operator may still open the **Operator dashboard** and **Billing & credits**; 90-day retention is not a further state change; guest QR links show a restaurant-branded unavailable state. Distinct from **Dormant guests**.
+_Avoid_: Dormant guests (a Guests Smart Group); deactivated; suspended
+Product lock: `.scratch/credit-ledger-backend/issues/10-soft-lock-and-dormant-account-lifecycle.md`.
+
+**Restoration**:
+The paid action that ends **Soft lock** or **Dormant**. Unpaid **Pilot** uses **Choose a plan** (opens **Manage plan**; a successfully paid **Starter**, **Growth**, or **Group** plan). Failed-payment dunning uses **Update payment method**. Other Shop purchases stay blocked.
+_Avoid_: Reactivate; unsuspend; paywall checkout (when meaning this operator path)
+
+**Choose a plan**:
+The operator control that opens **Manage plan** at the plan cards, not **Credit top-ups**. Used as the underlined Home **Activation period badge** control (live only for **Owner** + **Manage**) and as the **Soft lock** / **Dormant** restoration CTA for unpaid **Pilot**. Distinct from header **Manage plan**. Product lock: `.scratch/billing-credits-frontend/issues/13-home-choose-a-plan-and-account-workspace-billing-placeholders.md`.
+_Avoid_: Manage plan (the page and header button); Select a plan
+
+**Lock Alert**:
+Dashboard-shell chrome for **Soft lock** and **Dormant** on every Operator Area. Persistent in the content column below the header; not dismissible. Title is **Soft lock** or **Dormant**. Restoration **Button** is **Choose a plan** or **Update payment method** and follows **Permission level** writes on `billing-credits`. Distinct from **Billing status**, the Home **Activation period badge**, **Past due**, and **Pause workspace**.
+_Avoid_: Paywall banner; billing toast; Activation period badge
 
 **Extend activation**:
-An admin action in **Operator details** that restores dashboard access for an **Activation expired** account by setting a new **Activation period** end date (default: now + 30 days UTC; admin may override). Does not regenerate or re-ship the **Activation Code** — the original code was already consumed at **Account activation**.
+An admin action in **Operator details** that ends unpaid-**Pilot** **Soft lock** or **Dormant** by setting a new **Activation period** (default: now + 30 days UTC; admin may override) and returning **Billing status** to **Pilot**. Does not regenerate or re-ship the **Activation Code** — the original code was already consumed at **Account activation**.
 _Avoid_: Renew trial, reactivate code, extend trial
 
 **Activation fulfillment**:
@@ -144,33 +163,142 @@ _Avoid_: QR shipment, welcome pack, onboarding kit
 The commercial tier on an operator account after **Account activation**. Canonical tiers: **Pilot**, **Starter**, **Growth**, **Group**. Each tier may include monthly allowances of **AI credits**, **Email credits**, and **SMS credits**. Distinct from **Trial Request** and from **Notification preferences**.
 _Avoid_: Free plan (use **Pilot**), pricing tier, SKU (in domain prose)
 
+**Billing Account**:
+The billed operator entity identified by the Restaurant. Every Restaurant is one Billing Account from Operator Setup. It holds the **Subscription plan**, **Billing cycle**, **Billing status**, **Billing email**, alert who-receives flags, **Starter kit** lifetime state, **Contracted Pricebook**, paid extra Location count, at most one **Scheduled change**, the three credit pools, and the Revolut customer id. Distinct from **Billing contact**.
+_Avoid_: Revolut customer (the payment-provider record); Workspace (when meaning the billed entity); BillingAccountId
+
+**Pricebook**:
+The signed UK commercial catalog of plan prices, **Plan entitlement**s, allowances, top-up SKUs, burn rates, and lookup keys, identified by `pricebook.id` (launch: `TUMMLY-UK-GBP-2026-08-V3`). Money in pence. File: `docs/product/billing-pack-v3.0/tummly_uk_billing_config_v3.0.json`. Distinct from Revolut product ids.
+_Avoid_: price list, Stripe Price, tariff, schema_version (the JSON file shape, not this catalog)
+
+**Contracted Pricebook**:
+The **Pricebook** version in force on one **Billing Account**. Auto-renewal of the same plan and cadence keeps this version. Distinct from **Current Pricebook**.
+_Avoid_: live pricebook (when meaning the global current catalog)
+
+**Current Pricebook**:
+The **Pricebook** named by the committed current-id file. Used for new restaurants, first paid contracts, top-up orders, and new commercial contracts (plan change, cadence change, **Additional Group Location** add).
+_Avoid_: live pricebook (ambiguous with **Contracted Pricebook**)
+
+**Billing status**:
+Operator-facing billing state on **Plan & subscription** and on **Account & workspace** (**Account details** and **Account controls**): **Active**, **Past due**, **Soft lock**, **Dormant**, and **Pilot** while the account is unpaid. On **Account & workspace** the row is plain text. Distinct from Revolut subscription states, from **Plan status**, from **Workspace status**, and from **Chargeback restriction**.
+_Avoid_: Subscription state (when meaning this operator badge)
+
+**Past due**:
+The **Billing status** for failed-payment dunning before **Soft lock** (days 0–9). Reach is Email + **Account notices**, not a **Lock Alert**. Distinct from unpaid **Pilot**. Product lock: `.scratch/billing-credits-frontend/issues/10-low-credit-and-payment-failure-notifications.md`.
+_Avoid_: overdue banner; dunning (when meaning this badge)
+
+**Dunning episode**:
+The open failed-payment clock on a paid **Billing Account** (day-steps 0, 3, 7, 10, 24). **Past due** is the **Billing status** before **Soft lock**. Distinct from unpaid **Pilot** lock.
+_Avoid_: dunning (when meaning **Past due**); retry series
+
+**Chargeback restriction**:
+An overlay on a **Billing Account** that restricts new paid usage and purchases without changing **Billing status**. Distinct from **Soft lock**. Ledger reversal is a separate write.
+_Avoid_: chargeback status; dispute lock; Soft lock (when meaning this overlay)
+Product lock: `.scratch/credit-ledger-backend/issues/10-soft-lock-and-dormant-account-lifecycle.md`.
+
+**Renewal date**:
+The end of the current paid period. Downgrade, **Billing cycle** change, **Additional Group Location** remove, **Cancel plan**, and any other **Scheduled change** take effect on this date. On **Pilot**, **Plan & subscription** shows **Pilot ends {date}** instead.
+_Avoid_: Anniversary (as operator copy); billing date
+
+**Billing cycle**:
+Monthly or Annual cadence of a paid **Subscription plan**. **Manage plan** may preview the other cadence. A cadence change takes effect on the **Renewal date**. Distinct from **Included period**.
+_Avoid_: Billing period (when meaning Monthly versus Annual)
+
+**Included period**:
+The one-month window of plan included credits on a **Billing Account**. Unused included leftover does not roll over. Annual cadence still uses monthly Included periods; it does not grant a year of included credits on day one. Same-cadence upgrade and **Additional Group Location** add measure remaining time on this window, not remaining **Billing cycle**. Distinct from **Billing cycle** and from **Renewal date**.
+_Avoid_: billing month (when meaning this credit slice); annual credit pool; allowance year
+
 **Pilot**:
-The entry **Subscription plan** entered via **Account activation** (Activation Code from the shipped onboarding pack). Price £0 / month. Includes a limited free credit allowance for guest-facing usage. Distinct from **Trial Request**. After **Activation period**, unpaid Pilot is expected to enter **Soft lock** rather than a hard Sign-in block (product detail still open).
+The entry **Subscription plan** entered via **Account activation** (Activation Code from the shipped onboarding pack). Price £0 / month. Includes a one-time free credit allowance allocated at **Account activation**. Credits do not replenish. Top-ups are unavailable. No automatic paid renewal. After the **Activation period**, unpaid Pilot enters **Soft lock** on day 30 and **Dormant** on day 45. Distinct from **Trial Request**.
 _Avoid_: Free tier, free plan, trial plan
 
 **Starter**:
-The first paid **Subscription plan** above **Pilot**. Price £39 / month.
+The first paid **Subscription plan** above **Pilot**. Price £39 / month + VAT.
 _Avoid_: Basic, Lite
 
 **Growth**:
-The mid paid **Subscription plan** between **Starter** and **Group**. Price £99 / month.
+The mid paid **Subscription plan** between **Starter** and **Group**. Price £99 / month + VAT.
 _Avoid_: Pro, Professional
 
 **Group**:
-The top **Subscription plan**, aimed at multi-site operators. Price £199 / month.
+The top **Subscription plan**, aimed at multi-site operators. Price £199 / month + VAT.
 _Avoid_: Enterprise, Scale (as a plan name)
 
+**Additional Group Location**:
+Paid Location add-on on **Group**. Price £39 / month + VAT. Adds one Location, two **Team member**s, that location’s Guest Form and Active **QR code** caps, and incremental credits after payment succeeds. Does not raise the account-wide Active Offer cap. Self-serve **Group** max is 30 Locations. Remove takes effect on the **Renewal date**. Distinct from Locations included in the **Group** plan.
+_Avoid_: Extra site, extra venue SKU
+
+**Plan entitlement**:
+The non-credit usage caps on a **Billing Account**: **Owned location**s, **Team member**s, published and draft Guest Forms, Active **QR code**s per location, and Active Offers account-wide. Derived from **Contracted Pricebook** for the live **Subscription plan** plus paid **Additional Group Location** count. Distinct from the three credit pools.
+_Avoid_: seat; seat limit; allowance (when meaning these caps)
+
+**Scheduled change**:
+The one pending plan, cadence, extra-Location count, or **Cancel plan** on a **Billing Account**. It takes effect on the **Renewal date** (paid-period end), not at each **Included period** end. **Cancel plan** in the slot excludes other targets. Distinct from an immediate same-cadence upgrade or extra-Location add.
+_Avoid_: pending subscription; queued plan change; scheduled upgrade (when meaning same-cadence immediate upgrade)
+
+**Upgrade**:
+Same-cadence move from one paid **Subscription plan** to a higher paid plan. Takes effect after payment. Distinct from first **Pilot** → paid and from a **Scheduled change**.
+_Avoid_: promotion; plan jump; conversion (when meaning this)
+
+**Downgrade**:
+Move from one paid **Subscription plan** to a lower paid plan. Takes effect on the **Renewal date** after excess **Owned location**s and **Team member**s are resolved. Distinct from **Cancel plan**.
+_Avoid_: demotion
+
 **AI credit**:
-A unit of guest-facing AI usage deducted from the operator's AI pool (for example drafting a guest response). Distinct from platform-side AI such as feedback classification, **Home Recommended next step**, **Weekly brief**, and **Attention Retrieve**, unless product later meters those too.
-_Avoid_: AI action (UI copy only until metering exists), token
+One unit in the operator AI pool. Operator channel name **AI credits** (remaining, buy, top-up, empty-pool); distinct from **AI action** and from zero-burn platform AI such as **Weekly brief**.
+_Avoid_: AI action (when meaning the unit); token; AI actions (when meaning the pool)
+
+**AI action**:
+An operator-triggered guest-facing AI process that can burn **AI credits** (Assistant answer, recovery draft, campaign copy, regenerate). One completed AI action burns one AI credit; failed or blocked requests burn zero. Shared chip **Uses 1 AI action**. At 0 **AI credits**, **Prepare** and **Rewrite with AI** are disabled; **Write manually** stays. Distinct from zero-burn platform cards (**Home Recommended next step**, **Campaign recommendation**, **Offer recommendation**, **Weekly brief**). Product lock: `.scratch/billing-credits-frontend/issues/09-credit-chrome-in-campaigns-recovery-and-ai-assistant.md` and `.scratch/credit-ledger-backend/issues/05-ai-recovery-and-non-campaign-burn-points.md`.
+_Avoid_: AI credit (when meaning the process)
 
 **Email credit**:
-A unit of guest-facing email send deducted from the operator's Email pool when Email metering applies. Operator auth and system emails (OTP, setup, trial review) are not Email credits.
-_Avoid_: Message credit (when meaning email only)
+A unit of guest-facing Campaign Email. One Email credit equals one eligible Campaign recipient accepted by the Campaign Email provider. Recovery Email and system Email (OTP, setup, trial review) use zero Email credits.
+_Avoid_: Email sends; Included email sends; Email allowance; Message credit
 
 **SMS credit**:
-A unit of guest-facing SMS send deducted from the operator's SMS pool. Operator Sign-in OTP SMS is not an SMS credit.
-_Avoid_: Text credit, segment (until product defines the burn unit)
+A unit of guest-facing SMS usage. One SMS credit equals one Twilio billable SMS segment. Operator Sign-in OTP SMS is not an SMS credit. Recovery SMS and Campaign SMS consume accepted segments. Recovery SMS opens a **Credit reservation** at Confirm/Send, then settles accepted segments.
+_Avoid_: Text credit; message credits (use **SMS credits**)
+
+**Credit ledger**:
+The append-only record of **Credit allocation**s, **Credit reservation**s, burns, and corrections for one **Billing Account**. Distinct from **Billing activity**.
+_Avoid_: wallet; credit balance table; mutable remaining
+
+**Credit allocation**:
+A grant of integer **AI credits**, **Email credits**, or **SMS credits** to one channel pool on a **Billing Account** (included for one **Included period**, **Pilot**, top-up, plan-migration, or Support grant). Distinct from a **Credit reservation**.
+_Avoid_: credit bucket (when meaning this grant); balance row
+
+**Credit reservation**:
+A hold of **Available credits** on named **Credit allocation**s until settle or release. A **Campaign** opens this at **Campaign schedule commit**, Resume, and Retry remaining — not at fire. Recovery SMS opens this at Confirm/Send. Distinct from settled consumption and from billed **AI action** consume-on-success.
+_Avoid_: billing hold (when meaning this credit hold); Campaign estimate (the count, not the ledger hold)
+
+**Available credits**:
+Unheld, unexpired units in one channel pool that may still be reserved or consumed. Operator remaining on **Credits & usage**. **Hard stop** and a new reserve use this. Distinct from held units and from expired leftover.
+_Avoid_: remaining (when meaning gross leftover including holds); balance; wallet
+
+**Top-up refund**:
+Unused reverse of purchased credits linked to one payment. Takes unheld leftover only. Distinct from **Manual credit adjustment**, from a plan-invoice dispute, and from the Tummly credit-note document. Product lock: `.scratch/credit-ledger-backend/issues/11-manual-adjustment-refund-and-chargeback-on-the-ledger.md`.
+_Avoid_: chargeback (the payment dispute / ticket **10** overlay); clawback; credit note (`TCN-…`)
+
+**Manual credit adjustment**:
+A Tummly staff **Admin** grant or debit of integer credits on a **Billing Account**, with required reason and audit. Operator **Billing activity** shows **Tummly Support**. Distinct from **Top-up refund** and from included / Pilot / paid top-up mint. Product lock: `.scratch/credit-ledger-backend/issues/11-manual-adjustment-refund-and-chargeback-on-the-ledger.md`.
+_Avoid_: operator top-up; Support grant (as a second noun — the grant is a **Credit allocation**); wallet adjustment
+
+**Hard stop**:
+The per-channel state when **Available credits** are 0: new spend on that channel is refused; other channels stay available. Distinct from **Soft lock** and from shortfall (remaining below the estimate but not 0). Product lock: `.scratch/credit-ledger-backend/issues/09-out-of-credit-hard-stop-and-location-attribution.md`.
+_Avoid_: account lock; overage; channel freeze; out of credit (when meaning **Past due**)
+
+**Used this cycle**:
+Settled consumption in the current **Included period** (**Pilot**: since the Pilot grant). Distinct from held units and from **Available credits**. Product lock: `.scratch/credit-ledger-backend/issues/09-out-of-credit-hard-stop-and-location-attribution.md`.
+_Avoid_: used remaining; burned this month
+
+**Used share**:
+`used this cycle / (used this cycle + Available credits)` for one channel. 80/90/100 warnings use this. Remaining 0 is 100%. Distinct from included-used over included this period. Product lock: `.scratch/credit-ledger-backend/issues/09-out-of-credit-hard-stop-and-location-attribution.md`.
+_Avoid_: remaining percent; utilisation
+
+**Location usage**:
+Per-Location **Used this cycle** and held units on the shared account pool. There is no per-Location remaining. Distinct from **Credits & usage**. Product lock: `.scratch/credit-ledger-backend/issues/09-out-of-credit-hard-stop-and-location-attribution.md`.
+_Avoid_: location remaining; location pool; location balance
 
 **Operator contact phone**:
 The operator's UK phone number captured on the Trial Request form (field label: **Mobile number** — kept intentionally, though landlines are accepted when provided) and confirmed during Operator Setup — Primary contact phone on the Confirm group step (multi-location) or Restaurant phone number on the Confirm restaurant step (single-location). Optional at every step. When provided, must be a valid UK number. Stored on the User account and as the restaurant's public phone when supplied. Prefilled from the Trial Request when available. When omitted throughout onboarding, the account is created without a phone on file and Sign-in OTP is email-only.
@@ -322,7 +450,11 @@ _Avoid_: Placement name (when meaning a digital link), custom placement name (de
 
 **Starter QR materials**:
 A formatted print-ready package per **Owned location** containing that location's **QR code**s (e.g. table tents, sticker sheets, printable PDFs) for physical placement in the venue. Planned for a future release: generated during Guest Loop provisioning phase 3, printed, and shipped to each location's **Address**. Not in the current release — today phase 3 only generates the account **Activation Code**.
-_Avoid_: QR pack, print materials
+_Avoid_: QR pack, print materials, starter kit (when meaning the lifetime entitlement — use **Starter kit**)
+
+**Starter kit**:
+One physical onboarding kit per **Billing Account** lifetime, at **Pilot** or first paid activation, whichever occurs first. Not a credit pool. Distinct from per-location **Starter QR materials**.
+_Avoid_: QR packs; Starter QR materials (when meaning this lifetime kit)
 
 **Private feedback form**:
 The guest-facing form displayed when a guest visits the Smart Guest Link. Standard for all locations — the same form content is served regardless of which location's QR code was scanned; only the displayed **Location name**, **Address**, and **Brand logo** differ. Header shows Brand logo, Location name, then Address (Address line omitted when blank). Body copy and the **Offers opt-out** checkbox use Location name (and Address in the subtitle) — not `Restaurant.Name`. Captures guest name, guest contact (email or phone, single field), a feedback message, and **Offers opt-out**. Layout: feedback message card first (placeholder "Add your own feedback…", with speech-to-text mic), then a "Your details" card (name, contact, Offers opt-out). Legal links on this form use the formal labels **Terms & Conditions** and **Privacy Notice** (exception to the short **Terms** / **Privacy** labels used elsewhere). Per-location or per-restaurant configuration of form fields is not in scope. The backend resolves location metadata (Location name and Address) in the same response that renders the form, and accepts feedback submissions via a POST endpoint keyed by location.
@@ -403,6 +535,10 @@ _Avoid_: Location name, venue name (when meaning the Restaurant), Operator works
 The Restaurant-wide operational state shown on **Account & workspace**: **Active** or **Paused**. Distinct from **Capture location status**, from a **QR code**’s Active / Paused / Archived status, and from a **Campaign**’s Paused status.
 _Avoid_: Account status (when meaning this Restaurant state), activation status, Soft lock
 
+**Plan status**:
+The **Account & workspace** row for the live **Subscription plan** name (**Pilot**, **Starter**, **Growth**, **Group**). Shown on **Account details** and **Account controls**. Text link to **Plan & subscription** when the operator may open **Billing & credits** tabs (**View** or **Manage**); plain text on **No access**. Distinct from **Billing status** and from **Workspace status**. Product lock: `.scratch/billing-credits-frontend/issues/13-home-choose-a-plan-and-account-workspace-billing-placeholders.md`.
+_Avoid_: Current plan (when meaning this Account & workspace row); plan name (as the row label)
+
 **Account structure**:
 The read-only Account details label derived from `Restaurant.AccountType`: **Single location** or **Multi-location**. Not a stored enum and not **Legal structure**.
 _Avoid_: Independent group (as a stored value); account type (as the operator-facing label)
@@ -416,8 +552,9 @@ The Account details summary label derived from **Workspace status**: **Live** wh
 _Avoid_: Form live, QR status (when meaning this account row)
 
 **Pause workspace**:
-The operator action that sets **Workspace status** to **Paused**. While Paused, guest forms and outbound product work for that Restaurant stop (Campaigns, Offers, and later billing). The operator may still open the **Operator dashboard** and return to **Account & workspace** to **Resume workspace**. Distinct from **Pause location capture**.
+The operator action that sets **Workspace status** to **Paused**. While Paused, guest forms and outbound product work for that Restaurant stop (Campaigns, Offers); **Billing status** and billing clocks do not change. The operator may still open the **Operator dashboard** and return to **Account & workspace** to **Resume workspace**. Distinct from **Pause location capture**.
 _Avoid_: Pause location, Pause campaign, Soft lock, Activation expired
+Product lock: `.scratch/credit-ledger-backend/issues/10-soft-lock-and-dormant-account-lifecycle.md`.
 
 **Resume workspace**:
 The operator action that sets **Workspace status** from **Paused** back to **Active**. Restores the Restaurant-level guest-form and outbound-work gate only. Does not activate paused location capture, and does not unpause a Campaign or Offer that the operator already paused.
@@ -476,7 +613,7 @@ The Operator dashboard shell control that selects the current **Owned location**
 _Avoid_: location picker (when meaning this control), Analysis scope (when meaning dashboard selection)
 
 **AI Assistant**:
-The operator-facing chat surface on the Operator dashboard. Area `ai-assistant` gates the drawer and APIs; each retrieve and write still uses the source and target **Area** cell plus **Location scope**. Distinct from platform-side AI such as **AI classification**, and from guest-facing AI such as recovery drafts. Distinct from the Help Centre.
+The operator-facing chat surface on the Operator dashboard. Area `ai-assistant` gates the drawer and APIs; each retrieve and write still uses the source and target **Area** cell plus **Location scope**. The composer **credits bar** shows `{n} of {m} monthly AI credits remaining`, **View usage** (**Credits & usage**), and **Add credits** (**Credit top-ups** AI card). The drawer closes before those navigations. At 0 remaining, Send is disabled; **Write** on other channels is unaffected. Distinct from platform-side AI such as **AI classification**, and from guest-facing AI such as recovery drafts. Distinct from the Help Centre. Product lock: `.scratch/billing-credits-frontend/issues/09-credit-chrome-in-campaigns-recovery-and-ai-assistant.md`.
 _Avoid_: Copilot, AI copilot, Ask AI, wizard-in-chat, Draft interview (as the target create path)
 
 **Assistant conversation**:
@@ -655,6 +792,46 @@ _Avoid_: Recovery queue, negative guests (as the metric name); Positive feedback
 A disclosure in the Operator SideNav that groups future management destinations. It is not itself a destination or landing page.
 _Avoid_: Settings page, Settings landing, Operator Settings (when meaning a single SideNav route)
 
+**Settings page chrome**:
+The shared Operator Settings child layout: title, subtitle, header action slot, line tabs, and optional last-saved. **Billing & credits** uses title, subtitle, header actions, and tabs. It omits last-saved. Distinct from the Operator dashboard shell and from the **Settings nav group**.
+_Avoid_: Settings landing; Settings header (when meaning the dashboard navbar)
+
+**Billing & credits**:
+The Settings nav child for plan, credits, payment, invoices, billing contacts, and billing activity. Area id `billing-credits`. Holds five tabs plus a nested **Manage plan** surface. Who may view or write is `.scratch/billing-credits-frontend/issues/11-who-may-view-and-manage-billing-and-credits.md`. Distinct from **Billing contact** on **Key contacts**.
+_Avoid_: Billing page, payments settings
+
+**Plan & subscription**:
+The default **Billing & credits** tab. Snapshot of the current **Subscription plan**, **Billing status**, remaining credits, and entitlements. **Change plan** opens **Manage plan**. When **Cancel plan** is scheduled, this tab shows **Cancels on {Renewal date}**. Distinct from **Manage plan**. Product lock: `.scratch/billing-credits-frontend/issues/04-plan-and-subscription-tab-contract.md`.
+_Avoid_: Plan tab; subscription page
+
+**Credits & usage**:
+The **Billing & credits** tab that shows channel remaining, usage this period, and **Starter kit** state. It does not host the pack picker. Card **Buy {channel} credits** opens **Manage plan** at **Credit top-ups**. Distinct from **Credit top-ups**. Product lock: `.scratch/billing-credits-frontend/issues/05-credits-usage-and-top-up-picker-contract.md`.
+_Avoid_: Usage tab; QR print packs (as a credit card)
+
+**Payment & invoices**:
+The **Billing & credits** tab for the payment method on file and the Tummly invoice list. **Update payment method** confirms, then redirects to Revolut Hosted Payment Page. Invoices and credit notes are Tummly documents (`TM-YYYY-000001` / `TCN-YYYY-000001`). **View** and **Download** serve the Tummly VAT PDF. **Cancel plan** is not on this tab. Distinct from Revolut receipts. Product lock: `.scratch/billing-credits-frontend/issues/06-payment-method-and-invoices-surface.md`.
+_Avoid_: Customer portal; Stripe portal; invoice tab (as the product name)
+
+**Billing contacts**:
+The **Billing & credits** tab that writes **Billing contact** (same field as **Key contacts**), **Billing email**, **Low-credit alerts**, and **Payment failure alerts**. It does not ship an Invoice recipient picker. Distinct from **Key contacts**. Product lock: `.scratch/billing-credits-frontend/issues/07-billing-contacts-tab-versus-key-contacts-billing-contact.md`.
+_Avoid_: Billing contact (the User); invoice recipients page
+
+**Billing activity**:
+The Restaurant append-only log of operator-visible plan, payment, credit, and invoice events for the **Billing Account**. Shown on the **Billing & credits** Activity tab. Area `billing-credits`. Dedicated store; snapshots at write. Distinct from **Access activity**, from **Credits & usage**, and from pack §19 analytics. Product lock: `.scratch/billing-credits-frontend/issues/08-billing-activity-versus-access-activity.md`.
+_Avoid_: billing history (as the glossary noun; Figma button copy only); audit log; Access activity
+
+**Manage plan**:
+The nested **Billing & credits** surface where the operator compares **Subscription plan**s, changes cadence, buys **Credit top-ups**, and uses **Cancel plan**. On **Group**, it is also where the operator adds or removes an **Additional Group Location**. **Change plan** on **Plan & subscription** and Home **Choose a plan** open this surface. Not a sixth tab. Distinct from **Plan & subscription**. Product lock: `.scratch/billing-credits-frontend/issues/01-page-chrome-tabs-and-route.md`.
+_Avoid_: Plan picker (as the page name); Choose a plan (restoration CTA / Home badge; not this page name)
+
+**Cancel plan**:
+The control on **Manage plan** that schedules end of the paid **Subscription plan** on the **Renewal date**. Hidden on **Pilot**. After confirm, **Plan & subscription** shows **Cancels on {Renewal date}**. Distinct from Revolut native cancel (immediate). Product lock: `.scratch/billing-credits-frontend/issues/06-payment-method-and-invoices-surface.md`.
+_Avoid_: Cancel subscription (as the control label); customer portal cancel
+
+**Credit top-ups**:
+The named section on **Manage plan** for buying prepaid **SMS credits**, **AI credits**, and **Email credits** packs without a plan change. Pack v3.0 SKUs. Prices exclusive plus **+ VAT**. Header **Buy credits**, **Credits & usage** card **Buy {channel} credits**, Campaign/recovery **Buy {channel} credits**, Assistant **Add credits**, and empty-pool **Buy AI credits** open this section (channel card; no chip preselected). Unavailable on **Pilot** (section visible, Buy disabled). Also disabled during **Soft lock** and **Dormant**. Distinct from **Credits & usage**. Product lock: `.scratch/billing-credits-frontend/issues/05-credits-usage-and-top-up-picker-contract.md`.
+_Avoid_: Individual credits; add-ons (when meaning this section); QR print packs (as a top-up card)
+
 **Key contacts**:
 The **Account & workspace** tab where the operator nominates **Account owner**, **Billing contact**, **Privacy contact**, and **Support contact** for the Restaurant. Card title in Figma: **Primary responsibilities**. Product lock: `.scratch/account-workspace-settings/issues/03-key-contacts-model-and-team-dependency.md`.
 _Avoid_: Summary contact; authorised users page; team picker (as the tab name)
@@ -664,8 +841,20 @@ The User who owns the Restaurant (`Restaurant.OwnerUserId`). Exactly one. Shown 
 _Avoid_: Account holder (when meaning this Key contacts role); restaurant owner (as UI copy on this tab)
 
 **Billing contact**:
-The **Team member** nominated on **Key contacts** as the billing responsibility for the Restaurant. Exactly one User. May be the same person as other Key contacts roles. Distinct from the later **Billing & credits** settings child.
+The **Team member** nominated as the billing responsibility for the Restaurant. Exactly one User (`Restaurant.BillingContactUserId`). **Key contacts** and the **Billing contacts** tab both write this field. May be the same person as other Key contacts roles. Distinct from **Billing email** and from **Billing & credits**.
 _Avoid_: Invoice contact; finance owner (as the product name)
+
+**Billing email**:
+The optional invoice mailbox on the **Billing Account**. One address. Not a User and not a **Team member**. When set, Tummly invoice PDFs go only to this mailbox. Empty means invoices go to the **Billing contact** User email. Distinct from `User.Email` and from alert recipients. Product lock: `.scratch/billing-credits-frontend/issues/07-billing-contacts-tab-versus-key-contacts-billing-contact.md`.
+_Avoid_: Billing contact email (when meaning this mailbox); User email (when meaning this override); Invoice recipient
+
+**Low-credit alerts**:
+Restaurant-level who-receives flags for per-channel credit warnings at 80/90/100 used share: **Account owner**, **permission role** **Admin**, and **Billing contact**. Defaults: owner and billing contact on; Admin off. Empty is allowed. Reach is Email + **Account notices**, not SMS and not **Billing email**. Distinct from **Notification preference** (in-app mute only). Product lock: `.scratch/billing-credits-frontend/issues/10-low-credit-and-payment-failure-notifications.md`.
+_Avoid_: Credit warning channels (when meaning this who-list)
+
+**Payment failure alerts**:
+Restaurant-level who-receives flags for failed-pay notices: **Account owner** and **Billing contact**. No Admin flag. Defaults: both on. Empty is allowed. Reach is Email + **Account notices** on the dunning day-steps, not SMS. Unpaid **Pilot** lock mail is Owner + **Billing contact**, not these ticks. Distinct from **Notification preference** (in-app mute only). Product lock: `.scratch/billing-credits-frontend/issues/10-low-credit-and-payment-failure-notifications.md`.
+_Avoid_: Dunning recipients (as the settings label)
 
 **Privacy contact**:
 The **Team member** nominated on **Key contacts** as the privacy responsibility for the Restaurant. Exactly one User. May be the same person as other Key contacts roles. Distinct from the later **Privacy & consent** settings child.
@@ -684,7 +873,7 @@ The User × Restaurant link that lets a User operate that Restaurant. Holds exac
 _Avoid_: seat; User.Role; invite (pending invite is not a membership)
 
 **Team invitation**:
-A pending email invite for one email to join one Restaurant as a **Team member**. Distinct from **Operator Setup invitation**. It is not a **Restaurant membership** until accept. Accept uses `/start?invite=` with an **opaque invitation reference**. Product lock: `.scratch/team-and-permissions/issues/05-invitation-lifecycle-and-accept-path.md`.
+A pending email invite for one email to join one Restaurant as a **Team member**. Distinct from **Operator Setup invitation**. It is not a **Restaurant membership** until accept. While pending, it counts toward the **Plan entitlement** Team member cap. Accept uses `/start?invite=` with an **opaque invitation reference**. Product lock: `.scratch/team-and-permissions/issues/05-invitation-lifecycle-and-accept-path.md`.
 _Avoid_: Operator Setup invitation; seat invite; invitee (when meaning a member)
 
 **Opaque invitation reference**:
@@ -712,7 +901,7 @@ The value of one Area × **Permission role** cell. Canonical values: **No access
 _Avoid_: ACL, grant, Limited, Redeem only (as stored levels)
 
 **Access activity**:
-The Restaurant append-only log of successful **Team invitation**, **Restaurant membership**, and Admin-matrix writes. Shown on the **Team & permissions** Security tab. Viewing is Area `privacy-consent`, not `team-permissions`. Distinct from **Location Guest activity event**, from per-**Feedback** activity history, and from Sign-in. Product lock: `.scratch/team-and-permissions/issues/06-access-activity-and-security-tab.md`.
+The Restaurant append-only log of successful **Team invitation**, **Restaurant membership**, and Admin-matrix writes. Shown on the **Team & permissions** Security tab. Viewing is Area `privacy-consent`, not `team-permissions`. Distinct from **Billing activity**, from **Location Guest activity event**, from per-**Feedback** activity history, and from Sign-in. Product lock: `.scratch/team-and-permissions/issues/06-access-activity-and-security-tab.md`.
 _Avoid_: audit log (as the glossary noun; Figma button copy only); security log; session history
 
 **Tummly Shop**:
@@ -756,11 +945,11 @@ The Home-scoped module for the Operator dashboard Home body. Depends on the Oper
 _Avoid_: Operator Home session (when meaning shared shell state), Home controller as the owner of locations/profile
 
 **Home Needs attention**:
-The Operator Home section that lists derived attention items from other Operator dashboard queues for the selected Owned location. It is a now-queue and a pooled projection: Home does not store an attention status and does not invent extra membership. Location-owned rows follow the location switcher (meta scope is the location name, never All locations). The list shows 5 rows then View all expands in the accordion. Kind order: Feedback aggregate, then Campaigns, then Offers; recency sorts inside a kind (sort and meta clock only — it does not hide a current **Offers list Needs attention** member). The section stays when empty (honest empty shell); collapse is session UI. Offers, Campaigns, and Feedback keep their own Needs attention queues.
+The Operator Home section that lists derived attention items from other Operator dashboard queues for the selected Owned location. It is a now-queue and a pooled projection: Home does not store an attention status and does not invent extra membership. Location-owned rows follow the location switcher (meta scope is the location name, never All locations). The list shows 5 rows then View all expands in the accordion. Kind order: Feedback aggregate, then credit pools, then Campaigns, then Offers; recency sorts inside a kind (sort and meta clock only — it does not hide a current **Offers list Needs attention** member). The section stays when empty (honest empty shell); collapse is session UI. Offers, Campaigns, and Feedback keep their own Needs attention queues.
 _Avoid_: Unified inbox, alert feed, attention hub, attention changes, stored Home attention status, Needs recovery (when meaning this section), restaurant-wide Home attention, recent-only Home Offer filter
 
 **Home Needs attention item**:
-A projection row in **Home Needs attention** with title, body, meta (kind · relative time · scope), and one or two CTAs that open the source. It leaves when source membership leaves; there is no Home-only dismiss. Feedback is one aggregate count of **Needs attention** (Feedback) (meta time = newest Feedback submission time in that set; CTA opens the Feedback inbox Needs attention tab). Campaigns are one named row per **Failed** or **Partially sent** Campaign (Preview plus Retry remaining or Duplicate as Draft). Offers are one named Offer per **Offers list Needs attention** member (every current member, not a recency subset); **Void request** wins over expiry when both are open (Manage offer, View redemptions). The Offers page expiry aggregate is a different grain and may still list that Offer. A later account-scoped kind is a low **AI credit**, **Email credit**, or **SMS credit** pool (Billing owns membership; meta scope Account-wide; sits after Feedback in kind order; also creates a **Notification**). Distinct from **Needs recovery**.
+A projection row in **Home Needs attention** with title, body, meta (kind · relative time · scope), and one or two CTAs that open the source. It leaves when source membership leaves; there is no Home-only dismiss. Feedback is one aggregate count of **Needs attention** (Feedback) (meta time = newest Feedback submission time in that set; CTA opens the Feedback inbox Needs attention tab). Campaigns are one named row per **Failed** or **Partially sent** Campaign (Preview plus Retry remaining or Duplicate as Draft). Offers are one named Offer per **Offers list Needs attention** member (every current member, not a recency subset); **Void request** wins over expiry when both are open (Manage offer, View redemptions). The Offers page expiry aggregate is a different grain and may still list that Offer. Credit pools: one account-scoped row per **AI credits**, **Email credits**, or **SMS credits** channel while used share ≥ 80% (Billing owns membership; meta Account-wide; **View** / **Manage** on `billing-credits` only; not a second **Notification**). Distinct from **Needs recovery**. Product lock: `.scratch/billing-credits-frontend/issues/10-low-credit-and-payment-failure-notifications.md`.
 _Avoid_: Needs recovery row (when meaning this Home row); Notification (when meaning a Home row); credit push; Offers overview aggregate (when meaning a Home Offer row); All locations (as Home meta scope); recent-only Home Offer filter
 
 **Performance overview**:
@@ -864,7 +1053,7 @@ One of five preference buckets a Notification belongs to: Product updates; Accou
 _Avoid_: Channel, topic, tab (tabs are a narrower UI filter)
 
 **Notification preference**:
-Per-operator on/off for a Notification category. When off, future Notifications in that category never land in that operator’s inbox; re-enabling affects future items only.
+Per-operator on/off for a Notification category. When off, future Notifications in that category never land in that operator’s inbox; re-enabling affects future items only. Does not mute billing Email.
 _Avoid_: Subscription, mute (when meaning the five category toggles)
 
 **Notification capability**:
@@ -947,11 +1136,11 @@ The catalogue picker **Preview** drawer for one **Campaign template** (S6). Same
 _Avoid_: Campaign Detail / Campaign Preview (when meaning a list Campaign); Guest preview (wizard message overlay); live eligibility Preview
 
 **Campaign status**:
-The stored lifecycle of one **Campaign**. MVP set (no approval): **Draft**, **Scheduled**, **Sending**, **Sent**, **Partially sent**, **Paused**, **Failed**, **Cancelled**. **Archived** and **Awaiting approval** stay out of MVP. **Needs attention** for Campaigns is a derived view (Failed or Partially sent) — not a stored **Campaign status**. A first-cut source for **Home Needs attention** (one named Home row per matching Campaign). List tabs: Needs attention / Drafts / In flight (Scheduled, Sending, Paused) / Sent (Sent, Partially sent) / All. Operators may pause from Scheduled or Sending; resume from Paused after revalidation; Partially sent continues via Retry remaining (not via Paused); Scheduled may return to Draft (unschedule) or Cancelled; cancel remaining while Sending yields Partially sent or Cancelled.
+The stored lifecycle of one **Campaign**. MVP set (no approval): **Draft**, **Scheduled**, **Sending**, **Sent**, **Partially sent**, **Paused**, **Failed**, **Cancelled**. **Archived** and **Awaiting approval** stay out of MVP. **Needs attention** for Campaigns is a derived view (Failed or Partially sent) — not a stored **Campaign status**. A first-cut source for **Home Needs attention** (one named Home row per matching Campaign). List tabs: Needs attention / Drafts / In flight (Scheduled, Sending, Paused) / Sent (Sent, Partially sent) / All. Operators may pause from Scheduled or Sending; resume from Paused after revalidation; Partially sent continues via Retry remaining (not via Paused). Fire requires a live **Credit reservation**. A successful close (Sent, Partially sent, Failed, Unschedule, Pause, Cancel) settles accepted units and releases unused credits. Retry remaining after a closed hold opens a new **Credit reservation**. Scheduled may return to Draft (unschedule) or Cancelled; cancel remaining while Sending yields Partially sent or Cancelled.
 _Avoid_: Feedback workflow status (when meaning a Campaign); Needs attention (as a stored Campaign status); Awaiting approval (MVP)
 
 **Campaign schedule commit**:
-The operator confirm that freezes the eligible recipient set, reserves the full Billing credit estimate, and moves a Review-ready **Campaign** to **Scheduled** (schedule-later) or **Sending** (send-now). Always follows Review; Schedule step only chooses mode and, when later, datetime in the account IANA timezone (`scheduledAtUtc` + `scheduleTimeZone`). Requires live Billing Reserve — no Campaigns-owned fake hold. Soft-lock, channel hard-stop, Reserve failure, or revalidate-to-zero before any accept yields **Failed**.
+The operator confirm that freezes the eligible recipient set, reserves the full Billing credit estimate, and moves a Review-ready **Campaign** to **Scheduled** (schedule-later) or **Sending** (send-now). Always follows Review; Schedule step only chooses mode and, when later, datetime in the account IANA timezone (`scheduledAtUtc` + `scheduleTimeZone`). Requires live Billing Reserve — no Campaigns-owned fake hold. Send-start gate must be Clear before freeze and Reserve. Fire does not open a **Credit reservation**. Soft-lock, channel hard-stop, Reserve failure, or revalidate-to-zero before any accept yields **Failed**.
 _Avoid_: Approve campaign; silent schedule; Campaigns-local reservation
 
 **Recipient freeze**:
@@ -969,6 +1158,18 @@ _Avoid_: Marketing eligible (when meaning this Campaign count); sendable count (
 **Excluded**:
 For a Campaign audience: matched **Location Guests** that fail one or more current eligibility checks and will not receive the Campaign as currently configured. Wizard MVP shows the Excluded count plus an aggregated primary-reason rollup (one primary reason per guest). Guest-level eligibility drawer and performance-report Excluded funnel stay later. Offer-rule Excluded reasons stay out until offer eligibility and redemption facts exist.
 _Avoid_: Suppressed only (too narrow), bounced (when meaning this Campaign count)
+
+**Skipped**:
+On **Estimated message usage**: **Matched** minus selected-channel eligible. Includes **Excluded** guests and guests eligible only on the other channel. Show `0` when none; `—` when either count is unknown. Distinct from **Excluded** (Audience step, not channel-specific). Product lock: `.scratch/billing-credits-frontend/issues/09-credit-chrome-in-campaigns-recovery-and-ai-assistant.md`.
+_Avoid_: Excluded (when meaning this composer row)
+
+**Messaging usage**:
+The Campaigns overview section that shows **Email credits** and **SMS credits** remaining for the operator account. Combined remaining follows **Credits & usage**. No **Current plan** tile. **View usage** opens **Credits & usage**. **Buy SMS credits** opens **Credit top-ups** (SMS card). No **Buy Email credits** here. Distinct from **Estimated message usage** and from **Credits & usage**. Product lock: `.scratch/billing-credits-frontend/issues/09-credit-chrome-in-campaigns-recovery-and-ai-assistant.md`.
+_Avoid_: Email allowance; Current plan (on this section); View messaging usage
+
+**Estimated message usage**:
+The Campaign wizard estimate panel (Channel, Offer, Message, Schedule, Review). Rows: eligible recipients, **Skipped**, channel estimate, combined remaining, remaining after send (or **Shortfall {n}**). SMS parts come from the Billing Reserve estimate; before a message body exists, the floor is at least one part per eligible recipient. Compose stays allowed on shortfall; Schedule/Send hard-stop. Distinct from **Messaging usage**. Product lock: `.scratch/billing-credits-frontend/issues/09-credit-chrome-in-campaigns-recovery-and-ai-assistant.md`.
+_Avoid_: Allowance remaining; Reserved credits (as a wizard row)
 
 **Campaign eligibility service**:
 Server-owned evaluation of **Matched** / **Currently eligible** / **Excluded** (and Email eligible / SMS eligible) for a Campaign audience. Authoritative for draft estimates, schedule snapshots (counts + check-set version + timestamp), and send/resume/retry revalidation. Client mocks are never authoritative. MVP ships a staged check set that can gain checks later; missing stores must not invent pass/fail.
@@ -1060,7 +1261,7 @@ Per-offer AI next-action card on Offer Details Overview. This slice wires it liv
 _Avoid_: Campaign recommendation; Offers list Needs attention (main-page queue); Weekly brief; Home Recommended next step; Offers Recommended next step
 
 **Offers Recommended next step**:
-The Offers page overview AI card that mirrors **Home Recommended next step** and **Campaign recommendation**. The generate window is **Default reporting period**. It does not follow the Offers Performance date range. It does not approve, schedule, or send. Distinct from per-offer **Offer recommendation**. Not in this slice.
+The Offers page overview AI card that mirrors **Home Recommended next step** and **Campaign recommendation**. The generate window is **Default reporting period**. It does not follow the Offers Performance date range. It does not approve, schedule, or send. Distinct from per-offer **Offer recommendation**. Not in this slice. Free call (no **AI credit** debit).
 _Avoid_: Offer recommendation (when meaning the Offers page card); Campaign recommendation; Home Recommended next step; Offers list Needs attention (when meaning this card)
 
 **Dormant guests**:
@@ -1076,7 +1277,7 @@ Operator-chosen saved guest group or CRM-style list as a Campaign audience. **Ou
 _Avoid_: Smart Group (when meaning operator-saved lists); mock Weekday regulars / VIP as product capability
 
 **Campaign recommendation**:
-An AI-suggested next **Campaign** for the Campaigns overview, built from live metrics in the Restaurant **Default reporting period** (or none when signals are too weak). May prepare a **Campaign Draft** the operator owns. Does not approve, schedule, or send. Distinct from **Home Recommended next step**, which may reuse this service only for campaign allow-list types. Does not follow the Campaigns overview date-range control.
+An AI-suggested next **Campaign** for the Campaigns overview, built from live metrics in the Restaurant **Default reporting period** (or none when signals are too weak). May prepare a **Campaign Draft** the operator owns. Does not approve, schedule, or send. Distinct from **Home Recommended next step**, which may reuse this service only for campaign allow-list types. Does not follow the Campaigns overview date-range control. Free call (no **AI credit** debit).
 _Avoid_: Weekly brief (when meaning this Campaigns card); Home Recommended next step; Offer recommendation; autonomous campaign; Campaigns overview date range (as this card’s window)
 
 **Campaign send test**:
