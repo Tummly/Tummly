@@ -31,6 +31,11 @@ namespace TummlyBackend.Interfaces
             CreditLedgerRestoreTopupRequest request,
             CancellationToken cancellationToken = default
         );
+
+        Task<CreditLedgerWriteResult> ReleaseHeldAsync(
+            CreditLedgerReleaseHeldRequest request,
+            CancellationToken cancellationToken = default
+        );
     }
 
     public sealed class StaffManualAdjustRequest
@@ -83,8 +88,6 @@ namespace TummlyBackend.Interfaces
         public int Quantity { get; init; }
 
         public string SourcePaymentRef { get; init; } = string.Empty;
-
-        public string PricebookVersion { get; init; } = string.Empty;
     }
 
     public sealed class CreditLedgerDrainTopupRequest
@@ -101,6 +104,21 @@ namespace TummlyBackend.Interfaces
         public int RestaurantId { get; init; }
 
         public string SourcePaymentRef { get; init; } = string.Empty;
+    }
+
+    public sealed class CreditLedgerReleaseHeldRequest
+    {
+        public int RestaurantId { get; init; }
+
+        public string Channel { get; init; } = string.Empty;
+
+        public Guid AllocationId { get; init; }
+
+        public string ReservationRef { get; init; } = string.Empty;
+
+        public int Quantity { get; init; }
+
+        public int? LocationId { get; init; }
     }
 
     public sealed class CreditLedgerWriteResult

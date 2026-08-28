@@ -15,14 +15,17 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly TimeProvider _clock;
+        private readonly IPricebookCatalog _pricebookCatalog;
 
         public CreditLedgerService(
             ApplicationDbContext context,
-            TimeProvider clock
+            TimeProvider clock,
+            IPricebookCatalog pricebookCatalog
         )
         {
             _context = context;
             _clock = clock;
+            _pricebookCatalog = pricebookCatalog;
         }
 
         public async Task<CreditLedgerWriteResult> ConsumeOnSuccessAsync(
@@ -84,14 +87,42 @@ namespace TummlyBackend.Services
                 return CreditLedgerMintTopupResult.Fail("source_payment_ref_required");
             }
 
-            if (string.IsNullOrWhiteSpace(request.PricebookVersion))
+            return await WithAccountLockAsync(
+                request.RestaurantId,
+                () => MintTopupLockedAsync(request, cancellationToken),
+                cancellationToken
+            );
+        }
+
+        public async Task<CreditLedgerWriteResult> ReleaseHeldAsync(
+            CreditLedgerReleaseHeldRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (request.Quantity <= 0)
             {
-                return CreditLedgerMintTopupResult.Fail("pricebook_version_required");
+                return CreditLedgerWriteResult.Fail("invalid_quantity");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.ReservationRef))
+            {
+                return CreditLedgerWriteResult.Fail("reservation_ref_required");
+            }
+
+            if (
+                request.Channel is not (
+                    CreditChannels.Ai
+                    or CreditChannels.Email
+                    or CreditChannels.Sms
+                )
+            )
+            {
+                return CreditLedgerWriteResult.Fail("invalid_channel");
             }
 
             return await WithAccountLockAsync(
                 request.RestaurantId,
-                () => MintTopupLockedAsync(request, cancellationToken),
+                () => ReleaseHeldLockedAsync(request, cancellationToken),
                 cancellationToken
             );
         }
@@ -728,7 +759,7 @@ namespace TummlyBackend.Services
                 Channel = request.Channel,
                 EntryType = CreditLedgerEntryTypes.TopupAllocation,
                 Quantity = request.Quantity,
-                PricebookVersion = request.PricebookVersion,
+                PricebookVersion = _pricebookCatalog.CurrentPricebookId,
                 SourcePaymentRef = request.SourcePaymentRef,
                 ExpiresAtUtc = now.AddMonths(12),
                 CreatedAtUtc = now,
@@ -935,6 +966,195 @@ namespace TummlyBackend.Services
                 .ToList();
 
             return CreditLedgerRestoreTopupResult.Ok(channels);
+        }
+
+        private async Task<CreditLedgerWriteResult> ReleaseHeldLockedAsync(
+            CreditLedgerReleaseHeldRequest request,
+            CancellationToken cancellationToken
+        )
+        {
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync(
+                    IsolationLevel.ReadCommitted,
+                    cancellationToken
+                );
+
+            var locked = await LockBillingAccountAsync(
+                request.RestaurantId,
+                cancellationToken
+            );
+            if (!locked)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "restaurant_not_found",
+                    cancellationToken
+                );
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            var entries = await LoadRestaurantEntriesAsync(
+                request.RestaurantId,
+                request.Channel,
+                cancellationToken
+            );
+            var grant = entries.FirstOrDefault(row => row.Id == request.AllocationId);
+            if (grant == null || !CreditLedgerCalculator.IsGrant(grant))
+            {
+                return await AbortAsync(
+                    transaction,
+                    "allocation_not_found",
+                    cancellationToken
+                );
+            }
+
+            var reserved = entries
+                .Where(row =>
+                    row.EntryType == CreditLedgerEntryTypes.Reservation
+                    && row.AllocationId == request.AllocationId
+                    && row.ReservationRef == request.ReservationRef
+                )
+                .Sum(row => row.Quantity);
+            var closed = entries
+                .Where(row =>
+                    row.AllocationId == request.AllocationId
+                    && row.ReservationRef == request.ReservationRef
+                    && (
+                        row.EntryType == CreditLedgerEntryTypes.Release
+                        || row.EntryType == CreditLedgerEntryTypes.Consumption
+                    )
+                )
+                .Sum(row => row.Quantity);
+            var openHeld = reserved - closed;
+            if (openHeld < request.Quantity)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "insufficient_held",
+                    cancellationToken
+                );
+            }
+
+            var inserted = new List<CreditLedgerEntry>();
+            var release = new CreditLedgerEntry
+            {
+                Id = Guid.NewGuid(),
+                RestaurantId = request.RestaurantId,
+                Channel = request.Channel,
+                EntryType = CreditLedgerEntryTypes.Release,
+                Quantity = request.Quantity,
+                AllocationId = request.AllocationId,
+                ReservationRef = request.ReservationRef,
+                LocationId = request.LocationId,
+                CreatedAtUtc = now,
+            };
+            inserted.Add(release);
+            _context.CreditLedgerEntries.Add(release);
+
+            var isDraining = CreditLedgerCalculator.IsDrainingAllocation(
+                request.AllocationId,
+                entries
+            );
+            var expired =
+                grant.ExpiresAtUtc != null && grant.ExpiresAtUtc.Value <= now;
+
+            if (isDraining)
+            {
+                var paymentRef = grant.SourcePaymentRef;
+                if (string.IsNullOrEmpty(paymentRef))
+                {
+                    foreach (var row in inserted)
+                    {
+                        _context.CreditLedgerEntries.Remove(row);
+                    }
+
+                    return await AbortAsync(
+                        transaction,
+                        "source_payment_ref_required",
+                        cancellationToken
+                    );
+                }
+
+                var correctionSource = CreditLedgerCalculator
+                    .UnrevertedPaymentRefunds(entries, paymentRef)
+                    .Select(row => row.CorrectionSource)
+                    .FirstOrDefault(source => !string.IsNullOrEmpty(source))
+                    ?? CorrectionSources.PaymentRefund;
+
+                var refund = new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = request.RestaurantId,
+                    Channel = request.Channel,
+                    EntryType = CreditLedgerEntryTypes.Refund,
+                    Quantity = request.Quantity,
+                    AllocationId = request.AllocationId,
+                    SourcePaymentRef = paymentRef,
+                    CorrectionSource = correctionSource,
+                    CreatedAtUtc = now,
+                };
+                inserted.Add(refund);
+                _context.CreditLedgerEntries.Add(refund);
+
+                BillingActivityWriter.TryAppend(
+                    _context,
+                    new BillingActivityAppendRequest
+                    {
+                        RestaurantId = request.RestaurantId,
+                        Kind = BillingActivityKinds.TopupRefunded,
+                        OccurredAtUtc = now,
+                        Channel = request.Channel,
+                        Qty = request.Quantity,
+                    }
+                );
+            }
+            else if (expired)
+            {
+                var expiry = new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = request.RestaurantId,
+                    Channel = request.Channel,
+                    EntryType = CreditLedgerEntryTypes.Expiry,
+                    Quantity = request.Quantity,
+                    AllocationId = request.AllocationId,
+                    CreatedAtUtc = now,
+                };
+                inserted.Add(expiry);
+                _context.CreditLedgerEntries.Add(expiry);
+            }
+
+            var postState = CreditLedgerCalculator.Project(
+                [.. entries, .. inserted],
+                now
+            );
+            if (!CreditLedgerCalculator.InvariantsHold(postState))
+            {
+                foreach (var row in inserted)
+                {
+                    _context.CreditLedgerEntries.Remove(row);
+                }
+
+                return await AbortAsync(
+                    transaction,
+                    "insufficient_credits",
+                    cancellationToken
+                );
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return CreditLedgerWriteResult.Ok(
+                inserted.Select(row => new CreditLedgerInsertedRow
+                {
+                    Id = row.Id,
+                    AllocationId = row.AllocationId ?? row.Id,
+                    EntryType = row.EntryType,
+                    Quantity = row.Quantity,
+                    ReservationRef = row.ReservationRef,
+                }).ToList()
+            );
         }
 
         private static List<CreditLedgerEntry> DrainBindableRefunds(

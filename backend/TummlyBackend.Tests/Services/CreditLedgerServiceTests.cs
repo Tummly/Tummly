@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -140,7 +142,11 @@ namespace TummlyBackend.Tests.Services
             );
 
             var secondContext = CreateContext();
-            var secondLedger = new CreditLedgerService(secondContext, _clock);
+            var secondLedger = new CreditLedgerService(
+                secondContext,
+                _clock,
+                new StubPricebookCatalog()
+            );
             var request = new CreditLedgerConsumeRequest
             {
                 RestaurantId = harness.RestaurantId,
@@ -523,7 +529,6 @@ namespace TummlyBackend.Tests.Services
                     Channel = CreditChannels.Email,
                     Quantity = 500,
                     SourcePaymentRef = paymentRef,
-                    PricebookVersion = PricebookId,
                 }
             );
 
@@ -708,35 +713,30 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(0, emailAfterDrain.Remaining);
             Assert.Equal(30, emailAfterDrain.Held);
 
-            harness.Context.CreditLedgerEntries.Add(
-                new CreditLedgerEntry
+            var release = await harness.Ledger.ReleaseHeldAsync(
+                new CreditLedgerReleaseHeldRequest
                 {
-                    Id = Guid.NewGuid(),
                     RestaurantId = harness.RestaurantId,
                     Channel = CreditChannels.Email,
-                    EntryType = CreditLedgerEntryTypes.Release,
-                    Quantity = 30,
                     AllocationId = allocationId,
                     ReservationRef = reservationRef,
-                    LocationId = harness.LocationId,
-                    CreatedAtUtc = _now,
-                }
-            );
-            harness.Context.CreditLedgerEntries.Add(
-                new CreditLedgerEntry
-                {
-                    Id = Guid.NewGuid(),
-                    RestaurantId = harness.RestaurantId,
-                    Channel = CreditChannels.Email,
-                    EntryType = CreditLedgerEntryTypes.Refund,
                     Quantity = 30,
-                    AllocationId = allocationId,
-                    SourcePaymentRef = paymentRef,
-                    CorrectionSource = CorrectionSources.Dispute,
-                    CreatedAtUtc = _now,
+                    LocationId = harness.LocationId,
                 }
             );
-            await harness.Context.SaveChangesAsync();
+            Assert.True(release.Succeeded);
+            Assert.Contains(
+                release.Inserted,
+                row => row.EntryType == CreditLedgerEntryTypes.Release && row.Quantity == 30
+            );
+            Assert.Contains(
+                release.Inserted,
+                row => row.EntryType == CreditLedgerEntryTypes.Refund && row.Quantity == 30
+            );
+            Assert.DoesNotContain(
+                release.Inserted,
+                row => row.EntryType == CreditLedgerEntryTypes.Expiry
+            );
 
             var snapshotAfterRelease = await harness.Snapshot.GetAccountAsync(harness.RestaurantId);
             var emailAfterRelease = Channel(snapshotAfterRelease, CreditChannels.Email);
@@ -945,7 +945,7 @@ namespace TummlyBackend.Tests.Services
 
             return new Harness(
                 context,
-                new CreditLedgerService(context, _clock),
+                new CreditLedgerService(context, _clock, new StubPricebookCatalog()),
                 new CreditBalanceSnapshotService(context, _clock),
                 restaurant.Id,
                 location.Id
@@ -1008,7 +1008,6 @@ namespace TummlyBackend.Tests.Services
                     Channel = channel,
                     Quantity = quantity,
                     SourcePaymentRef = sourcePaymentRef,
-                    PricebookVersion = PricebookId,
                 }
             );
             Assert.True(result.Succeeded);
@@ -1102,6 +1101,23 @@ namespace TummlyBackend.Tests.Services
             {
                 return _utcNow;
             }
+        }
+
+        private sealed class StubPricebookCatalog : IPricebookCatalog
+        {
+            public string CurrentPricebookId => PricebookId;
+
+            public PricebookSnapshot GetRequired(string pricebookId) =>
+                throw new NotImplementedException();
+
+            public string FormatPlanPriceNet(PricebookPlan plan, string? billingCycle) =>
+                throw new NotImplementedException();
+
+            public string FormatIncludedCreditsLabel(PricebookPlan plan, string channel) =>
+                throw new NotImplementedException();
+
+            public BillingCurrentCatalogDto BuildCurrentCatalog(bool sms5000Available) =>
+                throw new NotImplementedException();
         }
     }
 }
