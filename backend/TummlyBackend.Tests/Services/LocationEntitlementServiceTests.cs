@@ -71,7 +71,11 @@ namespace TummlyBackend.Tests.Services
                 )
                 .Build();
             var smartGuestLink = new SmartGuestLinkService(_context, configuration);
-            _lifecycle = new CaptureQrLifecycleService(_context, smartGuestLink);
+            _lifecycle = new CaptureQrLifecycleService(
+                _context,
+                smartGuestLink,
+                catalog
+            );
 
             SeedPilotAtCap();
         }

@@ -60,6 +60,18 @@ namespace TummlyBackend.Helpers
             QrLifecycleResult result
         )
         {
+            if (result.Code != null)
+            {
+                return controller.Conflict(new
+                {
+                    success = false,
+                    code = result.Code,
+                    message = result.Message,
+                    cap = result.Cap,
+                    current = result.Current,
+                });
+            }
+
             if (result.Field != null)
             {
                 return controller.Conflict(new

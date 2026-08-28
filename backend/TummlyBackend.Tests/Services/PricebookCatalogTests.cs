@@ -56,6 +56,10 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(19900, book.Plans["group"].MonthlyNetPence);
             Assert.Equal(500, book.Plans["pilot"].CreditsOneTime!.Email);
             Assert.Equal(2500, book.Plans["starter"].CreditsMonthly!.Email);
+            Assert.Equal(5, book.Plans["pilot"].ActiveQrPlacementsPerLocation);
+            Assert.Equal(10, book.Plans["starter"].ActiveQrPlacementsPerLocation);
+            Assert.Equal(25, book.Plans["growth"].ActiveQrPlacementsPerLocation);
+            Assert.Equal(50, book.Plans["group"].ActiveQrPlacementsPerLocation);
             Assert.Equal(2000, book.VatRateBps);
             Assert.Contains(
                 book.TopUpPacks,

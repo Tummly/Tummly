@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
 using TummlyBackend.Helpers;
@@ -16,14 +18,17 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ISmartGuestLinkService _smartGuestLink;
+        private readonly IPricebookCatalog _pricebookCatalog;
 
         public CaptureQrLifecycleService(
             ApplicationDbContext context,
-            ISmartGuestLinkService smartGuestLink
+            ISmartGuestLinkService smartGuestLink,
+            IPricebookCatalog pricebookCatalog
         )
         {
             _context = context;
             _smartGuestLink = smartGuestLink;
+            _pricebookCatalog = pricebookCatalog;
         }
 
         public async Task<QrLifecycleResult> CreateDigitalGuestLinkAsync(
@@ -125,52 +130,78 @@ namespace TummlyBackend.Services
                 return DigitalLinkNameConflict();
             }
 
-            var actorDisplayName = await ResolveActorDisplayNameAsync(
-                command.UserId
-            );
-
-            var token = await _smartGuestLink.GenerateTokenAsync();
-            var qrCode = new QrCode
+            IDbContextTransaction? transaction = null;
+            if (status == QrCodeStatus.Active)
             {
-                RestaurantLocationId = command.LocationId,
-                QrType = QrType.DigitalGuestLink,
-                Token = token,
-                Status = status,
-                LinkName = linkName,
-                NormalizedLinkName = normalizedLinkName,
-                Channel = channel,
-                InternalDescription = internalDescription,
-                CreatedAt = DateTime.UtcNow,
-                CreatedByUserId = command.UserId,
-                CreatedByDisplayName = actorDisplayName,
-            };
-
-            _context.QrCodes.Add(qrCode);
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateException)
-            {
-                return DigitalLinkNameConflict();
+                transaction = await BeginEntitlementTransactionAsync();
             }
 
-            return QrLifecycleResult.Ok(new
+            await using (transaction)
             {
-                success = true,
-                qrCodeId = qrCode.Id,
-                qrType = qrCode.QrType.ToString(),
-                status = qrCode.Status.ToString(),
-                linkName = qrCode.LinkName,
-                channel = qrCode.Channel?.ToString(),
-                internalDescription = qrCode.InternalDescription,
-                createdAt = qrCode.CreatedAt,
-                createdByDisplayName = qrCode.CreatedByDisplayName,
-                updatedAt = qrCode.UpdatedAt,
-                updatedByDisplayName = qrCode.UpdatedByDisplayName,
-                qrLinkUrl = _smartGuestLink.BuildGuestUrl(qrCode.Token),
-            });
+                if (status == QrCodeStatus.Active)
+                {
+                    var denied = await DenyIfActiveQrWouldExceedAsync(
+                        command.LocationId,
+                        increment: 1
+                    );
+                    if (denied != null)
+                    {
+                        return denied;
+                    }
+                }
+
+                var actorDisplayName = await ResolveActorDisplayNameAsync(
+                    command.UserId
+                );
+
+                var token = await _smartGuestLink.GenerateTokenAsync();
+                var qrCode = new QrCode
+                {
+                    RestaurantLocationId = command.LocationId,
+                    QrType = QrType.DigitalGuestLink,
+                    Token = token,
+                    Status = status,
+                    LinkName = linkName,
+                    NormalizedLinkName = normalizedLinkName,
+                    Channel = channel,
+                    InternalDescription = internalDescription,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedByUserId = command.UserId,
+                    CreatedByDisplayName = actorDisplayName,
+                };
+
+                _context.QrCodes.Add(qrCode);
+
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException)
+                {
+                    return DigitalLinkNameConflict();
+                }
+
+                if (transaction != null)
+                {
+                    await transaction.CommitAsync();
+                }
+
+                return QrLifecycleResult.Ok(new
+                {
+                    success = true,
+                    qrCodeId = qrCode.Id,
+                    qrType = qrCode.QrType.ToString(),
+                    status = qrCode.Status.ToString(),
+                    linkName = qrCode.LinkName,
+                    channel = qrCode.Channel?.ToString(),
+                    internalDescription = qrCode.InternalDescription,
+                    createdAt = qrCode.CreatedAt,
+                    createdByDisplayName = qrCode.CreatedByDisplayName,
+                    updatedAt = qrCode.UpdatedAt,
+                    updatedByDisplayName = qrCode.UpdatedByDisplayName,
+                    qrLinkUrl = _smartGuestLink.BuildGuestUrl(qrCode.Token),
+                });
+            }
         }
 
         public async Task<QrLifecycleResult> UpdateInternalDescriptionAsync(
@@ -509,6 +540,17 @@ namespace TummlyBackend.Services
                 )
                 .ToListAsync();
 
+            await using var transaction =
+                await BeginEntitlementTransactionAsync();
+            var denied = await DenyIfActiveQrWouldExceedAsync(
+                command.LocationId,
+                increment: codesToActivate.Count
+            );
+            if (denied != null)
+            {
+                return denied;
+            }
+
             foreach (var qr in codesToActivate)
             {
                 qr.Status = QrCodeStatus.Active;
@@ -518,6 +560,10 @@ namespace TummlyBackend.Services
             location.CaptureLocationPauseRestoreQrCodeIdsJson = null;
 
             await _context.SaveChangesAsync();
+            if (transaction != null)
+            {
+                await transaction.CommitAsync();
+            }
 
             return QrLifecycleResult.Ok(new
             {
@@ -562,21 +608,150 @@ namespace TummlyBackend.Services
                 );
             }
 
-            qrCode.Status = nextStatus;
-            await _context.SaveChangesAsync();
-
-            return QrLifecycleResult.Ok(new
+            IDbContextTransaction? transaction = null;
+            if (nextStatus == QrCodeStatus.Active)
             {
-                success = true,
-                qrCodeId = qrCode.Id,
-                status = qrCode.Status.ToString(),
-            });
+                transaction = await BeginEntitlementTransactionAsync();
+            }
+
+            await using (transaction)
+            {
+                if (nextStatus == QrCodeStatus.Active)
+                {
+                    var denied = await DenyIfActiveQrWouldExceedAsync(
+                        command.LocationId,
+                        increment: 1
+                    );
+                    if (denied != null)
+                    {
+                        return denied;
+                    }
+                }
+
+                qrCode.Status = nextStatus;
+                await _context.SaveChangesAsync();
+                if (transaction != null)
+                {
+                    await transaction.CommitAsync();
+                }
+
+                return QrLifecycleResult.Ok(new
+                {
+                    success = true,
+                    qrCodeId = qrCode.Id,
+                    status = qrCode.Status.ToString(),
+                });
+            }
         }
 
         private Task<QrCode?> FindQrCodeAsync(int qrCodeId, int locationId) =>
             _context.QrCodes.FirstOrDefaultAsync(q =>
                 q.Id == qrCodeId && q.RestaurantLocationId == locationId
             );
+
+        private async Task<IDbContextTransaction?> BeginEntitlementTransactionAsync()
+        {
+            if (!_context.Database.IsSqlServer())
+            {
+                return null;
+            }
+
+            return await _context.Database.BeginTransactionAsync();
+        }
+
+        private async Task<QrLifecycleResult?> DenyIfActiveQrWouldExceedAsync(
+            int locationId,
+            int increment
+        )
+        {
+            if (increment <= 0)
+            {
+                return null;
+            }
+
+            var restaurantId = await _context.RestaurantLocations
+                .Where(location => location.Id == locationId)
+                .Select(location => location.RestaurantId)
+                .FirstAsync();
+
+            var billingAccount = await LoadBillingAccountForUpdateAsync(
+                restaurantId
+            );
+            if (!TryResolveActiveQrCap(billingAccount, out var cap))
+            {
+                return QrLifecycleResult.Conflict(
+                    "Plan entitlements are unavailable."
+                );
+            }
+
+            var current = await _context.QrCodes.CountAsync(qr =>
+                qr.RestaurantLocationId == locationId
+                && qr.Status == QrCodeStatus.Active
+            );
+
+            if (current + increment > cap)
+            {
+                return QrLifecycleResult.ActiveQrCapReached(cap, current);
+            }
+
+            return null;
+        }
+
+        private async Task<BillingAccount?> LoadBillingAccountForUpdateAsync(
+            int restaurantId
+        )
+        {
+            if (_context.Database.IsSqlServer())
+            {
+                return await _context.BillingAccounts
+                    .FromSqlInterpolated(
+                        $"SELECT * FROM BillingAccounts WITH (UPDLOCK, ROWLOCK) WHERE RestaurantId = {restaurantId}"
+                    )
+                    .FirstOrDefaultAsync();
+            }
+
+            return await _context.BillingAccounts.FirstOrDefaultAsync(
+                row => row.RestaurantId == restaurantId
+            );
+        }
+
+        private bool TryResolveActiveQrCap(
+            BillingAccount? billingAccount,
+            out int cap
+        )
+        {
+            cap = 0;
+            if (
+                billingAccount == null
+                || string.IsNullOrWhiteSpace(
+                    billingAccount.ContractedPricebookId
+                )
+            )
+            {
+                return false;
+            }
+
+            PricebookSnapshot book;
+            try
+            {
+                book = _pricebookCatalog.GetRequired(
+                    billingAccount.ContractedPricebookId
+                );
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+
+            var key = billingAccount.SubscriptionPlan.Trim().ToLowerInvariant();
+            if (!book.Plans.TryGetValue(key, out var plan))
+            {
+                return false;
+            }
+
+            cap = plan.ActiveQrPlacementsPerLocation;
+            return true;
+        }
 
         private async Task<string?> ResolveActorDisplayNameAsync(int userId)
         {

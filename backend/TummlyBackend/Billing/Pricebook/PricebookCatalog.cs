@@ -323,6 +323,9 @@ namespace TummlyBackend.Billing.Pricebook
                 )
                 ? offers.GetInt32()
                 : 0;
+            var activeQr = element
+                .GetProperty("active_qr_placements_per_location")
+                .GetInt32();
 
             return new PricebookPlan
             {
@@ -334,6 +337,7 @@ namespace TummlyBackend.Billing.Pricebook
                 ActiveOffersAccount = activeOffers,
                 CreditsOneTime = oneTime,
                 CreditsMonthly = monthly,
+                ActiveQrPlacementsPerLocation = activeQr,
             };
         }
 
