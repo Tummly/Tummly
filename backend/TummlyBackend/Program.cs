@@ -479,6 +479,7 @@ builder.Services.AddScoped<ICreditBalanceSnapshot, CreditBalanceSnapshotService>
 builder.Services.AddScoped<IIncludedPeriodMintService, IncludedPeriodMintService>();
 builder.Services.AddScoped<IIncludedPeriodJob, IncludedPeriodJob>();
 builder.Services.AddScoped<IAssistantAiBilling, AssistantAiBillingService>();
+builder.Services.AddScoped<IBilledAiActionCoordinator, BilledAiActionCoordinator>();
 builder.Services.AddScoped<IBillingCreditsService, BillingCreditsService>();
 builder.Services.AddScoped<IBillingAccountLifecycle, BillingAccountLifecycleService>();
 builder.Services.AddScoped<

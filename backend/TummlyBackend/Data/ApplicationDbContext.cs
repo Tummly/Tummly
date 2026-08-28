@@ -59,6 +59,12 @@ namespace TummlyBackend.Data
 
         public DbSet<AssistantAiActionOutcome> AssistantAiActionOutcomes { get; set; }
 
+        public DbSet<AiActionIdempotencyRecord> AiActionIdempotencyRecords
+        {
+            get;
+            set;
+        }
+
         public DbSet<RestaurantLocation> RestaurantLocations { get; set; }
 
         public DbSet<QrCode> QrCodes { get; set; }
@@ -658,6 +664,45 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<AssistantAiActionOutcome>()
                 .HasIndex(row => new { row.RestaurantId, row.IdempotencyKey });
+
+            /*
+             =========================================
+             BILLING ACCOUNT -> AI ACTION IDEMPOTENCY
+             =========================================
+             */
+
+            modelBuilder.Entity<AiActionIdempotencyRecord>()
+                .HasOne(row => row.BillingAccount)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<AiActionIdempotencyRecord>()
+                .HasIndex(row => new { row.RestaurantId, row.IdempotencyKey })
+                .IsUnique();
+
+            modelBuilder.Entity<AiActionIdempotencyRecord>()
+                .Property(row => row.IdempotencyKey)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<AiActionIdempotencyRecord>()
+                .Property(row => row.PackKey)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            modelBuilder.Entity<AiActionIdempotencyRecord>()
+                .Property(row => row.Channel)
+                .HasMaxLength(16)
+                .IsRequired();
+
+            modelBuilder.Entity<AiActionIdempotencyRecord>()
+                .Property(row => row.Subject)
+                .HasMaxLength(512);
+
+            modelBuilder.Entity<AiActionIdempotencyRecord>()
+                .Property(row => row.Body)
+                .IsRequired();
 
             /*
              =========================================

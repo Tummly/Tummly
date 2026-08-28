@@ -7,12 +7,15 @@ using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Integration
 {
     public class FeedbackRespondAndRecordEndpointsTests
         : IClassFixture<TummlyWebApplicationFactory>
     {
+        private const string PricebookId = "TUMMLY-UK-GBP-2026-08-V3";
+
         private readonly TummlyWebApplicationFactory _factory;
         private readonly HttpClient _client;
 
@@ -318,6 +321,7 @@ namespace TummlyBackend.Tests.Integration
             );
             post.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
             post.Content = JsonContent.Create(new
             {
                 channel = "email",
@@ -387,6 +391,13 @@ namespace TummlyBackend.Tests.Integration
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
 
+            context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurant.Id,
+                    PricebookId
+                )
+            );
+
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
@@ -413,6 +424,20 @@ namespace TummlyBackend.Tests.Integration
             };
 
             context.Feedbacks.Add(feedback);
+            await context.SaveChangesAsync();
+
+            context.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = restaurant.Id,
+                    Channel = CreditChannels.Ai,
+                    EntryType = CreditLedgerEntryTypes.PilotAllocation,
+                    Quantity = 20,
+                    PricebookVersion = PricebookId,
+                    CreatedAtUtc = DateTime.UtcNow.AddDays(-1),
+                }
+            );
             await context.SaveChangesAsync();
 
             var jwt = jwtService.GenerateToken(

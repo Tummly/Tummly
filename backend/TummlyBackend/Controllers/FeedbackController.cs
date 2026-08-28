@@ -31,6 +31,7 @@ namespace TummlyBackend.Controllers
         private readonly IFeedbackRecoveryOfferAttachService _recoveryOfferAttach;
         private readonly IFeedbackRecoveryCompletionsService _recoveryCompletions;
         private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
+        private readonly IBilledAiActionCoordinator _billedAi;
         private readonly IFeedbackInboxListService _inboxList;
 
         public FeedbackController(
@@ -50,6 +51,7 @@ namespace TummlyBackend.Controllers
             IFeedbackRecoveryOfferAttachService recoveryOfferAttach,
             IFeedbackRecoveryCompletionsService recoveryCompletions,
             IFeedbackRecoveryDraftsService recoveryDrafts,
+            IBilledAiActionCoordinator billedAi,
             IFeedbackInboxListService inboxList
         )
         {
@@ -69,6 +71,7 @@ namespace TummlyBackend.Controllers
             _recoveryOfferAttach = recoveryOfferAttach;
             _recoveryCompletions = recoveryCompletions;
             _recoveryDrafts = recoveryDrafts;
+            _billedAi = billedAi;
             _inboxList = inboxList;
         }
 
@@ -1663,7 +1666,8 @@ namespace TummlyBackend.Controllers
         [HttpPost("{feedbackId:int}/recovery-draft")]
         public async Task<IActionResult> PrepareRecoveryDraft(
             int feedbackId,
-            [FromBody] PrepareFeedbackRecoveryDraftRequest dto
+            [FromBody] PrepareFeedbackRecoveryDraftRequest dto,
+            CancellationToken cancellationToken
         )
         {
             var unauthorized =
@@ -1741,50 +1745,63 @@ namespace TummlyBackend.Controllers
 
             try
             {
-                var result = await _recoveryDrafts.PrepareAsync(
-                    feedbackId,
-                    channelWire,
-                    dto.Purpose.Trim(),
-                    dto.Tone.Trim(),
-                    dto.IncludeNotes,
-                    mode,
-                    dto.CurrentBody,
-                    dto.CurrentSubject,
-                    dto.ConfirmedInternalActionCategory,
-                    dto.ConfirmedInternalActionNote,
-                    dto.ConfirmedOffer
+                var packKey = BilledAiPackKeys.ForRecovery(mode);
+                var billingResult = await _billedAi.ExecuteAsync(
+                    new BilledAiActionRequest
+                    {
+                        RestaurantId = ownedLocation.RestaurantId,
+                        LocationId = feedback.RestaurantLocationId,
+                        IdempotencyKey = Request.Headers["Idempotency-Key"]
+                            .FirstOrDefault(),
+                        PackKey = packKey,
+                    },
+                    async ct =>
+                    {
+                        var result = await _recoveryDrafts.PrepareAsync(
+                            feedbackId,
+                            channelWire,
+                            dto.Purpose.Trim(),
+                            dto.Tone.Trim(),
+                            dto.IncludeNotes,
+                            mode,
+                            dto.CurrentBody,
+                            dto.CurrentSubject,
+                            dto.ConfirmedInternalActionCategory,
+                            dto.ConfirmedInternalActionNote,
+                            dto.ConfirmedOffer,
+                            ct
+                        );
+
+                        if (result == null)
+                        {
+                            return new BilledAiGenerationResult.Failed(
+                                "Feedback not found.",
+                                Retryable: false
+                            );
+                        }
+
+                        if (!result.Success)
+                        {
+                            return new BilledAiGenerationResult.Failed(
+                                result.Message
+                                    ?? "We could not prepare a draft.",
+                                result.Retryable
+                            );
+                        }
+
+                        return new BilledAiGenerationResult.Ok(
+                            new BilledAiDraftPayload
+                            {
+                                Body = result.Body ?? string.Empty,
+                                Subject = result.Subject,
+                                Channel = result.Channel ?? channelWire,
+                            }
+                        );
+                    },
+                    cancellationToken
                 );
 
-                if (result == null)
-                {
-                    return NotFound(new
-                    {
-                        success = false,
-                        message = "Feedback not found.",
-                    });
-                }
-
-                if (!result.Success)
-                {
-                    return StatusCode(
-                        StatusCodes.Status502BadGateway,
-                        new
-                        {
-                            success = false,
-                            message = result.Message
-                                ?? "We could not prepare a draft.",
-                            retryable = result.Retryable,
-                        }
-                    );
-                }
-
-                return Ok(new
-                {
-                    success = true,
-                    body = result.Body,
-                    subject = result.Subject,
-                    channel = result.Channel,
-                });
+                return billingResult.ToActionResult();
             }
             catch (FeedbackAlreadyResolvedException ex)
             {

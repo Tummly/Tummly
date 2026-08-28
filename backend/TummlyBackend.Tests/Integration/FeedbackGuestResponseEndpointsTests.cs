@@ -95,6 +95,9 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("Sorry about your visit", guestResponse.Subject);
             Assert.Equal("Thank you for telling us.", guestResponse.Body);
 
+            var ledgerRows = await context.CreditLedgerEntries.ToListAsync();
+            Assert.Empty(ledgerRows);
+
             using var get = new HttpRequestMessage(
                 HttpMethod.Get,
                 $"/api/feedback/{seeded.FeedbackId}"

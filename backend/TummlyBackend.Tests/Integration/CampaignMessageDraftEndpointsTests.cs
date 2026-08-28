@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
@@ -13,6 +14,8 @@ namespace TummlyBackend.Tests.Integration
     public class CampaignMessageDraftEndpointsTests
         : IClassFixture<TummlyWebApplicationFactory>
     {
+        private const string PricebookId = "TUMMLY-UK-GBP-2026-08-V3";
+
         private readonly TummlyWebApplicationFactory _factory;
         private readonly HttpClient _client;
 
@@ -22,6 +25,153 @@ namespace TummlyBackend.Tests.Integration
         {
             _factory = factory;
             _client = factory.CreateClient();
+        }
+
+        [Fact]
+        public async Task PostMessageDraft_Prepare_BurnsOneAiCredit()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaign-msg-prepare-burn",
+                aiCredits: 3
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeCampaignMessageDraftProvider>();
+            fake.ResetCallCount();
+            fake.SucceedWith(
+                "Thank you for joining us recently.",
+                "Thanks for visiting",
+                "email"
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns/message-draft",
+                seeded.Jwt,
+                PrepareBody(seeded.LocationId, mode: "prepare"),
+                idempotencyKey: Guid.NewGuid().ToString("D")
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(1, fake.CallCount);
+
+            using var verifyScope = _factory.Services.CreateScope();
+            var context = verifyScope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var consumptions = await context.CreditLedgerEntries
+                .Where(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.Channel == CreditChannels.Ai
+                    && row.EntryType == CreditLedgerEntryTypes.Consumption
+                )
+                .ToListAsync();
+            Assert.Single(consumptions);
+            Assert.Equal(1, consumptions[0].Quantity);
+            Assert.Equal(seeded.LocationId, consumptions[0].LocationId);
+        }
+
+        [Fact]
+        public async Task PostMessageDraft_RewriteSubjectThenMessage_BurnsTwoAiCredits()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaign-msg-rewrite-burn",
+                aiCredits: 5
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeCampaignMessageDraftProvider>();
+            fake.ResetCallCount();
+            fake.SucceedWith(
+                "Rewritten campaign body.",
+                "Rewritten subject",
+                "email"
+            );
+
+            using var subjectRequest = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns/message-draft",
+                seeded.Jwt,
+                PrepareBody(
+                    seeded.LocationId,
+                    mode: "rewrite_subject",
+                    currentBody: "Prior body",
+                    currentSubject: "Prior subject"
+                ),
+                idempotencyKey: Guid.NewGuid().ToString("D")
+            );
+            var subjectResponse = await _client.SendAsync(subjectRequest);
+            Assert.Equal(HttpStatusCode.OK, subjectResponse.StatusCode);
+
+            using var messageRequest = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns/message-draft",
+                seeded.Jwt,
+                PrepareBody(
+                    seeded.LocationId,
+                    mode: "rewrite_message",
+                    currentBody: "Prior body",
+                    currentSubject: "Prior subject"
+                ),
+                idempotencyKey: Guid.NewGuid().ToString("D")
+            );
+            var messageResponse = await _client.SendAsync(messageRequest);
+            Assert.Equal(HttpStatusCode.OK, messageResponse.StatusCode);
+            Assert.Equal(2, fake.CallCount);
+
+            using var verifyScope = _factory.Services.CreateScope();
+            var context = verifyScope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var consumptions = await context.CreditLedgerEntries
+                .Where(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.Channel == CreditChannels.Ai
+                    && row.EntryType == CreditLedgerEntryTypes.Consumption
+                )
+                .ToListAsync();
+            Assert.Equal(2, consumptions.Count);
+            Assert.Equal(2, consumptions.Sum(row => row.Quantity));
+        }
+
+        [Fact]
+        public async Task PostMessageDraft_RemainingZero_RefusesWithoutCallingProvider()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaign-msg-zero",
+                aiCredits: 0
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeCampaignMessageDraftProvider>();
+            fake.ResetCallCount();
+            fake.SucceedWith(
+                "Should not return",
+                "Should not return",
+                "email"
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns/message-draft",
+                seeded.Jwt,
+                PrepareBody(seeded.LocationId, mode: "prepare"),
+                idempotencyKey: Guid.NewGuid().ToString("D")
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "channel_hard_stopped",
+                body.GetProperty("code").GetString()
+            );
+            Assert.Equal("ai", body.GetProperty("channel").GetString());
+            Assert.Equal(0, body.GetProperty("remaining").GetInt32());
+            Assert.Equal(1, body.GetProperty("requested").GetInt32());
+            Assert.Equal(0, fake.CallCount);
         }
 
         [Fact]
@@ -45,7 +195,8 @@ namespace TummlyBackend.Tests.Integration
                 HttpMethod.Post,
                 "/api/campaigns/message-draft",
                 seeded.Jwt,
-                PrepareBody(seeded.LocationId, mode: "prepare")
+                PrepareBody(seeded.LocationId, mode: "prepare"),
+                idempotencyKey: Guid.NewGuid().ToString("D")
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -101,7 +252,8 @@ namespace TummlyBackend.Tests.Integration
                     mode: "rewrite_message",
                     currentBody: "Prior body",
                     currentSubject: "Prior subject"
-                )
+                ),
+                idempotencyKey: Guid.NewGuid().ToString("D")
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -138,7 +290,8 @@ namespace TummlyBackend.Tests.Integration
                     mode: "rewrite_subject",
                     currentBody: "Prior body",
                     currentSubject: "Prior subject"
-                )
+                ),
+                idempotencyKey: Guid.NewGuid().ToString("D")
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -172,7 +325,8 @@ namespace TummlyBackend.Tests.Integration
                 HttpMethod.Post,
                 "/api/campaigns/message-draft",
                 seeded.Jwt,
-                PrepareBody(seeded.LocationId, mode: "prepare")
+                PrepareBody(seeded.LocationId, mode: "prepare"),
+                idempotencyKey: Guid.NewGuid().ToString("D")
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
@@ -194,7 +348,8 @@ namespace TummlyBackend.Tests.Integration
                 HttpMethod.Post,
                 "/api/campaigns/message-draft",
                 seeded.Jwt,
-                PrepareBody(seeded.LocationId, mode: "invent")
+                PrepareBody(seeded.LocationId, mode: "invent"),
+                idempotencyKey: Guid.NewGuid().ToString("D")
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -215,7 +370,8 @@ namespace TummlyBackend.Tests.Integration
                 HttpMethod.Post,
                 "/api/campaigns/message-draft",
                 seeded.Jwt,
-                PrepareBody(locationId: 999_999, mode: "prepare")
+                PrepareBody(locationId: 999_999, mode: "prepare"),
+                idempotencyKey: Guid.NewGuid().ToString("D")
             );
             var response = await _client.SendAsync(request);
             Assert.True(
@@ -248,7 +404,8 @@ namespace TummlyBackend.Tests.Integration
             HttpMethod method,
             string url,
             string jwt,
-            object body
+            object body,
+            string idempotencyKey
         )
         {
             var request = new HttpRequestMessage(method, url)
@@ -261,6 +418,7 @@ namespace TummlyBackend.Tests.Integration
             };
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", jwt);
+            request.Headers.Add("Idempotency-Key", idempotencyKey);
             return request;
         }
 
@@ -274,8 +432,12 @@ namespace TummlyBackend.Tests.Integration
 
         private async Task<(
             string Jwt,
-            int LocationId
-        )> SeedOwnerWithLocationAsync(string emailLocalPart)
+            int LocationId,
+            int RestaurantId
+        )> SeedOwnerWithLocationAsync(
+            string emailLocalPart,
+            int aiCredits = 20
+        )
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -304,11 +466,21 @@ namespace TummlyBackend.Tests.Integration
                 Name = "Campaign Msg Venue",
                 AccountType = "Single",
                 OwnerUserId = user.Id,
+                BillingContactUserId = user.Id,
+                PrivacyContactUserId = user.Id,
+                SupportContactUserId = user.Id,
                 CreatedAt = DateTime.UtcNow,
             };
 
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
+
+            context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurant.Id,
+                    PricebookId
+                )
+            );
 
             var location = new RestaurantLocation
             {
@@ -321,13 +493,30 @@ namespace TummlyBackend.Tests.Integration
             context.RestaurantLocations.Add(location);
             await context.SaveChangesAsync();
 
+            if (aiCredits > 0)
+            {
+                context.CreditLedgerEntries.Add(
+                    new CreditLedgerEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        RestaurantId = restaurant.Id,
+                        Channel = CreditChannels.Ai,
+                        EntryType = CreditLedgerEntryTypes.PilotAllocation,
+                        Quantity = aiCredits,
+                        PricebookVersion = PricebookId,
+                        CreatedAtUtc = DateTime.UtcNow.AddDays(-1),
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
             var jwt = jwtService.GenerateToken(
                 user.Id.ToString(),
                 user.Email,
                 user.Role
             );
 
-            return (jwt, location.Id);
+            return (jwt, location.Id, restaurant.Id);
         }
     }
 }
