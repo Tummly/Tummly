@@ -6,13 +6,38 @@ import {
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import {
   createOperatorBillingCreditsPageModule,
+  type BillingCreditsPageAdapters,
   type BillingCreditsPageData,
 } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
+
+function sampleBillingContacts(
+  overrides: Partial<BillingCreditsPageData["billingContacts"]> = {}
+): BillingCreditsPageData["billingContacts"] {
+  return {
+    billingContactUserId: 1,
+    billingEmail: "",
+    eligibleMembers: [
+      { userId: 1, fullName: "Owner", email: "owner@example.com" },
+      { userId: 2, fullName: "Admin", email: "admin@example.com" },
+    ],
+    lowCreditAlerts: {
+      owner: true,
+      admin: false,
+      billingContact: true,
+    },
+    paymentFailureAlerts: {
+      owner: true,
+      billingContact: true,
+    },
+    ...overrides,
+  }
+}
 
 function samplePage(overrides: Partial<BillingCreditsPageData> = {}): BillingCreditsPageData {
   return {
     actorPermissionRole: "Owner",
     actorCanManage: true,
+    actorCanPersistBillingContacts: true,
     planSubscription: {
       subscriptionPlan: "Pilot",
       billingStatus: "Pilot",
@@ -32,8 +57,27 @@ function samplePage(overrides: Partial<BillingCreditsPageData> = {}): BillingCre
       scheduledChangeLine: null,
       isPilot: true,
     },
+    billingContacts: sampleBillingContacts(),
     ...overrides,
   }
+}
+
+function createTestModule(
+  pageOverrides: Partial<BillingCreditsPageData> = {},
+  adapterOverrides: Partial<BillingCreditsPageAdapters> = {}
+) {
+  const page = samplePage(pageOverrides)
+  return createOperatorBillingCreditsPageModule({
+    getPage: vi.fn(async () => page),
+    updateBillingContacts: vi.fn(async (payload) => ({
+      ...page.billingContacts,
+      billingContactUserId: payload.billingContactUserId,
+      billingEmail: payload.billingEmail,
+      lowCreditAlerts: { ...payload.lowCreditAlerts },
+      paymentFailureAlerts: { ...payload.paymentFailureAlerts },
+    })),
+    ...adapterOverrides,
+  })
 }
 
 describe("resolveBillingCreditsTabId", () => {
@@ -103,9 +147,7 @@ describe("billingCreditsHeaderActions", () => {
 
 describe("createOperatorBillingCreditsPageModule", () => {
   it("returns a stable snapshot until state changes", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-    })
+    const module = createTestModule()
     await module.load()
     expect(module.getSnapshot()).toBe(module.getSnapshot())
     module.requestTabChange("activity")
@@ -113,9 +155,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("round-trips tab id through requestTabChange", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-    })
+    const module = createTestModule()
     module.setNavigationTargets({ mode: "single", locationId: 10 })
     await module.load()
 
@@ -124,9 +164,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("builds manage-plan and buy-credits hrefs", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-    })
+    const module = createTestModule()
     module.setNavigationTargets({ mode: "multi", locationId: 7 })
     await module.load()
 
@@ -139,9 +177,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("opens nested manage plan from header CTA", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-    })
+    const module = createTestModule()
     module.setNavigationTargets({ mode: "single", locationId: 42 })
     await module.load()
 
@@ -152,9 +188,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("opens credit top-ups section from Buy credits", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-    })
+    const module = createTestModule()
     module.setNavigationTargets({ mode: "single", locationId: 42 })
     await module.load()
 
@@ -165,12 +199,10 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("breadcrumb returns to plan-subscription tab", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-      initialTabId: "credits-usage",
-    })
+    const module = createTestModule()
     module.setNavigationTargets({ mode: "single", locationId: 42 })
     await module.load()
+    module.requestTabChange("credits-usage")
 
     expect(module.getSnapshot().breadcrumbHref).toBe(
       "/single-dashboard/settings/billing-credits?location=42&tab=plan-subscription"
@@ -182,16 +214,14 @@ describe("createOperatorBillingCreditsPageModule", () => {
       getPage: async () => {
         throw { response: { status: 403 } }
       },
+      updateBillingContacts: vi.fn(),
     })
     await module.load()
     expect(module.getSnapshot().loadStatus).toBe("forbidden")
   })
 
   it("breadcrumb targets plan-subscription while Back keeps the prior tab", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-      initialSurface: "manage-plan",
-    })
+    const module = createTestModule()
     module.setNavigationTargets({ mode: "single", locationId: 42 })
     await module.load()
     module.requestTabChange("credits-usage")
@@ -203,12 +233,10 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("hides write CTAs for View snapshot", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () =>
-        samplePage({
-          actorCanManage: false,
-          actorPermissionRole: "Marketing",
-        }),
+    const module = createTestModule({
+      actorCanManage: false,
+      actorCanPersistBillingContacts: false,
+      actorPermissionRole: "Marketing",
     })
     await module.load()
     const snap = module.getSnapshot()
@@ -219,13 +247,72 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("clears manage-plan section when scrolling to plan cards", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-      initialManagePlanSection: "credit-top-ups",
-      initialSurface: "manage-plan",
-    })
+    const module = createTestModule()
     await module.load()
+    module.setManagePlanSectionFromUrl("credit-top-ups")
     module.scrollManagePlanToCards()
     expect(module.getSnapshot().managePlanSection).toBeNull()
+  })
+
+  it("is dirty only on the billing-contacts tab", async () => {
+    const module = createTestModule()
+    await module.load()
+
+    module.requestTabChange("billing-contacts")
+    expect(module.getSnapshot().isDirty).toBe(false)
+
+    module.setBillingEmail("billing@example.com")
+    expect(module.getSnapshot().isDirty).toBe(true)
+
+    module.requestTabChange("plan-subscription")
+    expect(module.getSnapshot().leaveDirtyOpen).toBe(true)
+    expect(module.getSnapshot().activeTabId).toBe("billing-contacts")
+
+    module.confirmLeaveDirtyCancel()
+    expect(module.getSnapshot().isDirty).toBe(false)
+    expect(module.getSnapshot().activeTabId).toBe("plan-subscription")
+  })
+
+  it("does not mark other tabs dirty when billing contacts is clean", async () => {
+    const module = createTestModule()
+    await module.load()
+
+    module.requestTabChange("credits-usage")
+    expect(module.getSnapshot().isDirty).toBe(false)
+    expect(module.getSnapshot().leaveDirtyOpen).toBe(false)
+  })
+
+  it("allows empty alert ticks", async () => {
+    const updateBillingContacts = vi.fn(async (payload) => ({
+      ...sampleBillingContacts(),
+      lowCreditAlerts: payload.lowCreditAlerts,
+      paymentFailureAlerts: payload.paymentFailureAlerts,
+    }))
+    const module = createTestModule({}, { updateBillingContacts })
+    await module.load()
+    module.requestTabChange("billing-contacts")
+
+    module.setLowCreditAlertOwner(false)
+    module.setLowCreditAlertAdmin(false)
+    module.setLowCreditAlertBillingContact(false)
+    module.setPaymentFailureAlertOwner(false)
+    module.setPaymentFailureAlertBillingContact(false)
+
+    await module.persistBillingContacts()
+
+    expect(updateBillingContacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lowCreditAlerts: {
+          owner: false,
+          admin: false,
+          billingContact: false,
+        },
+        paymentFailureAlerts: {
+          owner: false,
+          billingContact: false,
+        },
+      })
+    )
+    expect(module.getSnapshot().isDirty).toBe(false)
   })
 })

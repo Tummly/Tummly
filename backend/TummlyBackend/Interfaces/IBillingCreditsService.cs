@@ -9,5 +9,15 @@ namespace TummlyBackend.Interfaces
             int restaurantId,
             bool actorCanManage
         );
+
+        Task<(
+            UpdateBillingContactsResponseDto? Response,
+            string? Error,
+            int StatusCode
+        )> UpdateBillingContactsAsync(
+            int actorUserId,
+            int restaurantId,
+            UpdateBillingContactsRequest request
+        );
     }
 }

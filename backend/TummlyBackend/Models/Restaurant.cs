@@ -113,6 +113,8 @@ namespace TummlyBackend.Models
 
         public RestaurantBusinessDetails? BusinessDetails { get; set; }
 
+        public BillingAccount? BillingAccount { get; set; }
+
         /*
          =========================================
          WORKSPACE DEFAULTS

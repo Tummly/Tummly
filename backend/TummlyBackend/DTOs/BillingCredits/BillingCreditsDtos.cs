@@ -8,7 +8,11 @@ namespace TummlyBackend.DTOs.BillingCredits
 
         public bool ActorCanManage { get; set; }
 
+        public bool ActorCanPersistBillingContacts { get; set; }
+
         public PlanSubscriptionSnapshotDto PlanSubscription { get; set; } = new();
+
+        public BillingContactsSnapshotDto BillingContacts { get; set; } = new();
     }
 
     public sealed class PlanSubscriptionSnapshotDto
@@ -46,5 +50,61 @@ namespace TummlyBackend.DTOs.BillingCredits
         public string? ScheduledChangeLine { get; set; }
 
         public bool IsPilot { get; set; } = true;
+    }
+
+    public sealed class BillingContactsSnapshotDto
+    {
+        public int BillingContactUserId { get; set; }
+
+        public string? BillingEmail { get; set; }
+
+        public List<BillingContactPickerItemDto> EligibleMembers { get; set; } = [];
+
+        public BillingAlertRoleFlagsDto LowCreditAlerts { get; set; } = new();
+
+        public BillingPaymentFailureAlertFlagsDto PaymentFailureAlerts { get; set; } = new();
+    }
+
+    public sealed class BillingContactPickerItemDto
+    {
+        public int UserId { get; set; }
+
+        public string FullName { get; set; } = string.Empty;
+
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public sealed class BillingAlertRoleFlagsDto
+    {
+        public bool Owner { get; set; }
+
+        public bool Admin { get; set; }
+
+        public bool BillingContact { get; set; }
+    }
+
+    public sealed class BillingPaymentFailureAlertFlagsDto
+    {
+        public bool Owner { get; set; }
+
+        public bool BillingContact { get; set; }
+    }
+
+    public sealed class UpdateBillingContactsRequest
+    {
+        public int BillingContactUserId { get; set; }
+
+        public string? BillingEmail { get; set; }
+
+        public BillingAlertRoleFlagsDto LowCreditAlerts { get; set; } = new();
+
+        public BillingPaymentFailureAlertFlagsDto PaymentFailureAlerts { get; set; } = new();
+    }
+
+    public sealed class UpdateBillingContactsResponseDto
+    {
+        public bool Success { get; set; } = true;
+
+        public BillingContactsSnapshotDto BillingContacts { get; set; } = new();
     }
 }
