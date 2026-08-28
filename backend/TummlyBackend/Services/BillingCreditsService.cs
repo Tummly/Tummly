@@ -1352,7 +1352,6 @@ namespace TummlyBackend.Services
                         OccurredAtUtc = row.OccurredAtUtc,
                         Sentence = BillingActivityCopyFormatter.FormatSentence(row),
                     })
-                    .Where(row => row.Sentence != "")
                     .ToList(),
                 TotalCount = totalCount,
             };

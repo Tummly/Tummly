@@ -873,7 +873,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task GetActivity_Returns403_ForStaff()
+        public async Task GetActivity_Returns403_ForNoAccess()
         {
             var seeded = await SeedWorkspaceAsync();
             using var request = Authorized(

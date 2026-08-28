@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.BillingCredits;
@@ -9,14 +7,12 @@ using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Services
 {
-    public class BillingActivityServiceTests : IDisposable
+    public class BillingActivityServiceTests
     {
-        private readonly string _databaseName = Guid.NewGuid().ToString();
-
         [Fact]
         public async Task GetActivityAsync_ReturnsNewestFirst()
         {
-            var harness = await SeedAsync();
+            await using var harness = await SeedAsync();
             var older = DateTime.UtcNow.AddHours(-2);
             var newer = DateTime.UtcNow.AddHours(-1);
             harness.Context.RestaurantBillingActivities.AddRange(
@@ -54,7 +50,7 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task GetActivityAsync_PagesWithSkipAndTake()
         {
-            var harness = await SeedAsync();
+            await using var harness = await SeedAsync();
             for (var i = 0; i < 5; i++)
             {
                 harness.Context.RestaurantBillingActivities.Add(
@@ -81,13 +77,9 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(2, page.Items.Count);
         }
 
-        private async Task<Harness> SeedAsync()
+        private static async Task<Harness> SeedAsync()
         {
-            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseInMemoryDatabase(_databaseName)
-                .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
-                .Options;
-            var context = new ApplicationDbContext(options);
+            var context = BillingActivityTestDb.Create();
             var owner = new User
             {
                 FullName = "Owner",
@@ -120,21 +112,36 @@ namespace TummlyBackend.Tests.Services
             );
             await context.SaveChangesAsync();
 
-            var pricebook = new StubPricebookCatalog();
-            var creditBalance = new StubCreditBalanceSnapshot();
-            var service = new BillingCreditsService(context, pricebook, creditBalance);
+            var service = new BillingCreditsService(
+                context,
+                new StubPricebookCatalog(),
+                new StubCreditBalanceSnapshot(),
+                new StubBillingAccountLifecycle()
+            );
             return new Harness(context, service, restaurant.Id);
         }
 
-        public void Dispose()
+        private sealed class Harness : IAsyncDisposable
         {
-        }
+            public Harness(
+                ApplicationDbContext context,
+                BillingCreditsService service,
+                int restaurantId
+            )
+            {
+                Context = context;
+                Service = service;
+                RestaurantId = restaurantId;
+            }
 
-        private sealed record Harness(
-            ApplicationDbContext Context,
-            BillingCreditsService Service,
-            int RestaurantId
-        );
+            public ApplicationDbContext Context { get; }
+
+            public BillingCreditsService Service { get; }
+
+            public int RestaurantId { get; }
+
+            public ValueTask DisposeAsync() => Context.DisposeAsync();
+        }
 
         private sealed class StubPricebookCatalog : IPricebookCatalog
         {
@@ -159,6 +166,46 @@ namespace TummlyBackend.Tests.Services
                 int restaurantId,
                 CancellationToken cancellationToken = default
             ) => Task.FromResult<CreditBalanceAccountSnapshot?>(null);
+        }
+
+        private sealed class StubBillingAccountLifecycle : IBillingAccountLifecycle
+        {
+            public Task TickAsync(
+                int restaurantId,
+                DateTime now,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
+
+            public Task<BillingLifecycleCommandResult> StartDunningEpisodeAsync(
+                int restaurantId,
+                DateTime now,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(BillingLifecycleCommandResult.NoOp());
+
+            public Task RecoverDunningAsync(
+                int restaurantId,
+                DateTime now,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
+
+            public Task ActivatePaidPlanAsync(
+                int restaurantId,
+                DateTime now,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
+
+            public Task<BillingLifecycleCommandResult> ExtendPilotActivationAsync(
+                int restaurantId,
+                DateTime newPeriodEnd,
+                DateTime now,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(BillingLifecycleCommandResult.NoOp());
+
+            public Task SetChargebackRestrictionAsync(
+                int restaurantId,
+                bool restricted,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
         }
     }
 }
