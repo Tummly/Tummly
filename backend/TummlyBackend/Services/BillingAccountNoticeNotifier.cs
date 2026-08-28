@@ -12,21 +12,18 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IOperatorNotificationsService _notifications;
         private readonly IEmailService _emailService;
-        private readonly IPricebookCatalog _pricebookCatalog;
         private readonly ILogger<BillingAccountNoticeNotifier> _logger;
 
         public BillingAccountNoticeNotifier(
             ApplicationDbContext context,
             IOperatorNotificationsService notifications,
             IEmailService emailService,
-            IPricebookCatalog pricebookCatalog,
             ILogger<BillingAccountNoticeNotifier>? logger = null
         )
         {
             _context = context;
             _notifications = notifications;
             _emailService = emailService;
-            _pricebookCatalog = pricebookCatalog;
             _logger = logger
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<
                     BillingAccountNoticeNotifier
@@ -304,8 +301,12 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            var billingAccount = context.BillingAccount
-                ?? BillingCreditsService.CreateDefaultBillingAccount(context.RestaurantId, _pricebookCatalog.CurrentPricebookId);
+            if (context.BillingAccount == null)
+            {
+                return [];
+            }
+
+            var billingAccount = context.BillingAccount;
 
             var userIds = new HashSet<int>();
             if (billingAccount.LowCreditAlertOwner)
@@ -348,8 +349,12 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            var billingAccount = context.BillingAccount
-                ?? BillingCreditsService.CreateDefaultBillingAccount(context.RestaurantId, _pricebookCatalog.CurrentPricebookId);
+            if (context.BillingAccount == null)
+            {
+                return [];
+            }
+
+            var billingAccount = context.BillingAccount;
 
             var userIds = new HashSet<int>();
             if (billingAccount.PaymentFailureAlertOwner)

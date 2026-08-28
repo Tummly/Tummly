@@ -7,7 +7,6 @@ using TummlyBackend.DTOs.Notifications;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
-using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Services;
 using TummlyBackend.Tests.Helpers;
 
@@ -192,22 +191,7 @@ namespace TummlyBackend.Tests.Integration
             var notifier = new BillingAccountNoticeNotifier(
                 context,
                 notifications,
-                emailService,
-                PricebookCatalog.LoadFromDirectory(
-                Path.GetFullPath(
-                    Path.Combine(
-                        AppContext.BaseDirectory,
-                        "..",
-                        "..",
-                        "..",
-                        "..",
-                        "..",
-                        "docs",
-                        "product",
-                        "billing-pack-v3.0"
-                    )
-                )
-            )
+                emailService
             );
             await notifier.NotifyCreditThresholdCrossedAsync(
                 restaurant.Id,
@@ -300,22 +284,7 @@ namespace TummlyBackend.Tests.Integration
                     context,
                     new NullNotificationRealtimePublisher()
                 ),
-                emailService,
-                PricebookCatalog.LoadFromDirectory(
-                    Path.GetFullPath(
-                        Path.Combine(
-                            AppContext.BaseDirectory,
-                            "..",
-                            "..",
-                            "..",
-                            "..",
-                            "..",
-                            "docs",
-                            "product",
-                            "billing-pack-v3.0"
-                        )
-                    )
-                )
+                emailService
             );
             await notifier.NotifyCreditThresholdCrossedAsync(
                 restaurant.Id,

@@ -75,12 +75,7 @@ namespace TummlyBackend.Services
                 : isPilot
                     ? null
                     : "Renews 15 September 2026";
-            var scheduledChangeLine = ResolveStubScheduledChangeLine(
-                restaurant.Name,
-                isPilot,
-                activeLocations,
-                contractedPlan.IncludedLocations
-            );
+            var scheduledChangeLine = (string?)null;
             var sms5000Available =
                 billingAccount.AllowSms5000TopUp
                 || string.Equals(
@@ -484,20 +479,6 @@ namespace TummlyBackend.Services
 
         public const int GroupLocationCap = 30;
 
-        private static string? ResolveStubScheduledChangeLine(
-            string restaurantName,
-            bool isPilot,
-            int activeLocations,
-            int includedLocations
-        )
-        {
-            _ = restaurantName;
-            _ = isPilot;
-            _ = activeLocations;
-            _ = includedLocations;
-            return null;
-        }
-
         public static BillingWriteCapabilitiesDto ResolveWriteCapabilities(
             string accessLevel,
             string actorPermissionRole
@@ -860,7 +841,17 @@ namespace TummlyBackend.Services
 
             restaurant.BillingContactUserId = request.BillingContactUserId;
 
-            var billingAccount = await LoadOrCreateBillingAccountAsync(restaurantId, tracked: true);
+            var billingAccount = await _context.BillingAccounts
+                .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
+            if (billingAccount == null)
+            {
+                return (
+                    null,
+                    "Billing Account is missing for this restaurant.",
+                    StatusCodes.Status500InternalServerError
+                );
+            }
+
             billingAccount.BillingEmail = billingEmail;
             billingAccount.LowCreditAlertOwner = request.LowCreditAlerts.Owner;
             billingAccount.LowCreditAlertAdmin = request.LowCreditAlerts.Admin;
@@ -904,35 +895,6 @@ namespace TummlyBackend.Services
             throw new InvalidOperationException(
                 $"Billing Account is missing for restaurant {restaurantId}."
             );
-        }
-
-        private async Task<BillingAccount> LoadOrCreateBillingAccountAsync(
-            int restaurantId,
-            bool tracked = false
-        )
-        {
-            var query = tracked
-                ? _context.BillingAccounts
-                : _context.BillingAccounts.AsNoTracking();
-
-            var existing = await query
-                .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
-
-            if (existing != null)
-            {
-                return existing;
-            }
-
-            var created = CreateDefaultBillingAccount(
-                restaurantId,
-                _pricebookCatalog.CurrentPricebookId
-            );
-            if (tracked)
-            {
-                _context.BillingAccounts.Add(created);
-            }
-
-            return created;
         }
 
         public static BillingAccount CreateDefaultBillingAccount(
@@ -1281,7 +1243,7 @@ namespace TummlyBackend.Services
                 restaurant.Name,
                 owner?.ActivationExpiresAt
             );
-            var billingAccount = await LoadOrCreateBillingAccountAsync(restaurantId);
+            var billingAccount = await LoadRequiredBillingAccountAsync(restaurantId);
 
             return new CreditTopUpContext(
                 lifecycle.IsPilot,

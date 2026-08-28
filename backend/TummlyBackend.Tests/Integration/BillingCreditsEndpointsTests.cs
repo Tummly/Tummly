@@ -109,6 +109,89 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SetupAccount_CreatesBillingAccountRow_WithPilotDefaults()
+        {
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                context.TrialRequests.Add(
+                    new TrialRequest
+                    {
+                        BusinessName = "Setup Billing Cafe",
+                        BusinessCategory = "takeaway",
+                        Locations = "1",
+                        FullName = "Setup Owner",
+                        Email = "setup-billing@example.com",
+                        Mobile = "07911123456",
+                        MainLocation = "1 High Street",
+                        TownCity = "Leeds",
+                        Postcode = "LS1 1AA",
+                        Role = "Owner",
+                        Goal = "Grow",
+                        TermsAccepted = true,
+                        IsEmailVerified = true,
+                        IsApproved = true,
+                        Status = TrialRequestStatus.Approved,
+                        ApprovalToken = "setup-billing-token",
+                        InviteExpiresAt = DateTime.UtcNow.AddDays(7),
+                        IsAccountCreated = false,
+                        AccountType = "Single",
+                        CreatedAt = DateTime.UtcNow,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            var response = await _client.PostAsJsonAsync(
+                "/api/auth/setup-account",
+                new
+                {
+                    token = "setup-billing-token",
+                    password = "Password1!",
+                    confirmPassword = "Password1!",
+                    fullName = "Setup Owner",
+                    groupName = "Setup Billing Cafe",
+                    businessCategory = "takeaway",
+                    primaryPhone = "07911123456",
+                    locations = new[]
+                    {
+                        new
+                        {
+                            locationName = "Main",
+                            address = "1 High Street",
+                            postcode = "LS1 1AA",
+                        },
+                    },
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var restaurant = await context.Restaurants
+                    .AsNoTracking()
+                    .SingleAsync(row => row.Name == "Setup Billing Cafe");
+                var billingAccount = await context.BillingAccounts
+                    .AsNoTracking()
+                    .SingleAsync(row => row.RestaurantId == restaurant.Id);
+
+                Assert.Equal(restaurant.Id, billingAccount.RestaurantId);
+                Assert.Equal(BillingSubscriptionPlans.Pilot, billingAccount.SubscriptionPlan);
+                Assert.Equal(BillingStatuses.Pilot, billingAccount.BillingStatus);
+                Assert.Null(billingAccount.BillingCycle);
+                Assert.Null(billingAccount.RevolutCustomerId);
+                Assert.Equal(StarterKitStates.Unused, billingAccount.StarterKitState);
+                Assert.Equal(
+                    "TUMMLY-UK-GBP-2026-08-V3",
+                    billingAccount.ContractedPricebookId
+                );
+            }
+        }
+
+        [Fact]
         public async Task PutBillingContacts_Returns403_ForView()
         {
             var seeded = await SeedWorkspaceAsync();

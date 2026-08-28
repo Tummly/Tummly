@@ -4,7 +4,6 @@ using TummlyBackend.DTOs.Notifications;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
-using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Services;
 using TummlyBackend.Tests.Helpers;
 
@@ -32,22 +31,7 @@ namespace TummlyBackend.Tests.Services
             _notifier = new BillingAccountNoticeNotifier(
                 _context,
                 _notifications,
-                _email,
-                PricebookCatalog.LoadFromDirectory(
-                Path.GetFullPath(
-                    Path.Combine(
-                        AppContext.BaseDirectory,
-                        "..",
-                        "..",
-                        "..",
-                        "..",
-                        "..",
-                        "docs",
-                        "product",
-                        "billing-pack-v3.0"
-                    )
-                )
-            )
+                _email
             );
         }
 
