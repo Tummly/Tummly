@@ -7,12 +7,14 @@ import {
 import { useLocation, useOutletContext, useSearchParams } from "react-router-dom"
 
 import {
+  confirmBillingCreditTopUp,
   createPaymentMethodUpdateSession,
   downloadInvoicePdfBlob,
   fetchBillingCreditsInvoicePdf,
   getBillingCreditsPage,
   getBillingCreditsUsage,
   openInvoicePdfBlob,
+  payBillingCreditTopUp,
   submitBillingPlanChange,
   updateBillingContacts,
 } from "@/api/billingCreditsApi"
@@ -48,6 +50,8 @@ export function BillingCreditsPageModuleProvider({
         openInvoicePdf: openInvoicePdfBlob,
         downloadInvoicePdf: downloadInvoicePdfBlob,
         updateBillingContacts,
+        confirmCreditTopUp: confirmBillingCreditTopUp,
+        payCreditTopUp: payBillingCreditTopUp,
       },
       {
         initialTabId,
@@ -78,6 +82,24 @@ export function BillingCreditsPageModuleProvider({
 
   useEffect(() => {
     pageModule.setManagePlanSectionFromUrl(searchParams.get("section"))
+  }, [pageModule, searchParams])
+
+  useEffect(() => {
+    pageModule.setFocusedTopUpChannelFromUrl(searchParams.get("channel"))
+  }, [pageModule, searchParams])
+
+  useEffect(() => {
+    const outcome = searchParams.get("topUpOutcome")
+    if (outcome == null) {
+      return
+    }
+    if (
+      outcome === "success"
+      || outcome === "cancel"
+      || outcome === "fail"
+    ) {
+      pageModule.handleTopUpPayReturn(outcome)
+    }
   }, [pageModule, searchParams])
 
   useEffect(() => {

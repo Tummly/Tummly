@@ -52,6 +52,8 @@ export const BILLING_CREDITS_PAGE_COPY = {
   pricebook: "Pricebook",
   pilotNotice:
     "Pilot does not convert to a paid plan automatically. Credit top-ups are unavailable during Pilot.",
+  topUpPilotNotice:
+    "Credit top-ups need a paid plan. Pilot does not convert to a paid plan automatically.",
   managePlanPlanCards: "Plan cards",
   managePlanCreditTopUps: "Credit top-ups",
   plusVat: "+ VAT",

@@ -11,6 +11,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
 import { useBillingCreditsPageModuleApi } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
 import { ManagePlanCardsSection } from "@/components/dashboard/operator/BillingCredits/ManagePlanCardsSection"
+import { CreditTopUpsSection } from "@/components/dashboard/operator/BillingCredits/CreditTopUpsSection"
 import { PaymentInvoicesTable } from "@/components/dashboard/operator/BillingCredits/PaymentInvoicesTable"
 import { UpdatePaymentMethodConfirmDialog } from "@/components/dashboard/operator/BillingCredits/UpdatePaymentMethodConfirmDialog"
 import { Badge } from "@/components/ui/badge"
@@ -1019,6 +1020,15 @@ export function ManagePlanPage() {
   }, [snap.pendingPayRedirectUrl, pageModule])
 
   useEffect(() => {
+    if (snap.focusedTopUpChannel == null) {
+      return
+    }
+    document
+      .getElementById(`credit-top-up-${snap.focusedTopUpChannel}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }, [snap.focusedTopUpChannel, snap.loadStatus])
+
+  useEffect(() => {
     if (snap.pendingPaymentMethodRedirectUrl == null) {
       return
     }
@@ -1129,7 +1139,7 @@ export function ManagePlanPage() {
                 <Badge variant="secondary">Selected</Badge>
               ) : null}
             </div>
-            <p className={GUESTS_SECTION_SUBTITLE_CLASS}>Coming soon.</p>
+            <CreditTopUpsSection snap={snap} pageModule={pageModule} />
           </section>
         </div>
       )}

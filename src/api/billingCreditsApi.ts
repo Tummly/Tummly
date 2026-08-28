@@ -4,6 +4,9 @@ import type {
   BillingContactsSnapshot,
   BillingCreditsPageData,
   BillingPaymentFailureAlertFlags,
+  CreditTopUpConfirmResult,
+  CreditTopUpPayResult,
+  CreditTopUpRequest,
   PlanChangeRequest,
   PlanChangeResult,
   UpdateBillingContactsPayload,
@@ -191,4 +194,50 @@ export async function submitBillingPlanChange(
     redirectUrl: data.redirectUrl,
     scheduledChangeLine: data.scheduledChangeLine,
   }
+}
+
+type CreditTopUpConfirmResponse = {
+  channel: string
+  quantity: number
+  channelLabel: string
+  netLabel: string
+  grossLabel: string
+  vatLabel: string
+}
+
+type CreditTopUpPayResponse = {
+  redirectUrl: string
+}
+
+export async function confirmBillingCreditTopUp(
+  request: CreditTopUpRequest
+): Promise<CreditTopUpConfirmResult> {
+  const { data } = await axiosInstance.post<CreditTopUpConfirmResponse>(
+    "/billing-credits/top-up/confirm",
+    {
+      channel: request.channel,
+      quantity: request.quantity,
+    }
+  )
+  return {
+    channel: request.channel,
+    quantity: data.quantity,
+    channelLabel: data.channelLabel,
+    netLabel: data.netLabel,
+    grossLabel: data.grossLabel,
+    vatLabel: data.vatLabel,
+  }
+}
+
+export async function payBillingCreditTopUp(
+  request: CreditTopUpRequest
+): Promise<CreditTopUpPayResult> {
+  const { data } = await axiosInstance.post<CreditTopUpPayResponse>(
+    "/billing-credits/top-up/pay",
+    {
+      channel: request.channel,
+      quantity: request.quantity,
+    }
+  )
+  return { redirectUrl: data.redirectUrl }
 }

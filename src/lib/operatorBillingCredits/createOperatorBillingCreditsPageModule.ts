@@ -34,6 +34,12 @@ import {
   type ManagePlanId,
   type PlanChangeKind,
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
+import {
+  buildCreditTopUpCards,
+  buildCreditTopUpConfirmCopy,
+  type CreditTopUpCardViewModel,
+  type CreditTopUpConfirmViewModel,
+} from "@/lib/operatorBillingCredits/creditTopUpPresentation"
 
 export type TeamMemberPickerItem = {
   userId: number
@@ -78,6 +84,7 @@ export type PlanSubscriptionSnapshot = {
   pricebookId: string
   scheduledChangeLine: string | null
   isPilot: boolean
+  allowSms5000TopUp: boolean
 }
 
 export type BillingCreditsPageData = {
@@ -98,6 +105,24 @@ export type PlanChangeResult = {
   outcome: "pay" | "scheduled"
   redirectUrl?: string | null
   scheduledChangeLine?: string | null
+}
+
+export type CreditTopUpRequest = {
+  channel: CreditChannelId
+  quantity: number
+}
+
+export type CreditTopUpConfirmResult = {
+  channel: CreditChannelId
+  quantity: number
+  channelLabel: string
+  netLabel: string
+  grossLabel: string
+  vatLabel: string
+}
+
+export type CreditTopUpPayResult = {
+  redirectUrl: string
 }
 
 export type PlanChangeConfirmDialog = {
@@ -129,6 +154,10 @@ export type BillingCreditsPageAdapters = {
   updateBillingContacts: (
     payload: UpdateBillingContactsPayload
   ) => Promise<BillingContactsSnapshot>
+  confirmCreditTopUp?: (
+    request: CreditTopUpRequest
+  ) => Promise<CreditTopUpConfirmResult>
+  payCreditTopUp?: (request: CreditTopUpRequest) => Promise<CreditTopUpPayResult>
 }
 
 export type BillingCreditsSurface = "tabs" | "manage-plan"
@@ -187,6 +216,9 @@ export type BillingCreditsSnapshot = {
   currentPlanSummary: string | null
   planChangeConfirm: PlanChangeConfirmDialog | null
   pendingPayRedirectUrl: string | null
+  topUpCards: CreditTopUpCardViewModel[]
+  topUpConfirm: CreditTopUpConfirmViewModel | null
+  focusedTopUpChannel: CreditChannelId | null
   toast: { kind: "success" | "error"; message: string } | null
 }
 
@@ -213,6 +245,12 @@ export type OperatorBillingCreditsPageModule = {
   cancelPlanChange: () => void
   confirmPlanChange: () => Promise<void>
   consumePendingPayRedirect: () => string | null
+  setFocusedTopUpChannelFromUrl: (raw: string | null) => void
+  selectTopUpPack: (channel: CreditChannelId, quantity: number) => void
+  requestTopUpBuy: (channel: CreditChannelId) => Promise<void>
+  cancelTopUpBuy: () => void
+  confirmTopUpBuy: () => Promise<void>
+  handleTopUpPayReturn: (outcome: "success" | "cancel" | "fail") => void
   openUpdatePaymentMethodConfirm: () => void
   dismissUpdatePaymentMethodConfirm: () => void
   confirmUpdatePaymentMethod: () => Promise<void>
@@ -253,6 +291,7 @@ function emptyPlanSnapshot(): PlanSubscriptionSnapshot {
     pricebookId: "",
     scheduledChangeLine: null,
     isPilot: false,
+    allowSms5000TopUp: false,
   }
 }
 
@@ -336,6 +375,9 @@ export function createOperatorBillingCreditsPageModule(
   let previewCadence: BillingCadence = "monthly"
   let planChangeConfirm: PlanChangeConfirmDialog | null = null
   let pendingPayRedirectUrl: string | null = null
+  let focusedTopUpChannel: CreditChannelId | null = null
+  let selectedPackByChannel: Partial<Record<CreditChannelId, number>> = {}
+  let topUpConfirm: CreditTopUpConfirmViewModel | null = null
   let pendingLeave: PendingLeave | null = null
   let leaveDirtyOpen = false
   let isSaving = false
@@ -354,6 +396,32 @@ export function createOperatorBillingCreditsPageModule(
       accessLevel: accessLevel(),
       permissionRole: data?.actorPermissionRole ?? "",
     })
+
+  const canBuyCreditTopUp = (): boolean => {
+    if (accessLevel() !== "manage") {
+      return false
+    }
+    const role = data?.actorPermissionRole ?? ""
+    return (
+      role === "Owner" || role === "Billing Admin" || role === "Admin"
+    )
+  }
+
+  const projectTopUpCards = (): CreditTopUpCardViewModel[] => {
+    if (creditsUsage == null || data?.planSubscription == null) {
+      return []
+    }
+
+    return buildCreditTopUpCards({
+      channels: creditsUsage.channels,
+      subscriptionPlan: data.planSubscription.subscriptionPlan,
+      allowSms5000TopUp: data.planSubscription.allowSms5000TopUp,
+      isPilot: creditsUsage.isPilot,
+      canBuy: canBuyCreditTopUp(),
+      selectedPackByChannel,
+      focusedChannel: focusedTopUpChannel,
+    })
+  }
 
   const buildManagePlanHref = (
     section?: ManagePlanSection,
@@ -517,6 +585,9 @@ export function createOperatorBillingCreditsPageModule(
         plan != null ? formatCurrentPlanSummary(plan) : null,
       planChangeConfirm,
       pendingPayRedirectUrl,
+      topUpCards: projectTopUpCards(),
+      topUpConfirm,
+      focusedTopUpChannel,
       toast,
     }
   }
@@ -785,6 +856,115 @@ export function createOperatorBillingCreditsPageModule(
       pendingPayRedirectUrl = null
       refreshSnapshot()
       return url
+    },
+    setFocusedTopUpChannelFromUrl: (raw) => {
+      if (raw === "sms" || raw === "email" || raw === "ai") {
+        focusedTopUpChannel = raw
+      } else {
+        focusedTopUpChannel = null
+      }
+      refreshSnapshot()
+    },
+    selectTopUpPack: (channel, quantity) => {
+      selectedPackByChannel = {
+        ...selectedPackByChannel,
+        [channel]: quantity,
+      }
+      focusedTopUpChannel = channel
+      refreshSnapshot()
+    },
+    requestTopUpBuy: async (channel) => {
+      const quantity = selectedPackByChannel[channel]
+      if (quantity == null || adapters.confirmCreditTopUp == null) {
+        return
+      }
+
+      topUpConfirm = {
+        open: true,
+        title: "Confirm credit top-up",
+        body: "",
+        primaryLabel: "Continue to payment",
+        busy: true,
+        channel,
+        quantity,
+      }
+      refreshSnapshot()
+
+      try {
+        const result = await adapters.confirmCreditTopUp({
+          channel,
+          quantity,
+        })
+        const copy = buildCreditTopUpConfirmCopy({
+          channelLabel: result.channelLabel,
+          quantity: result.quantity,
+          netLabel: result.netLabel,
+          grossLabel: result.grossLabel,
+        })
+        topUpConfirm = {
+          open: true,
+          title: copy.title,
+          body: copy.body,
+          primaryLabel: copy.primaryLabel,
+          busy: false,
+          channel,
+          quantity,
+        }
+      } catch {
+        topUpConfirm = null
+        toast = {
+          kind: "error",
+          message: "Could not prepare this credit top-up. Please try again.",
+        }
+      }
+      refreshSnapshot()
+    },
+    cancelTopUpBuy: () => {
+      topUpConfirm = null
+      refreshSnapshot()
+    },
+    confirmTopUpBuy: async () => {
+      if (topUpConfirm == null || adapters.payCreditTopUp == null) {
+        return
+      }
+
+      const { channel, quantity } = topUpConfirm
+      topUpConfirm = {
+        ...topUpConfirm,
+        busy: true,
+      }
+      refreshSnapshot()
+
+      try {
+        const result = await adapters.payCreditTopUp({ channel, quantity })
+        topUpConfirm = null
+        pendingPayRedirectUrl = result.redirectUrl
+      } catch {
+        topUpConfirm = {
+          ...topUpConfirm,
+          busy: false,
+        }
+        toast = {
+          kind: "error",
+          message: "Could not start payment. Please try again.",
+        }
+      }
+      refreshSnapshot()
+    },
+    handleTopUpPayReturn: (outcome) => {
+      if (outcome === "success") {
+        const href = buildBillingCreditsHref("credits-usage")
+        if (href != null) {
+          pendingNavigationHref = href
+        }
+        selectedPackByChannel = {}
+        topUpConfirm = null
+        refreshSnapshot()
+        return
+      }
+
+      managePlanSection = "credit-top-ups"
+      refreshSnapshot()
     },
     openUpdatePaymentMethodConfirm: () => {
       updatePaymentMethodConfirmOpen = true
