@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Data;
@@ -10,6 +11,9 @@ namespace TummlyBackend.Services
 {
     public sealed class OwnedLocationInsertService : IOwnedLocationInsertService
     {
+        private static readonly ConcurrentDictionary<int, SemaphoreSlim> AccountLocks
+            = new();
+
         private readonly ApplicationDbContext _context;
         private readonly IPricebookCatalog _pricebookCatalog;
 
@@ -23,6 +27,31 @@ namespace TummlyBackend.Services
         }
 
         public async Task<AddOwnedLocationResult> AddAsync(
+            int restaurantId,
+            AddOwnedLocationRequest request
+        )
+        {
+            if (!_context.Database.IsSqlServer())
+            {
+                var gate = AccountLocks.GetOrAdd(
+                    restaurantId,
+                    _ => new SemaphoreSlim(1, 1)
+                );
+                await gate.WaitAsync();
+                try
+                {
+                    return await AddLockedAsync(restaurantId, request);
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            }
+
+            return await AddLockedAsync(restaurantId, request);
+        }
+
+        private async Task<AddOwnedLocationResult> AddLockedAsync(
             int restaurantId,
             AddOwnedLocationRequest request
         )
