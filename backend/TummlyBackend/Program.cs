@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Billing;
 using TummlyBackend.Billing.Pricebook;
+using TummlyBackend.Billing;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -469,6 +470,7 @@ builder.Services.AddScoped<IOwnedLocationInsertService, OwnedLocationInsertServi
 
 builder.Services.AddScoped<IAccountWorkspaceService, AccountWorkspaceService>();
 builder.Services.AddScoped<ITeamPermissionsService, TeamPermissionsService>();
+builder.Services.AddScoped<ITeamMemberCapGate, TeamMemberCapGate>();
 builder.Services.AddSingleton<IPricebookCatalog>(sp =>
     PricebookCatalog.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
 );

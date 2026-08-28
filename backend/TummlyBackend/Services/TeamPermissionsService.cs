@@ -13,6 +13,7 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IEmailService _email;
+        private readonly ITeamMemberCapGate _teamMemberCap;
         private readonly IConfiguration _configuration;
         private readonly ILogger<TeamPermissionsService> _logger;
 
@@ -20,6 +21,7 @@ namespace TummlyBackend.Services
             ApplicationDbContext context,
             IRestaurantPermissionHelper permissions,
             IEmailService email,
+            ITeamMemberCapGate teamMemberCap,
             IConfiguration configuration,
             ILogger<TeamPermissionsService> logger
         )
@@ -27,6 +29,7 @@ namespace TummlyBackend.Services
             _context = context;
             _permissions = permissions;
             _email = email;
+            _teamMemberCap = teamMemberCap;
             _configuration = configuration;
             _logger = logger;
         }
@@ -366,7 +369,7 @@ namespace TummlyBackend.Services
             return null;
         }
 
-        public async Task<string?> ReactivateAsync(
+        public async Task<TeamPermissionsWriteResult> ReactivateAsync(
             int actorUserId,
             int restaurantId,
             bool actorCanManage,
@@ -381,13 +384,21 @@ namespace TummlyBackend.Services
             );
             if (loaded.Error != null)
             {
-                return loaded.Error;
+                return TeamPermissionsWriteResult.Fail(loaded.Error);
             }
 
             var target = loaded.Target!;
             if (target.Status != MembershipStatus.Deactivated)
             {
-                return null;
+                return TeamPermissionsWriteResult.Ok();
+            }
+
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync();
+            var cap = await _teamMemberCap.DenyIncrementAsync(restaurantId);
+            if (!cap.AllowIncrement)
+            {
+                return TeamPermissionsWriteResult.FromCap(cap);
             }
 
             target.Status = MembershipStatus.Active;
@@ -400,7 +411,8 @@ namespace TummlyBackend.Services
                 MembershipStatus.Active.ToString()
             );
             await _context.SaveChangesAsync();
-            return null;
+            await transaction.CommitAsync();
+            return TeamPermissionsWriteResult.Ok();
         }
 
         public async Task<string?> RemoveAsync(
@@ -527,7 +539,7 @@ namespace TummlyBackend.Services
             return null;
         }
 
-        public async Task<string?> SendInviteAsync(
+        public async Task<TeamPermissionsWriteResult> SendInviteAsync(
             int actorUserId,
             int restaurantId,
             bool actorCanManage,
@@ -539,12 +551,12 @@ namespace TummlyBackend.Services
             var fullName = (request.FullName ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
             {
-                return "Enter a valid email address.";
+                return TeamPermissionsWriteResult.Fail("Enter a valid email address.");
             }
 
             if (string.IsNullOrWhiteSpace(fullName))
             {
-                return "Full name is required.";
+                return TeamPermissionsWriteResult.Fail("Full name is required.");
             }
 
             var loaded = await LoadInviteActorAsync(
@@ -555,7 +567,7 @@ namespace TummlyBackend.Services
             );
             if (loaded.Error != null)
             {
-                return loaded.Error;
+                return TeamPermissionsWriteResult.Fail(loaded.Error);
             }
 
             var kind = request.LocationScope == "named"
@@ -586,7 +598,7 @@ namespace TummlyBackend.Services
             );
             if (scopeError != null)
             {
-                return scopeError;
+                return TeamPermissionsWriteResult.Fail(scopeError);
             }
 
             if (kind == LocationScopeKind.NamedList)
@@ -598,7 +610,7 @@ namespace TummlyBackend.Services
                     );
                 if (namedDecision.Status != RestaurantPermissionStatus.Allowed)
                 {
-                    return namedDecision.Message;
+                    return TeamPermissionsWriteResult.Fail(namedDecision.Message);
                 }
             }
 
@@ -609,7 +621,15 @@ namespace TummlyBackend.Services
             );
             if (deny != null)
             {
-                return deny;
+                return TeamPermissionsWriteResult.Fail(deny);
+            }
+
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync();
+            var cap = await _teamMemberCap.DenyIncrementAsync(restaurantId);
+            if (!cap.AllowIncrement)
+            {
+                return TeamPermissionsWriteResult.FromCap(cap);
             }
 
             var existingUser = await FindUserByEmailAsync(email);
@@ -645,6 +665,7 @@ namespace TummlyBackend.Services
                 MembershipLocationScope.FormatAccessLabel(kind, named, namesById)
             );
             await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
             await TrySendInvitationEmailAsync(
                 invite,
                 loaded.Restaurant!.Name,
@@ -652,7 +673,7 @@ namespace TummlyBackend.Services
                 existingUser?.FullName,
                 loaded.Locations
             );
-            return null;
+            return TeamPermissionsWriteResult.Ok();
         }
 
         public async Task<string?> ResendInviteAsync(

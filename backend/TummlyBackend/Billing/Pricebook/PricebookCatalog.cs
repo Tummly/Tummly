@@ -317,6 +317,9 @@ namespace TummlyBackend.Billing.Pricebook
             var locations = element.TryGetProperty("locations", out var loc)
                 ? loc.GetInt32()
                 : 1;
+            var users = element.TryGetProperty("users", out var userCount)
+                ? userCount.GetInt32()
+                : 0;
             var activeOffers = element.TryGetProperty(
                     "active_offers_account",
                     out var offers
@@ -334,6 +337,7 @@ namespace TummlyBackend.Billing.Pricebook
                 MonthlyNetPence = monthlyPence,
                 AnnualNetPence = annualPence,
                 IncludedLocations = locations,
+                IncludedTeamMembers = users,
                 ActiveOffersAccount = activeOffers,
                 CreditsOneTime = oneTime,
                 CreditsMonthly = monthly,

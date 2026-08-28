@@ -8,6 +8,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -200,6 +201,23 @@ namespace TummlyBackend.Tests.Integration
             );
             var nextResponse = await _client.SendAsync(next);
             Assert.Equal(HttpStatusCode.Forbidden, nextResponse.StatusCode);
+        }
+
+        [Fact]
+        public async Task Reactivate_Returns409_WhenTeamMemberCapReached()
+        {
+            var seeded = await SeedPilotAtCapWithDeactivatedAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                $"/api/team-permissions/members/{seeded.DeactivatedMembershipId}/reactivate",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("team_member_cap_reached", body.GetProperty("code").GetString());
+            Assert.Equal(2, body.GetProperty("cap").GetInt32());
+            Assert.Equal(2, body.GetProperty("current").GetInt32());
         }
 
         [Fact]
@@ -517,6 +535,83 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        private async Task<PilotCapSeeded> SeedPilotAtCapWithDeactivatedAsync()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var owner = AddUser(context, "Pilot Cap Owner", "Owner");
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Pilot Reactivate Venue",
+                AccountType = "Single",
+                OwnerUserId = owner.Id,
+                BillingContactUserId = owner.Id,
+                PrivacyContactUserId = owner.Id,
+                SupportContactUserId = owner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            context.RestaurantLocations.Add(
+                new RestaurantLocation
+                {
+                    RestaurantId = restaurant.Id,
+                    LocationName = "Camden",
+                    Address = "1 High Street",
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+
+            var active = AddUser(context, "Active Member", "Owner");
+            var deactivated = AddUser(context, "Deactivated Member", "Owner");
+            await context.SaveChangesAsync();
+
+            AddMembership(
+                context,
+                owner.Id,
+                restaurant.Id,
+                PermissionRoles.Owner,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
+            AddMembership(
+                context,
+                active.Id,
+                restaurant.Id,
+                PermissionRoles.Staff,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
+            var deactivatedMembership = AddMembership(
+                context,
+                deactivated.Id,
+                restaurant.Id,
+                PermissionRoles.Staff,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
+            deactivatedMembership.Status = MembershipStatus.Deactivated;
+            context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurant.Id,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                )
+            );
+            await context.SaveChangesAsync();
+
+            return new PilotCapSeeded(
+                jwtService.GenerateToken(owner.Id.ToString(), owner.Email, owner.Role),
+                deactivatedMembership.Id
+            );
+        }
+
         private static User AddUser(
             ApplicationDbContext context,
             string name,
@@ -592,6 +687,11 @@ namespace TummlyBackend.Tests.Integration
         {
             return await response.Content.ReadFromJsonAsync<JsonElement>();
         }
+
+        private sealed record PilotCapSeeded(
+            string OwnerJwt,
+            int DeactivatedMembershipId
+        );
 
         private sealed record Seeded(
             string OwnerJwt,

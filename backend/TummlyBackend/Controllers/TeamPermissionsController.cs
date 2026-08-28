@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TummlyBackend.Billing;
 using TummlyBackend.DTOs.TeamPermissions;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -185,16 +186,31 @@ namespace TummlyBackend.Controllers
         [HttpPost("members/{membershipId:int}/reactivate")]
         public async Task<IActionResult> Reactivate(int membershipId)
         {
-            return await MutateAsync(
-                membershipId,
-                (userId, restaurantId, canManage) =>
-                    _teamPermissions.ReactivateAsync(
-                        userId,
-                        restaurantId,
-                        canManage,
-                        membershipId
-                    )
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.TeamPermissions,
+                PermissionLevel.Manage
             );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _teamPermissions.ReactivateAsync(
+                userId,
+                decision.RestaurantId,
+                true,
+                membershipId
+            );
+            return MapWrite(result);
         }
 
         [HttpDelete("members/{membershipId:int}")]
@@ -266,14 +282,14 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
-            var error = await _teamPermissions.SendInviteAsync(
+            var result = await _teamPermissions.SendInviteAsync(
                 userId,
                 decision.RestaurantId,
                 true,
                 decision.LocationIds,
                 request
             );
-            return MapWrite(error);
+            return MapWrite(result);
         }
 
         [HttpPost("invitations/{invitationId:int}/resend")]
@@ -360,11 +376,37 @@ namespace TummlyBackend.Controllers
             return MapWrite(error);
         }
 
+        private IActionResult MapWrite(TeamPermissionsWriteResult result)
+        {
+            if (result.Code == TeamMemberCapGate.CapReachedCode)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = result.Code,
+                    message = result.Error,
+                    cap = result.Cap,
+                    current = result.Current,
+                });
+            }
+
+            return MapWrite(result.Error);
+        }
+
         private IActionResult MapWrite(string? error)
         {
             if (error == null)
             {
                 return NoContent();
+            }
+
+            if (error == TeamMemberCapGate.UnavailableMessage)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = error,
+                });
             }
 
             if (error == "forbidden")
