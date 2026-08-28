@@ -228,7 +228,61 @@ namespace TummlyBackend.Tests.Integration
                     "TUMMLY-UK-GBP-2026-08-V3",
                     billingAccount.ContractedPricebookId
                 );
+
+                var ledgerRows = await context.CreditLedgerEntries
+                    .AsNoTracking()
+                    .Where(row => row.RestaurantId == restaurant.Id)
+                    .ToListAsync();
+                Assert.Empty(ledgerRows);
             }
+        }
+
+        [Fact]
+        public async Task ActivateThenUsageGet_MatchesOneTimePilotAllowances()
+        {
+            var seeded = await SeedPendingActivationWorkspaceAsync();
+
+            using (var activateRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/auth/activate"
+            ))
+            {
+                activateRequest.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", seeded.OwnerJwt);
+                activateRequest.Content = JsonContent.Create(new
+                {
+                    activationCode = "ABCD-2345",
+                });
+
+                var activateResponse = await _client.SendAsync(activateRequest);
+                Assert.Equal(HttpStatusCode.OK, activateResponse.StatusCode);
+            }
+
+            using var usageRequest = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits/usage",
+                seeded.OwnerJwt
+            );
+            var usageResponse = await _client.SendAsync(usageRequest);
+            Assert.Equal(HttpStatusCode.OK, usageResponse.StatusCode);
+
+            var body = await ReadJsonAsync(usageResponse);
+            Assert.Equal("Account · Pilot allowance", body.GetProperty("periodLabel").GetString());
+            Assert.True(body.GetProperty("isPilot").GetBoolean());
+
+            var email = body.GetProperty("channels").EnumerateArray()
+                .First(row => row.GetProperty("channel").GetString() == "email");
+            var sms = body.GetProperty("channels").EnumerateArray()
+                .First(row => row.GetProperty("channel").GetString() == "sms");
+            var ai = body.GetProperty("channels").EnumerateArray()
+                .First(row => row.GetProperty("channel").GetString() == "ai");
+
+            Assert.Equal(500, email.GetProperty("combinedRemaining").GetInt32());
+            Assert.Equal(500, email.GetProperty("includedThisPeriod").GetInt32());
+            Assert.Equal(20, sms.GetProperty("combinedRemaining").GetInt32());
+            Assert.Equal(20, sms.GetProperty("includedThisPeriod").GetInt32());
+            Assert.Equal(20, ai.GetProperty("combinedRemaining").GetInt32());
+            Assert.Equal(20, ai.GetProperty("includedThisPeriod").GetInt32());
         }
 
         [Fact]
@@ -1762,6 +1816,81 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        private async Task<PendingActivationSeeded> SeedPendingActivationWorkspaceAsync()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var owner = new User
+            {
+                FullName = "Pending Activation Owner",
+                Email = $"{Guid.NewGuid():N}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900222",
+                Role = "Owner",
+                AccountType = "Single",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                TermsAccepted = true,
+                HasCompletedFirstSignIn = true,
+                CreatedAt = DateTime.UtcNow,
+                ActivationCodeHash =
+                    ActivationCodeHelper.HashCode("ABCD2345"),
+            };
+            context.Users.Add(owner);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Pending Activation Venue",
+                AccountType = "Single",
+                OwnerUserId = owner.Id,
+                BillingContactUserId = owner.Id,
+                PrivacyContactUserId = owner.Id,
+                SupportContactUserId = owner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            context.BillingAccounts.Add(
+                CreateSeedBillingAccount(restaurant.Id, restaurant.Name)
+            );
+            owner.SelectedRestaurantId = restaurant.Id;
+
+            context.RestaurantLocations.Add(
+                new RestaurantLocation
+                {
+                    RestaurantId = restaurant.Id,
+                    LocationName = "Main",
+                    Address = "1 High Street",
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+
+            AddMembership(
+                context,
+                owner.Id,
+                restaurant.Id,
+                PermissionRoles.Owner,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
+            await context.SaveChangesAsync();
+
+            return new PendingActivationSeeded(
+                restaurant.Id,
+                jwtService.GenerateToken(
+                    owner.Id.ToString(),
+                    owner.Email,
+                    owner.Role
+                )
+            );
+        }
+
         private static User AddUser(
             ApplicationDbContext context,
             string name,
@@ -1849,6 +1978,11 @@ namespace TummlyBackend.Tests.Integration
             string StaffJwt,
             string MarketingJwt,
             string BillingAdminJwt
+        );
+
+        private sealed record PendingActivationSeeded(
+            int RestaurantId,
+            string OwnerJwt
         );
 
         private sealed record PaidSeeded(

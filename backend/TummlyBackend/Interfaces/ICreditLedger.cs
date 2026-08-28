@@ -36,6 +36,15 @@ namespace TummlyBackend.Interfaces
             CreditLedgerReleaseHeldRequest request,
             CancellationToken cancellationToken = default
         );
+
+        /// <summary>
+        /// Inserts Pilot allocation grants for one Billing Account.
+        /// Caller owns the transaction and SaveChanges.
+        /// </summary>
+        Task<CreditLedgerWriteResult> MintPilotAtActivationAsync(
+            int restaurantId,
+            CancellationToken cancellationToken = default
+        );
     }
 
     public sealed class StaffManualAdjustRequest

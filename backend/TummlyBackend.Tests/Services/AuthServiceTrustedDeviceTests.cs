@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -24,6 +25,9 @@ namespace TummlyBackend.Tests.Services
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .ConfigureWarnings(w =>
+                    w.Ignore(InMemoryEventId.TransactionIgnoredWarning)
+                )
                 .Options;
 
             _context = new ApplicationDbContext(options);
@@ -65,7 +69,8 @@ namespace TummlyBackend.Tests.Services
                 new MemoryCache(new MemoryCacheOptions()),
                 new ActivationGate(),
                 _notifications,
-                new NoOpBillingAccountLifecycle()
+                new NoOpBillingAccountLifecycle(),
+                new NoOpCreditLedger()
             );
         }
 

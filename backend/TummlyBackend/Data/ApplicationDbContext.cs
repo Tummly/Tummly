@@ -587,6 +587,12 @@ namespace TummlyBackend.Data
                 .HasIndex(e => new { e.RestaurantId, e.Channel });
 
             modelBuilder.Entity<CreditLedgerEntry>()
+                .HasIndex(e => new { e.RestaurantId, e.Channel })
+                .IsUnique()
+                .HasDatabaseName("IX_CreditLedgerEntries_PilotAllocation_RestaurantId_Channel")
+                .HasFilter("[EntryType] = N'pilot_allocation'");
+
+            modelBuilder.Entity<CreditLedgerEntry>()
                 .HasIndex(e => new { e.ReservationRef, e.AllocationId })
                 .IsUnique()
                 .HasFilter(

@@ -61,7 +61,8 @@ namespace TummlyBackend.Tests.Services
                 new MemoryCache(new MemoryCacheOptions()),
                 new ActivationGate(),
                 new TrackingOperatorNotificationsService(),
-                new NoOpBillingAccountLifecycle()
+                new NoOpBillingAccountLifecycle(),
+                new NoOpCreditLedger()
             );
         }
 

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -582,6 +583,133 @@ namespace TummlyBackend.Services
                 {
                     Id = row.Id,
                     AllocationId = row.AllocationId ?? row.Id,
+                    EntryType = row.EntryType,
+                    Quantity = row.Quantity,
+                    ReservationRef = row.ReservationRef,
+                }).ToList()
+            );
+        }
+
+        public async Task<CreditLedgerWriteResult> MintPilotAtActivationAsync(
+            int restaurantId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!_context.Database.IsSqlServer())
+            {
+                var gate = AccountLocks.GetOrAdd(
+                    restaurantId,
+                    _ => new SemaphoreSlim(1, 1)
+                );
+                await gate.WaitAsync(cancellationToken);
+                try
+                {
+                    return await MintPilotAtActivationLockedAsync(
+                        restaurantId,
+                        cancellationToken
+                    );
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            }
+
+            return await MintPilotAtActivationLockedAsync(
+                restaurantId,
+                cancellationToken
+            );
+        }
+
+        private async Task<CreditLedgerWriteResult> MintPilotAtActivationLockedAsync(
+            int restaurantId,
+            CancellationToken cancellationToken
+        )
+        {
+            var locked = await LockBillingAccountAsync(
+                restaurantId,
+                cancellationToken
+            );
+            if (!locked)
+            {
+                return CreditLedgerWriteResult.Fail("billing_account_missing");
+            }
+
+            var billingAccount = await _context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(
+                    row => row.RestaurantId == restaurantId,
+                    cancellationToken
+                );
+
+            var pricebook = _pricebookCatalog.GetRequired(
+                billingAccount.ContractedPricebookId
+            );
+            if (!pricebook.Plans.TryGetValue("pilot", out var pilotPlan))
+            {
+                return CreditLedgerWriteResult.Fail("pilot_pricebook_missing");
+            }
+
+            var credits = pilotPlan.CreditsOneTime;
+            if (credits == null)
+            {
+                return CreditLedgerWriteResult.Fail("pilot_pricebook_missing");
+            }
+
+            var existingChannels = await _context.CreditLedgerEntries
+                .AsNoTracking()
+                .Where(row =>
+                    row.RestaurantId == restaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.PilotAllocation
+                )
+                .Select(row => row.Channel)
+                .ToListAsync(cancellationToken);
+
+            if (existingChannels.Count > 0)
+            {
+                return CreditLedgerWriteResult.Fail("pilot_already_minted");
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            var channelGrants = new (string Channel, int Quantity)[]
+            {
+                (CreditChannels.Ai, credits.Ai),
+                (CreditChannels.Email, credits.Email),
+                (CreditChannels.Sms, credits.Sms),
+            };
+
+            var inserted = new List<CreditLedgerEntry>();
+            foreach (var (channel, quantity) in channelGrants)
+            {
+                if (quantity <= 0)
+                {
+                    continue;
+                }
+
+                var row = new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = restaurantId,
+                    Channel = channel,
+                    EntryType = CreditLedgerEntryTypes.PilotAllocation,
+                    Quantity = quantity,
+                    AllocationId = null,
+                    ReservationRef = null,
+                    LocationId = null,
+                    PricebookVersion = pricebook.Id,
+                    ExpiresAtUtc = null,
+                    PeriodStartUtc = null,
+                    CreatedAtUtc = now,
+                };
+                inserted.Add(row);
+                _context.CreditLedgerEntries.Add(row);
+            }
+
+            return CreditLedgerWriteResult.Ok(
+                inserted.Select(row => new CreditLedgerInsertedRow
+                {
+                    Id = row.Id,
+                    AllocationId = row.Id,
                     EntryType = row.EntryType,
                     Quantity = row.Quantity,
                     ReservationRef = row.ReservationRef,

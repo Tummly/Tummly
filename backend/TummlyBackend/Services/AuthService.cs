@@ -33,6 +33,8 @@ namespace TummlyBackend.Services
 
         private readonly IBillingAccountLifecycle _lifecycle;
 
+        private readonly ICreditLedger _creditLedger;
+
         private const int MaxActivationVerifyAttempts = 5;
 
         private static readonly TimeSpan ActivationVerifyLockout =
@@ -49,7 +51,8 @@ namespace TummlyBackend.Services
     IMemoryCache cache,
     IActivationGate activationGate,
     IOperatorNotificationsService notifications,
-    IBillingAccountLifecycle lifecycle
+    IBillingAccountLifecycle lifecycle,
+    ICreditLedger creditLedger
 )
         {
             _context = context;
@@ -63,6 +66,7 @@ namespace TummlyBackend.Services
             _activationGate = activationGate;
             _notifications = notifications;
             _lifecycle = lifecycle;
+            _creditLedger = creditLedger;
         }
 
         /*
@@ -1124,7 +1128,29 @@ namespace TummlyBackend.Services
                     activatedAt
                 );
 
+            var restaurantIds = await _context.Restaurants
+                .Where(row => row.OwnerUserId == userId)
+                .Select(row => row.Id)
+                .ToListAsync();
+
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync();
+
+            foreach (var restaurantId in restaurantIds)
+            {
+                var mintResult = await _creditLedger.MintPilotAtActivationAsync(
+                    restaurantId
+                );
+                if (!mintResult.Succeeded)
+                {
+                    throw new Exception(
+                        "Unable to complete account activation."
+                    );
+                }
+            }
+
             await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
 
             await TickSelectedRestaurantAsync(user);
 
