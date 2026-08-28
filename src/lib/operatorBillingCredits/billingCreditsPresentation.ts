@@ -89,11 +89,6 @@ export const BILLING_CREDITS_PAGE_COPY = {
   billingContactsSaveSuccess: "Billing contacts updated.",
   billingContactsSaveError:
     "Could not update billing contacts. Please try again.",
-  leaveDirtyTitle: "Unsaved changes",
-  leaveDirtyBody:
-    "You have unsaved edits on this tab. Save them before you leave, or cancel to discard them and continue.",
-  leaveDirtySave: "Save changes",
-  cancel: "Cancel",
   invoicesTitle: "Invoices",
   invoicesSubtitle:
     "View and download invoices for your Tummly subscription, credits and add-ons.",

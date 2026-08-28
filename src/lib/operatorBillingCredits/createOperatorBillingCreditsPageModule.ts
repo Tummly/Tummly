@@ -108,7 +108,6 @@ export type PlanChangeConfirmDialog = {
   busy: boolean
   targetPlanId: ManagePlanId
   changeKind: PlanChangeKind
-  billingContacts: BillingContactsSnapshot
 }
 
 export type UpdateBillingContactsPayload = {
@@ -494,7 +493,6 @@ export function createOperatorBillingCreditsPageModule(
         continueLabel: BILLING_CREDITS_PAGE_COPY.continue,
       },
       pendingPaymentMethodRedirectUrl,
-      planSubscription: data?.planSubscription ?? null,
       billingContacts: {
         ...billingContactsDraft,
         eligibleMembers,
@@ -613,7 +611,6 @@ export function createOperatorBillingCreditsPageModule(
       data = page
       creditsUsage = usage
       previewCadence = defaultPreviewCadence(data.planSubscription)
-      data = await adapters.getPage()
       applyPersistedContacts(data.billingContacts)
       loadStatus = "loaded"
     } catch (error) {

@@ -42,6 +42,7 @@ import {
   formatStarterKitState,
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import type { BillingCreditsTabId } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import { ACCOUNT_WORKSPACE_PAGE_COPY } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 import type { CreditChannelCardViewModel } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 import {
   CAMPAIGNS_MESSAGING_USAGE_METER_FILL_CLASS,
@@ -956,9 +957,9 @@ export function BillingCreditsPage() {
 
       <AccountWorkspaceConfirmDialog
         open={snap.leaveDirtyOpen}
-        title={copy.leaveDirtyTitle}
-        body={copy.leaveDirtyBody}
-        primaryLabel={copy.leaveDirtySave}
+        title={ACCOUNT_WORKSPACE_PAGE_COPY.leaveDirtyTitle}
+        body={ACCOUNT_WORKSPACE_PAGE_COPY.leaveDirtyBody}
+        primaryLabel={ACCOUNT_WORKSPACE_PAGE_COPY.leaveDirtySave}
         busy={snap.isSaving}
         onOpenChange={(open) => {
           if (!open) {

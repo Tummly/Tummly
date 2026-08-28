@@ -5,6 +5,7 @@ import {
   type ReactNode,
 } from "react"
 import { useLocation, useOutletContext, useSearchParams } from "react-router-dom"
+import { toast } from "sonner"
 
 import {
   createPaymentMethodUpdateSession,
@@ -66,6 +67,21 @@ export function BillingCreditsPageModuleProvider({
 
   useEffect(() => {
     void pageModule.load()
+  }, [pageModule])
+
+  useEffect(() => {
+    return pageModule.subscribe(() => {
+      const snap = pageModule.getSnapshot()
+      if (snap.toast == null) {
+        return
+      }
+      if (snap.toast.kind === "success") {
+        toast.success(snap.toast.message)
+      } else {
+        toast.error(snap.toast.message)
+      }
+      pageModule.clearToast()
+    })
   }, [pageModule])
 
   useEffect(() => {
