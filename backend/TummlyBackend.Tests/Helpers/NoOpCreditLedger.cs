@@ -2,6 +2,10 @@ using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Tests.Helpers
 {
+    /// <summary>
+    /// Test double for AuthService paths that must not touch the ledger.
+    /// MintPilot returns Ok so ActivateAccountAsync can succeed without grants.
+    /// </summary>
     internal sealed class NoOpCreditLedger : ICreditLedger
     {
         public Task<CreditLedgerWriteResult> ConsumeOnSuccessAsync(

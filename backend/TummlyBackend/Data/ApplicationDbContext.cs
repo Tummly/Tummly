@@ -586,11 +586,10 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<CreditLedgerEntry>()
                 .HasIndex(e => new { e.RestaurantId, e.Channel });
 
-            modelBuilder.Entity<CreditLedgerEntry>()
-                .HasIndex(e => new { e.RestaurantId, e.Channel })
-                .IsUnique()
-                .HasDatabaseName("IX_CreditLedgerEntries_PilotAllocation_RestaurantId_Channel")
-                .HasFilter("[EntryType] = N'pilot_allocation'");
+            // SQL Server also has filtered unique
+            // IX_CreditLedgerEntries_PilotAllocation_RestaurantId_Channel
+            // (pilot_allocation only). EF cannot map two indexes on the same
+            // columns, so that index lives only in the migration SQL.
 
             modelBuilder.Entity<CreditLedgerEntry>()
                 .HasIndex(e => new { e.ReservationRef, e.AllocationId })

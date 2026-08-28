@@ -679,11 +679,6 @@ namespace TummlyBackend.Migrations
 
                     b.HasIndex("RestaurantId", "Channel");
 
-                    b.HasIndex("RestaurantId", "Channel")
-                        .IsUnique()
-                        .HasDatabaseName("IX_CreditLedgerEntries_PilotAllocation_RestaurantId_Channel")
-                        .HasFilter("[EntryType] = N'pilot_allocation'");
-
                     b.HasIndex("RestaurantId", "SourcePaymentRef")
                         .HasFilter("[SourcePaymentRef] IS NOT NULL");
 
