@@ -9,5 +9,11 @@ namespace TummlyBackend.Interfaces
             int restaurantId,
             bool actorCanManage
         );
+
+        Task<PlanChangeResultDto?> SubmitPlanChangeAsync(
+            int userId,
+            int restaurantId,
+            PlanChangeRequestDto request
+        );
     }
 }

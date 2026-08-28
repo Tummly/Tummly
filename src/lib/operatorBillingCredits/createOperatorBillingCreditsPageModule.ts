@@ -9,6 +9,17 @@ import {
   resolveBillingCreditsTabId,
   resolveManagePlanSection,
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import {
+  buildManagePlanCardViewModels,
+  buildPlanChangeConfirmCopy,
+  defaultPreviewCadence,
+  formatCurrentPlanSummary,
+  resolvePlanChangeKind,
+  type BillingCadence,
+  type ManagePlanCardViewModel,
+  type ManagePlanId,
+  type PlanChangeKind,
+} from "@/lib/operatorBillingCredits/managePlanPresentation"
 
 export type PlanSubscriptionSnapshot = {
   subscriptionPlan: string
@@ -36,8 +47,30 @@ export type BillingCreditsPageData = {
   planSubscription: PlanSubscriptionSnapshot
 }
 
+export type PlanChangeRequest = {
+  targetPlan: ManagePlanId
+  targetCadence: BillingCadence
+}
+
+export type PlanChangeResult = {
+  outcome: "pay" | "scheduled"
+  redirectUrl?: string | null
+  scheduledChangeLine?: string | null
+}
+
+export type PlanChangeConfirmDialog = {
+  open: boolean
+  title: string
+  body: string
+  primaryLabel: string
+  busy: boolean
+  targetPlanId: ManagePlanId
+  changeKind: PlanChangeKind
+}
+
 export type BillingCreditsPageAdapters = {
   getPage: () => Promise<BillingCreditsPageData>
+  submitPlanChange: (request: PlanChangeRequest) => Promise<PlanChangeResult>
 }
 
 export type BillingCreditsSurface = "tabs" | "manage-plan"
@@ -58,6 +91,12 @@ export type BillingCreditsSnapshot = {
   managePlanHref: string | null
   buyCreditsHref: string | null
   breadcrumbHref: string | null
+  showPlanCards: boolean
+  previewCadence: BillingCadence
+  managePlanCards: ManagePlanCardViewModel[]
+  currentPlanSummary: string | null
+  planChangeConfirm: PlanChangeConfirmDialog | null
+  pendingPayRedirectUrl: string | null
 }
 
 export type OperatorBillingCreditsPageModule = {
@@ -77,6 +116,11 @@ export type OperatorBillingCreditsPageModule = {
   openChangePlan: () => void
   scrollManagePlanToCards: () => void
   consumePendingNavigation: () => string | null
+  setPreviewCadence: (cadence: BillingCadence) => void
+  requestPlanChange: (targetPlanId: ManagePlanId) => void
+  cancelPlanChange: () => void
+  confirmPlanChange: () => Promise<void>
+  consumePendingPayRedirect: () => string | null
 }
 
 function emptyPlanSnapshot(): PlanSubscriptionSnapshot {
@@ -119,6 +163,9 @@ export function createOperatorBillingCreditsPageModule(
   let navMode: "single" | "multi" = "single"
   let locationId = 0
   let pendingNavigationHref: string | null = null
+  let previewCadence: BillingCadence = "monthly"
+  let planChangeConfirm: PlanChangeConfirmDialog | null = null
+  let pendingPayRedirectUrl: string | null = null
   const listeners = new Set<() => void>()
 
   const accessLevel = (): BillingCreditsAccessLevel => {
@@ -168,6 +215,14 @@ export function createOperatorBillingCreditsPageModule(
 
   const projectSnapshot = (): BillingCreditsSnapshot => {
     const actions = headerActions()
+    const plan = data?.planSubscription ?? null
+    const showPlanCards =
+      actions.showManagePlan && managePlanSection == null
+    const managePlanCards =
+      plan != null && showPlanCards
+        ? buildManagePlanCardViewModels({ plan, previewCadence })
+        : []
+
     return {
       loadStatus,
       surface,
@@ -179,11 +234,18 @@ export function createOperatorBillingCreditsPageModule(
       showBuyCredits: actions.showBuyCredits,
       showChangePlan: actions.showChangePlan,
       managePlanSection,
-      planSubscription: data?.planSubscription ?? null,
+      planSubscription: plan,
       pendingNavigationHref,
       managePlanHref: buildManagePlanHref(null),
       buyCreditsHref: buildManagePlanHref("credit-top-ups"),
       breadcrumbHref: buildBillingCreditsHref("plan-subscription"),
+      showPlanCards,
+      previewCadence,
+      managePlanCards,
+      currentPlanSummary:
+        plan != null ? formatCurrentPlanSummary(plan) : null,
+      planChangeConfirm,
+      pendingPayRedirectUrl,
     }
   }
 
@@ -199,6 +261,7 @@ export function createOperatorBillingCreditsPageModule(
     refreshSnapshot()
     try {
       data = await adapters.getPage()
+      previewCadence = defaultPreviewCadence(data.planSubscription)
       loadStatus = "loaded"
     } catch (error) {
       const status =
@@ -277,6 +340,94 @@ export function createOperatorBillingCreditsPageModule(
       pendingNavigationHref = null
       refreshSnapshot()
       return href
+    },
+    setPreviewCadence: (cadence) => {
+      previewCadence = cadence
+      refreshSnapshot()
+    },
+    requestPlanChange: (targetPlanId) => {
+      const plan = data?.planSubscription
+      if (plan == null) {
+        return
+      }
+
+      const currentPlanId = plan.subscriptionPlan as ManagePlanId
+      const liveCadence =
+        plan.isPilot || plan.billingCycle == null
+          ? null
+          : plan.billingCycle.toLowerCase() === "annual"
+            ? "annual"
+            : "monthly"
+      const changeKind = resolvePlanChangeKind({
+        currentPlanId,
+        targetPlanId,
+        liveCadence,
+        previewCadence,
+      })
+      const copy = buildPlanChangeConfirmCopy({
+        targetPlanId,
+        changeKind,
+        previewCadence,
+        renewalDateLabel: plan.renewalDateLabel,
+      })
+
+      planChangeConfirm = {
+        open: true,
+        title: copy.title,
+        body: copy.body,
+        primaryLabel: copy.primaryLabel,
+        busy: false,
+        targetPlanId,
+        changeKind,
+      }
+      refreshSnapshot()
+    },
+    cancelPlanChange: () => {
+      planChangeConfirm = null
+      refreshSnapshot()
+    },
+    confirmPlanChange: async () => {
+      if (planChangeConfirm == null) {
+        return
+      }
+
+      planChangeConfirm = {
+        ...planChangeConfirm,
+        busy: true,
+      }
+      refreshSnapshot()
+
+      try {
+        const result = await adapters.submitPlanChange({
+          targetPlan: planChangeConfirm.targetPlanId,
+          targetCadence: previewCadence,
+        })
+        planChangeConfirm = null
+
+        if (result.outcome === "pay" && result.redirectUrl != null) {
+          pendingPayRedirectUrl = result.redirectUrl
+          refreshSnapshot()
+          return
+        }
+
+        const href = buildBillingCreditsHref("plan-subscription")
+        if (href != null) {
+          pendingNavigationHref = href
+        }
+        refreshSnapshot()
+      } catch {
+        planChangeConfirm = {
+          ...planChangeConfirm,
+          busy: false,
+        }
+        refreshSnapshot()
+      }
+    },
+    consumePendingPayRedirect: () => {
+      const url = pendingPayRedirectUrl
+      pendingPayRedirectUrl = null
+      refreshSnapshot()
+      return url
     },
   }
 }

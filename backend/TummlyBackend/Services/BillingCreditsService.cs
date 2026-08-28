@@ -85,5 +85,133 @@ namespace TummlyBackend.Services
         {
             return value.ToString("d MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-GB"));
         }
+
+        public async Task<PlanChangeResultDto?> SubmitPlanChangeAsync(
+            int userId,
+            int restaurantId,
+            PlanChangeRequestDto request
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurantId);
+
+            if (restaurant == null)
+            {
+                return null;
+            }
+
+            var actorMembership = await _context.RestaurantMemberships
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row =>
+                    row.UserId == userId
+                    && row.RestaurantId == restaurantId
+                    && row.Status == MembershipStatus.Active
+                );
+            var actorRole =
+                actorMembership?.PermissionRole ?? PermissionRoles.Owner;
+
+            if (actorRole != PermissionRoles.Owner)
+            {
+                throw new InvalidOperationException("forbidden");
+            }
+
+            var owner = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
+
+            var pilotEndsAt = owner?.ActivationExpiresAt;
+            var renewalDateLabel = pilotEndsAt == null
+                ? "your renewal date"
+                : FormatUkDate(pilotEndsAt.Value);
+
+            var targetPlan = request.TargetPlan.Trim();
+            var targetCadence = request.TargetCadence.Trim().ToLowerInvariant();
+
+            if (string.Equals(targetPlan, "Pilot", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("invalid-target");
+            }
+
+            // Stub snapshot matches GetPageAsync until BillingAccount lands.
+            const string currentPlan = "Pilot";
+            const bool isPilot = true;
+            string? liveCadence = null;
+
+            var payNow = ResolvePlanChangeRequiresPay(
+                currentPlan,
+                targetPlan,
+                isPilot,
+                liveCadence,
+                targetCadence
+            );
+
+            if (payNow)
+            {
+                return new PlanChangeResultDto
+                {
+                    Outcome = "pay",
+                    RedirectUrl =
+                        $"https://checkout.revolut.com/pay/example/{restaurantId}/{targetPlan.ToLowerInvariant()}",
+                };
+            }
+
+            var cadenceLabel =
+                targetCadence == "annual" ? "Annual" : "Monthly";
+            var scheduledLine =
+                string.Equals(currentPlan, targetPlan, StringComparison.OrdinalIgnoreCase)
+                    ? $"Changes to {cadenceLabel} on {renewalDateLabel}"
+                    : $"Changes to {targetPlan} on {renewalDateLabel}";
+
+            return new PlanChangeResultDto
+            {
+                Outcome = "scheduled",
+                ScheduledChangeLine = scheduledLine,
+            };
+        }
+
+        public static bool ResolvePlanChangeRequiresPay(
+            string currentPlan,
+            string targetPlan,
+            bool isPilot,
+            string? liveCadence,
+            string targetCadence
+        )
+        {
+            if (isPilot)
+            {
+                return true;
+            }
+
+            if (
+                string.Equals(currentPlan, targetPlan, StringComparison.OrdinalIgnoreCase)
+                && liveCadence != null
+                && !string.Equals(liveCadence, targetCadence, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                return false;
+            }
+
+            if (
+                liveCadence != null
+                && !string.Equals(liveCadence, targetCadence, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                return false;
+            }
+
+            return PlanRank(targetPlan) > PlanRank(currentPlan);
+        }
+
+        private static int PlanRank(string plan)
+        {
+            return plan switch
+            {
+                "Starter" => 1,
+                "Growth" => 2,
+                "Group" => 3,
+                _ => 0,
+            };
+        }
     }
 }

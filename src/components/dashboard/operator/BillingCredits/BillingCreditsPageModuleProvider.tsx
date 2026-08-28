@@ -6,7 +6,10 @@ import {
 } from "react"
 import { useLocation, useOutletContext, useSearchParams } from "react-router-dom"
 
-import { getBillingCreditsPage } from "@/api/billingCreditsApi"
+import {
+  getBillingCreditsPage,
+  submitBillingPlanChange,
+} from "@/api/billingCreditsApi"
 import { billingCreditsPageModuleContext } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import {
@@ -30,7 +33,10 @@ export function BillingCreditsPageModuleProvider({
   const initialSection = searchParams.get("section")
   const [pageModule] = useState(() =>
     createOperatorBillingCreditsPageModule(
-      { getPage: getBillingCreditsPage },
+      {
+        getPage: getBillingCreditsPage,
+        submitPlanChange: submitBillingPlanChange,
+      },
       {
         initialTabId,
         initialSurface: surface,

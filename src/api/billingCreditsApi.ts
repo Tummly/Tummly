@@ -1,10 +1,20 @@
 import axiosInstance from "@/api/axiosInstance"
-import type { BillingCreditsPageData } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
+import type {
+  BillingCreditsPageData,
+  PlanChangeRequest,
+  PlanChangeResult,
+} from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
 
 type BillingCreditsPageResponse = {
   actorPermissionRole: string
   actorCanManage: boolean
   planSubscription: BillingCreditsPageData["planSubscription"]
+}
+
+type PlanChangeResponse = {
+  outcome: "pay" | "scheduled"
+  redirectUrl?: string | null
+  scheduledChangeLine?: string | null
 }
 
 export async function getBillingCreditsPage(): Promise<BillingCreditsPageData> {
@@ -15,5 +25,22 @@ export async function getBillingCreditsPage(): Promise<BillingCreditsPageData> {
     actorPermissionRole: data.actorPermissionRole,
     actorCanManage: data.actorCanManage,
     planSubscription: data.planSubscription,
+  }
+}
+
+export async function submitBillingPlanChange(
+  request: PlanChangeRequest
+): Promise<PlanChangeResult> {
+  const { data } = await axiosInstance.post<PlanChangeResponse>(
+    "/billing-credits/plan-change",
+    {
+      targetPlan: request.targetPlan,
+      targetCadence: request.targetCadence,
+    }
+  )
+  return {
+    outcome: data.outcome,
+    redirectUrl: data.redirectUrl,
+    scheduledChangeLine: data.scheduledChangeLine,
   }
 }
