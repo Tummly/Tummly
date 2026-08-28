@@ -860,4 +860,18 @@ describe("createOperatorBillingCreditsPageModule", () => {
     expect(module.getSnapshot().showCancelPlan).toBe(false)
   })
 
+  it("hides cancel plan when cancellation is already scheduled", async () => {
+    const module = createTestModule({
+      planSubscription: {
+        ...samplePage().planSubscription,
+        subscriptionPlan: "Starter",
+        isPilot: false,
+        billingCycle: "Monthly",
+        scheduledChangeLine: "Cancels on 15 September 2026",
+      },
+    })
+    await module.load()
+    expect(module.getSnapshot().showCancelPlan).toBe(false)
+  })
+
 })

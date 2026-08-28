@@ -471,7 +471,7 @@ namespace TummlyBackend.Tests.Integration
         [Fact]
         public async Task PostExtraLocationAdd_Returns403_ForBillingAdminManage()
         {
-            var seeded = await SeedGroupWorkspaceAsync(includeBillingAdmin: true);
+            var seeded = await SeedGroupWorkspaceAsync();
             using var request = Authorized(
                 HttpMethod.Post,
                 "/api/billing-credits/extra-location/add",
@@ -509,6 +509,19 @@ namespace TummlyBackend.Tests.Integration
                 HttpMethod.Post,
                 "/api/billing-credits/extra-location/remove",
                 seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostExtraLocationRemove_Returns403_ForBillingAdminManage()
+        {
+            var seeded = await SeedGroupWorkspaceAsync(extraLocations: true);
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/extra-location/remove",
+                seeded.BillingAdminJwt
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -586,7 +599,6 @@ namespace TummlyBackend.Tests.Integration
         }
 
         private async Task<Seeded> SeedGroupWorkspaceAsync(
-            bool includeBillingAdmin = false,
             bool extraLocations = false
         )
         {
