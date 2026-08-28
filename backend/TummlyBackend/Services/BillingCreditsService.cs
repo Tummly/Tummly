@@ -13,16 +13,19 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IPricebookCatalog _pricebookCatalog;
         private readonly ICreditBalanceSnapshot _creditBalance;
+        private readonly IBillingAccountLifecycle _lifecycle;
 
         public BillingCreditsService(
             ApplicationDbContext context,
             IPricebookCatalog pricebookCatalog,
-            ICreditBalanceSnapshot creditBalance
+            ICreditBalanceSnapshot creditBalance,
+            IBillingAccountLifecycle lifecycle
         )
         {
             _context = context;
             _pricebookCatalog = pricebookCatalog;
             _creditBalance = creditBalance;
+            _lifecycle = lifecycle;
         }
 
         public async Task<BillingCreditsPageDto?> GetPageAsync(
@@ -39,6 +42,8 @@ namespace TummlyBackend.Services
             {
                 return null;
             }
+
+            await _lifecycle.TickAsync(restaurantId, DateTime.UtcNow);
 
             var actorMembership = await _context.RestaurantMemberships
                 .AsNoTracking()

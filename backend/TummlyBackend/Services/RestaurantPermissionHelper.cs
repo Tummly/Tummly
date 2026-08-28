@@ -417,11 +417,6 @@ namespace TummlyBackend.Services
                 return OwnerPendingWaitMessage;
             }
 
-            if (ActivationState.IsActivationExpired(subject))
-            {
-                return ActivationGate.ActivationExpiredMessage;
-            }
-
             return null;
         }
 

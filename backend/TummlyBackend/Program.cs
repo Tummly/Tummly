@@ -471,6 +471,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ICreditLedger, CreditLedgerService>();
 builder.Services.AddScoped<ICreditBalanceSnapshot, CreditBalanceSnapshotService>();
 builder.Services.AddScoped<IBillingCreditsService, BillingCreditsService>();
+builder.Services.AddScoped<IBillingAccountLifecycle, BillingAccountLifecycleService>();
 builder.Services.AddScoped<
     IBillingAccountNoticeNotifier,
     BillingAccountNoticeNotifier

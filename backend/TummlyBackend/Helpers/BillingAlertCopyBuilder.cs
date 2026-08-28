@@ -85,6 +85,15 @@ namespace TummlyBackend.Helpers
             );
         }
 
+        public static BillingAlertCopy UnpaidPilotDormant(string workspaceName)
+        {
+            var safeWorkspace = workspaceName.Trim();
+            return new BillingAlertCopy(
+                "Account is Dormant",
+                $"{safeWorkspace}: Your account is Dormant. Choose a paid plan to restore Tummly."
+            );
+        }
+
         public static string NotificationTypeForCreditThreshold(int thresholdBand)
         {
             return thresholdBand switch
@@ -110,5 +119,7 @@ namespace TummlyBackend.Helpers
         }
 
         public const string UnpaidPilotLockNotificationType = "unpaid-pilot-lock";
+
+        public const string UnpaidPilotDormantNotificationType = "unpaid-pilot-dormant";
     }
 }

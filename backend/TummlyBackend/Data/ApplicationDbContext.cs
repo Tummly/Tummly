@@ -525,6 +525,10 @@ namespace TummlyBackend.Data
                 .Property(b => b.PaidExtraLocationCount)
                 .HasDefaultValue(0);
 
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.DunningFiredSteps)
+                .HasMaxLength(32);
+
             /*
              =========================================
              BILLING ACCOUNT -> CREDIT LEDGER ENTRIES

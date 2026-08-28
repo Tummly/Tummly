@@ -8,6 +8,7 @@ using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -84,7 +85,8 @@ namespace TummlyBackend.Tests.Services
                         new OffersCatalogService(_context)
                     ),
                     new RestaurantPermissionHelper(_context)
-                )
+                ),
+                new NoOpBillingAccountLifecycle()
             );
         }
 

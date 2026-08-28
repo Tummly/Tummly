@@ -59,8 +59,9 @@ namespace TummlyBackend.Helpers
         }
 
         /// <summary>
-        /// Stub lifecycle until Billing Account Tick (credit-ledger 31) persists status.
+        /// Stub lifecycle for lock-deny tests until remaining 403 tickets persist status.
         /// Name prefixes: Soft lock / Dormant (+ optional Paid). Else unpaid Pilot clocks.
+        /// Ticket 31 writes live <see cref="BillingAccount.BillingStatus"/> via Tick.
         /// </summary>
         public static BillingPlanLifecycle ResolveLifecycle(
             string restaurantName,

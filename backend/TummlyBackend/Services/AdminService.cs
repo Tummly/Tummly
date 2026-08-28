@@ -22,12 +22,15 @@
 
             private readonly IAssistantConversationService _assistantConversations;
 
+            private readonly IBillingAccountLifecycle _lifecycle;
+
             public AdminService(
                 ApplicationDbContext context,
                 ITrialReviewTransition trialReviewTransition,
                 IConfiguration configuration,
                 ILogger<AdminService> logger,
-                IAssistantConversationService assistantConversations
+                IAssistantConversationService assistantConversations,
+                IBillingAccountLifecycle lifecycle
             )
             {
                 _context = context;
@@ -39,6 +42,8 @@
                 _logger = logger;
 
                 _assistantConversations = assistantConversations;
+
+                _lifecycle = lifecycle;
             }
 
             public async Task<OperatorSetupReminderBatchResult>
@@ -466,6 +471,23 @@
                 ?? ActivationCodeHelper.ComputeDefaultExtensionExpiresAt();
 
             await _context.SaveChangesAsync();
+
+            var restaurantId = await _context.Restaurants
+                .AsNoTracking()
+                .Where(row => row.OwnerUserId == user.Id)
+                .Select(row => (int?)row.Id)
+                .FirstOrDefaultAsync();
+
+            if (restaurantId != null)
+            {
+                var now = DateTime.UtcNow;
+                await _lifecycle.TickAsync(restaurantId.Value, now);
+                await _lifecycle.ExtendPilotActivationAsync(
+                    restaurantId.Value,
+                    user.ActivationExpiresAt.Value,
+                    now
+                );
+            }
 
             var trialRequest = await _context.TrialRequests
                 .AsNoTracking()

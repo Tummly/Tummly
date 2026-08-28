@@ -31,6 +31,8 @@ namespace TummlyBackend.Services
 
         private readonly IOperatorNotificationsService _notifications;
 
+        private readonly IBillingAccountLifecycle _lifecycle;
+
         private const int MaxActivationVerifyAttempts = 5;
 
         private static readonly TimeSpan ActivationVerifyLockout =
@@ -46,7 +48,8 @@ namespace TummlyBackend.Services
     ILogger<AuthService> logger,
     IMemoryCache cache,
     IActivationGate activationGate,
-    IOperatorNotificationsService notifications
+    IOperatorNotificationsService notifications,
+    IBillingAccountLifecycle lifecycle
 )
         {
             _context = context;
@@ -59,6 +62,7 @@ namespace TummlyBackend.Services
             _cache = cache;
             _activationGate = activationGate;
             _notifications = notifications;
+            _lifecycle = lifecycle;
         }
 
         /*
@@ -812,6 +816,8 @@ namespace TummlyBackend.Services
 
             EnsureOperatorCanSignIn(user);
 
+            await TickSelectedRestaurantAsync(user);
+
             otpRecord.IsUsed = true;
 
             var isFirstSignIn = !user.HasCompletedFirstSignIn;
@@ -1120,7 +1126,29 @@ namespace TummlyBackend.Services
 
             await _context.SaveChangesAsync();
 
+            await TickSelectedRestaurantAsync(user);
+
             return await BuildSessionRoutingFieldsAsync(user);
+        }
+
+        private async Task TickSelectedRestaurantAsync(User user)
+        {
+            var restaurantId = user.SelectedRestaurantId;
+            if (restaurantId == null)
+            {
+                restaurantId = await _context.Restaurants
+                    .AsNoTracking()
+                    .Where(row => row.OwnerUserId == user.Id)
+                    .Select(row => (int?)row.Id)
+                    .FirstOrDefaultAsync();
+            }
+
+            if (restaurantId == null)
+            {
+                return;
+            }
+
+            await _lifecycle.TickAsync(restaurantId.Value, DateTime.UtcNow);
         }
 
         private void EnsureOperatorCanSignIn(User user)
@@ -1214,6 +1242,8 @@ namespace TummlyBackend.Services
             }
 
             EnsureOperatorCanSignIn(user);
+
+            await TickSelectedRestaurantAsync(user);
 
             return user;
         }

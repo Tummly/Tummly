@@ -68,6 +68,33 @@ namespace TummlyBackend.Models
         /// Paid Additional Group Location quantity. Default 0. Meaningful on Group.
         /// </summary>
         public int PaidExtraLocationCount { get; set; }
+
+        /// <summary>
+        /// Unpaid Pilot clock. Copied from Activation period at Account activation
+        /// and on Extend activation. Cleared on <c>ActivatePaidPlan</c>.
+        /// </summary>
+        public DateTime? PilotPeriodEnd { get; set; }
+
+        /// <summary>
+        /// Open paid dunning episode start. Null when no episode is open.
+        /// </summary>
+        public DateTime? DunningEpisodeStartedAt { get; set; }
+
+        /// <summary>
+        /// Which of 0 / 3 / 7 / 10 / 24 have fired this episode. Empty when none.
+        /// </summary>
+        [MaxLength(32)]
+        public string? DunningFiredSteps { get; set; }
+
+        public DateTime? SoftLockEnteredAt { get; set; }
+
+        public DateTime? DormantEnteredAt { get; set; }
+
+        public bool PilotSoftLockNotified { get; set; }
+
+        public bool PilotDormantNotified { get; set; }
+
+        public bool ChargebackRestricted { get; set; }
     }
 
     public static class BillingSubscriptionPlans

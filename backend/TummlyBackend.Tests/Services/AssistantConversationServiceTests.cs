@@ -16,6 +16,7 @@ using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -8394,7 +8395,8 @@ namespace TummlyBackend.Tests.Services
                 ),
                 configuration,
                 NullLogger<AdminService>.Instance,
-                _service
+                _service,
+                new NoOpBillingAccountLifecycle()
             );
         }
 

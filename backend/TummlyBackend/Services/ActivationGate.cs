@@ -24,7 +24,12 @@ namespace TummlyBackend.Services
 
             if (ActivationState.IsActivationExpired(subject))
             {
-                return Block(ActivationReason.Expired, ActivationExpiredMessage);
+                if (!subject.ActivationExpiresAt.HasValue)
+                {
+                    return Block(ActivationReason.Expired, ActivationExpiredMessage);
+                }
+
+                return Allow(ActivationReason.Expired, string.Empty);
             }
 
             return Allow(ActivationReason.None, string.Empty);

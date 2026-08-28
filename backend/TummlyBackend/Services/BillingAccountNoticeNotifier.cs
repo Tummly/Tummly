@@ -174,6 +174,45 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task NotifyUnpaidPilotDormantEnterAsync(
+            int restaurantId,
+            string episodeKey,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var context = await LoadRestaurantContextAsync(
+                restaurantId,
+                cancellationToken
+            );
+            if (context == null)
+            {
+                return;
+            }
+
+            var recipients = await ResolvePilotLockRecipientsAsync(
+                context,
+                cancellationToken
+            );
+            if (recipients.Count == 0)
+            {
+                return;
+            }
+
+            var copy = BillingAlertCopyBuilder.UnpaidPilotDormant(context.WorkspaceName);
+            var dedupeKey = $"{restaurantId}:pilot-dormant-enter:{episodeKey}";
+
+            await DeliverToRecipientsAsync(
+                recipients,
+                context,
+                BillingAlertCopyBuilder.UnpaidPilotDormantNotificationType,
+                copy,
+                BillingAlertEventKind.UnpaidPilotLock,
+                dedupeKey,
+                channel: null,
+                cancellationToken
+            );
+        }
+
         internal static bool IsCreditAlertSuppressed(string billingStatus)
         {
             return string.Equals(billingStatus, "Soft lock", StringComparison.Ordinal)

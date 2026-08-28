@@ -1325,6 +1325,37 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task Get_AfterPilotPeriodEnd_ShowsSoftLock()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var account = await context.BillingAccounts.SingleAsync(
+                    row => row.RestaurantId == seeded.RestaurantId
+                );
+                account.BillingStatus = BillingStatuses.Pilot;
+                account.PilotPeriodEnd = DateTime.UtcNow.AddHours(-1);
+                var owner = await context.Users.SingleAsync(row => row.Id == seeded.OwnerUserId);
+                owner.ActivatedAt = DateTime.UtcNow.AddDays(-31);
+                owner.ActivationExpiresAt = account.PilotPeriodEnd;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var plan = (await ReadJsonAsync(response)).GetProperty("planSubscription");
+            Assert.Equal("Soft lock", plan.GetProperty("billingStatus").GetString());
+        }
+
+        [Fact]
         public async Task Get_Returns200_SoftLock_ForOwnerManage()
         {
             var seeded = await SeedSoftLockPilotWorkspaceAsync();

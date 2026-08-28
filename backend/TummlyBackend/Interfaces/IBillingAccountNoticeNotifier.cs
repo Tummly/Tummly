@@ -28,5 +28,11 @@ namespace TummlyBackend.Interfaces
             string episodeKey,
             CancellationToken cancellationToken = default
         );
+
+        Task NotifyUnpaidPilotDormantEnterAsync(
+            int restaurantId,
+            string episodeKey,
+            CancellationToken cancellationToken = default
+        );
     }
 }
