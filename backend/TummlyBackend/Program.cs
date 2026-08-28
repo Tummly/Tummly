@@ -475,6 +475,7 @@ builder.Services.AddSingleton<IPricebookCatalog>(sp =>
 );
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ICreditLedger, CreditLedgerService>();
+builder.Services.AddScoped<ICreditThresholdEvaluator, CreditThresholdEvaluator>();
 builder.Services.AddScoped<ICreditBalanceSnapshot, CreditBalanceSnapshotService>();
 builder.Services.AddScoped<IIncludedPeriodMintService, IncludedPeriodMintService>();
 builder.Services.AddScoped<IIncludedPeriodJob, IncludedPeriodJob>();

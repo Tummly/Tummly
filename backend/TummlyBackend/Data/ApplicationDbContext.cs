@@ -54,6 +54,8 @@ namespace TummlyBackend.Data
 
         public DbSet<CreditLedgerEntry> CreditLedgerEntries { get; set; }
 
+        public DbSet<CreditWarningState> CreditWarningStates { get; set; }
+
         public DbSet<RestaurantBillingActivity> RestaurantBillingActivities
         { get; set; }
 
@@ -704,6 +706,26 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<AiActionIdempotencyRecord>()
                 .Property(row => row.Body)
+                .IsRequired();
+
+            /*
+             =========================================
+             BILLING ACCOUNT -> CREDIT WARNING STATES
+             =========================================
+             */
+
+            modelBuilder.Entity<CreditWarningState>()
+                .HasKey(row => new { row.RestaurantId, row.Channel });
+
+            modelBuilder.Entity<CreditWarningState>()
+                .HasOne(row => row.BillingAccount)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<CreditWarningState>()
+                .Property(row => row.Channel)
+                .HasMaxLength(16)
                 .IsRequired();
 
             /*
