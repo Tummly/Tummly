@@ -57,7 +57,7 @@ export const BILLING_CREDITS_PAGE_COPY = {
   plusVat: "+ VAT",
   creditsUsageTitle: "Usage & credits",
   creditsUsageSubtitle:
-    "Track the credits and usage connected to campaigns, messages, AI briefs and QR packs.",
+    "Track the credits and usage connected to campaigns, messages, and AI briefs.",
   creditsUsageTableTitle: "Usage this period",
   creditsUsageTableChannel: "Channel",
   creditsUsageTableUsed: "Used this cycle",

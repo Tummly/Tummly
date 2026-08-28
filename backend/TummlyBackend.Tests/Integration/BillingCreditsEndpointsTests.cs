@@ -131,6 +131,22 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(20, sms.GetProperty("includedThisPeriod").GetInt32());
         }
 
+        [Fact]
+        public async Task UsageGet_ReturnsPilotSnapshot_ForMarketingView()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits/usage",
+                seeded.MarketingJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(3, body.GetProperty("channels").GetArrayLength());
+        }
+
         private async Task<Seeded> SeedWorkspaceAsync()
         {
             using var scope = _factory.Services.CreateScope();
@@ -180,6 +196,8 @@ namespace TummlyBackend.Tests.Integration
             admin.SelectedRestaurantId = restaurant.Id;
             var staff = AddUser(context, "Staff Fifteen", "Owner");
             staff.SelectedRestaurantId = restaurant.Id;
+            var marketing = AddUser(context, "Marketing Eighteen", "Owner");
+            marketing.SelectedRestaurantId = restaurant.Id;
             await context.SaveChangesAsync();
 
             AddMembership(
@@ -198,12 +216,25 @@ namespace TummlyBackend.Tests.Integration
                 LocationScopeKind.NamedList,
                 MembershipLocationScope.SerializeNamedIds([location.Id])
             );
+            AddMembership(
+                context,
+                marketing.Id,
+                restaurant.Id,
+                PermissionRoles.Marketing,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
             await context.SaveChangesAsync();
 
             return new Seeded(
                 jwtService.GenerateToken(owner.Id.ToString(), owner.Email, owner.Role),
                 jwtService.GenerateToken(admin.Id.ToString(), admin.Email, admin.Role),
-                jwtService.GenerateToken(staff.Id.ToString(), staff.Email, staff.Role)
+                jwtService.GenerateToken(staff.Id.ToString(), staff.Email, staff.Role),
+                jwtService.GenerateToken(
+                    marketing.Id.ToString(),
+                    marketing.Email,
+                    marketing.Role
+                )
             );
         }
 
@@ -274,7 +305,8 @@ namespace TummlyBackend.Tests.Integration
         private sealed record Seeded(
             string OwnerJwt,
             string AdminJwt,
-            string StaffJwt
+            string StaffJwt,
+            string MarketingJwt
         );
     }
 }

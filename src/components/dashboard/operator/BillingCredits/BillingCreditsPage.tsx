@@ -285,11 +285,9 @@ function CreditChannelCard({
           <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
             {card.headline}
           </p>
-          {!card.isDepleted ? (
-            <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
-              {card.subline}
-            </p>
-          ) : null}
+          <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
+            {card.subline}
+          </p>
         </div>
         {card.purchasedLine != null ? (
           <p className="m-0 text-xs font-normal leading-normal text-op-card-subtitle-color">

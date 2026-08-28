@@ -148,7 +148,10 @@ export function createOperatorBillingCreditsPageModule(
       permissionRole: data?.actorPermissionRole ?? "",
     })
 
-  const buildManagePlanHref = (section?: ManagePlanSection) => {
+  const buildManagePlanHref = (
+    section?: ManagePlanSection,
+    channel?: CreditChannelId
+  ) => {
     if (locationId <= 0) {
       return null
     }
@@ -157,6 +160,9 @@ export function createOperatorBillingCreditsPageModule(
     const params = new URLSearchParams({ location: String(locationId) })
     if (section === "credit-top-ups") {
       params.set("section", "credit-top-ups")
+    }
+    if (channel != null) {
+      params.set("channel", channel)
     }
     return `${root}/settings/billing-credits/manage-plan?${params.toString()}`
   }
@@ -302,8 +308,8 @@ export function createOperatorBillingCreditsPageModule(
       pendingNavigationHref = href
       refreshSnapshot()
     },
-    openBuyChannelCredits: (_channel: CreditChannelId) => {
-      const href = buildManagePlanHref("credit-top-ups")
+    openBuyChannelCredits: (channel: CreditChannelId) => {
+      const href = buildManagePlanHref("credit-top-ups", channel)
       if (href == null) {
         return
       }

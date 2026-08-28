@@ -332,7 +332,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
 
     module.openBuyChannelCredits("sms")
     expect(module.consumePendingNavigation()).toBe(
-      "/single-dashboard/settings/billing-credits/manage-plan?location=42&section=credit-top-ups"
+      "/single-dashboard/settings/billing-credits/manage-plan?location=42&section=credit-top-ups&channel=sms"
     )
   })
 })
