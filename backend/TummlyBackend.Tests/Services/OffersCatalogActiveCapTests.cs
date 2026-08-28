@@ -75,6 +75,51 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task SyncInFlight_MissingBillingAccount_FailsClosed()
+        {
+            var locationId = await SeedLocationWithoutBillingAsync();
+            var draftId = await SeedOfferAsync(locationId, CatalogOfferStatus.Draft);
+            var location = await _context.RestaurantLocations.FirstAsync(
+                row => row.Id == locationId
+            );
+            location.ThankYouCatalogOfferId = draftId;
+            await _context.SaveChangesAsync();
+
+            var result = await _offers.SyncInFlightStoredStatusAsync(draftId);
+
+            Assert.IsType<CatalogOfferInFlightSyncResult.FailClosed>(result);
+            Assert.Equal(
+                CatalogOfferStatus.Draft,
+                (await _context.CatalogOffers.FirstAsync(row => row.Id == draftId))
+                    .Status
+            );
+        }
+
+        private async Task<int> SeedLocationWithoutBillingAsync()
+        {
+            var restaurant = new Restaurant
+            {
+                Name = "No Billing Venue",
+                AccountType = "Single",
+                OwnerUserId = 1,
+                CreatedAt = _now,
+            };
+            _context.Restaurants.Add(restaurant);
+            await _context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Main",
+                Address = "1 High St",
+                CreatedAt = _now,
+            };
+            _context.RestaurantLocations.Add(location);
+            await _context.SaveChangesAsync();
+            return location.Id;
+        }
+
         private async Task<int> SeedPilotLocationAsync()
         {
             var restaurant = new Restaurant

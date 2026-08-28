@@ -33,9 +33,7 @@ namespace TummlyBackend.Billing
             );
             if (account == null)
             {
-                // Ticket 15 inserts the row with Restaurant create. Test seeds that
-                // skip it do not gate. Missing book/plan on a present row fails closed.
-                return ActiveOfferCapDecision.Allow(int.MaxValue, 0);
+                return ActiveOfferCapDecision.UnavailableNow();
             }
 
             if (!TryResolveCap(account, out var cap))

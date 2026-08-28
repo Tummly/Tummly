@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -886,6 +887,13 @@ namespace TummlyBackend.Tests.Integration
 
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
+
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                "TUMMLY-UK-GBP-2026-08-V3"
+            );
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Growth;
+            context.BillingAccounts.Add(billing);
 
             var location = new RestaurantLocation
             {
