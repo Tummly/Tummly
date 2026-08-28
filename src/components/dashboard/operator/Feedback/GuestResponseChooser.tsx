@@ -14,12 +14,15 @@ import {
   GUEST_RESPONSE_WRITE_MANUAL_TITLE,
 } from "@/lib/operatorFeedback/guestResponseChooserPresentation"
 import type { RecoveryAiActionChipChrome } from "@/lib/operatorFeedback/recoveryCreditChromePresentation"
+import type { RecoveryChannelCreditCta } from "@/lib/operatorFeedback/recoveryCreditChromePresentation"
 
 type GuestResponseChooserProps = {
   disabled?: boolean
   aiDraftFailed: boolean
   aiDraftRetryable: boolean
   aiActionChip?: RecoveryAiActionChipChrome
+  /** Soft lock / Dormant restoration helper beside disabled Prepare. */
+  lockHelperCta?: RecoveryChannelCreditCta | null
   onPrepareDraft: () => void
   onWriteManually: () => void
   onRetryAiDraft: () => void
@@ -31,6 +34,7 @@ export function GuestResponseChooser({
   aiDraftFailed,
   aiDraftRetryable,
   aiActionChip,
+  lockHelperCta = null,
   onPrepareDraft,
   onWriteManually,
   onRetryAiDraft,
@@ -90,6 +94,16 @@ export function GuestResponseChooser({
               <CoinsIcon className="size-4 shrink-0" aria-hidden />
               {GUEST_RESPONSE_AI_ACTION_METERING_LABEL}
             </span>
+          ) : null}
+          {lockHelperCta != null ? (
+            <Button
+              type="button"
+              variant="op-link"
+              className="h-auto min-h-0 w-fit p-0"
+              asChild
+            >
+              <Link to={lockHelperCta.href}>{lockHelperCta.label}</Link>
+            </Button>
           ) : null}
         </div>
         {aiActionChip?.depletedMessage != null ? (

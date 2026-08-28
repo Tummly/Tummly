@@ -25,6 +25,10 @@ export const RECOVERY_CHANGE_PLAN_LABEL = "Change plan"
 export const RECOVERY_CHOOSE_PLAN_LABEL = "Choose a plan"
 export const RECOVERY_UPDATE_PAYMENT_LABEL = "Update payment method"
 
+/** SMS shortfall banner body — recovery names Buy / Change plan only (lock 09). */
+export const RECOVERY_SMS_SHORTFALL_BODY =
+  "There are not enough SMS credits left on this channel. Confirm and send stay blocked."
+
 export type RecoveryRestorationCause = "unpaid-pilot" | "dunning"
 
 export type RecoveryCreditChromeContext = {

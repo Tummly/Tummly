@@ -329,6 +329,21 @@ export function CampaignsPage() {
     )
   }
 
+  const navigateWizardBuyAiCredits = () => {
+    const locationId =
+      campaignWizardSnapshot.locationId ?? snapshot.viewModel?.locationId
+    if (locationId == null) {
+      return
+    }
+    navigate(
+      pathForCampaignsMessagingChromeAction(
+        { kind: "buy-ai-credits", label: "" },
+        mode,
+        locationId
+      )
+    )
+  }
+
   const navigateWizardChangePlan = () => {
     const locationId =
       campaignWizardSnapshot.locationId ?? snapshot.viewModel?.locationId
@@ -872,6 +887,7 @@ export function CampaignsPage() {
         onBrowseTemplates={handleBrowseTemplatesFromWizard}
         onBuyCredits={navigateWizardBuyCredits}
         onChangePlan={navigateWizardChangePlan}
+        onBuyAiCredits={navigateWizardBuyAiCredits}
         onLockHelper={navigateWizardLockHelper}
       />
       <OperatorDestructiveConfirmDialog

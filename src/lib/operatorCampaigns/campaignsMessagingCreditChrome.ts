@@ -33,6 +33,7 @@ export type CampaignsMessagingChromeActionKind =
   | "view-usage"
   | "buy-sms-credits"
   | "buy-email-credits"
+  | "buy-ai-credits"
   | "change-plan"
   | "choose-a-plan"
   | "update-payment-method"
@@ -70,6 +71,7 @@ export const CAMPAIGNS_MESSAGING_USAGE_COPY = {
   viewUsage: "View usage",
   buySmsCredits: "Buy SMS credits",
   buyEmailCredits: "Buy Email credits",
+  buyAiCredits: "Buy AI credits",
   changePlan: "Change plan",
   chooseAPlan: "Choose a plan",
   updatePaymentMethod: "Update payment method",

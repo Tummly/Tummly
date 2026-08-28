@@ -1,5 +1,4 @@
 import { CoinsIcon } from "lucide-react"
-import { Link } from "react-router-dom"
 
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
@@ -13,8 +12,13 @@ type CampaignMessageChooserProps = {
   /** Soft-lock / AI credits / balances gate (ticket 25 / 24 shared chip). */
   aiPrepareAllowed?: boolean
   aiPrepareBlockReason?: string | null
-  buyAiCreditsHref?: string | null
-  changePlanHref?: string | null
+  /** Show Buy AI credits when AI pool is empty (lock 09 / 11). */
+  showBuyAiCredits?: boolean
+  /** Show Change plan when Owner Manage (lock 11). */
+  showChangePlan?: boolean
+  /** Soft lock / Dormant restoration helper next to the disabled Prepare control. */
+  lockHelperLabel?: string | null
+  onLockHelper?: () => void
   /** Prepare failed while still on the chooser — show Try again. */
   aiDraftFailed?: boolean
   aiDraftRetryable?: boolean
@@ -22,6 +26,8 @@ type CampaignMessageChooserProps = {
   onPrepareDraft: () => void
   onWriteManually: () => void
   onRetryAiDraft: () => void
+  onBuyAiCredits?: () => void
+  onChangePlan?: () => void
 }
 
 /**
@@ -34,14 +40,18 @@ export function CampaignMessageChooser({
   prepareAiLive = false,
   aiPrepareAllowed = true,
   aiPrepareBlockReason = null,
-  buyAiCreditsHref = null,
-  changePlanHref = null,
+  showBuyAiCredits = false,
+  showChangePlan = false,
+  lockHelperLabel = null,
+  onLockHelper,
   aiDraftFailed = false,
   aiDraftRetryable = true,
   disabled = false,
   onPrepareDraft,
   onWriteManually,
   onRetryAiDraft,
+  onBuyAiCredits,
+  onChangePlan,
 }: CampaignMessageChooserProps) {
   const prepareDisabled = !prepareAiLive || !aiPrepareAllowed || disabled
   if (aiDraftFailed) {
@@ -94,6 +104,16 @@ export function CampaignMessageChooser({
             <CoinsIcon className="size-4 shrink-0" aria-hidden />
             {CAMPAIGN_MESSAGE_COPY.aiActionMeteringLabel}
           </span>
+          {lockHelperLabel != null && onLockHelper != null ? (
+            <Button
+              type="button"
+              variant="op-link"
+              className="h-auto min-h-0 w-fit p-0"
+              onClick={onLockHelper}
+            >
+              {lockHelperLabel}
+            </Button>
+          ) : null}
         </div>
         {aiPrepareBlockReason != null ? (
           <div className="flex flex-col gap-2">
@@ -101,24 +121,24 @@ export function CampaignMessageChooser({
               {aiPrepareBlockReason}
             </p>
             <div className="flex flex-wrap items-center gap-3">
-              {buyAiCreditsHref != null ? (
+              {showBuyAiCredits && onBuyAiCredits != null ? (
                 <Button
                   type="button"
                   variant="op-link"
                   className="h-auto min-h-0 w-fit p-0"
-                  asChild
+                  onClick={onBuyAiCredits}
                 >
-                  <Link to={buyAiCreditsHref}>Buy AI credits</Link>
+                  Buy AI credits
                 </Button>
               ) : null}
-              {changePlanHref != null ? (
+              {showChangePlan && onChangePlan != null ? (
                 <Button
                   type="button"
                   variant="op-link"
                   className="h-auto min-h-0 w-fit p-0"
-                  asChild
+                  onClick={onChangePlan}
                 >
-                  <Link to={changePlanHref}>Change plan</Link>
+                  Change plan
                 </Button>
               ) : null}
             </div>

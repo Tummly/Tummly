@@ -26,6 +26,11 @@ export function pathForCampaignsMessagingChromeAction(
         section: "credit-top-ups",
         channel: "email",
       })
+    case "buy-ai-credits":
+      return operatorDashboardBillingCreditsManagePlanPath(mode, locationId, {
+        section: "credit-top-ups",
+        channel: "ai",
+      })
     case "change-plan":
     case "choose-a-plan":
       return operatorDashboardBillingCreditsManagePlanPath(mode, locationId)

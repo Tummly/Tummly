@@ -1063,4 +1063,31 @@ describe("createRespondWithRecoveryOfferModule", () => {
     expect(adapters.sendAndIssueRecoveryOffer).not.toHaveBeenCalled()
   })
 
+  it("Soft lock disables burn control and exposes Choose a plan helper", async () => {
+    const adapters = createAdapters({
+      getCreditChrome: async () => ({
+        smsRemaining: 10,
+        aiRemaining: 10,
+        isPilot: true,
+        paidActionsLocked: true,
+        restorationCause: "unpaid-pilot",
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        mode: "single",
+        locationId: 42,
+      }),
+    })
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await openAtWrite(module)
+
+    expect(module.getSnapshot().paidWrite.burnDisabled).toBe(true)
+    expect(module.getSnapshot().paidWrite.helperCta?.label).toBe(
+      "Choose a plan"
+    )
+    expect(module.getSnapshot().sendBlocked).toBe(true)
+    expect(module.getSnapshot().aiActionChip.prepareAllowed).toBe(false)
+    module.openSendConfirm()
+    expect(module.getSnapshot().sendConfirmOpen).toBe(false)
+  })
+
 })

@@ -86,6 +86,7 @@ type CampaignWizardDialogProps = {
   onBrowseTemplates: () => void
   onBuyCredits?: () => void
   onChangePlan?: () => void
+  onBuyAiCredits?: () => void
   onLockHelper?: () => void
 }
 
@@ -140,6 +141,7 @@ export function CampaignWizardDialog({
   onBrowseTemplates,
   onBuyCredits,
   onChangePlan,
+  onBuyAiCredits,
   onLockHelper,
 }: CampaignWizardDialogProps) {
   const isSuccess = snapshot.stepId === "success" && snapshot.success != null
@@ -372,6 +374,8 @@ export function CampaignWizardDialog({
             sendTestBusy={Boolean(sendTestBusy)}
             onBuyCredits={onBuyCredits}
             onChangePlan={onChangePlan}
+            onBuyAiCredits={onBuyAiCredits}
+            onLockHelper={onLockHelper}
           />
         ) : isSchedule ? (
           <CampaignScheduleStep

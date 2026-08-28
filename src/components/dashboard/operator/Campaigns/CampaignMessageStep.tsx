@@ -30,6 +30,8 @@ type CampaignMessageStepProps = {
   sendTestBusy?: boolean
   onBuyCredits?: () => void
   onChangePlan?: () => void
+  onBuyAiCredits?: () => void
+  onLockHelper?: () => void
 }
 
 function RewriteAiButton({
@@ -117,6 +119,8 @@ export function CampaignMessageStep({
   sendTestBusy = false,
   onBuyCredits,
   onChangePlan,
+  onBuyAiCredits,
+  onLockHelper,
 }: CampaignMessageStepProps) {
   const isEditor = message.writeEntry === "editor"
   const running = message.aiDraftStatus === "running"
@@ -157,6 +161,10 @@ export function CampaignMessageStep({
             prepareAiLive={message.prepareAiLive}
             aiPrepareAllowed={message.aiPrepareAllowed}
             aiPrepareBlockReason={message.aiPrepareBlockReason}
+            showBuyAiCredits={message.showBuyAiCredits}
+            showChangePlan={message.showChangePlan}
+            lockHelperLabel={message.lockHelperLabel}
+            onLockHelper={onLockHelper}
             aiDraftFailed={
               !isEditor
               && message.aiDraftStatus === "failed"
@@ -167,6 +175,8 @@ export function CampaignMessageStep({
             onPrepareDraft={onPrepareDraft}
             onWriteManually={onWriteManually}
             onRetryAiDraft={onRetryAiDraft}
+            onBuyAiCredits={onBuyAiCredits}
+            onChangePlan={onChangePlan}
           />
 
           {isEditor ? (

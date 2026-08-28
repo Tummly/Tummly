@@ -122,11 +122,13 @@ import {
   maybeConsumeDirectAiOnUsableDraft,
   resolveCampaignAiPrepareGate,
   resolveCampaignMessagingUsage,
+  CAMPAIGN_AI_PREPARE_BLOCKED_NO_CREDITS,
   type CampaignBillingBalancesPayload,
   type CampaignMessagingChromeAccess,
   type CampaignMessagingUsageCutover,
   type ConsumeDirectAiInput,
 } from "@/lib/operatorCampaigns/campaignMessagingBalances"
+import { billingCreditsChannelCardActions } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 import {
   resolveBillingReserveUnavailableCopy,
   resolveCampaignsMessagingLockHelper,
@@ -413,6 +415,10 @@ export type CampaignMessageViewModel = {
   /** Soft-lock / AI=0 / balances-failed gate after live cutover (ticket 25). */
   aiPrepareAllowed: boolean
   aiPrepareBlockReason: string | null
+  /** Ticket 24 shared chip — Buy AI / Change plan when AI pool is empty. */
+  showBuyAiCredits: boolean
+  showChangePlan: boolean
+  lockHelperLabel: string | null
   guestPreviewOpen: boolean
   /** Email channel only — SMS Send test stays unavailable. */
   sendTestAvailable: boolean
@@ -1205,6 +1211,19 @@ function buildMessageViewModel(
     aiAvailable: state.aiAvailable,
     balancesStatus: state.messagingBalancesStatus,
   })
+  const aiCardActions = billingCreditsChannelCardActions({
+    accessLevel: state.messagingChromeAccess.accessLevel,
+    permissionRole: state.messagingChromeAccess.permissionRole,
+    isPilot: state.isPilot,
+    isDepleted:
+      state.aiAvailable != null && state.aiAvailable <= 0,
+  })
+  const lockHelper = resolveCampaignsMessagingLockHelper({
+    softLocked: state.softLocked,
+    lockCause: state.lockCause,
+    accessLevel: state.messagingChromeAccess.accessLevel,
+    permissionRole: state.messagingChromeAccess.permissionRole,
+  })
 
   return {
     writeEntry: state.messageWriteEntry,
@@ -1215,6 +1234,13 @@ function buildMessageViewModel(
     prepareAiLive,
     aiPrepareAllowed: prepareGate.allowed,
     aiPrepareBlockReason: prepareGate.blockReason,
+    showBuyAiCredits:
+      prepareGate.blockReason === CAMPAIGN_AI_PREPARE_BLOCKED_NO_CREDITS
+      && aiCardActions.showBuy,
+    showChangePlan:
+      prepareGate.blockReason === CAMPAIGN_AI_PREPARE_BLOCKED_NO_CREDITS
+      && aiCardActions.showChangePlan,
+    lockHelperLabel: lockHelper?.label ?? null,
     guestPreviewOpen: state.guestPreviewOpen,
     sendTestAvailable,
     aiDraftStatus: state.aiDraftStatus,

@@ -36,6 +36,7 @@ import {
 } from "@/lib/operatorFeedback/recoveryOfferPresentation"
 import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
 import { recoverySuccessChromeForRespondWithRecoveryOffer } from "@/lib/operatorFeedback/recoverySuccessPresentation"
+import { RECOVERY_SMS_SHORTFALL_BODY } from "@/lib/operatorFeedback/recoveryCreditChromePresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
   RESPONSE_SETUP_STEP_DESCRIPTION,
@@ -465,6 +466,11 @@ export function RespondWithRecoveryOfferWizard({
                   }
                   aiDraftRetryable={snapshot.aiDraftRetryable}
                   aiActionChip={snapshot.aiActionChip}
+                  lockHelperCta={
+                    snapshot.paidWrite.burnDisabled
+                      ? snapshot.paidWrite.helperCta
+                      : null
+                  }
                   onPrepareDraft={onPrepareDraft}
                   onWriteManually={onWriteManually}
                   onRetryAiDraft={onRetryAiDraft}
@@ -500,7 +506,7 @@ export function RespondWithRecoveryOfferWizard({
             {snapshot.step === "review" && snapshot.smsShortfall.blocked ? (
               <div className="flex w-full flex-col gap-3 rounded-[4px] bg-[var(--op-color-gray-995)] p-[18px]">
                 <p className="m-0 text-sm font-medium text-op-text-primary">
-                  More SMS credits are required.
+                  {RECOVERY_SMS_SHORTFALL_BODY}
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
                   {snapshot.smsShortfall.buyCta != null ? (
