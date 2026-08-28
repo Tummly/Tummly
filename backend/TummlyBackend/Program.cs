@@ -476,6 +476,8 @@ builder.Services.AddSingleton<IPricebookCatalog>(sp =>
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ICreditLedger, CreditLedgerService>();
 builder.Services.AddScoped<ICreditBalanceSnapshot, CreditBalanceSnapshotService>();
+builder.Services.AddScoped<IIncludedPeriodMintService, IncludedPeriodMintService>();
+builder.Services.AddScoped<IIncludedPeriodJob, IncludedPeriodJob>();
 builder.Services.AddScoped<IBillingCreditsService, BillingCreditsService>();
 builder.Services.AddScoped<IBillingAccountLifecycle, BillingAccountLifecycleService>();
 builder.Services.AddScoped<
@@ -870,6 +872,7 @@ builder.Services.AddHostedService<
 >();
 
 builder.Services.AddHostedService<ActivationNotificationBackgroundService>();
+builder.Services.AddHostedService<IncludedPeriodBackgroundService>();
 
 builder.Services.AddHostedService<WeeklyBriefMondayBackgroundService>();
 
