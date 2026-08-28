@@ -660,6 +660,203 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
+        [Fact]
+        public async Task PostTopUpConfirm_Returns403_ForView()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var request = AuthorizedTopUpConfirm(
+                seeded.AdminJwt,
+                new { channel = "sms", quantity = 100 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostTopUpPay_Returns403_ForView()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var request = AuthorizedTopUpPay(
+                seeded.AdminJwt,
+                new { channel = "sms", quantity = 100 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostTopUpConfirm_Returns403_ForPilot()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = AuthorizedTopUpConfirm(
+                seeded.OwnerJwt,
+                new { channel = "sms", quantity = 100 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Contains(
+                "Pilot",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PostTopUpConfirm_Returns403_ForSms5000_OnStarterWithoutApproval()
+        {
+            var seeded = await SeedPaidStarterWorkspaceAsync();
+            using var request = AuthorizedTopUpConfirm(
+                seeded.OwnerJwt,
+                new { channel = "sms", quantity = 5000 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostTopUpConfirm_ReturnsOk_ForSms5000_OnGroup()
+        {
+            var seeded = await SeedPaidGroupWorkspaceAsync();
+            using var request = AuthorizedTopUpConfirm(
+                seeded.OwnerJwt,
+                new { channel = "sms", quantity = 5000 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("sms", body.GetProperty("channel").GetString());
+            Assert.Equal(5000, body.GetProperty("quantity").GetInt32());
+            Assert.Equal("£450", body.GetProperty("netLabel").GetString());
+            Assert.Equal("£540", body.GetProperty("grossLabel").GetString());
+        }
+
+        [Fact]
+        public async Task PostTopUpConfirmThenPay_ReturnsRevolutRedirect_ForOwner()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using (var confirmRequest = AuthorizedTopUpConfirm(
+                seeded.OwnerJwt,
+                new { channel = "ai", quantity = 500 }
+            ))
+            {
+                var confirmResponse = await _client.SendAsync(confirmRequest);
+                Assert.Equal(HttpStatusCode.OK, confirmResponse.StatusCode);
+                var confirmBody = await ReadJsonAsync(confirmResponse);
+                Assert.Equal("£15", confirmBody.GetProperty("netLabel").GetString());
+                Assert.Equal("£18", confirmBody.GetProperty("grossLabel").GetString());
+            }
+
+            using var payRequest = AuthorizedTopUpPay(
+                seeded.OwnerJwt,
+                new { channel = "ai", quantity = 500 }
+            );
+            var payResponse = await _client.SendAsync(payRequest);
+            Assert.Equal(HttpStatusCode.OK, payResponse.StatusCode);
+
+            var payBody = await ReadJsonAsync(payResponse);
+            Assert.Contains(
+                "checkout.revolut.com",
+                payBody.GetProperty("redirectUrl").GetString()
+            );
+        }
+
+        private async Task<PaidSeeded> SeedPaidStarterWorkspaceAsync()
+        {
+            return await SeedNamedPaidWorkspaceAsync("Paid Starter Venue");
+        }
+
+        private async Task<PaidSeeded> SeedPaidGroupWorkspaceAsync()
+        {
+            return await SeedNamedPaidWorkspaceAsync("Paid Group Venue");
+        }
+
+        private async Task<PaidSeeded> SeedNamedPaidWorkspaceAsync(string venueName)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var owner = AddUser(context, $"Owner {venueName}", "Owner");
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = venueName,
+                AccountType = "Multi",
+                OwnerUserId = owner.Id,
+                BillingContactUserId = owner.Id,
+                PrivacyContactUserId = owner.Id,
+                SupportContactUserId = owner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(restaurant.Id)
+            );
+
+            owner.SelectedRestaurantId = restaurant.Id;
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            AddMembership(
+                context,
+                owner.Id,
+                restaurant.Id,
+                PermissionRoles.Owner,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
+            await context.SaveChangesAsync();
+
+            return new PaidSeeded(
+                jwtService.GenerateToken(owner.Id.ToString(), owner.Email, owner.Role),
+                string.Empty,
+                string.Empty
+            );
+        }
+
+        private static HttpRequestMessage AuthorizedTopUpConfirm(
+            string jwt,
+            object payload
+        )
+        {
+            var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/billing-credits/top-up/confirm"
+            );
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+            request.Content = JsonContent.Create(payload);
+            return request;
+        }
+
+        private static HttpRequestMessage AuthorizedTopUpPay(
+            string jwt,
+            object payload
+        )
+        {
+            var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/billing-credits/top-up/pay"
+            );
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+            request.Content = JsonContent.Create(payload);
+            return request;
+        }
+
         private async Task<PaidSeeded> SeedPaidWorkspaceAsync()
         {
             using var scope = _factory.Services.CreateScope();
@@ -683,6 +880,10 @@ namespace TummlyBackend.Tests.Integration
             };
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
+
+            context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(restaurant.Id)
+            );
 
             owner.SelectedRestaurantId = restaurant.Id;
 

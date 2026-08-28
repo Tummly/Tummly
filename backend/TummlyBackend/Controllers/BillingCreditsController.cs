@@ -274,5 +274,91 @@ namespace TummlyBackend.Controllers
             return Ok(response);
         }
 
+        [HttpPost("top-up/confirm")]
+        public async Task<IActionResult> ConfirmCreditTopUp(
+            [FromBody] CreditTopUpRequestDto request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var manage = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.BillingCredits,
+                PermissionLevel.Manage
+            );
+            var forbidden = manage.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
+            var (response, statusCode, errorMessage) =
+                await _billingCredits.ConfirmCreditTopUpAsync(
+                    userId,
+                    manage.RestaurantId,
+                    manage.Status == RestaurantPermissionStatus.Allowed,
+                    request
+                );
+
+            if (response == null)
+            {
+                return StatusCode(statusCode, new
+                {
+                    success = false,
+                    message = errorMessage,
+                });
+            }
+
+            return Ok(response);
+        }
+
+        [HttpPost("top-up/pay")]
+        public async Task<IActionResult> PayCreditTopUp(
+            [FromBody] CreditTopUpRequestDto request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var manage = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.BillingCredits,
+                PermissionLevel.Manage
+            );
+            var forbidden = manage.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
+            var (response, statusCode, errorMessage) =
+                await _billingCredits.PayCreditTopUpAsync(
+                    userId,
+                    manage.RestaurantId,
+                    manage.Status == RestaurantPermissionStatus.Allowed,
+                    request
+                );
+
+            if (response == null)
+            {
+                return StatusCode(statusCode, new
+                {
+                    success = false,
+                    message = errorMessage,
+                });
+            }
+
+            return Ok(response);
+        }
+
     }
 }

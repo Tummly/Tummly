@@ -27,5 +27,10 @@ namespace TummlyBackend.Models
         public bool PaymentFailureAlertOwner { get; set; } = true;
 
         public bool PaymentFailureAlertBillingContact { get; set; } = true;
+
+        /// <summary>
+        /// When true, the account may buy the 5,000 SMS top-up pack without Group plan.
+        /// </summary>
+        public bool AllowSms5000TopUp { get; set; }
     }
 }

@@ -36,5 +36,21 @@ namespace TummlyBackend.Interfaces
             int restaurantId,
             UpdateBillingContactsRequest request
         );
+
+        Task<(CreditTopUpConfirmDto? Response, int StatusCode, string? ErrorMessage)>
+            ConfirmCreditTopUpAsync(
+                int userId,
+                int restaurantId,
+                bool actorCanManage,
+                CreditTopUpRequestDto request
+            );
+
+        Task<(CreditTopUpPayDto? Response, int StatusCode, string? ErrorMessage)>
+            PayCreditTopUpAsync(
+                int userId,
+                int restaurantId,
+                bool actorCanManage,
+                CreditTopUpRequestDto request
+            );
     }
 }

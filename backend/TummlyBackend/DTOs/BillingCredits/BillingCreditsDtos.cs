@@ -89,6 +89,8 @@ namespace TummlyBackend.DTOs.BillingCredits
         public string? ScheduledChangeLine { get; set; }
 
         public bool IsPilot { get; set; } = true;
+
+        public bool AllowSms5000TopUp { get; set; }
     }
 
     public sealed class CreditsUsageSnapshotDto

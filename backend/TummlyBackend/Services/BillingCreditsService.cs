@@ -69,7 +69,9 @@ namespace TummlyBackend.Services
                     && actorPermissionRole == PermissionRoles.Owner,
                 PlanSubscription = new PlanSubscriptionSnapshotDto
                 {
-                    SubscriptionPlan = isPilot ? "Pilot" : "Growth",
+                    SubscriptionPlan = isPilot
+                        ? "Pilot"
+                        : ResolveSubscriptionPlan(restaurant.Name, isPilot),
                     BillingStatus = isPilot ? "Pilot" : "Active",
                     RenewalDateLabel = renewalDateLabel,
                     EmailCreditsRemaining = isPilot ? 500 : 1200,
@@ -86,6 +88,7 @@ namespace TummlyBackend.Services
                     PricebookId = "guest-loop-mvp-2026-07",
                     ScheduledChangeLine = null,
                     IsPilot = isPilot,
+                    AllowSms5000TopUp = billingAccount.AllowSms5000TopUp,
                 },
                 PaymentMethod = isPilot ? null : BuildStubPaymentMethod(),
                 Invoices = isPilot ? [] : BuildStubInvoices(),
@@ -657,6 +660,235 @@ namespace TummlyBackend.Services
             {
                 return false;
             }
+        }
+
+        public async Task<(CreditTopUpConfirmDto? Response, int StatusCode, string? ErrorMessage)>
+            ConfirmCreditTopUpAsync(
+                int userId,
+                int restaurantId,
+                bool actorCanManage,
+                CreditTopUpRequestDto request
+            )
+        {
+            var denial = await ValidateCreditTopUpRequestAsync(
+                userId,
+                restaurantId,
+                actorCanManage,
+                request
+            );
+            if (denial != null)
+            {
+                return denial.Value;
+            }
+
+            var context = await LoadCreditTopUpContextAsync(restaurantId);
+            if (context == null)
+            {
+                return (null, StatusCodes.Status404NotFound, "Restaurant not found.");
+            }
+
+            var pack = CreditTopUpPricebook.FindPack(request.Channel, request.Quantity)!;
+            return (BuildCreditTopUpConfirm(pack), StatusCodes.Status200OK, null);
+        }
+
+        public async Task<(CreditTopUpPayDto? Response, int StatusCode, string? ErrorMessage)>
+            PayCreditTopUpAsync(
+                int userId,
+                int restaurantId,
+                bool actorCanManage,
+                CreditTopUpRequestDto request
+            )
+        {
+            var denial = await ValidateCreditTopUpRequestAsync(
+                userId,
+                restaurantId,
+                actorCanManage,
+                request
+            );
+            if (denial != null)
+            {
+                return (
+                    null,
+                    denial.Value.StatusCode,
+                    denial.Value.ErrorMessage
+                );
+            }
+
+            var context = await LoadCreditTopUpContextAsync(restaurantId);
+            if (context == null)
+            {
+                return (null, StatusCodes.Status404NotFound, "Restaurant not found.");
+            }
+
+            var pack = CreditTopUpPricebook.FindPack(request.Channel, request.Quantity)!;
+            return (
+                new CreditTopUpPayDto
+                {
+                    RedirectUrl =
+                        $"https://checkout.revolut.com/pay/top-up/{restaurantId}/{pack.Channel}/{pack.Quantity}",
+                },
+                StatusCodes.Status200OK,
+                null
+            );
+        }
+
+        private async Task<(
+            CreditTopUpConfirmDto? Response,
+            int StatusCode,
+            string? ErrorMessage
+        )?> ValidateCreditTopUpRequestAsync(
+            int userId,
+            int restaurantId,
+            bool actorCanManage,
+            CreditTopUpRequestDto request
+        )
+        {
+            if (!actorCanManage)
+            {
+                return (null, StatusCodes.Status403Forbidden, null);
+            }
+
+            var actorMembership = await _context.RestaurantMemberships
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row =>
+                    row.UserId == userId
+                    && row.RestaurantId == restaurantId
+                    && row.Status == MembershipStatus.Active
+                );
+            var actorRole =
+                actorMembership?.PermissionRole ?? PermissionRoles.Owner;
+
+            if (!CanBuyCreditTopUp(actorRole))
+            {
+                return (null, StatusCodes.Status403Forbidden, null);
+            }
+
+            var context = await LoadCreditTopUpContextAsync(restaurantId);
+            if (context == null)
+            {
+                return (null, StatusCodes.Status404NotFound, "Restaurant not found.");
+            }
+
+            if (context.IsPilot)
+            {
+                return (
+                    null,
+                    StatusCodes.Status403Forbidden,
+                    "Credit top-ups are unavailable during Pilot."
+                );
+            }
+
+            var pack = CreditTopUpPricebook.FindPack(request.Channel, request.Quantity);
+            if (pack == null)
+            {
+                return (
+                    null,
+                    StatusCodes.Status400BadRequest,
+                    "Unknown credit top-up pack."
+                );
+            }
+
+            if (
+                !CreditTopUpPricebook.IsPackVisible(
+                    pack,
+                    context.SubscriptionPlan,
+                    context.AllowSms5000TopUp
+                )
+            )
+            {
+                return (
+                    null,
+                    StatusCodes.Status403Forbidden,
+                    "This credit top-up pack is not available on your plan."
+                );
+            }
+
+            return null;
+        }
+
+        private static bool CanBuyCreditTopUp(string permissionRole)
+        {
+            return permissionRole is PermissionRoles.Owner
+                or PermissionRoles.BillingAdmin
+                or PermissionRoles.Admin;
+        }
+
+        private sealed record CreditTopUpContext(
+            bool IsPilot,
+            string SubscriptionPlan,
+            bool AllowSms5000TopUp
+        );
+
+        private async Task<CreditTopUpContext?> LoadCreditTopUpContextAsync(int restaurantId)
+        {
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurantId);
+
+            if (restaurant == null)
+            {
+                return null;
+            }
+
+            var owner = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
+
+            var isPilot = await IsPilotRestaurantAsync(restaurantId, owner);
+            var billingAccount = await LoadOrCreateBillingAccountAsync(restaurantId);
+
+            return new CreditTopUpContext(
+                isPilot,
+                ResolveSubscriptionPlan(restaurant.Name, isPilot),
+                billingAccount.AllowSms5000TopUp
+            );
+        }
+
+        private static string ResolveSubscriptionPlan(string restaurantName, bool isPilot)
+        {
+            if (isPilot)
+            {
+                return "Pilot";
+            }
+
+            if (restaurantName.Contains(" Group", StringComparison.Ordinal))
+            {
+                return "Group";
+            }
+
+            if (restaurantName.Contains(" Starter", StringComparison.Ordinal))
+            {
+                return "Starter";
+            }
+
+            return "Growth";
+        }
+
+        private static CreditTopUpConfirmDto BuildCreditTopUpConfirm(CreditTopUpPack pack)
+        {
+            var gross = CreditTopUpPricebook.GrossPounds(pack.NetPounds);
+            var vat = gross - pack.NetPounds;
+
+            return new CreditTopUpConfirmDto
+            {
+                Channel = pack.Channel,
+                Quantity = pack.Quantity,
+                ChannelLabel = CreditTopUpChannelLabel(pack.Channel),
+                NetLabel = CreditTopUpPricebook.FormatPounds(pack.NetPounds),
+                GrossLabel = CreditTopUpPricebook.FormatPounds(gross),
+                VatLabel = CreditTopUpPricebook.FormatPounds(vat),
+            };
+        }
+
+        private static string CreditTopUpChannelLabel(string channel)
+        {
+            return channel switch
+            {
+                "sms" => "SMS credits",
+                "email" => "Email credits",
+                "ai" => "AI credits",
+                _ => channel,
+            };
         }
 
     }

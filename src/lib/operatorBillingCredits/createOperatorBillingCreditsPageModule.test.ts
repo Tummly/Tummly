@@ -98,6 +98,7 @@ function samplePage(overrides: Partial<BillingCreditsPageData> = {}): BillingCre
       pricebookId: "guest-loop-mvp-2026-07",
       scheduledChangeLine: null,
       isPilot: true,
+      allowSms5000TopUp: false,
     },
     billingContacts: sampleBillingContacts(),
     ...overrides,
@@ -607,5 +608,112 @@ describe("createOperatorBillingCreditsPageModule", () => {
     )
     expect(module.getSnapshot().isDirty).toBe(false)
 })
+
+  it("keeps top-up Buy disabled until a chip is selected", async () => {
+    const module = createTestModule(
+      {
+        planSubscription: {
+          ...samplePage().planSubscription,
+          isPilot: false,
+          subscriptionPlan: "Growth",
+        },
+      },
+      sampleUsage({ isPilot: false })
+    )
+    await module.load()
+
+    expect(
+      module.getSnapshot().topUpCards.every((card) => card.buyDisabled)
+    ).toBe(true)
+
+    module.selectTopUpPack("sms", 500)
+    const sms = module
+      .getSnapshot()
+      .topUpCards.find((card) => card.channel === "sms")
+    expect(sms?.buyDisabled).toBe(false)
+    expect(sms?.selectedNetLabel).toBe("£55 + VAT")
+  })
+
+  it("navigates to credits-usage after a successful top-up return", async () => {
+    const module = createTestModule(
+      {
+        planSubscription: {
+          ...samplePage().planSubscription,
+          isPilot: false,
+        },
+      },
+      sampleUsage({ isPilot: false })
+    )
+    module.setNavigationTargets({ mode: "single", locationId: 42 })
+    await module.load()
+
+    module.selectTopUpPack("email", 5000)
+    module.handleTopUpPayReturn("success")
+
+    expect(module.consumePendingNavigation()).toBe(
+      "/single-dashboard/settings/billing-credits?location=42&tab=credits-usage"
+    )
+  })
+
+  it("keeps the selected chip after a failed top-up return", async () => {
+    const module = createTestModule(
+      {
+        planSubscription: {
+          ...samplePage().planSubscription,
+          isPilot: false,
+        },
+      },
+      sampleUsage({ isPilot: false })
+    )
+    await module.load()
+
+    module.selectTopUpPack("ai", 100)
+    module.handleTopUpPayReturn("fail")
+
+    expect(module.getSnapshot().managePlanSection).toBe("credit-top-ups")
+    expect(module.getSnapshot().topUpCards.find((c) => c.channel === "ai")?.packs
+      .find((p) => p.quantity === 100)?.selected).toBe(true)
+  })
+
+  it("redirects to Revolut after confirming a top-up purchase", async () => {
+    const payCreditTopUp = vi.fn(async () => ({
+      redirectUrl: "https://checkout.revolut.com/pay/top-up/example",
+    }))
+    const confirmCreditTopUp = vi.fn(async () => ({
+      channel: "sms" as const,
+      quantity: 100,
+      channelLabel: "SMS credits",
+      netLabel: "£12",
+      grossLabel: "£14.40",
+      vatLabel: "£2.40",
+    }))
+    const module = createTestModule(
+      {
+        planSubscription: {
+          ...samplePage().planSubscription,
+          isPilot: false,
+        },
+      },
+      sampleUsage({ isPilot: false }),
+      { confirmCreditTopUp, payCreditTopUp }
+    )
+    await module.load()
+
+    module.selectTopUpPack("sms", 100)
+    await module.requestTopUpBuy("sms")
+    await module.confirmTopUpBuy()
+
+    expect(confirmCreditTopUp).toHaveBeenCalledWith({
+      channel: "sms",
+      quantity: 100,
+    })
+    expect(payCreditTopUp).toHaveBeenCalledWith({
+      channel: "sms",
+      quantity: 100,
+    })
+    expect(module.consumePendingPayRedirect()).toBe(
+      "https://checkout.revolut.com/pay/top-up/example"
+    )
+  })
 
 })
