@@ -25,11 +25,18 @@ import {
 import {
   buildManagePlanCardViewModels,
   buildPlanChangeConfirmCopy,
+  buildAdditionalGroupLocationViewModel,
+  buildCancelPlanConfirmCopy,
+  buildExtraLocationRemoveConfirmCopy,
   defaultPreviewCadence,
   formatCurrentPlanSummary,
+  isCancelScheduled,
   liveCadenceFromSnapshot,
   resolvePlanChangeKind,
+  ADDITIONAL_GROUP_LOCATION_COPY,
+  type AdditionalGroupLocationViewModel,
   type BillingCadence,
+  type ManagePlanActionConfirmDialog,
   type ManagePlanCardViewModel,
   type ManagePlanId,
   type PlanChangeKind,
@@ -125,6 +132,12 @@ export type CreditTopUpPayResult = {
   redirectUrl: string
 }
 
+export type ExtraLocationChangeResult = PlanChangeResult
+
+export type CancelPlanResult = {
+  scheduledChangeLine: string
+}
+
 export type PlanChangeConfirmDialog = {
   open: boolean
   title: string
@@ -146,6 +159,9 @@ export type BillingCreditsPageAdapters = {
   getPage: () => Promise<BillingCreditsPageData>
   getUsage: () => Promise<CreditsUsageSnapshot>
   submitPlanChange: (request: PlanChangeRequest) => Promise<PlanChangeResult>
+  addExtraGroupLocation?: () => Promise<ExtraLocationChangeResult>
+  removeExtraGroupLocation?: () => Promise<ExtraLocationChangeResult>
+  cancelPlan?: () => Promise<CancelPlanResult>
   createPaymentMethodUpdateSession?: () => Promise<{ redirectUrl: string }>
   fetchInvoicePdf?: (invoiceNo: string) => Promise<Blob>
   openInvoicePdf?: (blob: Blob) => void
@@ -218,6 +234,11 @@ export type BillingCreditsSnapshot = {
   topUpCards: CreditTopUpCardViewModel[]
   topUpConfirm: CreditTopUpConfirmViewModel | null
   focusedTopUpChannel: CreditChannelId | null
+  showOwnerManagePlanWrites: boolean
+  additionalGroupLocation: AdditionalGroupLocationViewModel | null
+  showCancelPlan: boolean
+  extraLocationConfirm: ManagePlanActionConfirmDialog | null
+  cancelPlanConfirm: ManagePlanActionConfirmDialog | null
   toast: { kind: "success" | "error"; message: string } | null
 }
 
@@ -251,6 +272,13 @@ export type OperatorBillingCreditsPageModule = {
   confirmTopUpBuy: () => Promise<void>
   handleTopUpPayReturn: (outcome: "success" | "cancel" | "fail") => void
   shouldAutoOpenCreditTopUps: () => boolean
+  requestAddExtraLocation: () => void
+  requestRemoveExtraLocation: () => void
+  cancelExtraLocationChange: () => void
+  confirmExtraLocationChange: () => Promise<void>
+  requestCancelPlan: () => void
+  cancelCancelPlan: () => void
+  confirmCancelPlan: () => Promise<void>
   openUpdatePaymentMethodConfirm: () => void
   dismissUpdatePaymentMethodConfirm: () => void
   confirmUpdatePaymentMethod: () => Promise<void>
@@ -378,6 +406,9 @@ export function createOperatorBillingCreditsPageModule(
   let focusedTopUpChannel: CreditChannelId | null = null
   let selectedPackByChannel: Partial<Record<CreditChannelId, number>> = {}
   let topUpConfirm: CreditTopUpConfirmViewModel | null = null
+  let extraLocationConfirm: ManagePlanActionConfirmDialog | null = null
+  let extraLocationConfirmKind: "add" | "remove" | null = null
+  let cancelPlanConfirm: ManagePlanActionConfirmDialog | null = null
   let pendingLeave: PendingLeave | null = null
   let leaveDirtyOpen = false
   let isSaving = false
@@ -422,6 +453,9 @@ export function createOperatorBillingCreditsPageModule(
       focusedChannel: focusedTopUpChannel,
     })
   }
+
+  const showOwnerManagePlanWrites = (): boolean =>
+    accessLevel() === "manage" && data?.actorPermissionRole === "Owner"
 
   const buildManagePlanHref = (
     section?: ManagePlanSection,
@@ -527,6 +561,15 @@ export function createOperatorBillingCreditsPageModule(
       plan != null && showPlanCards
         ? buildManagePlanCardViewModels({ plan, previewCadence })
         : []
+    const additionalGroupLocation =
+      plan != null && showOwnerManagePlanWrites()
+        ? buildAdditionalGroupLocationViewModel(plan)
+        : null
+    const showCancelPlan =
+      showOwnerManagePlanWrites()
+      && plan != null
+      && !plan.isPilot
+      && !isCancelScheduled(plan)
 
     const dirty = activeTabDirty()
     const eligibleMembers =
@@ -587,6 +630,11 @@ export function createOperatorBillingCreditsPageModule(
       topUpCards: projectTopUpCards(),
       topUpConfirm,
       focusedTopUpChannel,
+      showOwnerManagePlanWrites: showOwnerManagePlanWrites(),
+      additionalGroupLocation,
+      showCancelPlan,
+      extraLocationConfirm,
+      cancelPlanConfirm,
       toast,
     }
   }
@@ -968,6 +1016,159 @@ export function createOperatorBillingCreditsPageModule(
       accessLevel() === "manage"
       && managePlanSection == null
       && data?.actorPermissionRole === "Billing Admin",
+    requestAddExtraLocation: () => {
+      const plan = data?.planSubscription
+      if (plan == null || !showOwnerManagePlanWrites()) {
+        return
+      }
+
+      extraLocationConfirmKind = "add"
+      extraLocationConfirm = {
+        open: true,
+        title: ADDITIONAL_GROUP_LOCATION_COPY.confirmAddTitle,
+        body: ADDITIONAL_GROUP_LOCATION_COPY.confirmAddBody,
+        primaryLabel: ADDITIONAL_GROUP_LOCATION_COPY.confirmPrimaryPay,
+        busy: false,
+      }
+      refreshSnapshot()
+    },
+    requestRemoveExtraLocation: () => {
+      const plan = data?.planSubscription
+      if (plan == null || !showOwnerManagePlanWrites()) {
+        return
+      }
+
+      const copy = buildExtraLocationRemoveConfirmCopy(plan.renewalDateLabel)
+      extraLocationConfirmKind = "remove"
+      extraLocationConfirm = {
+        open: true,
+        title: copy.title,
+        body: copy.body,
+        primaryLabel: copy.primaryLabel,
+        busy: false,
+      }
+      refreshSnapshot()
+    },
+    cancelExtraLocationChange: () => {
+      extraLocationConfirm = null
+      extraLocationConfirmKind = null
+      refreshSnapshot()
+    },
+    confirmExtraLocationChange: async () => {
+      if (extraLocationConfirm == null || extraLocationConfirmKind == null) {
+        return
+      }
+
+      extraLocationConfirm = {
+        ...extraLocationConfirm,
+        busy: true,
+      }
+      refreshSnapshot()
+
+      try {
+        const result =
+          extraLocationConfirmKind === "add"
+            ? await adapters.addExtraGroupLocation?.()
+            : await adapters.removeExtraGroupLocation?.()
+
+        if (result == null) {
+          throw new Error("missing-adapter")
+        }
+
+        extraLocationConfirm = null
+        extraLocationConfirmKind = null
+
+        if (result.outcome === "pay" && result.redirectUrl != null) {
+          pendingPayRedirectUrl = result.redirectUrl
+          refreshSnapshot()
+          return
+        }
+
+        if (data != null && result.scheduledChangeLine != null) {
+          data = {
+            ...data,
+            planSubscription: {
+              ...data.planSubscription,
+              scheduledChangeLine: result.scheduledChangeLine,
+            },
+          }
+        }
+
+        const href = buildBillingCreditsHref("plan-subscription")
+        if (href != null) {
+          pendingNavigationHref = href
+        }
+        refreshSnapshot()
+      } catch {
+        extraLocationConfirm = {
+          ...extraLocationConfirm,
+          busy: false,
+        }
+        refreshSnapshot()
+      }
+    },
+    requestCancelPlan: () => {
+      const plan = data?.planSubscription
+      if (plan == null || !showOwnerManagePlanWrites()) {
+        return
+      }
+
+      const copy = buildCancelPlanConfirmCopy(plan.renewalDateLabel)
+      cancelPlanConfirm = {
+        open: true,
+        title: copy.title,
+        body: copy.body,
+        primaryLabel: copy.primaryLabel,
+        busy: false,
+      }
+      refreshSnapshot()
+    },
+    cancelCancelPlan: () => {
+      cancelPlanConfirm = null
+      refreshSnapshot()
+    },
+    confirmCancelPlan: async () => {
+      if (cancelPlanConfirm == null) {
+        return
+      }
+
+      cancelPlanConfirm = {
+        ...cancelPlanConfirm,
+        busy: true,
+      }
+      refreshSnapshot()
+
+      try {
+        const result = await adapters.cancelPlan?.()
+        if (result == null) {
+          throw new Error("missing-adapter")
+        }
+
+        cancelPlanConfirm = null
+
+        if (data != null) {
+          data = {
+            ...data,
+            planSubscription: {
+              ...data.planSubscription,
+              scheduledChangeLine: result.scheduledChangeLine,
+            },
+          }
+        }
+
+        const href = buildBillingCreditsHref("plan-subscription")
+        if (href != null) {
+          pendingNavigationHref = href
+        }
+        refreshSnapshot()
+      } catch {
+        cancelPlanConfirm = {
+          ...cancelPlanConfirm,
+          busy: false,
+        }
+        refreshSnapshot()
+      }
+    },
     openUpdatePaymentMethodConfirm: () => {
       updatePaymentMethodConfirmOpen = true
       refreshSnapshot()

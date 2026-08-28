@@ -12,6 +12,10 @@ import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/A
 import { useBillingCreditsPageModuleApi } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
 import { ManagePlanCardsSection } from "@/components/dashboard/operator/BillingCredits/ManagePlanCardsSection"
 import { CreditTopUpsSection } from "@/components/dashboard/operator/BillingCredits/CreditTopUpsSection"
+import {
+  ManagePlanAdditionalGroupLocationSection,
+  ManagePlanCancelPlanControl,
+} from "@/components/dashboard/operator/BillingCredits/ManagePlanGroupActionsSection"
 import { PaymentInvoicesTable } from "@/components/dashboard/operator/BillingCredits/PaymentInvoicesTable"
 import { UpdatePaymentMethodConfirmDialog } from "@/components/dashboard/operator/BillingCredits/UpdatePaymentMethodConfirmDialog"
 import { Badge } from "@/components/ui/badge"
@@ -1117,7 +1121,20 @@ export function ManagePlanPage() {
               {copy.managePlanPlanCards}
             </h2>
             <ManagePlanCardsSection snap={snap} pageModule={pageModule} />
+            <ManagePlanCancelPlanControl
+              showCancelPlan={snap.showCancelPlan}
+              pageModule={pageModule}
+              cancelPlanConfirm={snap.cancelPlanConfirm}
+            />
           </section>
+          {snap.additionalGroupLocation != null ? (
+            <ManagePlanAdditionalGroupLocationSection
+              viewModel={snap.additionalGroupLocation}
+              showActions={snap.showOwnerManagePlanWrites}
+              pageModule={pageModule}
+              extraLocationConfirm={snap.extraLocationConfirm}
+            />
+          ) : null}
           <section
             id="credit-top-ups"
             className={cn(GUESTS_SECTION_CLASS, {

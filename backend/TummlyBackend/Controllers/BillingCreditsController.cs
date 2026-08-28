@@ -360,5 +360,177 @@ namespace TummlyBackend.Controllers
             return Ok(response);
         }
 
+        [HttpPost("extra-location/add")]
+        public async Task<IActionResult> AddExtraGroupLocation()
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var manage = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.BillingCredits,
+                PermissionLevel.Manage
+            );
+            var forbidden = manage.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
+            try
+            {
+                var result = await _billingCredits.AddExtraGroupLocationAsync(
+                    userId,
+                    manage.RestaurantId
+                );
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Restaurant not found.",
+                    });
+                }
+
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "forbidden")
+            {
+                return Forbid();
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "not-group-plan")
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Additional Group Location is only available on Group.",
+                });
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "location-cap-reached")
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "The Group location cap has been reached.",
+                });
+            }
+        }
+
+        [HttpPost("extra-location/remove")]
+        public async Task<IActionResult> RemoveExtraGroupLocation()
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var manage = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.BillingCredits,
+                PermissionLevel.Manage
+            );
+            var forbidden = manage.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
+            try
+            {
+                var result = await _billingCredits.RemoveExtraGroupLocationAsync(
+                    userId,
+                    manage.RestaurantId
+                );
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Restaurant not found.",
+                    });
+                }
+
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "forbidden")
+            {
+                return Forbid();
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "not-group-plan")
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Additional Group Location is only available on Group.",
+                });
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "remove-below-floor")
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Cannot remove an extra Location below the included allowance.",
+                });
+            }
+        }
+
+        [HttpPost("cancel-plan")]
+        public async Task<IActionResult> CancelPlan()
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var manage = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.BillingCredits,
+                PermissionLevel.Manage
+            );
+            var forbidden = manage.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
+            try
+            {
+                var result = await _billingCredits.CancelPlanAsync(
+                    userId,
+                    manage.RestaurantId
+                );
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Restaurant not found.",
+                    });
+                }
+
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "forbidden")
+            {
+                return Forbid();
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "pilot-cancel-not-allowed")
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Cancel plan is not available on Pilot.",
+                });
+            }
+        }
+
     }
 }

@@ -358,3 +358,107 @@ export function formatCurrentPlanSummary(plan: PlanSubscriptionSnapshot): string
   const renewal = plan.renewalDateLabel ?? "—"
   return `${plan.planPriceNet}/${cadence} · ${renewal}`
 }
+
+export const GROUP_INCLUDED_LOCATIONS = 5
+
+export const GROUP_LOCATION_CAP = 30
+
+export type AdditionalGroupLocationViewModel = {
+  includedCount: number
+  extraCount: number
+  totalCount: number
+  cap: number
+  canAdd: boolean
+  canRemove: boolean
+}
+
+export type ManagePlanActionConfirmDialog = {
+  open: boolean
+  title: string
+  body: string
+  primaryLabel: string
+  busy: boolean
+}
+
+export const ADDITIONAL_GROUP_LOCATION_COPY = {
+  sectionTitle: "Additional Group Location",
+  included: "Included",
+  extra: "Extra",
+  total: "Total",
+  cap: "Cap",
+  addLocation: "Add Location",
+  removeLocation: "Remove Location",
+  confirmAddTitle: "Add Location",
+  confirmAddBody:
+    "You will confirm this change on Tummly, then pay on Revolut. Your location allowance updates after payment succeeds.",
+  confirmRemoveTitle: "Remove Location",
+  confirmPrimaryPay: "Confirm and pay",
+  confirmPrimarySchedule: "Confirm change",
+  cancelPlan: "Cancel plan",
+  confirmCancelTitle: "Cancel plan",
+  confirmCancelBody: (renewalDateLabel: string | null) =>
+    renewalDateLabel == null
+      ? "Your access continues until your renewal date. The current period is not refunded."
+      : `Your access continues until ${renewalDateLabel.replace(/^Renews /, "")}. The current period is not refunded.`,
+  confirmCancelPrimary: "Confirm cancellation",
+} as const
+
+export function isCancelScheduled(plan: PlanSubscriptionSnapshot): boolean {
+  return plan.scheduledChangeLine?.startsWith("Cancels on") ?? false
+}
+
+export function canRemoveExtraGroupLocation(
+  includedLocations: number,
+  activeLocations: number
+): boolean {
+  if (includedLocations <= GROUP_INCLUDED_LOCATIONS) {
+    return false
+  }
+
+  return includedLocations - 1 >= activeLocations
+}
+
+export function buildAdditionalGroupLocationViewModel(
+  plan: PlanSubscriptionSnapshot
+): AdditionalGroupLocationViewModel | null {
+  if (plan.subscriptionPlan !== "Group") {
+    return null
+  }
+
+  const extraCount = Math.max(
+    0,
+    plan.includedLocations - GROUP_INCLUDED_LOCATIONS
+  )
+
+  return {
+    includedCount: GROUP_INCLUDED_LOCATIONS,
+    extraCount,
+    totalCount: plan.includedLocations,
+    cap: GROUP_LOCATION_CAP,
+    canAdd: plan.includedLocations < GROUP_LOCATION_CAP,
+    canRemove: canRemoveExtraGroupLocation(
+      plan.includedLocations,
+      plan.activeLocations
+    ),
+  }
+}
+
+export function buildExtraLocationRemoveConfirmCopy(
+  renewalDateLabel: string | null
+): { title: string; body: string; primaryLabel: string } {
+  return {
+    title: ADDITIONAL_GROUP_LOCATION_COPY.confirmRemoveTitle,
+    body: MANAGE_PLAN_COPY.confirmScheduleBody(renewalDateLabel),
+    primaryLabel: ADDITIONAL_GROUP_LOCATION_COPY.confirmPrimarySchedule,
+  }
+}
+
+export function buildCancelPlanConfirmCopy(
+  renewalDateLabel: string | null
+): { title: string; body: string; primaryLabel: string } {
+  return {
+    title: ADDITIONAL_GROUP_LOCATION_COPY.confirmCancelTitle,
+    body: ADDITIONAL_GROUP_LOCATION_COPY.confirmCancelBody(renewalDateLabel),
+    primaryLabel: ADDITIONAL_GROUP_LOCATION_COPY.confirmCancelPrimary,
+  }
+}

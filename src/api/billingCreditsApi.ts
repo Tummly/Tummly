@@ -241,3 +241,42 @@ export async function payBillingCreditTopUp(
   )
   return { redirectUrl: data.redirectUrl }
 }
+
+type ExtraLocationResponse = {
+  outcome: "pay" | "scheduled"
+  redirectUrl?: string | null
+  scheduledChangeLine?: string | null
+}
+
+export async function addExtraGroupLocation(): Promise<PlanChangeResult> {
+  const { data } = await axiosInstance.post<ExtraLocationResponse>(
+    "/billing-credits/extra-location/add"
+  )
+  return {
+    outcome: data.outcome,
+    redirectUrl: data.redirectUrl,
+    scheduledChangeLine: data.scheduledChangeLine,
+  }
+}
+
+export async function removeExtraGroupLocation(): Promise<PlanChangeResult> {
+  const { data } = await axiosInstance.post<ExtraLocationResponse>(
+    "/billing-credits/extra-location/remove"
+  )
+  return {
+    outcome: data.outcome,
+    redirectUrl: data.redirectUrl,
+    scheduledChangeLine: data.scheduledChangeLine,
+  }
+}
+
+type CancelPlanResponse = {
+  scheduledChangeLine: string
+}
+
+export async function cancelBillingPlan(): Promise<{ scheduledChangeLine: string }> {
+  const { data } = await axiosInstance.post<CancelPlanResponse>(
+    "/billing-credits/cancel-plan"
+  )
+  return { scheduledChangeLine: data.scheduledChangeLine }
+}

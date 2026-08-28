@@ -634,6 +634,71 @@ describe("createOperatorBillingCreditsPageModule", () => {
     expect(sms?.selectedNetLabel).toBe("£55 + VAT")
   })
 
+  it("hides Additional Group Location section off Group plan", async () => {
+    const module = createTestModule({
+      planSubscription: {
+        ...samplePage().planSubscription,
+        subscriptionPlan: "Growth",
+        isPilot: false,
+        includedLocations: 3,
+      },
+    })
+    await module.load()
+    expect(module.getSnapshot().additionalGroupLocation).toBeNull()
+  })
+
+  it("shows Additional Group Location counts on Group plan", async () => {
+    const module = createTestModule({
+      planSubscription: {
+        ...samplePage().planSubscription,
+        subscriptionPlan: "Group",
+        isPilot: false,
+        includedLocations: 7,
+        activeLocations: 6,
+        billingCycle: "Monthly",
+        planPriceNet: "£199",
+      },
+    })
+    await module.load()
+    expect(module.getSnapshot().additionalGroupLocation).toEqual({
+      includedCount: 5,
+      extraCount: 2,
+      totalCount: 7,
+      cap: 30,
+      canAdd: true,
+      canRemove: true,
+    })
+  })
+
+  it("calls add extra location once per confirm", async () => {
+    const addExtraGroupLocation = vi.fn(async () => ({
+      outcome: "pay" as const,
+      redirectUrl: "https://checkout.revolut.com/pay/extra-location",
+    }))
+    const module = createTestModule(
+      {
+        planSubscription: {
+          ...samplePage().planSubscription,
+          subscriptionPlan: "Group",
+          isPilot: false,
+          includedLocations: 5,
+          activeLocations: 5,
+        },
+      },
+      sampleUsage(),
+      { addExtraGroupLocation }
+    )
+    await module.load()
+
+    module.requestAddExtraLocation()
+    await module.confirmExtraLocationChange()
+
+    expect(addExtraGroupLocation).toHaveBeenCalledTimes(1)
+    expect(module.consumePendingPayRedirect()).toBe(
+      "https://checkout.revolut.com/pay/extra-location"
+    )
+  })
+
   it("navigates to credits-usage after a successful top-up return", async () => {
     const module = createTestModule(
       {
@@ -653,6 +718,39 @@ describe("createOperatorBillingCreditsPageModule", () => {
     expect(module.consumePendingNavigation()).toBe(
       "/single-dashboard/settings/billing-credits?location=42&tab=credits-usage"
     )
+  })
+
+  it("returns to plan-subscription with Cancels on after cancel plan success", async () => {
+    const cancelPlan = vi.fn(async () => ({
+      scheduledChangeLine: "Cancels on 15 September 2026",
+    }))
+    const module = createTestModule(
+      {
+        planSubscription: {
+          ...samplePage().planSubscription,
+          subscriptionPlan: "Starter",
+          isPilot: false,
+          billingCycle: "Monthly",
+          renewalDateLabel: "Renews 15 September 2026",
+        },
+      },
+      sampleUsage(),
+      { cancelPlan }
+    )
+    module.setNavigationTargets({ mode: "single", locationId: 42 })
+    await module.load()
+
+    module.requestCancelPlan()
+    await module.confirmCancelPlan()
+
+    expect(cancelPlan).toHaveBeenCalledTimes(1)
+    expect(module.getSnapshot().planSubscription?.scheduledChangeLine).toBe(
+      "Cancels on 15 September 2026"
+    )
+    expect(module.consumePendingNavigation()).toBe(
+      "/single-dashboard/settings/billing-credits?location=42&tab=plan-subscription"
+    )
+    expect(module.getSnapshot().showCancelPlan).toBe(false)
   })
 
   it("keeps the selected chip after a failed top-up return", async () => {
@@ -754,6 +852,12 @@ describe("createOperatorBillingCreditsPageModule", () => {
     expect(module.consumePendingPayRedirect()).toBe(
       "https://checkout.revolut.com/pay/top-up/example"
     )
+  })
+
+  it("hides cancel plan on Pilot", async () => {
+    const module = createTestModule()
+    await module.load()
+    expect(module.getSnapshot().showCancelPlan).toBe(false)
   })
 
 })

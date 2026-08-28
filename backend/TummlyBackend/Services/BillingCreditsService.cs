@@ -54,11 +54,16 @@ namespace TummlyBackend.Services
             var billingAccount = await LoadOrCreateBillingAccountAsync(restaurantId);
             var eligibleMembers = await LoadEligibleMembersAsync(restaurantId);
             var pilotEndsAt = owner?.ActivationExpiresAt;
+            var planContext = ResolveStubPlanContext(
+                restaurant.Name,
+                isPilot,
+                activeLocations
+            );
             var renewalDateLabel = isPilot && pilotEndsAt != null
                 ? $"Pilot ends {FormatUkDate(pilotEndsAt.Value)}"
                 : isPilot
                     ? null
-                    : "Renews 15 September 2026";
+                    : planContext.RenewalDateLabel;
 
             return new BillingCreditsPageDto
             {
@@ -69,24 +74,22 @@ namespace TummlyBackend.Services
                     && actorPermissionRole == PermissionRoles.Owner,
                 PlanSubscription = new PlanSubscriptionSnapshotDto
                 {
-                    SubscriptionPlan = isPilot
-                        ? "Pilot"
-                        : ResolveSubscriptionPlan(restaurant.Name, isPilot),
+                    SubscriptionPlan = planContext.SubscriptionPlan,
                     BillingStatus = isPilot ? "Pilot" : "Active",
                     RenewalDateLabel = renewalDateLabel,
                     EmailCreditsRemaining = isPilot ? 500 : 1200,
                     SmsCreditsRemaining = isPilot ? 20 : 80,
                     AiCreditsRemaining = isPilot ? 20 : 40,
                     BillingCycle = isPilot ? null : "Monthly",
-                    PlanPriceNet = isPilot ? "£0" : "£99",
-                    IncludedLocations = 1,
+                    PlanPriceNet = isPilot ? "£0" : planContext.PlanPriceNet,
+                    IncludedLocations = planContext.IncludedLocations,
                     ActiveLocations = activeLocations,
                     IncludedEmailCreditsLabel = isPilot ? "500 once" : "1,000 / month",
                     IncludedSmsCreditsLabel = isPilot ? "20 once" : "50 / month",
                     IncludedAiCreditsLabel = isPilot ? "20 once" : "30 / month",
                     StarterKitState = "unused",
                     PricebookId = "guest-loop-mvp-2026-07",
-                    ScheduledChangeLine = null,
+                    ScheduledChangeLine = planContext.ScheduledChangeLine,
                     IsPilot = isPilot,
                     AllowSms5000TopUp = billingAccount.AllowSms5000TopUp,
                 },
@@ -415,6 +418,302 @@ namespace TummlyBackend.Services
                 _ => 0,
             };
         }
+
+        public const int GroupIncludedLocations = 5;
+
+        public const int GroupLocationCap = 30;
+
+        private sealed record StubPlanContext(
+            string SubscriptionPlan,
+            string PlanPriceNet,
+            int IncludedLocations,
+            string RenewalDateLabel,
+            string? ScheduledChangeLine
+        );
+
+        private static StubPlanContext ResolveStubPlanContext(
+            string restaurantName,
+            bool isPilot,
+            int activeLocations
+        )
+        {
+            if (isPilot)
+            {
+                return new StubPlanContext(
+                    "Pilot",
+                    "£0",
+                    1,
+                    "Renews 15 September 2026",
+                    null
+                );
+            }
+
+            if (
+                string.Equals(
+                    restaurantName,
+                    "Paid Billing Venue Group Test",
+                    StringComparison.Ordinal
+                )
+                || string.Equals(
+                    restaurantName,
+                    "Billing Venue Group Test",
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return new StubPlanContext(
+                    "Group",
+                    "£199",
+                    GroupIncludedLocations,
+                    "Renews 15 September 2026",
+                    null
+                );
+            }
+
+            if (
+                string.Equals(
+                    restaurantName,
+                    "Paid Billing Venue Group Extra Test",
+                    StringComparison.Ordinal
+                )
+                || string.Equals(
+                    restaurantName,
+                    "Billing Venue Group Extra Test",
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return new StubPlanContext(
+                    "Group",
+                    "£199",
+                    GroupIncludedLocations + 2,
+                    "Renews 15 September 2026",
+                    null
+                );
+            }
+
+            if (
+                string.Equals(
+                    restaurantName,
+                    "Billing Venue Schedule Test",
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return new StubPlanContext(
+                    "Growth",
+                    "£99",
+                    3,
+                    "Renews 15 September 2026",
+                    null
+                );
+            }
+
+            return new StubPlanContext(
+                "Growth",
+                "£99",
+                Math.Max(1, activeLocations),
+                "Renews 15 September 2026",
+                null
+            );
+        }
+
+        public static bool CanRemoveExtraGroupLocation(
+            int includedLocations,
+            int activeLocations
+        )
+        {
+            if (includedLocations <= GroupIncludedLocations)
+            {
+                return false;
+            }
+
+            return includedLocations - 1 >= activeLocations;
+        }
+
+        public async Task<ExtraLocationResultDto?> AddExtraGroupLocationAsync(
+            int userId,
+            int restaurantId
+        )
+        {
+            var context = await RequireOwnerGroupPlanContextAsync(userId, restaurantId);
+            if (context == null)
+            {
+                return null;
+            }
+
+            if (context.IncludedLocations >= GroupLocationCap)
+            {
+                throw new InvalidOperationException("location-cap-reached");
+            }
+
+            return new ExtraLocationResultDto
+            {
+                Outcome = "pay",
+                RedirectUrl =
+                    $"https://checkout.revolut.com/pay/example/{restaurantId}/extra-location",
+            };
+        }
+
+        public async Task<ExtraLocationResultDto?> RemoveExtraGroupLocationAsync(
+            int userId,
+            int restaurantId
+        )
+        {
+            var context = await RequireOwnerGroupPlanContextAsync(userId, restaurantId);
+            if (context == null)
+            {
+                return null;
+            }
+
+            if (
+                !CanRemoveExtraGroupLocation(
+                    context.IncludedLocations,
+                    context.ActiveLocations
+                )
+            )
+            {
+                throw new InvalidOperationException("remove-below-floor");
+            }
+
+            return new ExtraLocationResultDto
+            {
+                Outcome = "scheduled",
+                ScheduledChangeLine =
+                    $"Removes 1 Additional Group Location on {context.RenewalDateLabel}",
+            };
+        }
+
+        public async Task<CancelPlanResultDto?> CancelPlanAsync(
+            int userId,
+            int restaurantId
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurantId);
+
+            if (restaurant == null)
+            {
+                return null;
+            }
+
+            var actorMembership = await _context.RestaurantMemberships
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row =>
+                    row.UserId == userId
+                    && row.RestaurantId == restaurantId
+                    && row.Status == MembershipStatus.Active
+                );
+            var actorRole =
+                actorMembership?.PermissionRole ?? PermissionRoles.Owner;
+
+            if (actorRole != PermissionRoles.Owner)
+            {
+                throw new InvalidOperationException("forbidden");
+            }
+
+            var owner = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
+
+            var isPilot = await IsPilotRestaurantAsync(restaurantId, owner);
+            if (isPilot)
+            {
+                throw new InvalidOperationException("pilot-cancel-not-allowed");
+            }
+
+            var planContext = ResolveStubPlanContext(
+                restaurant.Name,
+                isPilot,
+                await CountActiveLocationsAsync(restaurantId)
+            );
+
+            var renewalDate = planContext.RenewalDateLabel.Replace("Renews ", "");
+
+            return new CancelPlanResultDto
+            {
+                ScheduledChangeLine = $"Cancels on {renewalDate}",
+            };
+        }
+
+        private async Task<int> CountActiveLocationsAsync(int restaurantId)
+        {
+            return await _context.RestaurantLocations
+                .AsNoTracking()
+                .CountAsync(row => row.RestaurantId == restaurantId);
+        }
+
+        private sealed record OwnerGroupPlanContext(
+            int IncludedLocations,
+            int ActiveLocations,
+            string RenewalDateLabel
+        );
+
+        private async Task<OwnerGroupPlanContext?> RequireOwnerGroupPlanContextAsync(
+            int userId,
+            int restaurantId
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurantId);
+
+            if (restaurant == null)
+            {
+                return null;
+            }
+
+            var actorMembership = await _context.RestaurantMemberships
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row =>
+                    row.UserId == userId
+                    && row.RestaurantId == restaurantId
+                    && row.Status == MembershipStatus.Active
+                );
+            var actorRole =
+                actorMembership?.PermissionRole ?? PermissionRoles.Owner;
+
+            if (actorRole != PermissionRoles.Owner)
+            {
+                throw new InvalidOperationException("forbidden");
+            }
+
+            var owner = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
+
+            var isPilot = await IsPilotRestaurantAsync(restaurantId, owner);
+            if (isPilot)
+            {
+                throw new InvalidOperationException("not-group-plan");
+            }
+
+            var activeLocations = await CountActiveLocationsAsync(restaurantId);
+            var planContext = ResolveStubPlanContext(
+                restaurant.Name,
+                isPilot,
+                activeLocations
+            );
+
+            if (
+                !string.Equals(
+                    planContext.SubscriptionPlan,
+                    "Group",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                throw new InvalidOperationException("not-group-plan");
+            }
+
+            return new OwnerGroupPlanContext(
+                planContext.IncludedLocations,
+                activeLocations,
+                planContext.RenewalDateLabel.Replace("Renews ", "")
+            );
+        }
+
         public async Task<(
             UpdateBillingContactsResponseDto? Response,
             string? Error,

@@ -30,5 +30,25 @@ namespace TummlyBackend.Tests.Services
                 )
             );
         }
+
+        [Theory]
+        [InlineData(5, 5, false)]
+        [InlineData(6, 6, false)]
+        [InlineData(7, 6, true)]
+        [InlineData(7, 7, false)]
+        public void CanRemoveExtraGroupLocation_MatchesContract(
+            int includedLocations,
+            int activeLocations,
+            bool expected
+        )
+        {
+            Assert.Equal(
+                expected,
+                BillingCreditsService.CanRemoveExtraGroupLocation(
+                    includedLocations,
+                    activeLocations
+                )
+            );
+        }
     }
 }

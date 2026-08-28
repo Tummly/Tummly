@@ -8,6 +8,8 @@ import { useLocation, useOutletContext, useSearchParams } from "react-router-dom
 import { toast } from "sonner"
 
 import {
+  addExtraGroupLocation,
+  cancelBillingPlan,
   confirmBillingCreditTopUp,
   createPaymentMethodUpdateSession,
   downloadInvoicePdfBlob,
@@ -16,6 +18,7 @@ import {
   getBillingCreditsUsage,
   openInvoicePdfBlob,
   payBillingCreditTopUp,
+  removeExtraGroupLocation,
   submitBillingPlanChange,
   updateBillingContacts,
 } from "@/api/billingCreditsApi"
@@ -46,6 +49,9 @@ export function BillingCreditsPageModuleProvider({
         getPage: getBillingCreditsPage,
         getUsage: getBillingCreditsUsage,
         submitPlanChange: submitBillingPlanChange,
+        addExtraGroupLocation,
+        removeExtraGroupLocation,
+        cancelPlan: cancelBillingPlan,
         createPaymentMethodUpdateSession,
         fetchInvoicePdf: fetchBillingCreditsInvoicePdf,
         openInvoicePdf: openInvoicePdfBlob,

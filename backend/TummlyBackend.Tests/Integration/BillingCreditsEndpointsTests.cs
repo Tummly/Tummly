@@ -455,6 +455,261 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task PostExtraLocationAdd_Returns403_ForAdminView()
+        {
+            var seeded = await SeedGroupWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/extra-location/add",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostExtraLocationAdd_Returns403_ForBillingAdminManage()
+        {
+            var seeded = await SeedGroupWorkspaceAsync(includeBillingAdmin: true);
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/extra-location/add",
+                seeded.BillingAdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostExtraLocationAdd_ReturnsPayRedirect_ForOwnerGroup()
+        {
+            var seeded = await SeedGroupWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/extra-location/add",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("pay", body.GetProperty("outcome").GetString());
+            Assert.Contains(
+                "checkout.revolut.com",
+                body.GetProperty("redirectUrl").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PostExtraLocationRemove_Returns403_ForAdminView()
+        {
+            var seeded = await SeedGroupWorkspaceAsync(extraLocations: true);
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/extra-location/remove",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostExtraLocationRemove_RejectsBelowFloor_ForOwnerGroup()
+        {
+            var seeded = await SeedGroupWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/extra-location/remove",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostCancelPlan_Returns403_ForAdminView()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/cancel-plan",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostCancelPlan_Returns403_ForBillingAdminManage()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/cancel-plan",
+                seeded.BillingAdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostCancelPlan_RejectsPilot_ForOwner()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/cancel-plan",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostCancelPlan_ReturnsScheduledLine_ForOwnerPaid()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/cancel-plan",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.StartsWith(
+                "Cancels on",
+                body.GetProperty("scheduledChangeLine").GetString()
+            );
+        }
+
+        private async Task<Seeded> SeedGroupWorkspaceAsync(
+            bool includeBillingAdmin = false,
+            bool extraLocations = false
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var owner = AddUser(context, "Owner Group", "Owner");
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = extraLocations
+                    ? "Paid Billing Venue Group Extra Test"
+                    : "Paid Billing Venue Group Test",
+                AccountType = "Multi",
+                OwnerUserId = owner.Id,
+                BillingContactUserId = owner.Id,
+                PrivacyContactUserId = owner.Id,
+                SupportContactUserId = owner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(restaurant.Id)
+            );
+
+            owner.SelectedRestaurantId = restaurant.Id;
+
+            for (var i = 0; i < 5; i++)
+            {
+                context.RestaurantLocations.Add(new RestaurantLocation
+                {
+                    RestaurantId = restaurant.Id,
+                    LocationName = $"Location {i + 1}",
+                    Address = $"{i + 1} High Street",
+                    CreatedAt = DateTime.UtcNow,
+                });
+            }
+
+            await context.SaveChangesAsync();
+
+            AddMembership(
+                context,
+                owner.Id,
+                restaurant.Id,
+                PermissionRoles.Owner,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
+
+            var admin = AddUser(context, "Admin Group", "Owner");
+            admin.SelectedRestaurantId = restaurant.Id;
+            var staff = AddUser(context, "Staff Group", "Owner");
+            staff.SelectedRestaurantId = restaurant.Id;
+            var marketing = AddUser(context, "Marketing Group", "Owner");
+            marketing.SelectedRestaurantId = restaurant.Id;
+            await context.SaveChangesAsync();
+
+            AddMembership(
+                context,
+                admin.Id,
+                restaurant.Id,
+                PermissionRoles.Admin,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
+            AddMembership(
+                context,
+                staff.Id,
+                restaurant.Id,
+                PermissionRoles.Staff,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
+            AddMembership(
+                context,
+                marketing.Id,
+                restaurant.Id,
+                PermissionRoles.Marketing,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
+
+            var billingAdmin = AddUser(context, "Billing Admin Group", "Owner");
+            billingAdmin.SelectedRestaurantId = restaurant.Id;
+            await context.SaveChangesAsync();
+
+            AddMembership(
+                context,
+                billingAdmin.Id,
+                restaurant.Id,
+                PermissionRoles.BillingAdmin,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
+
+            await context.SaveChangesAsync();
+
+            return new Seeded(
+                restaurant.Id,
+                owner.Id,
+                admin.Id,
+                jwtService.GenerateToken(owner.Id.ToString(), owner.Email, owner.Role),
+                jwtService.GenerateToken(admin.Id.ToString(), admin.Email, admin.Role),
+                jwtService.GenerateToken(staff.Id.ToString(), staff.Email, staff.Role),
+                jwtService.GenerateToken(
+                    marketing.Id.ToString(),
+                    marketing.Email,
+                    marketing.Role
+                ),
+                jwtService.GenerateToken(
+                    billingAdmin.Id.ToString(),
+                    billingAdmin.Email,
+                    billingAdmin.Role
+                )
+            );
+        }
+
         private async Task<Seeded> SeedWorkspaceAsync(
             bool includeBillingAdmin = false,
             bool scheduleTestRestaurant = false
