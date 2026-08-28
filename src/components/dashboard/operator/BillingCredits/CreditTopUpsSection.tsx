@@ -13,6 +13,7 @@ import {
   CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS,
 } from "@/lib/operatorCampaigns/campaignsPresentation"
 import {
+  GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
   GUESTS_SECTION_SUBTITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import { cn } from "@/lib/utils"
@@ -40,6 +41,7 @@ function CreditTopUpCard({
   onBuy: () => void
 }) {
   const Icon = channelIcon(card.channel)
+  const selectedQuantity = card.packs.find((pack) => pack.selected)?.quantity
 
   return (
     <article
@@ -56,6 +58,11 @@ function CreditTopUpCard({
           <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS}>
             {card.title}
           </p>
+          {card.detailLine != null ? (
+            <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
+              {card.detailLine}
+            </p>
+          ) : null}
           <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
             {card.remainingHeadline}
           </p>
@@ -66,11 +73,7 @@ function CreditTopUpCard({
         type="single"
         variant="outline"
         className="flex flex-wrap justify-start gap-2"
-        value={
-          card.packs.find((pack) => pack.selected)?.quantity != null
-            ? String(card.packs.find((pack) => pack.selected)?.quantity)
-            : undefined
-        }
+        value={selectedQuantity != null ? String(selectedQuantity) : undefined}
         onValueChange={(value) => {
           if (value === "") {
             return
@@ -99,10 +102,6 @@ function CreditTopUpCard({
         <p className="m-0 text-sm font-semibold text-op-text-primary">
           {card.selectedNetLabel}
         </p>
-      ) : null}
-
-      {card.showPilotNotice ? (
-        <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{copy.topUpPilotNotice}</p>
       ) : null}
 
       <Button

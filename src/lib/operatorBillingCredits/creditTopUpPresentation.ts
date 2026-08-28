@@ -37,6 +37,7 @@ export type CreditTopUpCardViewModel = {
   channel: CreditChannelId
   title: string
   remainingHeadline: string
+  detailLine: string | null
   packs: CreditTopUpPackChipViewModel[]
   selectedNetLabel: string | null
   buyLabel: string
@@ -145,6 +146,8 @@ export function buildCreditTopUpCards(options: {
       channel,
       title: creditChannelLabel(channel),
       remainingHeadline: `${formatCreditCount(remaining)} remaining`,
+      detailLine:
+        channel === "ai" ? "Operator-triggered AI actions only." : null,
       packs: packs.map((pack) => ({
         quantity: pack.quantity,
         label: `${formatCreditCount(pack.quantity)} credits`,

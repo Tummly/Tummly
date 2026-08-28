@@ -72,6 +72,21 @@ describe("creditTopUpPresentation", () => {
     expect(grossTopUpPounds(450)).toBe(540)
   })
 
+  it("shows operator-triggered detail on the AI top-up card", () => {
+    const cards = buildCreditTopUpCards({
+      channels: sampleChannels,
+      subscriptionPlan: "Growth",
+      allowSms5000TopUp: false,
+      isPilot: false,
+      canBuy: true,
+      selectedPackByChannel: {},
+      focusedChannel: null,
+    })
+
+    const ai = cards.find((card) => card.channel === "ai")
+    expect(ai?.detailLine).toBe("Operator-triggered AI actions only.")
+  })
+
   it("disables Buy until a chip is selected", () => {
     const cards = buildCreditTopUpCards({
       channels: sampleChannels,

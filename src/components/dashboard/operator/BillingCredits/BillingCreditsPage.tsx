@@ -1043,14 +1043,7 @@ export function ManagePlanPage() {
   useEffect(() => {
     if (
       snap.loadStatus !== "loaded"
-      || snap.accessLevel !== "manage"
-      || snap.managePlanSection != null
-    ) {
-      return
-    }
-    if (
-      snap.actorPermissionRole !== "Billing Admin"
-      && snap.actorPermissionRole !== "Admin"
+      || !pageModule.shouldAutoOpenCreditTopUps()
     ) {
       return
     }

@@ -250,6 +250,7 @@ export type OperatorBillingCreditsPageModule = {
   cancelTopUpBuy: () => void
   confirmTopUpBuy: () => Promise<void>
   handleTopUpPayReturn: (outcome: "success" | "cancel" | "fail") => void
+  shouldAutoOpenCreditTopUps: () => boolean
   openUpdatePaymentMethodConfirm: () => void
   dismissUpdatePaymentMethodConfirm: () => void
   confirmUpdatePaymentMethod: () => Promise<void>
@@ -963,6 +964,10 @@ export function createOperatorBillingCreditsPageModule(
       managePlanSection = "credit-top-ups"
       refreshSnapshot()
     },
+    shouldAutoOpenCreditTopUps: () =>
+      accessLevel() === "manage"
+      && managePlanSection == null
+      && data?.actorPermissionRole === "Billing Admin",
     openUpdatePaymentMethodConfirm: () => {
       updatePaymentMethodConfirmOpen = true
       refreshSnapshot()

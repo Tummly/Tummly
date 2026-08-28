@@ -675,6 +675,46 @@ describe("createOperatorBillingCreditsPageModule", () => {
       .find((p) => p.quantity === 100)?.selected).toBe(true)
   })
 
+  it("keeps the selected chip after a cancelled top-up return", async () => {
+    const module = createTestModule(
+      {
+        planSubscription: {
+          ...samplePage().planSubscription,
+          isPilot: false,
+        },
+      },
+      sampleUsage({ isPilot: false })
+    )
+    await module.load()
+
+    module.selectTopUpPack("ai", 100)
+    module.handleTopUpPayReturn("cancel")
+
+    expect(module.getSnapshot().managePlanSection).toBe("credit-top-ups")
+    expect(
+      module
+        .getSnapshot()
+        .topUpCards.find((c) => c.channel === "ai")
+        ?.packs.find((p) => p.quantity === 100)?.selected
+    ).toBe(true)
+  })
+
+  it("auto-opens credit top-ups only for Billing Admin without section", async () => {
+    const billingAdmin = createTestModule({
+      actorPermissionRole: "Billing Admin",
+      actorCanManage: true,
+    })
+    await billingAdmin.load()
+    expect(billingAdmin.shouldAutoOpenCreditTopUps()).toBe(true)
+
+    const admin = createTestModule({
+      actorPermissionRole: "Admin",
+      actorCanManage: true,
+    })
+    await admin.load()
+    expect(admin.shouldAutoOpenCreditTopUps()).toBe(false)
+  })
+
   it("redirects to Revolut after confirming a top-up purchase", async () => {
     const payCreditTopUp = vi.fn(async () => ({
       redirectUrl: "https://checkout.revolut.com/pay/top-up/example",

@@ -703,6 +703,33 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PostTopUpPay_Returns403_ForPilot()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = AuthorizedTopUpPay(
+                seeded.OwnerJwt,
+                new { channel = "sms", quantity = 100 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostTopUpConfirm_ReturnsOk_ForSms5000_OnStarterWithApprovalFlag()
+        {
+            var seeded = await SeedPaidStarterWorkspaceAsync(allowSms5000TopUp: true);
+            using var request = AuthorizedTopUpConfirm(
+                seeded.OwnerJwt,
+                new { channel = "sms", quantity = 5000 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(5000, body.GetProperty("quantity").GetInt32());
+        }
+
+        [Fact]
         public async Task PostTopUpConfirm_Returns403_ForSms5000_OnStarterWithoutApproval()
         {
             var seeded = await SeedPaidStarterWorkspaceAsync();
@@ -762,9 +789,14 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
-        private async Task<PaidSeeded> SeedPaidStarterWorkspaceAsync()
+        private async Task<PaidSeeded> SeedPaidStarterWorkspaceAsync(
+            bool allowSms5000TopUp = false
+        )
         {
-            return await SeedNamedPaidWorkspaceAsync("Paid Starter Venue");
+            return await SeedNamedPaidWorkspaceAsync(
+                "Paid Starter Venue",
+                allowSms5000TopUp
+            );
         }
 
         private async Task<PaidSeeded> SeedPaidGroupWorkspaceAsync()
@@ -772,7 +804,10 @@ namespace TummlyBackend.Tests.Integration
             return await SeedNamedPaidWorkspaceAsync("Paid Group Venue");
         }
 
-        private async Task<PaidSeeded> SeedNamedPaidWorkspaceAsync(string venueName)
+        private async Task<PaidSeeded> SeedNamedPaidWorkspaceAsync(
+            string venueName,
+            bool allowSms5000TopUp = false
+        )
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -796,9 +831,11 @@ namespace TummlyBackend.Tests.Integration
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
 
-            context.BillingAccounts.Add(
-                BillingCreditsService.CreateDefaultBillingAccount(restaurant.Id)
+            var billingAccount = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id
             );
+            billingAccount.AllowSms5000TopUp = allowSms5000TopUp;
+            context.BillingAccounts.Add(billingAccount);
 
             owner.SelectedRestaurantId = restaurant.Id;
 
