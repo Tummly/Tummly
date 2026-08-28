@@ -176,12 +176,15 @@ export function operatorDashboardBillingCreditsPath(
 export function operatorDashboardBillingCreditsManagePlanPath(
   mode: OperatorDashboardMode,
   locationId: number,
-  options?: { section?: "credit-top-ups" }
+  options?: { section?: "credit-top-ups"; channel?: "sms" | "email" | "ai" }
 ): string {
   const root = mode === "single" ? "/single-dashboard" : "/multi-dashboard"
   const params = new URLSearchParams({ location: String(locationId) })
   if (options?.section != null) {
     params.set("section", options.section)
+  }
+  if (options?.channel != null) {
+    params.set("channel", options.channel)
   }
   return `${root}/settings/billing-credits/manage-plan?${params.toString()}`
 }

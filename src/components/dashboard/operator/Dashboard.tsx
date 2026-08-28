@@ -204,11 +204,15 @@ function DashboardContent({ mode }: DashboardProps) {
     void syncHomeRef.current({
       locations: workspace.snapshot.locations,
       selectedLocationId: workspace.snapshot.selectedLocationId,
+      billingCreditsAccess: workspace.snapshot.billingCreditsAccess,
+      workspaceName: workspace.snapshot.restaurantName,
     })
   }, [
     workspace.snapshot.status,
     workspace.snapshot.locations,
     workspace.snapshot.selectedLocationId,
+    workspace.snapshot.billingCreditsAccess,
+    workspace.snapshot.restaurantName,
   ])
 
   const handleSignOut = () => {

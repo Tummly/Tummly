@@ -27,6 +27,10 @@ import {
   updateFeedbackDetectedTags,
   updateFeedbackInternalNote,
 } from "@/api/dashboardApi"
+import {
+  getBillingCreditsPage,
+  getBillingCreditsUsage,
+} from "@/api/billingCreditsApi"
 import { homePageModuleContext } from "@/components/dashboard/operator/Home/utils/homePageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { CAMPAIGNS_PAGE_SIZE } from "@/lib/operatorCampaigns/campaignsPresentation"
@@ -218,6 +222,16 @@ export function HomePageModuleProvider({
       listOpenVoidAttention: async (locationId) => {
         const response = await listOpenVoidAttention({ locationId })
         return response.items
+      },
+      getNeedsAttentionCredits: async () => {
+        const [usage, page] = await Promise.all([
+          getBillingCreditsUsage(),
+          getBillingCreditsPage(),
+        ])
+        return {
+          usage,
+          permissionRole: page.actorPermissionRole,
+        }
       },
       pauseCampaign,
       duplicateCampaign: duplicateCampaignAsDraft,

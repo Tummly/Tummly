@@ -146,4 +146,55 @@ describe("planHomeNeedsAttentionCta", () => {
       path: "/single-dashboard/offers/88?location=7&tab=redemptions",
     })
   })
+
+  it("opens Credits & usage and Manage plan destinations for credit CTAs", () => {
+    const projection = buildHomeNeedsAttention({
+      locationName: "Manchester",
+      credits: [
+        {
+          channel: "sms",
+          band: 100,
+          title: "No SMS credits remaining",
+          body: "Tummly Demo has no SMS credits remaining this period.",
+          ctas: [{ kind: "buy-channel-credits", label: "Buy SMS credits" }],
+        },
+      ],
+    })
+    const row = projection.visibleRows[0]
+    expect(row?.sourceKind).toBe("credit")
+
+    expect(
+      planHomeNeedsAttentionCta({
+        item: row!,
+        ctaKind: "view-usage",
+        mode: "multi",
+        locationId,
+      })
+    ).toEqual({
+      kind: "navigate",
+      path: "/multi-dashboard/settings/billing-credits?location=7&tab=credits-usage",
+    })
+    expect(
+      planHomeNeedsAttentionCta({
+        item: row!,
+        ctaKind: "buy-channel-credits",
+        mode: "multi",
+        locationId,
+      })
+    ).toEqual({
+      kind: "navigate",
+      path: "/multi-dashboard/settings/billing-credits/manage-plan?location=7&section=credit-top-ups&channel=sms",
+    })
+    expect(
+      planHomeNeedsAttentionCta({
+        item: row!,
+        ctaKind: "change-plan",
+        mode: "single",
+        locationId,
+      })
+    ).toEqual({
+      kind: "navigate",
+      path: "/single-dashboard/settings/billing-credits/manage-plan?location=7",
+    })
+  })
 })

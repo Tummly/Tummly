@@ -1,5 +1,10 @@
 /** Pure Home Needs attention projection (ticket 01). */
 
+import type { CreditChannelId } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
+import {
+  HOME_NEEDS_ATTENTION_ACCOUNT_WIDE_SCOPE,
+  type HomeNeedsAttentionCreditThresholdBand,
+} from "@/lib/operatorHome/homeNeedsAttentionCreditsPresentation"
 import {
   formatRelativeTime,
   parseApiInstantMs,
@@ -11,6 +16,9 @@ export type HomeNeedsAttentionMetaKind = "warning" | "ai"
 
 export type HomeNeedsAttentionCtaKind =
   | "review-feedback"
+  | "view-usage"
+  | "buy-channel-credits"
+  | "change-plan"
   | "preview-campaign"
   | "retry-remaining"
   | "duplicate-as-draft"
@@ -34,6 +42,14 @@ export type HomeNeedsAttentionCampaignFact = {
   updatedAt: string
   /** Base64 SQL rowversion for Duplicate as Draft. */
   rowVersion: string
+}
+
+export type HomeNeedsAttentionCreditFact = {
+  channel: CreditChannelId
+  band: HomeNeedsAttentionCreditThresholdBand
+  title: string
+  body: string
+  ctas: readonly HomeNeedsAttentionCta[]
 }
 
 export type HomeNeedsAttentionOfferFact = {
@@ -66,6 +82,13 @@ export type HomeNeedsAttentionFeedbackItem = HomeNeedsAttentionItemBase & {
   id: "feedback"
 }
 
+export type HomeNeedsAttentionCreditItem = HomeNeedsAttentionItemBase & {
+  sourceKind: "credit"
+  id: string
+  channel: CreditChannelId
+  band: HomeNeedsAttentionCreditThresholdBand
+}
+
 export type HomeNeedsAttentionCampaignItem = HomeNeedsAttentionItemBase & {
   sourceKind: "campaign"
   id: string
@@ -81,6 +104,7 @@ export type HomeNeedsAttentionOfferItem = HomeNeedsAttentionItemBase & {
 
 export type HomeNeedsAttentionItem =
   | HomeNeedsAttentionFeedbackItem
+  | HomeNeedsAttentionCreditItem
   | HomeNeedsAttentionCampaignItem
   | HomeNeedsAttentionOfferItem
 
@@ -119,6 +143,22 @@ function buildMetaLine(input: {
     input.locationName,
   ].filter((part) => part !== "")
   return parts.join(" · ")
+}
+
+function mapCreditRow(
+  fact: HomeNeedsAttentionCreditFact
+): HomeNeedsAttentionCreditItem {
+  return {
+    sourceKind: "credit",
+    id: `credit-${fact.channel}`,
+    channel: fact.channel,
+    band: fact.band,
+    title: fact.title,
+    body: fact.body,
+    metaKind: "warning",
+    metaLine: `Warning · ${HOME_NEEDS_ATTENTION_ACCOUNT_WIDE_SCOPE}`,
+    ctas: fact.ctas,
+  }
 }
 
 function mapFeedbackRow(input: {
@@ -302,6 +342,7 @@ function toProjection(
 export function buildHomeNeedsAttention(input: {
   locationName: string
   feedback?: HomeNeedsAttentionFeedbackFact | null
+  credits?: readonly HomeNeedsAttentionCreditFact[]
   campaigns?: readonly HomeNeedsAttentionCampaignFact[]
   offers?: readonly HomeNeedsAttentionOfferFact[]
   nowMs?: number
@@ -318,6 +359,10 @@ export function buildHomeNeedsAttention(input: {
     if (feedbackRow != null) {
       rows.push(feedbackRow)
     }
+  }
+
+  for (const fact of input.credits ?? []) {
+    rows.push(mapCreditRow(fact))
   }
 
   const campaigns = sortByMetaTimeDesc(input.campaigns ?? [], (item) => item.updatedAt)
