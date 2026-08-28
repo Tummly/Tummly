@@ -1,4 +1,5 @@
 import { labelForDetectedTag } from "@/lib/operatorHome/detectedTags"
+import { recoveryChannelAvailabilityLine } from "@/lib/operatorFeedback/recoveryCreditChromePresentation"
 import type { RespondToGuestChannel } from "@/lib/operatorFeedback/respondToGuestPresentation"
 import {
   startRecoveryContactCapabilityLabel,
@@ -32,9 +33,6 @@ export const RESPONSE_SETUP_INCLUDE_NOTES_PLACEHOLDER =
 export const RESPONSE_SETUP_INCLUDE_NOTES_HELPER =
   "Only include information the restaurant has verified. Tummly will not invent refunds, compensation or operational actions."
 
-const EMAIL_AVAILABILITY_LINE = "Available · No email credits required"
-const SMS_AVAILABILITY_LINE = "Available · Estimated usage: 1 SMS credit"
-
 export type ResponseSetupChannelCard = {
   channel: RespondToGuestChannel
   title: string
@@ -54,6 +52,8 @@ export type BuildResponseSetupChannelCardsInput = {
   maskedDestinationByChannel?: Partial<
     Record<RespondToGuestChannel, string | null>
   >
+  /** Current guest-response body — drives SMS estimate after body (lock 09). */
+  messageBody?: string
 }
 
 function destinationForChannel(
@@ -80,20 +80,18 @@ function titleForChannel(
   return channel === "email" ? `Email ${masked}` : `SMS ${masked}`
 }
 
-function availabilityLineForChannel(
-  channel: RespondToGuestChannel
-): string {
-  return channel === "email" ? EMAIL_AVAILABILITY_LINE : SMS_AVAILABILITY_LINE
-}
-
 /** Email/SMS cards for Response setup — icon chrome stays in the UI layer. */
 export function buildResponseSetupChannelCards(
   input: BuildResponseSetupChannelCardsInput
 ): ResponseSetupChannelCard[] {
+  const messageBody = input.messageBody ?? ""
   return input.availableChannels.map((channel) => ({
     channel,
     title: titleForChannel(channel, destinationForChannel(channel, input)),
-    availabilityLine: availabilityLineForChannel(channel),
+    availabilityLine: recoveryChannelAvailabilityLine({
+      channel,
+      messageBody,
+    }),
     selected: input.selectedChannel === channel,
   }))
 }

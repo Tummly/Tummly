@@ -1,6 +1,7 @@
 import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 import { useEffect } from "react"
+import { Link } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -349,14 +350,28 @@ export function RespondWithRecoveryOfferWizard({
               </Button>
             ) : null}
             {snapshot.step === "review" ? (
-              <Button
-                type="button"
-                variant="op-primary"
-                disabled={locked}
-                onClick={onOpenSendConfirm}
-              >
-                Send response and issue offer
-              </Button>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  variant="op-primary"
+                  disabled={locked || snapshot.sendBlocked}
+                  onClick={onOpenSendConfirm}
+                >
+                  Send response and issue offer
+                </Button>
+                {snapshot.paidWrite.helperCta != null ? (
+                  <Button
+                    type="button"
+                    variant="op-link"
+                    className="h-auto min-h-0 w-fit p-0"
+                    asChild
+                  >
+                    <Link to={snapshot.paidWrite.helperCta.href}>
+                      {snapshot.paidWrite.helperCta.label}
+                    </Link>
+                  </Button>
+                ) : null}
+              </div>
             ) : null}
           </>
         ) : (
@@ -412,6 +427,7 @@ export function RespondWithRecoveryOfferWizard({
                 availableChannels={snapshot.availableChannels}
                 channel={snapshot.channel}
                 maskedDestination={snapshot.maskedDestination}
+                messageBody={snapshot.message}
                 onChannelChange={onChannelChange}
                 lockedPurposeLabel={snapshot.purposeLabel}
                 purpose={null}
@@ -448,6 +464,7 @@ export function RespondWithRecoveryOfferWizard({
                     && snapshot.writeEntry === "chooser"
                   }
                   aiDraftRetryable={snapshot.aiDraftRetryable}
+                  aiActionChip={snapshot.aiActionChip}
                   onPrepareDraft={onPrepareDraft}
                   onWriteManually={onWriteManually}
                   onRetryAiDraft={onRetryAiDraft}
@@ -461,6 +478,7 @@ export function RespondWithRecoveryOfferWizard({
                       subject={snapshot.subject}
                       message={snapshot.message}
                       disabled={locked}
+                      rewriteDisabled={!snapshot.aiActionChip.prepareAllowed}
                       aiDraftStatus={snapshot.aiDraftStatus}
                       aiDraftMode={snapshot.aiDraftMode}
                       aiDraftRetryable={snapshot.aiDraftRetryable}
@@ -477,6 +495,40 @@ export function RespondWithRecoveryOfferWizard({
                   </>
                 ) : null}
               </>
+            ) : null}
+
+            {snapshot.step === "review" && snapshot.smsShortfall.blocked ? (
+              <div className="flex w-full flex-col gap-3 rounded-[4px] bg-[var(--op-color-gray-995)] p-[18px]">
+                <p className="m-0 text-sm font-medium text-op-text-primary">
+                  More SMS credits are required.
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  {snapshot.smsShortfall.buyCta != null ? (
+                    <Button
+                      type="button"
+                      variant="op-link"
+                      className="h-auto min-h-0 w-fit p-0"
+                      asChild
+                    >
+                      <Link to={snapshot.smsShortfall.buyCta.href}>
+                        {snapshot.smsShortfall.buyCta.label}
+                      </Link>
+                    </Button>
+                  ) : null}
+                  {snapshot.smsShortfall.changePlanCta != null ? (
+                    <Button
+                      type="button"
+                      variant="op-link"
+                      className="h-auto min-h-0 w-fit p-0"
+                      asChild
+                    >
+                      <Link to={snapshot.smsShortfall.changePlanCta.href}>
+                        {snapshot.smsShortfall.changePlanCta.label}
+                      </Link>
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
             ) : null}
 
             {snapshot.step === "review" ? (

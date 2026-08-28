@@ -61,7 +61,8 @@ describe("responseSetupPresentation", () => {
       {
         channel: "sms",
         title: "SMS ••••4821",
-        availabilityLine: "Available · Estimated usage: 1 SMS credit",
+        availabilityLine:
+          "Available · Estimated usage: at least 1 SMS credit",
         selected: true,
       },
     ])
@@ -85,10 +86,20 @@ describe("responseSetupPresentation", () => {
       {
         channel: "sms",
         title: "SMS ••••4821",
-        availabilityLine: "Available · Estimated usage: 1 SMS credit",
+        availabilityLine:
+          "Available · Estimated usage: at least 1 SMS credit",
         selected: true,
       },
     ])
+
+    expect(
+      buildResponseSetupChannelCards({
+        availableChannels: ["sms"],
+        selectedChannel: "sms",
+        maskedDestination: "••••4821",
+        messageBody: "x".repeat(161),
+      })[0]?.availabilityLine
+    ).toBe("Estimated usage: 2 SMS credits")
   })
 
   it("maps Feedback summary Classification, Contact, and Issue tags", () => {

@@ -1,4 +1,5 @@
 import { CoinsIcon } from "lucide-react"
+import { Link } from "react-router-dom"
 
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
@@ -9,9 +10,11 @@ type CampaignMessageChooserProps = {
   editorMode?: boolean
   /** True when the live message-draft adapter is wired. */
   prepareAiLive?: boolean
-  /** Soft-lock / AI credits / balances gate (ticket 25). */
+  /** Soft-lock / AI credits / balances gate (ticket 25 / 24 shared chip). */
   aiPrepareAllowed?: boolean
   aiPrepareBlockReason?: string | null
+  buyAiCreditsHref?: string | null
+  changePlanHref?: string | null
   /** Prepare failed while still on the chooser — show Try again. */
   aiDraftFailed?: boolean
   aiDraftRetryable?: boolean
@@ -24,12 +27,15 @@ type CampaignMessageChooserProps = {
 /**
  * Campaign Message chooser — Prepare with AI / Write manually.
  * Same card pattern as GuestResponseChooser; Campaign-owned copy (tickets 26 + 33).
+ * Shared Uses 1 AI action chip rules: ticket 24 / lock 09.
  */
 export function CampaignMessageChooser({
   editorMode = false,
   prepareAiLive = false,
   aiPrepareAllowed = true,
   aiPrepareBlockReason = null,
+  buyAiCreditsHref = null,
+  changePlanHref = null,
   aiDraftFailed = false,
   aiDraftRetryable = true,
   disabled = false,
@@ -90,9 +96,33 @@ export function CampaignMessageChooser({
           </span>
         </div>
         {aiPrepareBlockReason != null ? (
-          <p className="m-0 text-sm font-medium text-op-text-muted">
-            {aiPrepareBlockReason}
-          </p>
+          <div className="flex flex-col gap-2">
+            <p className="m-0 text-sm font-medium text-op-text-muted">
+              {aiPrepareBlockReason}
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              {buyAiCreditsHref != null ? (
+                <Button
+                  type="button"
+                  variant="op-link"
+                  className="h-auto min-h-0 w-fit p-0"
+                  asChild
+                >
+                  <Link to={buyAiCreditsHref}>Buy AI credits</Link>
+                </Button>
+              ) : null}
+              {changePlanHref != null ? (
+                <Button
+                  type="button"
+                  variant="op-link"
+                  className="h-auto min-h-0 w-fit p-0"
+                  asChild
+                >
+                  <Link to={changePlanHref}>Change plan</Link>
+                </Button>
+              ) : null}
+            </div>
+          </div>
         ) : null}
       </div>
 

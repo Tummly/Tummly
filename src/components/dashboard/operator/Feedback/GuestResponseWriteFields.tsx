@@ -21,6 +21,8 @@ export type GuestResponseWriteFieldsProps = {
   subject: string
   message: string
   disabled?: boolean
+  /** Soft lock / AI credits gate for Rewrite with AI. */
+  rewriteDisabled?: boolean
   aiDraftStatus: "idle" | "running" | "failed"
   aiDraftMode: PrepareRecoveryDraftMode | null
   aiDraftRetryable: boolean
@@ -65,6 +67,7 @@ export function GuestResponseWriteFields({
   subject,
   message,
   disabled = false,
+  rewriteDisabled = false,
   aiDraftStatus,
   aiDraftMode,
   aiDraftRetryable,
@@ -85,6 +88,7 @@ export function GuestResponseWriteFields({
     aiDraftStatus === "failed"
     && aiDraftRetryable
     && aiDraftMode === "rewrite_message"
+  const rewriteControlDisabled = disabled || rewriteDisabled || running
 
   return (
     <div className="flex w-full flex-col gap-3">
@@ -100,7 +104,7 @@ export function GuestResponseWriteFields({
             <RewriteAiButton
               busy={subjectBusy}
               failed={showSubjectRetry}
-              disabled={disabled}
+              disabled={rewriteControlDisabled}
               onClick={showSubjectRetry ? onRetryAiDraft : onRewriteSubject}
             />
           </div>
@@ -127,7 +131,7 @@ export function GuestResponseWriteFields({
           <RewriteAiButton
             busy={messageBusy}
             failed={showMessageRetry}
-            disabled={disabled}
+            disabled={rewriteControlDisabled}
             onClick={showMessageRetry ? onRetryAiDraft : onRewriteMessage}
           />
         </div>

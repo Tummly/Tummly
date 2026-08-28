@@ -26,6 +26,10 @@ import {
   type RespondToGuestAdapters,
   type RespondToGuestSnapshot,
 } from "@/lib/operatorFeedback/createRespondToGuestModule"
+import type { LoadRecoveryCreditChromeInput } from "@/lib/operatorFeedback/loadRecoveryCreditChrome"
+import type { RecoveryCreditChromeContext } from "@/lib/operatorFeedback/recoveryCreditChromePresentation"
+import type { BillingCreditsAccessLevel } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
 import {
   createRecordInternalActionModule,
   type RecordInternalActionAdapters,
@@ -176,6 +180,10 @@ export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   getOffer?: RespondWithRecoveryOfferAdapters["getOffer"]
   updateOffer?: RespondWithRecoveryOfferAdapters["updateOffer"]
   listCatalogOffers?: RespondWithRecoveryOfferAdapters["listCatalogOffers"]
+  /** When set, recovery wizards load credit chrome using nav from setRecoveryCreditChromeNav. */
+  loadCreditChrome?: (
+    input: LoadRecoveryCreditChromeInput
+  ) => Promise<RecoveryCreditChromeContext>
 }
 
 
@@ -186,6 +194,11 @@ export type OperatorFeedbackPageModule = {
   connect: () => Promise<void>
   disconnect: () => Promise<void>
   syncWorkspace: (input: OperatorFeedbackWorkspaceInput) => Promise<void>
+  setRecoveryCreditChromeNav: (input: {
+    mode: OperatorDashboardMode
+    locationId: number
+    accessLevel?: BillingCreditsAccessLevel
+  }) => void
   retryLoad: () => Promise<void>
   reloadForFeedbackPageDateRange: () => Promise<void>
   clearTabCache: () => void
@@ -555,6 +568,39 @@ export function createOperatorFeedbackPageModule(
     setWorkflowStatus: adapters.setWorkflowStatus,
   })
 
+  const locationIdHolder: { current: () => number | null } = {
+    current: () => null,
+  }
+
+  const creditChromeNavHolder: {
+    current: {
+      mode: OperatorDashboardMode
+      locationId: number
+      accessLevel: BillingCreditsAccessLevel
+    }
+  } = {
+    current: {
+      mode: "multi",
+      locationId: 0,
+      accessLevel: "manage",
+    },
+  }
+
+  const resolveCreditChrome = async (): Promise<RecoveryCreditChromeContext | null> => {
+    if (adapters.loadCreditChrome == null) {
+      return null
+    }
+    const nav = creditChromeNavHolder.current
+    if (nav.locationId <= 0) {
+      return null
+    }
+    try {
+      return await adapters.loadCreditChrome(nav)
+    } catch {
+      return null
+    }
+  }
+
   const respondToGuest = createRespondToGuestModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     sendGuestResponse: adapters.sendGuestResponse,
@@ -562,6 +608,7 @@ export function createOperatorFeedbackPageModule(
     getOperatorAccountEmail: adapters.getOperatorAccountEmail,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
+    getCreditChrome: resolveCreditChrome,
   })
 
   const recordInternalAction = createRecordInternalActionModule({
@@ -578,11 +625,8 @@ export function createOperatorFeedbackPageModule(
     completeRecovery:
       adapters.completeRecovery as RespondAndRecordAdapters["completeRecovery"],
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
+    getCreditChrome: resolveCreditChrome,
   })
-
-  const locationIdHolder: { current: () => number | null } = {
-    current: () => null,
-  }
 
   const respondWithRecoveryOffer = createRespondWithRecoveryOfferModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
@@ -598,6 +642,7 @@ export function createOperatorFeedbackPageModule(
     getOperatorAccountEmail: adapters.getOperatorAccountEmail,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryOfferDraft,
+    getCreditChrome: resolveCreditChrome,
   })
 
   let state: ModuleState = {
@@ -1285,6 +1330,13 @@ export function createOperatorFeedbackPageModule(
     disconnect,
     async syncWorkspace(input) {
       await loadForWorkspace(input)
+    },
+    setRecoveryCreditChromeNav(input) {
+      creditChromeNavHolder.current = {
+        mode: input.mode,
+        locationId: input.locationId,
+        accessLevel: input.accessLevel ?? "manage",
+      }
     },
     async retryLoad() {
       if (state.workspace == null) {

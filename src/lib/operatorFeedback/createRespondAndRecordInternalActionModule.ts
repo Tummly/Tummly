@@ -44,6 +44,16 @@ import {
   type PrepareRecoveryDraftRewriteTarget,
   type PrepareRecoveryDraftResult,
 } from "@/lib/operatorFeedback/createRespondToGuestModule"
+import {
+  isRecoverySendBlocked,
+  resolveRecoveryAiActionChipChrome,
+  resolveRecoveryPaidWriteChrome,
+  resolveRecoverySmsShortfall,
+  type RecoveryAiActionChipChrome,
+  type RecoveryCreditChromeContext,
+  type RecoveryPaidWriteChrome,
+  type RecoverySmsShortfallChrome,
+} from "@/lib/operatorFeedback/recoveryCreditChromePresentation"
 
 const SEND_ERROR_MESSAGE =
   "Could not send the response and record the internal action. Please try again."
@@ -157,6 +167,8 @@ export type RespondAndRecordAdapters = {
     request: PrepareRecoveryDraftRequest,
     signal?: AbortSignal
   ) => Promise<PrepareRecoveryDraftResult>
+  /** Billing usage + lock chrome for recovery burn gates (ticket 24). */
+  getCreditChrome?: () => Promise<RecoveryCreditChromeContext | null>
 }
 
 export type RespondAndRecordSummary = {
@@ -226,6 +238,11 @@ export type RespondAndRecordSnapshot = {
   /** Retained after send for Success chrome (draft is cleared). */
   successReceipt: GuestResponseSentActivityEvent | null
   openedFromDraftAction: boolean
+  smsShortfall: RecoverySmsShortfallChrome
+  aiActionChip: RecoveryAiActionChipChrome
+  paidWrite: RecoveryPaidWriteChrome
+  /** Confirm/Send hard-stop for SMS shortfall or Soft lock / Dormant. */
+  sendBlocked: boolean
 }
 
 export type RespondAndRecordBackResult = "return-to-shell" | "stayed"
@@ -328,6 +345,7 @@ type SessionState = {
   workflowStatus: FeedbackWorkflowStatus | null
   successReceipt: GuestResponseSentActivityEvent | null
   openedFromDraftAction: boolean
+  creditChrome: RecoveryCreditChromeContext | null
 }
 
 function emptyDraft(): RespondAndRecordDraft {
@@ -379,6 +397,7 @@ function emptySession(): SessionState {
     workflowStatus: null,
     successReceipt: null,
     openedFromDraftAction: false,
+    creditChrome: null,
   }
 }
 
@@ -439,9 +458,33 @@ function projectSummary(state: SessionState): RespondAndRecordSummary | null {
   }
 }
 
+function projectCreditChrome(state: SessionState): {
+  smsShortfall: RecoverySmsShortfallChrome
+  aiActionChip: RecoveryAiActionChipChrome
+  paidWrite: RecoveryPaidWriteChrome
+  sendBlocked: boolean
+} {
+  const context = state.creditChrome
+  const smsShortfall = resolveRecoverySmsShortfall({
+    channel: state.draft.channel,
+    messageBody: state.draft.message,
+    smsRemaining: context?.smsRemaining ?? null,
+    context,
+  })
+  const aiActionChip = resolveRecoveryAiActionChipChrome({ context })
+  const paidWrite = resolveRecoveryPaidWriteChrome({ context })
+  const sendBlocked = isRecoverySendBlocked({
+    channel: state.draft.channel,
+    messageBody: state.draft.message,
+    context,
+  })
+  return { smsShortfall, aiActionChip, paidWrite, sendBlocked }
+}
+
 function toSnapshot(state: SessionState): RespondAndRecordSnapshot {
   const draft = state.draft
   const actionsLocked = state.aiDraftStatus === "running"
+  const credit = projectCreditChrome(state)
   return {
     isOpen: state.isOpen,
     loadStatus: state.loadStatus,
@@ -501,6 +544,10 @@ function toSnapshot(state: SessionState): RespondAndRecordSnapshot {
     guestPreviewOpen: state.guestPreviewOpen,
     successReceipt: state.successReceipt,
     openedFromDraftAction: state.openedFromDraftAction,
+    smsShortfall: credit.smsShortfall,
+    aiActionChip: credit.aiActionChip,
+    paidWrite: credit.paidWrite,
+    sendBlocked: credit.sendBlocked,
   }
 }
 
@@ -599,6 +646,10 @@ export function createRespondAndRecordInternalActionModule(
       || state.draft.tone == null
       || state.aiDraftStatus === "running"
     ) {
+      return
+    }
+
+    if (!resolveRecoveryAiActionChipChrome({ context: state.creditChrome }).prepareAllowed) {
       return
     }
 
@@ -800,6 +851,32 @@ export function createRespondAndRecordInternalActionModule(
         }
       }
 
+      const hydrateCreditChrome = async () => {
+        if (adapters.getCreditChrome == null) {
+          return
+        }
+        try {
+          const chrome = await adapters.getCreditChrome()
+          if (generation !== state.loadGeneration) {
+            return
+          }
+          state = {
+            ...state,
+            creditChrome: chrome,
+          }
+          publish()
+        } catch {
+          if (generation !== state.loadGeneration) {
+            return
+          }
+          state = {
+            ...state,
+            creditChrome: null,
+          }
+          publish()
+        }
+      }
+
       if (
         preloadedDetails != null
         && preloadedDetails.id === feedbackId
@@ -813,6 +890,7 @@ export function createRespondAndRecordInternalActionModule(
         }
         applyLoaded(preloadedDetails)
         publish()
+        await hydrateCreditChrome()
         return
       }
 
@@ -833,6 +911,7 @@ export function createRespondAndRecordInternalActionModule(
         }
         applyLoaded(response)
         publish()
+        await hydrateCreditChrome()
       } catch {
         if (generation !== state.loadGeneration) {
           return
@@ -1359,7 +1438,15 @@ export function createRespondAndRecordInternalActionModule(
       }
     },
     openSendConfirm() {
-      if (state.step !== "review" || state.aiDraftStatus === "running") {
+      if (
+        state.step !== "review"
+        || state.aiDraftStatus === "running"
+        || isRecoverySendBlocked({
+          channel: state.draft.channel,
+          messageBody: state.draft.message,
+          context: state.creditChrome,
+        })
+      ) {
         return
       }
       state = {
@@ -1387,6 +1474,11 @@ export function createRespondAndRecordInternalActionModule(
         || state.draft.tone == null
         || state.draft.category == null
         || (state.step !== "review" && !state.sendConfirmOpen)
+        || isRecoverySendBlocked({
+          channel: state.draft.channel,
+          messageBody: state.draft.message,
+          context: state.creditChrome,
+        })
       ) {
         return
       }

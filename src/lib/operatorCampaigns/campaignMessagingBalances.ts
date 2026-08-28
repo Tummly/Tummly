@@ -20,7 +20,7 @@ export const CAMPAIGN_AI_PREPARE_BLOCKED_SOFT_LOCK =
   "AI drafting is unavailable while this account has limited access."
 
 export const CAMPAIGN_AI_PREPARE_BLOCKED_NO_CREDITS =
-  "No AI credits remaining. Prepare with AI is unavailable."
+  "No AI credits remaining"
 
 export const CAMPAIGN_AI_PREPARE_BLOCKED_BALANCES =
   "Messaging usage is unavailable. Try again before using AI."
