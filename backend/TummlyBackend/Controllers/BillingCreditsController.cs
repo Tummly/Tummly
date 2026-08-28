@@ -236,8 +236,8 @@ namespace TummlyBackend.Controllers
 
         [HttpGet("activity")]
         public async Task<IActionResult> GetActivity(
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10
+            [FromQuery] int skip = 0,
+            [FromQuery] int take = 10
         )
         {
             var unauthorized =
@@ -260,8 +260,8 @@ namespace TummlyBackend.Controllers
 
             var list = await _billingCredits.GetActivityAsync(
                 decision.RestaurantId,
-                page,
-                pageSize
+                skip,
+                take
             );
             if (list == null)
             {

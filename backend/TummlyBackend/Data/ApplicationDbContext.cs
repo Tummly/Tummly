@@ -54,6 +54,9 @@ namespace TummlyBackend.Data
 
         public DbSet<CreditLedgerEntry> CreditLedgerEntries { get; set; }
 
+        public DbSet<RestaurantBillingActivity> RestaurantBillingActivities
+        { get; set; }
+
         public DbSet<RestaurantLocation> RestaurantLocations { get; set; }
 
         public DbSet<QrCode> QrCodes { get; set; }
@@ -337,6 +340,19 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<RestaurantAccessActivity>()
                 .Property(row => row.Kind)
                 .HasMaxLength(40);
+
+            modelBuilder.Entity<RestaurantBillingActivity>()
+                .HasOne(row => row.Restaurant)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RestaurantBillingActivity>()
+                .Property(row => row.Kind)
+                .HasMaxLength(40);
+
+            modelBuilder.Entity<RestaurantBillingActivity>()
+                .HasIndex(row => new { row.RestaurantId, row.OccurredAtUtc, row.Id });
 
             modelBuilder.Entity<RestaurantAdminPermissionCell>()
                 .HasOne(row => row.Restaurant)

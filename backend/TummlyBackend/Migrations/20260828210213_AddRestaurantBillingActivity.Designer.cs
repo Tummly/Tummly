@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TummlyBackend.Data;
 
@@ -11,9 +12,11 @@ using TummlyBackend.Data;
 namespace TummlyBackend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260828210213_AddRestaurantBillingActivity")]
+    partial class AddRestaurantBillingActivity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -264,23 +267,10 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
 
-                    b.Property<bool>("ChargebackRestricted")
-                        .HasColumnType("bit");
-
                     b.Property<string>("ContractedPricebookId")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
-
-                    b.Property<DateTime?>("DormantEnteredAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("DunningEpisodeStartedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("DunningFiredSteps")
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
 
                     b.Property<bool>("LowCreditAlertAdmin")
                         .HasColumnType("bit");
@@ -302,21 +292,9 @@ namespace TummlyBackend.Migrations
                     b.Property<bool>("PaymentFailureAlertOwner")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("PilotDormantNotified")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("PilotPeriodEnd")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("PilotSoftLockNotified")
-                        .HasColumnType("bit");
-
                     b.Property<string>("RevolutCustomerId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
-
-                    b.Property<DateTime?>("SoftLockEnteredAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<string>("StarterKitState")
                         .IsRequired()

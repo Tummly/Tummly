@@ -886,12 +886,12 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task GetActivity_ReturnsEmpty_ForPilotView()
+        public async Task GetActivity_ReturnsEmpty_ForView()
         {
             var seeded = await SeedWorkspaceAsync();
             using var request = Authorized(
                 HttpMethod.Get,
-                "/api/billing-credits/activity?page=1&pageSize=10",
+                "/api/billing-credits/activity?skip=0&take=10",
                 seeded.AdminJwt
             );
             var response = await _client.SendAsync(request);
@@ -900,11 +900,44 @@ namespace TummlyBackend.Tests.Integration
             var body = await ReadJsonAsync(response);
             Assert.Equal(0, body.GetProperty("items").GetArrayLength());
             Assert.Equal(0, body.GetProperty("totalCount").GetInt32());
-            Assert.Equal(10, body.GetProperty("pageSize").GetInt32());
         }
 
         [Fact]
-        public async Task GetActivity_ReturnsNewestFirst_ForPaidView_AndDoesNotReuseAccessActivity()
+        public async Task GetActivity_CapsTakeAtTwenty()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                for (var i = 0; i < 25; i++)
+                {
+                    context.RestaurantBillingActivities.Add(
+                        new RestaurantBillingActivity
+                        {
+                            RestaurantId = seeded.RestaurantId,
+                            Kind = BillingActivityKinds.SubscriptionRenewed,
+                            OccurredAtUtc = DateTime.UtcNow.AddMinutes(-i),
+                            Plan = "Growth",
+                        }
+                    );
+                }
+
+                await context.SaveChangesAsync();
+            }
+
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits/activity?skip=0&take=50",
+                seeded.OwnerJwt
+            );
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            Assert.Equal(20, body.GetProperty("items").GetArrayLength());
+            Assert.Equal(25, body.GetProperty("totalCount").GetInt32());
+        }
+
+        [Fact]
+        public async Task GetActivity_ReturnsNewestFirst_AndSentenceMatchesFrontend08Copy()
         {
             var seeded = await SeedPaidWorkspaceAsync();
 
@@ -912,26 +945,37 @@ namespace TummlyBackend.Tests.Integration
             {
                 var context = scope.ServiceProvider
                     .GetRequiredService<ApplicationDbContext>();
-                var restaurantId = await context.Restaurants
-                    .AsNoTracking()
-                    .Where(row => row.Name == "Paid Billing Venue")
-                    .OrderByDescending(row => row.Id)
-                    .Select(row => row.Id)
-                    .FirstAsync();
-                var ownerId = await context.Restaurants
-                    .AsNoTracking()
-                    .Where(row => row.Id == restaurantId)
-                    .Select(row => row.OwnerUserId)
-                    .SingleAsync();
+                var restaurantId = seeded.RestaurantId;
                 context.RestaurantAccessActivities.Add(
                     new RestaurantAccessActivity
                     {
                         RestaurantId = restaurantId,
-                        ActorUserId = ownerId,
+                        ActorUserId = seeded.OwnerUserId,
                         ActorDisplayName = "Owner Paid",
                         Kind = AccessActivityKinds.MemberRemoved,
                         OccurredAt = DateTime.UtcNow,
                         TargetDisplayName = "Removed Person",
+                    }
+                );
+                context.RestaurantBillingActivities.AddRange(
+                    new RestaurantBillingActivity
+                    {
+                        RestaurantId = restaurantId,
+                        Kind = BillingActivityKinds.CreditConsumed,
+                        OccurredAtUtc = DateTime.UtcNow.AddHours(-1),
+                        Channel = CreditChannels.Sms,
+                        Qty = 212,
+                        CampaignName = "Quiet Tuesday Boost",
+                        ConsumeSource = "campaign",
+                    },
+                    new RestaurantBillingActivity
+                    {
+                        RestaurantId = restaurantId,
+                        Kind = BillingActivityKinds.TopupPurchased,
+                        OccurredAtUtc = DateTime.UtcNow.AddHours(-2),
+                        ActorDisplayName = "James Cole",
+                        Channel = CreditChannels.Sms,
+                        Qty = 1000,
                     }
                 );
                 await context.SaveChangesAsync();
@@ -939,25 +983,29 @@ namespace TummlyBackend.Tests.Integration
 
             using var request = Authorized(
                 HttpMethod.Get,
-                "/api/billing-credits/activity?page=1&pageSize=10",
+                "/api/billing-credits/activity?skip=0&take=10",
                 seeded.AdminJwt
             );
-            var response = await _client.SendAsync(request);
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-            var body = await ReadJsonAsync(response);
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
             var items = body.GetProperty("items");
-            Assert.True(items.GetArrayLength() > 0);
-            Assert.True(body.GetProperty("totalCount").GetInt32() >= 10);
-
-            var kinds = items
-                .EnumerateArray()
-                .Select(row => row.GetProperty("kind").GetString())
-                .ToArray();
+            Assert.Equal(2, items.GetArrayLength());
+            Assert.Equal(2, body.GetProperty("totalCount").GetInt32());
+            Assert.Equal(
+                BillingActivityKinds.CreditConsumed,
+                items[0].GetProperty("kind").GetString()
+            );
+            Assert.Equal(
+                "212 SMS credits used by Quiet Tuesday Boost.",
+                items[0].GetProperty("sentence").GetString()
+            );
+            Assert.Equal(
+                "1,000 SMS credits added by James Cole.",
+                items[1].GetProperty("sentence").GetString()
+            );
             Assert.All(
-                kinds,
-                kind => Assert.DoesNotContain(
-                    kind,
+                items.EnumerateArray(),
+                row => Assert.DoesNotContain(
+                    row.GetProperty("kind").GetString() ?? "",
                     new[]
                     {
                         AccessActivityKinds.MemberRemoved,
@@ -966,31 +1014,6 @@ namespace TummlyBackend.Tests.Integration
                     }
                 )
             );
-            Assert.Contains(BillingActivityKinds.CreditConsumed, kinds);
-            Assert.Equal(
-                BillingActivityKinds.CreditConsumed,
-                items[0].GetProperty("kind").GetString()
-            );
-            Assert.Equal(212, items[0].GetProperty("qty").GetInt32());
-            Assert.Equal("sms", items[0].GetProperty("channel").GetString());
-        }
-
-        [Fact]
-        public async Task GetActivity_PaginatesAtTwenty()
-        {
-            var seeded = await SeedPaidWorkspaceAsync();
-            using var request = Authorized(
-                HttpMethod.Get,
-                "/api/billing-credits/activity?page=2&pageSize=20",
-                seeded.OwnerJwt
-            );
-            var response = await _client.SendAsync(request);
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-            var body = await ReadJsonAsync(response);
-            Assert.Equal(2, body.GetProperty("page").GetInt32());
-            Assert.Equal(20, body.GetProperty("pageSize").GetInt32());
-            Assert.True(body.GetProperty("totalCount").GetInt32() > 20);
         }
 
         private async Task<Seeded> SeedWorkspaceAsync(
@@ -1577,6 +1600,8 @@ namespace TummlyBackend.Tests.Integration
             await context.SaveChangesAsync();
 
             return new PaidSeeded(
+                restaurant.Id,
+                owner.Id,
                 jwtService.GenerateToken(owner.Id.ToString(), owner.Email, owner.Role),
                 string.Empty,
                 string.Empty
@@ -1685,6 +1710,8 @@ namespace TummlyBackend.Tests.Integration
             await context.SaveChangesAsync();
 
             return new PaidSeeded(
+                restaurant.Id,
+                owner.Id,
                 jwtService.GenerateToken(owner.Id.ToString(), owner.Email, owner.Role),
                 jwtService.GenerateToken(admin.Id.ToString(), admin.Email, admin.Role),
                 jwtService.GenerateToken(
@@ -1785,6 +1812,8 @@ namespace TummlyBackend.Tests.Integration
         );
 
         private sealed record PaidSeeded(
+            int RestaurantId,
+            int OwnerUserId,
             string OwnerJwt,
             string AdminJwt,
             string BillingAdminJwt
