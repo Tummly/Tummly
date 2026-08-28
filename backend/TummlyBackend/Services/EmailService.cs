@@ -765,6 +765,34 @@ namespace TummlyBackend.Services
             await SendEmailAsync(toEmail, subject, htmlBody);
         }
 
+        public async Task SendBillingAccountNoticeEmailAsync(
+            string toEmail,
+            string firstName,
+            string title,
+            string body,
+            string? ctaLabel,
+            string? ctaHref
+        )
+        {
+            var frontendBaseUrl = GetFrontendBaseUrl();
+            var htmlBody = BaseEmailTemplate.Generate(
+                title,
+                BillingAccountNoticeEmailTemplate.GenerateBody(
+                    firstName,
+                    title,
+                    body,
+                    ctaLabel,
+                    ctaHref,
+                    frontendBaseUrl
+                ),
+                frontendBaseUrl,
+                EmailAssets.GetLogoDataUri(_environment),
+                EmailFooterVariant.Transactional
+            );
+
+            await SendEmailAsync(toEmail, title, htmlBody);
+        }
+
         private sealed class ResendEmailPayload
         {
             [JsonPropertyName("from")]

@@ -125,5 +125,14 @@ namespace TummlyBackend.Tests.Helpers
             string locationScope,
             string? invitationMessage
         ) => Task.CompletedTask;
+
+        public virtual Task SendBillingAccountNoticeEmailAsync(
+            string toEmail,
+            string firstName,
+            string title,
+            string body,
+            string? ctaLabel,
+            string? ctaHref
+        ) => Task.CompletedTask;
     }
 }

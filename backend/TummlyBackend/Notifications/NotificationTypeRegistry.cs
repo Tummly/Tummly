@@ -85,6 +85,51 @@ namespace TummlyBackend.Notifications
                     "campaign-and-report-updates",
                     "offers:read"
                 ),
+                ["credit-warning-80"] = new(
+                    "credit-warning-80",
+                    "account-notices",
+                    null
+                ),
+                ["credit-warning-90"] = new(
+                    "credit-warning-90",
+                    "account-notices",
+                    null
+                ),
+                ["credit-warning-100"] = new(
+                    "credit-warning-100",
+                    "account-notices",
+                    null
+                ),
+                ["payment-failure-day-0"] = new(
+                    "payment-failure-day-0",
+                    "account-notices",
+                    null
+                ),
+                ["payment-failure-day-3"] = new(
+                    "payment-failure-day-3",
+                    "account-notices",
+                    null
+                ),
+                ["payment-failure-day-7"] = new(
+                    "payment-failure-day-7",
+                    "account-notices",
+                    null
+                ),
+                ["payment-failure-day-10"] = new(
+                    "payment-failure-day-10",
+                    "account-notices",
+                    null
+                ),
+                ["payment-failure-day-24"] = new(
+                    "payment-failure-day-24",
+                    "account-notices",
+                    null
+                ),
+                ["unpaid-pilot-lock"] = new(
+                    "unpaid-pilot-lock",
+                    "account-notices",
+                    null
+                ),
             };
 
         private static readonly HashSet<string> AllowedCapabilities =
