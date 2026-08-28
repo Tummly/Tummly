@@ -1,5 +1,6 @@
 import axiosInstance from "@/api/axiosInstance"
 import type {
+  BillingActivityList,
   BillingAlertRoleFlags,
   BillingContactsSnapshot,
   BillingCreditsPageData,
@@ -139,6 +140,38 @@ export async function getBillingCreditsUsage(): Promise<CreditsUsageSnapshot> {
     "/billing-credits/usage"
   )
   return data
+}
+
+export async function getBillingCreditsActivity(params: {
+  page: number
+  pageSize: number
+}): Promise<BillingActivityList> {
+  const { data } = await axiosInstance.get<BillingActivityList>(
+    "/billing-credits/activity",
+    { params }
+  )
+  return {
+    items: (data.items ?? []).map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      occurredAt: item.occurredAt,
+      actorDisplayName: item.actorDisplayName,
+      channel: item.channel,
+      qty: item.qty,
+      campaignName: item.campaignName,
+      invoiceNo: item.invoiceNo,
+      creditNoteNo: item.creditNoteNo,
+      plan: item.plan,
+      cadence: item.cadence,
+      scheduledDateLabel: item.scheduledDateLabel,
+      locationName: item.locationName,
+      manualAdjustDirection: item.manualAdjustDirection,
+      consumeSource: item.consumeSource,
+    })),
+    totalCount: data.totalCount,
+    page: data.page,
+    pageSize: data.pageSize,
+  }
 }
 
 export async function createPaymentMethodUpdateSession(): Promise<{

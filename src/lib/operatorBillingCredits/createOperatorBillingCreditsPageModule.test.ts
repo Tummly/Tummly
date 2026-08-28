@@ -114,6 +114,12 @@ function createTestModule(
   return createOperatorBillingCreditsPageModule({
     getPage: vi.fn(async () => page),
     getUsage: async () => usage,
+    getBillingActivity: vi.fn(async () => ({
+      items: [],
+      totalCount: 0,
+      page: 1,
+      pageSize: 10,
+    })),
     submitPlanChange: vi.fn(),
     updateBillingContacts: vi.fn(async (payload) => ({
       ...page.billingContacts,
@@ -607,7 +613,58 @@ describe("createOperatorBillingCreditsPageModule", () => {
       })
     )
     expect(module.getSnapshot().isDirty).toBe(false)
-})
+  })
+
+  it("loads ten preview rows and opens history at page size twenty", async () => {
+    const items = Array.from({ length: 25 }, (_, index) => ({
+      id: index + 1,
+      kind: "credit_consumed" as const,
+      occurredAt: "2026-08-26T09:00:00.000Z",
+      channel: "sms",
+      qty: 1,
+      campaignName: `Campaign ${index}`,
+      consumeSource: "campaign" as const,
+    }))
+    const getBillingActivity = vi.fn(
+      async ({ pageSize }: { pageSize: number }) => ({
+        items: items.slice(0, pageSize),
+        totalCount: 25,
+        page: 1,
+        pageSize,
+      })
+    )
+    const module = createOperatorBillingCreditsPageModule(
+      {
+        getPage: vi.fn(async () => samplePage()),
+        getUsage: async () => sampleUsage(),
+        getBillingActivity,
+        submitPlanChange: vi.fn(),
+        updateBillingContacts: vi.fn(async (payload) => ({
+          ...sampleBillingContacts(),
+          ...payload,
+        })),
+      },
+      { getNow: () => new Date("2026-08-26T12:00:00.000Z") }
+    )
+    await module.load()
+    expect(getBillingActivity).toHaveBeenCalledWith({ page: 1, pageSize: 10 })
+    expect(module.getSnapshot().billingActivityPreview).toHaveLength(10)
+    expect(module.getSnapshot().billingActivityEmpty).toBe(false)
+    await module.openBillingActivityHistory()
+    expect(getBillingActivity).toHaveBeenCalledWith({ page: 1, pageSize: 20 })
+    expect(module.getSnapshot().billingActivityHistoryOpen).toBe(true)
+    expect(module.getSnapshot().billingActivityHistoryRows).toHaveLength(20)
+    expect(module.getSnapshot().billingActivityHistoryHasNext).toBe(true)
+  })
+
+  it("keeps the card empty copy and hides the sheet button when count is zero", async () => {
+    const module = createTestModule()
+    await module.load()
+    expect(module.getSnapshot().billingActivityEmpty).toBe(true)
+    expect(module.getSnapshot().billingActivityPreview).toEqual([])
+    await module.openBillingActivityHistory()
+    expect(module.getSnapshot().billingActivityHistoryOpen).toBe(false)
+  })
 
   it("keeps top-up Buy disabled until a chip is selected", async () => {
     const module = createTestModule(

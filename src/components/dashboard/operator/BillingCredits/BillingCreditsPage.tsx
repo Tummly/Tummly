@@ -30,6 +30,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { Spinner } from "@/components/ui/spinner"
 import {
   Table,
@@ -48,6 +54,7 @@ import {
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import type { BillingCreditsTabId } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import { ACCOUNT_WORKSPACE_PAGE_COPY } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
+import type { BillingActivityViewRow } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
 import type { CreditChannelCardViewModel } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 import {
   CAMPAIGNS_MESSAGING_USAGE_METER_FILL_CLASS,
@@ -574,12 +581,156 @@ function PaymentInvoicesBody({
   )
 }
 
-function EmptyTabBody({ label }: { label: string }) {
+function BillingActivityRows({
+  rows,
+  className,
+}: {
+  rows: BillingActivityViewRow[]
+  className?: string
+}) {
   return (
-    <section className={GUESTS_SECTION_CLASS}>
-      <h2 className={GUESTS_SECTION_TITLE_CLASS}>{label}</h2>
-      <p className={GUESTS_SECTION_SUBTITLE_CLASS}>Coming soon.</p>
-    </section>
+    <ul
+      className={cn(
+        "m-0 flex list-none flex-col gap-[22px] p-0",
+        className
+      )}
+    >
+      {rows.map((row, index) => (
+        <li
+          key={row.id}
+          className={
+            index === 0
+              ? "flex flex-col gap-2"
+              : "flex flex-col gap-2 border-t border-op-border-default pt-[22px]"
+          }
+        >
+          <p className="m-0 text-sm font-medium text-foreground">
+            {row.occurredAtLabel}
+          </p>
+          <p className="m-0 text-sm font-medium text-op-card-subtitle-color">
+            {row.sentence}
+          </p>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function BillingActivityBody({
+  snap,
+  pageModule,
+}: {
+  snap: ReturnType<
+    ReturnType<typeof useBillingCreditsPageModuleApi>["getSnapshot"]
+  >
+  pageModule: ReturnType<typeof useBillingCreditsPageModuleApi>
+}) {
+  if (snap.loadStatus === "idle" || snap.loadStatus === "loading") {
+    return (
+      <div className="flex justify-center py-16" role="status">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (snap.loadStatus === "error") {
+    return (
+      <div className={GUESTS_SECTION_CLASS}>
+        <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.loadError}</h2>
+        <Button
+          type="button"
+          variant="op-secondary"
+          onClick={() => {
+            void pageModule.load()
+          }}
+        >
+          {copy.retry}
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <section className={GUESTS_SECTION_CLASS}>
+        <div className="flex flex-col gap-2">
+          <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.billingActivityTitle}</h2>
+          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+            {copy.billingActivitySubtitle}
+          </p>
+        </div>
+
+        {snap.billingActivityEmpty ? (
+          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+            {copy.billingActivityEmpty}
+          </p>
+        ) : (
+          <>
+            <BillingActivityRows rows={snap.billingActivityPreview} />
+            <Button
+              type="button"
+              variant="op-secondary"
+              className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+              onClick={() => {
+                void pageModule.openBillingActivityHistory()
+              }}
+            >
+              {copy.viewFullBillingHistory}
+            </Button>
+          </>
+        )}
+      </section>
+
+      <Sheet
+        open={snap.billingActivityHistoryOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            pageModule.closeBillingActivityHistory()
+          }
+        }}
+      >
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-lg"
+          showCloseButton
+        >
+          <SheetHeader>
+            <SheetTitle className="text-xl font-bold">
+              {copy.billingActivitySheetTitle}
+            </SheetTitle>
+          </SheetHeader>
+          <BillingActivityRows
+            rows={snap.billingActivityHistoryRows}
+            className="overflow-y-auto p-4"
+          />
+          {snap.billingActivityHistoryHasPrevious
+          || snap.billingActivityHistoryHasNext ? (
+            <div className="flex gap-3 p-4">
+              <Button
+                type="button"
+                variant="op-tertiary"
+                disabled={!snap.billingActivityHistoryHasPrevious}
+                onClick={() => {
+                  void pageModule.goToPreviousBillingActivityHistoryPage()
+                }}
+              >
+                Previous
+              </Button>
+              <Button
+                type="button"
+                variant="op-tertiary"
+                disabled={!snap.billingActivityHistoryHasNext}
+                onClick={() => {
+                  void pageModule.goToNextBillingActivityHistoryPage()
+                }}
+              >
+                Next
+              </Button>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+    </>
   )
 }
 
@@ -956,7 +1107,7 @@ export function BillingCreditsPage() {
           <BillingContactsBody snap={snap} pageModule={pageModule} />
         </TabsContent>
         <TabsContent value="activity">
-          <EmptyTabBody label="Activity" />
+          <BillingActivityBody snap={snap} pageModule={pageModule} />
         </TabsContent>
       </Tabs>
 

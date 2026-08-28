@@ -67,5 +67,11 @@ namespace TummlyBackend.Interfaces
             int userId,
             int restaurantId
         );
+
+        Task<BillingActivityListDto?> GetActivityAsync(
+            int restaurantId,
+            int page,
+            int pageSize
+        );
     }
 }

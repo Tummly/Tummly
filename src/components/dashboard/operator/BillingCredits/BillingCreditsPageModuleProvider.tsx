@@ -16,6 +16,7 @@ import {
   fetchBillingCreditsInvoicePdf,
   getBillingCreditsPage,
   getBillingCreditsUsage,
+  getBillingCreditsActivity,
   openInvoicePdfBlob,
   payBillingCreditTopUp,
   removeExtraGroupLocation,
@@ -48,6 +49,7 @@ export function BillingCreditsPageModuleProvider({
       {
         getPage: getBillingCreditsPage,
         getUsage: getBillingCreditsUsage,
+        getBillingActivity: getBillingCreditsActivity,
         submitPlanChange: submitBillingPlanChange,
         addExtraGroupLocation,
         removeExtraGroupLocation,

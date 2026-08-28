@@ -1190,5 +1190,264 @@ namespace TummlyBackend.Services
             };
         }
 
+        public async Task<BillingActivityListDto?> GetActivityAsync(
+            int restaurantId,
+            int page,
+            int pageSize
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurantId);
+
+            if (restaurant == null)
+            {
+                return null;
+            }
+
+            var owner = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
+
+            if (await IsPilotRestaurantAsync(restaurantId, owner))
+            {
+                return new BillingActivityListDto
+                {
+                    Items = [],
+                    TotalCount = 0,
+                    Page = Math.Max(1, page),
+                    PageSize = Math.Max(1, pageSize),
+                };
+            }
+
+            var allRows = BuildStubBillingActivityRows();
+            var safePage = Math.Max(1, page);
+            var safePageSize = Math.Max(1, pageSize);
+            var skip = (safePage - 1) * safePageSize;
+
+            return new BillingActivityListDto
+            {
+                Items = allRows.Skip(skip).Take(safePageSize).ToList(),
+                TotalCount = allRows.Count,
+                Page = safePage,
+                PageSize = safePageSize,
+            };
+        }
+
+        private static List<BillingActivityRowDto> BuildStubBillingActivityRows()
+        {
+            var now = DateTime.UtcNow;
+            return
+            [
+                new BillingActivityRowDto
+                {
+                    Id = 1,
+                    Kind = BillingActivityKinds.CreditConsumed,
+                    OccurredAt = now.AddHours(-2),
+                    Channel = "sms",
+                    Qty = 212,
+                    CampaignName = "Quiet Tuesday Boost",
+                    ConsumeSource = "campaign",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 2,
+                    Kind = BillingActivityKinds.TopupPurchased,
+                    OccurredAt = new DateTime(2026, 7, 18, 9, 15, 0, DateTimeKind.Utc),
+                    ActorDisplayName = "James Cole",
+                    Channel = "sms",
+                    Qty = 1000,
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 3,
+                    Kind = BillingActivityKinds.InvoicePaid,
+                    OccurredAt = new DateTime(2026, 7, 12, 8, 0, 0, DateTimeKind.Utc),
+                    InvoiceNo = "TM-2026-000001",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 4,
+                    Kind = BillingActivityKinds.SubscriptionRenewed,
+                    OccurredAt = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
+                    Plan = "Growth",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 5,
+                    Kind = BillingActivityKinds.PaymentMethodUpdated,
+                    OccurredAt = new DateTime(2026, 6, 20, 14, 30, 0, DateTimeKind.Utc),
+                    ActorDisplayName = "James Cole",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 6,
+                    Kind = BillingActivityKinds.CreditConsumed,
+                    OccurredAt = new DateTime(2026, 6, 15, 11, 0, 0, DateTimeKind.Utc),
+                    Channel = "email",
+                    Qty = 450,
+                    CampaignName = "Summer Launch",
+                    ConsumeSource = "campaign",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 7,
+                    Kind = BillingActivityKinds.TopupRefunded,
+                    OccurredAt = new DateTime(2026, 6, 10, 16, 45, 0, DateTimeKind.Utc),
+                    Channel = "sms",
+                    Qty = 50,
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 8,
+                    Kind = BillingActivityKinds.CreditNoteIssued,
+                    OccurredAt = new DateTime(2026, 6, 5, 10, 0, 0, DateTimeKind.Utc),
+                    CreditNoteNo = "TCN-2026-000001",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 9,
+                    Kind = BillingActivityKinds.ManualCreditAdjusted,
+                    OccurredAt = new DateTime(2026, 5, 28, 9, 0, 0, DateTimeKind.Utc),
+                    Channel = "email",
+                    Qty = 100,
+                    ManualAdjustDirection = "add",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 10,
+                    Kind = BillingActivityKinds.SubscriptionChangeScheduled,
+                    OccurredAt = new DateTime(2026, 5, 20, 13, 15, 0, DateTimeKind.Utc),
+                    ActorDisplayName = "James Cole",
+                    Plan = "Starter",
+                    Cadence = "Monthly",
+                    ScheduledDateLabel = "15 September 2026",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 11,
+                    Kind = BillingActivityKinds.CreditExpired,
+                    OccurredAt = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc),
+                    Channel = "sms",
+                    Qty = 12,
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 12,
+                    Kind = BillingActivityKinds.CreditConsumed,
+                    OccurredAt = new DateTime(2026, 4, 22, 18, 20, 0, DateTimeKind.Utc),
+                    Channel = "sms",
+                    Qty = 1,
+                    ConsumeSource = "feedback_recovery",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 13,
+                    Kind = BillingActivityKinds.SubscriptionCreated,
+                    OccurredAt = new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc),
+                    ActorDisplayName = "James Cole",
+                    Plan = "Growth",
+                    Cadence = "Monthly",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 14,
+                    Kind = BillingActivityKinds.AdditionalLocationAdded,
+                    OccurredAt = new DateTime(2026, 3, 15, 12, 0, 0, DateTimeKind.Utc),
+                    ActorDisplayName = "James Cole",
+                    LocationName = "Soho",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 15,
+                    Kind = BillingActivityKinds.SubscriptionUpgraded,
+                    OccurredAt = new DateTime(2026, 3, 1, 9, 30, 0, DateTimeKind.Utc),
+                    ActorDisplayName = "James Cole",
+                    Plan = "Growth",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 16,
+                    Kind = BillingActivityKinds.SubscriptionCancelled,
+                    OccurredAt = new DateTime(2026, 2, 10, 10, 0, 0, DateTimeKind.Utc),
+                    ActorDisplayName = "James Cole",
+                    ScheduledDateLabel = "15 March 2026",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 17,
+                    Kind = BillingActivityKinds.AdditionalLocationRemoveScheduled,
+                    OccurredAt = new DateTime(2026, 2, 1, 11, 0, 0, DateTimeKind.Utc),
+                    ActorDisplayName = "James Cole",
+                    LocationName = "Camden",
+                    ScheduledDateLabel = "1 April 2026",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 18,
+                    Kind = BillingActivityKinds.SoftLockEntered,
+                    OccurredAt = new DateTime(2026, 1, 20, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 19,
+                    Kind = BillingActivityKinds.DormantEntered,
+                    OccurredAt = new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 20,
+                    Kind = BillingActivityKinds.ManualCreditAdjusted,
+                    OccurredAt = new DateTime(2025, 12, 15, 9, 0, 0, DateTimeKind.Utc),
+                    Channel = "ai",
+                    Qty = 5,
+                    ManualAdjustDirection = "remove",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 21,
+                    Kind = BillingActivityKinds.CreditConsumed,
+                    OccurredAt = new DateTime(2025, 12, 1, 15, 0, 0, DateTimeKind.Utc),
+                    Channel = "email",
+                    Qty = 1,
+                    CampaignName = "Winter Promo",
+                    ConsumeSource = "campaign",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 22,
+                    Kind = BillingActivityKinds.InvoicePaid,
+                    OccurredAt = new DateTime(2025, 11, 12, 8, 0, 0, DateTimeKind.Utc),
+                    InvoiceNo = "TM-2025-000012",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 23,
+                    Kind = BillingActivityKinds.TopupPurchased,
+                    OccurredAt = new DateTime(2025, 10, 5, 14, 0, 0, DateTimeKind.Utc),
+                    ActorDisplayName = "James Cole",
+                    Channel = "ai",
+                    Qty = 20,
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 24,
+                    Kind = BillingActivityKinds.SubscriptionChangeScheduled,
+                    OccurredAt = new DateTime(2025, 9, 1, 10, 0, 0, DateTimeKind.Utc),
+                    ActorDisplayName = "James Cole",
+                    Cadence = "Annual",
+                    ScheduledDateLabel = "1 October 2025",
+                },
+                new BillingActivityRowDto
+                {
+                    Id = 25,
+                    Kind = BillingActivityKinds.CreditExpired,
+                    OccurredAt = new DateTime(2025, 8, 1, 0, 0, 0, DateTimeKind.Utc),
+                    Channel = "email",
+                    Qty = 200,
+                },
+            ];
+        }
+
     }
 }

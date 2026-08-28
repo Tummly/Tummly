@@ -722,6 +722,133 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task GetActivity_Returns401_WithoutJwt()
+        {
+            var response = await _client.GetAsync("/api/billing-credits/activity");
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetActivity_Returns403_ForStaff()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits/activity",
+                seeded.StaffJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetActivity_ReturnsEmpty_ForPilotView()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits/activity?page=1&pageSize=10",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(0, body.GetProperty("items").GetArrayLength());
+            Assert.Equal(0, body.GetProperty("totalCount").GetInt32());
+            Assert.Equal(10, body.GetProperty("pageSize").GetInt32());
+        }
+
+        [Fact]
+        public async Task GetActivity_ReturnsNewestFirst_ForPaidView_AndDoesNotReuseAccessActivity()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var restaurantId = await context.Restaurants
+                    .AsNoTracking()
+                    .Where(row => row.Name == "Paid Billing Venue")
+                    .Select(row => row.Id)
+                    .SingleAsync();
+                var ownerId = await context.Restaurants
+                    .AsNoTracking()
+                    .Where(row => row.Id == restaurantId)
+                    .Select(row => row.OwnerUserId)
+                    .SingleAsync();
+                context.RestaurantAccessActivities.Add(
+                    new RestaurantAccessActivity
+                    {
+                        RestaurantId = restaurantId,
+                        ActorUserId = ownerId,
+                        ActorDisplayName = "Owner Paid",
+                        Kind = AccessActivityKinds.MemberRemoved,
+                        OccurredAt = DateTime.UtcNow,
+                        TargetDisplayName = "Removed Person",
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits/activity?page=1&pageSize=10",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var items = body.GetProperty("items");
+            Assert.True(items.GetArrayLength() > 0);
+            Assert.True(body.GetProperty("totalCount").GetInt32() >= 10);
+
+            var kinds = items
+                .EnumerateArray()
+                .Select(row => row.GetProperty("kind").GetString())
+                .ToArray();
+            Assert.All(
+                kinds,
+                kind => Assert.DoesNotContain(
+                    kind,
+                    new[]
+                    {
+                        AccessActivityKinds.MemberRemoved,
+                        AccessActivityKinds.RoleChanged,
+                        AccessActivityKinds.PermissionCellChanged,
+                    }
+                )
+            );
+            Assert.Contains(BillingActivityKinds.CreditConsumed, kinds);
+            Assert.Equal(
+                BillingActivityKinds.CreditConsumed,
+                items[0].GetProperty("kind").GetString()
+            );
+            Assert.Equal(212, items[0].GetProperty("qty").GetInt32());
+            Assert.Equal("sms", items[0].GetProperty("channel").GetString());
+        }
+
+        [Fact]
+        public async Task GetActivity_PaginatesAtTwenty()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits/activity?page=2&pageSize=20",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(2, body.GetProperty("page").GetInt32());
+            Assert.Equal(20, body.GetProperty("pageSize").GetInt32());
+            Assert.True(body.GetProperty("totalCount").GetInt32() > 20);
+        }
+
         private async Task<Seeded> SeedWorkspaceAsync(
             bool includeBillingAdmin = false,
             bool scheduleTestRestaurant = false
