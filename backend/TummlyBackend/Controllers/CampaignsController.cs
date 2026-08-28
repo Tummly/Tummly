@@ -700,6 +700,28 @@ namespace TummlyBackend.Controllers
                             code = "reserve_failed",
                             message = failed.Message,
                         }),
+                    CampaignScheduleCommitResult.ChannelHardStopped hardStopped =>
+                        UnprocessableEntity(new
+                        {
+                            success = false,
+                            code = "channel_hard_stopped",
+                            channel = hardStopped.Channel,
+                            remaining = hardStopped.Remaining,
+                            requested = hardStopped.Requested,
+                            message =
+                                "This channel has no remaining credits. Schedule and send stay blocked on this channel.",
+                        }),
+                    CampaignScheduleCommitResult.InsufficientCredits insufficient =>
+                        UnprocessableEntity(new
+                        {
+                            success = false,
+                            code = "insufficient_credits",
+                            channel = insufficient.Channel,
+                            remaining = insufficient.Remaining,
+                            requested = insufficient.Requested,
+                            message =
+                                "Not enough credits remain on this channel for the full estimate.",
+                        }),
                     CampaignScheduleCommitResult.ZeroEligible =>
                         UnprocessableEntity(new
                         {
@@ -917,6 +939,28 @@ namespace TummlyBackend.Controllers
                         success = false,
                         code = "reserve_failed",
                         message = failed.Message,
+                    }),
+                CampaignLifecycleResult.ChannelHardStopped hardStopped =>
+                    UnprocessableEntity(new
+                    {
+                        success = false,
+                        code = "channel_hard_stopped",
+                        channel = hardStopped.Channel,
+                        remaining = hardStopped.Remaining,
+                        requested = hardStopped.Requested,
+                        message =
+                            "This channel has no remaining credits. Resume and retry stay blocked on this channel.",
+                    }),
+                CampaignLifecycleResult.InsufficientCredits insufficient =>
+                    UnprocessableEntity(new
+                    {
+                        success = false,
+                        code = "insufficient_credits",
+                        channel = insufficient.Channel,
+                        remaining = insufficient.Remaining,
+                        requested = insufficient.Requested,
+                        message =
+                            "Not enough credits remain on this channel for the full estimate.",
                     }),
                 CampaignLifecycleResult.ReleaseFailed releaseFailed =>
                     UnprocessableEntity(new

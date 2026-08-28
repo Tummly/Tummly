@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -29,18 +30,21 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly ICampaignEligibilityService _eligibility;
         private readonly ICampaignBillingReserve _billingReserve;
+        private readonly ICreditBalanceSnapshot _creditBalance;
         private readonly Func<DateTime> _utcNow;
 
         public CampaignLifecycleService(
             ApplicationDbContext context,
             ICampaignEligibilityService eligibility,
             ICampaignBillingReserve billingReserve,
+            ICreditBalanceSnapshot creditBalance,
             Func<DateTime>? utcNow = null
         )
         {
             _context = context;
             _eligibility = eligibility;
             _billingReserve = billingReserve;
+            _creditBalance = creditBalance;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
         }
 
@@ -307,6 +311,11 @@ namespace TummlyBackend.Services
                 };
             }
 
+            if (!string.IsNullOrWhiteSpace(entity.BillingReservationRef))
+            {
+                return await RetryWithOpenRefAsync(entity, cancellationToken);
+            }
+
             return await RevalidateReReserveAsync(
                 entity,
                 resumeTarget: false,
@@ -513,6 +522,54 @@ namespace TummlyBackend.Services
                 return new CampaignLifecycleResult.ZeroEligible();
             }
 
+            var estimatedUnits = CampaignCreditEstimate.EstimateUnits(
+                channel,
+                entity.MessageBody,
+                remaining.Count
+            );
+
+            var restaurantId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == entity.RestaurantLocationId)
+                .Select(row => row.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (restaurantId == 0)
+            {
+                return new CampaignLifecycleResult.InvalidStatus
+                {
+                    Message = "Campaign location was not found.",
+                };
+            }
+
+            var snapshot = await _creditBalance.GetAccountAsync(
+                restaurantId,
+                cancellationToken
+            );
+            var gateRefusal = CampaignCreditGate.EvaluateNewReserve(
+                snapshot,
+                channel,
+                estimatedUnits
+            );
+            if (gateRefusal != null)
+            {
+                return gateRefusal.Code switch
+                {
+                    "channel_hard_stopped" =>
+                        new CampaignLifecycleResult.ChannelHardStopped
+                        {
+                            Channel = gateRefusal.Channel,
+                            Remaining = gateRefusal.Remaining,
+                            Requested = gateRefusal.Requested,
+                        },
+                    _ => new CampaignLifecycleResult.InsufficientCredits
+                    {
+                        Channel = gateRefusal.Channel,
+                        Remaining = gateRefusal.Remaining,
+                        Requested = gateRefusal.Requested,
+                    },
+                };
+            }
+
             var dropIds = frozenIds
                 .Where(id => !eligibleSet.Contains(id))
                 .ToList();
@@ -532,7 +589,7 @@ namespace TummlyBackend.Services
                     CampaignId = entity.Id,
                     LocationId = entity.RestaurantLocationId,
                     Channel = channel,
-                    Units = remaining.Count,
+                    Units = estimatedUnits,
                 },
                 cancellationToken
             );
@@ -540,10 +597,12 @@ namespace TummlyBackend.Services
             if (reserveResult is CampaignBillingReserveResult.Failed failed)
             {
                 _context.ChangeTracker.Clear();
-                return new CampaignLifecycleResult.ReserveFailed
-                {
-                    Message = failed.Message,
-                };
+                return MapReserveFailure(
+                    failed.Message,
+                    channel,
+                    snapshot,
+                    estimatedUnits
+                );
             }
 
             if (reserveResult is not CampaignBillingReserveResult.Ok reserved)
@@ -556,7 +615,8 @@ namespace TummlyBackend.Services
             }
 
             entity.BillingReservationRef = reserved.ReservationRef;
-            entity.ReservedEstimate = remaining.Count;
+            entity.ReservedEstimate = estimatedUnits;
+            entity.SettledUnits = 0;
             entity.UpdatedAt = now;
 
             if (resumeTarget)
@@ -577,6 +637,91 @@ namespace TummlyBackend.Services
             {
                 entity.Status = SendingStatus;
             }
+
+            return await SaveLifecycleAsync(entity, cancellationToken);
+        }
+
+        private async Task<CampaignLifecycleResult> RetryWithOpenRefAsync(
+            Campaign entity,
+            CancellationToken cancellationToken
+        )
+        {
+            if (string.IsNullOrWhiteSpace(entity.Channel))
+            {
+                return new CampaignLifecycleResult.InvalidStatus
+                {
+                    Message = "channel is required before retry.",
+                };
+            }
+
+            if (string.IsNullOrWhiteSpace(entity.AudienceKey))
+            {
+                return new CampaignLifecycleResult.InvalidStatus
+                {
+                    Message = "audienceKey is required before retry.",
+                };
+            }
+
+            var channel = entity.Channel.Trim().ToLowerInvariant();
+            var audienceKey = entity.AudienceKey.Trim();
+            var now = _utcNow();
+
+            var frozenIds = await _context.CampaignFrozenRecipients
+                .Where(row =>
+                    row.CampaignId == entity.Id && row.AcceptedAtUtc == null
+                )
+                .Select(row => row.LocationGuestId)
+                .ToListAsync(cancellationToken);
+
+            if (frozenIds.Count == 0)
+            {
+                return new CampaignLifecycleResult.ZeroEligible();
+            }
+
+            IReadOnlyList<int> eligibleIds;
+            try
+            {
+                eligibleIds =
+                    await _eligibility.ListChannelEligibleLocationGuestIdsAsync(
+                        entity.RestaurantLocationId,
+                        audienceKey,
+                        channel,
+                        cancellationToken
+                    );
+            }
+            catch (ArgumentException ex)
+            {
+                return new CampaignLifecycleResult.InvalidStatus
+                {
+                    Message = ex.Message,
+                };
+            }
+
+            var eligibleSet = eligibleIds.ToHashSet();
+            var remaining = frozenIds
+                .Where(id => eligibleSet.Contains(id))
+                .Distinct()
+                .ToList();
+            if (remaining.Count == 0)
+            {
+                return new CampaignLifecycleResult.ZeroEligible();
+            }
+
+            var dropIds = frozenIds
+                .Where(id => !eligibleSet.Contains(id))
+                .ToList();
+            if (dropIds.Count > 0)
+            {
+                var dropRows = _context.CampaignFrozenRecipients.Where(row =>
+                    row.CampaignId == entity.Id
+                    && dropIds.Contains(row.LocationGuestId)
+                    && row.AcceptedAtUtc == null
+                );
+                _context.CampaignFrozenRecipients.RemoveRange(dropRows);
+            }
+
+            entity.Status = SendingStatus;
+            entity.UpdatedAt = now;
 
             return await SaveLifecycleAsync(entity, cancellationToken);
         }
@@ -622,28 +767,35 @@ namespace TummlyBackend.Services
             {
                 entity.BillingReservationRef = null;
                 entity.ReservedEstimate = null;
+                entity.SettledUnits = 0;
                 return null;
             }
 
-            var release = await _billingReserve.ReleaseAsync(
-                new CampaignBillingReleaseRequest
-                {
-                    CampaignId = entity.Id,
-                    ReservationRef = entity.BillingReservationRef,
-                },
+            var channel = (entity.Channel ?? string.Empty).Trim().ToLowerInvariant();
+            var close = await CampaignBillingClose.CloseHoldAsync(
+                entity,
+                _billingReserve,
+                _context,
+                channel,
+                settleUnbilled: true,
                 cancellationToken
             );
-
-            if (release is CampaignBillingReleaseResult.Failed failed)
+            if (close.SettleFailed)
             {
                 return new CampaignLifecycleResult.ReleaseFailed
                 {
-                    Message = failed.Message,
+                    Message = close.Message ?? "Settle failed.",
                 };
             }
 
-            entity.BillingReservationRef = null;
-            entity.ReservedEstimate = null;
+            if (close.ReleaseFailed)
+            {
+                return new CampaignLifecycleResult.ReleaseFailed
+                {
+                    Message = close.Message ?? "Release failed.",
+                };
+            }
+
             return null;
         }
 
@@ -662,6 +814,46 @@ namespace TummlyBackend.Services
             entity.ScheduleTimeZone = null;
             entity.BillingReservationRef = null;
             entity.ReservedEstimate = null;
+            entity.SettledUnits = 0;
+        }
+
+        private static CampaignLifecycleResult MapReserveFailure(
+            string code,
+            string channel,
+            CreditBalanceAccountSnapshot? snapshot,
+            int requestedUnits
+        )
+        {
+            if (code == "channel_hard_stopped")
+            {
+                var remaining = snapshot?.Channels
+                    .FirstOrDefault(row => row.Channel == channel)
+                    ?.Remaining ?? 0;
+                return new CampaignLifecycleResult.ChannelHardStopped
+                {
+                    Channel = channel,
+                    Remaining = remaining,
+                    Requested = requestedUnits,
+                };
+            }
+
+            if (code == "insufficient_credits")
+            {
+                var remaining = snapshot?.Channels
+                    .FirstOrDefault(row => row.Channel == channel)
+                    ?.Remaining ?? 0;
+                return new CampaignLifecycleResult.InsufficientCredits
+                {
+                    Channel = channel,
+                    Remaining = remaining,
+                    Requested = requestedUnits,
+                };
+            }
+
+            return new CampaignLifecycleResult.ReserveFailed
+            {
+                Message = code,
+            };
         }
 
         private async Task<CampaignLifecycleResult> SaveLifecycleAsync(

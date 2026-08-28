@@ -415,7 +415,7 @@ builder.Services.AddScoped<
 >();
 builder.Services.AddScoped<
     ICampaignBillingReserve,
-    UnavailableCampaignBillingReserve
+    LiveCampaignBillingReserve
 >();
 builder.Services.AddSingleton<
     ICampaignProductAnalytics,

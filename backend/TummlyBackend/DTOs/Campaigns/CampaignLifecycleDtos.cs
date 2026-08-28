@@ -115,6 +115,24 @@ namespace TummlyBackend.DTOs.Campaigns
         {
         }
 
+        public sealed class ChannelHardStopped : CampaignLifecycleResult
+        {
+            public required string Channel { get; init; }
+
+            public int Remaining { get; init; }
+
+            public int Requested { get; init; }
+        }
+
+        public sealed class InsufficientCredits : CampaignLifecycleResult
+        {
+            public required string Channel { get; init; }
+
+            public int Remaining { get; init; }
+
+            public int Requested { get; init; }
+        }
+
         public sealed class Deleted : CampaignLifecycleResult
         {
         }

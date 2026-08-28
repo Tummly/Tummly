@@ -62,6 +62,85 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task<CreditLedgerWriteResult> ReserveAsync(
+            CreditLedgerReserveRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (request.Units <= 0)
+            {
+                return CreditLedgerWriteResult.Fail("insufficient_credits");
+            }
+
+            if (
+                request.Channel is not (
+                    CreditChannels.Ai
+                    or CreditChannels.Email
+                    or CreditChannels.Sms
+                )
+            )
+            {
+                return CreditLedgerWriteResult.Fail("insufficient_credits");
+            }
+
+            return await WithAccountLockAsync(
+                request.RestaurantId,
+                () => ReserveLockedAsync(request, cancellationToken),
+                cancellationToken
+            );
+        }
+
+        public async Task<CreditLedgerWriteResult> SettleAsync(
+            CreditLedgerSettleRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (request.AcceptedUnits <= 0)
+            {
+                return CreditLedgerWriteResult.Ok([]);
+            }
+
+            if (
+                request.Channel is not (
+                    CreditChannels.Ai
+                    or CreditChannels.Email
+                    or CreditChannels.Sms
+                )
+            )
+            {
+                return CreditLedgerWriteResult.Fail("reservation_closed");
+            }
+
+            return await WithAccountLockAsync(
+                request.RestaurantId,
+                () => SettleLockedAsync(request, cancellationToken),
+                cancellationToken
+            );
+        }
+
+        public async Task<CreditLedgerWriteResult> ReleaseAsync(
+            CreditLedgerReleaseRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (
+                request.Channel is not (
+                    CreditChannels.Ai
+                    or CreditChannels.Email
+                    or CreditChannels.Sms
+                )
+            )
+            {
+                return CreditLedgerWriteResult.Ok([]);
+            }
+
+            return await WithAccountLockAsync(
+                request.RestaurantId,
+                () => ReleaseLockedAsync(request, cancellationToken),
+                cancellationToken
+            );
+        }
+
         public async Task<CreditLedgerMintTopupResult> MintTopupAllocationAsync(
             CreditLedgerMintTopupRequest request,
             CancellationToken cancellationToken = default
@@ -714,6 +793,515 @@ namespace TummlyBackend.Services
                     Quantity = row.Quantity,
                     ReservationRef = row.ReservationRef,
                 }).ToList()
+            );
+        }
+
+        private async Task<CreditLedgerWriteResult> ReserveLockedAsync(
+            CreditLedgerReserveRequest request,
+            CancellationToken cancellationToken
+        )
+        {
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync(
+                    IsolationLevel.ReadCommitted,
+                    cancellationToken
+                );
+
+            var locked = await LockBillingAccountAsync(
+                request.RestaurantId,
+                cancellationToken
+            );
+            if (!locked)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "insufficient_credits",
+                    cancellationToken
+                );
+            }
+
+            var locationOk = await _context.RestaurantLocations.AnyAsync(
+                row =>
+                    row.Id == request.LocationId
+                    && row.RestaurantId == request.RestaurantId,
+                cancellationToken
+            );
+            if (!locationOk)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "location_not_in_account",
+                    cancellationToken
+                );
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            var entries = await LoadRestaurantEntriesAsync(
+                request.RestaurantId,
+                request.Channel,
+                cancellationToken
+            );
+
+            var states = CreditLedgerCalculator.Project(entries, now);
+            var poolAvailable = CreditLedgerCalculator.PoolAvailable(states);
+            if (poolAvailable <= 0)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "channel_hard_stopped",
+                    cancellationToken
+                );
+            }
+
+            if (poolAvailable < request.Units)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "insufficient_credits",
+                    cancellationToken
+                );
+            }
+
+            var fills = CreditLedgerCalculator.Bind(states, request.Units);
+            if (fills.Count == 0)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "insufficient_credits",
+                    cancellationToken
+                );
+            }
+
+            var reservationRef = Guid.NewGuid().ToString("D");
+            var inserted = new List<CreditLedgerEntry>(fills.Count);
+            foreach (var fill in fills)
+            {
+                var row = new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = request.RestaurantId,
+                    Channel = request.Channel,
+                    EntryType = CreditLedgerEntryTypes.Reservation,
+                    Quantity = fill.Quantity,
+                    AllocationId = fill.AllocationId,
+                    ReservationRef = reservationRef,
+                    LocationId = request.LocationId,
+                    CreatedAtUtc = now,
+                };
+                inserted.Add(row);
+                _context.CreditLedgerEntries.Add(row);
+            }
+
+            var postState = CreditLedgerCalculator.Project(
+                [.. entries, .. inserted],
+                now
+            );
+            if (!CreditLedgerCalculator.InvariantsHold(postState))
+            {
+                foreach (var row in inserted)
+                {
+                    _context.CreditLedgerEntries.Remove(row);
+                }
+
+                return await AbortAsync(
+                    transaction,
+                    "insufficient_credits",
+                    cancellationToken
+                );
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return CreditLedgerWriteResult.Ok(
+                inserted.Select(row => new CreditLedgerInsertedRow
+                {
+                    Id = row.Id,
+                    AllocationId = row.AllocationId!.Value,
+                    EntryType = row.EntryType,
+                    Quantity = row.Quantity,
+                    ReservationRef = row.ReservationRef,
+                }).ToList(),
+                reservationRef: reservationRef
+            );
+        }
+
+        private async Task<CreditLedgerWriteResult> SettleLockedAsync(
+            CreditLedgerSettleRequest request,
+            CancellationToken cancellationToken
+        )
+        {
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync(
+                    IsolationLevel.ReadCommitted,
+                    cancellationToken
+                );
+
+            var locked = await LockBillingAccountAsync(
+                request.RestaurantId,
+                cancellationToken
+            );
+            if (!locked)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "reservation_closed",
+                    cancellationToken
+                );
+            }
+
+            var locationOk = await _context.RestaurantLocations.AnyAsync(
+                row =>
+                    row.Id == request.LocationId
+                    && row.RestaurantId == request.RestaurantId,
+                cancellationToken
+            );
+            if (!locationOk)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "location_not_in_account",
+                    cancellationToken
+                );
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            var entries = await LoadRestaurantEntriesAsync(
+                request.RestaurantId,
+                request.Channel,
+                cancellationToken
+            );
+
+            var slices = CreditLedgerCalculator.ReservationSlices(
+                entries,
+                request.ReservationRef
+            );
+            if (
+                slices.Count == 0
+                || CreditLedgerCalculator.IsReservationClosed(slices)
+            )
+            {
+                return await AbortAsync(
+                    transaction,
+                    "reservation_closed",
+                    cancellationToken
+                );
+            }
+
+            var remainingHold = CreditLedgerCalculator.TotalRemainingHold(slices);
+            var settleUnits = Math.Min(request.AcceptedUnits, remainingHold);
+            if (settleUnits <= 0)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return CreditLedgerWriteResult.Ok([]);
+            }
+
+            var inserted = new List<CreditLedgerEntry>();
+            var consumedFromDraining =
+                new List<CreditLedgerConsumedFromDrainingPayment>();
+            var need = settleUnits;
+            foreach (var slice in slices.Where(row => row.RemainingHold > 0))
+            {
+                var take = Math.Min(need, slice.RemainingHold);
+                if (take <= 0)
+                {
+                    continue;
+                }
+
+                var grant = entries.First(row => row.Id == slice.AllocationId);
+                if (
+                    !string.IsNullOrEmpty(grant.SourcePaymentRef)
+                    && CreditLedgerCalculator.IsDrainingAllocation(
+                        slice.AllocationId,
+                        entries
+                    )
+                )
+                {
+                    consumedFromDraining.Add(
+                        new CreditLedgerConsumedFromDrainingPayment
+                        {
+                            SourcePaymentRef = grant.SourcePaymentRef!,
+                            Channel = request.Channel,
+                            Quantity = take,
+                        }
+                    );
+                }
+
+                inserted.Add(
+                    new CreditLedgerEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        RestaurantId = request.RestaurantId,
+                        Channel = request.Channel,
+                        EntryType = CreditLedgerEntryTypes.Consumption,
+                        Quantity = take,
+                        AllocationId = slice.AllocationId,
+                        ReservationRef = request.ReservationRef,
+                        LocationId = request.LocationId,
+                        CreatedAtUtc = now,
+                    }
+                );
+                need -= take;
+                if (need == 0)
+                {
+                    break;
+                }
+            }
+
+            if (need != 0)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "reservation_closed",
+                    cancellationToken
+                );
+            }
+
+            foreach (var row in inserted)
+            {
+                _context.CreditLedgerEntries.Add(row);
+            }
+
+            var postState = CreditLedgerCalculator.Project(
+                [.. entries, .. inserted],
+                now
+            );
+            if (!CreditLedgerCalculator.InvariantsHold(postState))
+            {
+                foreach (var row in inserted)
+                {
+                    _context.CreditLedgerEntries.Remove(row);
+                }
+
+                return await AbortAsync(
+                    transaction,
+                    "insufficient_credits",
+                    cancellationToken
+                );
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return CreditLedgerWriteResult.Ok(
+                inserted.Select(row => new CreditLedgerInsertedRow
+                {
+                    Id = row.Id,
+                    AllocationId = row.AllocationId!.Value,
+                    EntryType = row.EntryType,
+                    Quantity = row.Quantity,
+                    ReservationRef = row.ReservationRef,
+                }).ToList(),
+                consumedFromDraining,
+                settledUnits: settleUnits
+            );
+        }
+
+        private async Task<CreditLedgerWriteResult> ReleaseLockedAsync(
+            CreditLedgerReleaseRequest request,
+            CancellationToken cancellationToken
+        )
+        {
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync(
+                    IsolationLevel.ReadCommitted,
+                    cancellationToken
+                );
+
+            var locked = await LockBillingAccountAsync(
+                request.RestaurantId,
+                cancellationToken
+            );
+            if (!locked)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "location_not_in_account",
+                    cancellationToken
+                );
+            }
+
+            var locationOk = await _context.RestaurantLocations.AnyAsync(
+                row =>
+                    row.Id == request.LocationId
+                    && row.RestaurantId == request.RestaurantId,
+                cancellationToken
+            );
+            if (!locationOk)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "location_not_in_account",
+                    cancellationToken
+                );
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            var entries = await LoadRestaurantEntriesAsync(
+                request.RestaurantId,
+                request.Channel,
+                cancellationToken
+            );
+
+            var slices = CreditLedgerCalculator.ReservationSlices(
+                entries,
+                request.ReservationRef
+            );
+            if (
+                slices.Count == 0
+                || CreditLedgerCalculator.IsReservationClosed(slices)
+            )
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return CreditLedgerWriteResult.Ok([]);
+            }
+
+            var inserted = new List<CreditLedgerEntry>();
+            var releasedUnits = 0;
+            foreach (var slice in slices.Where(row => row.RemainingHold > 0))
+            {
+                var grant = entries.FirstOrDefault(row => row.Id == slice.AllocationId);
+                if (grant == null || !CreditLedgerCalculator.IsGrant(grant))
+                {
+                    foreach (var row in inserted)
+                    {
+                        _context.CreditLedgerEntries.Remove(row);
+                    }
+
+                    return await AbortAsync(
+                        transaction,
+                        "allocation_not_found",
+                        cancellationToken
+                    );
+                }
+
+                var release = new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = request.RestaurantId,
+                    Channel = request.Channel,
+                    EntryType = CreditLedgerEntryTypes.Release,
+                    Quantity = slice.RemainingHold,
+                    AllocationId = slice.AllocationId,
+                    ReservationRef = request.ReservationRef,
+                    LocationId = request.LocationId,
+                    CreatedAtUtc = now,
+                };
+                inserted.Add(release);
+                _context.CreditLedgerEntries.Add(release);
+                releasedUnits += slice.RemainingHold;
+
+                var isDraining = CreditLedgerCalculator.IsDrainingAllocation(
+                    slice.AllocationId,
+                    entries
+                );
+                var expired =
+                    grant.ExpiresAtUtc != null && grant.ExpiresAtUtc.Value <= now;
+
+                if (isDraining)
+                {
+                    var paymentRef = grant.SourcePaymentRef;
+                    if (string.IsNullOrEmpty(paymentRef))
+                    {
+                        foreach (var row in inserted)
+                        {
+                            _context.CreditLedgerEntries.Remove(row);
+                        }
+
+                        return await AbortAsync(
+                            transaction,
+                            "source_payment_ref_required",
+                            cancellationToken
+                        );
+                    }
+
+                    var correctionSource = CreditLedgerCalculator
+                        .UnrevertedPaymentRefunds(entries, paymentRef)
+                        .Select(row => row.CorrectionSource)
+                        .FirstOrDefault(source => !string.IsNullOrEmpty(source))
+                        ?? CorrectionSources.PaymentRefund;
+
+                    var refund = new CreditLedgerEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        RestaurantId = request.RestaurantId,
+                        Channel = request.Channel,
+                        EntryType = CreditLedgerEntryTypes.Refund,
+                        Quantity = slice.RemainingHold,
+                        AllocationId = slice.AllocationId,
+                        SourcePaymentRef = paymentRef,
+                        CorrectionSource = correctionSource,
+                        CreatedAtUtc = now,
+                    };
+                    inserted.Add(refund);
+                    _context.CreditLedgerEntries.Add(refund);
+
+                    BillingActivityWriter.TryAppend(
+                        _context,
+                        new BillingActivityAppendRequest
+                        {
+                            RestaurantId = request.RestaurantId,
+                            Kind = BillingActivityKinds.TopupRefunded,
+                            OccurredAtUtc = now,
+                            Channel = request.Channel,
+                            Qty = slice.RemainingHold,
+                        }
+                    );
+                }
+                else if (expired)
+                {
+                    var expiry = new CreditLedgerEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        RestaurantId = request.RestaurantId,
+                        Channel = request.Channel,
+                        EntryType = CreditLedgerEntryTypes.Expiry,
+                        Quantity = slice.RemainingHold,
+                        AllocationId = slice.AllocationId,
+                        CreatedAtUtc = now,
+                    };
+                    inserted.Add(expiry);
+                    _context.CreditLedgerEntries.Add(expiry);
+                }
+            }
+
+            if (inserted.Count == 0)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return CreditLedgerWriteResult.Ok([]);
+            }
+
+            var postState = CreditLedgerCalculator.Project(
+                [.. entries, .. inserted],
+                now
+            );
+            if (!CreditLedgerCalculator.InvariantsHold(postState))
+            {
+                foreach (var row in inserted)
+                {
+                    _context.CreditLedgerEntries.Remove(row);
+                }
+
+                return await AbortAsync(
+                    transaction,
+                    "insufficient_credits",
+                    cancellationToken
+                );
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return CreditLedgerWriteResult.Ok(
+                inserted.Select(row => new CreditLedgerInsertedRow
+                {
+                    Id = row.Id,
+                    AllocationId = row.AllocationId ?? row.Id,
+                    EntryType = row.EntryType,
+                    Quantity = row.Quantity,
+                    ReservationRef = row.ReservationRef,
+                }).ToList(),
+                releasedUnits: releasedUnits
             );
         }
 

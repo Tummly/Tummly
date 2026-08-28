@@ -7,6 +7,21 @@ namespace TummlyBackend.Interfaces
             CancellationToken cancellationToken = default
         );
 
+        Task<CreditLedgerWriteResult> ReserveAsync(
+            CreditLedgerReserveRequest request,
+            CancellationToken cancellationToken = default
+        );
+
+        Task<CreditLedgerWriteResult> SettleAsync(
+            CreditLedgerSettleRequest request,
+            CancellationToken cancellationToken = default
+        );
+
+        Task<CreditLedgerWriteResult> ReleaseAsync(
+            CreditLedgerReleaseRequest request,
+            CancellationToken cancellationToken = default
+        );
+
         Task<CreditLedgerWriteResult> StaffManualAdjustAsync(
             StaffManualAdjustRequest request,
             CancellationToken cancellationToken = default
@@ -88,6 +103,41 @@ namespace TummlyBackend.Interfaces
         public int? LocationId { get; init; }
     }
 
+    public sealed class CreditLedgerReserveRequest
+    {
+        public int RestaurantId { get; init; }
+
+        public string Channel { get; init; } = string.Empty;
+
+        public int Units { get; init; }
+
+        public int LocationId { get; init; }
+    }
+
+    public sealed class CreditLedgerSettleRequest
+    {
+        public int RestaurantId { get; init; }
+
+        public string ReservationRef { get; init; } = string.Empty;
+
+        public string Channel { get; init; } = string.Empty;
+
+        public int AcceptedUnits { get; init; }
+
+        public int LocationId { get; init; }
+    }
+
+    public sealed class CreditLedgerReleaseRequest
+    {
+        public int RestaurantId { get; init; }
+
+        public string ReservationRef { get; init; } = string.Empty;
+
+        public string Channel { get; init; } = string.Empty;
+
+        public int LocationId { get; init; }
+    }
+
     public sealed class CreditLedgerMintTopupRequest
     {
         public int RestaurantId { get; init; }
@@ -136,6 +186,12 @@ namespace TummlyBackend.Interfaces
 
         public string? Code { get; init; }
 
+        public string? ReservationRef { get; init; }
+
+        public int SettledUnits { get; init; }
+
+        public int ReleasedUnits { get; init; }
+
         public IReadOnlyList<CreditLedgerInsertedRow> Inserted { get; init; }
             = [];
 
@@ -144,7 +200,10 @@ namespace TummlyBackend.Interfaces
 
         public static CreditLedgerWriteResult Ok(
             IReadOnlyList<CreditLedgerInsertedRow> inserted,
-            IReadOnlyList<CreditLedgerConsumedFromDrainingPayment>? consumedFromDraining = null
+            IReadOnlyList<CreditLedgerConsumedFromDrainingPayment>? consumedFromDraining = null,
+            string? reservationRef = null,
+            int settledUnits = 0,
+            int releasedUnits = 0
         )
         {
             return new CreditLedgerWriteResult
@@ -153,6 +212,9 @@ namespace TummlyBackend.Interfaces
                 Inserted = inserted,
                 ConsumedFromDrainingPayment =
                     consumedFromDraining ?? [],
+                ReservationRef = reservationRef,
+                SettledUnits = settledUnits,
+                ReleasedUnits = releasedUnits,
             };
         }
 

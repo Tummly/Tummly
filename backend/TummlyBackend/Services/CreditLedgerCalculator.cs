@@ -14,6 +14,17 @@ namespace TummlyBackend.Services
         int Bindable
     );
 
+    internal readonly record struct CreditReservationSlice(
+        Guid AllocationId,
+        string EntryType,
+        DateTime CreatedAtUtc,
+        DateTime? ExpiresAtUtc,
+        int Reserved,
+        int Consumed,
+        int Released,
+        int RemainingHold
+    );
+
     internal static class CreditLedgerCalculator
     {
         public static IReadOnlyList<CreditAllocationState> Project(
@@ -185,6 +196,101 @@ namespace TummlyBackend.Services
             }
 
             return PoolAvailable(states) >= 0;
+        }
+
+        public static IReadOnlyList<CreditReservationSlice> ReservationSlices(
+            IReadOnlyList<CreditLedgerEntry> entries,
+            string reservationRef
+        )
+        {
+            if (string.IsNullOrWhiteSpace(reservationRef))
+            {
+                return [];
+            }
+
+            var reservations = entries
+                .Where(row =>
+                    row.EntryType == CreditLedgerEntryTypes.Reservation
+                    && row.ReservationRef == reservationRef
+                    && row.AllocationId != null
+                )
+                .ToList();
+            if (reservations.Count == 0)
+            {
+                return [];
+            }
+
+            var grants = entries.Where(IsGrant).ToDictionary(row => row.Id);
+            var slices = new List<CreditReservationSlice>(reservations.Count);
+
+            foreach (var group in reservations.GroupBy(row => row.AllocationId!.Value))
+            {
+                if (!grants.TryGetValue(group.Key, out var grant))
+                {
+                    continue;
+                }
+
+                var reserved = group.Sum(row => row.Quantity);
+                var consumed = entries
+                    .Where(row =>
+                        row.EntryType == CreditLedgerEntryTypes.Consumption
+                        && row.ReservationRef == reservationRef
+                        && row.AllocationId == group.Key
+                    )
+                    .Sum(row => row.Quantity);
+                var released = entries
+                    .Where(row =>
+                        row.EntryType == CreditLedgerEntryTypes.Release
+                        && row.ReservationRef == reservationRef
+                        && row.AllocationId == group.Key
+                    )
+                    .Sum(row => row.Quantity);
+                var remainingHold = reserved - consumed - released;
+
+                slices.Add(
+                    new CreditReservationSlice(
+                        group.Key,
+                        grant.EntryType,
+                        grant.CreatedAtUtc,
+                        grant.ExpiresAtUtc,
+                        reserved,
+                        consumed,
+                        released,
+                        remainingHold
+                    )
+                );
+            }
+
+            return slices
+                .OrderBy(row => BindKey(
+                    new CreditAllocationState(
+                        row.AllocationId,
+                        row.EntryType,
+                        row.CreatedAtUtc,
+                        row.ExpiresAtUtc,
+                        null,
+                        0,
+                        0,
+                        0,
+                        0
+                    )
+                ))
+                .ToList();
+        }
+
+        public static bool IsReservationClosed(
+            IReadOnlyList<CreditReservationSlice> slices
+        )
+        {
+            return slices.Count == 0
+                || slices.All(row => row.RemainingHold <= 0);
+        }
+
+        public static int TotalRemainingHold(
+            IReadOnlyList<CreditReservationSlice> slices
+        )
+        {
+            return slices.Sum(row => Math.Max(row.RemainingHold, 0));
         }
 
         public static bool IsGrant(CreditLedgerEntry entry)

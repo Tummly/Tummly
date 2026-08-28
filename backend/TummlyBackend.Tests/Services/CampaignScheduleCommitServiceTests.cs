@@ -32,6 +32,7 @@ namespace TummlyBackend.Tests.Services
                 _context,
                 _eligibility,
                 _reserve,
+                new FixedCreditBalanceSnapshot(remaining: 1000),
                 new NoOpCampaignFireWork(),
                 utcNow: () => _now
             );
@@ -180,6 +181,41 @@ namespace TummlyBackend.Tests.Services
 
             Assert.IsType<CampaignScheduleCommitResult.ZeroEligible>(result);
             Assert.Empty(_reserve.Calls);
+        }
+
+        [Fact]
+        public async Task CommitAsync_ReturnsChannelHardStopped_WhenRemainingIsZero()
+        {
+            var seeded = await SeedReviewReadyDraftAsync(emailEligibleCount: 1);
+            var commit = new CampaignScheduleCommitService(
+                _context,
+                _eligibility,
+                _reserve,
+                new FixedCreditBalanceSnapshot(remaining: 0),
+                new NoOpCampaignFireWork(),
+                utcNow: () => _now
+            );
+
+            var result = await commit.CommitAsync(
+                seeded.CampaignId,
+                new CommitCampaignScheduleRequest
+                {
+                    RowVersion = seeded.RowVersion,
+                    ScheduleMode = "send-now",
+                    ScheduleTimeZone = "Europe/London",
+                }
+            );
+
+            var hardStopped = Assert.IsType<CampaignScheduleCommitResult.ChannelHardStopped>(
+                result
+            );
+            Assert.Equal("email", hardStopped.Channel);
+            Assert.Equal(0, hardStopped.Remaining);
+            Assert.Equal(1, hardStopped.Requested);
+            Assert.Empty(_reserve.Calls);
+
+            var campaign = await _context.Campaigns.SingleAsync(c => c.Id == seeded.CampaignId);
+            Assert.Equal(CampaignScheduleCommitService.DraftStatus, campaign.Status);
         }
 
         private async Task<(

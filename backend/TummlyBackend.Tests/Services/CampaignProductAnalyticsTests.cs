@@ -208,6 +208,7 @@ namespace TummlyBackend.Tests.Services
                 _context,
                 _eligibility,
                 _reserve,
+                new FixedCreditBalanceSnapshot(remaining: 1000),
                 new NoOpCampaignFireWork(),
                 _analytics,
                 utcNow: () => _now

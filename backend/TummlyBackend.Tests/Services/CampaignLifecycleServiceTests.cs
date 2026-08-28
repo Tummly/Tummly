@@ -32,6 +32,7 @@ namespace TummlyBackend.Tests.Services
                 _context,
                 _eligibility,
                 _reserve,
+                new FixedCreditBalanceSnapshot(remaining: 1000),
                 () => _now
             );
         }

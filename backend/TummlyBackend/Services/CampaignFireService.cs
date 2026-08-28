@@ -95,7 +95,6 @@ namespace TummlyBackend.Services
             {
                 return await FailCannotStartAsync(
                     entity,
-                    unusedUnits: entity.ReservedEstimate ?? 0,
                     cancellationToken
                 );
             }
@@ -109,7 +108,6 @@ namespace TummlyBackend.Services
             {
                 return await FailCannotStartAsync(
                     entity,
-                    unusedUnits: entity.ReservedEstimate ?? 0,
                     cancellationToken
                 );
             }
@@ -130,7 +128,6 @@ namespace TummlyBackend.Services
             {
                 return await FailCannotStartAsync(
                     entity,
-                    unusedUnits: entity.ReservedEstimate ?? 0,
                     cancellationToken
                 );
             }
@@ -186,6 +183,7 @@ namespace TummlyBackend.Services
                         channel,
                         SkippedIneligibleOutcome,
                         acceptedAtUtc: null,
+                        acceptedUnits: null,
                         now,
                         cancellationToken
                     );
@@ -193,7 +191,6 @@ namespace TummlyBackend.Services
 
                 return await FailCannotStartAsync(
                     entity,
-                    unusedUnits: entity.ReservedEstimate ?? frozenRows.Count,
                     cancellationToken
                 );
             }
@@ -217,6 +214,7 @@ namespace TummlyBackend.Services
                     channel,
                     SkippedIneligibleOutcome,
                     acceptedAtUtc: null,
+                    acceptedUnits: null,
                     now,
                     cancellationToken
                 );
@@ -245,6 +243,7 @@ namespace TummlyBackend.Services
                         channel,
                         SkippedIneligibleOutcome,
                         acceptedAtUtc: null,
+                        acceptedUnits: null,
                         now,
                         cancellationToken
                     );
@@ -265,6 +264,7 @@ namespace TummlyBackend.Services
                         channel,
                         SkippedIneligibleOutcome,
                         acceptedAtUtc: null,
+                        acceptedUnits: null,
                         now,
                         cancellationToken
                     );
@@ -312,12 +312,17 @@ namespace TummlyBackend.Services
 
                 if (sendResult is CampaignOutboundSendResult.Accepted)
                 {
+                    var acceptedUnits = CampaignBillingClose.AcceptedUnitsForDelivery(
+                        channel,
+                        entity.MessageBody
+                    );
                     await UpsertDeliveryAsync(
                         entity.Id,
                         guestId,
                         channel,
                         AcceptedOutcome,
                         acceptedAtUtc: now,
+                        acceptedUnits,
                         now,
                         CancellationToken.None
                     );
@@ -352,6 +357,7 @@ namespace TummlyBackend.Services
                         channel,
                         RejectedOutcome,
                         acceptedAtUtc: null,
+                        acceptedUnits: null,
                         now,
                         CancellationToken.None
                     );
@@ -371,100 +377,113 @@ namespace TummlyBackend.Services
                         liveEligible.Contains(id) && !handledSet.Contains(id)
                 );
 
-            if (
-                acceptedThisRun > 0
-                && !string.IsNullOrWhiteSpace(entity.BillingReservationRef)
-            )
-            {
-                var settle = await _billingReserve.SettleAsync(
-                    new CampaignBillingSettleRequest
-                    {
-                        CampaignId = entity.Id,
-                        ReservationRef = entity.BillingReservationRef,
-                        Channel = channel,
-                        AcceptedUnits = acceptedThisRun,
-                    },
-                    CancellationToken.None
-                );
-
-                if (settle is CampaignBillingSettleResult.Failed)
-                {
-                    // Keep hold + Sending / Partially sent; no auto-retry clock.
-                    entity.Status =
-                        remainingUnsent >= 1 || totalAccepted < frozenRows.Count
-                            ? PartiallySentStatus
-                            : SendingStatus;
-                    entity.UpdatedAt = now;
-                    await _context.SaveChangesAsync(CancellationToken.None);
-
-                    var skippedOnSettleFail = await CountOutcomeAsync(
-                        entity.Id,
-                        SkippedIneligibleOutcome,
-                        CancellationToken.None
-                    );
-
-                    if (entity.Status == PartiallySentStatus)
-                    {
-                        _analytics.TrackSendTerminal(
-                            entity.Id,
-                            PartiallySentStatus
-                        );
-                    }
-
-                    return new CampaignFireResult.Ok
-                    {
-                        Campaign = ToDto(
-                            entity,
-                            acceptedCount: totalAccepted,
-                            skippedIneligibleCount: skippedOnSettleFail,
-                            remainingUnsentCount: remainingUnsent
-                        ),
-                    };
-                }
-            }
-
-            // Release unused units for eligibility shrink when the send completes
-            // (no remaining unsent). Mid-send stop keeps the residual hold.
-            if (
-                skippedThisRun > 0
-                && remainingUnsent == 0
-                && !string.IsNullOrWhiteSpace(entity.BillingReservationRef)
-            )
-            {
-                var release = await _billingReserve.ReleaseAsync(
-                    new CampaignBillingReleaseRequest
-                    {
-                        CampaignId = entity.Id,
-                        ReservationRef = entity.BillingReservationRef,
-                    },
-                    CancellationToken.None
-                );
-
-                if (release is CampaignBillingReleaseResult.Failed)
-                {
-                    // Status still advances; Billing can reconcile the residual hold.
-                }
-            }
-
             if (totalAccepted == 0)
             {
                 return await FailCannotStartAsync(
                     entity,
-                    unusedUnits: entity.ReservedEstimate ?? frozenRows.Count,
                     cancellationToken
                 );
+            }
+
+            await _context.SaveChangesAsync(CancellationToken.None);
+
+            var settleResult = await CampaignBillingClose.SettleUnbilledAsync(
+                entity,
+                _billingReserve,
+                _context,
+                channel,
+                CancellationToken.None
+            );
+            if (!settleResult.Succeeded)
+            {
+                entity.Status =
+                    remainingUnsent >= 1 || totalAccepted < frozenRows.Count
+                        ? PartiallySentStatus
+                        : SendingStatus;
+                entity.UpdatedAt = now;
+                await _context.SaveChangesAsync(CancellationToken.None);
+
+                var skippedOnSettleFail = await CountOutcomeAsync(
+                    entity.Id,
+                    SkippedIneligibleOutcome,
+                    CancellationToken.None
+                );
+
+                if (entity.Status == PartiallySentStatus)
+                {
+                    _analytics.TrackSendTerminal(
+                        entity.Id,
+                        PartiallySentStatus
+                    );
+                }
+
+                return new CampaignFireResult.Ok
+                {
+                    Campaign = ToDto(
+                        entity,
+                        acceptedCount: totalAccepted,
+                        skippedIneligibleCount: skippedOnSettleFail,
+                        remainingUnsentCount: remainingUnsent
+                    ),
+                };
             }
 
             if (remainingUnsent >= 1)
             {
                 entity.Status = PartiallySentStatus;
-            }
-            else
-            {
-                entity.Status = SentStatus;
-                entity.BillingReservationRef = null;
+                entity.UpdatedAt = now;
+                await _context.SaveChangesAsync(CancellationToken.None);
+                _analytics.TrackSendTerminal(entity.Id, entity.Status);
+
+                var skippedPartial = await CountOutcomeAsync(
+                    entity.Id,
+                    SkippedIneligibleOutcome,
+                    CancellationToken.None
+                );
+
+                return new CampaignFireResult.Ok
+                {
+                    Campaign = ToDto(
+                        entity,
+                        acceptedCount: totalAccepted,
+                        skippedIneligibleCount: skippedPartial,
+                        remainingUnsentCount: remainingUnsent
+                    ),
+                };
             }
 
+            var close = await CampaignBillingClose.CloseHoldAsync(
+                entity,
+                _billingReserve,
+                _context,
+                channel,
+                settleUnbilled: false,
+                CancellationToken.None
+            );
+            if (close.SettleFailed || close.ReleaseFailed)
+            {
+                entity.Status = SendingStatus;
+                entity.UpdatedAt = now;
+                await _context.SaveChangesAsync(CancellationToken.None);
+
+                var skippedOnCloseFail = await CountOutcomeAsync(
+                    entity.Id,
+                    SkippedIneligibleOutcome,
+                    CancellationToken.None
+                );
+
+                return new CampaignFireResult.Ok
+                {
+                    Campaign = ToDto(
+                        entity,
+                        acceptedCount: totalAccepted,
+                        skippedIneligibleCount: skippedOnCloseFail,
+                        remainingUnsentCount: remainingUnsent
+                    ),
+                };
+            }
+
+            entity.Status = SentStatus;
             entity.UpdatedAt = now;
             await _context.SaveChangesAsync(CancellationToken.None);
 
@@ -489,31 +508,25 @@ namespace TummlyBackend.Services
 
         private async Task<CampaignFireResult> FailCannotStartAsync(
             Campaign entity,
-            int unusedUnits,
             CancellationToken cancellationToken
         )
         {
             var now = _utcNow();
             var channel = (entity.Channel ?? string.Empty).Trim().ToLowerInvariant();
-            var reservationRef = entity.BillingReservationRef;
 
-            if (
-                !string.IsNullOrWhiteSpace(reservationRef)
-                && unusedUnits > 0
-            )
+            if (!string.IsNullOrWhiteSpace(entity.BillingReservationRef))
             {
-                await _billingReserve.ReleaseAsync(
-                    new CampaignBillingReleaseRequest
-                    {
-                        CampaignId = entity.Id,
-                        ReservationRef = reservationRef,
-                    },
+                await CampaignBillingClose.CloseHoldAsync(
+                    entity,
+                    _billingReserve,
+                    _context,
+                    channel,
+                    settleUnbilled: false,
                     CancellationToken.None
                 );
             }
 
             entity.Status = FailedStatus;
-            entity.BillingReservationRef = null;
             entity.UpdatedAt = now;
             await _context.SaveChangesAsync(CancellationToken.None);
 
@@ -536,6 +549,7 @@ namespace TummlyBackend.Services
             string channel,
             string outcome,
             DateTime? acceptedAtUtc,
+            int? acceptedUnits,
             DateTime now,
             CancellationToken cancellationToken
         )
@@ -558,6 +572,7 @@ namespace TummlyBackend.Services
 
                 existing.Outcome = outcome;
                 existing.AcceptedAtUtc = acceptedAtUtc;
+                existing.AcceptedUnits = acceptedUnits;
                 existing.UpdatedAtUtc = now;
                 return;
             }
@@ -570,6 +585,7 @@ namespace TummlyBackend.Services
                     Channel = channel,
                     Outcome = outcome,
                     AcceptedAtUtc = acceptedAtUtc,
+                    AcceptedUnits = acceptedUnits,
                     UpdatedAtUtc = now,
                 }
             );

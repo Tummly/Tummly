@@ -222,6 +222,7 @@ namespace TummlyBackend.Tests.Services
             campaign.Status = CampaignFireService.SendingStatus;
             campaign.BillingReservationRef = "res-fire-1";
             campaign.ReservedEstimate = 2;
+            campaign.SettledUnits = 2;
             await _context.SaveChangesAsync();
 
             _outbound.Calls.Clear();
@@ -247,6 +248,35 @@ namespace TummlyBackend.Tests.Services
             Assert.IsType<CampaignFireResult.NotDue>(result);
             Assert.Empty(_outbound.Calls);
             Assert.Empty(_reserve.ReleaseCalls);
+        }
+
+        [Fact]
+        public async Task FireAsync_SettleFail_KeepsBillingReservationRef()
+        {
+            var seeded = await SeedSendingCampaignAsync(frozenEligibleCount: 1);
+            _reserve.FailNextSettle = true;
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            var ok = Assert.IsType<CampaignFireResult.Ok>(result);
+            Assert.Equal("res-fire-1", ok.Campaign.BillingReservationRef);
+            Assert.Single(_reserve.SettleCalls);
+            Assert.Empty(_reserve.ReleaseCalls);
+        }
+
+        [Fact]
+        public async Task FireAsync_ReleaseFail_KeepsBillingReservationRef()
+        {
+            var seeded = await SeedSendingCampaignAsync(frozenEligibleCount: 1);
+            _reserve.FailNextRelease = true;
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            var ok = Assert.IsType<CampaignFireResult.Ok>(result);
+            Assert.Equal("res-fire-1", ok.Campaign.BillingReservationRef);
+            Assert.Equal(CampaignFireService.SendingStatus, ok.Campaign.Status);
+            Assert.Single(_reserve.SettleCalls);
+            Assert.Single(_reserve.ReleaseCalls);
         }
 
         [Fact]
@@ -532,6 +562,10 @@ namespace TummlyBackend.Tests.Services
         {
             public bool IsLive { get; set; }
 
+            public bool FailNextSettle { get; set; }
+
+            public bool FailNextRelease { get; set; }
+
             public List<CampaignBillingSettleRequest> SettleCalls { get; } = [];
 
             public List<CampaignBillingReleaseRequest> ReleaseCalls { get; } = [];
@@ -550,6 +584,16 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 SettleCalls.Add(request);
+                if (FailNextSettle)
+                {
+                    return Task.FromResult<CampaignBillingSettleResult>(
+                        new CampaignBillingSettleResult.Failed
+                        {
+                            Message = "settle_failed",
+                        }
+                    );
+                }
+
                 return Task.FromResult<CampaignBillingSettleResult>(
                     new CampaignBillingSettleResult.Ok()
                 );
@@ -561,6 +605,16 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 ReleaseCalls.Add(request);
+                if (FailNextRelease)
+                {
+                    return Task.FromResult<CampaignBillingReleaseResult>(
+                        new CampaignBillingReleaseResult.Failed
+                        {
+                            Message = "release_failed",
+                        }
+                    );
+                }
+
                 return Task.FromResult<CampaignBillingReleaseResult>(
                     new CampaignBillingReleaseResult.Ok()
                 );

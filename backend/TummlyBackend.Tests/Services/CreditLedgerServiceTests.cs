@@ -897,6 +897,232 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains(activity, row => row.Channel == CreditChannels.Sms && row.Qty == 10);
         }
 
+        [Fact]
+        public async Task ReserveAsync_BindsIncludedThenPilotThenEarliestTopUp()
+        {
+            var harness = await SeedAsync();
+            var includedId = await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.IncludedAllocation,
+                10,
+                createdAtUtc: _now.AddDays(-3),
+                expiresAtUtc: _now.AddDays(10)
+            );
+            await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.PilotAllocation,
+                10,
+                createdAtUtc: _now.AddDays(-2),
+                expiresAtUtc: null
+            );
+            await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.TopupAllocation,
+                10,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: _now.AddMonths(11)
+            );
+            var earlyTopUpId = await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.TopupAllocation,
+                10,
+                createdAtUtc: _now,
+                expiresAtUtc: _now.AddMonths(1)
+            );
+
+            var result = await harness.Ledger.ReserveAsync(
+                new CreditLedgerReserveRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    Units = 25,
+                    LocationId = harness.LocationId,
+                }
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.False(string.IsNullOrWhiteSpace(result.ReservationRef));
+            Assert.Equal(3, result.Inserted.Count);
+            Assert.All(
+                result.Inserted,
+                row => Assert.Equal(CreditLedgerEntryTypes.Reservation, row.EntryType)
+            );
+            Assert.Equal(includedId, result.Inserted[0].AllocationId);
+            Assert.Equal(10, result.Inserted[0].Quantity);
+            Assert.Equal(earlyTopUpId, result.Inserted[2].AllocationId);
+            Assert.Equal(5, result.Inserted[2].Quantity);
+
+            var snapshot = await harness.Snapshot.GetAccountAsync(harness.RestaurantId);
+            var email = Channel(snapshot, CreditChannels.Email);
+            Assert.Equal(15, email.Remaining);
+            Assert.Equal(25, email.Held);
+        }
+
+        [Fact]
+        public async Task SettleAsync_PartialSettleWalksBindOrder()
+        {
+            var harness = await SeedAsync();
+            await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.IncludedAllocation,
+                300,
+                createdAtUtc: _now.AddDays(-3),
+                expiresAtUtc: _now.AddDays(10)
+            );
+            await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.TopupAllocation,
+                700,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: _now.AddMonths(12)
+            );
+
+            var reserve = await harness.Ledger.ReserveAsync(
+                new CreditLedgerReserveRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    Units = 1000,
+                    LocationId = harness.LocationId,
+                }
+            );
+            Assert.True(reserve.Succeeded);
+
+            var settle = await harness.Ledger.SettleAsync(
+                new CreditLedgerSettleRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    ReservationRef = reserve.ReservationRef!,
+                    Channel = CreditChannels.Email,
+                    AcceptedUnits = 800,
+                    LocationId = harness.LocationId,
+                }
+            );
+
+            Assert.True(settle.Succeeded);
+            Assert.Equal(800, settle.SettledUnits);
+            Assert.Equal(2, settle.Inserted.Count);
+            Assert.Equal(300, settle.Inserted[0].Quantity);
+            Assert.Equal(500, settle.Inserted[1].Quantity);
+        }
+
+        [Fact]
+        public async Task SettleAsync_OnClosedRef_Fails()
+        {
+            var harness = await SeedAsync();
+            await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.IncludedAllocation,
+                10,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: _now.AddDays(20)
+            );
+
+            var reserve = await harness.Ledger.ReserveAsync(
+                new CreditLedgerReserveRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    Units = 10,
+                    LocationId = harness.LocationId,
+                }
+            );
+            Assert.True(reserve.Succeeded);
+
+            var settle = await harness.Ledger.SettleAsync(
+                new CreditLedgerSettleRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    ReservationRef = reserve.ReservationRef!,
+                    Channel = CreditChannels.Email,
+                    AcceptedUnits = 10,
+                    LocationId = harness.LocationId,
+                }
+            );
+            Assert.True(settle.Succeeded);
+
+            var release = await harness.Ledger.ReleaseAsync(
+                new CreditLedgerReleaseRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    ReservationRef = reserve.ReservationRef!,
+                    Channel = CreditChannels.Email,
+                    LocationId = harness.LocationId,
+                }
+            );
+            Assert.True(release.Succeeded);
+
+            var closedSettle = await harness.Ledger.SettleAsync(
+                new CreditLedgerSettleRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    ReservationRef = reserve.ReservationRef!,
+                    Channel = CreditChannels.Email,
+                    AcceptedUnits = 1,
+                    LocationId = harness.LocationId,
+                }
+            );
+
+            Assert.False(closedSettle.Succeeded);
+            Assert.Equal("reservation_closed", closedSettle.Code);
+        }
+
+        [Fact]
+        public async Task ReleaseAsync_OnClosedRef_IsOk()
+        {
+            var harness = await SeedAsync();
+            await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.IncludedAllocation,
+                10,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: _now.AddDays(20)
+            );
+
+            var reserve = await harness.Ledger.ReserveAsync(
+                new CreditLedgerReserveRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    Units = 10,
+                    LocationId = harness.LocationId,
+                }
+            );
+            Assert.True(reserve.Succeeded);
+
+            var release = await harness.Ledger.ReleaseAsync(
+                new CreditLedgerReleaseRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    ReservationRef = reserve.ReservationRef!,
+                    Channel = CreditChannels.Email,
+                    LocationId = harness.LocationId,
+                }
+            );
+            Assert.True(release.Succeeded);
+
+            var again = await harness.Ledger.ReleaseAsync(
+                new CreditLedgerReleaseRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    ReservationRef = reserve.ReservationRef!,
+                    Channel = CreditChannels.Email,
+                    LocationId = harness.LocationId,
+                }
+            );
+
+            Assert.True(again.Succeeded);
+            Assert.Empty(again.Inserted);
+        }
+
         public void Dispose()
         {
         }
