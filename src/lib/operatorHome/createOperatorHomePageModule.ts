@@ -67,7 +67,12 @@ import type {
 export type OperatorHomeWorkspaceInput = {
   locations: LocationItem[]
   selectedLocationId: number | null
+  /**
+   * Area `billing-credits` access. Omit must not hide credit rows
+   * (CODING_STANDARDS Operator chrome access); only explicit `"none"` omits.
+   */
   billingCreditsAccess?: BillingCreditsAccess
+  /** Restaurant / workspace display name for Account-wide credit row copy. */
   workspaceName?: string | null
 }
 
@@ -1234,7 +1239,8 @@ export function createOperatorHomePageModule(
     dispatch({ type: "needs_attention_load_started", generation })
 
     try {
-      const billingAccess = state.workspace?.billingCreditsAccess ?? "none"
+      // Omit → manage: chrome-access rollout must not hide owner rows.
+      const billingAccess = state.workspace?.billingCreditsAccess ?? "manage"
       const creditsPromise =
         billingAccess !== "none" && adapters.getNeedsAttentionCredits != null
           ? adapters.getNeedsAttentionCredits()
