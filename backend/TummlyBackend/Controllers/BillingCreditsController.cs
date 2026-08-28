@@ -67,5 +67,39 @@ namespace TummlyBackend.Controllers
 
             return Ok(page);
         }
+
+        [HttpGet("usage")]
+        public async Task<IActionResult> GetUsage()
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out _);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.BillingCredits,
+                PermissionLevel.View
+            );
+            var forbidden = decision.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
+            var usage = await _billingCredits.GetUsageAsync(decision.RestaurantId);
+            if (usage == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Restaurant not found.",
+                });
+            }
+
+            return Ok(usage);
+        }
     }
 }

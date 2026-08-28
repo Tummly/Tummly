@@ -1,11 +1,25 @@
 import { useEffect, useSyncExternalStore } from "react"
-import { ChevronRightIcon } from "lucide-react"
+import {
+  BotIcon,
+  ChevronRightIcon,
+  MailIcon,
+  MessageSquareIcon,
+  PackageIcon,
+} from "lucide-react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 
 import { useBillingCreditsPageModuleApi } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   BILLING_CREDITS_PAGE_COPY as copy,
@@ -13,6 +27,15 @@ import {
   formatStarterKitState,
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import type { BillingCreditsTabId } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import type { CreditChannelCardViewModel } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
+import {
+  CAMPAIGNS_MESSAGING_USAGE_METER_FILL_CLASS,
+  CAMPAIGNS_MESSAGING_USAGE_METER_ROW_CLASS,
+  CAMPAIGNS_MESSAGING_USAGE_METER_TRACK_CLASS,
+  CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS,
+  CAMPAIGNS_MESSAGING_USAGE_TILE_CLASS,
+  CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS,
+} from "@/lib/operatorCampaigns/campaignsPresentation"
 import {
   GUESTS_DETAIL_FIELD_CLASS,
   GUESTS_DETAIL_FIELD_LABEL_CLASS,
@@ -201,6 +224,221 @@ function PlanSubscriptionBody({
   )
 }
 
+function UsageMeter({
+  fillRatio,
+  maxLabel,
+}: {
+  fillRatio: number
+  maxLabel: string
+}) {
+  const clamped = Math.min(1, Math.max(0, fillRatio))
+
+  return (
+    <div className={CAMPAIGNS_MESSAGING_USAGE_METER_ROW_CLASS}>
+      <div
+        className={CAMPAIGNS_MESSAGING_USAGE_METER_TRACK_CLASS}
+        role="meter"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(clamped * 100)}
+      >
+        <div
+          className={CAMPAIGNS_MESSAGING_USAGE_METER_FILL_CLASS}
+          style={{ width: `${clamped * 100}%` }}
+        />
+      </div>
+      <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>{maxLabel}</p>
+    </div>
+  )
+}
+
+function channelIcon(channel: CreditChannelCardViewModel["channel"]) {
+  switch (channel) {
+    case "email":
+      return MailIcon
+    case "sms":
+      return MessageSquareIcon
+    case "ai":
+      return BotIcon
+  }
+}
+
+function CreditChannelCard({
+  card,
+  onBuy,
+  onChangePlan,
+}: {
+  card: CreditChannelCardViewModel
+  onBuy: () => void
+  onChangePlan: () => void
+}) {
+  const Icon = channelIcon(card.channel)
+
+  return (
+    <div className={CAMPAIGNS_MESSAGING_USAGE_TILE_CLASS}>
+      <div className="flex flex-col gap-3">
+        <Icon className="size-5 text-op-card-title-color" aria-hidden />
+        <div className="flex flex-col gap-1">
+          <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS}>
+            {card.title}
+          </p>
+          <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
+            {card.headline}
+          </p>
+          {!card.isDepleted ? (
+            <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
+              {card.subline}
+            </p>
+          ) : null}
+        </div>
+        {card.purchasedLine != null ? (
+          <p className="m-0 text-xs font-normal leading-normal text-op-card-subtitle-color">
+            {card.purchasedLine}
+          </p>
+        ) : null}
+      </div>
+      <UsageMeter fillRatio={card.fillRatio} maxLabel={card.meterMaxLabel} />
+      <div className="flex flex-wrap items-center gap-2">
+        {card.showBuy ? (
+          <Button
+            type="button"
+            variant="op-secondary"
+            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            onClick={onBuy}
+          >
+            {card.buyLabel}
+          </Button>
+        ) : null}
+        {card.showChangePlan ? (
+          <Button
+            type="button"
+            variant="op-link"
+            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            onClick={onChangePlan}
+          >
+            {copy.changePlan}
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function CreditsUsageBody({
+  snap,
+  pageModule,
+}: {
+  snap: ReturnType<
+    ReturnType<typeof useBillingCreditsPageModuleApi>["getSnapshot"]
+  >
+  pageModule: ReturnType<typeof useBillingCreditsPageModuleApi>
+}) {
+  if (snap.loadStatus === "idle" || snap.loadStatus === "loading") {
+    return (
+      <div className="flex justify-center py-16" role="status">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (snap.loadStatus === "error") {
+    return (
+      <div className={GUESTS_SECTION_CLASS}>
+        <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.loadError}</h2>
+        <Button
+          type="button"
+          variant="op-secondary"
+          onClick={() => {
+            void pageModule.load()
+          }}
+        >
+          {copy.retry}
+        </Button>
+      </div>
+    )
+  }
+
+  const usage = snap.creditsUsage
+  if (usage == null) {
+    return null
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <section className={GUESTS_SECTION_CLASS}>
+        <div className="flex flex-col gap-2">
+          <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.creditsUsageTitle}</h2>
+          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+            {copy.creditsUsageSubtitle}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          {snap.channelCards.map((card) => (
+            <CreditChannelCard
+              key={card.channel}
+              card={card}
+              onBuy={() => {
+                pageModule.openBuyChannelCredits(card.channel)
+              }}
+              onChangePlan={() => {
+                pageModule.openChangePlan()
+              }}
+            />
+          ))}
+
+          <div className={CAMPAIGNS_MESSAGING_USAGE_TILE_CLASS}>
+            <div className="flex flex-col gap-3">
+              <PackageIcon
+                className="size-5 text-op-card-title-color"
+                aria-hidden
+              />
+              <div className="flex flex-col gap-1">
+                <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS}>
+                  {copy.starterKitCardTitle}
+                </p>
+                <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
+                  {formatStarterKitState(usage.starterKitState)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className={GUESTS_SECTION_CLASS}>
+        <div className="flex flex-col gap-2">
+          <h3 className={GUESTS_SECTION_TITLE_CLASS}>
+            {copy.creditsUsageTableTitle}
+          </h3>
+          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{usage.periodLabel}</p>
+        </div>
+
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{copy.creditsUsageTableChannel}</TableHead>
+              <TableHead>{copy.creditsUsageTableUsed}</TableHead>
+              <TableHead>{copy.creditsUsageTableIncluded}</TableHead>
+              <TableHead>{copy.creditsUsageTablePurchased}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {snap.usageTableRows.map((row) => (
+              <TableRow key={row.channelLabel}>
+                <TableCell>{row.channelLabel}</TableCell>
+                <TableCell>{row.usedThisCycle}</TableCell>
+                <TableCell>{row.includedThisPeriod}</TableCell>
+                <TableCell>{row.purchasedRemaining}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </section>
+    </div>
+  )
+}
+
 function EmptyTabBody({ label }: { label: string }) {
   return (
     <section className={GUESTS_SECTION_CLASS}>
@@ -319,7 +557,7 @@ export function BillingCreditsPage() {
           <PlanSubscriptionBody snap={snap} pageModule={pageModule} />
         </TabsContent>
         <TabsContent value="credits-usage">
-          <EmptyTabBody label="Credits & usage" />
+          <CreditsUsageBody snap={snap} pageModule={pageModule} />
         </TabsContent>
         <TabsContent value="payment-invoices">
           <EmptyTabBody label="Payment & invoices" />

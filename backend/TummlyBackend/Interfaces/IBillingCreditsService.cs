@@ -9,5 +9,7 @@ namespace TummlyBackend.Interfaces
             int restaurantId,
             bool actorCanManage
         );
+
+        Task<CreditsUsageSnapshotDto?> GetUsageAsync(int restaurantId);
     }
 }

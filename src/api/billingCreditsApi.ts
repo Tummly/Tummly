@@ -1,5 +1,6 @@
 import axiosInstance from "@/api/axiosInstance"
 import type { BillingCreditsPageData } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
+import type { CreditsUsageSnapshot } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 
 type BillingCreditsPageResponse = {
   actorPermissionRole: string
@@ -16,4 +17,11 @@ export async function getBillingCreditsPage(): Promise<BillingCreditsPageData> {
     actorCanManage: data.actorCanManage,
     planSubscription: data.planSubscription,
   }
+}
+
+export async function getBillingCreditsUsage(): Promise<CreditsUsageSnapshot> {
+  const { data } = await axiosInstance.get<CreditsUsageSnapshot>(
+    "/billing-credits/usage"
+  )
+  return data
 }

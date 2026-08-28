@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -68,6 +69,66 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(20, plan.GetProperty("smsCreditsRemaining").GetInt32());
             Assert.Equal(20, plan.GetProperty("aiCreditsRemaining").GetInt32());
             Assert.True(plan.GetProperty("isPilot").GetBoolean());
+        }
+
+        [Fact]
+        public async Task UsageGet_Returns401_WithoutJwt()
+        {
+            var response = await _client.GetAsync("/api/billing-credits/usage");
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task UsageGet_Returns403_ForStaff()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits/usage",
+                seeded.StaffJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task UsageGet_ReturnsPilotSnapshot_ForAdminView()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits/usage",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("Account · Pilot allowance", body.GetProperty("periodLabel").GetString());
+            Assert.True(body.GetProperty("isPilot").GetBoolean());
+            Assert.Equal("unused", body.GetProperty("starterKitState").GetString());
+
+            var channels = body.GetProperty("channels");
+            Assert.Equal(3, channels.GetArrayLength());
+        }
+
+        [Fact]
+        public async Task UsageGet_ReturnsPilotSnapshot_ForOwnerManage()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits/usage",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var sms = body.GetProperty("channels").EnumerateArray()
+                .First(row => row.GetProperty("channel").GetString() == "sms");
+            Assert.Equal(20, sms.GetProperty("combinedRemaining").GetInt32());
+            Assert.Equal(20, sms.GetProperty("includedThisPeriod").GetInt32());
         }
 
         private async Task<Seeded> SeedWorkspaceAsync()

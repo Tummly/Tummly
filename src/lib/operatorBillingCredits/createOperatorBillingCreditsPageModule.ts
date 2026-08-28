@@ -9,6 +9,14 @@ import {
   resolveBillingCreditsTabId,
   resolveManagePlanSection,
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import {
+  buildCreditChannelCardViewModel,
+  buildCreditsUsageTableRows,
+  type CreditChannelCardViewModel,
+  type CreditChannelId,
+  type CreditsUsageSnapshot,
+  type CreditsUsageTableRowViewModel,
+} from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 
 export type PlanSubscriptionSnapshot = {
   subscriptionPlan: string
@@ -38,6 +46,7 @@ export type BillingCreditsPageData = {
 
 export type BillingCreditsPageAdapters = {
   getPage: () => Promise<BillingCreditsPageData>
+  getUsage: () => Promise<CreditsUsageSnapshot>
 }
 
 export type BillingCreditsSurface = "tabs" | "manage-plan"
@@ -54,6 +63,9 @@ export type BillingCreditsSnapshot = {
   showChangePlan: boolean
   managePlanSection: ManagePlanSection
   planSubscription: PlanSubscriptionSnapshot | null
+  creditsUsage: CreditsUsageSnapshot | null
+  channelCards: CreditChannelCardViewModel[]
+  usageTableRows: CreditsUsageTableRowViewModel[]
   pendingNavigationHref: string | null
   managePlanHref: string | null
   buyCreditsHref: string | null
@@ -74,6 +86,7 @@ export type OperatorBillingCreditsPageModule = {
   }) => void
   openManagePlan: () => void
   openBuyCredits: () => void
+  openBuyChannelCredits: (channel: CreditChannelId) => void
   openChangePlan: () => void
   scrollManagePlanToCards: () => void
   consumePendingNavigation: () => string | null
@@ -110,6 +123,7 @@ export function createOperatorBillingCreditsPageModule(
   } = {}
 ): OperatorBillingCreditsPageModule {
   let data: BillingCreditsPageData | null = null
+  let creditsUsage: CreditsUsageSnapshot | null = null
   let loadStatus: BillingCreditsSnapshot["loadStatus"] = "idle"
   let activeTabId = resolveBillingCreditsTabId(options.initialTabId)
   let surface: BillingCreditsSurface = options.initialSurface ?? "tabs"
@@ -166,6 +180,26 @@ export function createOperatorBillingCreditsPageModule(
     }
   }
 
+  const projectChannelCards = (): CreditChannelCardViewModel[] => {
+    if (creditsUsage == null) {
+      return []
+    }
+    return creditsUsage.channels.map((record) =>
+      buildCreditChannelCardViewModel(record, {
+        accessLevel: accessLevel(),
+        permissionRole: data?.actorPermissionRole ?? "",
+        isPilot: creditsUsage.isPilot,
+      })
+    )
+  }
+
+  const projectUsageTableRows = (): CreditsUsageTableRowViewModel[] => {
+    if (creditsUsage == null) {
+      return []
+    }
+    return buildCreditsUsageTableRows(creditsUsage.channels)
+  }
+
   const projectSnapshot = (): BillingCreditsSnapshot => {
     const actions = headerActions()
     return {
@@ -180,6 +214,9 @@ export function createOperatorBillingCreditsPageModule(
       showChangePlan: actions.showChangePlan,
       managePlanSection,
       planSubscription: data?.planSubscription ?? null,
+      creditsUsage,
+      channelCards: projectChannelCards(),
+      usageTableRows: projectUsageTableRows(),
       pendingNavigationHref,
       managePlanHref: buildManagePlanHref(null),
       buyCreditsHref: buildManagePlanHref("credit-top-ups"),
@@ -198,7 +235,12 @@ export function createOperatorBillingCreditsPageModule(
     loadStatus = "loading"
     refreshSnapshot()
     try {
-      data = await adapters.getPage()
+      const [page, usage] = await Promise.all([
+        adapters.getPage(),
+        adapters.getUsage(),
+      ])
+      data = page
+      creditsUsage = usage
       loadStatus = "loaded"
     } catch (error) {
       const status =
@@ -253,6 +295,14 @@ export function createOperatorBillingCreditsPageModule(
       refreshSnapshot()
     },
     openBuyCredits: () => {
+      const href = buildManagePlanHref("credit-top-ups")
+      if (href == null) {
+        return
+      }
+      pendingNavigationHref = href
+      refreshSnapshot()
+    },
+    openBuyChannelCredits: (_channel: CreditChannelId) => {
       const href = buildManagePlanHref("credit-top-ups")
       if (href == null) {
         return

@@ -55,6 +55,15 @@ export const BILLING_CREDITS_PAGE_COPY = {
   managePlanPlanCards: "Plan cards",
   managePlanCreditTopUps: "Credit top-ups",
   plusVat: "+ VAT",
+  creditsUsageTitle: "Usage & credits",
+  creditsUsageSubtitle:
+    "Track the credits and usage connected to campaigns, messages, AI briefs and QR packs.",
+  creditsUsageTableTitle: "Usage this period",
+  creditsUsageTableChannel: "Channel",
+  creditsUsageTableUsed: "Used this cycle",
+  creditsUsageTableIncluded: "Included this period",
+  creditsUsageTablePurchased: "Purchased remaining",
+  starterKitCardTitle: "Starter kit",
 } as const
 
 export function resolveBillingCreditsTabId(

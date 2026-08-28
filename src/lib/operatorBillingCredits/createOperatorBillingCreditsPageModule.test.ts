@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
 import {
   billingCreditsHeaderActions,
@@ -8,6 +8,54 @@ import {
   createOperatorBillingCreditsPageModule,
   type BillingCreditsPageData,
 } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
+import type { CreditsUsageSnapshot } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
+
+function sampleUsage(
+  overrides: Partial<CreditsUsageSnapshot> = {}
+): CreditsUsageSnapshot {
+  return {
+    periodLabel: "Account · Pilot allowance",
+    starterKitState: "unused",
+    isPilot: true,
+    channels: [
+      {
+        channel: "email",
+        combinedRemaining: 500,
+        usedThisCycle: 0,
+        includedThisPeriod: 500,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
+      },
+      {
+        channel: "sms",
+        combinedRemaining: 428,
+        usedThisCycle: 72,
+        includedThisPeriod: 500,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
+      },
+      {
+        channel: "ai",
+        combinedRemaining: 20,
+        usedThisCycle: 0,
+        includedThisPeriod: 20,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
+      },
+    ],
+    ...overrides,
+  }
+}
+
+function createTestModule(
+  page: BillingCreditsPageData,
+  usage: CreditsUsageSnapshot = sampleUsage()
+) {
+  return createOperatorBillingCreditsPageModule({
+    getPage: async () => page,
+    getUsage: async () => usage,
+  })
+}
 
 function samplePage(overrides: Partial<BillingCreditsPageData> = {}): BillingCreditsPageData {
   return {
@@ -103,9 +151,7 @@ describe("billingCreditsHeaderActions", () => {
 
 describe("createOperatorBillingCreditsPageModule", () => {
   it("returns a stable snapshot until state changes", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-    })
+    const module = createTestModule(samplePage())
     await module.load()
     expect(module.getSnapshot()).toBe(module.getSnapshot())
     module.requestTabChange("activity")
@@ -113,9 +159,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("round-trips tab id through requestTabChange", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-    })
+    const module = createTestModule(samplePage())
     module.setNavigationTargets({ mode: "single", locationId: 10 })
     await module.load()
 
@@ -124,9 +168,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("builds manage-plan and buy-credits hrefs", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-    })
+    const module = createTestModule(samplePage())
     module.setNavigationTargets({ mode: "multi", locationId: 7 })
     await module.load()
 
@@ -139,9 +181,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("opens nested manage plan from header CTA", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-    })
+    const module = createTestModule(samplePage())
     module.setNavigationTargets({ mode: "single", locationId: 42 })
     await module.load()
 
@@ -152,9 +192,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("opens credit top-ups section from Buy credits", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-    })
+    const module = createTestModule(samplePage())
     module.setNavigationTargets({ mode: "single", locationId: 42 })
     await module.load()
 
@@ -165,10 +203,13 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("breadcrumb returns to plan-subscription tab", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-      initialTabId: "credits-usage",
-    })
+    const module = createOperatorBillingCreditsPageModule(
+      {
+        getPage: async () => samplePage(),
+        getUsage: async () => sampleUsage(),
+      },
+      { initialTabId: "credits-usage" }
+    )
     module.setNavigationTargets({ mode: "single", locationId: 42 })
     await module.load()
 
@@ -182,16 +223,20 @@ describe("createOperatorBillingCreditsPageModule", () => {
       getPage: async () => {
         throw { response: { status: 403 } }
       },
+      getUsage: async () => sampleUsage(),
     })
     await module.load()
     expect(module.getSnapshot().loadStatus).toBe("forbidden")
   })
 
   it("breadcrumb targets plan-subscription while Back keeps the prior tab", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-      initialSurface: "manage-plan",
-    })
+    const module = createOperatorBillingCreditsPageModule(
+      {
+        getPage: async () => samplePage(),
+        getUsage: async () => sampleUsage(),
+      },
+      { initialSurface: "manage-plan" }
+    )
     module.setNavigationTargets({ mode: "single", locationId: 42 })
     await module.load()
     module.requestTabChange("credits-usage")
@@ -203,29 +248,91 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("hides write CTAs for View snapshot", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () =>
-        samplePage({
-          actorCanManage: false,
-          actorPermissionRole: "Marketing",
-        }),
-    })
+    const module = createTestModule(
+      samplePage({
+        actorCanManage: false,
+        actorPermissionRole: "Marketing",
+      })
+    )
     await module.load()
     const snap = module.getSnapshot()
     expect(snap.accessLevel).toBe("view")
     expect(snap.showManagePlan).toBe(false)
     expect(snap.showBuyCredits).toBe(false)
     expect(snap.showChangePlan).toBe(false)
+    expect(snap.channelCards.every((card) => !card.showBuy && !card.showChangePlan)).toBe(
+      true
+    )
   })
 
   it("clears manage-plan section when scrolling to plan cards", async () => {
-    const module = createOperatorBillingCreditsPageModule({
-      getPage: async () => samplePage(),
-      initialManagePlanSection: "credit-top-ups",
-      initialSurface: "manage-plan",
-    })
+    const module = createOperatorBillingCreditsPageModule(
+      {
+        getPage: async () => samplePage(),
+        getUsage: async () => sampleUsage(),
+      },
+      {
+        initialManagePlanSection: "credit-top-ups",
+        initialSurface: "manage-plan",
+      }
+    )
     await module.load()
     module.scrollManagePlanToCards()
     expect(module.getSnapshot().managePlanSection).toBeNull()
+  })
+
+  it("projects combined remaining math onto channel cards", async () => {
+    const module = createTestModule(samplePage())
+    await module.load()
+    const sms = module.getSnapshot().channelCards.find((card) => card.channel === "sms")
+    expect(sms?.headline).toBe("428 remaining")
+    expect(sms?.subline).toBe("72 of 500 included used")
+    expect(sms?.fillRatio).toBeCloseTo(428 / 500)
+  })
+
+  it("shows 100% copy on depleted channels", async () => {
+    const module = createTestModule(
+      samplePage(),
+      sampleUsage({
+        isPilot: false,
+        channels: [
+          {
+            channel: "sms",
+            combinedRemaining: 0,
+            usedThisCycle: 500,
+            includedThisPeriod: 500,
+            purchasedRemaining: 0,
+            purchasedExpiryLabel: null,
+          },
+          ...sampleUsage().channels.filter((row) => row.channel !== "sms"),
+        ],
+      })
+    )
+    await module.load()
+    const sms = module.getSnapshot().channelCards.find((card) => card.channel === "sms")
+    expect(sms?.headline).toBe("No SMS credits remaining.")
+    expect(sms?.fillRatio).toBe(1)
+  })
+
+  it("hides Buy on Pilot channel cards", async () => {
+    const module = createTestModule(samplePage())
+    await module.load()
+    expect(
+      module.getSnapshot().channelCards.every((card) => !card.showBuy)
+    ).toBe(true)
+  })
+
+  it("opens credit top-ups from channel Buy", async () => {
+    const module = createTestModule(
+      samplePage(),
+      sampleUsage({ isPilot: false })
+    )
+    module.setNavigationTargets({ mode: "single", locationId: 42 })
+    await module.load()
+
+    module.openBuyChannelCredits("sms")
+    expect(module.consumePendingNavigation()).toBe(
+      "/single-dashboard/settings/billing-credits/manage-plan?location=42&section=credit-top-ups"
+    )
   })
 })

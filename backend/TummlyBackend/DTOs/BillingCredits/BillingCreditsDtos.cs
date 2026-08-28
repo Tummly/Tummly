@@ -47,4 +47,32 @@ namespace TummlyBackend.DTOs.BillingCredits
 
         public bool IsPilot { get; set; } = true;
     }
+
+    public sealed class CreditsUsageSnapshotDto
+    {
+        public bool Success { get; set; } = true;
+
+        public string PeriodLabel { get; set; } = string.Empty;
+
+        public string StarterKitState { get; set; } = "unused";
+
+        public bool IsPilot { get; set; } = true;
+
+        public List<CreditChannelUsageDto> Channels { get; set; } = [];
+    }
+
+    public sealed class CreditChannelUsageDto
+    {
+        public string Channel { get; set; } = string.Empty;
+
+        public int CombinedRemaining { get; set; }
+
+        public int UsedThisCycle { get; set; }
+
+        public int IncludedThisPeriod { get; set; }
+
+        public int PurchasedRemaining { get; set; }
+
+        public string? PurchasedExpiryLabel { get; set; }
+    }
 }
