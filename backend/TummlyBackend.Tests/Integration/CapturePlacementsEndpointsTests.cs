@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -557,6 +558,141 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var body = await ReadJsonAsync(response);
             Assert.Equal("Paused", body.GetProperty("status").GetString());
+        }
+
+        [Fact]
+        public async Task SetupAccount_MintsFiveActiveQrCodes_SixthActiveCreate_Returns409()
+        {
+            var seeded = await SeedPilotViaSetupAccountAsync(
+                email: "qr-cap-setup@example.com",
+                token: "qr-cap-setup-token"
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var activeCount = await context.QrCodes.CountAsync(q =>
+                    q.RestaurantLocationId == seeded.LocationId
+                    && q.Status == QrCodeStatus.Active
+                );
+                Assert.Equal(5, activeCount);
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/capture/placements/digital-guest-links?locationId={seeded.LocationId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                linkName = "Sixth Active Link",
+                channel = "Email",
+                status = "Active",
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "active_qr_cap_reached",
+                body.GetProperty("code").GetString()
+            );
+            Assert.Equal(5, body.GetProperty("cap").GetInt32());
+            Assert.Equal(5, body.GetProperty("current").GetInt32());
+        }
+
+        [Fact]
+        public async Task ResumePlacement_AtActiveQrCap_Returns409()
+        {
+            var seeded = await SeedPilotViaSetupAccountAsync(
+                email: "qr-cap-resume@example.com",
+                token: "qr-cap-resume-token"
+            );
+
+            using var createRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/capture/placements/digital-guest-links?locationId={seeded.LocationId}"
+            );
+            createRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            createRequest.Content = JsonContent.Create(new
+            {
+                linkName = "Paused Extra Link",
+                channel = "Email",
+                status = "Paused",
+            });
+            var createResponse = await _client.SendAsync(createRequest);
+            Assert.Equal(HttpStatusCode.OK, createResponse.StatusCode);
+            var created = await ReadJsonAsync(createResponse);
+            var extraId = created.GetProperty("qrCodeId").GetInt32();
+
+            using var resumeRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                PlacementMutationUrl("resume", seeded.LocationId, extraId)
+            );
+            resumeRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var resumeResponse = await _client.SendAsync(resumeRequest);
+
+            Assert.Equal(HttpStatusCode.Conflict, resumeResponse.StatusCode);
+            var body = await ReadJsonAsync(resumeResponse);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "active_qr_cap_reached",
+                body.GetProperty("code").GetString()
+            );
+            Assert.Equal(5, body.GetProperty("cap").GetInt32());
+            Assert.Equal(5, body.GetProperty("current").GetInt32());
+        }
+
+        [Fact]
+        public async Task PauseThenResumePlacement_WhenUnderActiveQrCap_Succeeds()
+        {
+            var seeded = await SeedPilotViaSetupAccountAsync(
+                email: "qr-cap-under@example.com",
+                token: "qr-cap-under-token"
+            );
+
+            int qrCodeId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                qrCodeId = await context.QrCodes
+                    .Where(q =>
+                        q.RestaurantLocationId == seeded.LocationId
+                        && q.Status == QrCodeStatus.Active
+                    )
+                    .Select(q => q.Id)
+                    .FirstAsync();
+            }
+
+            using var pauseRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                PlacementMutationUrl("pause", seeded.LocationId, qrCodeId)
+            );
+            pauseRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var pauseResponse = await _client.SendAsync(pauseRequest);
+            Assert.Equal(HttpStatusCode.OK, pauseResponse.StatusCode);
+
+            using var resumeRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                PlacementMutationUrl("resume", seeded.LocationId, qrCodeId)
+            );
+            resumeRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var resumeResponse = await _client.SendAsync(resumeRequest);
+
+            Assert.Equal(HttpStatusCode.OK, resumeResponse.StatusCode);
+            var body = await ReadJsonAsync(resumeResponse);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal("Active", body.GetProperty("status").GetString());
         }
 
         [Theory]
@@ -1440,6 +1576,10 @@ namespace TummlyBackend.Tests.Integration
                 AccountType = "Single",
                 OwnerUserId = user.Id,
                 CreatedAt = DateTime.UtcNow,
+                BillingAccount = BillingCreditsService.CreateDefaultBillingAccount(
+                    0,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                ),
             };
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
@@ -1580,6 +1720,10 @@ namespace TummlyBackend.Tests.Integration
                 AccountType = "Single",
                 OwnerUserId = user.Id,
                 CreatedAt = DateTime.UtcNow,
+                BillingAccount = BillingCreditsService.CreateDefaultBillingAccount(
+                    0,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                ),
             };
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
@@ -1649,6 +1793,10 @@ namespace TummlyBackend.Tests.Integration
                 AccountType = "Single",
                 OwnerUserId = user.Id,
                 CreatedAt = DateTime.UtcNow,
+                BillingAccount = BillingCreditsService.CreateDefaultBillingAccount(
+                    0,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                ),
             };
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
@@ -1723,6 +1871,10 @@ namespace TummlyBackend.Tests.Integration
                 AccountType = "Single",
                 OwnerUserId = user.Id,
                 CreatedAt = DateTime.UtcNow,
+                BillingAccount = BillingCreditsService.CreateDefaultBillingAccount(
+                    0,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                ),
             };
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
@@ -1790,6 +1942,96 @@ namespace TummlyBackend.Tests.Integration
             );
 
             return (jwt, location.Id, summerToken);
+        }
+
+        private async Task<(string Jwt, int LocationId)> SeedPilotViaSetupAccountAsync(
+            string email,
+            string token
+        )
+        {
+            var cafeName = $"QR Cap {token}";
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                context.TrialRequests.Add(
+                    new TrialRequest
+                    {
+                        BusinessName = cafeName,
+                        BusinessCategory = "takeaway",
+                        Locations = "1",
+                        FullName = "QR Cap Owner",
+                        Email = email,
+                        Mobile = "07911123456",
+                        MainLocation = "1 High Street",
+                        TownCity = "Leeds",
+                        Postcode = "LS1 1AA",
+                        Role = "Owner",
+                        Goal = "Grow",
+                        TermsAccepted = true,
+                        IsEmailVerified = true,
+                        IsApproved = true,
+                        Status = TrialRequestStatus.Approved,
+                        ApprovalToken = token,
+                        InviteExpiresAt = DateTime.UtcNow.AddDays(7),
+                        IsAccountCreated = false,
+                        AccountType = "Single",
+                        CreatedAt = DateTime.UtcNow,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            var setupResponse = await _client.PostAsJsonAsync(
+                "/api/auth/setup-account",
+                new
+                {
+                    token,
+                    password = "Password1!",
+                    confirmPassword = "Password1!",
+                    fullName = "QR Cap Owner",
+                    groupName = cafeName,
+                    businessCategory = "takeaway",
+                    primaryPhone = "07911123456",
+                    locations = new[]
+                    {
+                        new
+                        {
+                            locationName = "Main",
+                            address = "1 High Street",
+                            postcode = "LS1 1AA",
+                        },
+                    },
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, setupResponse.StatusCode);
+
+            using var jwtScope = _factory.Services.CreateScope();
+            var db = jwtScope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = jwtScope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+            var user = await db.Users.SingleAsync(u => u.Email == email);
+            user.ActivatedAt = DateTime.UtcNow;
+            user.ActivationExpiresAt = DateTime.UtcNow.AddDays(30);
+            await db.SaveChangesAsync();
+
+            var restaurantId = await db.Restaurants
+                .Where(r => r.OwnerUserId == user.Id)
+                .Select(r => r.Id)
+                .SingleAsync();
+            var locationId = await db.RestaurantLocations
+                .Where(l => l.RestaurantId == restaurantId)
+                .Select(l => l.Id)
+                .SingleAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return (jwt, locationId);
         }
 
         private static async Task<JsonElement> ReadJsonAsync(

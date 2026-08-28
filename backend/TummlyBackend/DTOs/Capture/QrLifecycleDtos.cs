@@ -24,6 +24,12 @@ namespace TummlyBackend.DTOs.Capture
 
         public string? Reason { get; init; }
 
+        public string? Code { get; init; }
+
+        public int? Cap { get; init; }
+
+        public int? Current { get; init; }
+
         public object? Payload { get; init; }
 
         public static QrLifecycleResult Ok(object payload) => new()
@@ -60,6 +66,18 @@ namespace TummlyBackend.DTOs.Capture
             Message = message,
             Field = field,
             Reason = reason,
+        };
+
+        public static QrLifecycleResult ActiveQrCapReached(
+            int cap,
+            int current
+        ) => new()
+        {
+            Kind = QrLifecycleResultKind.Conflict,
+            Message = "Active QR cap reached.",
+            Code = "active_qr_cap_reached",
+            Cap = cap,
+            Current = current,
         };
 
         public static QrLifecycleResult InvalidTransition(string message) =>
