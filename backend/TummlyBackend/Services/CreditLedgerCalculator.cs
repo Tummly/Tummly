@@ -215,6 +215,100 @@ namespace TummlyBackend.Services
                 or CreditLedgerEntryTypes.ManualAdjustment;
         }
 
+        public static bool IsReversed(
+            Guid entryId,
+            IReadOnlyList<CreditLedgerEntry> entries
+        )
+        {
+            return entries.Any(row =>
+                row.EntryType == CreditLedgerEntryTypes.Reversal
+                && row.ReversedEntryId == entryId
+            );
+        }
+
+        public static bool IsDrainingAllocation(
+            Guid allocationId,
+            IReadOnlyList<CreditLedgerEntry> entries
+        )
+        {
+            return entries.Any(row =>
+                row.AllocationId == allocationId
+                && row.EntryType == CreditLedgerEntryTypes.Refund
+                && !string.IsNullOrEmpty(row.SourcePaymentRef)
+                && !IsReversed(row.Id, entries)
+            );
+        }
+
+        public static IReadOnlyList<CreditLedgerEntry> TopupGrantsForPaymentRef(
+            IReadOnlyList<CreditLedgerEntry> entries,
+            string sourcePaymentRef
+        )
+        {
+            return entries
+                .Where(row =>
+                    row.EntryType == CreditLedgerEntryTypes.TopupAllocation
+                    && row.SourcePaymentRef == sourcePaymentRef
+                )
+                .ToList();
+        }
+
+        public static IReadOnlyList<TopupPaymentChannelTotals> SummarizePaymentRef(
+            IReadOnlyList<CreditLedgerEntry> entries,
+            string sourcePaymentRef,
+            DateTime nowUtc,
+            IReadOnlyDictionary<string, int>? refundedThisCommit = null
+        )
+        {
+            var grants = TopupGrantsForPaymentRef(entries, sourcePaymentRef);
+            if (grants.Count == 0)
+            {
+                return [];
+            }
+
+            var states = Project(entries, nowUtc);
+            var byId = states.ToDictionary(row => row.Id);
+
+            return grants
+                .GroupBy(row => row.Channel)
+                .Select(group =>
+                {
+                    var held = group.Sum(grant =>
+                        byId.TryGetValue(grant.Id, out var state) ? state.Held : 0
+                    );
+                    var consumed = group.Sum(grant =>
+                        entries
+                            .Where(row =>
+                                row.AllocationId == grant.Id
+                                && row.EntryType == CreditLedgerEntryTypes.Consumption
+                            )
+                            .Sum(row => row.Quantity)
+                    );
+                    var refunded = refundedThisCommit?.GetValueOrDefault(group.Key) ?? 0;
+                    return new TopupPaymentChannelTotals(
+                        group.Key,
+                        refunded,
+                        held,
+                        consumed
+                    );
+                })
+                .OrderBy(row => row.Channel)
+                .ToList();
+        }
+
+        public static IReadOnlyList<CreditLedgerEntry> UnrevertedPaymentRefunds(
+            IReadOnlyList<CreditLedgerEntry> entries,
+            string sourcePaymentRef
+        )
+        {
+            return entries
+                .Where(row =>
+                    row.EntryType == CreditLedgerEntryTypes.Refund
+                    && row.SourcePaymentRef == sourcePaymentRef
+                    && !IsReversed(row.Id, entries)
+                )
+                .ToList();
+        }
+
         private static bool IsRemainingDebit(CreditLedgerEntry entry)
         {
             if (entry.EntryType == CreditLedgerEntryTypes.ManualAdjustment)
@@ -255,4 +349,11 @@ namespace TummlyBackend.Services
                 : DateTime.MinValue;
         }
     }
+
+    internal readonly record struct TopupPaymentChannelTotals(
+        string Channel,
+        int Refunded,
+        int Held,
+        int Consumed
+    );
 }

@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using TummlyBackend.Controllers;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -32,6 +33,45 @@ namespace TummlyBackend.Tests.Integration
         {
             var response = await _client.GetAsync("/api/billing-credits");
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task BillingCredits_HasNoOperatorRefundRoute()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            var refundPaths = new[]
+            {
+                "/api/billing-credits/refund",
+                "/api/billing-credits/top-up/refund",
+                "/api/billing-credits/credits/refund",
+            };
+
+            foreach (var path in refundPaths)
+            {
+                using var postRequest = new HttpRequestMessage(HttpMethod.Post, path);
+                postRequest.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", seeded.OwnerJwt);
+                postRequest.Content = JsonContent.Create(new { channel = "email", quantity = 1 });
+                var postResponse = await _client.SendAsync(postRequest);
+                Assert.Equal(HttpStatusCode.NotFound, postResponse.StatusCode);
+
+                using var getRequest = Authorized(
+                    HttpMethod.Get,
+                    path,
+                    seeded.OwnerJwt
+                );
+                var getResponse = await _client.SendAsync(getRequest);
+                Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+            }
+
+            var controllerMethods = typeof(BillingCreditsController)
+                .GetMethods()
+                .Where(method => method.IsPublic && method.DeclaringType == typeof(BillingCreditsController))
+                .Select(method => method.Name)
+                .ToArray();
+            Assert.DoesNotContain(controllerMethods, name =>
+                name.Contains("Refund", StringComparison.OrdinalIgnoreCase)
+            );
         }
 
         [Fact]

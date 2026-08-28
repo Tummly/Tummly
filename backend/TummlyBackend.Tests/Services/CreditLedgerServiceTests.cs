@@ -510,6 +510,392 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task MintTopupAllocation_UsesCurrentPricebookAndTwelveMonthExpiry()
+        {
+            var harness = await SeedAsync();
+            const string paymentRef = "pay-topup-email-001";
+
+            var result = await harness.Ledger.MintTopupAllocationAsync(
+                new CreditLedgerMintTopupRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    Quantity = 500,
+                    SourcePaymentRef = paymentRef,
+                    PricebookVersion = PricebookId,
+                }
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.NotNull(result.AllocationId);
+
+            var grant = await harness.Context.CreditLedgerEntries.SingleAsync(row =>
+                row.Id == result.AllocationId
+            );
+            Assert.Equal(CreditLedgerEntryTypes.TopupAllocation, grant.EntryType);
+            Assert.Equal(paymentRef, grant.SourcePaymentRef);
+            Assert.Equal(PricebookId, grant.PricebookVersion);
+            Assert.Equal(_now.AddMonths(12), grant.ExpiresAtUtc);
+        }
+
+        [Fact]
+        public async Task DrainUnusedTopup_TakesBindableOnly()
+        {
+            var harness = await SeedAsync();
+            const string paymentRef = "pay-topup-drain-bindable";
+            var allocationId = await MintTopupAsync(
+                harness,
+                CreditChannels.Email,
+                100,
+                paymentRef
+            );
+            await InsertConsumptionAsync(
+                harness,
+                allocationId,
+                quantity: 30,
+                locationId: harness.LocationId
+            );
+            await InsertReservationAsync(
+                harness,
+                allocationId,
+                quantity: 20,
+                locationId: harness.LocationId
+            );
+
+            var result = await harness.Ledger.DrainUnusedTopupAsync(
+                new CreditLedgerDrainTopupRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    SourcePaymentRef = paymentRef,
+                    CorrectionSource = CorrectionSources.Dispute,
+                }
+            );
+
+            Assert.True(result.Succeeded);
+            var channel = Assert.Single(result.Channels);
+            Assert.Equal(CreditChannels.Email, channel.Channel);
+            Assert.Equal(50, channel.Refunded);
+            Assert.Equal(20, channel.Held);
+            Assert.Equal(30, channel.Consumed);
+
+            var refunds = await harness.Context.CreditLedgerEntries
+                .Where(row =>
+                    row.EntryType == CreditLedgerEntryTypes.Refund
+                    && row.SourcePaymentRef == paymentRef
+                )
+                .ToListAsync();
+            Assert.Single(refunds);
+            Assert.Equal(50, refunds[0].Quantity);
+            Assert.Equal(CorrectionSources.Dispute, refunds[0].CorrectionSource);
+        }
+
+        [Fact]
+        public async Task DrainUnusedTopup_SecondDrainInsertsNothing()
+        {
+            var harness = await SeedAsync();
+            const string paymentRef = "pay-topup-drain-repeat";
+            await MintTopupAsync(harness, CreditChannels.Email, 40, paymentRef);
+
+            var first = await harness.Ledger.DrainUnusedTopupAsync(
+                new CreditLedgerDrainTopupRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    SourcePaymentRef = paymentRef,
+                    CorrectionSource = CorrectionSources.PaymentRefund,
+                }
+            );
+            Assert.True(first.Succeeded);
+            Assert.Equal(40, Assert.Single(first.Channels).Refunded);
+
+            var refundCountBefore = await harness.Context.CreditLedgerEntries.CountAsync(row =>
+                row.EntryType == CreditLedgerEntryTypes.Refund
+            );
+
+            var second = await harness.Ledger.DrainUnusedTopupAsync(
+                new CreditLedgerDrainTopupRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    SourcePaymentRef = paymentRef,
+                    CorrectionSource = CorrectionSources.PaymentRefund,
+                }
+            );
+
+            Assert.True(second.Succeeded);
+            Assert.Equal(0, Assert.Single(second.Channels).Refunded);
+            Assert.Equal(
+                refundCountBefore,
+                await harness.Context.CreditLedgerEntries.CountAsync(row =>
+                    row.EntryType == CreditLedgerEntryTypes.Refund
+                )
+            );
+        }
+
+        [Fact]
+        public async Task DrainUnusedTopup_DoesNotClawConsumedUnits()
+        {
+            var harness = await SeedAsync();
+            const string paymentRef = "pay-topup-drain-consume";
+            var allocationId = await MintTopupAsync(
+                harness,
+                CreditChannels.Email,
+                80,
+                paymentRef
+            );
+            await InsertConsumptionAsync(
+                harness,
+                allocationId,
+                quantity: 25,
+                locationId: harness.LocationId
+            );
+
+            var result = await harness.Ledger.DrainUnusedTopupAsync(
+                new CreditLedgerDrainTopupRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    SourcePaymentRef = paymentRef,
+                    CorrectionSource = CorrectionSources.Dispute,
+                }
+            );
+
+            Assert.True(result.Succeeded);
+            var channel = Assert.Single(result.Channels);
+            Assert.Equal(25, channel.Consumed);
+            Assert.Equal(55, channel.Refunded);
+
+            var consumptionQty = await harness.Context.CreditLedgerEntries
+                .Where(row =>
+                    row.AllocationId == allocationId
+                    && row.EntryType == CreditLedgerEntryTypes.Consumption
+                )
+                .SumAsync(row => row.Quantity);
+            Assert.Equal(25, consumptionQty);
+        }
+
+        [Fact]
+        public async Task DrainUnusedTopup_DrainInvariantKeepsBindableZeroUntilRestore()
+        {
+            var harness = await SeedAsync();
+            const string paymentRef = "pay-topup-drain-invariant";
+            var allocationId = await MintTopupAsync(
+                harness,
+                CreditChannels.Email,
+                100,
+                paymentRef
+            );
+            var reservationRef = Guid.NewGuid().ToString("D");
+            await InsertReservationAsync(
+                harness,
+                allocationId,
+                quantity: 30,
+                locationId: harness.LocationId,
+                reservationRef: reservationRef
+            );
+
+            var drain = await harness.Ledger.DrainUnusedTopupAsync(
+                new CreditLedgerDrainTopupRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    SourcePaymentRef = paymentRef,
+                    CorrectionSource = CorrectionSources.Dispute,
+                }
+            );
+            Assert.True(drain.Succeeded);
+            Assert.Equal(70, Assert.Single(drain.Channels).Refunded);
+
+            var snapshotAfterDrain = await harness.Snapshot.GetAccountAsync(harness.RestaurantId);
+            var emailAfterDrain = Channel(snapshotAfterDrain, CreditChannels.Email);
+            Assert.Equal(0, emailAfterDrain.Remaining);
+            Assert.Equal(30, emailAfterDrain.Held);
+
+            harness.Context.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    EntryType = CreditLedgerEntryTypes.Release,
+                    Quantity = 30,
+                    AllocationId = allocationId,
+                    ReservationRef = reservationRef,
+                    LocationId = harness.LocationId,
+                    CreatedAtUtc = _now,
+                }
+            );
+            harness.Context.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    EntryType = CreditLedgerEntryTypes.Refund,
+                    Quantity = 30,
+                    AllocationId = allocationId,
+                    SourcePaymentRef = paymentRef,
+                    CorrectionSource = CorrectionSources.Dispute,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await harness.Context.SaveChangesAsync();
+
+            var snapshotAfterRelease = await harness.Snapshot.GetAccountAsync(harness.RestaurantId);
+            var emailAfterRelease = Channel(snapshotAfterRelease, CreditChannels.Email);
+            Assert.Equal(0, emailAfterRelease.Remaining);
+            Assert.Equal(0, emailAfterRelease.Held);
+
+            var refundCountBefore = await harness.Context.CreditLedgerEntries.CountAsync(row =>
+                row.EntryType == CreditLedgerEntryTypes.Refund
+            );
+            var secondDrain = await harness.Ledger.DrainUnusedTopupAsync(
+                new CreditLedgerDrainTopupRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    SourcePaymentRef = paymentRef,
+                    CorrectionSource = CorrectionSources.Dispute,
+                }
+            );
+            Assert.True(secondDrain.Succeeded);
+            Assert.Equal(0, Assert.Single(secondDrain.Channels).Refunded);
+            Assert.Equal(
+                refundCountBefore,
+                await harness.Context.CreditLedgerEntries.CountAsync(row =>
+                    row.EntryType == CreditLedgerEntryTypes.Refund
+                )
+            );
+        }
+
+        [Fact]
+        public async Task RestoreUnusedTopup_MerchantWonRestoresBindableWithoutClawingConsumed()
+        {
+            var harness = await SeedAsync();
+            const string paymentRef = "pay-topup-restore";
+            var allocationId = await MintTopupAsync(
+                harness,
+                CreditChannels.Email,
+                60,
+                paymentRef
+            );
+            await InsertConsumptionAsync(
+                harness,
+                allocationId,
+                quantity: 15,
+                locationId: harness.LocationId
+            );
+
+            var drain = await harness.Ledger.DrainUnusedTopupAsync(
+                new CreditLedgerDrainTopupRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    SourcePaymentRef = paymentRef,
+                    CorrectionSource = CorrectionSources.Dispute,
+                }
+            );
+            Assert.True(drain.Succeeded);
+            Assert.Equal(45, Assert.Single(drain.Channels).Refunded);
+
+            var restore = await harness.Ledger.RestoreUnusedTopupAsync(
+                new CreditLedgerRestoreTopupRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    SourcePaymentRef = paymentRef,
+                }
+            );
+            Assert.True(restore.Succeeded);
+            var channel = Assert.Single(restore.Channels);
+            Assert.Equal(15, channel.Consumed);
+            Assert.Equal(0, channel.Refunded);
+
+            var snapshot = await harness.Snapshot.GetAccountAsync(harness.RestaurantId);
+            var email = Channel(snapshot, CreditChannels.Email);
+            Assert.Equal(45, email.Remaining);
+
+            var replay = await harness.Ledger.RestoreUnusedTopupAsync(
+                new CreditLedgerRestoreTopupRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    SourcePaymentRef = paymentRef,
+                }
+            );
+            Assert.True(replay.Succeeded);
+            Assert.Equal(0, replay.Channels.Sum(row => row.Refunded));
+        }
+
+        [Fact]
+        public async Task DrainUnusedTopup_NegativeRemainingRefused()
+        {
+            var harness = await SeedAsync();
+            const string paymentRef = "pay-topup-negative";
+            var allocationId = await MintTopupAsync(
+                harness,
+                CreditChannels.Email,
+                10,
+                paymentRef
+            );
+            await InsertConsumptionAsync(
+                harness,
+                allocationId,
+                quantity: 10,
+                locationId: harness.LocationId
+            );
+            harness.Context.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    EntryType = CreditLedgerEntryTypes.Refund,
+                    Quantity = 5,
+                    AllocationId = allocationId,
+                    SourcePaymentRef = paymentRef,
+                    CorrectionSource = CorrectionSources.Dispute,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await harness.Context.SaveChangesAsync();
+
+            var result = await harness.Ledger.DrainUnusedTopupAsync(
+                new CreditLedgerDrainTopupRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    SourcePaymentRef = paymentRef,
+                    CorrectionSource = CorrectionSources.Dispute,
+                }
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("negative_remaining_refused", result.Code);
+        }
+
+        [Fact]
+        public async Task DrainUnusedTopup_WritesTopupRefundedBillingActivityPerChannel()
+        {
+            var harness = await SeedAsync();
+            const string paymentRef = "pay-topup-activity";
+            await MintTopupAsync(harness, CreditChannels.Email, 25, paymentRef);
+            await MintTopupAsync(harness, CreditChannels.Sms, 10, paymentRef);
+
+            var result = await harness.Ledger.DrainUnusedTopupAsync(
+                new CreditLedgerDrainTopupRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    SourcePaymentRef = paymentRef,
+                    CorrectionSource = CorrectionSources.PaymentRefund,
+                }
+            );
+
+            Assert.True(result.Succeeded);
+            var activity = await harness.Context.RestaurantBillingActivities
+                .Where(row => row.RestaurantId == harness.RestaurantId)
+                .ToListAsync();
+            Assert.Equal(2, activity.Count);
+            Assert.All(
+                activity,
+                row => Assert.Equal(BillingActivityKinds.TopupRefunded, row.Kind)
+            );
+            Assert.Contains(activity, row => row.Channel == CreditChannels.Email && row.Qty == 25);
+            Assert.Contains(activity, row => row.Channel == CreditChannels.Sms && row.Qty == 10);
+        }
+
         public void Dispose()
         {
         }
@@ -606,6 +992,81 @@ namespace TummlyBackend.Tests.Services
             );
             await context.SaveChangesAsync();
             return id;
+        }
+
+        private async Task<Guid> MintTopupAsync(
+            Harness harness,
+            string channel,
+            int quantity,
+            string sourcePaymentRef
+        )
+        {
+            var result = await harness.Ledger.MintTopupAllocationAsync(
+                new CreditLedgerMintTopupRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = channel,
+                    Quantity = quantity,
+                    SourcePaymentRef = sourcePaymentRef,
+                    PricebookVersion = PricebookId,
+                }
+            );
+            Assert.True(result.Succeeded);
+            return result.AllocationId!.Value;
+        }
+
+        private static async Task InsertConsumptionAsync(
+            Harness harness,
+            Guid allocationId,
+            int quantity,
+            int locationId
+        )
+        {
+            harness.Context.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    EntryType = CreditLedgerEntryTypes.Consumption,
+                    Quantity = quantity,
+                    AllocationId = allocationId,
+                    LocationId = locationId,
+                    CreatedAtUtc = harness.Context.CreditLedgerEntries
+                        .Where(row => row.Id == allocationId)
+                        .Select(row => row.CreatedAtUtc)
+                        .Single(),
+                }
+            );
+            await harness.Context.SaveChangesAsync();
+        }
+
+        private static async Task InsertReservationAsync(
+            Harness harness,
+            Guid allocationId,
+            int quantity,
+            int locationId,
+            string? reservationRef = null
+        )
+        {
+            harness.Context.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    EntryType = CreditLedgerEntryTypes.Reservation,
+                    Quantity = quantity,
+                    AllocationId = allocationId,
+                    ReservationRef = reservationRef ?? Guid.NewGuid().ToString("D"),
+                    LocationId = locationId,
+                    CreatedAtUtc = harness.Context.CreditLedgerEntries
+                        .Where(row => row.Id == allocationId)
+                        .Select(row => row.CreatedAtUtc)
+                        .Single(),
+                }
+            );
+            await harness.Context.SaveChangesAsync();
         }
 
         private static CreditBalanceChannelSnapshot Channel(

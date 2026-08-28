@@ -48,7 +48,26 @@ namespace TummlyBackend.Models
 
         public int? HelpCentreQueryId { get; set; }
 
+        /// <summary>
+        /// Opaque payment ref on paid <c>topup_allocation</c> and payment-linked <c>refund</c>.
+        /// </summary>
+        [MaxLength(128)]
+        public string? SourcePaymentRef { get; set; }
+
+        /// <summary>
+        /// <c>dispute</c> or <c>payment_refund</c> on payment-linked <c>refund</c> rows.
+        /// </summary>
+        [MaxLength(32)]
+        public string? CorrectionSource { get; set; }
+
         public DateTime CreatedAtUtc { get; set; }
+    }
+
+    public static class CorrectionSources
+    {
+        public const string Dispute = "dispute";
+
+        public const string PaymentRefund = "payment_refund";
     }
 
     public static class CreditChannels

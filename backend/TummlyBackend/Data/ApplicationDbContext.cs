@@ -620,6 +620,18 @@ namespace TummlyBackend.Data
                 .Property(e => e.Reason)
                 .HasMaxLength(500);
 
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .Property(e => e.SourcePaymentRef)
+                .HasMaxLength(128);
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .Property(e => e.CorrectionSource)
+                .HasMaxLength(32);
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasIndex(e => new { e.RestaurantId, e.SourcePaymentRef })
+                .HasFilter("[SourcePaymentRef] IS NOT NULL");
+
             /*
              =========================================
              USER -> TRUSTED DEVICES
