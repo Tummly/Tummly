@@ -15,16 +15,19 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IQrCodeProvisioningService _qrCodeProvisioning;
         private readonly IConfiguration _configuration;
+        private readonly IPricebookCatalog _pricebookCatalog;
 
         public GuestLoopProvisioningService(
             ApplicationDbContext context,
             IQrCodeProvisioningService qrCodeProvisioning,
-            IConfiguration configuration
+            IConfiguration configuration,
+            IPricebookCatalog pricebookCatalog
         )
         {
             _context = context;
             _qrCodeProvisioning = qrCodeProvisioning;
             _configuration = configuration;
+            _pricebookCatalog = pricebookCatalog;
         }
 
         public async Task<InviteTokenResult> ValidateInviteTokenAsync(string token)
@@ -107,15 +110,15 @@ namespace TummlyBackend.Services
                     BusinessCategory = dto.BusinessCategory,
                     BusinessLink = dto.BusinessLink,
                     PublicPhoneNumber = primaryPhone,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    BillingAccount = BillingCreditsService.CreateDefaultBillingAccount(
+                        restaurantId: 0,
+                        _pricebookCatalog.CurrentPricebookId
+                    ),
                 };
 
                 _context.Restaurants.Add(restaurant);
                 await _context.SaveChangesAsync();
-
-                _context.BillingAccounts.Add(
-                    BillingCreditsService.CreateDefaultBillingAccount(restaurant.Id)
-                );
 
                 user.SelectedRestaurantId = restaurant.Id;
 

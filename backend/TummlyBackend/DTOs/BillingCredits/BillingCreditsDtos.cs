@@ -4,11 +4,15 @@ namespace TummlyBackend.DTOs.BillingCredits
     {
         public bool Success { get; set; } = true;
 
+        public string AccessLevel { get; set; } = "view";
+
         public string ActorPermissionRole { get; set; } = string.Empty;
 
         public bool ActorCanManage { get; set; }
 
         public bool ActorCanPersistBillingContacts { get; set; }
+
+        public BillingWriteCapabilitiesDto WriteCapabilities { get; set; } = new();
 
         public PlanSubscriptionSnapshotDto PlanSubscription { get; set; } = new();
 
@@ -17,6 +21,66 @@ namespace TummlyBackend.DTOs.BillingCredits
         public List<InvoiceRowDto> Invoices { get; set; } = [];
 
         public BillingContactsSnapshotDto BillingContacts { get; set; } = new();
+
+        public BillingCurrentCatalogDto CurrentCatalog { get; set; } = new();
+    }
+
+    public sealed class BillingWriteCapabilitiesDto
+    {
+        public bool ChangePlan { get; set; }
+
+        public bool BuyTopup { get; set; }
+
+        public bool UpdatePaymentMethod { get; set; }
+
+        public bool UpdateBillingContacts { get; set; }
+
+        public bool CancelPlan { get; set; }
+
+        public bool ChangeExtraLocation { get; set; }
+
+        public bool ClearScheduledChange { get; set; }
+    }
+
+    public sealed class BillingCurrentCatalogDto
+    {
+        public string PricebookId { get; set; } = string.Empty;
+
+        public List<BillingCatalogPlanCardDto> Plans { get; set; } = [];
+
+        public List<BillingCatalogTopUpPackDto> TopUpPacks { get; set; } = [];
+
+        public bool Sms5000Available { get; set; }
+
+        public int VatRateBps { get; set; } = 2000;
+    }
+
+    public sealed class BillingCatalogPlanCardDto
+    {
+        public string Id { get; set; } = string.Empty;
+
+        public int MonthlyNetPence { get; set; }
+
+        public int AnnualNetPence { get; set; }
+
+        public int IncludedLocations { get; set; }
+
+        public int IncludedEmail { get; set; }
+
+        public int IncludedSms { get; set; }
+
+        public int IncludedAi { get; set; }
+
+        public int? ExtraLocationNetPence { get; set; }
+    }
+
+    public sealed class BillingCatalogTopUpPackDto
+    {
+        public string Channel { get; set; } = string.Empty;
+
+        public int Quantity { get; set; }
+
+        public int NetPence { get; set; }
     }
 
     public sealed class PaymentMethodSnapshotDto

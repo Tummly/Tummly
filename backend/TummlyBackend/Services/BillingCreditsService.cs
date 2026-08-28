@@ -11,10 +11,15 @@ namespace TummlyBackend.Services
     public class BillingCreditsService : IBillingCreditsService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IPricebookCatalog _pricebookCatalog;
 
-        public BillingCreditsService(ApplicationDbContext context)
+        public BillingCreditsService(
+            ApplicationDbContext context,
+            IPricebookCatalog pricebookCatalog
+        )
         {
             _context = context;
+            _pricebookCatalog = pricebookCatalog;
         }
 
         public async Task<BillingCreditsPageDto?> GetPageAsync(
@@ -50,51 +55,86 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .CountAsync(row => row.RestaurantId == restaurantId);
 
-            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
-                restaurant.Name,
-                owner?.ActivationExpiresAt
+            var billingAccount = await LoadRequiredBillingAccountAsync(restaurantId);
+            var isPilot = IsPilotBillingAccount(billingAccount);
+            var contractedBook = _pricebookCatalog.GetRequired(
+                billingAccount.ContractedPricebookId
             );
-            var isPilot = lifecycle.IsPilot;
-            var billingAccount = await LoadOrCreateBillingAccountAsync(restaurantId);
+            var planKey = SubscriptionPlanKey(billingAccount.SubscriptionPlan);
+            if (!contractedBook.Plans.TryGetValue(planKey, out var contractedPlan))
+            {
+                throw new InvalidOperationException(
+                    $"Contracted plan '{billingAccount.SubscriptionPlan}' is missing from pricebook '{billingAccount.ContractedPricebookId}'."
+                );
+            }
+
             var eligibleMembers = await LoadEligibleMembersAsync(restaurantId);
             var pilotEndsAt = owner?.ActivationExpiresAt;
-            var planContext = ResolveStubPlanContext(
-                restaurant.Name,
-                isPilot,
-                activeLocations
-            );
             var renewalDateLabel = isPilot && pilotEndsAt != null
                 ? $"Pilot ends {FormatUkDate(pilotEndsAt.Value)}"
                 : isPilot
                     ? null
-                    : planContext.RenewalDateLabel;
+                    : "Renews 15 September 2026";
+            var scheduledChangeLine = ResolveStubScheduledChangeLine(
+                restaurant.Name,
+                isPilot,
+                activeLocations,
+                contractedPlan.IncludedLocations
+            );
+            var sms5000Available =
+                billingAccount.AllowSms5000TopUp
+                || string.Equals(
+                    billingAccount.SubscriptionPlan,
+                    BillingSubscriptionPlans.Group,
+                    StringComparison.Ordinal
+                );
+            var accessLevel = actorCanManage ? "manage" : "view";
 
             return new BillingCreditsPageDto
             {
+                AccessLevel = accessLevel,
                 ActorPermissionRole = actorPermissionRole,
                 ActorCanManage = actorCanManage,
                 ActorCanPersistBillingContacts =
                     actorCanManage
                     && actorPermissionRole == PermissionRoles.Owner,
+                WriteCapabilities = ResolveWriteCapabilities(
+                    accessLevel,
+                    actorPermissionRole
+                ),
                 PlanSubscription = new PlanSubscriptionSnapshotDto
                 {
-                    // planContext owns paid plan name stubs (Group / Growth); shared helper owns billing status labels.
-                    SubscriptionPlan = isPilot ? "Pilot" : planContext.SubscriptionPlan,
-                    BillingStatus = lifecycle.BillingStatus,
+                    SubscriptionPlan = billingAccount.SubscriptionPlan,
+                    BillingStatus = billingAccount.BillingStatus,
                     RenewalDateLabel = renewalDateLabel,
                     EmailCreditsRemaining = isPilot ? 500 : 1200,
                     SmsCreditsRemaining = isPilot ? 20 : 80,
                     AiCreditsRemaining = isPilot ? 20 : 40,
-                    BillingCycle = isPilot ? null : "Monthly",
-                    PlanPriceNet = isPilot ? "£0" : planContext.PlanPriceNet,
-                    IncludedLocations = planContext.IncludedLocations,
+                    BillingCycle = billingAccount.BillingCycle,
+                    PlanPriceNet = _pricebookCatalog.FormatPlanPriceNet(
+                        contractedPlan,
+                        billingAccount.BillingCycle
+                    ),
+                    IncludedLocations = contractedPlan.IncludedLocations,
                     ActiveLocations = activeLocations,
-                    IncludedEmailCreditsLabel = isPilot ? "500 once" : "1,000 / month",
-                    IncludedSmsCreditsLabel = isPilot ? "20 once" : "50 / month",
-                    IncludedAiCreditsLabel = isPilot ? "20 once" : "30 / month",
-                    StarterKitState = "unused",
-                    PricebookId = "guest-loop-mvp-2026-07",
-                    ScheduledChangeLine = planContext.ScheduledChangeLine,
+                    IncludedEmailCreditsLabel =
+                        _pricebookCatalog.FormatIncludedCreditsLabel(
+                            contractedPlan,
+                            "email"
+                        ),
+                    IncludedSmsCreditsLabel =
+                        _pricebookCatalog.FormatIncludedCreditsLabel(
+                            contractedPlan,
+                            "sms"
+                        ),
+                    IncludedAiCreditsLabel =
+                        _pricebookCatalog.FormatIncludedCreditsLabel(
+                            contractedPlan,
+                            "ai"
+                        ),
+                    StarterKitState = billingAccount.StarterKitState,
+                    PricebookId = billingAccount.ContractedPricebookId,
+                    ScheduledChangeLine = scheduledChangeLine,
                     IsPilot = isPilot,
                     AllowSms5000TopUp = billingAccount.AllowSms5000TopUp,
                 },
@@ -104,6 +144,9 @@ namespace TummlyBackend.Services
                     restaurant,
                     billingAccount,
                     eligibleMembers
+                ),
+                CurrentCatalog = _pricebookCatalog.BuildCurrentCatalog(
+                    sms5000Available
                 ),
             };
         }
@@ -155,6 +198,15 @@ namespace TummlyBackend.Services
                     RedirectUrl =
                         "https://sandbox-merchant.revolut.com/hpp/update-payment-method",
                 }
+            );
+        }
+
+        private static bool IsPilotBillingAccount(BillingAccount billingAccount)
+        {
+            return string.Equals(
+                billingAccount.SubscriptionPlan,
+                BillingSubscriptionPlans.Pilot,
+                StringComparison.Ordinal
             );
         }
 
@@ -432,99 +484,42 @@ namespace TummlyBackend.Services
 
         public const int GroupLocationCap = 30;
 
-        private sealed record StubPlanContext(
-            string SubscriptionPlan,
-            string PlanPriceNet,
-            int IncludedLocations,
-            string RenewalDateLabel,
-            string? ScheduledChangeLine
-        );
-
-        private static StubPlanContext ResolveStubPlanContext(
+        private static string? ResolveStubScheduledChangeLine(
             string restaurantName,
             bool isPilot,
-            int activeLocations
+            int activeLocations,
+            int includedLocations
         )
         {
-            if (isPilot)
-            {
-                return new StubPlanContext(
-                    "Pilot",
-                    "£0",
-                    1,
-                    "Renews 15 September 2026",
-                    null
-                );
-            }
+            _ = restaurantName;
+            _ = isPilot;
+            _ = activeLocations;
+            _ = includedLocations;
+            return null;
+        }
 
-            if (
-                string.Equals(
-                    restaurantName,
-                    "Paid Billing Venue Group Test",
-                    StringComparison.Ordinal
-                )
-                || string.Equals(
-                    restaurantName,
-                    "Billing Venue Group Test",
-                    StringComparison.Ordinal
-                )
-            )
-            {
-                return new StubPlanContext(
-                    "Group",
-                    "£199",
-                    GroupIncludedLocations,
-                    "Renews 15 September 2026",
-                    null
-                );
-            }
+        public static BillingWriteCapabilitiesDto ResolveWriteCapabilities(
+            string accessLevel,
+            string actorPermissionRole
+        )
+        {
+            var canManage = accessLevel == "manage";
+            var isOwner = actorPermissionRole == PermissionRoles.Owner;
+            var isBillingAdmin =
+                actorPermissionRole == PermissionRoles.BillingAdmin;
+            var isAdmin = actorPermissionRole == PermissionRoles.Admin;
+            var buyOrPay = canManage && (isOwner || isBillingAdmin || isAdmin);
 
-            if (
-                string.Equals(
-                    restaurantName,
-                    "Paid Billing Venue Group Extra Test",
-                    StringComparison.Ordinal
-                )
-                || string.Equals(
-                    restaurantName,
-                    "Billing Venue Group Extra Test",
-                    StringComparison.Ordinal
-                )
-            )
+            return new BillingWriteCapabilitiesDto
             {
-                return new StubPlanContext(
-                    "Group",
-                    "£199",
-                    GroupIncludedLocations + 2,
-                    "Renews 15 September 2026",
-                    null
-                );
-            }
-
-            if (
-                string.Equals(
-                    restaurantName,
-                    "Billing Venue Schedule Test",
-                    StringComparison.Ordinal
-                )
-            )
-            {
-                return new StubPlanContext(
-                    "Growth",
-                    "£99",
-                    3,
-                    "Renews 15 September 2026",
-                    null
-                );
-            }
-
-            return new StubPlanContext(
-                "Growth",
-                "£99",
-                Math.Max(1, activeLocations),
-                "Renews 15 September 2026",
-                null
-            );
+                ChangePlan = canManage && isOwner,
+                BuyTopup = buyOrPay,
+                UpdatePaymentMethod = buyOrPay,
+                UpdateBillingContacts = canManage && isOwner,
+                CancelPlan = canManage && isOwner,
+                ChangeExtraLocation = canManage && isOwner,
+                ClearScheduledChange = canManage && isOwner,
+            };
         }
 
         public static bool CanRemoveExtraGroupLocation(
@@ -648,11 +643,7 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var planContext = ResolveStubPlanContext(
-                restaurant.Name,
-                isPilot,
-                await CountActiveLocationsAsync(restaurantId)
-            );
+            var planContext = await ResolveLivePlanContextAsync(restaurantId);
 
             var renewalDate = planContext.RenewalDateLabel.Replace("Renews ", "");
 
@@ -660,6 +651,57 @@ namespace TummlyBackend.Services
             {
                 ScheduledChangeLine = $"Cancels on {renewalDate}",
             };
+        }
+
+        private async Task<(
+            string SubscriptionPlan,
+            int IncludedLocations,
+            string RenewalDateLabel
+        )> ResolveLivePlanContextAsync(int restaurantId)
+        {
+            var billingAccount = await LoadRequiredBillingAccountAsync(restaurantId);
+            var book = _pricebookCatalog.GetRequired(
+                billingAccount.ContractedPricebookId
+            );
+            var planKey = SubscriptionPlanKey(billingAccount.SubscriptionPlan);
+            if (!book.Plans.TryGetValue(planKey, out var plan))
+            {
+                throw new InvalidOperationException(
+                    $"Plan '{billingAccount.SubscriptionPlan}' is missing from pricebook."
+                );
+            }
+
+            var includedLocations = plan.IncludedLocations;
+            if (
+                string.Equals(
+                    billingAccount.SubscriptionPlan,
+                    BillingSubscriptionPlans.Group,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                // Stub until ticket 24 stamps paid extra Location count on the row.
+                var restaurantName = await _context.Restaurants
+                    .AsNoTracking()
+                    .Where(row => row.Id == restaurantId)
+                    .Select(row => row.Name)
+                    .FirstAsync();
+                if (
+                    restaurantName.Contains(
+                        "Group Extra",
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    includedLocations += 2;
+                }
+            }
+
+            return (
+                billingAccount.SubscriptionPlan,
+                includedLocations,
+                "Renews 15 September 2026"
+            );
         }
 
         private async Task<int> CountActiveLocationsAsync(int restaurantId)
@@ -731,16 +773,12 @@ namespace TummlyBackend.Services
             }
 
             var activeLocations = await CountActiveLocationsAsync(restaurantId);
-            var planContext = ResolveStubPlanContext(
-                restaurant.Name,
-                isPilot,
-                activeLocations
-            );
+            var planContext = await ResolveLivePlanContextAsync(restaurantId);
 
             if (
                 !string.Equals(
                     planContext.SubscriptionPlan,
-                    "Group",
+                    BillingSubscriptionPlans.Group,
                     StringComparison.OrdinalIgnoreCase
                 )
             )
@@ -850,6 +888,24 @@ namespace TummlyBackend.Services
             );
         }
 
+        private async Task<BillingAccount> LoadRequiredBillingAccountAsync(
+            int restaurantId
+        )
+        {
+            var existing = await _context.BillingAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
+
+            if (existing != null)
+            {
+                return existing;
+            }
+
+            throw new InvalidOperationException(
+                $"Billing Account is missing for restaurant {restaurantId}."
+            );
+        }
+
         private async Task<BillingAccount> LoadOrCreateBillingAccountAsync(
             int restaurantId,
             bool tracked = false
@@ -867,7 +923,10 @@ namespace TummlyBackend.Services
                 return existing;
             }
 
-            var created = CreateDefaultBillingAccount(restaurantId);
+            var created = CreateDefaultBillingAccount(
+                restaurantId,
+                _pricebookCatalog.CurrentPricebookId
+            );
             if (tracked)
             {
                 _context.BillingAccounts.Add(created);
@@ -876,16 +935,50 @@ namespace TummlyBackend.Services
             return created;
         }
 
-        public static BillingAccount CreateDefaultBillingAccount(int restaurantId)
+        public static BillingAccount CreateDefaultBillingAccount(
+            int restaurantId,
+            string contractedPricebookId
+        )
         {
             return new BillingAccount
             {
                 RestaurantId = restaurantId,
+                RevolutCustomerId = null,
+                SubscriptionPlan = BillingSubscriptionPlans.Pilot,
+                BillingCycle = null,
+                BillingStatus = BillingStatuses.Pilot,
+                ContractedPricebookId = contractedPricebookId,
                 LowCreditAlertOwner = true,
                 LowCreditAlertAdmin = false,
                 LowCreditAlertBillingContact = true,
                 PaymentFailureAlertOwner = true,
                 PaymentFailureAlertBillingContact = true,
+                StarterKitState = StarterKitStates.Unused,
+            };
+        }
+
+        public static void ApplyPaidPlanStub(
+            BillingAccount billingAccount,
+            string restaurantName
+        )
+        {
+            billingAccount.SubscriptionPlan = ResolveSubscriptionPlan(
+                restaurantName,
+                isPilot: false
+            );
+            billingAccount.BillingStatus = BillingStatuses.Active;
+            billingAccount.BillingCycle = BillingCycles.Monthly;
+        }
+
+        private static string SubscriptionPlanKey(string subscriptionPlan)
+        {
+            return subscriptionPlan.Trim().ToLowerInvariant() switch
+            {
+                "pilot" => "pilot",
+                "starter" => "starter",
+                "growth" => "growth",
+                "group" => "group",
+                _ => subscriptionPlan.Trim().ToLowerInvariant(),
             };
         }
 

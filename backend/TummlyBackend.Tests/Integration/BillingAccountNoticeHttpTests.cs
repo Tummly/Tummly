@@ -7,6 +7,7 @@ using TummlyBackend.DTOs.Notifications;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Services;
 using TummlyBackend.Tests.Helpers;
 
@@ -152,6 +153,7 @@ namespace TummlyBackend.Tests.Integration
                 new BillingAccount
                 {
                     RestaurantId = restaurant.Id,
+                    ContractedPricebookId = "TUMMLY-UK-GBP-2026-08-V3",
                     LowCreditAlertOwner = true,
                     LowCreditAlertAdmin = true,
                     LowCreditAlertBillingContact = false,
@@ -190,7 +192,22 @@ namespace TummlyBackend.Tests.Integration
             var notifier = new BillingAccountNoticeNotifier(
                 context,
                 notifications,
-                emailService
+                emailService,
+                PricebookCatalog.LoadFromDirectory(
+                Path.GetFullPath(
+                    Path.Combine(
+                        AppContext.BaseDirectory,
+                        "..",
+                        "..",
+                        "..",
+                        "..",
+                        "..",
+                        "docs",
+                        "product",
+                        "billing-pack-v3.0"
+                    )
+                )
+            )
             );
             await notifier.NotifyCreditThresholdCrossedAsync(
                 restaurant.Id,
@@ -254,6 +271,7 @@ namespace TummlyBackend.Tests.Integration
                 new BillingAccount
                 {
                     RestaurantId = restaurant.Id,
+                    ContractedPricebookId = "TUMMLY-UK-GBP-2026-08-V3",
                     LowCreditAlertOwner = false,
                     LowCreditAlertAdmin = false,
                     LowCreditAlertBillingContact = true,
@@ -282,7 +300,22 @@ namespace TummlyBackend.Tests.Integration
                     context,
                     new NullNotificationRealtimePublisher()
                 ),
-                emailService
+                emailService,
+                PricebookCatalog.LoadFromDirectory(
+                    Path.GetFullPath(
+                        Path.Combine(
+                            AppContext.BaseDirectory,
+                            "..",
+                            "..",
+                            "..",
+                            "..",
+                            "..",
+                            "docs",
+                            "product",
+                            "billing-pack-v3.0"
+                        )
+                    )
+                )
             );
             await notifier.NotifyCreditThresholdCrossedAsync(
                 restaurant.Id,

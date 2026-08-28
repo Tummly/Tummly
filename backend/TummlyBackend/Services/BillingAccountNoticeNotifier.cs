@@ -12,18 +12,21 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IOperatorNotificationsService _notifications;
         private readonly IEmailService _emailService;
+        private readonly IPricebookCatalog _pricebookCatalog;
         private readonly ILogger<BillingAccountNoticeNotifier> _logger;
 
         public BillingAccountNoticeNotifier(
             ApplicationDbContext context,
             IOperatorNotificationsService notifications,
             IEmailService emailService,
+            IPricebookCatalog pricebookCatalog,
             ILogger<BillingAccountNoticeNotifier>? logger = null
         )
         {
             _context = context;
             _notifications = notifications;
             _emailService = emailService;
+            _pricebookCatalog = pricebookCatalog;
             _logger = logger
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<
                     BillingAccountNoticeNotifier
@@ -302,7 +305,7 @@ namespace TummlyBackend.Services
         )
         {
             var billingAccount = context.BillingAccount
-                ?? BillingCreditsService.CreateDefaultBillingAccount(context.RestaurantId);
+                ?? BillingCreditsService.CreateDefaultBillingAccount(context.RestaurantId, _pricebookCatalog.CurrentPricebookId);
 
             var userIds = new HashSet<int>();
             if (billingAccount.LowCreditAlertOwner)
@@ -346,7 +349,7 @@ namespace TummlyBackend.Services
         )
         {
             var billingAccount = context.BillingAccount
-                ?? BillingCreditsService.CreateDefaultBillingAccount(context.RestaurantId);
+                ?? BillingCreditsService.CreateDefaultBillingAccount(context.RestaurantId, _pricebookCatalog.CurrentPricebookId);
 
             var userIds = new HashSet<int>();
             if (billingAccount.PaymentFailureAlertOwner)

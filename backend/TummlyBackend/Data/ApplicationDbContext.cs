@@ -484,6 +484,41 @@ namespace TummlyBackend.Data
                 .Property(b => b.BillingEmail)
                 .HasMaxLength(320);
 
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.RevolutCustomerId)
+                .HasMaxLength(128);
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.SubscriptionPlan)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.BillingCycle)
+                .HasMaxLength(16);
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.BillingStatus)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.ContractedPricebookId)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.StarterKitState)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<BillingAccount>()
+                .HasIndex(b => b.RevolutCustomerId)
+                .IsUnique()
+                .HasFilter(
+                    "[RevolutCustomerId] IS NOT NULL AND [RevolutCustomerId] <> ''"
+                );
+
             /*
              =========================================
              USER -> TRUSTED DEVICES

@@ -4,6 +4,7 @@ using TummlyBackend.DTOs.Notifications;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Services;
 using TummlyBackend.Tests.Helpers;
 
@@ -31,7 +32,22 @@ namespace TummlyBackend.Tests.Services
             _notifier = new BillingAccountNoticeNotifier(
                 _context,
                 _notifications,
-                _email
+                _email,
+                PricebookCatalog.LoadFromDirectory(
+                Path.GetFullPath(
+                    Path.Combine(
+                        AppContext.BaseDirectory,
+                        "..",
+                        "..",
+                        "..",
+                        "..",
+                        "..",
+                        "docs",
+                        "product",
+                        "billing-pack-v3.0"
+                    )
+                )
+            )
             );
         }
 
@@ -244,6 +260,7 @@ namespace TummlyBackend.Tests.Services
                 new BillingAccount
                 {
                     RestaurantId = restaurant.Id,
+                    ContractedPricebookId = "TUMMLY-UK-GBP-2026-08-V3",
                     LowCreditAlertOwner = !staffOnlyRecipient,
                     LowCreditAlertAdmin = !staffOnlyRecipient,
                     LowCreditAlertBillingContact = staffOnlyRecipient,

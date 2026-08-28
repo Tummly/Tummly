@@ -69,6 +69,15 @@ namespace TummlyBackend.Tests.Integration
             var plan = body.GetProperty("planSubscription");
             Assert.Equal("Pilot", plan.GetProperty("subscriptionPlan").GetString());
             Assert.Equal("Pilot", plan.GetProperty("billingStatus").GetString());
+            Assert.Equal(
+                "TUMMLY-UK-GBP-2026-08-V3",
+                plan.GetProperty("pricebookId").GetString()
+            );
+            Assert.Equal("500 once", plan.GetProperty("includedEmailCreditsLabel").GetString());
+            Assert.Equal("20 once", plan.GetProperty("includedSmsCreditsLabel").GetString());
+            Assert.Equal("20 once", plan.GetProperty("includedAiCreditsLabel").GetString());
+            Assert.Equal("£0", plan.GetProperty("planPriceNet").GetString());
+            Assert.Equal("unused", plan.GetProperty("starterKitState").GetString());
             Assert.Equal(500, plan.GetProperty("emailCreditsRemaining").GetInt32());
             Assert.Equal(20, plan.GetProperty("smsCreditsRemaining").GetInt32());
             Assert.Equal(20, plan.GetProperty("aiCreditsRemaining").GetInt32());
@@ -78,6 +87,18 @@ namespace TummlyBackend.Tests.Integration
                 body.GetProperty("paymentMethod").ValueKind
             );
             Assert.Equal(0, body.GetProperty("invoices").GetArrayLength());
+            Assert.Equal("view", body.GetProperty("accessLevel").GetString());
+            Assert.False(body.GetProperty("writeCapabilities").GetProperty("changePlan").GetBoolean());
+            Assert.False(body.GetProperty("writeCapabilities").GetProperty("buyTopup").GetBoolean());
+
+            var catalog = body.GetProperty("currentCatalog");
+            Assert.Equal(
+                "TUMMLY-UK-GBP-2026-08-V3",
+                catalog.GetProperty("pricebookId").GetString()
+            );
+            Assert.Equal(2000, catalog.GetProperty("vatRateBps").GetInt32());
+            Assert.False(catalog.GetProperty("sms5000Available").GetBoolean());
+            Assert.True(catalog.GetProperty("plans").GetArrayLength() >= 3);
 
             var contacts = body.GetProperty("billingContacts");
             Assert.True(contacts.GetProperty("lowCreditAlerts").GetProperty("owner").GetBoolean());
@@ -598,6 +619,35 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+
+        private const string CurrentPricebookId = "TUMMLY-UK-GBP-2026-08-V3";
+
+        private static BillingAccount CreateSeedBillingAccount(
+            int restaurantId,
+            string restaurantName,
+            bool allowSms5000TopUp = false
+        )
+        {
+            var account = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurantId,
+                CurrentPricebookId
+            );
+            account.AllowSms5000TopUp = allowSms5000TopUp;
+
+            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
+                restaurantName,
+                activationExpiresAt: DateTime.UtcNow.AddDays(30)
+            );
+            account.SubscriptionPlan = lifecycle.SubscriptionPlan;
+            account.BillingStatus = lifecycle.BillingStatus;
+            if (!lifecycle.IsPilot)
+            {
+                account.BillingCycle = BillingCycles.Monthly;
+            }
+
+            return account;
+        }
+
         private async Task<Seeded> SeedGroupWorkspaceAsync(
             bool extraLocations = false
         )
@@ -627,7 +677,7 @@ namespace TummlyBackend.Tests.Integration
             await context.SaveChangesAsync();
 
             context.BillingAccounts.Add(
-                BillingCreditsService.CreateDefaultBillingAccount(restaurant.Id)
+                CreateSeedBillingAccount(restaurant.Id, restaurant.Name)
             );
 
             owner.SelectedRestaurantId = restaurant.Id;
@@ -772,8 +822,9 @@ namespace TummlyBackend.Tests.Integration
                 var restaurantId = await context.Restaurants
                     .AsNoTracking()
                     .Where(row => row.Name == "Paid Billing Venue")
+                    .OrderByDescending(row => row.Id)
                     .Select(row => row.Id)
-                    .SingleAsync();
+                    .FirstAsync();
                 var ownerId = await context.Restaurants
                     .AsNoTracking()
                     .Where(row => row.Id == restaurantId)
@@ -886,7 +937,7 @@ namespace TummlyBackend.Tests.Integration
             await context.SaveChangesAsync();
 
             context.BillingAccounts.Add(
-                BillingCreditsService.CreateDefaultBillingAccount(restaurant.Id)
+                CreateSeedBillingAccount(restaurant.Id, restaurant.Name)
             );
 
             owner.SelectedRestaurantId = restaurant.Id;
@@ -1375,11 +1426,9 @@ namespace TummlyBackend.Tests.Integration
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
 
-            var billingAccount = BillingCreditsService.CreateDefaultBillingAccount(
-                restaurant.Id
+            context.BillingAccounts.Add(
+                CreateSeedBillingAccount(restaurant.Id, venueName, allowSms5000TopUp)
             );
-            billingAccount.AllowSms5000TopUp = allowSms5000TopUp;
-            context.BillingAccounts.Add(billingAccount);
 
             owner.SelectedRestaurantId = restaurant.Id;
 
@@ -1463,7 +1512,7 @@ namespace TummlyBackend.Tests.Integration
             await context.SaveChangesAsync();
 
             context.BillingAccounts.Add(
-                BillingCreditsService.CreateDefaultBillingAccount(restaurant.Id)
+                CreateSeedBillingAccount(restaurant.Id, restaurant.Name)
             );
 
             owner.SelectedRestaurantId = restaurant.Id;
