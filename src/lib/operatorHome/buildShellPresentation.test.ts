@@ -11,6 +11,7 @@ function makeShellInput(
   return {
     operatorDisplayName: "Mohamed Mahmoud",
     activationExpiresAt: "2026-07-26T12:00:00.000Z",
+    subscriptionPlan: "Pilot",
     locationSwitcherInteractive: true,
     locations: [
       { id: 10, name: "Mehmet's Grill", address: "Leeds", isActive: true },
@@ -31,6 +32,7 @@ describe("buildOperatorShellPresentation", () => {
       remaining: "14 days left",
       endsOn: "26 Jul 2026",
       tone: "warning",
+      choosePlanHref: null,
     });
     expect(presentation.profileDisplayName).toBe("Mohamed Mahmoud");
     expect(presentation.profileFirstName).toBe("Mohamed");
@@ -137,6 +139,41 @@ describe("buildOperatorShellPresentation", () => {
     );
 
     expect(presentation.activationPeriodBadge).toBeNull();
+  });
+
+  it("hides the Activation period badge on a paid plan", () => {
+    const presentation = buildOperatorShellPresentation(
+      makeShellInput({ subscriptionPlan: "Growth" }),
+      now,
+    );
+
+    expect(presentation.activationPeriodBadge).toBeNull();
+  });
+
+  it("exposes Choose a plan href only for Owner with Billing & credits Manage", () => {
+    const ownerPresentation = buildOperatorShellPresentation(
+      makeShellInput({
+        selfRole: "Owner",
+        billingCreditsAccess: "manage",
+        navTargets: { mode: "multi", locationId: 10 },
+      }),
+      now,
+    );
+
+    expect(ownerPresentation.activationPeriodBadge?.choosePlanHref).toBe(
+      "/multi-dashboard/settings/billing-credits/manage-plan?location=10",
+    );
+
+    const viewPresentation = buildOperatorShellPresentation(
+      makeShellInput({
+        selfRole: "Admin",
+        billingCreditsAccess: "view",
+        navTargets: { mode: "multi", locationId: 10 },
+      }),
+      now,
+    );
+
+    expect(viewPresentation.activationPeriodBadge?.choosePlanHref).toBeNull();
   });
 
   it("presents a non-interactive location switcher for single-location operators", () => {

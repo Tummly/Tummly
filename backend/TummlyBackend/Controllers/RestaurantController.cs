@@ -121,11 +121,24 @@ namespace TummlyBackend.Controllers
                     User
                 );
 
+            var owner = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
+
+            var isPilot = await BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
+                _context,
+                restaurant.Id,
+                owner
+            );
+            var subscriptionPlan =
+                BillingPlanSnapshotHelper.ResolveSnapshot(isPilot).SubscriptionPlan;
+
             return Ok(new
             {
                 success = true,
                 restaurantName = restaurant.Name,
                 brandLogoPublicUrl,
+                subscriptionPlan,
                 aiAssistantAccess =
                     assistant.Status == RestaurantPermissionStatus.Allowed,
                 teamPermissionsAccess,

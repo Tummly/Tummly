@@ -26,6 +26,7 @@ import {
   closeExclusivePeerRightDrawers,
 } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
+import type { BillingCreditsAccess } from "@/lib/operatorHome/parseOperatorProfile"
 import { resolveOperatorSidebarActiveId } from "@/lib/operatorHome/operatorDashboardPaths"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
@@ -271,7 +272,9 @@ function DashboardContent({ mode }: DashboardProps) {
   const presentation = buildOperatorShellPresentation({
     operatorDisplayName: workspace.snapshot.operatorDisplayName,
     activationExpiresAt: workspace.snapshot.activationExpiresAt,
+    subscriptionPlan: workspace.snapshot.subscriptionPlan,
     selfRole: workspace.snapshot.selfRole,
+    billingCreditsAccess: workspace.snapshot.billingCreditsAccess,
     locations: workspace.snapshot.locations.map((location) => ({
       id: location.id,
       name: location.locationName,
@@ -398,6 +401,7 @@ function DashboardContent({ mode }: DashboardProps) {
       <Outlet
         context={{
           activationPeriodBadge: presentation.activationPeriodBadge,
+          billingCreditsAccess: workspace.snapshot.billingCreditsAccess,
           selectedLocationId,
           locations: workspace.snapshot.locations,
           mode,
@@ -439,6 +443,7 @@ export type DashboardOutletContext = {
   activationPeriodBadge: ReturnType<
     typeof buildOperatorShellPresentation
   >["activationPeriodBadge"]
+  billingCreditsAccess: BillingCreditsAccess
   selectedLocationId: number
   locations: Array<{ id: number; locationName: string; address: string }>
   mode: DashboardProps["mode"]

@@ -50,7 +50,12 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .CountAsync(row => row.RestaurantId == restaurantId);
 
-            var isPilot = await IsPilotRestaurantAsync(restaurantId, owner);
+            var isPilot = await BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
+                _context,
+                restaurantId,
+                owner
+            );
+            var planSnapshot = BillingPlanSnapshotHelper.ResolveSnapshot(isPilot);
             var billingAccount = await LoadOrCreateBillingAccountAsync(restaurantId);
             var eligibleMembers = await LoadEligibleMembersAsync(restaurantId);
             var pilotEndsAt = owner?.ActivationExpiresAt;
@@ -74,8 +79,9 @@ namespace TummlyBackend.Services
                     && actorPermissionRole == PermissionRoles.Owner,
                 PlanSubscription = new PlanSubscriptionSnapshotDto
                 {
+                    // planContext owns paid plan name stubs (Group / Growth); shared helper owns billing status labels.
                     SubscriptionPlan = planContext.SubscriptionPlan,
-                    BillingStatus = isPilot ? "Pilot" : "Active",
+                    BillingStatus = planSnapshot.BillingStatus,
                     RenewalDateLabel = renewalDateLabel,
                     EmailCreditsRemaining = isPilot ? 500 : 1200,
                     SmsCreditsRemaining = isPilot ? 20 : 80,
@@ -121,7 +127,13 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
 
-            if (await IsPilotRestaurantAsync(restaurantId, owner))
+            if (
+                await BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
+                    _context,
+                    restaurantId,
+                    owner
+                )
+            )
             {
                 return null;
             }
@@ -145,27 +157,6 @@ namespace TummlyBackend.Services
                         "https://sandbox-merchant.revolut.com/hpp/update-payment-method",
                 }
             );
-        }
-
-        private async Task<bool> IsPilotRestaurantAsync(int restaurantId, User? owner)
-        {
-            // Stub seam until BillingAccount persistence lands (credit-ledger map).
-            var restaurant = await _context.Restaurants
-                .AsNoTracking()
-                .FirstOrDefaultAsync(row => row.Id == restaurantId);
-
-            if (
-                restaurant?.Name.StartsWith(
-                    "Paid ",
-                    StringComparison.Ordinal
-                ) == true
-            )
-            {
-                return false;
-            }
-
-            return owner?.ActivationExpiresAt != null
-                && owner.ActivationExpiresAt.Value > DateTime.UtcNow;
         }
 
         private static PaymentMethodSnapshotDto BuildStubPaymentMethod()

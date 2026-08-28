@@ -91,7 +91,7 @@ namespace TummlyBackend.Tests.Integration
             var status = body.GetProperty("status");
             Assert.Equal("Active", status.GetProperty("workspaceStatus").GetString());
             Assert.Equal("Pilot", status.GetProperty("planStatus").GetString());
-            Assert.Equal("Active", status.GetProperty("billingStatus").GetString());
+            Assert.Equal("Pilot", status.GetProperty("billingStatus").GetString());
             Assert.Equal(1, status.GetProperty("activeLocations").GetInt32());
             Assert.Equal(1, status.GetProperty("teamMembers").GetInt32());
             Assert.Equal(0, status.GetProperty("guestProfiles").GetInt32());

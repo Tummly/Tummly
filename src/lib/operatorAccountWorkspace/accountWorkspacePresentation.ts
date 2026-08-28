@@ -330,3 +330,30 @@ export function isUnitedKingdomCountry(value: string): boolean {
     value.trim().toLowerCase() === ACCOUNT_WORKSPACE_DEFAULT_COUNTRY.toLowerCase()
   )
 }
+
+export type AccountWorkspacePlanStatusPresentation =
+  | { kind: "link"; label: string; href: string }
+  | { kind: "text"; label: string }
+
+/** Plan status row — link when the operator may open Billing & credits tabs. */
+export function resolveAccountWorkspacePlanStatusPresentation(options: {
+  planStatus: string
+  billingCreditsAccess: "none" | "view" | "manage"
+  planSubscriptionHref: string
+}): AccountWorkspacePlanStatusPresentation {
+  if (
+    options.billingCreditsAccess === "view"
+    || options.billingCreditsAccess === "manage"
+  ) {
+    return {
+      kind: "link",
+      label: options.planStatus,
+      href: options.planSubscriptionHref,
+    }
+  }
+
+  return {
+    kind: "text",
+    label: options.planStatus,
+  }
+}

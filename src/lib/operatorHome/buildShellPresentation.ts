@@ -1,7 +1,9 @@
 import {
-  computeActivationDaysRemaining,
-  formatActivationPeriodBadge,
+  resolveActivationPeriodBadgePresentation,
 } from "@/lib/operatorHome/activationPeriod"
+import { operatorDashboardBillingCreditsManagePlanPath } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import type { BillingCreditsAccessLevel } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
 import { formatSelfRoleSubtitle } from "@/lib/operatorHome/formatSelfRoleSubtitle"
 import {
   getOperatorFirstName,
@@ -21,7 +23,9 @@ const OMITTED_NAVBAR_CONTROLS = ["search", "help"] as const
 export type BuildOperatorShellPresentationInput = {
   operatorDisplayName: string
   activationExpiresAt: string | null
+  subscriptionPlan: string
   selfRole?: string | null
+  billingCreditsAccess?: BillingCreditsAccessLevel
   locations: OperatorHomeLocationOption[]
   selectedLocationId: number
   locationSwitcherInteractive: boolean
@@ -45,17 +49,24 @@ export function buildOperatorShellPresentation(
       (location) => location.id === input.selectedLocationId
     ) ?? input.locations[0]
 
-  const daysRemaining = computeActivationDaysRemaining(
-    input.activationExpiresAt,
-    now
-  )
   const activeNavId = input.activeNavId ?? "home"
+  const mode: OperatorDashboardMode =
+    input.navTargets?.mode ?? "multi"
+  const locationId = input.navTargets?.locationId ?? input.selectedLocationId
+  const showChoosePlanCta =
+    input.selfRole === "Owner"
+    && input.billingCreditsAccess === "manage"
+  const choosePlanHref = showChoosePlanCta
+    ? operatorDashboardBillingCreditsManagePlanPath(mode, locationId)
+    : null
 
   return {
-    activationPeriodBadge: formatActivationPeriodBadge(
-      daysRemaining,
-      input.activationExpiresAt
-    ),
+    activationPeriodBadge: resolveActivationPeriodBadgePresentation({
+      subscriptionPlan: input.subscriptionPlan,
+      activationExpiresAt: input.activationExpiresAt,
+      choosePlanHref,
+      now,
+    }),
     profileDisplayName: input.operatorDisplayName,
     profileFirstName: getOperatorFirstName(input.operatorDisplayName),
     profileInitials: getOperatorInitials(input.operatorDisplayName),

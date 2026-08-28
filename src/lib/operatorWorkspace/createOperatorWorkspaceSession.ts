@@ -16,6 +16,7 @@ export type OperatorWorkspaceSnapshot = {
   selfRole: string | null
   teamPermissionsAccess: TeamPermissionsAccess
   billingCreditsAccess: BillingCreditsAccess
+  subscriptionPlan: string
   aiAssistantAccess: boolean
   locationSwitcherInteractive: boolean
 }
@@ -57,6 +58,7 @@ type WorkspaceAction =
       selfRole: string | null
       teamPermissionsAccess: TeamPermissionsAccess
       billingCreditsAccess: BillingCreditsAccess
+      subscriptionPlan: string
       aiAssistantAccess: boolean
       queryLocationId: number | null
     }
@@ -99,6 +101,7 @@ function reduce(
         selfRole: action.selfRole,
         teamPermissionsAccess: action.teamPermissionsAccess,
         billingCreditsAccess: action.billingCreditsAccess,
+        subscriptionPlan: action.subscriptionPlan,
         aiAssistantAccess: action.aiAssistantAccess,
         lastQueryLocationId: action.queryLocationId,
       }
@@ -135,6 +138,7 @@ export function createOperatorWorkspaceSession(
     selfRole: null,
     teamPermissionsAccess: "none",
     billingCreditsAccess: "none",
+    subscriptionPlan: "Pilot",
     aiAssistantAccess: true,
     locationSwitcherInteractive: config.mode === "multi",
     lastQueryLocationId: null,
@@ -152,6 +156,7 @@ export function createOperatorWorkspaceSession(
     selfRole: state.selfRole,
     teamPermissionsAccess: state.teamPermissionsAccess,
     billingCreditsAccess: state.billingCreditsAccess,
+    subscriptionPlan: state.subscriptionPlan,
     aiAssistantAccess: state.aiAssistantAccess,
     locationSwitcherInteractive: state.locationSwitcherInteractive,
   }
@@ -177,6 +182,7 @@ export function createOperatorWorkspaceSession(
       selfRole: state.selfRole,
       teamPermissionsAccess: state.teamPermissionsAccess,
       billingCreditsAccess: state.billingCreditsAccess,
+      subscriptionPlan: state.subscriptionPlan,
       aiAssistantAccess: state.aiAssistantAccess,
       locationSwitcherInteractive: state.locationSwitcherInteractive,
     }
@@ -237,6 +243,7 @@ export function createOperatorWorkspaceSession(
           parseBillingCreditsAccess(locationsResult.billingCreditsAccess)
           ?? profile?.billingCreditsAccess
           ?? "manage",
+        subscriptionPlan: locationsResult.subscriptionPlan ?? "Pilot",
         aiAssistantAccess: locationsResult.aiAssistantAccess !== false,
         queryLocationId,
       })

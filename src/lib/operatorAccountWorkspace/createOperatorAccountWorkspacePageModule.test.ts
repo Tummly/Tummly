@@ -25,7 +25,7 @@ function createDetails(
     status: {
       workspaceStatus: "Active",
       planStatus: "Pilot",
-      billingStatus: "Active",
+      billingStatus: "Pilot",
       accountCreatedAt: "2026-01-10T10:00:00.000Z",
       activeLocations: 1,
       teamMembers: 1,

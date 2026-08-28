@@ -2,7 +2,7 @@ import type {
   OperatorSidebarActiveId,
   OperatorSidebarNavModel,
 } from "@/lib/operatorHome/sidebarNav";
-import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod";
+import type { ActivationPeriodBadgePresentation } from "@/lib/operatorHome/activationPeriod";
 import type {
   HomeRecommendationCampaignType,
   HomeRecommendationDomainActionKind,
@@ -151,8 +151,8 @@ export interface OperatorHomeViewModel {
 }
 
 export interface OperatorShellPresentation {
-  /** Activation period badge copy; null hides the badge. Home hero renders it. */
-  activationPeriodBadge: ActivationPeriodBadgeCopy | null;
+  /** Activation period badge; null hides the badge. Home hero renders it. */
+  activationPeriodBadge: ActivationPeriodBadgePresentation | null;
   profileDisplayName: string;
   profileFirstName: string;
   profileInitials: string;

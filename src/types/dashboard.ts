@@ -27,6 +27,8 @@ export interface LocationsResponse {
   aiAssistantAccess?: boolean;
   teamPermissionsAccess?: "none" | "view" | "manage";
   billingCreditsAccess?: "none" | "view" | "manage";
+  /** Live subscription plan name for shell chrome (Pilot, Starter, Growth, Group). */
+  subscriptionPlan?: string;
   locations: LocationItem[];
 }
 

@@ -34,7 +34,7 @@ import {
   type LiveOffersEmptyActionId,
 } from "@/lib/operatorHome/liveOffersSectionPresentation"
 import { OPERATOR_HOME_CARD_CLASS } from "@/lib/operatorHome/operatorHomeSectionPresentation"
-import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod"
+import type { ActivationPeriodBadgePresentation } from "@/lib/operatorHome/activationPeriod"
 import type { FeedbackDetailsSnapshot } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
@@ -53,7 +53,7 @@ import type {
 
 type HomeBodyProps = {
   viewModel: OperatorHomeViewModel
-  activationPeriodBadge: ActivationPeriodBadgeCopy | null
+  activationPeriodBadge: ActivationPeriodBadgePresentation | null
   selectedDateRange: HomePerformanceDateRange
   onCommitHomePerformanceDateRange: (range: HomePerformanceDateRange) => void
   feedbackState?: "loading" | "loaded" | "error"

@@ -1,4 +1,5 @@
 import { CrownIcon } from "lucide-react"
+import { Link } from "react-router-dom"
 
 import tearImg from "@/assets/svg/tear-v2.svg"
 import heroFormAccentDark from "@/assets/svg/hero-form-accent-dark.svg"
@@ -7,7 +8,7 @@ import { HomeGuestFormPhone } from "@/components/dashboard/operator/Home/HomeGue
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type {
-  ActivationPeriodBadgeCopy,
+  ActivationPeriodBadgePresentation,
   ActivationPeriodBadgeTone,
 } from "@/lib/operatorHome/activationPeriod"
 import {
@@ -27,7 +28,7 @@ import {
 import { cn } from "@/lib/utils"
 
 type HomeHeroProps = {
-  activationPeriodBadge: ActivationPeriodBadgeCopy | null
+  activationPeriodBadge: ActivationPeriodBadgePresentation | null
   canPreviewGuestForm: boolean
   canCopySmartGuestLink: boolean
   previewBusy?: boolean
@@ -130,9 +131,14 @@ export function HomeHero({
                     )}
                   </span>
                 </span>
-                <span className="underline decoration-solid underline-offset-2">
-                  Choose a plan
-                </span>
+                {activationPeriodBadge.choosePlanHref != null ? (
+                  <Link
+                    to={activationPeriodBadge.choosePlanHref}
+                    className="underline decoration-solid underline-offset-2"
+                  >
+                    Choose a plan
+                  </Link>
+                ) : null}
               </Badge>
             ) : null}
 
