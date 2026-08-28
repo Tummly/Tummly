@@ -644,6 +644,9 @@ namespace TummlyBackend.Migrations
                         .HasDatabaseName("IX_CreditLedgerEntries_PilotAllocation_RestaurantId_Channel")
                         .HasFilter("[EntryType] = N'pilot_allocation'");
 
+                    b.HasIndex("RestaurantId", "SourcePaymentRef")
+                        .HasFilter("[SourcePaymentRef] IS NOT NULL");
+
                     b.ToTable("CreditLedgerEntries", t =>
                         {
                             t.HasCheckConstraint("CK_CreditLedgerEntries_QuantityPositive", "[Quantity] > 0");
