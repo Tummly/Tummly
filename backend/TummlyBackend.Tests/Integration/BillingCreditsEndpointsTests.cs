@@ -147,7 +147,89 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(3, body.GetProperty("channels").GetArrayLength());
         }
 
-        private async Task<Seeded> SeedWorkspaceAsync()
+        [Fact]
+        public async Task PostPlanChange_Returns403_ForAdminView()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change",
+                seeded.AdminJwt
+            );
+            request.Content = JsonContent.Create(new
+            {
+                targetPlan = "Starter",
+                targetCadence = "monthly",
+            });
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostPlanChange_Returns403_ForBillingAdminManage()
+        {
+            var seeded = await SeedWorkspaceAsync(includeBillingAdmin: true);
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change",
+                seeded.BillingAdminJwt!
+            );
+            request.Content = JsonContent.Create(new
+            {
+                targetPlan = "Starter",
+                targetCadence = "monthly",
+            });
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostPlanChange_ReturnsPayRedirect_ForOwnerPilotConversion()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change",
+                seeded.OwnerJwt
+            );
+            request.Content = JsonContent.Create(new
+            {
+                targetPlan = "Starter",
+                targetCadence = "monthly",
+            });
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("pay", body.GetProperty("outcome").GetString());
+            Assert.Contains(
+                "checkout.revolut.com",
+                body.GetProperty("redirectUrl").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PostPlanChange_ReturnsPayRedirect_ForOwnerAnnualPilotConversion()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change",
+                seeded.OwnerJwt
+            );
+            request.Content = JsonContent.Create(new
+            {
+                targetPlan = "Starter",
+                targetCadence = "annual",
+            });
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("pay", body.GetProperty("outcome").GetString());
+        }
+
+        private async Task<Seeded> SeedWorkspaceAsync(bool includeBillingAdmin = false)
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -224,6 +306,30 @@ namespace TummlyBackend.Tests.Integration
                 LocationScopeKind.AllLocations,
                 "[]"
             );
+
+            string? billingAdminJwt = null;
+            if (includeBillingAdmin)
+            {
+                var billingAdmin = AddUser(context, "Billing Admin Sixteen", "Owner");
+                billingAdmin.SelectedRestaurantId = restaurant.Id;
+                await context.SaveChangesAsync();
+
+                AddMembership(
+                    context,
+                    billingAdmin.Id,
+                    restaurant.Id,
+                    PermissionRoles.BillingAdmin,
+                    LocationScopeKind.AllLocations,
+                    "[]"
+                );
+                await context.SaveChangesAsync();
+                billingAdminJwt = jwtService.GenerateToken(
+                    billingAdmin.Id.ToString(),
+                    billingAdmin.Email,
+                    billingAdmin.Role
+                );
+            }
+
             await context.SaveChangesAsync();
 
             return new Seeded(
@@ -234,7 +340,8 @@ namespace TummlyBackend.Tests.Integration
                     marketing.Id.ToString(),
                     marketing.Email,
                     marketing.Role
-                )
+                ),
+                billingAdminJwt
             );
         }
 
@@ -306,7 +413,8 @@ namespace TummlyBackend.Tests.Integration
             string OwnerJwt,
             string AdminJwt,
             string StaffJwt,
-            string MarketingJwt
+            string MarketingJwt,
+            string? BillingAdminJwt = null
         );
     }
 }

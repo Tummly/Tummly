@@ -9,6 +9,7 @@ import {
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 
 import { useBillingCreditsPageModuleApi } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
+import { ManagePlanCardsSection } from "@/components/dashboard/operator/BillingCredits/ManagePlanCardsSection"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -603,6 +604,17 @@ export function ManagePlanPage() {
   }, [snap.pendingNavigationHref, pageModule, navigate])
 
   useEffect(() => {
+    if (snap.pendingPayRedirectUrl == null) {
+      return
+    }
+    const url = pageModule.consumePendingPayRedirect()
+    if (url == null) {
+      return
+    }
+    window.location.assign(url)
+  }, [snap.pendingPayRedirectUrl, pageModule])
+
+  useEffect(() => {
     if (
       snap.loadStatus !== "loaded"
       || snap.accessLevel !== "manage"
@@ -685,7 +697,7 @@ export function ManagePlanPage() {
             <h2 className={GUESTS_SECTION_TITLE_CLASS}>
               {copy.managePlanPlanCards}
             </h2>
-            <p className={GUESTS_SECTION_SUBTITLE_CLASS}>Coming soon.</p>
+            <ManagePlanCardsSection snap={snap} pageModule={pageModule} />
           </section>
           <section
             id="credit-top-ups"

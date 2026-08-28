@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   billingCreditsHeaderActions,
@@ -47,16 +47,6 @@ function sampleUsage(
   }
 }
 
-function createTestModule(
-  page: BillingCreditsPageData,
-  usage: CreditsUsageSnapshot = sampleUsage()
-) {
-  return createOperatorBillingCreditsPageModule({
-    getPage: async () => page,
-    getUsage: async () => usage,
-  })
-}
-
 function samplePage(overrides: Partial<BillingCreditsPageData> = {}): BillingCreditsPageData {
   return {
     actorPermissionRole: "Owner",
@@ -82,6 +72,18 @@ function samplePage(overrides: Partial<BillingCreditsPageData> = {}): BillingCre
     },
     ...overrides,
   }
+}
+
+function createTestModule(
+  pageOverrides: Partial<BillingCreditsPageData> = {},
+  usage: CreditsUsageSnapshot = sampleUsage(),
+  submitPlanChange = vi.fn()
+) {
+  return createOperatorBillingCreditsPageModule({
+    getPage: async () => samplePage(pageOverrides),
+    getUsage: async () => usage,
+    submitPlanChange,
+  })
 }
 
 describe("resolveBillingCreditsTabId", () => {
@@ -151,7 +153,7 @@ describe("billingCreditsHeaderActions", () => {
 
 describe("createOperatorBillingCreditsPageModule", () => {
   it("returns a stable snapshot until state changes", async () => {
-    const module = createTestModule(samplePage())
+    const module = createTestModule()
     await module.load()
     expect(module.getSnapshot()).toBe(module.getSnapshot())
     module.requestTabChange("activity")
@@ -159,7 +161,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("round-trips tab id through requestTabChange", async () => {
-    const module = createTestModule(samplePage())
+    const module = createTestModule()
     module.setNavigationTargets({ mode: "single", locationId: 10 })
     await module.load()
 
@@ -168,7 +170,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("builds manage-plan and buy-credits hrefs", async () => {
-    const module = createTestModule(samplePage())
+    const module = createTestModule()
     module.setNavigationTargets({ mode: "multi", locationId: 7 })
     await module.load()
 
@@ -181,7 +183,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("opens nested manage plan from header CTA", async () => {
-    const module = createTestModule(samplePage())
+    const module = createTestModule()
     module.setNavigationTargets({ mode: "single", locationId: 42 })
     await module.load()
 
@@ -192,7 +194,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("opens credit top-ups section from Buy credits", async () => {
-    const module = createTestModule(samplePage())
+    const module = createTestModule()
     module.setNavigationTargets({ mode: "single", locationId: 42 })
     await module.load()
 
@@ -207,6 +209,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
       {
         getPage: async () => samplePage(),
         getUsage: async () => sampleUsage(),
+        submitPlanChange: vi.fn(),
       },
       { initialTabId: "credits-usage" }
     )
@@ -224,6 +227,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
         throw { response: { status: 403 } }
       },
       getUsage: async () => sampleUsage(),
+      submitPlanChange: vi.fn(),
     })
     await module.load()
     expect(module.getSnapshot().loadStatus).toBe("forbidden")
@@ -234,6 +238,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
       {
         getPage: async () => samplePage(),
         getUsage: async () => sampleUsage(),
+        submitPlanChange: vi.fn(),
       },
       { initialSurface: "manage-plan" }
     )
@@ -248,12 +253,10 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("hides write CTAs for View snapshot", async () => {
-    const module = createTestModule(
-      samplePage({
-        actorCanManage: false,
-        actorPermissionRole: "Marketing",
-      })
-    )
+    const module = createTestModule({
+      actorCanManage: false,
+      actorPermissionRole: "Marketing",
+    })
     await module.load()
     const snap = module.getSnapshot()
     expect(snap.accessLevel).toBe("view")
@@ -270,6 +273,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
       {
         getPage: async () => samplePage(),
         getUsage: async () => sampleUsage(),
+        submitPlanChange: vi.fn(),
       },
       {
         initialManagePlanSection: "credit-top-ups",
@@ -282,7 +286,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("projects combined remaining math onto channel cards", async () => {
-    const module = createTestModule(samplePage())
+    const module = createTestModule()
     await module.load()
     const sms = module.getSnapshot().channelCards.find((card) => card.channel === "sms")
     expect(sms?.headline).toBe("428 remaining")
@@ -292,7 +296,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
 
   it("shows 100% copy on depleted channels", async () => {
     const module = createTestModule(
-      samplePage(),
+      {},
       sampleUsage({
         isPilot: false,
         channels: [
@@ -315,7 +319,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
   })
 
   it("hides Buy on Pilot channel cards", async () => {
-    const module = createTestModule(samplePage())
+    const module = createTestModule()
     await module.load()
     expect(
       module.getSnapshot().channelCards.every((card) => !card.showBuy)
@@ -324,7 +328,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
 
   it("opens credit top-ups from channel Buy", async () => {
     const module = createTestModule(
-      samplePage(),
+      {},
       sampleUsage({ isPilot: false })
     )
     module.setNavigationTargets({ mode: "single", locationId: 42 })
@@ -334,5 +338,94 @@ describe("createOperatorBillingCreditsPageModule", () => {
     expect(module.consumePendingNavigation()).toBe(
       "/single-dashboard/settings/billing-credits/manage-plan?location=42&section=credit-top-ups&channel=sms"
     )
+  })
+
+  it("does not persist cadence toggle through submitPlanChange until confirm", async () => {
+    const submitPlanChange = vi.fn()
+    const module = createTestModule({}, sampleUsage(), submitPlanChange)
+    module.setNavigationTargets({ mode: "single", locationId: 42 })
+    await module.load()
+
+    module.setPreviewCadence("annual")
+    expect(module.getSnapshot().previewCadence).toBe("annual")
+    expect(submitPlanChange).not.toHaveBeenCalled()
+  })
+
+  it("marks Pilot card as not a downgrade target for paid plans", async () => {
+    const module = createTestModule({
+      planSubscription: {
+        ...samplePage().planSubscription,
+        subscriptionPlan: "Starter",
+        isPilot: false,
+        billingCycle: "Monthly",
+        planPriceNet: "£39",
+      },
+    })
+    await module.load()
+
+    const pilotCard = module
+      .getSnapshot()
+      .managePlanCards.find((card) => card.id === "Pilot")
+    expect(pilotCard?.cta.disabled).toBe(true)
+  })
+
+  it("navigates to plan-subscription after a scheduled plan change", async () => {
+    const submitPlanChange = vi.fn(async () => ({
+      outcome: "scheduled" as const,
+      scheduledChangeLine: "Changes to Growth on 12 Aug 2026",
+    }))
+    const module = createTestModule({}, sampleUsage(), submitPlanChange)
+    module.setNavigationTargets({ mode: "single", locationId: 42 })
+    await module.load()
+
+    module.requestPlanChange("Growth")
+    await module.confirmPlanChange()
+
+    expect(submitPlanChange).toHaveBeenCalledWith({
+      targetPlan: "Growth",
+      targetCadence: "monthly",
+    })
+    expect(module.consumePendingNavigation()).toBe(
+      "/single-dashboard/settings/billing-credits?location=42&tab=plan-subscription"
+    )
+  })
+
+  it("keeps manage plan open when plan change fails", async () => {
+    const submitPlanChange = vi.fn(async () => {
+      throw new Error("failed")
+    })
+    const module = createOperatorBillingCreditsPageModule(
+      {
+        getPage: async () => samplePage(),
+        getUsage: async () => sampleUsage(),
+        submitPlanChange,
+      },
+      { initialSurface: "manage-plan" }
+    )
+    await module.load()
+
+    module.requestPlanChange("Starter")
+    await module.confirmPlanChange()
+
+    expect(module.getSnapshot().surface).toBe("manage-plan")
+    expect(module.getSnapshot().planChangeConfirm?.busy).toBe(false)
+    expect(module.consumePendingNavigation()).toBeNull()
+  })
+
+  it("redirects to Revolut after a pay outcome", async () => {
+    const submitPlanChange = vi.fn(async () => ({
+      outcome: "pay" as const,
+      redirectUrl: "https://checkout.revolut.com/pay/example",
+    }))
+    const module = createTestModule({}, sampleUsage(), submitPlanChange)
+    await module.load()
+
+    module.requestPlanChange("Starter")
+    await module.confirmPlanChange()
+
+    expect(module.consumePendingPayRedirect()).toBe(
+      "https://checkout.revolut.com/pay/example"
+    )
+    expect(module.consumePendingNavigation()).toBeNull()
   })
 })

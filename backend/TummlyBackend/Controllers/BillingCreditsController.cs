@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Controllers
 {
@@ -100,6 +102,61 @@ namespace TummlyBackend.Controllers
             }
 
             return Ok(usage);
+        }
+
+        [HttpPost("plan-change")]
+        public async Task<IActionResult> PostPlanChange(
+            [FromBody] PlanChangeRequestDto request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var manage = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.BillingCredits,
+                PermissionLevel.Manage
+            );
+            var forbidden = manage.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
+            try
+            {
+                var result = await _billingCredits.SubmitPlanChangeAsync(
+                    userId,
+                    manage.RestaurantId,
+                    request
+                );
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Restaurant not found.",
+                    });
+                }
+
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "invalid-target")
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Pilot is not a valid plan-change target.",
+                });
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "forbidden")
+            {
+                return Forbid();
+            }
         }
     }
 }

@@ -11,5 +11,11 @@ namespace TummlyBackend.Interfaces
         );
 
         Task<CreditsUsageSnapshotDto?> GetUsageAsync(int restaurantId);
+
+        Task<PlanChangeResultDto?> SubmitPlanChangeAsync(
+            int userId,
+            int restaurantId,
+            PlanChangeRequestDto request
+        );
     }
 }

@@ -6,7 +6,11 @@ import {
 } from "react"
 import { useLocation, useOutletContext, useSearchParams } from "react-router-dom"
 
-import { getBillingCreditsPage, getBillingCreditsUsage } from "@/api/billingCreditsApi"
+import {
+  getBillingCreditsPage,
+  getBillingCreditsUsage,
+  submitBillingPlanChange,
+} from "@/api/billingCreditsApi"
 import { billingCreditsPageModuleContext } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import {
@@ -33,6 +37,7 @@ export function BillingCreditsPageModuleProvider({
       {
         getPage: getBillingCreditsPage,
         getUsage: getBillingCreditsUsage,
+        submitPlanChange: submitBillingPlanChange,
       },
       {
         initialTabId,
