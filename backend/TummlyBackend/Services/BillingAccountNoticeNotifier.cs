@@ -334,6 +334,7 @@ namespace TummlyBackend.Services
 
             return await LoadRecipientsAsync(
                 context.RestaurantId,
+                context.OwnerUserId,
                 userIds,
                 cancellationToken
             );
@@ -360,6 +361,7 @@ namespace TummlyBackend.Services
 
             return await LoadRecipientsAsync(
                 context.RestaurantId,
+                context.OwnerUserId,
                 userIds,
                 cancellationToken
             );
@@ -378,6 +380,7 @@ namespace TummlyBackend.Services
 
             return await LoadRecipientsAsync(
                 context.RestaurantId,
+                context.OwnerUserId,
                 userIds,
                 cancellationToken
             );
@@ -385,6 +388,7 @@ namespace TummlyBackend.Services
 
         private async Task<List<BillingAlertRecipient>> LoadRecipientsAsync(
             int restaurantId,
+            int ownerUserId,
             IEnumerable<int> userIds,
             CancellationToken cancellationToken
         )
@@ -424,13 +428,19 @@ namespace TummlyBackend.Services
                 var membership = memberships.FirstOrDefault(
                     row => row.UserId == user.Id
                 );
-                var permissionRole =
-                    membership?.PermissionRole ?? PermissionRoles.Owner;
-                var billingCreditsLevel = DefaultPermissionMatrix.LevelFor(
-                    permissionRole,
-                    OperatorAreaIds.BillingCredits,
-                    adminOverrides
-                );
+                var permissionRole = membership?.PermissionRole
+                    ?? (
+                        user.Id == ownerUserId
+                            ? PermissionRoles.Owner
+                            : PermissionRoles.Staff
+                    );
+                var billingCreditsLevel = membership == null && user.Id != ownerUserId
+                    ? PermissionLevel.NoAccess
+                    : DefaultPermissionMatrix.LevelFor(
+                        permissionRole,
+                        OperatorAreaIds.BillingCredits,
+                        adminOverrides
+                    );
 
                 recipients.Add(
                     new BillingAlertRecipient(

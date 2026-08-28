@@ -138,6 +138,21 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public void UnpaidPilotLock_PlanSubscription_WhenView()
+        {
+            var cta = BillingAlertCtaResolver.Resolve(
+                BillingAlertEventKind.UnpaidPilotLock,
+                PermissionLevel.View,
+                PermissionRoles.Admin,
+                "Single",
+                LocationId
+            );
+
+            Assert.Equal("Plan & subscription", cta.Label);
+            Assert.Contains("tab=plan-subscription", cta.Href);
+        }
+
+        [Fact]
         public void NoAccess_ReturnsNullCta()
         {
             var cta = BillingAlertCtaResolver.Resolve(

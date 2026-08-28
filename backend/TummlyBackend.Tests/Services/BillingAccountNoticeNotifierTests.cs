@@ -132,6 +132,42 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task NotifyCreditThresholdCrossed_SkipsDuringDormant()
+        {
+            var seed = await SeedWorkspaceAsync();
+
+            await _notifier.NotifyCreditThresholdCrossedAsync(
+                seed.RestaurantId,
+                "email",
+                80,
+                "pilot-once",
+                "Dormant",
+                isPilot: true
+            );
+
+            Assert.Empty(_email.Sent);
+            Assert.Empty(_context.Notifications);
+        }
+
+        [Fact]
+        public async Task NotifyCreditThresholdCrossed_StillSendsDuringPastDue()
+        {
+            var seed = await SeedWorkspaceAsync();
+
+            await _notifier.NotifyCreditThresholdCrossedAsync(
+                seed.RestaurantId,
+                "email",
+                80,
+                "pilot-once",
+                "Past due",
+                isPilot: true
+            );
+
+            Assert.Equal(2, _email.Sent.Count);
+            Assert.Equal(2, await _context.Notifications.CountAsync());
+        }
+
+        [Fact]
         public async Task NotifyPaymentFailureDayStep_SendsToPaymentFailureTicks()
         {
             var seed = await SeedWorkspaceAsync();

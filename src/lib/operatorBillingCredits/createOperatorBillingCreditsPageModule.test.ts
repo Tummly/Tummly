@@ -7,6 +7,7 @@ import {
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import {
   createOperatorBillingCreditsPageModule,
+  resolveBillingAlertNotificationCta,
   type BillingCreditsPageAdapters,
   type BillingCreditsPageData,
 } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
@@ -931,4 +932,46 @@ describe("createOperatorBillingCreditsPageModule", () => {
     expect(module.getSnapshot().showCancelPlan).toBe(false)
   })
 
+})
+
+describe("billing alert notification CTAs", () => {
+  it("returns View usage for credit 80 when the user has view access", () => {
+    const cta = resolveBillingAlertNotificationCta({
+      eventKind: "credit-threshold-80-or-90",
+      accessLevel: "view",
+      permissionRole: "Admin",
+      mode: "single",
+      locationId: 42,
+    })
+
+    expect(cta.label).toBe("View usage")
+    expect(cta.href).toContain("tab=credits-usage")
+  })
+
+  it("returns Buy channel credits when the user can write on a paid 100% cross", () => {
+    const cta = resolveBillingAlertNotificationCta({
+      eventKind: "credit-threshold-100-paid",
+      accessLevel: "manage",
+      permissionRole: "Billing Admin",
+      mode: "multi",
+      locationId: 7,
+      channel: "sms",
+    })
+
+    expect(cta.label).toBe("Buy SMS credits")
+    expect(cta.href).toContain("channel=sms")
+  })
+
+  it("returns no CTA when the user has no billing access", () => {
+    const cta = resolveBillingAlertNotificationCta({
+      eventKind: "payment-failure-dunning",
+      accessLevel: "none",
+      permissionRole: "Staff",
+      mode: "single",
+      locationId: 42,
+    })
+
+    expect(cta.label).toBeNull()
+    expect(cta.href).toBeNull()
+  })
 })

@@ -1475,4 +1475,12 @@ export {
   BILLING_CREDITS_TAB_IDS,
   resolveBillingCreditsTabId,
   resolveManagePlanSection,
-}
+} from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+export {
+  resolveBillingAlertNotificationCta,
+  billingAlertEventKindForCreditThreshold,
+} from "@/lib/operatorBillingCredits/billingAlertNotificationPresentation"
+export type {
+  BillingAlertEventKind,
+  BillingAlertNotificationCta,
+} from "@/lib/operatorBillingCredits/billingAlertNotificationPresentation"
