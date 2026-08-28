@@ -27,7 +27,7 @@ describe("lockAlertPresentation", () => {
       body: "Your Pilot period has ended. Paid actions are paused. Existing Feedback links stay live.",
       buttonLabel: "Choose a plan",
       buttonHref:
-        "/multi-dashboard/settings/billing-credits/manage-plan?location=10",
+        "/multi-dashboard/settings/billing-credits/manage-plan?location=10#plan-cards",
     })
   })
 
@@ -45,7 +45,7 @@ describe("lockAlertPresentation", () => {
       body: "Payment failed. Paid actions are paused. Existing Feedback links stay live.",
       buttonLabel: "Update payment method",
       buttonHref:
-        "/multi-dashboard/settings/billing-credits?location=10&tab=payment-invoices",
+        "/multi-dashboard/settings/billing-credits?location=10&tab=payment-invoices#update-payment-method",
     })
   })
 

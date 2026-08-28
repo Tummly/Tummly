@@ -257,11 +257,27 @@ export function formatPaymentMethodLabel(
 export function billingCreditsPaymentInvoicesActions(options: {
   accessLevel: BillingCreditsAccessLevel
   isPilot: boolean
+  /** Soft lock / Dormant — Pilot shows Update payment method disabled. */
+  accountLocked?: boolean
 }): {
   showUpdatePaymentMethod: boolean
+  updatePaymentMethodDisabled: boolean
 } {
+  if (options.accessLevel !== "manage") {
+    return {
+      showUpdatePaymentMethod: false,
+      updatePaymentMethodDisabled: false,
+    }
+  }
+  if (options.isPilot) {
+    const locked = options.accountLocked === true
+    return {
+      showUpdatePaymentMethod: locked,
+      updatePaymentMethodDisabled: locked,
+    }
+  }
   return {
-    showUpdatePaymentMethod:
-      options.accessLevel === "manage" && !options.isPilot,
+    showUpdatePaymentMethod: true,
+    updatePaymentMethodDisabled: false,
   }
 }

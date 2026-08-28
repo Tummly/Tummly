@@ -1,12 +1,17 @@
 import { useState, type ReactNode } from "react"
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 
 import { AiAssistantDrawer } from "@/components/dashboard/operator/AiAssistantDrawer"
 import { DashboardNavbar } from "@/components/dashboard/operator/DashboardNavbar"
 import { DashboardSidebar } from "@/components/dashboard/operator/DashboardSidebar"
 import { MobileNavSheetHeader } from "@/components/dashboard/operator/MobileNavSheetHeader"
 import { NotificationsDrawer } from "@/components/dashboard/operator/NotificationsDrawer"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,
@@ -127,6 +132,7 @@ export function DashboardShell({
   aiAssistant,
   children,
 }: DashboardShellProps) {
+  const location = useLocation()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed)
   const [settingsExpanded, setSettingsExpanded] = useState(
@@ -347,13 +353,34 @@ export function DashboardShell({
                   </AlertDescription>
                   {presentation.lockAlert.buttonLabel != null
                     && presentation.lockAlert.buttonHref != null ? (
-                    <div data-slot="alert-action" className="absolute top-2 right-2">
+                    <AlertAction>
                       <Button asChild variant="op-primary" className="h-8 px-3 text-sm">
-                        <Link to={presentation.lockAlert.buttonHref}>
+                        <Link
+                          to={presentation.lockAlert.buttonHref}
+                          onClick={(event) => {
+                            const href = presentation.lockAlert?.buttonHref
+                            if (href == null) {
+                              return
+                            }
+                            const target = new URL(href, window.location.origin)
+                            if (target.pathname !== location.pathname) {
+                              return
+                            }
+                            const hashId = target.hash.replace(/^#/, "")
+                            if (hashId === "") {
+                              return
+                            }
+                            // Already on landing surface — scroll instead of a no-op nav.
+                            event.preventDefault()
+                            document
+                              .getElementById(hashId)
+                              ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                          }}
+                        >
                           {presentation.lockAlert.buttonLabel}
                         </Link>
                       </Button>
-                    </div>
+                    </AlertAction>
                   ) : null}
                 </Alert>
               ) : null}

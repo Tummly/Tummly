@@ -116,10 +116,10 @@ function resolveLockAlertButton(options: {
     }
     return {
       label: "Choose a plan",
-      href: operatorDashboardBillingCreditsManagePlanPath(
+      href: `${operatorDashboardBillingCreditsManagePlanPath(
         options.mode,
         options.locationId
-      ),
+      )}#plan-cards`,
     }
   }
 
@@ -129,8 +129,8 @@ function resolveLockAlertButton(options: {
 
   return {
     label: "Update payment method",
-    href: operatorDashboardBillingCreditsPath(options.mode, options.locationId, {
+    href: `${operatorDashboardBillingCreditsPath(options.mode, options.locationId, {
       tab: "payment-invoices",
-    }),
+    })}#update-payment-method`,
   }
 }

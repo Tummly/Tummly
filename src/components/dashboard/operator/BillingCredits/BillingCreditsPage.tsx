@@ -505,7 +505,7 @@ function PaymentInvoicesBody({
 
   return (
     <div className="flex flex-col gap-6">
-      <section className={GUESTS_SECTION_CLASS}>
+      <section id="update-payment-method" className={GUESTS_SECTION_CLASS}>
         <div className="flex flex-col gap-2">
           <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.paymentMethodTitle}</h2>
           <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
@@ -528,6 +528,7 @@ function PaymentInvoicesBody({
             type="button"
             variant="op-secondary"
             className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            disabled={snap.updatePaymentMethodDisabled}
             onClick={() => {
               pageModule.openUpdatePaymentMethodConfirm()
             }}
@@ -1052,6 +1053,18 @@ export function BillingCreditsPage() {
   }, [pageModule])
 
   useEffect(() => {
+    if (snap.loadStatus !== "loaded") {
+      return
+    }
+    if (window.location.hash !== "#update-payment-method") {
+      return
+    }
+    document
+      .getElementById("update-payment-method")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }, [snap.loadStatus, snap.activeTabId])
+
+  useEffect(() => {
     if (!snap.isDirty) {
       return
     }
@@ -1211,6 +1224,18 @@ export function ManagePlanPage() {
     snap.managePlanSection,
     pageModule,
   ])
+
+  useEffect(() => {
+    if (snap.loadStatus !== "loaded") {
+      return
+    }
+    if (window.location.hash !== "#plan-cards") {
+      return
+    }
+    document
+      .getElementById("plan-cards")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }, [snap.loadStatus, snap.showPlanCards])
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>

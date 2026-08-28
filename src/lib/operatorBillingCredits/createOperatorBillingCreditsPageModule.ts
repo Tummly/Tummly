@@ -255,6 +255,7 @@ export type BillingCreditsSnapshot = {
   paymentMethodLabel: string | null
   showNoPaymentMethodOnFile: boolean
   showUpdatePaymentMethod: boolean
+  updatePaymentMethodDisabled: boolean
   showNoInvoicesYet: boolean
   invoices: InvoiceRowSnapshot[]
   updatePaymentMethodConfirmOpen: boolean
@@ -635,11 +636,15 @@ export function createOperatorBillingCreditsPageModule(
     return buildCreditsUsageTableRows(creditsUsage.channels)
   }
 
-  const paymentInvoicesActions = () =>
-    billingCreditsPaymentInvoicesActions({
+  const paymentInvoicesActions = () => {
+    const plan = data?.planSubscription
+    return billingCreditsPaymentInvoicesActions({
       accessLevel: accessLevel(),
-      isPilot: data?.planSubscription?.isPilot ?? true,
+      isPilot: plan?.isPilot ?? true,
+      accountLocked:
+        plan != null && isAccountLockedBillingStatus(plan.billingStatus),
     })
+  }
 
   const projectSnapshot = (): BillingCreditsSnapshot => {
     const actions = headerActions()
@@ -697,6 +702,7 @@ export function createOperatorBillingCreditsPageModule(
       paymentMethodLabel: formatPaymentMethodLabel(paymentMethod),
       showNoPaymentMethodOnFile: paymentMethod == null,
       showUpdatePaymentMethod: paymentActions.showUpdatePaymentMethod,
+      updatePaymentMethodDisabled: paymentActions.updatePaymentMethodDisabled,
       showNoInvoicesYet: invoices.length === 0,
       invoices,
       updatePaymentMethodConfirmOpen,

@@ -1512,14 +1512,5 @@ namespace TummlyBackend.Services
             ];
         }
 
-        private Task<bool> IsPilotRestaurantAsync(int restaurantId, User? owner)
-        {
-            return BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
-                _context,
-                restaurantId,
-                owner
-            );
-        }
-
     }
 }

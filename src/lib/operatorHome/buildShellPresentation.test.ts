@@ -219,7 +219,7 @@ describe("buildOperatorShellPresentation", () => {
       body: "Your Pilot period has ended. Paid actions are paused. Existing Feedback links stay live.",
       buttonLabel: "Choose a plan",
       buttonHref:
-        "/multi-dashboard/settings/billing-credits/manage-plan?location=10",
+        "/multi-dashboard/settings/billing-credits/manage-plan?location=10#plan-cards",
     });
 
     const billing = buildOperatorShellPresentation(

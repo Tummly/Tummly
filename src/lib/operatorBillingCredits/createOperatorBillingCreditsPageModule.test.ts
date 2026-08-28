@@ -335,6 +335,8 @@ describe("createOperatorBillingCreditsPageModule", () => {
     expect(snap.buyCreditsDisabled).toBe(true)
     expect(snap.showBuyCredits).toBe(true)
     expect(snap.managePlanLockMode).toBe("pilot-restore")
+    expect(snap.showUpdatePaymentMethod).toBe(true)
+    expect(snap.updatePaymentMethodDisabled).toBe(true)
     expect(
       snap.managePlanCards.find((card) => card.id === "Starter")?.cta
     ).toMatchObject({ kind: "action", disabled: false, changeKind: "convert" })

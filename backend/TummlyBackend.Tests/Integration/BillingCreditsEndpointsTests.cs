@@ -1181,6 +1181,26 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task Get_Returns200_SoftLock_ForOwnerManage()
+        {
+            var seeded = await SeedSoftLockPilotWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("actorCanManage").GetBoolean());
+            Assert.Equal(
+                "Soft lock",
+                body.GetProperty("planSubscription").GetProperty("billingStatus").GetString()
+            );
+        }
+
+        [Fact]
         public async Task Get_Returns200_Dormant_ForOwnerManage()
         {
             var seeded = await SeedDormantPilotWorkspaceAsync();
@@ -1195,6 +1215,26 @@ namespace TummlyBackend.Tests.Integration
             var plan = (await ReadJsonAsync(response)).GetProperty("planSubscription");
             Assert.Equal("Dormant", plan.GetProperty("billingStatus").GetString());
             Assert.True(plan.GetProperty("isPilot").GetBoolean());
+        }
+
+        [Fact]
+        public async Task Get_Returns200_Dormant_ForAdminView()
+        {
+            var seeded = await SeedDormantPilotWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("actorCanManage").GetBoolean());
+            Assert.Equal(
+                "Dormant",
+                body.GetProperty("planSubscription").GetProperty("billingStatus").GetString()
+            );
         }
 
         [Fact]
