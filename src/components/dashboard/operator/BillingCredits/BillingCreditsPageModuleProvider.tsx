@@ -7,8 +7,12 @@ import {
 import { useLocation, useOutletContext, useSearchParams } from "react-router-dom"
 
 import {
+  createPaymentMethodUpdateSession,
+  downloadInvoicePdfBlob,
+  fetchBillingCreditsInvoicePdf,
   getBillingCreditsPage,
   getBillingCreditsUsage,
+  openInvoicePdfBlob,
   submitBillingPlanChange,
 } from "@/api/billingCreditsApi"
 import { billingCreditsPageModuleContext } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
@@ -38,6 +42,10 @@ export function BillingCreditsPageModuleProvider({
         getPage: getBillingCreditsPage,
         getUsage: getBillingCreditsUsage,
         submitPlanChange: submitBillingPlanChange,
+        createPaymentMethodUpdateSession,
+        fetchInvoicePdf: fetchBillingCreditsInvoicePdf,
+        openInvoicePdf: openInvoicePdfBlob,
+        downloadInvoicePdf: downloadInvoicePdfBlob,
       },
       {
         initialTabId,

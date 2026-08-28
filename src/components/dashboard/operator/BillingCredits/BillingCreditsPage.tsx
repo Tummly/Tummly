@@ -10,6 +10,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom"
 
 import { useBillingCreditsPageModuleApi } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
 import { ManagePlanCardsSection } from "@/components/dashboard/operator/BillingCredits/ManagePlanCardsSection"
+import { PaymentInvoicesTable } from "@/components/dashboard/operator/BillingCredits/PaymentInvoicesTable"
+import { UpdatePaymentMethodConfirmDialog } from "@/components/dashboard/operator/BillingCredits/UpdatePaymentMethodConfirmDialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -438,6 +440,119 @@ function CreditsUsageBody({
   )
 }
 
+function PaymentInvoicesBody({
+  snap,
+  pageModule,
+}: {
+  snap: ReturnType<
+    ReturnType<typeof useBillingCreditsPageModuleApi>["getSnapshot"]
+  >
+  pageModule: ReturnType<typeof useBillingCreditsPageModuleApi>
+}) {
+  if (snap.loadStatus === "idle" || snap.loadStatus === "loading") {
+    return (
+      <div className="flex justify-center py-16" role="status">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (snap.loadStatus === "error") {
+    return (
+      <div className={GUESTS_SECTION_CLASS}>
+        <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.loadError}</h2>
+        <Button
+          type="button"
+          variant="op-secondary"
+          onClick={() => {
+            void pageModule.load()
+          }}
+        >
+          {copy.retry}
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <section className={GUESTS_SECTION_CLASS}>
+        <div className="flex flex-col gap-2">
+          <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.paymentMethodTitle}</h2>
+          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+            {copy.paymentMethodSubtitle}
+          </p>
+        </div>
+
+        {snap.showNoPaymentMethodOnFile ? (
+          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+            {copy.noPaymentMethodOnFile}
+          </p>
+        ) : (
+          <p className={GUESTS_DETAIL_FIELD_VALUE_CLASS}>
+            {snap.paymentMethodLabel}
+          </p>
+        )}
+
+        {snap.showUpdatePaymentMethod ? (
+          <Button
+            type="button"
+            variant="op-secondary"
+            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            onClick={() => {
+              pageModule.openUpdatePaymentMethodConfirm()
+            }}
+          >
+            {copy.updatePaymentMethod}
+          </Button>
+        ) : null}
+      </section>
+
+      <section className={GUESTS_SECTION_CLASS}>
+        <div className="flex flex-col gap-2">
+          <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.invoicesTitle}</h2>
+          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+            {copy.invoicesSubtitle}
+          </p>
+        </div>
+
+        {snap.showNoInvoicesYet ? (
+          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{copy.noInvoicesYet}</p>
+        ) : (
+          <PaymentInvoicesTable
+            rows={snap.invoices}
+            onView={(invoiceNo) => {
+              void pageModule.viewInvoicePdf(invoiceNo)
+            }}
+            onDownload={(invoiceNo) => {
+              void pageModule.downloadInvoicePdf(invoiceNo)
+            }}
+          />
+        )}
+      </section>
+
+      <UpdatePaymentMethodConfirmDialog
+        open={snap.updatePaymentMethodConfirmOpen}
+        title={snap.updatePaymentMethodConfirmCopy.title}
+        body={snap.updatePaymentMethodConfirmCopy.body}
+        continueLabel={snap.updatePaymentMethodConfirmCopy.continueLabel}
+        cancelLabel={snap.updatePaymentMethodConfirmCopy.cancelLabel}
+        onOpenChange={(open) => {
+          if (!open) {
+            pageModule.dismissUpdatePaymentMethodConfirm()
+          }
+        }}
+        onContinue={() => {
+          void pageModule.confirmUpdatePaymentMethod()
+        }}
+        onCancel={() => {
+          pageModule.dismissUpdatePaymentMethodConfirm()
+        }}
+      />
+    </div>
+  )
+}
+
 function EmptyTabBody({ label }: { label: string }) {
   return (
     <section className={GUESTS_SECTION_CLASS}>
@@ -559,7 +674,7 @@ export function BillingCreditsPage() {
           <CreditsUsageBody snap={snap} pageModule={pageModule} />
         </TabsContent>
         <TabsContent value="payment-invoices">
-          <EmptyTabBody label="Payment & invoices" />
+          <PaymentInvoicesBody snap={snap} pageModule={pageModule} />
         </TabsContent>
         <TabsContent value="billing-contacts">
           <EmptyTabBody label="Billing contacts" />
@@ -613,6 +728,17 @@ export function ManagePlanPage() {
     }
     window.location.assign(url)
   }, [snap.pendingPayRedirectUrl, pageModule])
+
+  useEffect(() => {
+    if (snap.pendingPaymentMethodRedirectUrl == null) {
+      return
+    }
+    const href = pageModule.consumePendingPaymentMethodRedirect()
+    if (href == null) {
+      return
+    }
+    window.location.assign(href)
+  }, [snap.pendingPaymentMethodRedirectUrl, pageModule])
 
   useEffect(() => {
     if (

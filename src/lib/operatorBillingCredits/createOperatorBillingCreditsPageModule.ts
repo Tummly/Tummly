@@ -1,11 +1,16 @@
 import type {
   BillingCreditsAccessLevel,
   BillingCreditsTabId,
+  InvoiceRowSnapshot,
   ManagePlanSection,
+  PaymentMethodSnapshot,
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import {
+  BILLING_CREDITS_PAGE_COPY,
   billingCreditsHeaderActions,
+  billingCreditsPaymentInvoicesActions,
   billingCreditsTabLabels,
+  formatPaymentMethodLabel,
   resolveBillingCreditsTabId,
   resolveManagePlanSection,
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
@@ -54,6 +59,8 @@ export type BillingCreditsPageData = {
   actorPermissionRole: string
   actorCanManage: boolean
   planSubscription: PlanSubscriptionSnapshot
+  paymentMethod: PaymentMethodSnapshot | null
+  invoices: InvoiceRowSnapshot[]
 }
 
 export type PlanChangeRequest = {
@@ -81,6 +88,10 @@ export type BillingCreditsPageAdapters = {
   getPage: () => Promise<BillingCreditsPageData>
   getUsage: () => Promise<CreditsUsageSnapshot>
   submitPlanChange: (request: PlanChangeRequest) => Promise<PlanChangeResult>
+  createPaymentMethodUpdateSession?: () => Promise<{ redirectUrl: string }>
+  fetchInvoicePdf?: (invoiceNo: string) => Promise<Blob>
+  openInvoicePdf?: (blob: Blob) => void
+  downloadInvoicePdf?: (blob: Blob, invoiceNo: string) => void
 }
 
 export type BillingCreditsSurface = "tabs" | "manage-plan"
@@ -100,6 +111,19 @@ export type BillingCreditsSnapshot = {
   creditsUsage: CreditsUsageSnapshot | null
   channelCards: CreditChannelCardViewModel[]
   usageTableRows: CreditsUsageTableRowViewModel[]
+  paymentMethodLabel: string | null
+  showNoPaymentMethodOnFile: boolean
+  showUpdatePaymentMethod: boolean
+  showNoInvoicesYet: boolean
+  invoices: InvoiceRowSnapshot[]
+  updatePaymentMethodConfirmOpen: boolean
+  updatePaymentMethodConfirmCopy: {
+    title: string
+    body: string
+    continueLabel: string
+    cancelLabel: string
+  }
+  pendingPaymentMethodRedirectUrl: string | null
   pendingNavigationHref: string | null
   managePlanHref: string | null
   buyCreditsHref: string | null
@@ -135,6 +159,12 @@ export type OperatorBillingCreditsPageModule = {
   cancelPlanChange: () => void
   confirmPlanChange: () => Promise<void>
   consumePendingPayRedirect: () => string | null
+  openUpdatePaymentMethodConfirm: () => void
+  dismissUpdatePaymentMethodConfirm: () => void
+  confirmUpdatePaymentMethod: () => Promise<void>
+  consumePendingPaymentMethodRedirect: () => string | null
+  viewInvoicePdf: (invoiceNo: string) => Promise<void>
+  downloadInvoicePdf: (invoiceNo: string) => Promise<void>
 }
 
 function emptyPlanSnapshot(): PlanSubscriptionSnapshot {
@@ -175,6 +205,8 @@ export function createOperatorBillingCreditsPageModule(
   let managePlanSection = resolveManagePlanSection(
     options.initialManagePlanSection
   )
+  let updatePaymentMethodConfirmOpen = false
+  let pendingPaymentMethodRedirectUrl: string | null = null
   let navMode: "single" | "multi" = "single"
   let locationId = 0
   let pendingNavigationHref: string | null = null
@@ -254,8 +286,17 @@ export function createOperatorBillingCreditsPageModule(
     return buildCreditsUsageTableRows(creditsUsage.channels)
   }
 
+  const paymentInvoicesActions = () =>
+    billingCreditsPaymentInvoicesActions({
+      accessLevel: accessLevel(),
+      isPilot: data?.planSubscription?.isPilot ?? true,
+    })
+
   const projectSnapshot = (): BillingCreditsSnapshot => {
     const actions = headerActions()
+    const paymentActions = paymentInvoicesActions()
+    const paymentMethod = data?.paymentMethod ?? null
+    const invoices = data?.invoices ?? []
     const plan = data?.planSubscription ?? null
     const showPlanCards =
       actions.showManagePlan && managePlanSection == null
@@ -279,6 +320,19 @@ export function createOperatorBillingCreditsPageModule(
       creditsUsage,
       channelCards: projectChannelCards(),
       usageTableRows: projectUsageTableRows(),
+      paymentMethodLabel: formatPaymentMethodLabel(paymentMethod),
+      showNoPaymentMethodOnFile: paymentMethod == null,
+      showUpdatePaymentMethod: paymentActions.showUpdatePaymentMethod,
+      showNoInvoicesYet: invoices.length === 0,
+      invoices,
+      updatePaymentMethodConfirmOpen,
+      updatePaymentMethodConfirmCopy: {
+        title: BILLING_CREDITS_PAGE_COPY.updatePaymentMethodConfirmTitle,
+        body: BILLING_CREDITS_PAGE_COPY.updatePaymentMethodConfirmBody,
+        continueLabel: BILLING_CREDITS_PAGE_COPY.continue,
+        cancelLabel: BILLING_CREDITS_PAGE_COPY.cancel,
+      },
+      pendingPaymentMethodRedirectUrl,
       pendingNavigationHref,
       managePlanHref: buildManagePlanHref(null),
       buyCreditsHref: buildManagePlanHref("credit-top-ups"),
@@ -481,6 +535,47 @@ export function createOperatorBillingCreditsPageModule(
       pendingPayRedirectUrl = null
       refreshSnapshot()
       return url
+    },
+    openUpdatePaymentMethodConfirm: () => {
+      updatePaymentMethodConfirmOpen = true
+      refreshSnapshot()
+    },
+    dismissUpdatePaymentMethodConfirm: () => {
+      updatePaymentMethodConfirmOpen = false
+      refreshSnapshot()
+    },
+    confirmUpdatePaymentMethod: async () => {
+      if (adapters.createPaymentMethodUpdateSession == null) {
+        return
+      }
+      updatePaymentMethodConfirmOpen = false
+      refreshSnapshot()
+      const session = await adapters.createPaymentMethodUpdateSession()
+      pendingPaymentMethodRedirectUrl = session.redirectUrl
+      refreshSnapshot()
+    },
+    consumePendingPaymentMethodRedirect: () => {
+      const href = pendingPaymentMethodRedirectUrl
+      pendingPaymentMethodRedirectUrl = null
+      refreshSnapshot()
+      return href
+    },
+    viewInvoicePdf: async (invoiceNo) => {
+      if (adapters.fetchInvoicePdf == null || adapters.openInvoicePdf == null) {
+        return
+      }
+      const blob = await adapters.fetchInvoicePdf(invoiceNo)
+      adapters.openInvoicePdf(blob)
+    },
+    downloadInvoicePdf: async (invoiceNo) => {
+      if (
+        adapters.fetchInvoicePdf == null
+        || adapters.downloadInvoicePdf == null
+      ) {
+        return
+      }
+      const blob = await adapters.fetchInvoicePdf(invoiceNo)
+      adapters.downloadInvoicePdf(blob, invoiceNo)
     },
   }
 }

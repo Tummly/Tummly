@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   billingCreditsHeaderActions,
+  BILLING_CREDITS_PAGE_COPY,
   resolveBillingCreditsTabId,
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import {
@@ -51,6 +52,8 @@ function samplePage(overrides: Partial<BillingCreditsPageData> = {}): BillingCre
   return {
     actorPermissionRole: "Owner",
     actorCanManage: true,
+    paymentMethod: null,
+    invoices: [],
     planSubscription: {
       subscriptionPlan: "Pilot",
       billingStatus: "Pilot",
@@ -427,5 +430,78 @@ describe("createOperatorBillingCreditsPageModule", () => {
       "https://checkout.revolut.com/pay/example"
     )
     expect(module.consumePendingNavigation()).toBeNull()
+  })
+
+  it("shows Pilot empty payment method and no invoices yet", async () => {
+    const module = createTestModule()
+    await module.load()
+    const snap = module.getSnapshot()
+    expect(snap.showNoPaymentMethodOnFile).toBe(true)
+    expect(snap.showNoInvoicesYet).toBe(true)
+    expect(snap.showUpdatePaymentMethod).toBe(false)
+  })
+
+  it("exposes update payment method confirm copy", async () => {
+    const module = createTestModule({
+      planSubscription: {
+        ...samplePage().planSubscription,
+        isPilot: false,
+      },
+      paymentMethod: {
+        kind: "card",
+        brand: "Visa",
+        last4: "4242",
+        expiryLabel: "08/28",
+      },
+    })
+    await module.load()
+    module.openUpdatePaymentMethodConfirm()
+    const snap = module.getSnapshot()
+    expect(snap.updatePaymentMethodConfirmOpen).toBe(true)
+    expect(snap.updatePaymentMethodConfirmCopy.body).toBe(
+      BILLING_CREDITS_PAGE_COPY.updatePaymentMethodConfirmBody
+    )
+  })
+
+  it("hides Update payment method for View snapshot", async () => {
+    const module = createTestModule({
+      actorCanManage: false,
+      actorPermissionRole: "Marketing",
+      planSubscription: {
+        ...samplePage().planSubscription,
+        isPilot: false,
+      },
+      paymentMethod: {
+        kind: "card",
+        brand: "Visa",
+        last4: "4242",
+        expiryLabel: "08/28",
+      },
+    })
+    await module.load()
+    expect(module.getSnapshot().showUpdatePaymentMethod).toBe(false)
+  })
+
+  it("redirects to Revolut after confirming payment method update", async () => {
+    const module = createOperatorBillingCreditsPageModule({
+      getPage: async () =>
+        samplePage({
+          planSubscription: {
+            ...samplePage().planSubscription,
+            isPilot: false,
+          },
+        }),
+      getUsage: async () => sampleUsage(),
+      submitPlanChange: vi.fn(),
+      createPaymentMethodUpdateSession: async () => ({
+        redirectUrl:
+          "https://sandbox-merchant.revolut.com/hpp/update-payment-method",
+      }),
+    })
+    await module.load()
+    await module.confirmUpdatePaymentMethod()
+    expect(module.consumePendingPaymentMethodRedirect()).toBe(
+      "https://sandbox-merchant.revolut.com/hpp/update-payment-method"
+    )
   })
 })

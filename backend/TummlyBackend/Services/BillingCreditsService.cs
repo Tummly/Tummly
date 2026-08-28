@@ -49,17 +49,160 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .CountAsync(row => row.RestaurantId == restaurantId);
 
+            var isPilot = await IsPilotRestaurantAsync(restaurantId, owner);
             var pilotEndsAt = owner?.ActivationExpiresAt;
-            var renewalDateLabel = pilotEndsAt == null
-                ? null
-                : $"Pilot ends {FormatUkDate(pilotEndsAt.Value)}";
+            var renewalDateLabel = isPilot && pilotEndsAt != null
+                ? $"Pilot ends {FormatUkDate(pilotEndsAt.Value)}"
+                : isPilot
+                    ? null
+                    : "Renews 15 September 2026";
 
             return new BillingCreditsPageDto
             {
                 ActorPermissionRole = actorPermissionRole,
                 ActorCanManage = actorCanManage,
-                PlanSubscription = BuildPilotPlanSnapshot(activeLocations, renewalDateLabel),
+                PlanSubscription = new PlanSubscriptionSnapshotDto
+                {
+                    SubscriptionPlan = isPilot ? "Pilot" : "Growth",
+                    BillingStatus = isPilot ? "Pilot" : "Active",
+                    RenewalDateLabel = renewalDateLabel,
+                    EmailCreditsRemaining = isPilot ? 500 : 1200,
+                    SmsCreditsRemaining = isPilot ? 20 : 80,
+                    AiCreditsRemaining = isPilot ? 20 : 40,
+                    BillingCycle = isPilot ? null : "Monthly",
+                    PlanPriceNet = isPilot ? "£0" : "£99",
+                    IncludedLocations = 1,
+                    ActiveLocations = activeLocations,
+                    IncludedEmailCreditsLabel = isPilot ? "500 once" : "1,000 / month",
+                    IncludedSmsCreditsLabel = isPilot ? "20 once" : "50 / month",
+                    IncludedAiCreditsLabel = isPilot ? "20 once" : "30 / month",
+                    StarterKitState = "unused",
+                    PricebookId = "guest-loop-mvp-2026-07",
+                    ScheduledChangeLine = null,
+                    IsPilot = isPilot,
+                },
+                PaymentMethod = isPilot ? null : BuildStubPaymentMethod(),
+                Invoices = isPilot ? [] : BuildStubInvoices(),
             };
+        }
+
+        public async Task<(byte[] Content, string FileName)?> GetInvoicePdfAsync(
+            int restaurantId,
+            string invoiceNo
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurantId);
+
+            if (restaurant == null)
+            {
+                return null;
+            }
+
+            var owner = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
+
+            if (await IsPilotRestaurantAsync(restaurantId, owner))
+            {
+                return null;
+            }
+
+            if (!IsKnownInvoiceNo(invoiceNo))
+            {
+                return null;
+            }
+
+            return (BuildStubPdfBytes(invoiceNo), $"{invoiceNo}.pdf");
+        }
+
+        public Task<PaymentMethodUpdateSessionDto?> CreatePaymentMethodUpdateSessionAsync(
+            int restaurantId
+        )
+        {
+            return Task.FromResult<PaymentMethodUpdateSessionDto?>(
+                new PaymentMethodUpdateSessionDto
+                {
+                    RedirectUrl =
+                        "https://sandbox-merchant.revolut.com/hpp/update-payment-method",
+                }
+            );
+        }
+
+        private async Task<bool> IsPilotRestaurantAsync(int restaurantId, User? owner)
+        {
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurantId);
+
+            if (
+                restaurant?.Name.StartsWith(
+                    "Paid ",
+                    StringComparison.Ordinal
+                ) == true
+            )
+            {
+                return false;
+            }
+
+            return owner?.ActivationExpiresAt != null
+                && owner.ActivationExpiresAt.Value > DateTime.UtcNow;
+        }
+
+        private static PaymentMethodSnapshotDto BuildStubPaymentMethod()
+        {
+            return new PaymentMethodSnapshotDto
+            {
+                Kind = "card",
+                Brand = "Visa",
+                Last4 = "4242",
+                ExpiryLabel = "08/28",
+            };
+        }
+
+        private static List<InvoiceRowDto> BuildStubInvoices()
+        {
+            return
+            [
+                new InvoiceRowDto
+                {
+                    InvoiceNo = "TM-2026-000001",
+                    InvoiceDateLabel = "12 Jul 2026",
+                    Description = "Growth plan",
+                    AmountLabel = "£118.80",
+                    Status = "Paid",
+                    ShowActions = true,
+                },
+                new InvoiceRowDto
+                {
+                    InvoiceNo = "TCN-2026-000001",
+                    InvoiceDateLabel = "18 Jul 2026",
+                    Description = "Credit note for TM-2026-000001",
+                    AmountLabel = "−£11.88",
+                    Status = "Issued",
+                    ShowActions = true,
+                },
+            ];
+        }
+
+        private static bool IsKnownInvoiceNo(string invoiceNo)
+        {
+            return invoiceNo is "TM-2026-000001" or "TCN-2026-000001";
+        }
+
+        private static byte[] BuildStubPdfBytes(string invoiceNo)
+        {
+            var text = $"%PDF-1.4 stub invoice {invoiceNo}\n%%EOF\n";
+            return System.Text.Encoding.UTF8.GetBytes(text);
+        }
+
+        private static string FormatUkDate(DateTime value)
+        {
+            return value.ToString(
+                "d MMMM yyyy",
+                System.Globalization.CultureInfo.GetCultureInfo("en-GB")
+            );
         }
 
         public async Task<CreditsUsageSnapshotDto?> GetUsageAsync(int restaurantId)
@@ -74,33 +217,6 @@ namespace TummlyBackend.Services
             }
 
             return BuildPilotUsageSnapshot();
-        }
-
-        private static PlanSubscriptionSnapshotDto BuildPilotPlanSnapshot(
-            int activeLocations,
-            string? renewalDateLabel
-        )
-        {
-            return new PlanSubscriptionSnapshotDto
-            {
-                SubscriptionPlan = "Pilot",
-                BillingStatus = "Pilot",
-                RenewalDateLabel = renewalDateLabel,
-                EmailCreditsRemaining = 500,
-                SmsCreditsRemaining = 20,
-                AiCreditsRemaining = 20,
-                BillingCycle = null,
-                PlanPriceNet = "£0",
-                IncludedLocations = 1,
-                ActiveLocations = activeLocations,
-                IncludedEmailCreditsLabel = "500 once",
-                IncludedSmsCreditsLabel = "20 once",
-                IncludedAiCreditsLabel = "20 once",
-                StarterKitState = "unused",
-                PricebookId = "guest-loop-mvp-2026-07",
-                ScheduledChangeLine = null,
-                IsPilot = true,
-            };
         }
 
         private static CreditsUsageSnapshotDto BuildPilotUsageSnapshot()
@@ -141,11 +257,6 @@ namespace TummlyBackend.Services
                     },
                 ],
             };
-        }
-
-        private static string FormatUkDate(DateTime value)
-        {
-            return value.ToString("d MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-GB"));
         }
 
         public async Task<PlanChangeResultDto?> SubmitPlanChangeAsync(
@@ -195,7 +306,6 @@ namespace TummlyBackend.Services
                 throw new InvalidOperationException("invalid-target");
             }
 
-            // Stub snapshot matches GetPageAsync until BillingAccount lands.
             var simulatePaidGrowth =
                 string.Equals(
                     restaurant.Name,

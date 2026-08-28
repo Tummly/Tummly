@@ -64,6 +64,28 @@ export const BILLING_CREDITS_PAGE_COPY = {
   creditsUsageTableIncluded: "Included this period",
   creditsUsageTablePurchased: "Purchased remaining",
   starterKitCardTitle: "Starter kit",
+  paymentMethodTitle: "Payment method",
+  paymentMethodSubtitle:
+    "Manage the payment method used for your Tummly subscription, credits and add-ons.",
+  noPaymentMethodOnFile: "No payment method on file.",
+  updatePaymentMethod: "Update payment method",
+  updatePaymentMethodConfirmTitle: "Update payment method",
+  updatePaymentMethodConfirmBody:
+    "You will open Revolut to save a new payment method. This does not charge you now.",
+  continue: "Continue",
+  cancel: "Cancel",
+  invoicesTitle: "Invoices",
+  invoicesSubtitle:
+    "View and download invoices for your Tummly subscription, credits and add-ons.",
+  noInvoicesYet: "No invoices yet.",
+  invoiceDate: "Invoice date",
+  invoiceNo: "Invoice no.",
+  description: "Description",
+  amount: "Amount",
+  status: "Status",
+  actions: "Actions",
+  view: "View",
+  download: "Download",
 } as const
 
 export function resolveBillingCreditsTabId(
@@ -162,4 +184,55 @@ export function resolveManagePlanSection(
   raw: string | null | undefined
 ): ManagePlanSection {
   return raw === "credit-top-ups" ? "credit-top-ups" : null
+}
+
+export type PaymentMethodSnapshot = {
+  kind: "card" | "wallet"
+  brand?: string
+  last4?: string
+  expiryLabel?: string
+  walletName?: string
+}
+
+export type InvoiceRowSnapshot = {
+  invoiceNo: string
+  invoiceDateLabel: string
+  description: string
+  amountLabel: string
+  status: string
+  showActions: boolean
+}
+
+export function formatPaymentMethodLabel(
+  paymentMethod: PaymentMethodSnapshot | null
+): string | null {
+  if (paymentMethod == null) {
+    return null
+  }
+
+  if (paymentMethod.kind === "wallet") {
+    return paymentMethod.walletName ?? null
+  }
+
+  if (
+    paymentMethod.brand == null
+    || paymentMethod.last4 == null
+    || paymentMethod.expiryLabel == null
+  ) {
+    return null
+  }
+
+  return `${paymentMethod.brand} · ···· ${paymentMethod.last4} · ${paymentMethod.expiryLabel}`
+}
+
+export function billingCreditsPaymentInvoicesActions(options: {
+  accessLevel: BillingCreditsAccessLevel
+  isPilot: boolean
+}): {
+  showUpdatePaymentMethod: boolean
+} {
+  return {
+    showUpdatePaymentMethod:
+      options.accessLevel === "manage" && !options.isPilot,
+  }
 }

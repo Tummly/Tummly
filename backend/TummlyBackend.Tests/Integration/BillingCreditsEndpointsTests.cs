@@ -69,6 +69,11 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(20, plan.GetProperty("smsCreditsRemaining").GetInt32());
             Assert.Equal(20, plan.GetProperty("aiCreditsRemaining").GetInt32());
             Assert.True(plan.GetProperty("isPilot").GetBoolean());
+            Assert.Equal(
+                JsonValueKind.Null,
+                body.GetProperty("paymentMethod").ValueKind
+            );
+            Assert.Equal(0, body.GetProperty("invoices").GetArrayLength());
         }
 
         [Fact]
@@ -375,6 +380,169 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task Get_ReturnsInvoices_ForPaidAccountView()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var invoices = body.GetProperty("invoices");
+            Assert.Equal(2, invoices.GetArrayLength());
+            Assert.Equal(
+                "TM-2026-000001",
+                invoices[0].GetProperty("invoiceNo").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetInvoicePdf_ReturnsPdf_ForView()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits/invoices/TM-2026-000001/pdf",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                "application/pdf",
+                response.Content.Headers.ContentType?.MediaType
+            );
+        }
+
+        [Fact]
+        public async Task PostPaymentMethodUpdate_Returns403_ForView()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/payment-method/update",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostPaymentMethodUpdate_ReturnsRedirect_ForOwner()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/payment-method/update",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Contains(
+                "revolut.com",
+                body.GetProperty("redirectUrl").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PostPaymentMethodUpdate_ReturnsRedirect_ForBillingAdmin()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/payment-method/update",
+                seeded.BillingAdminJwt!
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        private async Task<PaidSeeded> SeedPaidWorkspaceAsync()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var owner = AddUser(context, "Owner Paid", "Owner");
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Paid Billing Venue",
+                AccountType = "Multi",
+                OwnerUserId = owner.Id,
+                BillingContactUserId = owner.Id,
+                PrivacyContactUserId = owner.Id,
+                SupportContactUserId = owner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            owner.SelectedRestaurantId = restaurant.Id;
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            AddMembership(
+                context,
+                owner.Id,
+                restaurant.Id,
+                PermissionRoles.Owner,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
+
+            var admin = AddUser(context, "Admin Paid", "Owner");
+            admin.SelectedRestaurantId = restaurant.Id;
+            var billingAdmin = AddUser(context, "Billing Admin Paid", "Owner");
+            billingAdmin.SelectedRestaurantId = restaurant.Id;
+            await context.SaveChangesAsync();
+
+            AddMembership(
+                context,
+                admin.Id,
+                restaurant.Id,
+                PermissionRoles.Admin,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
+            AddMembership(
+                context,
+                billingAdmin.Id,
+                restaurant.Id,
+                PermissionRoles.BillingAdmin,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
+            await context.SaveChangesAsync();
+
+            return new PaidSeeded(
+                jwtService.GenerateToken(owner.Id.ToString(), owner.Email, owner.Role),
+                jwtService.GenerateToken(admin.Id.ToString(), admin.Email, admin.Role),
+                jwtService.GenerateToken(
+                    billingAdmin.Id.ToString(),
+                    billingAdmin.Email,
+                    billingAdmin.Role
+                )
+            );
+        }
+
         private static User AddUser(
             ApplicationDbContext context,
             string name,
@@ -445,6 +613,12 @@ namespace TummlyBackend.Tests.Integration
             string StaffJwt,
             string MarketingJwt,
             string? BillingAdminJwt = null
+        );
+
+        private sealed record PaidSeeded(
+            string OwnerJwt,
+            string AdminJwt,
+            string BillingAdminJwt
         );
     }
 }
