@@ -8519,18 +8519,22 @@ namespace TummlyBackend.Tests.Services
             )
                 => Task.FromResult(false);
 
-            public Task SyncInFlightStoredStatusAsync(
+            public Task<CatalogOfferInFlightSyncResult> SyncInFlightStoredStatusAsync(
                 int offerId,
                 CancellationToken cancellationToken = default
             )
-                => Task.CompletedTask;
+                => Task.FromResult<CatalogOfferInFlightSyncResult>(
+                    new CatalogOfferInFlightSyncResult.Ok()
+                );
 
-            public Task SyncInFlightStoredStatusForAttachChangeAsync(
+            public Task<CatalogOfferInFlightSyncResult> SyncInFlightStoredStatusForAttachChangeAsync(
                 int? previousOfferId,
                 int? nextOfferId,
                 CancellationToken cancellationToken = default
             )
-                => Task.CompletedTask;
+                => Task.FromResult<CatalogOfferInFlightSyncResult>(
+                    new CatalogOfferInFlightSyncResult.Ok()
+                );
 
             public Task<CatalogOffersListResponse> ListAsync(
                 CatalogOffersListQuery query,

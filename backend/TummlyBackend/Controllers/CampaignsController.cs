@@ -475,6 +475,10 @@ namespace TummlyBackend.Controllers
                     campaign,
                 });
             }
+            catch (PlanEntitlementCapException ex)
+            {
+                return PlanEntitlementHttp.ToConflict(this, ex);
+            }
             catch (ArgumentException ex)
             {
                 return BadRequest(new
@@ -594,6 +598,10 @@ namespace TummlyBackend.Controllers
                         }
                     ),
                 };
+            }
+            catch (PlanEntitlementCapException ex)
+            {
+                return PlanEntitlementHttp.ToConflict(this, ex);
             }
             catch (ArgumentException ex)
             {

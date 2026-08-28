@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
+using TummlyBackend.DTOs.Offers;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 
@@ -93,11 +94,27 @@ namespace TummlyBackend.Services
             var replacedOfferId = location.ThankYouCatalogOfferId;
             location.ThankYouCatalogOfferId = offerId.Value;
             await _context.SaveChangesAsync(cancellationToken);
-            await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
+            var sync = await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
                 replacedOfferId,
                 offerId.Value,
                 cancellationToken
             );
+            if (sync is CatalogOfferInFlightSyncResult.CapReached cap)
+            {
+                location.ThankYouCatalogOfferId = replacedOfferId;
+                await _context.SaveChangesAsync(cancellationToken);
+                return new CaptureThankYouOfferSetResult.CapReached(
+                    cap.Cap,
+                    cap.Current
+                );
+            }
+
+            if (sync is CatalogOfferInFlightSyncResult.FailClosed)
+            {
+                location.ThankYouCatalogOfferId = replacedOfferId;
+                await _context.SaveChangesAsync(cancellationToken);
+                return new CaptureThankYouOfferSetResult.FailClosed();
+            }
 
             var dto = await BuildDtoAsync(
                 locationId,

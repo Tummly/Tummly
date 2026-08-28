@@ -75,14 +75,17 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly Func<DateTime> _utcNow;
+        private readonly IActiveOfferCapGate? _activeOfferCap;
 
         public OffersCatalogService(
             ApplicationDbContext context,
-            Func<DateTime>? utcNow = null
+            Func<DateTime>? utcNow = null,
+            IActiveOfferCapGate? activeOfferCap = null
         )
         {
             _context = context;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
+            _activeOfferCap = activeOfferCap;
         }
 
         /// <summary>
@@ -298,7 +301,7 @@ namespace TummlyBackend.Services
         /// Draft when the last attach is cleared. No-op for paused / archived /
         /// expired-effective rows.
         /// </summary>
-        public async Task SyncInFlightStoredStatusAsync(
+        public async Task<CatalogOfferInFlightSyncResult> SyncInFlightStoredStatusAsync(
             int offerId,
             CancellationToken cancellationToken = default
         )
@@ -306,7 +309,7 @@ namespace TummlyBackend.Services
             var entity = await LoadForMutationAsync(offerId, cancellationToken);
             if (entity == null)
             {
-                return;
+                return new CatalogOfferInFlightSyncResult.Ok();
             }
 
             var today = CatalogOfferStatus.VenueLocalToday(_utcNow(), 0);
@@ -324,23 +327,43 @@ namespace TummlyBackend.Services
 
             if (string.Equals(entity.Status, next, StringComparison.Ordinal))
             {
-                return;
+                return new CatalogOfferInFlightSyncResult.Ok();
+            }
+
+            var denied = await DenyPromotionIfNeededAsync(
+                entity,
+                next,
+                cancellationToken
+            );
+            if (denied != null)
+            {
+                return denied;
             }
 
             entity.Status = next;
             entity.UpdatedAt = _utcNow();
             await _context.SaveChangesAsync(cancellationToken);
+            return new CatalogOfferInFlightSyncResult.Ok();
         }
 
-        public async Task SyncInFlightStoredStatusForAttachChangeAsync(
+        public async Task<CatalogOfferInFlightSyncResult> SyncInFlightStoredStatusForAttachChangeAsync(
             int? previousOfferId,
             int? nextOfferId,
             CancellationToken cancellationToken = default
         )
         {
+            CatalogOfferInFlightSyncResult attachedResult =
+                new CatalogOfferInFlightSyncResult.Ok();
             if (nextOfferId is int attachedId)
             {
-                await SyncInFlightStoredStatusAsync(attachedId, cancellationToken);
+                attachedResult = await SyncInFlightStoredStatusAsync(
+                    attachedId,
+                    cancellationToken
+                );
+                if (attachedResult is not CatalogOfferInFlightSyncResult.Ok)
+                {
+                    return attachedResult;
+                }
             }
 
             if (previousOfferId is int clearedId
@@ -348,6 +371,8 @@ namespace TummlyBackend.Services
             {
                 await SyncInFlightStoredStatusAsync(clearedId, cancellationToken);
             }
+
+            return attachedResult;
         }
 
         public async Task<CatalogOffersListResponse> ListAsync(
@@ -736,9 +761,29 @@ namespace TummlyBackend.Services
                 };
             }
 
-            entity.Status = CatalogOfferStatus.ResolveResumeStoredStatus(
+            var next = CatalogOfferStatus.ResolveResumeStoredStatus(
                 await CountRawLiveAttachesAsync(offerId, cancellationToken)
             );
+            var denied = await DenyPromotionIfNeededAsync(
+                entity,
+                next,
+                cancellationToken
+            );
+            if (denied is CatalogOfferInFlightSyncResult.CapReached cap)
+            {
+                return new CatalogOfferLifecycleResult.CapReached
+                {
+                    Cap = cap.Cap,
+                    Current = cap.Current,
+                };
+            }
+
+            if (denied is CatalogOfferInFlightSyncResult.FailClosed)
+            {
+                return new CatalogOfferLifecycleResult.FailClosed();
+            }
+
+            entity.Status = next;
             entity.UpdatedAt = _utcNow();
             await _context.SaveChangesAsync(cancellationToken);
             var issueCount = await CountIssuesAsync(offerId, cancellationToken);
@@ -880,6 +925,58 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
             return campaignCount + recoveryCount + thankYouCount;
+        }
+
+        private async Task<CatalogOfferInFlightSyncResult?> DenyPromotionIfNeededAsync(
+            CatalogOffer entity,
+            string nextStatus,
+            CancellationToken cancellationToken
+        )
+        {
+            var promotingToActive =
+                string.Equals(
+                    nextStatus,
+                    CatalogOfferStatus.Active,
+                    StringComparison.Ordinal
+                )
+                && !string.Equals(
+                    entity.Status,
+                    CatalogOfferStatus.Active,
+                    StringComparison.Ordinal
+                );
+            if (!promotingToActive || _activeOfferCap == null)
+            {
+                return null;
+            }
+
+            var restaurantId = await _context.RestaurantLocations
+                .Where(location => location.Id == entity.RestaurantLocationId)
+                .Select(location => location.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (restaurantId < 1)
+            {
+                return new CatalogOfferInFlightSyncResult.FailClosed();
+            }
+
+            var decision = await _activeOfferCap.DenyIncrementAsync(
+                restaurantId,
+                cancellationToken
+            );
+            if (decision.Unavailable)
+            {
+                return new CatalogOfferInFlightSyncResult.FailClosed();
+            }
+
+            if (!decision.AllowIncrement)
+            {
+                return new CatalogOfferInFlightSyncResult.CapReached
+                {
+                    Cap = decision.Cap,
+                    Current = decision.Current,
+                };
+            }
+
+            return null;
         }
 
         private async Task<CatalogOffer?> LoadForMutationAsync(

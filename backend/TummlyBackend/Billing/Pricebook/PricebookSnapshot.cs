@@ -31,6 +31,8 @@ namespace TummlyBackend.Billing.Pricebook
 
         public int IncludedLocations { get; init; }
 
+        public int ActiveOffersAccount { get; init; }
+
         public PricebookChannelCredits? CreditsOneTime { get; init; }
 
         public PricebookChannelCredits? CreditsMonthly { get; init; }

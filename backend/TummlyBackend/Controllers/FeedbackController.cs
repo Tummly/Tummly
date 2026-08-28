@@ -2164,6 +2164,10 @@ namespace TummlyBackend.Controllers
                     OfferId = offerId,
                 });
             }
+            catch (PlanEntitlementCapException ex)
+            {
+                return PlanEntitlementHttp.ToConflict(this, ex);
+            }
             catch (InvalidOperationException ex)
             {
                 return NotFound(new

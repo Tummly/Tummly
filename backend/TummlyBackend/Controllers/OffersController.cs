@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TummlyBackend.Billing;
 using TummlyBackend.DTOs.Offers;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -1220,6 +1221,17 @@ namespace TummlyBackend.Controllers
                     success = false,
                     code = "invalid_status",
                     message = invalid.Message,
+                }),
+                CatalogOfferLifecycleResult.CapReached cap => Conflict(new
+                {
+                    success = false,
+                    code = ActiveOfferCapGate.CapReachedCode,
+                    cap = cap.Cap,
+                    current = cap.Current,
+                }),
+                CatalogOfferLifecycleResult.FailClosed => Conflict(new
+                {
+                    success = false,
                 }),
                 _ => StatusCode(StatusCodes.Status500InternalServerError),
             };

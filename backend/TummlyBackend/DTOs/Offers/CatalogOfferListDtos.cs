@@ -110,5 +110,16 @@ namespace TummlyBackend.DTOs.Offers
         {
             public required string Message { get; init; }
         }
+
+        public sealed class CapReached : CatalogOfferLifecycleResult
+        {
+            public required int Cap { get; init; }
+
+            public required int Current { get; init; }
+        }
+
+        public sealed class FailClosed : CatalogOfferLifecycleResult
+        {
+        }
     }
 }
