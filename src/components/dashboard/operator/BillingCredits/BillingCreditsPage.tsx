@@ -194,7 +194,6 @@ function PlanSubscriptionBody({
             label={copy.starterKit}
             value={formatStarterKitState(plan.starterKitState)}
           />
-          <DetailRow label={copy.pricebook} value={plan.pricebookId} />
           <DetailRow label={copy.renewalDate} value={renewalLabel} />
         </div>
       </section>
@@ -214,11 +213,13 @@ function EmptyTabBody({ label }: { label: string }) {
 function BillingCreditsHeaderActions({
   snap,
   pageModule,
+  onScrollToPlanCards,
 }: {
   snap: ReturnType<
     ReturnType<typeof useBillingCreditsPageModuleApi>["getSnapshot"]
   >
   pageModule: ReturnType<typeof useBillingCreditsPageModuleApi>
+  onScrollToPlanCards?: () => void
 }) {
   if (!snap.showManagePlan && !snap.showBuyCredits) {
     return null
@@ -234,6 +235,7 @@ function BillingCreditsHeaderActions({
           onClick={() => {
             if (snap.surface === "manage-plan") {
               pageModule.scrollManagePlanToCards()
+              onScrollToPlanCards?.()
               return
             }
             pageModule.openManagePlan()
@@ -341,6 +343,17 @@ export function ManagePlanPage() {
     pageModule.getSnapshot
   )
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+
+  const scrollToPlanCards = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete("section")
+    navigate(
+      { pathname: ".", search: next.toString() === "" ? "" : `?${next.toString()}` },
+      { replace: true }
+    )
+    document.getElementById("plan-cards")?.scrollIntoView({ behavior: "smooth" })
+  }
 
   useEffect(() => {
     if (snap.pendingNavigationHref == null) {
@@ -357,8 +370,13 @@ export function ManagePlanPage() {
     if (
       snap.loadStatus !== "loaded"
       || snap.accessLevel !== "manage"
-      || snap.actorPermissionRole !== "Billing Admin"
       || snap.managePlanSection != null
+    ) {
+      return
+    }
+    if (
+      snap.actorPermissionRole !== "Billing Admin"
+      && snap.actorPermissionRole !== "Admin"
     ) {
       return
     }
@@ -396,7 +414,11 @@ export function ManagePlanPage() {
           <h1 className={GUESTS_PAGE_TITLE_CLASS}>{copy.title}</h1>
           <p className={GUESTS_PAGE_SUBTITLE_CLASS}>{copy.subtitle}</p>
         </div>
-        <BillingCreditsHeaderActions snap={snap} pageModule={pageModule} />
+        <BillingCreditsHeaderActions
+          snap={snap}
+          pageModule={pageModule}
+          onScrollToPlanCards={scrollToPlanCards}
+        />
       </div>
 
       {snap.loadStatus === "idle" || snap.loadStatus === "loading" ? (

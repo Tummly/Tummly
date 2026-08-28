@@ -86,9 +86,32 @@ describe("billingCreditsHeaderActions", () => {
       showChangePlan: false,
     })
   })
+
+  it("shows Buy credits for Admin Manage without Manage plan", () => {
+    expect(
+      billingCreditsHeaderActions({
+        accessLevel: "manage",
+        permissionRole: "Admin",
+      })
+    ).toEqual({
+      showManagePlan: false,
+      showBuyCredits: true,
+      showChangePlan: false,
+    })
+  })
 })
 
 describe("createOperatorBillingCreditsPageModule", () => {
+  it("returns a stable snapshot until state changes", async () => {
+    const module = createOperatorBillingCreditsPageModule({
+      getPage: async () => samplePage(),
+    })
+    await module.load()
+    expect(module.getSnapshot()).toBe(module.getSnapshot())
+    module.requestTabChange("activity")
+    expect(module.getSnapshot().activeTabId).toBe("activity")
+  })
+
   it("round-trips tab id through requestTabChange", async () => {
     const module = createOperatorBillingCreditsPageModule({
       getPage: async () => samplePage(),
@@ -162,6 +185,21 @@ describe("createOperatorBillingCreditsPageModule", () => {
     })
     await module.load()
     expect(module.getSnapshot().loadStatus).toBe("forbidden")
+  })
+
+  it("breadcrumb targets plan-subscription while Back keeps the prior tab", async () => {
+    const module = createOperatorBillingCreditsPageModule({
+      getPage: async () => samplePage(),
+      initialSurface: "manage-plan",
+    })
+    module.setNavigationTargets({ mode: "single", locationId: 42 })
+    await module.load()
+    module.requestTabChange("credits-usage")
+
+    expect(module.getSnapshot().activeTabId).toBe("credits-usage")
+    expect(module.getSnapshot().breadcrumbHref).toBe(
+      "/single-dashboard/settings/billing-credits?location=42&tab=plan-subscription"
+    )
   })
 
   it("hides write CTAs for View snapshot", async () => {

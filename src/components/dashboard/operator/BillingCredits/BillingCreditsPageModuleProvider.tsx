@@ -64,12 +64,22 @@ export function BillingCreditsPageModuleProvider({
 
   useEffect(() => {
     const snap = pageModule.getSnapshot()
-    if (snap.loadStatus !== "forbidden") {
+    if (snap.loadStatus === "forbidden") {
+      const root = operatorDashboardRootPath(mode)
+      window.location.replace(`${root}?location=${selectedLocationId}`)
       return
     }
-    const root = operatorDashboardRootPath(mode)
-    window.location.replace(`${root}?location=${selectedLocationId}`)
-  }, [pageModule, mode, selectedLocationId, location.pathname])
+    if (
+      surface === "manage-plan"
+      && snap.loadStatus === "loaded"
+      && snap.accessLevel === "view"
+    ) {
+      const root = operatorDashboardRootPath(mode)
+      window.location.replace(
+        `${root}/settings/billing-credits?location=${selectedLocationId}&tab=plan-subscription`
+      )
+    }
+  }, [pageModule, mode, selectedLocationId, location.pathname, surface])
 
   return createElement(
     billingCreditsPageModuleContext.Provider,

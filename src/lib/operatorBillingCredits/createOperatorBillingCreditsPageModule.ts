@@ -286,5 +286,3 @@ export {
   resolveBillingCreditsTabId,
   resolveManagePlanSection,
 }
-
-export { emptyPlanSnapshot }

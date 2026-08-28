@@ -97,10 +97,12 @@ export function billingCreditsHeaderActions(options: {
 
   const isOwner = options.permissionRole === "Owner"
   const isBillingAdmin = options.permissionRole === "Billing Admin"
+  const isAdminManage =
+    options.permissionRole === "Admin" && options.accessLevel === "manage"
 
   return {
     showManagePlan: isOwner,
-    showBuyCredits: isOwner || isBillingAdmin,
+    showBuyCredits: isOwner || isBillingAdmin || isAdminManage,
     showChangePlan: isOwner,
   }
 }
