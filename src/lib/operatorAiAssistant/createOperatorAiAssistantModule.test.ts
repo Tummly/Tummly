@@ -5412,6 +5412,61 @@ describe("clarify vs grounded vs failure chrome", () => {
     module.setComposerDraft("Hello")
     module.send()
     expect(adapters.conversations).toEqual([])
+
+    await module.startMic()
+    await module.confirmMic()
+    expect(module.getSnapshot().composerDraft).toBe("Hello")
+    expect(adapters.conversations).toEqual([])
+  })
+
+  it("keeps View usage and Add credits visible from sync Billing access before chrome load", () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getBillingCreditsAccess: () => "manage",
+      getCreditsChrome: () => new Promise(() => {}),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+
+    expect(module.getSnapshot().showViewUsage).toBe(true)
+    expect(module.getSnapshot().showAddCredits).toBe(true)
+  })
+
+  it("keeps last known credits chrome when Billing fetch fails", async () => {
+    let fail = false
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getCreditsChrome: async () => {
+        if (fail) {
+          throw new Error("usage failed")
+        }
+        return {
+          remaining: 3,
+          allowance: 20,
+          accessLevel: "manage",
+          permissionRole: "Owner",
+          billingStatus: "Active",
+          isPilot: false,
+          mode: "multi",
+          locationId: 1,
+        }
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(module.getSnapshot().creditsRemainingLine).toBe(
+      "3 of 20 monthly AI credits remaining"
+    )
+
+    fail = true
+    module.closeDrawer()
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(module.getSnapshot().creditsRemainingLine).toBe(
+      "3 of 20 monthly AI credits remaining"
+    )
+    expect(module.getSnapshot().sendBlocked).toBe(false)
   })
 
   it("disables Send during Soft lock and exposes a Choose a plan helper for Owner", async () => {

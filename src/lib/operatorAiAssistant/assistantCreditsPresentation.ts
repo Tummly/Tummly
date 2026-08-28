@@ -68,6 +68,10 @@ export function assistantCreditsShowAddCredits(options: {
   if (options.accessLevel !== "manage") {
     return false
   }
+  // Omit role must not hide Manage writers (CODING_STANDARDS chrome access).
+  if (options.permissionRole.trim() === "") {
+    return true
+  }
   return (
     options.permissionRole === "Owner"
     || options.permissionRole === "Billing Admin"

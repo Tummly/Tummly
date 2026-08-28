@@ -404,6 +404,8 @@ export type OperatorAiAssistantAdapters = {
   listOwnedLocations: () => readonly OperatorAiAssistantOwnedLocationOption[]
   /** Live AI remaining + Billing access for the composer credits bar. */
   getCreditsChrome: () => Promise<OperatorAiAssistantCreditsChrome>
+  /** Sync Billing Area cell — omit/unknown must not hide owner chrome. */
+  getBillingCreditsAccess: () => BillingCreditsAccessLevel
   /** Navigate after the drawer has closed (View usage / Add credits / restoration). */
   navigateBillingHref: (href: string) => void
   mic: OperatorAiAssistantMicAdapters
@@ -752,6 +754,7 @@ export function createInMemoryOperatorAiAssistantAdapters(
       mode: "multi",
       locationId: DEFAULT_OWNED_LOCATION.id,
     }),
+    getBillingCreditsAccess: () => "manage",
     navigateBillingHref: (href) => {
       extras.billingHrefs.push(href)
     },
@@ -1547,7 +1550,7 @@ export function createOperatorAiAssistantModule(
   let creditsChrome: OperatorAiAssistantCreditsChrome = {
     remaining: ASSISTANT_CREDITS_STUB_REMAINING,
     allowance: ASSISTANT_CREDITS_STUB_ALLOWANCE,
-    accessLevel: "none",
+    accessLevel: adapters.getBillingCreditsAccess(),
     permissionRole: "",
     billingStatus: "Active",
     isPilot: false,

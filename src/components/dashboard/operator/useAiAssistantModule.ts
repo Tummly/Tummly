@@ -217,37 +217,25 @@ export function useAiAssistantModule(
         getRestaurantName: () => contextRef.current.restaurantName,
         getDashboardMode: () => contextRef.current.mode,
         listOwnedLocations: () => contextRef.current.locations,
+        getBillingCreditsAccess: () => contextRef.current.billingCreditsAccess,
         getCreditsChrome: async () => {
           const current = contextRef.current
           const locationId = current.selectedLocation?.id ?? 0
-          try {
-            const [usage, page] = await Promise.all([
-              getBillingCreditsUsage(),
-              getBillingCreditsPage(),
-            ])
-            const ai = usage.channels.find((channel) => channel.channel === "ai")
-            return {
-              remaining: ai?.combinedRemaining ?? ASSISTANT_CREDITS_STUB_REMAINING,
-              allowance:
-                ai?.includedThisPeriod ?? ASSISTANT_CREDITS_STUB_ALLOWANCE,
-              accessLevel: current.billingCreditsAccess,
-              permissionRole: page.actorPermissionRole,
-              billingStatus: page.planSubscription.billingStatus,
-              isPilot: usage.isPilot,
-              mode: current.mode,
-              locationId,
-            }
-          } catch {
-            return {
-              remaining: ASSISTANT_CREDITS_STUB_REMAINING,
-              allowance: ASSISTANT_CREDITS_STUB_ALLOWANCE,
-              accessLevel: current.billingCreditsAccess,
-              permissionRole: "",
-              billingStatus: "Active",
-              isPilot: false,
-              mode: current.mode,
-              locationId,
-            }
+          const [usage, page] = await Promise.all([
+            getBillingCreditsUsage(),
+            getBillingCreditsPage(),
+          ])
+          const ai = usage.channels.find((channel) => channel.channel === "ai")
+          return {
+            remaining: ai?.combinedRemaining ?? ASSISTANT_CREDITS_STUB_REMAINING,
+            allowance:
+              ai?.includedThisPeriod ?? ASSISTANT_CREDITS_STUB_ALLOWANCE,
+            accessLevel: current.billingCreditsAccess,
+            permissionRole: page.actorPermissionRole,
+            billingStatus: page.planSubscription.billingStatus,
+            isPilot: usage.isPilot,
+            mode: current.mode,
+            locationId,
           }
         },
         navigateBillingHref: (href) => {

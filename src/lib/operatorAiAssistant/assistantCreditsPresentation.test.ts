@@ -79,6 +79,12 @@ describe("assistantCreditsPresentation", () => {
         permissionRole: "Admin",
       })
     ).toBe(true)
+    expect(
+      assistantCreditsShowAddCredits({
+        accessLevel: "manage",
+        permissionRole: "",
+      })
+    ).toBe(true)
   })
 
   it("builds View usage and Add credits landing hrefs", () => {
