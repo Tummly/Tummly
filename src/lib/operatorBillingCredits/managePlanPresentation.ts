@@ -135,7 +135,7 @@ function normalizePlanId(plan: string): ManagePlanId {
   return "Pilot"
 }
 
-function liveCadenceFromSnapshot(
+export function liveCadenceFromSnapshot(
   plan: PlanSubscriptionSnapshot
 ): BillingCadence | null {
   if (plan.isPilot || plan.billingCycle == null) {
@@ -238,10 +238,15 @@ export function resolvePlanCardCta(options: {
     }
   }
 
-  if (changeKind === "upgrade") {
+  if (changeKind === "upgrade" || changeKind === "plan-and-cadence") {
+    const isUpgrade =
+      changeKind === "upgrade"
+      || PLAN_RANK[cardPlanId] > PLAN_RANK[currentPlanId]
     return {
       kind: "action",
-      label: MANAGE_PLAN_COPY.upgradeTo(cardPlanId),
+      label: isUpgrade
+        ? MANAGE_PLAN_COPY.upgradeTo(cardPlanId)
+        : MANAGE_PLAN_COPY.downgradeTo(cardPlanId),
       disabled: false,
       changeKind,
     }
@@ -303,12 +308,19 @@ export function buildManagePlanCardViewModels(options: {
 }
 
 export function buildPlanChangeConfirmCopy(options: {
+  currentPlanId: ManagePlanId
   targetPlanId: ManagePlanId
   changeKind: PlanChangeKind
   previewCadence: BillingCadence
   renewalDateLabel: string | null
 }): { title: string; body: string; primaryLabel: string; requiresPay: boolean } {
-  const { targetPlanId, changeKind, previewCadence, renewalDateLabel } = options
+  const {
+    currentPlanId,
+    targetPlanId,
+    changeKind,
+    previewCadence,
+    renewalDateLabel,
+  } = options
 
   const requiresPay = changeKind === "convert" || changeKind === "upgrade"
 
@@ -317,9 +329,13 @@ export function buildPlanChangeConfirmCopy(options: {
       ? MANAGE_PLAN_COPY.confirmConvertTitle(targetPlanId)
       : changeKind === "upgrade"
         ? MANAGE_PLAN_COPY.confirmUpgradeTitle(targetPlanId)
-        : changeKind === "downgrade" || changeKind === "plan-and-cadence"
-          ? MANAGE_PLAN_COPY.confirmDowngradeTitle(targetPlanId)
-          : MANAGE_PLAN_COPY.confirmCadenceTitle(previewCadence)
+        : changeKind === "plan-and-cadence"
+          ? PLAN_RANK[targetPlanId] > PLAN_RANK[currentPlanId]
+            ? MANAGE_PLAN_COPY.confirmUpgradeTitle(targetPlanId)
+            : MANAGE_PLAN_COPY.confirmDowngradeTitle(targetPlanId)
+          : changeKind === "downgrade"
+            ? MANAGE_PLAN_COPY.confirmDowngradeTitle(targetPlanId)
+            : MANAGE_PLAN_COPY.confirmCadenceTitle(previewCadence)
 
   return {
     title,

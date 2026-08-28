@@ -22,6 +22,7 @@ import {
   buildPlanChangeConfirmCopy,
   defaultPreviewCadence,
   formatCurrentPlanSummary,
+  liveCadenceFromSnapshot,
   resolvePlanChangeKind,
   type BillingCadence,
   type ManagePlanCardViewModel,
@@ -408,12 +409,7 @@ export function createOperatorBillingCreditsPageModule(
       }
 
       const currentPlanId = plan.subscriptionPlan as ManagePlanId
-      const liveCadence =
-        plan.isPilot || plan.billingCycle == null
-          ? null
-          : plan.billingCycle.toLowerCase() === "annual"
-            ? "annual"
-            : "monthly"
+      const liveCadence = liveCadenceFromSnapshot(plan)
       const changeKind = resolvePlanChangeKind({
         currentPlanId,
         targetPlanId,
@@ -421,6 +417,7 @@ export function createOperatorBillingCreditsPageModule(
         previewCadence,
       })
       const copy = buildPlanChangeConfirmCopy({
+        currentPlanId,
         targetPlanId,
         changeKind,
         previewCadence,

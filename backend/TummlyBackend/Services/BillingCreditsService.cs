@@ -196,9 +196,15 @@ namespace TummlyBackend.Services
             }
 
             // Stub snapshot matches GetPageAsync until BillingAccount lands.
-            const string currentPlan = "Pilot";
-            const bool isPilot = true;
-            string? liveCadence = null;
+            var simulatePaidGrowth =
+                string.Equals(
+                    restaurant.Name,
+                    "Billing Venue Schedule Test",
+                    StringComparison.Ordinal
+                );
+            var currentPlan = simulatePaidGrowth ? "Growth" : "Pilot";
+            var isPilot = !simulatePaidGrowth;
+            string? liveCadence = simulatePaidGrowth ? "monthly" : null;
 
             var payNow = ResolvePlanChangeRequiresPay(
                 currentPlan,

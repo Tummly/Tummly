@@ -127,6 +127,7 @@ describe("buildPlanChangeConfirmCopy", () => {
   it("uses pay copy for Pilot conversion", () => {
     expect(
       buildPlanChangeConfirmCopy({
+        currentPlanId: "Pilot",
         targetPlanId: "Starter",
         changeKind: "convert",
         previewCadence: "monthly",
@@ -137,6 +138,7 @@ describe("buildPlanChangeConfirmCopy", () => {
 
   it("uses schedule copy for downgrades", () => {
     const copy = buildPlanChangeConfirmCopy({
+      currentPlanId: "Growth",
       targetPlanId: "Starter",
       changeKind: "downgrade",
       previewCadence: "monthly",
@@ -144,6 +146,31 @@ describe("buildPlanChangeConfirmCopy", () => {
     })
     expect(copy.requiresPay).toBe(false)
     expect(copy.body).toContain("12 Aug 2026")
+  })
+
+  it("uses upgrade copy for plan and cadence upgrades", () => {
+    expect(
+      buildPlanChangeConfirmCopy({
+        currentPlanId: "Starter",
+        targetPlanId: "Growth",
+        changeKind: "plan-and-cadence",
+        previewCadence: "annual",
+        renewalDateLabel: "Renews 12 Aug 2026",
+      }).title
+    ).toBe("Upgrade to Growth")
+  })
+})
+
+describe("plan and cadence upgrade CTAs", () => {
+  it("labels plan and cadence upgrade CTAs as upgrades", () => {
+    const cards = buildManagePlanCardViewModels({
+      plan: paidPlan({ subscriptionPlan: "Starter", billingCycle: "Monthly" }),
+      previewCadence: "annual",
+    })
+
+    expect(cards.find((card) => card.id === "Growth")?.cta.label).toBe(
+      "Upgrade to Growth"
+    )
   })
 })
 

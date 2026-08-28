@@ -229,7 +229,35 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("pay", body.GetProperty("outcome").GetString());
         }
 
-        private async Task<Seeded> SeedWorkspaceAsync(bool includeBillingAdmin = false)
+        [Fact]
+        public async Task PostPlanChange_ReturnsScheduled_ForOwnerPaidDowngrade()
+        {
+            var seeded = await SeedWorkspaceAsync(scheduleTestRestaurant: true);
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change",
+                seeded.OwnerJwt
+            );
+            request.Content = JsonContent.Create(new
+            {
+                targetPlan = "Starter",
+                targetCadence = "monthly",
+            });
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("scheduled", body.GetProperty("outcome").GetString());
+            Assert.Contains(
+                "Changes to Starter on",
+                body.GetProperty("scheduledChangeLine").GetString()
+            );
+        }
+
+        private async Task<Seeded> SeedWorkspaceAsync(
+            bool includeBillingAdmin = false,
+            bool scheduleTestRestaurant = false
+        )
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -242,7 +270,9 @@ namespace TummlyBackend.Tests.Integration
 
             var restaurant = new Restaurant
             {
-                Name = "Billing Venue",
+                Name = scheduleTestRestaurant
+                    ? "Billing Venue Schedule Test"
+                    : "Billing Venue",
                 AccountType = "Multi",
                 OwnerUserId = owner.Id,
                 BillingContactUserId = owner.Id,
