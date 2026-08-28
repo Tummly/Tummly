@@ -26,6 +26,7 @@ export interface LocationsResponse {
   brandLogoPublicUrl?: string | null;
   aiAssistantAccess?: boolean;
   teamPermissionsAccess?: "none" | "view" | "manage";
+  billingCreditsAccess?: "none" | "view" | "manage";
   locations: LocationItem[];
 }
 

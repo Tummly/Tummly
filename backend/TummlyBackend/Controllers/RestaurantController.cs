@@ -115,6 +115,12 @@ namespace TummlyBackend.Controllers
                     User
                 );
 
+            var billingCreditsAccess =
+                await OperatorChromeAccess.BillingCreditsAsync(
+                    _permissions,
+                    User
+                );
+
             return Ok(new
             {
                 success = true,
@@ -123,6 +129,7 @@ namespace TummlyBackend.Controllers
                 aiAssistantAccess =
                     assistant.Status == RestaurantPermissionStatus.Allowed,
                 teamPermissionsAccess,
+                billingCreditsAccess,
                 locations = locations.Select(row => new
                 {
                     row.Id,

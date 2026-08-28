@@ -169,6 +169,15 @@ describe("operatorDashboardNavPath", () => {
       operatorDashboardNavPath("multi", "team-permissions", 7)
     ).toBe("/multi-dashboard/settings/team-permissions?location=7")
   })
+
+  it("builds Billing & credits settings path with location query", () => {
+    expect(
+      operatorDashboardNavPath("single", "billing-credits", 42)
+    ).toBe("/single-dashboard/settings/billing-credits?location=42")
+    expect(
+      operatorDashboardNavPath("multi", "billing-credits", 7)
+    ).toBe("/multi-dashboard/settings/billing-credits?location=7")
+  })
 })
 
 describe("operatorDashboardOffersRedemptionLogPath", () => {
@@ -365,6 +374,19 @@ describe("resolveOperatorSidebarActiveId", () => {
         "/single-dashboard/settings/team-permissions"
       )
     ).toBe("team-permissions")
+  })
+
+  it("marks Billing & credits active on tabbed and manage-plan routes", () => {
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/single-dashboard/settings/billing-credits"
+      )
+    ).toBe("billing-credits")
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/multi-dashboard/settings/billing-credits/manage-plan"
+      )
+    ).toBe("billing-credits")
   })
 })
 

@@ -119,6 +119,7 @@ export type OperatorSidebarNavTargets = {
 
 export type OperatorSidebarNavOptions = {
   hideTeamPermissions?: boolean;
+  hideBillingCredits?: boolean;
 };
 
 /** Sidebar chrome for Operator Dashboard — navigable primary destinations. */
@@ -144,6 +145,9 @@ export function getOperatorSidebarNav(
 
   const children = OPERATOR_SIDEBAR_SETTINGS_CHILDREN.filter((item) => {
     if (item.id === "team-permissions" && options?.hideTeamPermissions) {
+      return false
+    }
+    if (item.id === "billing-credits" && options?.hideBillingCredits) {
       return false
     }
     return true

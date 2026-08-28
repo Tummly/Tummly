@@ -286,6 +286,8 @@ function DashboardContent({ mode }: DashboardProps) {
     },
     hideTeamPermissions:
       workspace.snapshot.teamPermissionsAccess === "none",
+    hideBillingCredits:
+      workspace.snapshot.billingCreditsAccess === "none",
   })
 
   return (

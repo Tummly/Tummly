@@ -29,6 +29,7 @@ export type BuildOperatorShellPresentationInput = {
   activeNavId?: OperatorSidebarActiveId
   navTargets?: OperatorSidebarNavTargets
   hideTeamPermissions?: boolean
+  hideBillingCredits?: boolean
 }
 
 /**
@@ -62,6 +63,7 @@ export function buildOperatorShellPresentation(
     omittedNavbarControls: [...OMITTED_NAVBAR_CONTROLS],
     sidebarNav: getOperatorSidebarNav(activeNavId, input.navTargets, {
       hideTeamPermissions: input.hideTeamPermissions,
+      hideBillingCredits: input.hideBillingCredits,
     }),
     locationSwitcher: {
       interactive: input.locationSwitcherInteractive,
