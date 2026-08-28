@@ -152,6 +152,32 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task StartDunningEpisode_RefusedWhenChargebackRestricted()
+        {
+            var seeded = await SeedPaidAsync();
+            await _lifecycle.SetChargebackRestrictionAsync(seeded.RestaurantId, true);
+
+            var result = await _lifecycle.StartDunningEpisodeAsync(
+                seeded.RestaurantId,
+                DateTime.UtcNow
+            );
+
+            Assert.True(result.Refused);
+            Assert.Equal(
+                BillingAccountLifecycleService.ChargebackRefuseReason,
+                result.Reason
+            );
+            Assert.Equal(
+                BillingStatuses.Active,
+                (await ReloadAsync(seeded.RestaurantId)).BillingStatus
+            );
+            Assert.Null(
+                (await ReloadAsync(seeded.RestaurantId)).DunningEpisodeStartedAt
+            );
+            Assert.Empty(_notifier.PaymentFailureDays);
+        }
+
+        [Fact]
         public async Task StartDunningEpisode_SecondOverdueWhileOpen_IsNoOp()
         {
             var seeded = await SeedPaidAsync();

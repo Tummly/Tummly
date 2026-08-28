@@ -9,6 +9,8 @@ namespace TummlyBackend.Services
     {
         public const string PilotRefuseReason = "pilot";
 
+        public const string ChargebackRefuseReason = "chargeback";
+
         public const int PilotDormantHours = 15 * 24;
 
         public const int DunningSoftLockHours = 10 * 24;
@@ -66,6 +68,12 @@ namespace TummlyBackend.Services
                     if (IsPilotPlan(account))
                     {
                         result = BillingLifecycleCommandResult.Refuse(PilotRefuseReason);
+                        return Task.FromResult(new List<LifecycleEvent>());
+                    }
+
+                    if (account.ChargebackRestricted)
+                    {
+                        result = BillingLifecycleCommandResult.Refuse(ChargebackRefuseReason);
                         return Task.FromResult(new List<LifecycleEvent>());
                     }
 
