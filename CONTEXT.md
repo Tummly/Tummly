@@ -797,7 +797,7 @@ The shared Operator Settings child layout: title, subtitle, header action slot, 
 _Avoid_: Settings landing; Settings header (when meaning the dashboard navbar)
 
 **Billing & credits**:
-The Settings nav child for plan, credits, payment, invoices, billing contacts, and billing activity. Area id `billing-credits`. Holds five tabs plus a nested **Manage plan** surface. Who may view or write is `.scratch/billing-credits-frontend/issues/11-who-may-view-and-manage-billing-and-credits.md`. Distinct from **Billing contact** on **Key contacts**.
+The Settings nav child for plan, credits, payment, invoices, billing contacts, and billing activity. Area id `billing-credits`. Holds five tabs plus a nested **Manage plan** surface. Who may view or write is `.scratch/billing-credits-frontend/issues/11-who-may-view-and-manage-billing-and-credits.md`. Operator HTTP is `/api/billing-credits` (credit-ledger ticket **12**). Distinct from **Billing contact** on **Key contacts**.
 _Avoid_: Billing page, payments settings
 
 **Plan & subscription**:
