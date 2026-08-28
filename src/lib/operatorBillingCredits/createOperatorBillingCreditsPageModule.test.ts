@@ -7,6 +7,7 @@ import {
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import {
   createOperatorBillingCreditsPageModule,
+  type BillingCreditsPageAdapters,
   type BillingCreditsPageData,
 } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
 import type { CreditsUsageSnapshot } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
@@ -48,10 +49,35 @@ function sampleUsage(
   }
 }
 
+function sampleBillingContacts(
+  overrides: Partial<BillingCreditsPageData["billingContacts"]> = {}
+): BillingCreditsPageData["billingContacts"] {
+  return {
+    billingContactUserId: 1,
+    billingEmail: "",
+    eligibleMembers: [
+      { userId: 1, fullName: "Owner", email: "owner@example.com" },
+      { userId: 2, fullName: "Admin", email: "admin@example.com" },
+    ],
+    lowCreditAlerts: {
+      owner: true,
+      admin: false,
+      billingContact: true,
+    },
+    paymentFailureAlerts: {
+      owner: true,
+      billingContact: true,
+    },
+    ...overrides,
+  }
+}
+
+
 function samplePage(overrides: Partial<BillingCreditsPageData> = {}): BillingCreditsPageData {
   return {
     actorPermissionRole: "Owner",
     actorCanManage: true,
+    actorCanPersistBillingContacts: true,
     paymentMethod: null,
     invoices: [],
     planSubscription: {
@@ -73,6 +99,7 @@ function samplePage(overrides: Partial<BillingCreditsPageData> = {}): BillingCre
       scheduledChangeLine: null,
       isPilot: true,
     },
+    billingContacts: sampleBillingContacts(),
     ...overrides,
   }
 }
@@ -80,12 +107,21 @@ function samplePage(overrides: Partial<BillingCreditsPageData> = {}): BillingCre
 function createTestModule(
   pageOverrides: Partial<BillingCreditsPageData> = {},
   usage: CreditsUsageSnapshot = sampleUsage(),
-  submitPlanChange = vi.fn()
+  adapterOverrides: Partial<BillingCreditsPageAdapters> = {}
 ) {
+  const page = samplePage(pageOverrides)
   return createOperatorBillingCreditsPageModule({
-    getPage: async () => samplePage(pageOverrides),
+    getPage: vi.fn(async () => page),
     getUsage: async () => usage,
-    submitPlanChange,
+    submitPlanChange: vi.fn(),
+    updateBillingContacts: vi.fn(async (payload) => ({
+      ...page.billingContacts,
+      billingContactUserId: payload.billingContactUserId,
+      billingEmail: payload.billingEmail,
+      lowCreditAlerts: { ...payload.lowCreditAlerts },
+      paymentFailureAlerts: { ...payload.paymentFailureAlerts },
+    })),
+    ...adapterOverrides,
   })
 }
 
@@ -345,7 +381,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
 
   it("does not persist cadence toggle through submitPlanChange until confirm", async () => {
     const submitPlanChange = vi.fn()
-    const module = createTestModule({}, sampleUsage(), submitPlanChange)
+    const module = createTestModule({}, sampleUsage(), { submitPlanChange })
     module.setNavigationTargets({ mode: "single", locationId: 42 })
     await module.load()
 
@@ -377,7 +413,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
       outcome: "scheduled" as const,
       scheduledChangeLine: "Changes to Growth on 12 Aug 2026",
     }))
-    const module = createTestModule({}, sampleUsage(), submitPlanChange)
+    const module = createTestModule({}, sampleUsage(), { submitPlanChange })
     module.setNavigationTargets({ mode: "single", locationId: 42 })
     await module.load()
 
@@ -420,7 +456,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
       outcome: "pay" as const,
       redirectUrl: "https://checkout.revolut.com/pay/example",
     }))
-    const module = createTestModule({}, sampleUsage(), submitPlanChange)
+    const module = createTestModule({}, sampleUsage(), { submitPlanChange })
     await module.load()
 
     module.requestPlanChange("Starter")
@@ -507,4 +543,69 @@ describe("createOperatorBillingCreditsPageModule", () => {
       "https://sandbox-merchant.revolut.com/hpp/update-payment-method"
     )
   })
+
+
+
+  it("is dirty only on the billing-contacts tab", async () => {
+    const module = createTestModule()
+    await module.load()
+
+    module.requestTabChange("billing-contacts")
+    expect(module.getSnapshot().isDirty).toBe(false)
+
+    module.setBillingEmail("billing@example.com")
+    expect(module.getSnapshot().isDirty).toBe(true)
+
+    module.requestTabChange("plan-subscription")
+    expect(module.getSnapshot().leaveDirtyOpen).toBe(true)
+    expect(module.getSnapshot().activeTabId).toBe("billing-contacts")
+
+    module.confirmLeaveDirtyCancel()
+    expect(module.getSnapshot().isDirty).toBe(false)
+    expect(module.getSnapshot().activeTabId).toBe("plan-subscription")
+  })
+
+  it("does not mark other tabs dirty when billing contacts is clean", async () => {
+    const module = createTestModule()
+    await module.load()
+
+    module.requestTabChange("credits-usage")
+    expect(module.getSnapshot().isDirty).toBe(false)
+    expect(module.getSnapshot().leaveDirtyOpen).toBe(false)
+  })
+
+  it("allows empty alert ticks", async () => {
+    const updateBillingContacts = vi.fn(async (payload) => ({
+      ...sampleBillingContacts(),
+      lowCreditAlerts: payload.lowCreditAlerts,
+      paymentFailureAlerts: payload.paymentFailureAlerts,
+    }))
+    const module = createTestModule({}, sampleUsage(), { updateBillingContacts })
+    await module.load()
+    module.requestTabChange("billing-contacts")
+
+    module.setLowCreditAlertOwner(false)
+    module.setLowCreditAlertAdmin(false)
+    module.setLowCreditAlertBillingContact(false)
+    module.setPaymentFailureAlertOwner(false)
+    module.setPaymentFailureAlertBillingContact(false)
+
+    await module.persistBillingContacts()
+
+    expect(updateBillingContacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lowCreditAlerts: {
+          owner: false,
+          admin: false,
+          billingContact: false,
+        },
+        paymentFailureAlerts: {
+          owner: false,
+          billingContact: false,
+        },
+      })
+    )
+    expect(module.getSnapshot().isDirty).toBe(false)
+})
+
 })

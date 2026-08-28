@@ -8,12 +8,23 @@ import {
 } from "lucide-react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 
+import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
 import { useBillingCreditsPageModuleApi } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
 import { ManagePlanCardsSection } from "@/components/dashboard/operator/BillingCredits/ManagePlanCardsSection"
 import { PaymentInvoicesTable } from "@/components/dashboard/operator/BillingCredits/PaymentInvoicesTable"
 import { UpdatePaymentMethodConfirmDialog } from "@/components/dashboard/operator/BillingCredits/UpdatePaymentMethodConfirmDialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { CheckboxLabel } from "@/components/ui/checkbox-label"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import {
   Table,
@@ -26,6 +37,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   BILLING_CREDITS_PAGE_COPY as copy,
+  BILLING_CREDITS_SELECT_MENU_CLASS,
   formatCreditsRemaining,
   formatStarterKitState,
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
@@ -39,6 +51,10 @@ import {
   CAMPAIGNS_MESSAGING_USAGE_TILE_CLASS,
   CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS,
 } from "@/lib/operatorCampaigns/campaignsPresentation"
+import {
+  BROWSER_BACK_HREF,
+  registerLeaveDirtyGuard,
+} from "@/lib/operatorNavigation/leaveDirtyGuard"
 import {
   GUESTS_DETAIL_FIELD_CLASS,
   GUESTS_DETAIL_FIELD_LABEL_CLASS,
@@ -561,6 +577,227 @@ function EmptyTabBody({ label }: { label: string }) {
   )
 }
 
+const BILLING_FIELD_STACK_CLASS = "flex flex-col gap-2"
+const BILLING_FIELD_LABEL_CLASS =
+  "text-sm font-semibold leading-5 text-foreground"
+const BILLING_FORM_STACK_CLASS = "flex max-w-[510px] flex-col gap-7"
+
+function BillingContactMemberSelect({
+  id,
+  label,
+  value,
+  members,
+  disabled = false,
+  onValueChange,
+}: {
+  id: string
+  label: string
+  value: number
+  members: ReadonlyArray<{ userId: number; fullName: string; email: string }>
+  disabled?: boolean
+  onValueChange?: (userId: number) => void
+}) {
+  const selected = members.find((member) => member.userId === value)
+  const selectValue = value > 0 ? String(value) : undefined
+
+  return (
+    <div className={BILLING_FIELD_STACK_CLASS}>
+      <label htmlFor={id} className={BILLING_FIELD_LABEL_CLASS}>
+        {label}
+      </label>
+      <Select
+        value={selectValue}
+        disabled={disabled}
+        onValueChange={(next) => {
+          const parsed = Number(next)
+          if (!Number.isFinite(parsed)) {
+            return
+          }
+          onValueChange?.(parsed)
+        }}
+      >
+        <SelectTrigger id={id} className="h-auto min-h-8 w-full py-3">
+          <SelectValue placeholder={copy.selectUserPlaceholder}>
+            {selected?.fullName ?? copy.selectUserPlaceholder}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent
+          position="popper"
+          align="start"
+          className={BILLING_CREDITS_SELECT_MENU_CLASS}
+        >
+          {members.map((member) => (
+            <SelectItem key={member.userId} value={String(member.userId)}>
+              <span className="flex flex-col gap-0.5 text-left">
+                <span>{member.fullName}</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  {member.email}
+                </span>
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
+function BillingContactsBody({
+  snap,
+  pageModule,
+}: {
+  snap: ReturnType<
+    ReturnType<typeof useBillingCreditsPageModuleApi>["getSnapshot"]
+  >
+  pageModule: ReturnType<typeof useBillingCreditsPageModuleApi>
+}) {
+  if (snap.loadStatus === "idle" || snap.loadStatus === "loading") {
+    return (
+      <div className="flex justify-center py-16" role="status">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (snap.loadStatus === "error") {
+    return (
+      <div className={GUESTS_SECTION_CLASS}>
+        <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.loadError}</h2>
+        <Button
+          type="button"
+          variant="op-secondary"
+          onClick={() => {
+            void pageModule.load()
+          }}
+        >
+          {copy.retry}
+        </Button>
+      </div>
+    )
+  }
+
+  const contacts = snap.billingContacts
+  const readOnly = !snap.actorCanPersistBillingContacts
+
+  return (
+    <section className={GUESTS_SECTION_CLASS}>
+      <div className="flex flex-col gap-2">
+        <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.billingContactsTitle}</h2>
+        <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+          {copy.billingContactsSubtitle}
+        </p>
+      </div>
+
+      <div className={BILLING_FORM_STACK_CLASS}>
+        <BillingContactMemberSelect
+          id="billing-contact-user"
+          label={copy.billingContact}
+          value={contacts.billingContactUserId}
+          members={contacts.eligibleMembers}
+          disabled={readOnly}
+          onValueChange={(userId) => {
+            pageModule.setBillingContactUserId(userId)
+          }}
+        />
+
+        <Separator />
+
+        <div className={BILLING_FIELD_STACK_CLASS}>
+          <label htmlFor="billing-email" className={BILLING_FIELD_LABEL_CLASS}>
+            {copy.billingEmail}
+          </label>
+          <Input
+            id="billing-email"
+            type="email"
+            value={contacts.billingEmail}
+            placeholder={copy.billingEmailPlaceholder}
+            disabled={readOnly}
+            className="h-auto py-3"
+            onChange={(event) => {
+              pageModule.setBillingEmail(event.target.value)
+            }}
+          />
+        </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-3.5">
+          <p className={BILLING_FIELD_LABEL_CLASS}>{copy.lowCreditAlerts}</p>
+          <div className="flex flex-col gap-3.5">
+            <CheckboxLabel
+              checked={contacts.lowCreditAlerts.owner}
+              disabled={readOnly}
+              onCheckedChange={(checked) => {
+                pageModule.setLowCreditAlertOwner(checked)
+              }}
+            >
+              {copy.alertOwner}
+            </CheckboxLabel>
+            <CheckboxLabel
+              checked={contacts.lowCreditAlerts.admin}
+              disabled={readOnly}
+              onCheckedChange={(checked) => {
+                pageModule.setLowCreditAlertAdmin(checked)
+              }}
+            >
+              {copy.alertAdmin}
+            </CheckboxLabel>
+            <CheckboxLabel
+              checked={contacts.lowCreditAlerts.billingContact}
+              disabled={readOnly}
+              onCheckedChange={(checked) => {
+                pageModule.setLowCreditAlertBillingContact(checked)
+              }}
+            >
+              {copy.alertBillingContact}
+            </CheckboxLabel>
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-3.5">
+          <p className={BILLING_FIELD_LABEL_CLASS}>{copy.paymentFailureAlerts}</p>
+          <div className="flex flex-col gap-3.5">
+            <CheckboxLabel
+              checked={contacts.paymentFailureAlerts.owner}
+              disabled={readOnly}
+              onCheckedChange={(checked) => {
+                pageModule.setPaymentFailureAlertOwner(checked)
+              }}
+            >
+              {copy.alertOwner}
+            </CheckboxLabel>
+            <CheckboxLabel
+              checked={contacts.paymentFailureAlerts.billingContact}
+              disabled={readOnly}
+              onCheckedChange={(checked) => {
+                pageModule.setPaymentFailureAlertBillingContact(checked)
+              }}
+            >
+              {copy.alertBillingContact}
+            </CheckboxLabel>
+          </div>
+        </div>
+      </div>
+
+      {snap.actorCanPersistBillingContacts ? (
+        <Button
+          type="button"
+          variant="op-secondary"
+          className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+          disabled={!snap.saveEnabled}
+          onClick={() => {
+            void pageModule.persistBillingContacts()
+          }}
+        >
+          {copy.updateBillingContact}
+        </Button>
+      ) : null}
+    </section>
+  )
+}
+
 function BillingCreditsHeaderActions({
   snap,
   pageModule,
@@ -639,8 +876,42 @@ export function BillingCreditsPage() {
     if (href == null) {
       return
     }
+    if (href === BROWSER_BACK_HREF) {
+      navigate(-1)
+      return
+    }
     navigate(href)
   }, [snap.pendingNavigationHref, pageModule, navigate])
+
+  useEffect(() => {
+    registerLeaveDirtyGuard({
+      isBlocked: () => pageModule.getSnapshot().isDirty,
+      requestLeave: (href) => pageModule.requestNavigateAway(href),
+    })
+    return () => {
+      registerLeaveDirtyGuard(null)
+    }
+  }, [pageModule])
+
+  useEffect(() => {
+    if (!snap.isDirty) {
+      return
+    }
+
+    const onPopState = () => {
+      if (!pageModule.getSnapshot().isDirty) {
+        return
+      }
+      window.history.pushState(null, "", window.location.href)
+      pageModule.requestNavigateAway(BROWSER_BACK_HREF)
+    }
+
+    window.history.pushState(null, "", window.location.href)
+    window.addEventListener("popstate", onPopState)
+    return () => {
+      window.removeEventListener("popstate", onPopState)
+    }
+  }, [snap.isDirty, pageModule])
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
@@ -676,12 +947,31 @@ export function BillingCreditsPage() {
           <PaymentInvoicesBody snap={snap} pageModule={pageModule} />
         </TabsContent>
         <TabsContent value="billing-contacts">
-          <EmptyTabBody label="Billing contacts" />
+          <BillingContactsBody snap={snap} pageModule={pageModule} />
         </TabsContent>
         <TabsContent value="activity">
           <EmptyTabBody label="Activity" />
         </TabsContent>
       </Tabs>
+
+      <AccountWorkspaceConfirmDialog
+        open={snap.leaveDirtyOpen}
+        title={copy.leaveDirtyTitle}
+        body={copy.leaveDirtyBody}
+        primaryLabel={copy.leaveDirtySave}
+        busy={snap.isSaving}
+        onOpenChange={(open) => {
+          if (!open) {
+            pageModule.closeLeaveDirty()
+          }
+        }}
+        onPrimary={() => {
+          void pageModule.confirmLeaveDirtySave()
+        }}
+        onCancel={() => {
+          pageModule.confirmLeaveDirtyCancel()
+        }}
+      />
     </div>
   )
 }

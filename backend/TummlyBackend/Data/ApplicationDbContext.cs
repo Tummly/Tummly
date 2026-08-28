@@ -50,6 +50,8 @@ namespace TummlyBackend.Data
         public DbSet<RestaurantBusinessDetails> RestaurantBusinessDetails
         { get; set; }
 
+        public DbSet<BillingAccount> BillingAccounts { get; set; }
+
         public DbSet<RestaurantLocation> RestaurantLocations { get; set; }
 
         public DbSet<QrCode> QrCodes { get; set; }
@@ -465,6 +467,22 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<RestaurantBusinessDetails>()
                 .Property(d => d.Country)
                 .HasMaxLength(100);
+
+            /*
+             =========================================
+             RESTAURANT -> BILLING ACCOUNT (1:1)
+             =========================================
+            */
+
+            modelBuilder.Entity<BillingAccount>()
+                .HasOne(b => b.Restaurant)
+                .WithOne(r => r.BillingAccount)
+                .HasForeignKey<BillingAccount>(b => b.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.BillingEmail)
+                .HasMaxLength(320);
 
             /*
              =========================================

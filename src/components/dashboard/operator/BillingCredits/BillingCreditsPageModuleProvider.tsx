@@ -14,6 +14,7 @@ import {
   getBillingCreditsUsage,
   openInvoicePdfBlob,
   submitBillingPlanChange,
+  updateBillingContacts,
 } from "@/api/billingCreditsApi"
 import { billingCreditsPageModuleContext } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
@@ -46,6 +47,7 @@ export function BillingCreditsPageModuleProvider({
         fetchInvoicePdf: fetchBillingCreditsInvoicePdf,
         openInvoicePdf: openInvoicePdfBlob,
         downloadInvoicePdf: downloadInvoicePdfBlob,
+        updateBillingContacts,
       },
       {
         initialTabId,

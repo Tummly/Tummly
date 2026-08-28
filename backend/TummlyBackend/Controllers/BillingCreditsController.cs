@@ -231,5 +231,48 @@ namespace TummlyBackend.Controllers
                 return Forbid();
             }
         }
+
+        [HttpPut("billing-contacts")]
+        public async Task<IActionResult> UpdateBillingContacts(
+            [FromBody] UpdateBillingContactsRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var manage = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.BillingCredits,
+                PermissionLevel.Manage
+            );
+            var forbidden = manage.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
+            var (response, error, statusCode) =
+                await _billingCredits.UpdateBillingContactsAsync(
+                    userId,
+                    manage.RestaurantId,
+                    request
+                );
+
+            if (response == null)
+            {
+                return StatusCode(statusCode, new
+                {
+                    success = false,
+                    message = error,
+                });
+            }
+
+            return Ok(response);
+        }
+
     }
 }

@@ -1,8 +1,12 @@
 import axiosInstance from "@/api/axiosInstance"
 import type {
+  BillingAlertRoleFlags,
+  BillingContactsSnapshot,
   BillingCreditsPageData,
+  BillingPaymentFailureAlertFlags,
   PlanChangeRequest,
   PlanChangeResult,
+  UpdateBillingContactsPayload,
 } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
 import type { CreditsUsageSnapshot } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 
@@ -18,12 +22,26 @@ type PaymentMethodResponse = BillingCreditsPageData["paymentMethod"] extends inf
     : never
   : never
 
+type BillingContactsApiSnapshot = {
+  billingContactUserId: number
+  billingEmail: string | null
+  eligibleMembers: Array<{
+    userId: number
+    fullName: string
+    email: string
+  }>
+  lowCreditAlerts: BillingAlertRoleFlags
+  paymentFailureAlerts: BillingPaymentFailureAlertFlags
+}
+
 type BillingCreditsPageResponse = {
   actorPermissionRole: string
   actorCanManage: boolean
+  actorCanPersistBillingContacts: boolean
   planSubscription: BillingCreditsPageData["planSubscription"]
   paymentMethod: PaymentMethodResponse | null
   invoices: BillingCreditsPageData["invoices"]
+  billingContacts: BillingContactsApiSnapshot
 }
 
 function mapPaymentMethod(
@@ -48,6 +66,29 @@ function mapPaymentMethod(
   }
 }
 
+function mapBillingContacts(
+  data: BillingContactsApiSnapshot
+): BillingContactsSnapshot {
+  return {
+    billingContactUserId: data.billingContactUserId,
+    billingEmail: data.billingEmail ?? "",
+    eligibleMembers: (data.eligibleMembers ?? []).map((member) => ({
+      userId: member.userId,
+      fullName: member.fullName,
+      email: member.email,
+    })),
+    lowCreditAlerts: {
+      owner: data.lowCreditAlerts.owner,
+      admin: data.lowCreditAlerts.admin,
+      billingContact: data.lowCreditAlerts.billingContact,
+    },
+    paymentFailureAlerts: {
+      owner: data.paymentFailureAlerts.owner,
+      billingContact: data.paymentFailureAlerts.billingContact,
+    },
+  }
+}
+
 type PlanChangeResponse = {
   outcome: "pay" | "scheduled"
   redirectUrl?: string | null
@@ -61,10 +102,33 @@ export async function getBillingCreditsPage(): Promise<BillingCreditsPageData> {
   return {
     actorPermissionRole: data.actorPermissionRole,
     actorCanManage: data.actorCanManage,
+    actorCanPersistBillingContacts: data.actorCanPersistBillingContacts,
     planSubscription: data.planSubscription,
     paymentMethod: mapPaymentMethod(data.paymentMethod),
     invoices: data.invoices ?? [],
+    billingContacts: mapBillingContacts(data.billingContacts),
   }
+}
+
+export async function updateBillingContacts(
+  payload: UpdateBillingContactsPayload
+): Promise<BillingContactsSnapshot> {
+  const { data } = await axiosInstance.put<{
+    billingContacts: BillingContactsApiSnapshot
+  }>("/billing-credits/billing-contacts", {
+    billingContactUserId: payload.billingContactUserId,
+    billingEmail: payload.billingEmail.trim() === "" ? null : payload.billingEmail.trim(),
+    lowCreditAlerts: {
+      owner: payload.lowCreditAlerts.owner,
+      admin: payload.lowCreditAlerts.admin,
+      billingContact: payload.lowCreditAlerts.billingContact,
+    },
+    paymentFailureAlerts: {
+      owner: payload.paymentFailureAlerts.owner,
+      billingContact: payload.paymentFailureAlerts.billingContact,
+    },
+  })
+  return mapBillingContacts(data.billingContacts)
 }
 
 export async function getBillingCreditsUsage(): Promise<CreditsUsageSnapshot> {

@@ -9,6 +9,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -60,6 +61,9 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             Assert.False(body.GetProperty("actorCanManage").GetBoolean());
+            Assert.False(
+                body.GetProperty("actorCanPersistBillingContacts").GetBoolean()
+            );
             Assert.Equal("Admin", body.GetProperty("actorPermissionRole").GetString());
 
             var plan = body.GetProperty("planSubscription");
@@ -74,7 +78,199 @@ namespace TummlyBackend.Tests.Integration
                 body.GetProperty("paymentMethod").ValueKind
             );
             Assert.Equal(0, body.GetProperty("invoices").GetArrayLength());
+
+            var contacts = body.GetProperty("billingContacts");
+            Assert.True(contacts.GetProperty("lowCreditAlerts").GetProperty("owner").GetBoolean());
+            Assert.False(contacts.GetProperty("lowCreditAlerts").GetProperty("admin").GetBoolean());
+            Assert.True(
+                contacts.GetProperty("lowCreditAlerts").GetProperty("billingContact").GetBoolean()
+            );
         }
+
+        [Fact]
+        public async Task PutBillingContacts_Returns403_ForView()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = AuthorizedPutBillingContacts(
+                seeded.AdminJwt,
+                new
+                {
+                    billingContactUserId = seeded.OwnerUserId,
+                    billingEmail = "billing@example.com",
+                    lowCreditAlerts = new
+                    {
+                        owner = true,
+                        admin = false,
+                        billingContact = true,
+                    },
+                    paymentFailureAlerts = new
+                    {
+                        owner = true,
+                        billingContact = true,
+                    },
+                }
+            );
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PutBillingContacts_Returns403_ForBillingAdmin()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = AuthorizedPutBillingContacts(
+                seeded.BillingAdminJwt,
+                new
+                {
+                    billingContactUserId = seeded.OwnerUserId,
+                    billingEmail = "billing@example.com",
+                    lowCreditAlerts = new
+                    {
+                        owner = true,
+                        admin = false,
+                        billingContact = true,
+                    },
+                    paymentFailureAlerts = new
+                    {
+                        owner = true,
+                        billingContact = true,
+                    },
+                }
+            );
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PutBillingContacts_OwnerWrite_UpdatesNominationMailboxAndTicks()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = AuthorizedPutBillingContacts(
+                seeded.OwnerJwt,
+                new
+                {
+                    billingContactUserId = seeded.AdminUserId,
+                    billingEmail = "invoices@example.com",
+                    lowCreditAlerts = new
+                    {
+                        owner = false,
+                        admin = true,
+                        billingContact = false,
+                    },
+                    paymentFailureAlerts = new
+                    {
+                        owner = false,
+                        billingContact = true,
+                    },
+                }
+            );
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var contacts = body.GetProperty("billingContacts");
+            Assert.Equal(
+                seeded.AdminUserId,
+                contacts.GetProperty("billingContactUserId").GetInt32()
+            );
+            Assert.Equal(
+                "invoices@example.com",
+                contacts.GetProperty("billingEmail").GetString()
+            );
+            Assert.False(contacts.GetProperty("lowCreditAlerts").GetProperty("owner").GetBoolean());
+            Assert.True(contacts.GetProperty("lowCreditAlerts").GetProperty("admin").GetBoolean());
+            Assert.False(
+                contacts.GetProperty("lowCreditAlerts").GetProperty("billingContact").GetBoolean()
+            );
+            Assert.False(
+                contacts.GetProperty("paymentFailureAlerts").GetProperty("owner").GetBoolean()
+            );
+            Assert.True(
+                contacts.GetProperty("paymentFailureAlerts").GetProperty("billingContact").GetBoolean()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurant = await context.Restaurants
+                .SingleAsync(r => r.Id == seeded.RestaurantId);
+            Assert.Equal(seeded.AdminUserId, restaurant.BillingContactUserId);
+
+            var billingAccount = await context.BillingAccounts
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal("invoices@example.com", billingAccount.BillingEmail);
+            Assert.False(billingAccount.LowCreditAlertOwner);
+            Assert.True(billingAccount.LowCreditAlertAdmin);
+            Assert.False(billingAccount.LowCreditAlertBillingContact);
+            Assert.False(billingAccount.PaymentFailureAlertOwner);
+            Assert.True(billingAccount.PaymentFailureAlertBillingContact);
+        }
+
+        [Fact]
+        public async Task PutKeyContacts_DoesNotClearBillingMailboxOrTicks()
+        {
+            var seeded = await SeedWorkspaceAsync();
+
+            using (var billingRequest = AuthorizedPutBillingContacts(
+                seeded.OwnerJwt,
+                new
+                {
+                    billingContactUserId = seeded.OwnerUserId,
+                    billingEmail = "mailbox@example.com",
+                    lowCreditAlerts = new
+                    {
+                        owner = true,
+                        admin = true,
+                        billingContact = false,
+                    },
+                    paymentFailureAlerts = new
+                    {
+                        owner = false,
+                        billingContact = false,
+                    },
+                }
+            ))
+            {
+                var billingResponse = await _client.SendAsync(billingRequest);
+                Assert.Equal(HttpStatusCode.OK, billingResponse.StatusCode);
+            }
+
+            using var keyContactsRequest = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/account-workspace/key-contacts"
+            );
+            keyContactsRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.OwnerJwt);
+            keyContactsRequest.Content = JsonContent.Create(new
+            {
+                billingContactUserId = seeded.AdminUserId,
+                privacyContactUserId = seeded.OwnerUserId,
+                supportContactUserId = seeded.OwnerUserId,
+            });
+
+            var keyContactsResponse = await _client.SendAsync(keyContactsRequest);
+            Assert.Equal(HttpStatusCode.OK, keyContactsResponse.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurant = await context.Restaurants
+                .SingleAsync(r => r.Id == seeded.RestaurantId);
+            Assert.Equal(seeded.AdminUserId, restaurant.BillingContactUserId);
+
+            var billingAccount = await context.BillingAccounts
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal("mailbox@example.com", billingAccount.BillingEmail);
+            Assert.True(billingAccount.LowCreditAlertOwner);
+            Assert.True(billingAccount.LowCreditAlertAdmin);
+            Assert.False(billingAccount.LowCreditAlertBillingContact);
+            Assert.False(billingAccount.PaymentFailureAlertOwner);
+            Assert.False(billingAccount.PaymentFailureAlertBillingContact);
+        }
+
 
         [Fact]
         public async Task UsageGet_Returns401_WithoutJwt()
@@ -177,7 +373,7 @@ namespace TummlyBackend.Tests.Integration
             using var request = Authorized(
                 HttpMethod.Post,
                 "/api/billing-credits/plan-change",
-                seeded.BillingAdminJwt!
+                seeded.BillingAdminJwt
             );
             request.Content = JsonContent.Create(new
             {
@@ -288,6 +484,10 @@ namespace TummlyBackend.Tests.Integration
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
 
+            context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(restaurant.Id)
+            );
+
             owner.SelectedRestaurantId = restaurant.Id;
 
             var location = new RestaurantLocation
@@ -342,32 +542,25 @@ namespace TummlyBackend.Tests.Integration
                 "[]"
             );
 
-            string? billingAdminJwt = null;
-            if (includeBillingAdmin)
-            {
-                var billingAdmin = AddUser(context, "Billing Admin Sixteen", "Owner");
-                billingAdmin.SelectedRestaurantId = restaurant.Id;
-                await context.SaveChangesAsync();
+            var billingAdmin = AddUser(context, "Billing Admin Sixteen", "Owner");
+            billingAdmin.SelectedRestaurantId = restaurant.Id;
+            await context.SaveChangesAsync();
 
-                AddMembership(
-                    context,
-                    billingAdmin.Id,
-                    restaurant.Id,
-                    PermissionRoles.BillingAdmin,
-                    LocationScopeKind.AllLocations,
-                    "[]"
-                );
-                await context.SaveChangesAsync();
-                billingAdminJwt = jwtService.GenerateToken(
-                    billingAdmin.Id.ToString(),
-                    billingAdmin.Email,
-                    billingAdmin.Role
-                );
-            }
+            AddMembership(
+                context,
+                billingAdmin.Id,
+                restaurant.Id,
+                PermissionRoles.BillingAdmin,
+                LocationScopeKind.AllLocations,
+                "[]"
+            );
 
             await context.SaveChangesAsync();
 
             return new Seeded(
+                restaurant.Id,
+                owner.Id,
+                admin.Id,
                 jwtService.GenerateToken(owner.Id.ToString(), owner.Email, owner.Role),
                 jwtService.GenerateToken(admin.Id.ToString(), admin.Email, admin.Role),
                 jwtService.GenerateToken(staff.Id.ToString(), staff.Email, staff.Role),
@@ -376,7 +569,11 @@ namespace TummlyBackend.Tests.Integration
                     marketing.Email,
                     marketing.Role
                 ),
-                billingAdminJwt
+                jwtService.GenerateToken(
+                    billingAdmin.Id.ToString(),
+                    billingAdmin.Email,
+                    billingAdmin.Role
+                )
             );
         }
 
@@ -457,7 +654,7 @@ namespace TummlyBackend.Tests.Integration
             using var request = Authorized(
                 HttpMethod.Post,
                 "/api/billing-credits/payment-method/update",
-                seeded.BillingAdminJwt!
+                seeded.BillingAdminJwt
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -600,6 +797,20 @@ namespace TummlyBackend.Tests.Integration
             return request;
         }
 
+        private static HttpRequestMessage AuthorizedPutBillingContacts(
+            string jwt,
+            object payload
+        )
+        {
+            var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/billing-credits/billing-contacts"
+            );
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+            request.Content = JsonContent.Create(payload);
+            return request;
+        }
+
         private static async Task<JsonElement> ReadJsonAsync(
             HttpResponseMessage response
         )
@@ -608,11 +819,14 @@ namespace TummlyBackend.Tests.Integration
         }
 
         private sealed record Seeded(
+            int RestaurantId,
+            int OwnerUserId,
+            int AdminUserId,
             string OwnerJwt,
             string AdminJwt,
             string StaffJwt,
             string MarketingJwt,
-            string? BillingAdminJwt = null
+            string BillingAdminJwt
         );
 
         private sealed record PaidSeeded(

@@ -113,6 +113,10 @@ namespace TummlyBackend.Services
                 _context.Restaurants.Add(restaurant);
                 await _context.SaveChangesAsync();
 
+                _context.BillingAccounts.Add(
+                    BillingCreditsService.CreateDefaultBillingAccount(restaurant.Id)
+                );
+
                 user.SelectedRestaurantId = restaurant.Id;
 
                 var scopeError = MembershipLocationScope.Validate(
