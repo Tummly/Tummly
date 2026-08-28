@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -45,19 +46,29 @@ namespace TummlyBackend.Services
                 return CreditLedgerWriteResult.Fail("insufficient_credits");
             }
 
-            var gate = AccountLocks.GetOrAdd(
-                request.RestaurantId,
-                _ => new SemaphoreSlim(1, 1)
-            );
-            await gate.WaitAsync(cancellationToken);
-            try
+            if (request.LocationId == null)
             {
-                return await ConsumeLockedAsync(request, cancellationToken);
+                return CreditLedgerWriteResult.Fail("location_required");
             }
-            finally
+
+            if (!_context.Database.IsSqlServer())
             {
-                gate.Release();
+                var gate = AccountLocks.GetOrAdd(
+                    request.RestaurantId,
+                    _ => new SemaphoreSlim(1, 1)
+                );
+                await gate.WaitAsync(cancellationToken);
+                try
+                {
+                    return await ConsumeLockedAsync(request, cancellationToken);
+                }
+                finally
+                {
+                    gate.Release();
+                }
             }
+
+            return await ConsumeLockedAsync(request, cancellationToken);
         }
 
         private async Task<CreditLedgerWriteResult> ConsumeLockedAsync(
@@ -77,8 +88,11 @@ namespace TummlyBackend.Services
             );
             if (!locked)
             {
-                await transaction.RollbackAsync(cancellationToken);
-                return CreditLedgerWriteResult.Fail("insufficient_credits");
+                return await AbortAsync(
+                    transaction,
+                    "insufficient_credits",
+                    cancellationToken
+                );
             }
 
             var locationOk = await _context.RestaurantLocations.AnyAsync(
@@ -89,8 +103,11 @@ namespace TummlyBackend.Services
             );
             if (!locationOk)
             {
-                await transaction.RollbackAsync(cancellationToken);
-                return CreditLedgerWriteResult.Fail("location_not_in_account");
+                return await AbortAsync(
+                    transaction,
+                    "location_not_in_account",
+                    cancellationToken
+                );
             }
 
             var now = _clock.GetUtcNow().UtcDateTime;
@@ -104,15 +121,21 @@ namespace TummlyBackend.Services
             var states = CreditLedgerCalculator.Project(entries, now);
             if (CreditLedgerCalculator.PoolAvailable(states) < request.Units)
             {
-                await transaction.RollbackAsync(cancellationToken);
-                return CreditLedgerWriteResult.Fail("insufficient_credits");
+                return await AbortAsync(
+                    transaction,
+                    "insufficient_credits",
+                    cancellationToken
+                );
             }
 
             var fills = CreditLedgerCalculator.Bind(states, request.Units);
             if (fills.Count == 0)
             {
-                await transaction.RollbackAsync(cancellationToken);
-                return CreditLedgerWriteResult.Fail("insufficient_credits");
+                return await AbortAsync(
+                    transaction,
+                    "insufficient_credits",
+                    cancellationToken
+                );
             }
 
             var inserted = new List<CreditLedgerEntry>(fills.Count);
@@ -145,8 +168,11 @@ namespace TummlyBackend.Services
                     _context.CreditLedgerEntries.Remove(row);
                 }
 
-                await transaction.RollbackAsync(cancellationToken);
-                return CreditLedgerWriteResult.Fail("insufficient_credits");
+                return await AbortAsync(
+                    transaction,
+                    "insufficient_credits",
+                    cancellationToken
+                );
             }
 
             await _context.SaveChangesAsync(cancellationToken);
@@ -181,6 +207,16 @@ namespace TummlyBackend.Services
                 row => row.RestaurantId == restaurantId,
                 cancellationToken
             );
+        }
+
+        private static async Task<CreditLedgerWriteResult> AbortAsync(
+            IDbContextTransaction transaction,
+            string code,
+            CancellationToken cancellationToken
+        )
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return CreditLedgerWriteResult.Fail(code);
         }
     }
 }

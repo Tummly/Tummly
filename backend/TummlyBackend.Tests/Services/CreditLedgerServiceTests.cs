@@ -255,6 +255,34 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(10, email.Held);
         }
 
+        [Fact]
+        public async Task ConsumeOnSuccess_RejectsWhenLocationIdMissing()
+        {
+            var harness = await SeedAsync();
+            await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.PilotAllocation,
+                8,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: null
+            );
+
+            var result = await harness.Ledger.ConsumeOnSuccessAsync(
+                new CreditLedgerConsumeRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    Units = 1,
+                    LocationId = null,
+                }
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("location_required", result.Code);
+            Assert.Empty(result.Inserted);
+        }
+
         public void Dispose()
         {
         }

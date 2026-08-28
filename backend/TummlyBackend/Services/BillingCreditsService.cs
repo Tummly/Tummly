@@ -75,7 +75,7 @@ namespace TummlyBackend.Services
             var eligibleMembers = await LoadEligibleMembersAsync(restaurantId);
             var pilotEndsAt = owner?.ActivationExpiresAt;
             var renewalDateLabel = isPilot && pilotEndsAt != null
-                ? $"Pilot ends {FormatUkDate(pilotEndsAt.Value)}"
+                ? $"Pilot ends {UkDateLabels.Format(pilotEndsAt.Value)}"
                 : isPilot
                     ? null
                     : "Renews 15 September 2026";
@@ -106,9 +106,18 @@ namespace TummlyBackend.Services
                     SubscriptionPlan = billingAccount.SubscriptionPlan,
                     BillingStatus = billingAccount.BillingStatus,
                     RenewalDateLabel = renewalDateLabel,
-                    EmailCreditsRemaining = ChannelRemaining(creditSnapshot, "email"),
-                    SmsCreditsRemaining = ChannelRemaining(creditSnapshot, "sms"),
-                    AiCreditsRemaining = ChannelRemaining(creditSnapshot, "ai"),
+                    EmailCreditsRemaining = ChannelRemaining(
+                        creditSnapshot,
+                        CreditChannels.Email
+                    ),
+                    SmsCreditsRemaining = ChannelRemaining(
+                        creditSnapshot,
+                        CreditChannels.Sms
+                    ),
+                    AiCreditsRemaining = ChannelRemaining(
+                        creditSnapshot,
+                        CreditChannels.Ai
+                    ),
                     BillingCycle = billingAccount.BillingCycle,
                     PlanPriceNet = _pricebookCatalog.FormatPlanPriceNet(
                         contractedPlan,
@@ -265,14 +274,6 @@ namespace TummlyBackend.Services
             return System.Text.Encoding.UTF8.GetBytes(text);
         }
 
-        private static string FormatUkDate(DateTime value)
-        {
-            return value.ToString(
-                "d MMMM yyyy",
-                System.Globalization.CultureInfo.GetCultureInfo("en-GB")
-            );
-        }
-
         public async Task<CreditsUsageSnapshotDto?> GetUsageAsync(int restaurantId)
         {
             var restaurant = await _context.Restaurants
@@ -306,7 +307,7 @@ namespace TummlyBackend.Services
                         PurchasedRemaining = channel.PurchasedRemaining,
                         PurchasedExpiryLabel = channel.EarliestPurchasedExpiryUtc == null
                             ? null
-                            : FormatUkDate(channel.EarliestPurchasedExpiryUtc.Value),
+                            : UkDateLabels.Format(channel.EarliestPurchasedExpiryUtc.Value),
                         UsedShare = channel.UsedShare,
                     })
                     .ToList(),
@@ -365,7 +366,7 @@ namespace TummlyBackend.Services
             var pilotEndsAt = owner?.ActivationExpiresAt;
             var renewalDateLabel = pilotEndsAt == null
                 ? "your renewal date"
-                : FormatUkDate(pilotEndsAt.Value);
+                : UkDateLabels.Format(pilotEndsAt.Value);
 
             var targetPlan = request.TargetPlan.Trim();
             var targetCadence = request.TargetCadence.Trim().ToLowerInvariant();

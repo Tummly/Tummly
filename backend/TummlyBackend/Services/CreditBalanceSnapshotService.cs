@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -227,15 +228,7 @@ namespace TummlyBackend.Services
                 return "Current period";
             }
 
-            return $"{FormatUkDate(period.Value.Start)} – {FormatUkDate(period.Value.End)}";
-        }
-
-        private static string FormatUkDate(DateTime value)
-        {
-            return value.ToString(
-                "d MMMM yyyy",
-                System.Globalization.CultureInfo.GetCultureInfo("en-GB")
-            );
+            return $"{UkDateLabels.Format(period.Value.Start)} – {UkDateLabels.Format(period.Value.End)}";
         }
     }
 }

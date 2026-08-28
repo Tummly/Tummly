@@ -16,7 +16,7 @@ namespace TummlyBackend.Interfaces
 
         public int Units { get; init; }
 
-        public int LocationId { get; init; }
+        public int? LocationId { get; init; }
     }
 
     public sealed class CreditLedgerWriteResult
