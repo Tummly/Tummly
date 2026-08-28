@@ -394,7 +394,7 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             var invoices = body.GetProperty("invoices");
-            Assert.Equal(2, invoices.GetArrayLength());
+            Assert.Equal(3, invoices.GetArrayLength());
             Assert.Equal(
                 "TM-2026-000001",
                 invoices[0].GetProperty("invoiceNo").GetString()

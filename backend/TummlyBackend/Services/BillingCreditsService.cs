@@ -132,6 +132,7 @@ namespace TummlyBackend.Services
 
         private async Task<bool> IsPilotRestaurantAsync(int restaurantId, User? owner)
         {
+            // Stub seam until BillingAccount persistence lands (credit-ledger map).
             var restaurant = await _context.Restaurants
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row => row.Id == restaurantId);
@@ -182,6 +183,15 @@ namespace TummlyBackend.Services
                     AmountLabel = "−£11.88",
                     Status = "Issued",
                     ShowActions = true,
+                },
+                new InvoiceRowDto
+                {
+                    InvoiceNo = "TM-2026-000002",
+                    InvoiceDateLabel = "1 Aug 2026",
+                    Description = "Growth plan",
+                    AmountLabel = "£118.80",
+                    Status = "Void",
+                    ShowActions = false,
                 },
             ];
         }

@@ -536,7 +536,6 @@ function PaymentInvoicesBody({
         title={snap.updatePaymentMethodConfirmCopy.title}
         body={snap.updatePaymentMethodConfirmCopy.body}
         continueLabel={snap.updatePaymentMethodConfirmCopy.continueLabel}
-        cancelLabel={snap.updatePaymentMethodConfirmCopy.cancelLabel}
         onOpenChange={(open) => {
           if (!open) {
             pageModule.dismissUpdatePaymentMethodConfirm()

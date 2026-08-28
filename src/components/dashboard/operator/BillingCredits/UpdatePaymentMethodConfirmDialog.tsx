@@ -5,7 +5,6 @@ type UpdatePaymentMethodConfirmDialogProps = {
   title: string
   body: string
   continueLabel: string
-  cancelLabel: string
   busy?: boolean
   onOpenChange: (open: boolean) => void
   onContinue: () => void
@@ -17,7 +16,6 @@ export function UpdatePaymentMethodConfirmDialog({
   title,
   body,
   continueLabel,
-  cancelLabel,
   busy = false,
   onOpenChange,
   onContinue,

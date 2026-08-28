@@ -461,6 +461,9 @@ describe("createOperatorBillingCreditsPageModule", () => {
     expect(snap.updatePaymentMethodConfirmCopy.body).toBe(
       BILLING_CREDITS_PAGE_COPY.updatePaymentMethodConfirmBody
     )
+    expect(snap.updatePaymentMethodConfirmCopy.continueLabel).toBe(
+      BILLING_CREDITS_PAGE_COPY.continue
+    )
   })
 
   it("hides Update payment method for View snapshot", async () => {

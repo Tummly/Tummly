@@ -121,7 +121,6 @@ export type BillingCreditsSnapshot = {
     title: string
     body: string
     continueLabel: string
-    cancelLabel: string
   }
   pendingPaymentMethodRedirectUrl: string | null
   pendingNavigationHref: string | null
@@ -330,7 +329,6 @@ export function createOperatorBillingCreditsPageModule(
         title: BILLING_CREDITS_PAGE_COPY.updatePaymentMethodConfirmTitle,
         body: BILLING_CREDITS_PAGE_COPY.updatePaymentMethodConfirmBody,
         continueLabel: BILLING_CREDITS_PAGE_COPY.continue,
-        cancelLabel: BILLING_CREDITS_PAGE_COPY.cancel,
       },
       pendingPaymentMethodRedirectUrl,
       pendingNavigationHref,
