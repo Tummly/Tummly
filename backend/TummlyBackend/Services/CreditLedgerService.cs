@@ -143,6 +143,183 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task<CreditLedgerWriteResult> StaffReverseAsync(
+            StaffReverseRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var reason = request.Reason.Trim();
+            if (reason.Length is < 1 or > 500)
+            {
+                return CreditLedgerWriteResult.Fail("reason_required");
+            }
+
+            var target = await _context.CreditLedgerEntries
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.Id == request.ReversedEntryId,
+                    cancellationToken
+                );
+            if (target == null)
+            {
+                return CreditLedgerWriteResult.Fail("entry_not_found");
+            }
+
+            if (!_context.Database.IsSqlServer())
+            {
+                var gate = AccountLocks.GetOrAdd(
+                    target.RestaurantId,
+                    _ => new SemaphoreSlim(1, 1)
+                );
+                await gate.WaitAsync(cancellationToken);
+                try
+                {
+                    return await StaffReverseLockedAsync(
+                        request,
+                        reason,
+                        target,
+                        cancellationToken
+                    );
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            }
+
+            return await StaffReverseLockedAsync(
+                request,
+                reason,
+                target,
+                cancellationToken
+            );
+        }
+
+        private async Task<CreditLedgerWriteResult> StaffReverseLockedAsync(
+            StaffReverseRequest request,
+            string reason,
+            CreditLedgerEntry target,
+            CancellationToken cancellationToken
+        )
+        {
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync(
+                    IsolationLevel.ReadCommitted,
+                    cancellationToken
+                );
+
+            var locked = await LockBillingAccountAsync(
+                target.RestaurantId,
+                cancellationToken
+            );
+            if (!locked)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "restaurant_not_found",
+                    cancellationToken
+                );
+            }
+
+            var liveTarget = await _context.CreditLedgerEntries
+                .FirstOrDefaultAsync(
+                    row => row.Id == request.ReversedEntryId,
+                    cancellationToken
+                );
+            if (liveTarget == null)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "entry_not_found",
+                    cancellationToken
+                );
+            }
+
+            var alreadyReversed = await _context.CreditLedgerEntries.AnyAsync(
+                row => row.ReversedEntryId == liveTarget.Id,
+                cancellationToken
+            );
+            if (alreadyReversed)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "already_reversed",
+                    cancellationToken
+                );
+            }
+
+            var isDebitManual =
+                liveTarget.EntryType == CreditLedgerEntryTypes.ManualAdjustment
+                && liveTarget.AllocationId != null;
+            var isAllowed =
+                liveTarget.EntryType is
+                    CreditLedgerEntryTypes.Consumption
+                    or CreditLedgerEntryTypes.Refund
+                || isDebitManual;
+            if (!isAllowed)
+            {
+                return await AbortAsync(
+                    transaction,
+                    "invalid_reversal_target",
+                    cancellationToken
+                );
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            var entries = await _context.CreditLedgerEntries
+                .Where(row =>
+                    row.RestaurantId == liveTarget.RestaurantId
+                    && row.Channel == liveTarget.Channel
+                )
+                .ToListAsync(cancellationToken);
+
+            var reversal = new CreditLedgerEntry
+            {
+                Id = Guid.NewGuid(),
+                RestaurantId = liveTarget.RestaurantId,
+                Channel = liveTarget.Channel,
+                EntryType = CreditLedgerEntryTypes.Reversal,
+                Quantity = liveTarget.Quantity,
+                AllocationId = liveTarget.AllocationId,
+                ReversedEntryId = liveTarget.Id,
+                ActorStaffUserId = request.ActorStaffUserId,
+                Reason = reason,
+                HelpCentreQueryId = request.HelpCentreQueryId,
+                CreatedAtUtc = now,
+            };
+            _context.CreditLedgerEntries.Add(reversal);
+
+            var postState = CreditLedgerCalculator.Project(
+                [.. entries, reversal],
+                now
+            );
+            if (!CreditLedgerCalculator.InvariantsHold(postState))
+            {
+                _context.CreditLedgerEntries.Remove(reversal);
+                return await AbortAsync(
+                    transaction,
+                    "insufficient_credits",
+                    cancellationToken
+                );
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return CreditLedgerWriteResult.Ok(
+                [
+                    new CreditLedgerInsertedRow
+                    {
+                        Id = reversal.Id,
+                        AllocationId = reversal.AllocationId ?? reversal.Id,
+                        EntryType = reversal.EntryType,
+                        Quantity = reversal.Quantity,
+                        ReservationRef = reversal.ReservationRef,
+                    },
+                ]
+            );
+        }
+
         private async Task<CreditLedgerWriteResult> StaffManualAdjustLockedAsync(
             StaffManualAdjustRequest request,
             string reason,

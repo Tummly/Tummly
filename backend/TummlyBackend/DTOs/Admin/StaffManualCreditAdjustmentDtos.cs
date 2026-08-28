@@ -31,4 +31,13 @@ namespace TummlyBackend.DTOs.Admin
 
         public int CombinedRemaining { get; set; }
     }
+
+    public sealed class StaffCreditReversalRequestDto
+    {
+        public Guid ReversedEntryId { get; set; }
+
+        public string Reason { get; set; } = string.Empty;
+
+        public int? HelpCentreQueryId { get; set; }
+    }
 }

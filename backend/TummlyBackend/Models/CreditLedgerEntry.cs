@@ -41,12 +41,6 @@ namespace TummlyBackend.Models
 
         public CreditLedgerEntry? ReversedEntry { get; set; }
 
-        [MaxLength(128)]
-        public string? SourcePaymentRef { get; set; }
-
-        [MaxLength(32)]
-        public string? CorrectionSource { get; set; }
-
         public int? ActorStaffUserId { get; set; }
 
         [MaxLength(500)]

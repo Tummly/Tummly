@@ -614,10 +614,6 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
 
-                    b.Property<string>("CorrectionSource")
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -658,10 +654,6 @@ namespace TummlyBackend.Migrations
 
                     b.Property<Guid?>("ReversedEntryId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("SourcePaymentRef")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
 
                     b.HasKey("Id");
 

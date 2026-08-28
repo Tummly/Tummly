@@ -617,14 +617,6 @@ namespace TummlyBackend.Data
                 .HasMaxLength(64);
 
             modelBuilder.Entity<CreditLedgerEntry>()
-                .Property(e => e.SourcePaymentRef)
-                .HasMaxLength(128);
-
-            modelBuilder.Entity<CreditLedgerEntry>()
-                .Property(e => e.CorrectionSource)
-                .HasMaxLength(32);
-
-            modelBuilder.Entity<CreditLedgerEntry>()
                 .Property(e => e.Reason)
                 .HasMaxLength(500);
 

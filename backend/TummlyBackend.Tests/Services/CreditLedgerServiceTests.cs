@@ -452,6 +452,64 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(result.Inserted);
         }
 
+        [Fact]
+        public async Task StaffReverse_DebitManualAdjustmentRestoresRemaining_WithoutActivity()
+        {
+            var harness = await SeedAsync();
+            var grantId = await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.IncludedAllocation,
+                20,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: _now.AddDays(20)
+            );
+            var debit = await harness.Ledger.StaffManualAdjustAsync(
+                new StaffManualAdjustRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    Direction = StaffManualAdjustDirections.Debit,
+                    Quantity = 5,
+                    Reason = "Mistaken debit",
+                    ActorStaffUserId = 1,
+                    AllocationId = grantId,
+                }
+            );
+            Assert.True(debit.Succeeded);
+            var debitId = Assert.Single(debit.Inserted).Id;
+
+            var reverse = await harness.Ledger.StaffReverseAsync(
+                new StaffReverseRequest
+                {
+                    ReversedEntryId = debitId,
+                    Reason = "Undo mistaken debit",
+                    ActorStaffUserId = 1,
+                }
+            );
+
+            Assert.True(reverse.Succeeded);
+            Assert.Equal(
+                CreditLedgerEntryTypes.Reversal,
+                Assert.Single(reverse.Inserted).EntryType
+            );
+            var snapshot = await harness.Snapshot.GetAccountAsync(harness.RestaurantId);
+            Assert.Equal(20, Channel(snapshot, CreditChannels.Email).Remaining);
+            Assert.Empty(
+                harness.Context.RestaurantBillingActivities.Where(row =>
+                    row.RestaurantId == harness.RestaurantId
+                    && row.Kind == BillingActivityKinds.ManualCreditAdjusted
+                    && row.ManualAdjustDirection == BillingManualAdjustDirections.Add
+                )
+            );
+            Assert.Equal(
+                1,
+                await harness.Context.RestaurantBillingActivities.CountAsync(row =>
+                    row.RestaurantId == harness.RestaurantId
+                )
+            );
+        }
+
         public void Dispose()
         {
         }

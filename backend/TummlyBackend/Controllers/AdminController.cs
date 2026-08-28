@@ -362,6 +362,64 @@ namespace TummlyBackend.Controllers
             );
         }
 
+        [HttpPost("credit-adjustments/reversals")]
+        public async Task<IActionResult> PostStaffCreditReversal(
+            [FromBody] StaffCreditReversalRequestDto request,
+            CancellationToken cancellationToken
+        )
+        {
+            var staffId = GetStaffId();
+            if (staffId == null)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = "Invalid token.",
+                });
+            }
+
+            var result = await _creditLedger.StaffReverseAsync(
+                new StaffReverseRequest
+                {
+                    ReversedEntryId = request.ReversedEntryId,
+                    Reason = request.Reason,
+                    ActorStaffUserId = staffId.Value,
+                    HelpCentreQueryId = request.HelpCentreQueryId,
+                },
+                cancellationToken
+            );
+
+            if (!result.Succeeded)
+            {
+                return result.Code switch
+                {
+                    "entry_not_found" or "restaurant_not_found" => NotFound(new
+                    {
+                        success = false,
+                        code = result.Code,
+                    }),
+                    "reason_required" or "invalid_reversal_target"
+                        or "already_reversed" => BadRequest(new
+                        {
+                            success = false,
+                            code = result.Code,
+                        }),
+                    _ => BadRequest(new
+                    {
+                        success = false,
+                        code = result.Code,
+                    }),
+                };
+            }
+
+            return Ok(new
+            {
+                success = true,
+                reversedEntryId = request.ReversedEntryId,
+                insertedId = result.Inserted[0].Id,
+            });
+        }
+
         private int? GetStaffId()
         {
             var staffIdClaim =

@@ -16,13 +16,6 @@ namespace TummlyBackend.Migrations
                 type: "int",
                 nullable: true);
 
-            migrationBuilder.AddColumn<string>(
-                name: "CorrectionSource",
-                table: "CreditLedgerEntries",
-                type: "nvarchar(32)",
-                maxLength: 32,
-                nullable: true);
-
             migrationBuilder.AddColumn<int>(
                 name: "HelpCentreQueryId",
                 table: "CreditLedgerEntries",
@@ -35,13 +28,6 @@ namespace TummlyBackend.Migrations
                 type: "nvarchar(500)",
                 maxLength: 500,
                 nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "SourcePaymentRef",
-                table: "CreditLedgerEntries",
-                type: "nvarchar(128)",
-                maxLength: 128,
-                nullable: true);
         }
 
         /// <inheritdoc />
@@ -52,19 +38,11 @@ namespace TummlyBackend.Migrations
                 table: "CreditLedgerEntries");
 
             migrationBuilder.DropColumn(
-                name: "CorrectionSource",
-                table: "CreditLedgerEntries");
-
-            migrationBuilder.DropColumn(
                 name: "HelpCentreQueryId",
                 table: "CreditLedgerEntries");
 
             migrationBuilder.DropColumn(
                 name: "Reason",
-                table: "CreditLedgerEntries");
-
-            migrationBuilder.DropColumn(
-                name: "SourcePaymentRef",
                 table: "CreditLedgerEntries");
         }
     }
