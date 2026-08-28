@@ -12,14 +12,17 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IPricebookCatalog _pricebookCatalog;
+        private readonly ICreditBalanceSnapshot _creditBalance;
 
         public BillingCreditsService(
             ApplicationDbContext context,
-            IPricebookCatalog pricebookCatalog
+            IPricebookCatalog pricebookCatalog,
+            ICreditBalanceSnapshot creditBalance
         )
         {
             _context = context;
             _pricebookCatalog = pricebookCatalog;
+            _creditBalance = creditBalance;
         }
 
         public async Task<BillingCreditsPageDto?> GetPageAsync(
@@ -56,6 +59,7 @@ namespace TummlyBackend.Services
                 .CountAsync(row => row.RestaurantId == restaurantId);
 
             var billingAccount = await LoadRequiredBillingAccountAsync(restaurantId);
+            var creditSnapshot = await _creditBalance.GetAccountAsync(restaurantId);
             var isPilot = IsPilotBillingAccount(billingAccount);
             var contractedBook = _pricebookCatalog.GetRequired(
                 billingAccount.ContractedPricebookId
@@ -102,9 +106,9 @@ namespace TummlyBackend.Services
                     SubscriptionPlan = billingAccount.SubscriptionPlan,
                     BillingStatus = billingAccount.BillingStatus,
                     RenewalDateLabel = renewalDateLabel,
-                    EmailCreditsRemaining = isPilot ? 500 : 1200,
-                    SmsCreditsRemaining = isPilot ? 20 : 80,
-                    AiCreditsRemaining = isPilot ? 20 : 40,
+                    EmailCreditsRemaining = ChannelRemaining(creditSnapshot, "email"),
+                    SmsCreditsRemaining = ChannelRemaining(creditSnapshot, "sms"),
+                    AiCreditsRemaining = ChannelRemaining(creditSnapshot, "ai"),
                     BillingCycle = billingAccount.BillingCycle,
                     PlanPriceNet = _pricebookCatalog.FormatPlanPriceNet(
                         contractedPlan,
@@ -280,47 +284,48 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            return BuildPilotUsageSnapshot();
-        }
+            var snapshot = await _creditBalance.GetAccountAsync(restaurantId);
+            if (snapshot == null)
+            {
+                return null;
+            }
 
-        private static CreditsUsageSnapshotDto BuildPilotUsageSnapshot()
-        {
             return new CreditsUsageSnapshotDto
             {
-                PeriodLabel = "Account · Pilot allowance",
-                StarterKitState = "unused",
-                IsPilot = true,
-                Channels =
-                [
-                    new CreditChannelUsageDto
+                PeriodLabel = snapshot.PeriodLabel,
+                StarterKitState = snapshot.StarterKitState,
+                IsPilot = snapshot.IsPilot,
+                Channels = snapshot.Channels
+                    .Select(channel => new CreditChannelUsageDto
                     {
-                        Channel = "email",
-                        CombinedRemaining = 500,
-                        UsedThisCycle = 0,
-                        IncludedThisPeriod = 500,
-                        PurchasedRemaining = 0,
-                        PurchasedExpiryLabel = null,
-                    },
-                    new CreditChannelUsageDto
-                    {
-                        Channel = "sms",
-                        CombinedRemaining = 20,
-                        UsedThisCycle = 0,
-                        IncludedThisPeriod = 20,
-                        PurchasedRemaining = 0,
-                        PurchasedExpiryLabel = null,
-                    },
-                    new CreditChannelUsageDto
-                    {
-                        Channel = "ai",
-                        CombinedRemaining = 20,
-                        UsedThisCycle = 0,
-                        IncludedThisPeriod = 20,
-                        PurchasedRemaining = 0,
-                        PurchasedExpiryLabel = null,
-                    },
-                ],
+                        Channel = channel.Channel,
+                        CombinedRemaining = channel.Remaining,
+                        Held = channel.Held,
+                        UsedThisCycle = channel.UsedThisCycle,
+                        IncludedThisPeriod = channel.IncludedThisPeriod,
+                        PurchasedRemaining = channel.PurchasedRemaining,
+                        PurchasedExpiryLabel = channel.EarliestPurchasedExpiryUtc == null
+                            ? null
+                            : FormatUkDate(channel.EarliestPurchasedExpiryUtc.Value),
+                        UsedShare = channel.UsedShare,
+                    })
+                    .ToList(),
             };
+        }
+
+        private static int ChannelRemaining(
+            CreditBalanceAccountSnapshot? snapshot,
+            string channel
+        )
+        {
+            if (snapshot == null)
+            {
+                return 0;
+            }
+
+            return snapshot.Channels
+                .FirstOrDefault(row => row.Channel == channel)
+                ?.Remaining ?? 0;
         }
 
         public async Task<PlanChangeResultDto?> SubmitPlanChangeAsync(

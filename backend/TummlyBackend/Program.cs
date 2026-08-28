@@ -466,6 +466,9 @@ builder.Services.AddScoped<ITeamPermissionsService, TeamPermissionsService>();
 builder.Services.AddSingleton<IPricebookCatalog>(sp =>
     PricebookCatalog.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
 );
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<ICreditLedger, CreditLedgerService>();
+builder.Services.AddScoped<ICreditBalanceSnapshot, CreditBalanceSnapshotService>();
 builder.Services.AddScoped<IBillingCreditsService, BillingCreditsService>();
 builder.Services.AddScoped<
     IBillingAccountNoticeNotifier,

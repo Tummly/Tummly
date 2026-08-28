@@ -78,9 +78,9 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("20 once", plan.GetProperty("includedAiCreditsLabel").GetString());
             Assert.Equal("£0", plan.GetProperty("planPriceNet").GetString());
             Assert.Equal("unused", plan.GetProperty("starterKitState").GetString());
-            Assert.Equal(500, plan.GetProperty("emailCreditsRemaining").GetInt32());
-            Assert.Equal(20, plan.GetProperty("smsCreditsRemaining").GetInt32());
-            Assert.Equal(20, plan.GetProperty("aiCreditsRemaining").GetInt32());
+            Assert.Equal(0, plan.GetProperty("emailCreditsRemaining").GetInt32());
+            Assert.Equal(0, plan.GetProperty("smsCreditsRemaining").GetInt32());
+            Assert.Equal(0, plan.GetProperty("aiCreditsRemaining").GetInt32());
             Assert.True(plan.GetProperty("isPilot").GetBoolean());
             Assert.Equal(
                 JsonValueKind.Null,
@@ -415,6 +415,14 @@ namespace TummlyBackend.Tests.Integration
 
             var channels = body.GetProperty("channels");
             Assert.Equal(3, channels.GetArrayLength());
+            foreach (var channel in channels.EnumerateArray())
+            {
+                Assert.Equal(0, channel.GetProperty("combinedRemaining").GetInt32());
+                Assert.Equal(0, channel.GetProperty("held").GetInt32());
+                Assert.Equal(0, channel.GetProperty("usedThisCycle").GetInt32());
+                Assert.Equal(0, channel.GetProperty("includedThisPeriod").GetInt32());
+                Assert.Equal(1m, channel.GetProperty("usedShare").GetDecimal());
+            }
         }
 
         [Fact]
@@ -432,8 +440,10 @@ namespace TummlyBackend.Tests.Integration
             var body = await ReadJsonAsync(response);
             var sms = body.GetProperty("channels").EnumerateArray()
                 .First(row => row.GetProperty("channel").GetString() == "sms");
-            Assert.Equal(20, sms.GetProperty("combinedRemaining").GetInt32());
-            Assert.Equal(20, sms.GetProperty("includedThisPeriod").GetInt32());
+            Assert.Equal(0, sms.GetProperty("combinedRemaining").GetInt32());
+            Assert.Equal(0, sms.GetProperty("includedThisPeriod").GetInt32());
+            Assert.Equal(0, sms.GetProperty("held").GetInt32());
+            Assert.Equal(1m, sms.GetProperty("usedShare").GetDecimal());
         }
 
         [Fact]

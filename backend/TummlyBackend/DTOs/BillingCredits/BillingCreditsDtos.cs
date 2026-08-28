@@ -176,7 +176,11 @@ namespace TummlyBackend.DTOs.BillingCredits
 
         public int CombinedRemaining { get; set; }
 
+        public int Held { get; set; }
+
         public int UsedThisCycle { get; set; }
+
+        public decimal UsedShare { get; set; }
 
         public int IncludedThisPeriod { get; set; }
 

@@ -52,6 +52,8 @@ namespace TummlyBackend.Data
 
         public DbSet<BillingAccount> BillingAccounts { get; set; }
 
+        public DbSet<CreditLedgerEntry> CreditLedgerEntries { get; set; }
+
         public DbSet<RestaurantLocation> RestaurantLocations { get; set; }
 
         public DbSet<QrCode> QrCodes { get; set; }
@@ -518,6 +520,77 @@ namespace TummlyBackend.Data
                 .HasFilter(
                     "[RevolutCustomerId] IS NOT NULL AND [RevolutCustomerId] <> ''"
                 );
+
+            /*
+             =========================================
+             BILLING ACCOUNT -> CREDIT LEDGER ENTRIES
+             =========================================
+             */
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .ToTable(t => t.HasCheckConstraint(
+                    "CK_CreditLedgerEntries_QuantityPositive",
+                    "[Quantity] > 0"
+                ));
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasOne(e => e.BillingAccount)
+                .WithMany()
+                .HasForeignKey(e => e.RestaurantId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Restrict / NoAction: ledger LocationId must not add a second
+            // cascade path onto Restaurant (SQL Server error 1785).
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasOne(e => e.Location)
+                .WithMany()
+                .HasForeignKey(e => e.LocationId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasOne(e => e.Allocation)
+                .WithMany()
+                .HasForeignKey(e => e.AllocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasOne(e => e.ReversedEntry)
+                .WithMany()
+                .HasForeignKey(e => e.ReversedEntryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasIndex(e => new { e.RestaurantId, e.Channel });
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasIndex(e => new { e.ReservationRef, e.AllocationId })
+                .IsUnique()
+                .HasFilter(
+                    "[EntryType] = N'reservation' AND [ReservationRef] IS NOT NULL"
+                );
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasIndex(e => e.ReversedEntryId)
+                .IsUnique()
+                .HasFilter("[ReversedEntryId] IS NOT NULL");
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .Property(e => e.Channel)
+                .HasMaxLength(16)
+                .IsRequired();
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .Property(e => e.EntryType)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .Property(e => e.ReservationRef)
+                .HasMaxLength(128);
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .Property(e => e.PricebookVersion)
+                .HasMaxLength(64);
 
             /*
              =========================================
