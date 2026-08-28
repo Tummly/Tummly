@@ -3,6 +3,8 @@
  * Email vs SMS. Usage rows use live eligibility + messaging balances.
  */
 
+import type { BillingCreditsAccessLevel } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import { billingCreditsChannelCardActions } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 import type {
   CampaignAudienceEligibilityBreakdown,
 } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
@@ -32,8 +34,8 @@ export type CampaignChannelUsageRow = {
 export type CampaignChannelShortfall = {
   title: string
   body: string
-  buyCreditsLabel: string
-  changePlanLabel: string
+  buyCreditsLabel: string | null
+  changePlanLabel: string | null
   channelId: CampaignChannelId
 }
 
@@ -263,6 +265,8 @@ export function resolveCampaignChannelShortfall(input: {
   fixture?: CampaignsMessagingBalancesFixture
   estimateMode?: CampaignChannelEstimateMode
   smsCreditEstimate?: number | null
+  accessLevel?: BillingCreditsAccessLevel
+  permissionRole?: string
 }): CampaignChannelShortfall | null {
   const summary = buildCampaignChannelUsageSummary({
     channelId: input.channelId,
@@ -286,6 +290,14 @@ export function resolveCampaignChannelShortfall(input: {
     return null
   }
 
+  const fixture = input.fixture ?? CAMPAIGNS_MESSAGING_BALANCES_FIXTURE
+  const actions = billingCreditsChannelCardActions({
+    accessLevel: input.accessLevel ?? "manage",
+    permissionRole: input.permissionRole ?? "Owner",
+    isPilot: fixture.isPilot,
+    isDepleted: true,
+  })
+
   return {
     channelId: input.channelId,
     title:
@@ -293,11 +305,14 @@ export function resolveCampaignChannelShortfall(input: {
         ? CAMPAIGN_CHANNEL_COPY.shortfallTitleEmail
         : CAMPAIGN_CHANNEL_COPY.shortfallTitleSms,
     body: `This campaign requires at least ${formatCreditCount(summary.estimate)} credits. Your account currently has ${formatCreditCount(summary.remaining)} remaining.`,
-    buyCreditsLabel:
-      input.channelId === "email"
+    buyCreditsLabel: actions.showBuy
+      ? input.channelId === "email"
         ? CAMPAIGN_CHANNEL_COPY.buyEmailCredits
-        : CAMPAIGN_CHANNEL_COPY.buySmsCredits,
-    changePlanLabel: CAMPAIGN_CHANNEL_COPY.changePlan,
+        : CAMPAIGN_CHANNEL_COPY.buySmsCredits
+      : null,
+    changePlanLabel: actions.showChangePlan
+      ? CAMPAIGN_CHANNEL_COPY.changePlan
+      : null,
   }
 }
 

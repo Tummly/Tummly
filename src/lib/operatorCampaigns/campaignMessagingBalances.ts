@@ -35,6 +35,11 @@ export type CampaignBillingBalancesPayload = {
   isPilot: boolean
   softLocked: boolean
   lockCause: CampaignsMessagingLockCause | null
+  /**
+   * When present, drives Buy / Change plan / restoration CTAs (lock 11).
+   * Prefer this over adapter `messagingChromeAccess` on live loads.
+   */
+  chromeAccess?: CampaignMessagingChromeAccess
 }
 
 export type CampaignMessagingUsageCutover = "fixtures" | "live"
@@ -67,10 +72,22 @@ export type ConsumeDirectAiInput = {
   units: 1
 }
 
+/**
+ * Billing chrome access for Campaigns CTAs (lock 11).
+ * Omit / undefined: treat as Owner + manage so Account-owner chrome stays
+ * visible until `/auth/me` and Billing page fields are live. Explicit
+ * `accessLevel: "none"` or `"view"` still hides write CTAs.
+ */
 export type CampaignMessagingChromeAccess = {
   accessLevel: BillingCreditsAccessLevel
   permissionRole: string
 }
+
+export const DEFAULT_CAMPAIGN_MESSAGING_CHROME_ACCESS: CampaignMessagingChromeAccess =
+  {
+    accessLevel: "manage",
+    permissionRole: "Owner",
+  }
 
 export function mapBillingBalancesToMessagingFixture(
   balances: CampaignBillingBalancesPayload
@@ -97,11 +114,9 @@ export function resolveCampaignMessagingUsage(
       }
     | { cutover: "live"; failed: true }
 ): CampaignMessagingUsageResolution {
-  const access = "access" in input && input.access != null
-    ? input.access
-    : { accessLevel: "manage" as const, permissionRole: "Owner" }
-
   if (input.cutover === "fixtures") {
+    const access =
+      input.access ?? DEFAULT_CAMPAIGN_MESSAGING_CHROME_ACCESS
     return {
       status: "ready",
       source: "fixtures",
@@ -134,6 +149,10 @@ export function resolveCampaignMessagingUsage(
   }
 
   const balances = input.balances
+  const access =
+    balances.chromeAccess
+    ?? input.access
+    ?? DEFAULT_CAMPAIGN_MESSAGING_CHROME_ACCESS
   const fixture = mapBillingBalancesToMessagingFixture(balances)
   return {
     status: "ready",

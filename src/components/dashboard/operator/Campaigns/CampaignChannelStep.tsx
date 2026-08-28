@@ -112,6 +112,9 @@ export function CampaignChannelShortfallBanner({
   onBuyCredits?: () => void
   onChangePlan?: () => void
 }) {
+  const showActions =
+    shortfall.buyCreditsLabel != null || shortfall.changePlanLabel != null
+
   return (
     <div className="flex w-full flex-col gap-[22px] rounded-[4px] bg-[var(--op-color-gray-995)] p-[18px]">
       <div className="flex flex-col gap-1.5">
@@ -122,24 +125,30 @@ export function CampaignChannelShortfallBanner({
           {shortfall.body}
         </p>
       </div>
-      <div className="flex flex-wrap items-center gap-4">
-        <Button
-          type="button"
-          variant="op-link"
-          className="h-auto min-h-0 w-fit p-0"
-          onClick={onBuyCredits}
-        >
-          {shortfall.buyCreditsLabel}
-        </Button>
-        <Button
-          type="button"
-          variant="op-link"
-          className="h-auto min-h-0 w-fit p-0"
-          onClick={onChangePlan}
-        >
-          {shortfall.changePlanLabel}
-        </Button>
-      </div>
+      {showActions ? (
+        <div className="flex flex-wrap items-center gap-4">
+          {shortfall.buyCreditsLabel != null ? (
+            <Button
+              type="button"
+              variant="op-link"
+              className="h-auto min-h-0 w-fit p-0"
+              onClick={onBuyCredits}
+            >
+              {shortfall.buyCreditsLabel}
+            </Button>
+          ) : null}
+          {shortfall.changePlanLabel != null ? (
+            <Button
+              type="button"
+              variant="op-link"
+              className="h-auto min-h-0 w-fit p-0"
+              onClick={onChangePlan}
+            >
+              {shortfall.changePlanLabel}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }

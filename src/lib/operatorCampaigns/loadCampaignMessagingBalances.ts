@@ -1,5 +1,13 @@
-import { getBillingCreditsUsage } from "@/api/billingCreditsApi"
-import type { CampaignBillingBalancesPayload } from "@/lib/operatorCampaigns/campaignMessagingBalances"
+import {
+  getBillingCreditsPage,
+  getBillingCreditsUsage,
+} from "@/api/billingCreditsApi"
+import type { BillingCreditsAccessLevel } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import type {
+  CampaignBillingBalancesPayload,
+  CampaignMessagingChromeAccess,
+} from "@/lib/operatorCampaigns/campaignMessagingBalances"
+import type { CampaignsMessagingLockCause } from "@/lib/operatorCampaigns/campaignsMessagingCreditChrome"
 import type {
   CreditChannelId,
   CreditChannelUsageRecord,
@@ -43,12 +51,44 @@ function channelFromUsage(
   }
 }
 
-/** Map Credits & usage snapshot (+ optional soft-lock defaults) for Campaigns. */
+export function resolveCampaignMessagingLockFromBillingStatus(input: {
+  billingStatus: string
+  isPilot: boolean
+}): {
+  softLocked: boolean
+  lockCause: CampaignsMessagingLockCause | null
+} {
+  const status = input.billingStatus.trim()
+  const softLocked = status === "Soft lock" || status === "Dormant"
+  if (!softLocked) {
+    return { softLocked: false, lockCause: null }
+  }
+  return {
+    softLocked: true,
+    lockCause: input.isPilot ? "unpaid-pilot" : "dunning",
+  }
+}
+
+export function resolveCampaignMessagingChromeAccessFromBillingPage(input: {
+  actorPermissionRole: string
+  actorCanManage: boolean
+}): CampaignMessagingChromeAccess {
+  const accessLevel: BillingCreditsAccessLevel = input.actorCanManage
+    ? "manage"
+    : "view"
+  return {
+    accessLevel,
+    permissionRole: input.actorPermissionRole,
+  }
+}
+
+/** Map Credits & usage snapshot (+ optional soft-lock / chrome) for Campaigns. */
 export function mapCreditsUsageToCampaignBillingBalances(
   usage: CreditsUsageSnapshot,
   lock: {
     softLocked?: boolean
     lockCause?: CampaignBillingBalancesPayload["lockCause"]
+    chromeAccess?: CampaignMessagingChromeAccess
   } = {}
 ): CampaignBillingBalancesPayload {
   const ai = usage.channels.find((item) => item.channel === "ai")
@@ -61,12 +101,32 @@ export function mapCreditsUsageToCampaignBillingBalances(
     isPilot: usage.isPilot,
     softLocked: lock.softLocked ?? false,
     lockCause: lock.lockCause ?? null,
+    chromeAccess: lock.chromeAccess,
   }
 }
 
 export const loadCampaignMessagingBalances: LoadCampaignMessagingBalances =
   async () => {
-    const usage = await getBillingCreditsUsage()
-    // Soft lock / Dormant fields are not on usage yet — default unlocked.
-    return mapCreditsUsageToCampaignBillingBalances(usage)
+    const [usage, page] = await Promise.all([
+      getBillingCreditsUsage(),
+      getBillingCreditsPage().catch(() => null),
+    ])
+
+    if (page == null) {
+      return mapCreditsUsageToCampaignBillingBalances(usage)
+    }
+
+    const lock = resolveCampaignMessagingLockFromBillingStatus({
+      billingStatus: page.planSubscription.billingStatus,
+      isPilot: page.planSubscription.isPilot || usage.isPilot,
+    })
+    const chromeAccess = resolveCampaignMessagingChromeAccessFromBillingPage({
+      actorPermissionRole: page.actorPermissionRole,
+      actorCanManage: page.actorCanManage,
+    })
+
+    return mapCreditsUsageToCampaignBillingBalances(usage, {
+      ...lock,
+      chromeAccess,
+    })
   }

@@ -253,22 +253,26 @@ export function CampaignWizardDialog({
               ) : null}
               {snapshot.review?.channelShortfall != null ? (
                 <div className="flex flex-wrap items-center justify-end gap-3">
-                  <Button
-                    type="button"
-                    variant="op-link"
-                    className="h-auto min-h-0 w-fit p-0"
-                    onClick={onBuyCredits}
-                  >
-                    {snapshot.review.channelShortfall.buyCreditsLabel}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="op-link"
-                    className="h-auto min-h-0 w-fit p-0"
-                    onClick={onChangePlan}
-                  >
-                    {snapshot.review.channelShortfall.changePlanLabel}
-                  </Button>
+                  {snapshot.review.channelShortfall.buyCreditsLabel != null ? (
+                    <Button
+                      type="button"
+                      variant="op-link"
+                      className="h-auto min-h-0 w-fit p-0"
+                      onClick={onBuyCredits}
+                    >
+                      {snapshot.review.channelShortfall.buyCreditsLabel}
+                    </Button>
+                  ) : null}
+                  {snapshot.review.channelShortfall.changePlanLabel != null ? (
+                    <Button
+                      type="button"
+                      variant="op-link"
+                      className="h-auto min-h-0 w-fit p-0"
+                      onClick={onChangePlan}
+                    >
+                      {snapshot.review.channelShortfall.changePlanLabel}
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
               <div className="flex flex-wrap items-center justify-end gap-3">

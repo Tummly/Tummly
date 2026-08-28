@@ -280,7 +280,12 @@ export type CampaignWizardAdapters = {
    * Controls stub vs live unexpected-503 copy (ticket 23). Default false.
    */
   billingReserveLive?: boolean
-  /** Billing chrome access for Soft-lock helper + overview CTAs (ticket 23). */
+  /**
+   * Billing chrome access for Soft-lock helper + overview / shortfall CTAs (ticket 23).
+   * Omit: treat as Owner + manage so Account-owner chrome stays visible until
+   * Billing page / `/auth/me` fields are live. Explicit view/none still hides writes.
+   * Live balances `chromeAccess` overrides this when present.
+   */
   messagingChromeAccess?: CampaignMessagingChromeAccess
 }
 
@@ -1009,6 +1014,8 @@ function resolveChannelShortfallForState(
     channelEligible,
     fixture: state.messagingFixture,
     estimateMode: channelEstimateMode(state),
+    accessLevel: state.messagingChromeAccess.accessLevel,
+    permissionRole: state.messagingChromeAccess.permissionRole,
   })
 }
 
@@ -1956,6 +1963,8 @@ export function createCampaignWizardModule(
         softLocked: resolved.softLocked,
         isPilot: resolved.isPilot,
         lockCause: resolved.lockCause,
+        messagingChromeAccess:
+          balances.chromeAccess ?? state.messagingChromeAccess,
       }
       publish()
     } catch {

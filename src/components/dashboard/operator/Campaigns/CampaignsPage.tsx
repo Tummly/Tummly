@@ -228,6 +228,9 @@ export function CampaignsPage() {
       loadAudienceEligibility,
       // Shared with overview Messaging usage — live Credits & usage snapshot.
       loadMessagingBalances: loadCampaignMessagingBalances,
+      // Billing Reserve IsLive is still false (UnavailableCampaignBillingReserve).
+      // Flip to true when LiveBillingReserve ships so unexpected 503 uses live copy.
+      billingReserveLive: false,
       prepareMessageDraft: prepareCampaignMessageDraft,
       createDraft: async (body) => {
         const response = await createCampaignDraft(body)

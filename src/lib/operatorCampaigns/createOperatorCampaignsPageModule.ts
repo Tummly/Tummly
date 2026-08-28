@@ -127,11 +127,16 @@ export type OperatorCampaignsPageAdapters = {
   }) => Promise<CampaignRecommendationResponse>
   getCampaignsOverviewDateRange: () => CampaignsOverviewDateRange
   /**
-   * Billing balances (+ plan) for Messaging usage (ticket 25).
+   * Billing balances (+ plan) for Messaging usage (ticket 23 / 25).
    * Omitted → fixtures until Billing cutover.
    */
   loadMessagingBalances?: () => Promise<CampaignBillingBalancesPayload>
-  /** Billing chrome access for overview CTAs (ticket 23). */
+  /**
+   * Billing chrome access for overview CTAs (ticket 23).
+   * Omit: treat as Owner + manage so Account-owner chrome stays visible until
+   * Billing page / `/auth/me` fields are live. Explicit view/none still hides writes.
+   * Live balances `chromeAccess` overrides this when present.
+   */
   messagingChromeAccess?: CampaignMessagingChromeAccess
   /** Test seam — defaults to a short debounce. */
   debounceMs?: number

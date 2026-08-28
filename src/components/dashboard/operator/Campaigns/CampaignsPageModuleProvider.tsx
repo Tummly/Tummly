@@ -82,7 +82,7 @@ export function CampaignsPageModuleProvider({
         getCampaignRecommendation(request),
       getCampaignsOverviewDateRange: () =>
         dashboardUiStore.getState().campaignsOverviewDateRange,
-      // Shared with Campaign wizard — omit until Billing balances API exists.
+      // Shared with Campaign wizard — live Credits & usage + Soft lock from Billing page.
       loadMessagingBalances: loadCampaignMessagingBalances,
     })
   )
