@@ -232,6 +232,47 @@ namespace TummlyBackend.Controllers
             }
         }
 
+        [HttpGet("activity")]
+        public async Task<IActionResult> GetActivity(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out _);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.BillingCredits,
+                PermissionLevel.View
+            );
+            var forbidden = decision.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
+            var list = await _billingCredits.GetActivityAsync(
+                decision.RestaurantId,
+                page,
+                pageSize
+            );
+            if (list == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Restaurant not found.",
+                });
+            }
+
+            return Ok(list);
+        }
+
         [HttpPut("billing-contacts")]
         public async Task<IActionResult> UpdateBillingContacts(
             [FromBody] UpdateBillingContactsRequest request

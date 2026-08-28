@@ -12,6 +12,7 @@ import {
   fetchBillingCreditsInvoicePdf,
   getBillingCreditsPage,
   getBillingCreditsUsage,
+  getBillingCreditsActivity,
   openInvoicePdfBlob,
   submitBillingPlanChange,
   updateBillingContacts,
@@ -42,6 +43,7 @@ export function BillingCreditsPageModuleProvider({
       {
         getPage: getBillingCreditsPage,
         getUsage: getBillingCreditsUsage,
+        getBillingActivity: getBillingCreditsActivity,
         submitPlanChange: submitBillingPlanChange,
         createPaymentMethodUpdateSession,
         fetchInvoicePdf: fetchBillingCreditsInvoicePdf,

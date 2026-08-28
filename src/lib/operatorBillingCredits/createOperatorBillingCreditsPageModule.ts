@@ -1,3 +1,8 @@
+import {
+  formatBillingActivityCopy,
+  formatBillingActivityOccurredAt,
+  type BillingActivitySnapshot,
+} from "@/lib/operatorBillingCredits/billingActivityPresentation"
 import type {
   BillingCreditsAccessLevel,
   BillingCreditsTabId,
@@ -80,6 +85,37 @@ export type PlanSubscriptionSnapshot = {
   isPilot: boolean
 }
 
+export type BillingActivityItem = {
+  id: number
+  kind: string
+  occurredAt: string
+  actorDisplayName?: string | null
+  channel?: string | null
+  qty?: number | null
+  campaignName?: string | null
+  invoiceNo?: string | null
+  creditNoteNo?: string | null
+  plan?: string | null
+  cadence?: string | null
+  scheduledDateLabel?: string | null
+  locationName?: string | null
+  manualAdjustDirection?: string | null
+  consumeSource?: string | null
+}
+
+export type BillingActivityList = {
+  items: BillingActivityItem[]
+  totalCount: number
+  page: number
+  pageSize: number
+}
+
+export type BillingActivityViewRow = {
+  id: number
+  occurredAtLabel: string
+  sentence: string
+}
+
 export type BillingCreditsPageData = {
   actorPermissionRole: string
   actorCanManage: boolean
@@ -121,6 +157,10 @@ export type UpdateBillingContactsPayload = {
 export type BillingCreditsPageAdapters = {
   getPage: () => Promise<BillingCreditsPageData>
   getUsage: () => Promise<CreditsUsageSnapshot>
+  getBillingActivity: (params: {
+    page: number
+    pageSize: number
+  }) => Promise<BillingActivityList>
   submitPlanChange: (request: PlanChangeRequest) => Promise<PlanChangeResult>
   createPaymentMethodUpdateSession?: () => Promise<{ redirectUrl: string }>
   fetchInvoicePdf?: (invoiceNo: string) => Promise<Blob>
@@ -188,6 +228,15 @@ export type BillingCreditsSnapshot = {
   planChangeConfirm: PlanChangeConfirmDialog | null
   pendingPayRedirectUrl: string | null
   toast: { kind: "success" | "error"; message: string } | null
+  billingActivityPreview: BillingActivityViewRow[]
+  billingActivityEmpty: boolean
+  billingActivityHistoryOpen: boolean
+  billingActivityHistoryRows: BillingActivityViewRow[]
+  billingActivityHistoryPage: number
+  billingActivityHistoryPageSize: number
+  billingActivityHistoryTotalCount: number
+  billingActivityHistoryHasNext: boolean
+  billingActivityHistoryHasPrevious: boolean
 }
 
 export type OperatorBillingCreditsPageModule = {
@@ -232,6 +281,10 @@ export type OperatorBillingCreditsPageModule = {
   confirmLeaveDirtyCancel: () => void
   closeLeaveDirty: () => void
   clearToast: () => void
+  openBillingActivityHistory: () => Promise<void>
+  closeBillingActivityHistory: () => void
+  goToNextBillingActivityHistoryPage: () => Promise<void>
+  goToPreviousBillingActivityHistoryPage: () => Promise<void>
 }
 
 function emptyPlanSnapshot(): PlanSubscriptionSnapshot {
@@ -314,8 +367,10 @@ export function createOperatorBillingCreditsPageModule(
     initialTabId?: string | null
     initialSurface?: BillingCreditsSurface
     initialManagePlanSection?: string | null
+    getNow?: () => Date
   } = {}
 ): OperatorBillingCreditsPageModule {
+  const getNow = options.getNow ?? (() => new Date())
   let data: BillingCreditsPageData | null = null
   let creditsUsage: CreditsUsageSnapshot | null = null
   let persistedContacts: BillingContactsSnapshot | null = null
@@ -340,6 +395,13 @@ export function createOperatorBillingCreditsPageModule(
   let leaveDirtyOpen = false
   let isSaving = false
   let toast: BillingCreditsSnapshot["toast"] = null
+  let billingActivityPreview: BillingActivityViewRow[] = []
+  let billingActivityEmpty = true
+  let billingActivityHistoryOpen = false
+  let billingActivityHistoryRows: BillingActivityViewRow[] = []
+  let billingActivityHistoryPage = 1
+  let billingActivityHistoryPageSize = 20
+  let billingActivityHistoryTotalCount = 0
   const listeners = new Set<() => void>()
 
   const accessLevel = (): BillingCreditsAccessLevel => {
@@ -518,10 +580,69 @@ export function createOperatorBillingCreditsPageModule(
       planChangeConfirm,
       pendingPayRedirectUrl,
       toast,
+      billingActivityPreview,
+      billingActivityEmpty,
+      billingActivityHistoryOpen,
+      billingActivityHistoryRows,
+      billingActivityHistoryPage,
+      billingActivityHistoryPageSize,
+      billingActivityHistoryTotalCount,
+      billingActivityHistoryHasNext:
+        billingActivityHistoryPage * billingActivityHistoryPageSize
+        < billingActivityHistoryTotalCount,
+      billingActivityHistoryHasPrevious: billingActivityHistoryPage > 1,
     }
   }
 
   let snapshot = projectSnapshot()
+
+  const mapActivityRows = (
+    items: BillingActivityItem[]
+  ): BillingActivityViewRow[] => {
+    const now = getNow()
+    return items
+      .map((item) => {
+        const snapshotFields: BillingActivitySnapshot = {
+          kind: item.kind,
+          actorDisplayName: item.actorDisplayName,
+          channel: item.channel,
+          qty: item.qty,
+          campaignName: item.campaignName,
+          invoiceNo: item.invoiceNo,
+          creditNoteNo: item.creditNoteNo,
+          plan: item.plan,
+          cadence: item.cadence,
+          scheduledDateLabel: item.scheduledDateLabel,
+          locationName: item.locationName,
+          manualAdjustDirection: item.manualAdjustDirection,
+          consumeSource: item.consumeSource,
+        }
+        const sentence = formatBillingActivityCopy(snapshotFields)
+        if (sentence === "") {
+          return null
+        }
+        return {
+          id: item.id,
+          occurredAtLabel: formatBillingActivityOccurredAt(item.occurredAt, now),
+          sentence,
+        }
+      })
+      .filter((row): row is BillingActivityViewRow => row != null)
+  }
+
+  const loadActivityPreview = async () => {
+    const list = await adapters.getBillingActivity({ page: 1, pageSize: 10 })
+    billingActivityPreview = mapActivityRows(list.items)
+    billingActivityEmpty = list.totalCount === 0
+  }
+
+  const loadActivityHistoryPage = async (page: number) => {
+    const list = await adapters.getBillingActivity({ page, pageSize: 20 })
+    billingActivityHistoryRows = mapActivityRows(list.items)
+    billingActivityHistoryPage = list.page
+    billingActivityHistoryPageSize = list.pageSize
+    billingActivityHistoryTotalCount = list.totalCount
+  }
 
   const refreshSnapshot = () => {
     snapshot = projectSnapshot()
@@ -615,6 +736,7 @@ export function createOperatorBillingCreditsPageModule(
       previewCadence = defaultPreviewCadence(data.planSubscription)
       data = await adapters.getPage()
       applyPersistedContacts(data.billingContacts)
+      await loadActivityPreview()
       loadStatus = "loaded"
     } catch (error) {
       const status =
@@ -932,6 +1054,35 @@ export function createOperatorBillingCreditsPageModule(
     },
     clearToast: () => {
       toast = null
+      refreshSnapshot()
+    },
+    openBillingActivityHistory: async () => {
+      if (billingActivityEmpty) {
+        return
+      }
+      await loadActivityHistoryPage(1)
+      billingActivityHistoryOpen = true
+      refreshSnapshot()
+    },
+    closeBillingActivityHistory: () => {
+      billingActivityHistoryOpen = false
+      refreshSnapshot()
+    },
+    goToNextBillingActivityHistoryPage: async () => {
+      if (
+        billingActivityHistoryPage * billingActivityHistoryPageSize
+        >= billingActivityHistoryTotalCount
+      ) {
+        return
+      }
+      await loadActivityHistoryPage(billingActivityHistoryPage + 1)
+      refreshSnapshot()
+    },
+    goToPreviousBillingActivityHistoryPage: async () => {
+      if (billingActivityHistoryPage <= 1) {
+        return
+      }
+      await loadActivityHistoryPage(billingActivityHistoryPage - 1)
       refreshSnapshot()
     },
   }

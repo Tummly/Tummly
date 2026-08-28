@@ -106,6 +106,12 @@ export const BILLING_CREDITS_PAGE_COPY = {
   actions: "Actions",
   view: "View",
   download: "Download",
+  billingActivityTitle: "Billing activity",
+  billingActivitySubtitle:
+    "Review recent plan, payment, credit and invoice activity.",
+  billingActivityEmpty: "No billing activity yet.",
+  viewFullBillingHistory: "View full billing history",
+  billingActivitySheetTitle: "Billing activity",
 } as const
 
 export function resolveBillingCreditsTabId(
