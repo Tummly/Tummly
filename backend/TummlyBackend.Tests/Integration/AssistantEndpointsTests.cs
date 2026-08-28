@@ -558,6 +558,185 @@ var reply = LastMessage(conversation);
             );
         }
 
+        [Fact]
+        public async Task SendTurn_SuccessfulSend_BurnsOneAiCredit()
+        {
+            var owner = await SeedOwnerAsync("assistant-billing-burn-token");
+            ResetFake();
+
+            await SendTurnAsync(
+                owner.Jwt,
+                owner.LocationId,
+                "Summarise recent feedback"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await context.RestaurantLocations
+                .Where(location => location.Id == owner.LocationId)
+                .Select(location => location.RestaurantId)
+                .SingleAsync();
+            var consumption = await context.CreditLedgerEntries
+                .Where(row =>
+                    row.RestaurantId == restaurantId
+                    && row.Channel == CreditChannels.Ai
+                    && row.EntryType == CreditLedgerEntryTypes.Consumption
+                )
+                .SingleAsync();
+            Assert.Equal(1, consumption.Quantity);
+            Assert.Equal(owner.LocationId, consumption.LocationId);
+        }
+
+        [Fact]
+        public async Task SendTurn_ProviderFailure_BurnsZero()
+        {
+            var owner = await SeedOwnerAsync("assistant-billing-fail-token");
+            ResetFake();
+            FakeLive.Fail();
+
+            await SendTurnAsync(
+                owner.Jwt,
+                owner.LocationId,
+                "Summarise recent feedback"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await context.RestaurantLocations
+                .Where(location => location.Id == owner.LocationId)
+                .Select(location => location.RestaurantId)
+                .SingleAsync();
+            Assert.False(
+                await context.CreditLedgerEntries.AnyAsync(row =>
+                    row.RestaurantId == restaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.Consumption
+                )
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_RemainingZero_DoesNotCallLiveAnswer()
+        {
+            var owner = await SeedOwnerAsync("assistant-billing-zero-token");
+            ResetFake();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var restaurantId = await context.RestaurantLocations
+                    .Where(location => location.Id == owner.LocationId)
+                    .Select(location => location.RestaurantId)
+                    .SingleAsync();
+                var grant = await context.CreditLedgerEntries
+                    .Where(row =>
+                        row.RestaurantId == restaurantId
+                        && row.Channel == CreditChannels.Ai
+                        && row.EntryType == CreditLedgerEntryTypes.PilotAllocation
+                    )
+                    .SingleAsync();
+                context.CreditLedgerEntries.Add(
+                    new CreditLedgerEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        RestaurantId = restaurantId,
+                        Channel = CreditChannels.Ai,
+                        EntryType = CreditLedgerEntryTypes.Consumption,
+                        Quantity = grant.Quantity,
+                        AllocationId = grant.Id,
+                        LocationId = owner.LocationId,
+                        CreatedAtUtc = DateTime.UtcNow,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            var callsBefore = FakeLive.CompleteCount;
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/assistant/turns"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", owner.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                message = "Summarise recent feedback",
+                analysisScope = new
+                {
+                    ownedLocationId = owner.LocationId,
+                    reportingPeriod = new { kind = "preset", presetId = "last7" },
+                },
+            });
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("channel_hard_stopped", body.GetProperty("code").GetString());
+            Assert.Equal(0, body.GetProperty("remaining").GetInt32());
+            Assert.Equal(1, body.GetProperty("requested").GetInt32());
+            Assert.Equal(callsBefore, FakeLive.CompleteCount);
+        }
+
+        [Fact]
+        public async Task SendTurn_SameIdempotencyKey_BurnsOnce()
+        {
+            var owner = await SeedOwnerAsync("assistant-billing-idem-token");
+            ResetFake();
+            const string key = "22222222-2222-2222-2222-222222222222";
+
+            using var firstRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/assistant/turns"
+            );
+            firstRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", owner.Jwt);
+            firstRequest.Headers.Add("Idempotency-Key", key);
+            firstRequest.Content = JsonContent.Create(new
+            {
+                message = "Summarise recent feedback",
+                analysisScope = new
+                {
+                    ownedLocationId = owner.LocationId,
+                    reportingPeriod = new { kind = "preset", presetId = "last7" },
+                },
+            });
+            var firstResponse = await _client.SendAsync(firstRequest);
+            Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+
+            using var secondRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/assistant/turns"
+            );
+            secondRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", owner.Jwt);
+            secondRequest.Headers.Add("Idempotency-Key", key);
+            secondRequest.Content = JsonContent.Create(new
+            {
+                message = "Summarise recent feedback",
+                analysisScope = new
+                {
+                    ownedLocationId = owner.LocationId,
+                    reportingPeriod = new { kind = "preset", presetId = "last7" },
+                },
+            });
+            var secondResponse = await _client.SendAsync(secondRequest);
+            Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await context.RestaurantLocations
+                .Where(location => location.Id == owner.LocationId)
+                .Select(location => location.RestaurantId)
+                .SingleAsync();
+            var burns = await context.CreditLedgerEntries.CountAsync(row =>
+                row.RestaurantId == restaurantId
+                && row.EntryType == CreditLedgerEntryTypes.Consumption
+            );
+            Assert.Equal(1, burns);
+        }
+
         private async Task<string> TranscribeAsync(string jwt)
         {
             using var content = new MultipartFormDataContent();
@@ -635,6 +814,26 @@ var reply = LastMessage(conversation);
                 CreatedAt = DateTime.UtcNow,
             };
             context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurant.Id,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                )
+            );
+            context.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = restaurant.Id,
+                    Channel = CreditChannels.Ai,
+                    EntryType = CreditLedgerEntryTypes.PilotAllocation,
+                    Quantity = 100,
+                    PricebookVersion = "TUMMLY-UK-GBP-2026-08-V3",
+                    CreatedAtUtc = DateTime.UtcNow,
+                }
+            );
             await context.SaveChangesAsync();
 
             var jwt = jwtService.GenerateToken(

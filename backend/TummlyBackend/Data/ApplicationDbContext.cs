@@ -57,6 +57,8 @@ namespace TummlyBackend.Data
         public DbSet<RestaurantBillingActivity> RestaurantBillingActivities
         { get; set; }
 
+        public DbSet<AssistantAiActionOutcome> AssistantAiActionOutcomes { get; set; }
+
         public DbSet<RestaurantLocation> RestaurantLocations { get; set; }
 
         public DbSet<QrCode> QrCodes { get; set; }
@@ -636,6 +638,26 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<CreditLedgerEntry>()
                 .HasIndex(e => new { e.RestaurantId, e.SourcePaymentRef })
                 .HasFilter("[SourcePaymentRef] IS NOT NULL");
+
+            /*
+             =========================================
+             BILLING ACCOUNT -> ASSISTANT AI OUTCOMES
+             =========================================
+             */
+
+            modelBuilder.Entity<AssistantAiActionOutcome>()
+                .HasOne(row => row.BillingAccount)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<AssistantAiActionOutcome>()
+                .Property(row => row.IdempotencyKey)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<AssistantAiActionOutcome>()
+                .HasIndex(row => new { row.RestaurantId, row.IdempotencyKey });
 
             /*
              =========================================

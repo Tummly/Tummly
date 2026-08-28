@@ -81,7 +81,13 @@ namespace TummlyBackend.Tests.Services
                         _context,
                         new OffersCatalogService(_context)
                     ),
-                    new RestaurantPermissionHelper(_context)
+                    new RestaurantPermissionHelper(_context),
+                    new AssistantAiBillingService(
+                        _context,
+                        new CreditLedgerService(_context, TimeProvider.System),
+                        new CreditBalanceSnapshotService(_context, TimeProvider.System),
+                        TimeProvider.System
+                    )
                 ),
                 new NoOpBillingAccountLifecycle()
             );

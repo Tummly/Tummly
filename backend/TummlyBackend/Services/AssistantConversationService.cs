@@ -37,6 +37,7 @@ namespace TummlyBackend.Services
         private readonly IAssistantAttentionRetrieve _attentionRetrieve;
         private readonly ICaptureThankYouOfferService _thankYouOffers;
         private readonly IRestaurantPermissionHelper _permissions;
+        private readonly IAssistantAiBilling _aiBilling;
         private readonly TimeProvider _clock;
         private readonly FeedbackClassificationSettings _liveAnswerSettings;
         private string? _pendingAssistantBodyPrefix;
@@ -60,6 +61,7 @@ namespace TummlyBackend.Services
             IAssistantAttentionRetrieve attentionRetrieve,
             ICaptureThankYouOfferService thankYouOffers,
             IRestaurantPermissionHelper permissions,
+            IAssistantAiBilling aiBilling,
             TimeProvider? timeProvider = null,
             IOptions<FeedbackClassificationSettings>? liveAnswerSettings = null
         )
@@ -82,6 +84,7 @@ namespace TummlyBackend.Services
             _attentionRetrieve = attentionRetrieve;
             _thankYouOffers = thankYouOffers;
             _permissions = permissions;
+            _aiBilling = aiBilling;
             _clock = timeProvider ?? TimeProvider.System;
             _liveAnswerSettings = liveAnswerSettings?.Value
                 ?? new FeedbackClassificationSettings();
@@ -90,6 +93,7 @@ namespace TummlyBackend.Services
         public async Task<AssistantTurnOutcome> SendTurnAsync(
             int ownerUserId,
             SendAssistantTurnRequest request,
+            string? idempotencyKey = null,
             CancellationToken cancellationToken = default
         )
         {
@@ -107,6 +111,16 @@ namespace TummlyBackend.Services
             if (authorized.Error is not null)
             {
                 return authorized.Error;
+            }
+
+            var cached = await TryReplayIdempotentTurnAsync(
+                request.AnalysisScope,
+                idempotencyKey,
+                cancellationToken
+            );
+            if (cached is not null)
+            {
+                return cached;
             }
 
             var locationName = authorized.LocationName;
@@ -167,6 +181,7 @@ namespace TummlyBackend.Services
                 request.AnalysisScope,
                 locationName,
                 replaceFailure: null,
+                idempotencyKey,
                 cancellationToken
             );
         }
@@ -174,6 +189,7 @@ namespace TummlyBackend.Services
         public async Task<AssistantTurnOutcome> RetryTurnAsync(
             int ownerUserId,
             int conversationId,
+            string? idempotencyKey = null,
             CancellationToken cancellationToken = default
         )
         {
@@ -222,12 +238,23 @@ namespace TummlyBackend.Services
                 return authorized.Error;
             }
 
+            var cached = await TryReplayIdempotentTurnAsync(
+                sendScope,
+                idempotencyKey,
+                cancellationToken
+            );
+            if (cached is not null)
+            {
+                return cached;
+            }
+
             return await CompleteTurnAsync(
                 conversation,
                 lastUser.Body,
                 sendScope,
                 authorized.LocationName,
                 lastAssistant,
+                idempotencyKey,
                 cancellationToken
             );
         }
@@ -486,6 +513,7 @@ namespace TummlyBackend.Services
             AssistantAnalysisScopeDto scope,
             string locationName,
             AssistantMessage? replaceFailure,
+            string? idempotencyKey,
             CancellationToken cancellationToken
         )
         {
@@ -1022,6 +1050,20 @@ namespace TummlyBackend.Services
                 );
             }
 
+            AssistantTurnBilling? turnBilling;
+            var billingGate = await TryBeginBilledLiveAnswerAsync(
+                conversation,
+                boundCreateLocationId,
+                idempotencyKey,
+                cancellationToken
+            );
+            if (billingGate.Error is not null)
+            {
+                return billingGate.Error;
+            }
+
+            turnBilling = billingGate.Billing;
+
             AssistantLiveAnswerResult answer;
             try
             {
@@ -1066,6 +1108,7 @@ namespace TummlyBackend.Services
             string? proposedConversationTitle = null;
             if (answer is AssistantLiveAnswerResult.Succeeded succeeded)
             {
+                turnBilling?.MarkLiveAnswerSucceeded();
                 proposedConversationTitle = succeeded.ConversationTitle;
                 AssistantConversationTitle.TryApply(
                     conversation,
@@ -1266,7 +1309,8 @@ namespace TummlyBackend.Services
                             persist.Body,
                             replaceFailure,
                             cancellationToken,
-                            liveAnswerAlreadyCompleted: true
+                            liveAnswerAlreadyCompleted: true,
+                            turnBilling
                         );
                     }
 
@@ -1378,7 +1422,8 @@ namespace TummlyBackend.Services
                 replaceFailure,
                 cancellationToken,
                 proposedConversationTitle,
-                liveAnswerAlreadyCompleted: true
+                liveAnswerAlreadyCompleted: true,
+                turnBilling: turnBilling
             );
         }
 
@@ -4042,7 +4087,8 @@ namespace TummlyBackend.Services
             string body,
             AssistantMessage? replaceFailure,
             CancellationToken cancellationToken,
-            bool liveAnswerAlreadyCompleted = false
+            bool liveAnswerAlreadyCompleted = false,
+            AssistantTurnBilling? turnBilling = null
         )
         {
             conversation.DraftInterviewJson = AssistantGapTurn.Serialize(state);
@@ -4052,7 +4098,8 @@ namespace TummlyBackend.Services
                 GapMessage(DateTime.UtcNow, body),
                 replaceFailure,
                 cancellationToken,
-                liveAnswerAlreadyCompleted: liveAnswerAlreadyCompleted
+                liveAnswerAlreadyCompleted: liveAnswerAlreadyCompleted,
+                turnBilling: turnBilling
             );
         }
 
@@ -4977,7 +5024,8 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken,
             string? proposedConversationTitle = null,
             bool liveAnswerAlreadyCompleted = false,
-            AssistantSendScheduleRouteDto? sendScheduleRoute = null
+            AssistantSendScheduleRouteDto? sendScheduleRoute = null,
+            AssistantTurnBilling? turnBilling = null
         )
         {
             if (replaceFailure is not null)
@@ -5002,6 +5050,19 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (turnBilling is not null && turnBilling.ShouldConsume(assistantMessage))
+            {
+                var consume = await _aiBilling.ConsumeCompletedAnswerAsync(
+                    turnBilling.RestaurantId,
+                    turnBilling.LocationId,
+                    cancellationToken
+                );
+                if (!consume.Succeeded)
+                {
+                    return CreditSpendFromConsumeFail(consume);
+                }
+            }
+
             AssistantConversationTitle.TryApply(
                 conversation,
                 assistantMessage,
@@ -5013,7 +5074,138 @@ namespace TummlyBackend.Services
 
             var dto = AssistantAnalysisScope.ToConversationDto(conversation);
             dto.SendScheduleRoute = sendScheduleRoute;
+
+            if (turnBilling is not null
+                && !string.IsNullOrWhiteSpace(turnBilling.IdempotencyKey)
+                && turnBilling.ShouldConsume(assistantMessage))
+            {
+                await _aiBilling.StoreOutcomeAsync(
+                    turnBilling.RestaurantId,
+                    turnBilling.IdempotencyKey,
+                    dto,
+                    cancellationToken
+                );
+            }
+
             return new AssistantTurnOutcome.Ok(dto);
+        }
+
+        private sealed record BilledLiveAnswerGate(
+            AssistantTurnBilling? Billing,
+            AssistantTurnOutcome? Error
+        );
+
+        private async Task<AssistantTurnOutcome?> TryReplayIdempotentTurnAsync(
+            AssistantAnalysisScopeDto scope,
+            string? idempotencyKey,
+            CancellationToken cancellationToken
+        )
+        {
+            if (string.IsNullOrWhiteSpace(idempotencyKey)
+                || scope.OwnedLocationId is not int locationId)
+            {
+                return null;
+            }
+
+            var restaurantId = await _aiBilling.TryResolveRestaurantIdAsync(
+                locationId,
+                cancellationToken
+            );
+            if (restaurantId is not int resolvedRestaurantId)
+            {
+                return null;
+            }
+
+            var cached = await _aiBilling.TryGetCachedOutcomeAsync(
+                resolvedRestaurantId,
+                idempotencyKey,
+                cancellationToken
+            );
+            return cached is null
+                ? null
+                : new AssistantTurnOutcome.Ok(cached);
+        }
+
+        private async Task<BilledLiveAnswerGate> TryBeginBilledLiveAnswerAsync(
+            AssistantConversation conversation,
+            int? boundCreateLocationId,
+            string? idempotencyKey,
+            CancellationToken cancellationToken
+        )
+        {
+            int locationId;
+            try
+            {
+                locationId = CreatePersistLocationId(boundCreateLocationId, conversation);
+            }
+            catch (InvalidOperationException)
+            {
+                return new BilledLiveAnswerGate(null, null);
+            }
+
+            var restaurantId = await _aiBilling.TryResolveRestaurantIdAsync(
+                locationId,
+                cancellationToken
+            );
+            if (restaurantId is not int resolvedRestaurantId)
+            {
+                return new BilledLiveAnswerGate(
+                    null,
+                    new AssistantTurnOutcome.CreditSpendDenied(
+                        "location_not_in_account",
+                        CreditChannels.Ai,
+                        0,
+                        AssistantAiBillingRules.CompletedAnswerUnits
+                    )
+                );
+            }
+
+            var remaining = await _aiBilling.GetAiRemainingAsync(
+                resolvedRestaurantId,
+                cancellationToken
+            );
+            if (remaining < AssistantAiBillingRules.CompletedAnswerUnits)
+            {
+                return new BilledLiveAnswerGate(
+                    null,
+                    new AssistantTurnOutcome.CreditSpendDenied(
+                        "channel_hard_stopped",
+                        CreditChannels.Ai,
+                        remaining,
+                        AssistantAiBillingRules.CompletedAnswerUnits
+                    )
+                );
+            }
+
+            return new BilledLiveAnswerGate(
+                new AssistantTurnBilling
+                {
+                    RestaurantId = resolvedRestaurantId,
+                    LocationId = locationId,
+                    IdempotencyKey = idempotencyKey,
+                },
+                null
+            );
+        }
+
+        private static AssistantTurnOutcome CreditSpendFromConsumeFail(
+            CreditLedgerWriteResult consume
+        )
+        {
+            var code = consume.Code switch
+            {
+                "location_required" => "location_required",
+                "location_not_in_account" => "location_not_in_account",
+                "channel_hard_stopped" => "channel_hard_stopped",
+                _ => "insufficient_credits",
+            };
+
+            return new AssistantTurnOutcome.CreditSpendDenied(
+                code,
+                CreditChannels.Ai,
+                0,
+                AssistantAiBillingRules.CompletedAnswerUnits
+            );
         }
 
         private async Task<string?> TryReadModelConversationTitleAsync(

@@ -50,6 +50,7 @@ namespace TummlyBackend.Controllers
                 var outcome = await _conversations.SendTurnAsync(
                     userId,
                     body,
+                    Request.Headers["Idempotency-Key"].FirstOrDefault(),
                     cancellationToken
                 );
                 return ToActionResult(outcome);
@@ -129,6 +130,7 @@ namespace TummlyBackend.Controllers
                 var outcome = await _conversations.RetryTurnAsync(
                     userId,
                     conversationId,
+                    Request.Headers["Idempotency-Key"].FirstOrDefault(),
                     cancellationToken
                 );
                 return ToActionResult(outcome);
@@ -405,6 +407,17 @@ namespace TummlyBackend.Controllers
                         success = false,
                         message = "Unexpected owned-location resolve status.",
                     }),
+                AssistantTurnOutcome.CreditSpendDenied denied => StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        code = denied.Code,
+                        channel = denied.Channel,
+                        remaining = denied.Remaining,
+                        requested = denied.Requested,
+                    }
+                ),
                 _ => StatusCode(500, new
                 {
                     success = false,
