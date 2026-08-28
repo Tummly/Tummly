@@ -63,6 +63,11 @@ namespace TummlyBackend.Models
         /// When true, the account may buy the 5,000 SMS top-up pack without Group plan.
         /// </summary>
         public bool AllowSms5000TopUp { get; set; }
+
+        /// <summary>
+        /// Paid Additional Group Location quantity. Default 0. Meaningful on Group.
+        /// </summary>
+        public int PaidExtraLocationCount { get; set; }
     }
 
     public static class BillingSubscriptionPlans

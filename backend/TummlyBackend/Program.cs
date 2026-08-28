@@ -460,6 +460,7 @@ builder.Services.AddScoped<
 >();
 
 builder.Services.AddScoped<IOwnedLocationService, OwnedLocationService>();
+builder.Services.AddScoped<IOwnedLocationInsertService, OwnedLocationInsertService>();
 
 builder.Services.AddScoped<IAccountWorkspaceService, AccountWorkspaceService>();
 builder.Services.AddScoped<ITeamPermissionsService, TeamPermissionsService>();

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TummlyBackend.Data;
 
@@ -11,9 +12,11 @@ using TummlyBackend.Data;
 namespace TummlyBackend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260828181050_AddBillingAccountPaidExtraLocationCount")]
+    partial class AddBillingAccountPaidExtraLocationCount
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -570,76 +573,6 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("RestaurantLocationId", "Status");
 
                     b.ToTable("CatalogOffers");
-                });
-
-            modelBuilder.Entity("TummlyBackend.Models.CreditLedgerEntry", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("AllocationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Channel")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("nvarchar(16)");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("EntryType")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<DateTime?>("ExpiresAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("LocationId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("PeriodStartUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("PricebookVersion")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ReservationRef")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<int>("RestaurantId")
-                        .HasColumnType("int");
-
-                    b.Property<Guid?>("ReversedEntryId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AllocationId");
-
-                    b.HasIndex("LocationId");
-
-                    b.HasIndex("ReversedEntryId")
-                        .IsUnique()
-                        .HasFilter("[ReversedEntryId] IS NOT NULL");
-
-                    b.HasIndex("ReservationRef", "AllocationId")
-                        .IsUnique()
-                        .HasFilter("[EntryType] = N'reservation' AND [ReservationRef] IS NOT NULL");
-
-                    b.HasIndex("RestaurantId", "Channel");
-
-                    b.ToTable("CreditLedgerEntries", t =>
-                        {
-                            t.HasCheckConstraint("CK_CreditLedgerEntries_QuantityPositive", "[Quantity] > 0");
-                        });
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.DataMigrationMarker", b =>
@@ -3125,38 +3058,6 @@ namespace TummlyBackend.Migrations
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("RestaurantLocation");
-                });
-
-            modelBuilder.Entity("TummlyBackend.Models.CreditLedgerEntry", b =>
-                {
-                    b.HasOne("TummlyBackend.Models.CreditLedgerEntry", "Allocation")
-                        .WithMany()
-                        .HasForeignKey("AllocationId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "Location")
-                        .WithMany()
-                        .HasForeignKey("LocationId")
-                        .OnDelete(DeleteBehavior.NoAction);
-
-                    b.HasOne("TummlyBackend.Models.BillingAccount", "BillingAccount")
-                        .WithMany()
-                        .HasForeignKey("RestaurantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("TummlyBackend.Models.CreditLedgerEntry", "ReversedEntry")
-                        .WithMany()
-                        .HasForeignKey("ReversedEntryId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Allocation");
-
-                    b.Navigation("BillingAccount");
-
-                    b.Navigation("Location");
-
-                    b.Navigation("ReversedEntry");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.Feedback", b =>

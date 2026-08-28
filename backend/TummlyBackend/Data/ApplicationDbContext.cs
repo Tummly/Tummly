@@ -521,6 +521,10 @@ namespace TummlyBackend.Data
                     "[RevolutCustomerId] IS NOT NULL AND [RevolutCustomerId] <> ''"
                 );
 
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.PaidExtraLocationCount)
+                .HasDefaultValue(0);
+
             /*
              =========================================
              BILLING ACCOUNT -> CREDIT LEDGER ENTRIES
