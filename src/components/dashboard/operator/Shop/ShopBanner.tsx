@@ -12,7 +12,7 @@ export function ShopBanner({
 }: ShopBannerProps) {
   return (
     <div
-      className="relative overflow-hidden rounded-xl border border-op-border-default bg-[#ece6de] bg-cover bg-right shadow-sm sm:bg-center"
+      className="relative overflow-hidden rounded-md border border-op-border-default bg-[#ece6de] bg-cover bg-right shadow-sm sm:bg-center"
       style={{
         backgroundImage: `url(${shopBannerImg})`,
         minHeight: "280px",

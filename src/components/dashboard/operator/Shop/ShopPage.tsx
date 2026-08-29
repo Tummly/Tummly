@@ -16,7 +16,10 @@ import {
   type CartItem,
 } from "@/components/dashboard/operator/Shop/ShopCartDrawer"
 import { ShopStarterKitDialog } from "@/components/dashboard/operator/Shop/ShopStarterKitDialog"
-import { ShopLocationDetailsDialog } from "@/components/dashboard/operator/Shop/ShopLocationDetailsDialog"
+import {
+  ShopLocationDetailsDialog,
+  type LocationDetails,
+} from "@/components/dashboard/operator/Shop/ShopLocationDetailsDialog"
 import {
   ShopOrdersDialog,
   type ShopOrder,
@@ -45,11 +48,7 @@ export function ShopPage({
   const [isCreateQrAssetOpen, setIsCreateQrAssetOpen] = useState<boolean>(false)
   const [isSubmittingOrder, setIsSubmittingOrder] = useState<boolean>(false)
 
-  const [locationDetails, setLocationDetails] = useState<{
-    tableCount: number
-    serviceType: string
-    seatingArea: string
-  } | null>(null)
+  const [locationDetails, setLocationDetails] = useState<LocationDetails | null>(null)
 
   const [orders, setOrders] = useState<ShopOrder[]>([
     {

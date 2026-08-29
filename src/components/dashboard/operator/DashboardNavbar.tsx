@@ -29,6 +29,8 @@ type DashboardNavbarProps = {
   profileSelfRoleSubtitle: string | null
   /** Compact “t” mark when the desktop sidebar is collapsed. */
   compactLogo?: boolean
+  /** Only render the logo column, omitting the right utility controls. */
+  logoOnly?: boolean
   notificationsUnreadCount?: number
   onOpenNotifications?: () => void
   onOpenNotificationPreferences?: () => void
@@ -45,6 +47,7 @@ export function DashboardNavbar({
   profileInitials,
   profileSelfRoleSubtitle,
   compactLogo = false,
+  logoOnly = false,
   notificationsUnreadCount = 0,
   onOpenNotifications,
   onOpenNotificationPreferences,
@@ -132,129 +135,131 @@ export function DashboardNavbar({
         </div>
 
         {/* At `lg+` the row starts one navbar gutter after the side-nav edge. */}
-        <div
-          className={cn(
-            "flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2 lg:justify-start lg:gap-3",
-            OPERATOR_NAVBAR_UTILITY_INSET_LEFT
-          )}
-        >
-          <LocationSwitcher
-            locationSwitcher={locationSwitcher}
-            onSelectLocation={onSelectLocation}
-          />
+        {!logoOnly && (
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2 lg:justify-start lg:gap-3",
+              OPERATOR_NAVBAR_UTILITY_INSET_LEFT
+            )}
+          >
+            <LocationSwitcher
+              locationSwitcher={locationSwitcher}
+              onSelectLocation={onSelectLocation}
+            />
 
-          <OperatorShellDisabledSearchField className="hidden min-w-0 flex-1 lg:flex" />
+            <OperatorShellDisabledSearchField className="hidden min-w-0 flex-1 lg:flex" />
 
-          <div className="flex shrink-0 items-center gap-0.5 lg:ml-auto">
-            {aiAssistantEnabled ? (
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
+            <div className="flex shrink-0 items-center gap-0.5 lg:ml-auto">
+              {aiAssistantEnabled ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className={cn(
+                      "inline-flex rounded-op-sm p-0 text-op-header-ai-text md:hidden",
+                      "bg-op-header-ai-background hover:bg-op-header-ai-hover",
+                      OPERATOR_SHELL_TOUCH_TARGET_CLASS
+                    )}
+                    aria-label="AI Assistant"
+                    onClick={onOpenAiAssistant}
+                  >
+                    <AiIcon />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className={cn(
+                      "hidden gap-1.5 rounded-op-sm pl-2 pr-3 md:inline-flex",
+                      OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS,
+                      "text-xs font-medium text-op-header-ai-text lg:h-10 lg:min-h-10 lg:gap-2 lg:px-4 lg:text-sm",
+                      "bg-op-header-ai-background hover:bg-op-header-ai-hover"
+                    )}
+                    aria-label="AI Assistant"
+                    onClick={onOpenAiAssistant}
+                  >
+                    <AiIcon />
+                    AI Assistant
+                  </Button>
+                </>
+              ) : (
+                <OperatorShellDisabledChromeButton
+                  label="AI Assistant"
                   className={cn(
-                    "inline-flex rounded-op-sm p-0 text-op-header-ai-text md:hidden",
-                    "bg-op-header-ai-background hover:bg-op-header-ai-hover",
-                    OPERATOR_SHELL_TOUCH_TARGET_CLASS
-                  )}
-                  aria-label="AI Assistant"
-                  onClick={onOpenAiAssistant}
-                >
-                  <AiIcon />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className={cn(
-                    "hidden gap-1.5 rounded-op-sm pl-2 pr-3 md:inline-flex",
+                    "hidden gap-1.5 rounded-op-sm pl-2 pr-3 opacity-100 md:inline-flex",
                     OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS,
                     "text-xs font-medium text-op-header-ai-text lg:h-10 lg:min-h-10 lg:gap-2 lg:px-4 lg:text-sm",
                     "bg-op-header-ai-background hover:bg-op-header-ai-hover"
                   )}
-                  aria-label="AI Assistant"
-                  onClick={onOpenAiAssistant}
                 >
                   <AiIcon />
                   AI Assistant
+                </OperatorShellDisabledChromeButton>
+              )}
+
+              <OperatorShellHelpLink className="hidden lg:inline-flex" />
+
+              <Separator
+                orientation="vertical"
+                className="hidden h-7 w-px shrink-0 self-center data-vertical:h-7 data-vertical:self-center lg:block"
+              />
+
+              {notificationsEnabled ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={cn(
+                    "relative shrink-0 rounded p-0",
+                    "text-op-header-icons-color hover:bg-black/5 hover:text-op-header-icons-color",
+                    "dark:hover:bg-white/10",
+                    OPERATOR_SHELL_TOUCH_TARGET_CLASS,
+                    "lg:size-auto lg:h-10 lg:min-h-10 lg:min-w-0 lg:px-3.5"
+                  )}
+                  aria-label={
+                    showUnreadBadge
+                      ? `Notifications, ${notificationsUnreadCount} unread`
+                      : "Notifications"
+                  }
+                  onClick={onOpenNotifications}
+                >
+                  <span className="relative flex size-5 items-center justify-center">
+                    <BellIcon className="size-4" />
+                    {showUnreadBadge ? (
+                      <span
+                        aria-hidden
+                        className="absolute top-0 right-0 size-1.5 rounded-full bg-primary"
+                      />
+                    ) : null}
+                  </span>
                 </Button>
-              </>
-            ) : (
-              <OperatorShellDisabledChromeButton
-                label="AI Assistant"
-                className={cn(
-                  "hidden gap-1.5 rounded-op-sm pl-2 pr-3 opacity-100 md:inline-flex",
-                  OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS,
-                  "text-xs font-medium text-op-header-ai-text lg:h-10 lg:min-h-10 lg:gap-2 lg:px-4 lg:text-sm",
-                  "bg-op-header-ai-background hover:bg-op-header-ai-hover"
-                )}
-              >
-                <AiIcon />
-                AI Assistant
-              </OperatorShellDisabledChromeButton>
-            )}
-
-            <OperatorShellHelpLink className="hidden lg:inline-flex" />
-
-            <Separator
-              orientation="vertical"
-              className="hidden h-7 w-px shrink-0 self-center data-vertical:h-7 data-vertical:self-center lg:block"
-            />
-
-            {notificationsEnabled ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className={cn(
-                  "relative shrink-0 rounded p-0",
-                  "text-op-header-icons-color hover:bg-black/5 hover:text-op-header-icons-color",
-                  "dark:hover:bg-white/10",
-                  OPERATOR_SHELL_TOUCH_TARGET_CLASS,
-                  "lg:size-auto lg:h-10 lg:min-h-10 lg:min-w-0 lg:px-3.5"
-                )}
-                aria-label={
-                  showUnreadBadge
-                    ? `Notifications, ${notificationsUnreadCount} unread`
-                    : "Notifications"
-                }
-                onClick={onOpenNotifications}
-              >
-                <span className="relative flex size-5 items-center justify-center">
-                  <BellIcon className="size-4" />
-                  {showUnreadBadge ? (
+              ) : (
+                <OperatorShellDisabledChromeButton
+                  label="Notifications"
+                  className={cn(
+                    "relative rounded p-0 text-op-header-icons-color",
+                    OPERATOR_SHELL_TOUCH_TARGET_CLASS,
+                    "lg:size-auto lg:h-10 lg:min-h-10 lg:min-w-0 lg:px-3.5"
+                  )}
+                >
+                  <span className="relative flex size-5 items-center justify-center">
+                    <BellIcon className="size-4" />
                     <span
                       aria-hidden
                       className="absolute top-0 right-0 size-1.5 rounded-full bg-primary"
                     />
-                  ) : null}
-                </span>
-              </Button>
-            ) : (
-              <OperatorShellDisabledChromeButton
-                label="Notifications"
-                className={cn(
-                  "relative rounded p-0 text-op-header-icons-color",
-                  OPERATOR_SHELL_TOUCH_TARGET_CLASS,
-                  "lg:size-auto lg:h-10 lg:min-h-10 lg:min-w-0 lg:px-3.5"
-                )}
-              >
-                <span className="relative flex size-5 items-center justify-center">
-                  <BellIcon className="size-4" />
-                  <span
-                    aria-hidden
-                    className="absolute top-0 right-0 size-1.5 rounded-full bg-primary"
-                  />
-                </span>
-              </OperatorShellDisabledChromeButton>
-            )}
+                  </span>
+                </OperatorShellDisabledChromeButton>
+              )}
 
-            <AccountMenu
-              profileDisplayName={profileDisplayName}
-              profileInitials={profileInitials}
-              profileSelfRoleSubtitle={profileSelfRoleSubtitle}
-              onSignOut={onSignOut}
-              onOpenNotificationPreferences={onOpenNotificationPreferences}
-            />
+              <AccountMenu
+                profileDisplayName={profileDisplayName}
+                profileInitials={profileInitials}
+                profileSelfRoleSubtitle={profileSelfRoleSubtitle}
+                onSignOut={onSignOut}
+                onOpenNotificationPreferences={onOpenNotificationPreferences}
+              />
+            </div>
           </div>
-        </div>
+        )}
       </nav>
     </header>
   )

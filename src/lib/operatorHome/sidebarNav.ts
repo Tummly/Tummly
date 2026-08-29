@@ -180,7 +180,7 @@ export function getOperatorSidebarNav(
       {
         id: OPERATOR_SIDEBAR_SHOP.id,
         label: OPERATOR_SIDEBAR_SHOP.label,
-        navigable: true,
+        navigable: navTargets != null,
         active: activeId === OPERATOR_SIDEBAR_SHOP.id,
         to:
           navTargets != null

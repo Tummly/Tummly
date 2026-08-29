@@ -37,7 +37,7 @@ export function ShopHeader({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 gap-1.5 rounded-full border-op-border-default bg-op-surface-secondary px-3 text-xs font-medium text-foreground hover:bg-op-card-background"
+                className="h-8 gap-1.5 rounded-md border border-op-border-default bg-op-surface-secondary px-3 text-xs font-medium text-foreground hover:bg-op-card-background"
               >
                 <MapPin className="size-3.5 text-muted-foreground" />
                 <span className="max-w-[120px] truncate">{selectedLocationName}</span>
@@ -60,7 +60,7 @@ export function ShopHeader({
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          <div className="inline-flex h-8 items-center gap-1.5 rounded-full border border-op-border-default bg-op-surface-secondary px-3 text-xs font-medium text-foreground">
+          <div className="inline-flex h-8 items-center gap-1.5 rounded-md border border-op-border-default bg-op-surface-secondary px-3 text-xs font-medium text-foreground">
             <MapPin className="size-3.5 text-muted-foreground" />
             <span className="max-w-[140px] truncate">{selectedLocationName}</span>
           </div>

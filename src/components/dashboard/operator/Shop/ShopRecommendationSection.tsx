@@ -1,15 +1,10 @@
-import { Sparkles, CheckCircle2 } from "lucide-react"
+import { CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-
-type LocationRecommendationDetails = {
-  tableCount?: number
-  serviceType?: string
-  seatingArea?: string
-} | null
+import type { LocationDetails } from "@/components/dashboard/operator/Shop/ShopLocationDetailsDialog"
 
 type ShopRecommendationSectionProps = {
   locationName: string
-  locationDetails: LocationRecommendationDetails
+  locationDetails: LocationDetails | null
   onAddLocationDetails: () => void
   onAddRecommendedToCart: () => void
 }
@@ -23,34 +18,31 @@ export function ShopRecommendationSection({
   const hasDetails = locationDetails && locationDetails.tableCount
 
   return (
-    <div className="flex flex-col rounded-xl border border-op-border-default bg-op-card-background p-6">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 rounded-md bg-op-surface-secondary p-2 text-muted-foreground">
-          <Sparkles className="size-4 text-op-action-primary" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <h3 className="text-lg font-semibold tracking-tight text-foreground">
+    <div className="flex flex-col rounded-md border border-op-border-default bg-op-card-background p-6">
+      <div className="flex items-start gap-2.5">
+        <div className="flex flex-col gap-0.5">
+          <h3 className="text-sm font-semibold text-foreground">
             Recommended for {locationName}
           </h3>
-          <p className="text-sm font-normal text-muted-foreground">
+          <p className="text-xs font-normal text-muted-foreground">
             Based on how this location operates and its recent QR activity, Tummly has suggested the materials and quantities most likely to give guests the right opportunities to respond.
           </p>
         </div>
       </div>
 
-      <div className="mt-6 flex min-h-[160px] flex-col items-center justify-center rounded-lg border border-dashed border-op-border-default/80 bg-op-surface-secondary/40 p-8 text-center">
+      <div className="mt-8 flex min-h-[140px] flex-col items-center justify-center p-6 text-center">
         {!hasDetails ? (
-          <div className="flex max-w-md flex-col items-center gap-2">
-            <h4 className="text-base font-semibold text-foreground">
+          <div className="flex max-w-md flex-col items-center gap-1.5">
+            <h4 className="text-xs font-medium text-foreground">
               Get a recommendation for this location
             </h4>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Tell us how this location operates and Tummly will suggest suitable QR materials and quantities.
             </p>
             <Button
               type="button"
               variant="outline"
-              className="mt-3 h-9 rounded-md border-op-border-default bg-transparent px-4 text-xs font-medium text-foreground hover:bg-op-surface-secondary"
+              className="mt-3 h-8 rounded-md border-op-border-default bg-transparent px-3 text-xs font-medium text-foreground hover:bg-op-surface-secondary"
               onClick={onAddLocationDetails}
             >
               Add location details
@@ -59,21 +51,31 @@ export function ShopRecommendationSection({
         ) : (
           <div className="flex w-full max-w-lg flex-col items-center gap-4">
             <div className="flex items-center gap-2 text-xs font-medium text-op-text-success">
-              <CheckCircle2 className="size-4" />
-              <span>Location setup active ({locationDetails.tableCount} tables, {locationDetails.serviceType})</span>
+              <CheckCircle2 className="size-3.5" />
+              <span>
+                Location setup active ({locationDetails.tableCount} tables
+                {locationDetails.counterCount ? `, ${locationDetails.counterCount} counters` : ""}
+                {locationDetails.entranceCount ? `, ${locationDetails.entranceCount} entrances` : ""})
+              </span>
             </div>
             <div className="grid w-full grid-cols-3 gap-3 text-left">
               <div className="rounded-md border border-op-border-default bg-op-surface-secondary p-3">
                 <span className="text-xs text-muted-foreground">Table Stands</span>
-                <p className="text-base font-bold text-foreground">{locationDetails.tableCount} units</p>
+                <p className="text-sm font-bold text-foreground">{locationDetails.tableCount} units</p>
               </div>
               <div className="rounded-md border border-op-border-default bg-op-surface-secondary p-3">
                 <span className="text-xs text-muted-foreground">Window Decals</span>
-                <p className="text-base font-bold text-foreground">4 units</p>
+                <p className="text-sm font-bold text-foreground">
+                  {locationDetails.entranceCount ? locationDetails.entranceCount * 2 : 4} units
+                </p>
               </div>
               <div className="rounded-md border border-op-border-default bg-op-surface-secondary p-3">
                 <span className="text-xs text-muted-foreground">Bill Presenters</span>
-                <p className="text-base font-bold text-foreground">{Math.ceil(locationDetails.tableCount * 1.5)} units</p>
+                <p className="text-sm font-bold text-foreground">
+                  {Math.ceil(locationDetails.tableCount * 1.5) +
+                    (locationDetails.counterCount ? locationDetails.counterCount * 2 : 0)}{" "}
+                  units
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
