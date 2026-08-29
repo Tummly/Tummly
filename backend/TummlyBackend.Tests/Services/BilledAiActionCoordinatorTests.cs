@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -176,7 +178,7 @@ namespace TummlyBackend.Tests.Services
 
             return new Harness(
                 context,
-                new CreditLedgerService(context, _clock),
+                new CreditLedgerService(context, _clock, new StubPricebookCatalog()),
                 new CreditBalanceSnapshotService(context, _clock),
                 restaurant.Id,
                 location.Id
@@ -217,6 +219,83 @@ namespace TummlyBackend.Tests.Services
                     CreditLedgerWriteResult.Fail("insufficient_credits")
                 );
             }
+
+            public Task<CreditLedgerWriteResult> ReserveAsync(
+                CreditLedgerReserveRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+
+            public Task<CreditLedgerWriteResult> SettleAsync(
+                CreditLedgerSettleRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+
+            public Task<CreditLedgerWriteResult> ReleaseAsync(
+                CreditLedgerReleaseRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+
+            public Task<CreditLedgerWriteResult> StaffManualAdjustAsync(
+                StaffManualAdjustRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+
+            public Task<CreditLedgerWriteResult> StaffReverseAsync(
+                StaffReverseRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+
+            public Task<CreditLedgerMintTopupResult> MintTopupAllocationAsync(
+                CreditLedgerMintTopupRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+
+            public Task<CreditLedgerDrainTopupResult> DrainUnusedTopupAsync(
+                CreditLedgerDrainTopupRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+
+            public Task<CreditLedgerRestoreTopupResult> RestoreUnusedTopupAsync(
+                CreditLedgerRestoreTopupRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+
+            public Task<CreditLedgerWriteResult> ReleaseHeldAsync(
+                CreditLedgerReleaseHeldRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+
+            public Task<CreditLedgerWriteResult> MintPilotAtActivationAsync(
+                int restaurantId,
+                CancellationToken cancellationToken = default
+            )
+                => throw new NotImplementedException();
+        }
+
+        private sealed class StubPricebookCatalog : IPricebookCatalog
+        {
+            public string CurrentPricebookId => PricebookId;
+
+            public PricebookSnapshot GetRequired(string pricebookId) =>
+                throw new NotImplementedException();
+
+            public string FormatPlanPriceNet(PricebookPlan plan, string? billingCycle) =>
+                throw new NotImplementedException();
+
+            public string FormatIncludedCreditsLabel(PricebookPlan plan, string channel) =>
+                throw new NotImplementedException();
+
+            public BillingCurrentCatalogDto BuildCurrentCatalog(bool sms5000Available) =>
+                throw new NotImplementedException();
         }
 
         private sealed class FixedTimeProvider(DateTime utcNow) : TimeProvider
