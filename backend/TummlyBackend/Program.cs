@@ -525,6 +525,10 @@ builder.Services.AddScoped<
     FirstPaidConversionPaySessionService
 >();
 builder.Services.AddScoped<
+    IPaymentMethodUpdatePaySession,
+    PaymentMethodUpdatePaySessionService
+>();
+builder.Services.AddScoped<
     IRevolutOrderCompletedApplier,
     NoOpRevolutOrderCompletedApplier
 >();

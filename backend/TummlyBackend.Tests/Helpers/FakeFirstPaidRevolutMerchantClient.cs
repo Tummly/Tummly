@@ -60,10 +60,20 @@ namespace TummlyBackend.Tests.Helpers
             CancellationToken cancellationToken = default
         )
         {
+            CreateOrderCallCount++;
+            LastCreateOrderRequest = request;
             return Task.FromResult(
-                new RevolutMerchantCreateResult(Succeeded: true, Id: "ord_one_time")
+                new RevolutMerchantCreateResult(
+                    Succeeded: true,
+                    Id: $"ord_pm_{CreateOrderCallCount}",
+                    CheckoutUrl: CheckoutUrl
+                )
             );
         }
+
+        public int CreateOrderCallCount { get; private set; }
+
+        public RevolutCreateOrderRequest? LastCreateOrderRequest { get; private set; }
 
         public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
             string subscriptionId,

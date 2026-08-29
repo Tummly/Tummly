@@ -124,7 +124,8 @@ namespace TummlyBackend.Tests.Services
                     TimeProvider.System
                 ),
                 new AlwaysReadyRevolutMerchantCreateGate(),
-                new ThrowingFirstPaidConversionPaySession()
+                new ThrowingFirstPaidConversionPaySession(),
+                new ThrowingPaymentMethodUpdatePaySession()
             );
             return new Harness(context, service, restaurant.Id);
         }
@@ -145,6 +146,22 @@ namespace TummlyBackend.Tests.Services
             {
                 throw new NotImplementedException(
                     "First paid conversion is not under test here."
+                );
+            }
+        }
+
+        private sealed class ThrowingPaymentMethodUpdatePaySession
+            : IPaymentMethodUpdatePaySession
+        {
+            public Task<PaymentMethodUpdateSessionDto> StartAsync(
+                BillingAccount billingAccount,
+                string restaurantAccountType,
+                int locationId,
+                CancellationToken cancellationToken = default
+            )
+            {
+                throw new NotImplementedException(
+                    "Payment method update is not under test here."
                 );
             }
         }

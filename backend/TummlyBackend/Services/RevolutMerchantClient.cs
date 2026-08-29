@@ -177,13 +177,32 @@ namespace TummlyBackend.Services
         )
         {
             EnsureReadyForCreate(request.PlanVariationLookupKey);
-            return await PostCreateAsync(
-                "api/1.0/orders",
-                new
+            object body;
+            if (string.IsNullOrWhiteSpace(request.CustomerId))
+            {
+                body = new
                 {
                     amount = request.AmountMinor,
                     currency = request.Currency,
-                },
+                    description = request.Description,
+                    redirect_url = request.RedirectUrl,
+                };
+            }
+            else
+            {
+                body = new
+                {
+                    amount = request.AmountMinor,
+                    currency = request.Currency,
+                    description = request.Description,
+                    redirect_url = request.RedirectUrl,
+                    customer = new { id = request.CustomerId },
+                };
+            }
+
+            return await PostCreateAsync(
+                "api/1.0/orders",
+                body,
                 cancellationToken
             );
         }
@@ -377,6 +396,7 @@ namespace TummlyBackend.Services
 
             string? id = null;
             string? setupOrderId = null;
+            string? checkoutUrl = null;
             if (!string.IsNullOrWhiteSpace(raw))
             {
                 using var doc = JsonDocument.Parse(raw);
@@ -396,13 +416,22 @@ namespace TummlyBackend.Services
                 {
                     setupOrderId = setupElement.GetString();
                 }
+
+                if (
+                    root.TryGetProperty("checkout_url", out var checkoutElement)
+                    && checkoutElement.ValueKind == JsonValueKind.String
+                )
+                {
+                    checkoutUrl = checkoutElement.GetString();
+                }
             }
 
             return new RevolutMerchantCreateResult(
                 Succeeded: true,
                 Id: id,
                 RawBody: raw,
-                SetupOrderId: setupOrderId
+                SetupOrderId: setupOrderId,
+                CheckoutUrl: checkoutUrl
             );
         }
 

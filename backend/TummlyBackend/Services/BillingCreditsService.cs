@@ -18,6 +18,7 @@ namespace TummlyBackend.Services
         private readonly IPlanChangeService _planChange;
         private readonly IRevolutMerchantCreateGate _revolutMerchantCreateGate;
         private readonly IFirstPaidConversionPaySession _firstPaidConversionPaySession;
+        private readonly IPaymentMethodUpdatePaySession _paymentMethodUpdatePaySession;
 
         public BillingCreditsService(
             ApplicationDbContext context,
@@ -26,7 +27,8 @@ namespace TummlyBackend.Services
             IBillingAccountLifecycle lifecycle,
             IPlanChangeService planChange,
             IRevolutMerchantCreateGate revolutMerchantCreateGate,
-            IFirstPaidConversionPaySession firstPaidConversionPaySession
+            IFirstPaidConversionPaySession firstPaidConversionPaySession,
+            IPaymentMethodUpdatePaySession paymentMethodUpdatePaySession
         )
         {
             _context = context;
@@ -36,6 +38,7 @@ namespace TummlyBackend.Services
             _planChange = planChange;
             _revolutMerchantCreateGate = revolutMerchantCreateGate;
             _firstPaidConversionPaySession = firstPaidConversionPaySession;
+            _paymentMethodUpdatePaySession = paymentMethodUpdatePaySession;
         }
 
         public async Task<BillingCreditsPageDto?> GetPageAsync(
@@ -237,13 +240,29 @@ namespace TummlyBackend.Services
                 throw new InvalidOperationException(restorationDeny);
             }
 
-            EnsureMerchantCreateReady(planVariationLookupKey: null);
-
-            return new PaymentMethodUpdateSessionDto
+            var locationId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurantId)
+                .OrderBy(row => row.Id)
+                .Select(row => row.Id)
+                .FirstOrDefaultAsync();
+            if (locationId == 0)
             {
-                RedirectUrl =
-                    "https://sandbox-merchant.revolut.com/hpp/update-payment-method",
-            };
+                throw new InvalidOperationException("location_required");
+            }
+
+            try
+            {
+                return await _paymentMethodUpdatePaySession.StartAsync(
+                    billingAccount,
+                    restaurant.AccountType,
+                    locationId
+                );
+            }
+            catch (RevolutMerchantNotReadyException ex)
+            {
+                throw new InvalidOperationException(ex.Code);
+            }
         }
 
         private static bool IsPilotBillingAccount(BillingAccount billingAccount)

@@ -149,6 +149,17 @@ namespace TummlyBackend.Controllers
 
                 return Ok(session);
             }
+            catch (InvalidOperationException ex) when (
+                ex.Message == "revolut_customer_required"
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "revolut_customer_required",
+                    message = "A Revolut customer is required before updating the payment method.",
+                });
+            }
             catch (InvalidOperationException ex) when (IsOperatorBillingLockCode(ex.Message))
             {
                 return OperatorBillingLockForbidden(ex.Message);

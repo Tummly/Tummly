@@ -1631,9 +1631,9 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task PostPaymentMethodUpdate_ReturnsRedirect_ForOwner()
+        public async Task PostPaymentMethodUpdate_ReturnsPayRedirect_ForOwner()
         {
-            var seeded = await SeedPaidWorkspaceAsync();
+            var seeded = await SeedPaidWorkspaceAsync(revolutCustomerId: "cust_paid_owner");
             using var request = Authorized(
                 HttpMethod.Post,
                 "/api/billing-credits/payment-method/update",
@@ -1643,16 +1643,19 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
             var body = await ReadJsonAsync(response);
-            Assert.Contains(
-                "revolut.com",
+            Assert.Equal("pay", body.GetProperty("outcome").GetString());
+            Assert.Equal(
+                FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
                 body.GetProperty("redirectUrl").GetString()
             );
         }
 
         [Fact]
-        public async Task PostPaymentMethodUpdate_ReturnsRedirect_ForBillingAdmin()
+        public async Task PostPaymentMethodUpdate_ReturnsPayRedirect_ForBillingAdmin()
         {
-            var seeded = await SeedPaidWorkspaceAsync();
+            var seeded = await SeedPaidWorkspaceAsync(
+                revolutCustomerId: "cust_paid_billing_admin"
+            );
             using var request = Authorized(
                 HttpMethod.Post,
                 "/api/billing-credits/payment-method/update",
@@ -1660,6 +1663,32 @@ namespace TummlyBackend.Tests.Integration
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("pay", body.GetProperty("outcome").GetString());
+            Assert.Equal(
+                FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
+                body.GetProperty("redirectUrl").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PostPaymentMethodUpdate_Returns400_WhenCustomerMissing()
+        {
+            var seeded = await SeedPaidWorkspaceAsync(revolutCustomerId: null);
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/payment-method/update",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "revolut_customer_required",
+                body.GetProperty("code").GetString()
+            );
         }
 
         [Fact]
@@ -2195,7 +2224,9 @@ namespace TummlyBackend.Tests.Integration
             return request;
         }
 
-        private async Task<PaidSeeded> SeedPaidWorkspaceAsync()
+        private async Task<PaidSeeded> SeedPaidWorkspaceAsync(
+            string? revolutCustomerId = "cust_paid_seed"
+        )
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -2219,9 +2250,12 @@ namespace TummlyBackend.Tests.Integration
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
 
-            context.BillingAccounts.Add(
-                CreateSeedBillingAccount(restaurant.Id, restaurant.Name)
+            var billingAccount = CreateSeedBillingAccount(
+                restaurant.Id,
+                restaurant.Name
             );
+            billingAccount.RevolutCustomerId = revolutCustomerId;
+            context.BillingAccounts.Add(billingAccount);
 
             owner.SelectedRestaurantId = restaurant.Id;
 

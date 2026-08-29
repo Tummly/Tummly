@@ -96,7 +96,10 @@ namespace TummlyBackend.Interfaces
     public sealed record RevolutCreateOrderRequest(
         int AmountMinor,
         string Currency,
-        string? PlanVariationLookupKey = null
+        string? PlanVariationLookupKey = null,
+        string? CustomerId = null,
+        string? RedirectUrl = null,
+        string? Description = null
     );
 
     public sealed record RevolutMerchantCreateResult(
@@ -104,7 +107,8 @@ namespace TummlyBackend.Interfaces
         string? Id = null,
         string? ErrorCode = null,
         string? RawBody = null,
-        string? SetupOrderId = null
+        string? SetupOrderId = null,
+        string? CheckoutUrl = null
     );
 
     public sealed record RevolutListCustomersResult(
