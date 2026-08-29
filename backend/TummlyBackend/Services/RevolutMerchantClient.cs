@@ -177,32 +177,18 @@ namespace TummlyBackend.Services
         )
         {
             EnsureReadyForCreate(request.PlanVariationLookupKey);
-            object body;
-            if (string.IsNullOrWhiteSpace(request.CustomerId))
-            {
-                body = new
-                {
-                    amount = request.AmountMinor,
-                    currency = request.Currency,
-                    description = request.Description,
-                    redirect_url = request.RedirectUrl,
-                };
-            }
-            else
-            {
-                body = new
-                {
-                    amount = request.AmountMinor,
-                    currency = request.Currency,
-                    description = request.Description,
-                    redirect_url = request.RedirectUrl,
-                    customer = new { id = request.CustomerId },
-                };
-            }
-
             return await PostCreateAsync(
                 "api/1.0/orders",
-                body,
+                new
+                {
+                    amount = request.AmountMinor,
+                    currency = request.Currency,
+                    description = request.Description,
+                    redirect_url = request.RedirectUrl,
+                    customer = string.IsNullOrWhiteSpace(request.CustomerId)
+                        ? null
+                        : new { id = request.CustomerId },
+                },
                 cancellationToken
             );
         }

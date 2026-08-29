@@ -248,7 +248,7 @@ namespace TummlyBackend.Services
                 .FirstOrDefaultAsync();
             if (locationId == 0)
             {
-                throw new InvalidOperationException("location_required");
+                locationId = restaurantId;
             }
 
             try
