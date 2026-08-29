@@ -7,6 +7,7 @@ using TummlyBackend.Exceptions;
 using TummlyBackend.Models;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -36,7 +37,8 @@ namespace TummlyBackend.Tests.Services
 
             var smartGuestLink = new SmartGuestLinkService(
                 _context,
-                configuration
+                configuration,
+                new NoOpBillingAccountLifecycle()
             );
 
             var qrCodeProvisioning = new QrCodeProvisioningService(

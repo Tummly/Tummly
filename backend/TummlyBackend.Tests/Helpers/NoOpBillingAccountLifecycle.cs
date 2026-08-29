@@ -2,6 +2,10 @@ using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Tests.Helpers
 {
+    /// <summary>
+    /// No-op lifecycle for tests that construct <c>SmartGuestLinkService</c>
+    /// without billing clocks.
+    /// </summary>
     public sealed class NoOpBillingAccountLifecycle : IBillingAccountLifecycle
     {
         public Task TickAsync(

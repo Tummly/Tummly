@@ -7,6 +7,7 @@ using TummlyBackend.DTOs.Capture;
 using TummlyBackend.Helpers;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -35,7 +36,7 @@ namespace TummlyBackend.Tests.Services
                 )
                 .Build();
 
-            _smartGuestLink = new SmartGuestLinkService(_context, configuration);
+            _smartGuestLink = new SmartGuestLinkService(_context, configuration, new NoOpBillingAccountLifecycle());
             _service = new CaptureQrLifecycleService(
                 _context,
                 _smartGuestLink,
