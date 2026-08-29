@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
-using TummlyBackend.Models;
 
 namespace TummlyBackend.Services
 {
@@ -28,10 +27,12 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var subscriptionId = await ResolveSubscriptionIdAsync(
-                restaurantId,
-                cancellationToken
-            );
+            var subscriptionId =
+                await RevolutSubscriptionCorrelation.ResolveLatestSubscriptionIdAsync(
+                    _context,
+                    restaurantId,
+                    cancellationToken
+                );
             if (string.IsNullOrWhiteSpace(subscriptionId))
             {
                 return;
@@ -53,23 +54,6 @@ namespace TummlyBackend.Services
                 subscriptionId,
                 cancellationToken
             );
-        }
-
-        private async Task<string?> ResolveSubscriptionIdAsync(
-            int restaurantId,
-            CancellationToken cancellationToken
-        )
-        {
-            var session = await _context.RevolutPendingPaySessions
-                .AsNoTracking()
-                .Where(row =>
-                    row.RestaurantId == restaurantId
-                    && row.RevolutSubscriptionId != ""
-                )
-                .OrderByDescending(row => row.CreatedAtUtc)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            return session?.RevolutSubscriptionId;
         }
 
         private async Task SyncPendingSessionsAsync(
