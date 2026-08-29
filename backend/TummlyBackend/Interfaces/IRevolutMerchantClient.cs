@@ -82,6 +82,23 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
+        /// Merchant refund: <c>POST …/orders/{id}/refund</c> with
+        /// <c>Idempotency-Key</c>. Omit <paramref name="amountMinor"/> for a
+        /// full refund when the API allows.
+        /// </summary>
+        Task<RevolutMerchantCreateResult> RefundOrderAsync(
+            string orderId,
+            int? amountMinor,
+            string idempotencyKey,
+            CancellationToken cancellationToken = default
+        ) =>
+            Task.FromResult(
+                new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "not_implemented"
+                )
+            );
+
         /// <summary>
         /// PATCHes <c>merchant_order_data.reference</c> with the Tummly
         /// invoice number (support link). Does not use the create gate.
@@ -207,8 +224,38 @@ namespace TummlyBackend.Interfaces
         string? SubscriptionId = null,
         string? ErrorCode = null,
         string? RawBody = null,
-        string? CheckoutUrl = null
+        string? CheckoutUrl = null,
+        string? OrderType = null,
+        string? RelatedOrderId = null,
+        int? AmountMinor = null
     );
+
+    public static class RevolutOrderTypes
+    {
+        public const string Payment = "payment";
+
+        public const string Refund = "refund";
+
+        public const string Chargeback = "chargeback";
+
+        public const string ChargebackReversal = "chargeback_reversal";
+
+        public const string CreditReimbursement = "credit_reimbursement";
+
+        public static bool IsRefundFamily(string? orderType)
+        {
+            if (string.IsNullOrWhiteSpace(orderType))
+            {
+                return false;
+            }
+
+            return orderType.Trim() is
+                Refund
+                or Chargeback
+                or ChargebackReversal
+                or CreditReimbursement;
+        }
+    }
 
     public sealed record RevolutSubscriptionRetrieveResult(
         bool Succeeded,

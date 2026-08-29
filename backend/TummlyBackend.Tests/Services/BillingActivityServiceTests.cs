@@ -141,6 +141,11 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             ) => throw new NotImplementedException();
 
+            public Task<TummlyVatInvoice> MintCreditNoteForRefundAsync(
+                TummlyVatCreditNoteMintRequest request,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
             public Task<TummlyVatInvoice?> FindByRevolutOrderIdAsync(
                 string revolutOrderId,
                 CancellationToken cancellationToken = default

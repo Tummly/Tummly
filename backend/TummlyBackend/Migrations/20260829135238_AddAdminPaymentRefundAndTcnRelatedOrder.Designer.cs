@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TummlyBackend.Data;
 
@@ -11,9 +12,11 @@ using TummlyBackend.Data;
 namespace TummlyBackend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260829135238_AddAdminPaymentRefundAndTcnRelatedOrder")]
+    partial class AddAdminPaymentRefundAndTcnRelatedOrder
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3004,10 +3007,6 @@ namespace TummlyBackend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Channel")
-                        .HasMaxLength(16)
-                        .HasColumnType("nvarchar(16)");
-
                     b.Property<string>("CheckoutUrl")
                         .IsRequired()
                         .HasMaxLength(2048)
@@ -3035,17 +3034,10 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
-                    b.Property<string>("PackLookupKey")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
                     b.Property<string>("Purpose")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
-
-                    b.Property<int?>("Quantity")
-                        .HasColumnType("int");
 
                     b.Property<int>("RestaurantId")
                         .HasColumnType("int");

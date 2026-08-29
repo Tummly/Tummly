@@ -17,18 +17,21 @@ namespace TummlyBackend.Controllers
         private readonly ITrialReviewTransition _trialReviewTransition;
         private readonly ICreditLedger _creditLedger;
         private readonly ICreditBalanceSnapshot _creditBalanceSnapshot;
+        private readonly IAdminPaymentRefundService _paymentRefunds;
 
         public AdminController(
             IAdminService adminService,
             ITrialReviewTransition trialReviewTransition,
             ICreditLedger creditLedger,
-            ICreditBalanceSnapshot creditBalanceSnapshot
+            ICreditBalanceSnapshot creditBalanceSnapshot,
+            IAdminPaymentRefundService paymentRefunds
         )
         {
             _adminService = adminService;
             _trialReviewTransition = trialReviewTransition;
             _creditLedger = creditLedger;
             _creditBalanceSnapshot = creditBalanceSnapshot;
+            _paymentRefunds = paymentRefunds;
         }
 
         /*
@@ -418,6 +421,86 @@ namespace TummlyBackend.Controllers
                 reversedEntryId = request.ReversedEntryId,
                 insertedId = result.Inserted[0].Id,
             });
+        }
+
+        [HttpPost("payment-refunds")]
+        public async Task<IActionResult> PostPaymentRefund(
+            [FromBody] AdminPaymentRefundRequestDto request,
+            CancellationToken cancellationToken
+        )
+        {
+            var staffId = GetStaffId();
+            if (staffId == null)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = "Invalid token.",
+                });
+            }
+
+            if (
+                !Request.Headers.TryGetValue(
+                    "Idempotency-Key",
+                    out var idempotencyValues
+                )
+                || string.IsNullOrWhiteSpace(idempotencyValues.FirstOrDefault())
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "idempotency_key_required",
+                });
+            }
+
+            var result = await _paymentRefunds.RefundAsync(
+                new AdminPaymentRefundRequest
+                {
+                    RestaurantId = request.RestaurantId,
+                    OrderId = request.OrderId,
+                    AmountMinor = request.AmountMinor,
+                    IdempotencyKey = idempotencyValues.FirstOrDefault()!.Trim(),
+                    ActorStaffUserId = staffId.Value,
+                },
+                cancellationToken
+            );
+
+            if (!result.Succeeded)
+            {
+                return result.Code switch
+                {
+                    "restaurant_not_found" or "payment_not_found" => NotFound(new
+                    {
+                        success = false,
+                        code = result.Code,
+                    }),
+                    "partial_refund_while_bindable" => BadRequest(new
+                    {
+                        success = false,
+                        code = result.Code,
+                    }),
+                    "idempotency_key_required" or "order_id_required" =>
+                        BadRequest(new
+                        {
+                            success = false,
+                            code = result.Code,
+                        }),
+                    _ => BadRequest(new
+                    {
+                        success = false,
+                        code = result.Code,
+                    }),
+                };
+            }
+
+            return Ok(
+                new AdminPaymentRefundResponseDto
+                {
+                    Success = true,
+                    RefundOrderId = result.RefundOrderId,
+                }
+            );
         }
 
         private int? GetStaffId()

@@ -165,6 +165,147 @@ namespace TummlyBackend.Services
             }
         }
 
+        public async Task<TummlyVatInvoice> MintCreditNoteForRefundAsync(
+            TummlyVatCreditNoteMintRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var refundOrderId = request.RefundOrderId.Trim();
+            if (string.IsNullOrEmpty(refundOrderId))
+            {
+                throw new ArgumentException(
+                    "Refund order id is required.",
+                    nameof(request)
+                );
+            }
+
+            var existing = await FindByRevolutOrderIdAsync(
+                refundOrderId,
+                cancellationToken
+            );
+            if (existing != null)
+            {
+                return existing;
+            }
+
+            if (!_sellerVat.IsComplete)
+            {
+                throw new InvalidOperationException(
+                    RevolutMerchantCreateGate.VatNotReady
+                );
+            }
+
+            var billingAccount = await _context.BillingAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.RestaurantId == request.RestaurantId,
+                    cancellationToken
+                );
+            if (billingAccount == null)
+            {
+                throw new InvalidOperationException("billing_account_missing");
+            }
+
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.Id == request.RestaurantId,
+                    cancellationToken
+                );
+            if (restaurant == null)
+            {
+                throw new InvalidOperationException("restaurant_missing");
+            }
+
+            var business = await _context.RestaurantBusinessDetails
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.RestaurantId == request.RestaurantId,
+                    cancellationToken
+                );
+
+            var originalInvoice = await FindByRevolutOrderIdAsync(
+                request.OriginalPaymentOrderId.Trim(),
+                cancellationToken
+            );
+
+            var netPence = request.NetPenceOverride
+                ?? originalInvoice?.NetPence
+                ?? 0;
+            var vatRateBps = TummlyVatMath.DefaultVatRateBps;
+            var vatPence = TummlyVatMath.VatPenceFromNetPence(netPence, vatRateBps);
+            var grossPence = netPence + vatPence;
+            var refundUtc = EnsureUtc(request.RefundCompletedUtc);
+            var year = LondonDateFormat.UkCalendarYear(refundUtc);
+            var documentNumber = await AllocateNextDocumentNumberAsync(
+                TummlyDocumentSequence.PrefixTcn,
+                year,
+                cancellationToken
+            );
+
+            var lineDescription = string.IsNullOrWhiteSpace(
+                request.LineDescriptionOverride
+            )
+                ? (
+                    originalInvoice != null
+                        ? $"Credit note for {originalInvoice.DocumentNumber}"
+                        : "Credit note — payment refund"
+                )
+                : request.LineDescriptionOverride.Trim();
+
+            var creditNote = new TummlyVatInvoice
+            {
+                Id = Guid.NewGuid(),
+                DocumentNumber = documentNumber,
+                DocumentPrefix = TummlyDocumentSequence.PrefixTcn,
+                RevolutOrderId = refundOrderId,
+                RelatedRevolutOrderId = request.OriginalPaymentOrderId.Trim(),
+                RevolutSubscriptionId = originalInvoice?.RevolutSubscriptionId,
+                RestaurantId = request.RestaurantId,
+                InvoiceDateUtc = refundUtc,
+                TaxPointUtc = refundUtc,
+                LineDescription = lineDescription,
+                Quantity = 1,
+                NetPence = netPence,
+                VatRateBps = vatRateBps,
+                VatPence = vatPence,
+                GrossPence = grossPence,
+                Currency = TummlyVatInvoice.CurrencyGbp,
+                PaymentStatus = TummlyVatInvoice.PaymentStatusPaid,
+                CustomerBusinessName = ResolveCustomerBusinessName(
+                    restaurant,
+                    business
+                ),
+                CustomerAddress = FormatCustomerAddress(business),
+                SellerLegalName = _sellerVat.LegalName?.Trim() ?? string.Empty,
+                SellerRegisteredAddress =
+                    _sellerVat.RegisteredAddress?.Trim() ?? string.Empty,
+                SellerVatRegistrationNumber =
+                    _sellerVat.RegistrationNumber?.Trim() ?? string.Empty,
+            };
+
+            _context.TummlyVatInvoices.Add(creditNote);
+            try
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+                return creditNote;
+            }
+            catch (DbUpdateException)
+            {
+                _context.ChangeTracker.Clear();
+                var raced = await FindByRevolutOrderIdAsync(
+                    refundOrderId,
+                    cancellationToken
+                );
+                if (raced != null)
+                {
+                    return raced;
+                }
+
+                throw;
+            }
+        }
+
         public Task<TummlyVatInvoice?> FindByRevolutOrderIdAsync(
             string revolutOrderId,
             CancellationToken cancellationToken = default

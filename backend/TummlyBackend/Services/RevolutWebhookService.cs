@@ -52,6 +52,7 @@ namespace TummlyBackend.Services
         private readonly IRevolutOrderCompletedApplier _applier;
         private readonly IBillingAccountLifecycle _lifecycle;
         private readonly IRevolutDunningPayAdapter _dunningPay;
+        private readonly IRevolutPaymentRefundCompletedHandler _paymentRefundHandler;
         private readonly TimeProvider _clock;
         private readonly RevolutSettings _settings;
         private readonly ILogger<RevolutWebhookService> _logger;
@@ -64,7 +65,8 @@ namespace TummlyBackend.Services
             TimeProvider clock,
             IOptions<RevolutSettings> settings,
             ILogger<RevolutWebhookService>? logger = null,
-            IRevolutDunningPayAdapter? dunningPay = null
+            IRevolutDunningPayAdapter? dunningPay = null,
+            IRevolutPaymentRefundCompletedHandler? paymentRefundHandler = null
         )
         {
             _context = context;
@@ -72,6 +74,8 @@ namespace TummlyBackend.Services
             _applier = applier;
             _lifecycle = lifecycle;
             _dunningPay = dunningPay ?? NoOpRevolutDunningPayAdapter.Instance;
+            _paymentRefundHandler =
+                paymentRefundHandler ?? NoOpPaymentRefundCompletedHandler.Instance;
             _clock = clock;
             _settings = settings.Value;
             _logger =
@@ -255,13 +259,19 @@ namespace TummlyBackend.Services
                 );
 
             var reason = retrieved.BillingReason?.Trim() ?? string.Empty;
+            var isRefundFamily = RevolutOrderTypes.IsRefundFamily(
+                retrieved.OrderType
+            );
             var isMintable =
-                RevolutOrderCompletedApplier.IsMintableBillingReason(reason);
-            var disposition = isOneTimeIntent || isMintable
+                !isRefundFamily
+                && RevolutOrderCompletedApplier.IsMintableBillingReason(reason);
+            var disposition = isRefundFamily
                 ? RevolutWebhookClaimDispositions.Applied
-                : RevolutOrderCompletedApplier.IsFinalSettlement(reason)
-                    ? RevolutWebhookClaimDispositions.Recorded
-                    : RevolutWebhookClaimDispositions.SkippedUnknownBillingReason;
+                : isOneTimeIntent || isMintable
+                    ? RevolutWebhookClaimDispositions.Applied
+                    : RevolutOrderCompletedApplier.IsFinalSettlement(reason)
+                        ? RevolutWebhookClaimDispositions.Recorded
+                        : RevolutWebhookClaimDispositions.SkippedUnknownBillingReason;
 
             await using var transaction =
                 await _context.Database.BeginTransactionAsync(cancellationToken);
@@ -306,6 +316,19 @@ namespace TummlyBackend.Services
                         orderId
                     );
                 }
+                else if (isRefundFamily)
+                {
+                    await _paymentRefundHandler.HandleAsync(
+                        new RevolutPaymentRefundCompletedRequest(
+                            RefundOrderId: orderId,
+                            RelatedOrderId: retrieved.RelatedOrderId,
+                            OrderType: retrieved.OrderType,
+                            AmountMinor: retrieved.AmountMinor,
+                            RawOrderBody: retrieved.RawBody ?? string.Empty
+                        ),
+                        cancellationToken
+                    );
+                }
                 else if (isOneTimeIntent || isMintable)
                 {
                     await _applier.ApplyAsync(
@@ -325,7 +348,7 @@ namespace TummlyBackend.Services
                 await _context.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
-                if (isMintable || isOneTimeIntent)
+                if (!isRefundFamily && (isMintable || isOneTimeIntent))
                 {
                     await TryPatchMerchantInvoiceReferenceAsync(
                         orderId,
@@ -333,12 +356,15 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                await TryRecoverOrPayDunningAfterCompletedAsync(
-                    orderId,
-                    retrieved.SubscriptionId,
-                    isMintable,
-                    cancellationToken
-                );
+                if (!isRefundFamily)
+                {
+                    await TryRecoverOrPayDunningAfterCompletedAsync(
+                        orderId,
+                        retrieved.SubscriptionId,
+                        isMintable,
+                        cancellationToken
+                    );
+                }
 
                 return new RevolutWebhookHandleResult(
                     RevolutWebhookHandleStatus.Accepted
@@ -367,6 +393,18 @@ namespace TummlyBackend.Services
                 await AbortClaimTransactionAsync(claimId, cancellationToken);
                 throw;
             }
+        }
+
+        private sealed class NoOpPaymentRefundCompletedHandler
+            : IRevolutPaymentRefundCompletedHandler
+        {
+            public static readonly NoOpPaymentRefundCompletedHandler Instance =
+                new();
+
+            public Task HandleAsync(
+                RevolutPaymentRefundCompletedRequest request,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
         }
 
         private async Task TryPatchMerchantInvoiceReferenceAsync(

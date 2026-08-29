@@ -543,6 +543,11 @@ builder.Services.AddScoped<
     RevolutOrderCompletedApplier
 >();
 builder.Services.AddScoped<ITummlyVatInvoiceService, TummlyVatInvoiceService>();
+builder.Services.AddScoped<IAdminPaymentRefundService, AdminPaymentRefundService>();
+builder.Services.AddScoped<
+    IRevolutPaymentRefundCompletedHandler,
+    RevolutPaymentRefundCompletedHandler
+>();
 builder.Services.AddScoped<IRevolutWebhookService, RevolutWebhookService>();
 builder.Services.AddScoped<IRevolutDunningPayAdapter, RevolutDunningPayAdapter>();
 builder.Services.AddScoped<IBillingCreditsService, BillingCreditsService>();

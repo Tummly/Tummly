@@ -85,6 +85,12 @@ namespace TummlyBackend.Data
 
         public DbSet<RevolutOrderIntent> RevolutOrderIntents { get; set; }
 
+        public DbSet<AdminPaymentRefundIntent> AdminPaymentRefundIntents
+        {
+            get;
+            set;
+        }
+
         public DbSet<RestaurantLocation> RestaurantLocations { get; set; }
 
         public DbSet<QrCode> QrCodes { get; set; }
@@ -920,6 +926,10 @@ namespace TummlyBackend.Data
                 .IsRequired();
 
             modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.RelatedRevolutOrderId)
+                .HasMaxLength(128);
+
+            modelBuilder.Entity<TummlyVatInvoice>()
                 .Property(row => row.RevolutSubscriptionId)
                 .HasMaxLength(128);
 
@@ -962,6 +972,39 @@ namespace TummlyBackend.Data
                 .Property(row => row.SellerVatRegistrationNumber)
                 .HasMaxLength(64)
                 .IsRequired();
+
+            /*
+             =========================================
+             ADMIN PAYMENT REFUND INTENTS (ticket 25)
+             =========================================
+             */
+
+            modelBuilder.Entity<AdminPaymentRefundIntent>()
+                .HasOne(row => row.BillingAccount)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<AdminPaymentRefundIntent>()
+                .HasIndex(row => row.IdempotencyKey)
+                .IsUnique();
+
+            modelBuilder.Entity<AdminPaymentRefundIntent>()
+                .HasIndex(row => row.RefundOrderId);
+
+            modelBuilder.Entity<AdminPaymentRefundIntent>()
+                .Property(row => row.IdempotencyKey)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<AdminPaymentRefundIntent>()
+                .Property(row => row.SourcePaymentOrderId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<AdminPaymentRefundIntent>()
+                .Property(row => row.RefundOrderId)
+                .HasMaxLength(128);
 
             /*
              =========================================

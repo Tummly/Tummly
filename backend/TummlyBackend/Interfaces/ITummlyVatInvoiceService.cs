@@ -15,6 +15,16 @@ namespace TummlyBackend.Interfaces
             CancellationToken cancellationToken = default
         );
 
+        /// <summary>
+        /// Idempotent TCN mint for a completed Revolut refund order. Reuses the
+        /// row when <see cref="TummlyVatCreditNoteMintRequest.RefundOrderId"/>
+        /// already exists as <see cref="TummlyVatInvoice.RevolutOrderId"/>.
+        /// </summary>
+        Task<TummlyVatInvoice> MintCreditNoteForRefundAsync(
+            TummlyVatCreditNoteMintRequest request,
+            CancellationToken cancellationToken = default
+        );
+
         Task<TummlyVatInvoice?> FindByRevolutOrderIdAsync(
             string revolutOrderId,
             CancellationToken cancellationToken = default
@@ -39,6 +49,15 @@ namespace TummlyBackend.Interfaces
         string Plan,
         string BillingCycle,
         DateTime PaymentSuccessUtc,
+        int? NetPenceOverride = null,
+        string? LineDescriptionOverride = null
+    );
+
+    public sealed record TummlyVatCreditNoteMintRequest(
+        string RefundOrderId,
+        string OriginalPaymentOrderId,
+        int RestaurantId,
+        DateTime RefundCompletedUtc,
         int? NetPenceOverride = null,
         string? LineDescriptionOverride = null
     );

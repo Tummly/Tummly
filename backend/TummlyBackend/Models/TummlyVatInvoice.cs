@@ -27,6 +27,12 @@ namespace TummlyBackend.Models
         [MaxLength(128)]
         public string RevolutOrderId { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Original payment order UUID on credit notes (TCN); null on TM invoices.
+        /// </summary>
+        [MaxLength(128)]
+        public string? RelatedRevolutOrderId { get; set; }
+
         [MaxLength(128)]
         public string? RevolutSubscriptionId { get; set; }
 

@@ -119,12 +119,48 @@ namespace TummlyBackend.Tests.Helpers
             CancellationToken cancellationToken = default
         )
         {
+            if (Orders.TryGetValue(orderId, out var configured))
+            {
+                return Task.FromResult(configured);
+            }
+
             return Task.FromResult(
                 new RevolutOrderRetrieveResult(
                     Succeeded: true,
                     Id: orderId,
                     State: "pending",
+                    AmountMinor: 1200,
                     CheckoutUrl: CheckoutUrl
+                )
+            );
+        }
+
+        public Dictionary<string, RevolutOrderRetrieveResult> Orders { get; } =
+            new(StringComparer.Ordinal);
+
+        public int RefundOrderCallCount { get; private set; }
+
+        public string? LastRefundOrderId { get; private set; }
+
+        public int? LastRefundAmountMinor { get; private set; }
+
+        public string? LastRefundIdempotencyKey { get; private set; }
+
+        public Task<RevolutMerchantCreateResult> RefundOrderAsync(
+            string orderId,
+            int? amountMinor,
+            string idempotencyKey,
+            CancellationToken cancellationToken = default
+        )
+        {
+            RefundOrderCallCount++;
+            LastRefundOrderId = orderId;
+            LastRefundAmountMinor = amountMinor;
+            LastRefundIdempotencyKey = idempotencyKey;
+            return Task.FromResult(
+                new RevolutMerchantCreateResult(
+                    Succeeded: true,
+                    Id: $"ord_refund_{RefundOrderCallCount}"
                 )
             );
         }

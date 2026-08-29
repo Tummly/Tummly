@@ -345,6 +345,9 @@ namespace TummlyBackend.Services
             string? billingReason = null;
             string? subscriptionId = null;
             string? checkoutUrl = null;
+            string? orderType = null;
+            string? relatedOrderId = null;
+            int? amountMinor = null;
             if (!string.IsNullOrWhiteSpace(raw))
             {
                 using var doc = JsonDocument.Parse(raw);
@@ -364,6 +367,27 @@ namespace TummlyBackend.Services
                 {
                     state = stateElement.GetString();
                 }
+
+                if (
+                    root.TryGetProperty("type", out var typeElement)
+                    && typeElement.ValueKind == JsonValueKind.String
+                )
+                {
+                    orderType = typeElement.GetString();
+                }
+
+                if (
+                    root.TryGetProperty(
+                        "related_order_id",
+                        out var relatedElement
+                    )
+                    && relatedElement.ValueKind == JsonValueKind.String
+                )
+                {
+                    relatedOrderId = relatedElement.GetString();
+                }
+
+                amountMinor = TryReadAmountMinor(root);
 
                 if (
                     root.TryGetProperty("checkout_url", out var checkoutElement)
@@ -412,7 +436,89 @@ namespace TummlyBackend.Services
                 BillingReason: billingReason,
                 SubscriptionId: subscriptionId,
                 RawBody: raw,
-                CheckoutUrl: checkoutUrl
+                CheckoutUrl: checkoutUrl,
+                OrderType: orderType,
+                RelatedOrderId: relatedOrderId,
+                AmountMinor: amountMinor
+            );
+        }
+
+        public async Task<RevolutMerchantCreateResult> RefundOrderAsync(
+            string orderId,
+            int? amountMinor,
+            string idempotencyKey,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (
+                string.IsNullOrWhiteSpace(orderId)
+                || string.IsNullOrWhiteSpace(idempotencyKey)
+                || string.IsNullOrWhiteSpace(_settings.SecretKey)
+                || string.IsNullOrWhiteSpace(_settings.ApiVersion)
+            )
+            {
+                return new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_not_ready"
+                );
+            }
+
+            var client = _httpClientFactory.CreateClient(HttpClientName);
+            using var message = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"api/1.0/orders/{Uri.EscapeDataString(orderId.Trim())}/refund"
+            );
+            ApplyAuthHeaders(message);
+            message.Headers.TryAddWithoutValidation(
+                "Idempotency-Key",
+                idempotencyKey.Trim()
+            );
+
+            object body = amountMinor is int amount
+                ? new { amount }
+                : new { };
+            message.Content = JsonContent.Create(body, options: JsonOptions);
+
+            using var response = await client.SendAsync(
+                message,
+                cancellationToken
+            );
+            var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_http_error",
+                    RawBody: raw
+                );
+            }
+
+            string? refundId = null;
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                using var doc = JsonDocument.Parse(raw);
+                if (
+                    doc.RootElement.TryGetProperty("id", out var idElement)
+                    && idElement.ValueKind == JsonValueKind.String
+                )
+                {
+                    refundId = idElement.GetString();
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(refundId))
+            {
+                return new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_http_error",
+                    RawBody: raw
+                );
+            }
+
+            return new RevolutMerchantCreateResult(
+                Succeeded: true,
+                Id: refundId.Trim(),
+                RawBody: raw
             );
         }
 
@@ -734,6 +840,32 @@ namespace TummlyBackend.Services
                 SetupOrderId: setupOrderId,
                 CheckoutUrl: checkoutUrl
             );
+        }
+
+        private static int? TryReadAmountMinor(JsonElement root)
+        {
+            if (!root.TryGetProperty("amount", out var amountElement))
+            {
+                return null;
+            }
+
+            if (amountElement.ValueKind == JsonValueKind.Number
+                && amountElement.TryGetInt32(out var amount))
+            {
+                return amount;
+            }
+
+            if (
+                amountElement.ValueKind == JsonValueKind.Object
+                && amountElement.TryGetProperty("value", out var valueElement)
+                && valueElement.ValueKind == JsonValueKind.Number
+                && valueElement.TryGetInt32(out var nested)
+            )
+            {
+                return nested;
+            }
+
+            return null;
         }
 
         private void ApplyAuthHeaders(HttpRequestMessage message)
