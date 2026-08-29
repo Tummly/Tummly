@@ -326,6 +326,91 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task Webhook_PlanUpgradeProration_Replay_DoesNotDoubleApply()
+        {
+            await using var context = CreateContext();
+            var account = await SeedActiveStarterAsync(context);
+            var merchant = new RecordingChangePlanMerchant();
+            merchant.Orders["ord_upgrade_replay"] = new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: "ord_upgrade_replay",
+                State: "completed",
+                BillingReason: null,
+                SubscriptionId: "sub_upgrade_replay",
+                RawBody: """{"id":"ord_upgrade_replay","state":"completed"}"""
+            );
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_upgrade_replay",
+                    RestaurantId = account.RestaurantId,
+                    Purpose = RevolutOrderIntentPurposes.PlanUpgradeProration,
+                    TargetPlan = BillingSubscriptionPlans.Growth,
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = "sub_upgrade_replay",
+                    CheckoutUrl = "https://checkout.revolut.test/up",
+                    IdempotencyKey = "k_replay",
+                    IsOpen = true,
+                    NetAmountMinor = 3000,
+                    VatAmountMinor = 600,
+                    GrossAmountMinor = 3600,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock, merchant);
+            var webhook = new RevolutWebhookService(
+                context,
+                merchant,
+                applier,
+                Options.Create(
+                    new RevolutSettings
+                    {
+                        WebhookSigningSecret = "whsec_replay_upgrade",
+                        SecretKey = "sk_test",
+                        ApiBaseUrl = RevolutSettings.SandboxApiBaseUrl,
+                        ApiVersion = RevolutSettings.DefaultApiVersion,
+                    }
+                )
+            );
+
+            const string body =
+                """{"event":"ORDER_COMPLETED","order_id":"ord_upgrade_replay"}""";
+            const string timestamp = "1710000000";
+            var signature = RevolutWebhookSignature.SignForTests(
+                "whsec_replay_upgrade",
+                timestamp,
+                body
+            );
+
+            var first = await webhook.HandleAsync(body, signature, timestamp);
+            var second = await webhook.HandleAsync(body, signature, timestamp);
+
+            Assert.Equal(RevolutWebhookHandleStatus.Accepted, first.Status);
+            Assert.Equal(RevolutWebhookHandleStatus.Replay, second.Status);
+            Assert.Equal(1, merchant.ChangePlanCallCount);
+            Assert.Equal(
+                1,
+                await context.TummlyVatInvoices.CountAsync(row =>
+                    row.RevolutOrderId == "ord_upgrade_replay"
+                )
+            );
+            Assert.Equal(
+                1,
+                await context.RevolutWebhookEventClaims.CountAsync(row =>
+                    row.Event == "ORDER_COMPLETED"
+                    && row.ObjectId == "ord_upgrade_replay"
+                )
+            );
+            await context.Entry(account).ReloadAsync();
+            Assert.Equal(BillingSubscriptionPlans.Growth, account.SubscriptionPlan);
+        }
+
         private async Task<BillingAccount> SeedActiveStarterAsync(
             ApplicationDbContext context
         )
@@ -604,6 +689,9 @@ namespace TummlyBackend.Tests.Services
 
         private sealed class RecordingChangePlanMerchant : IRevolutMerchantClient
         {
+            public Dictionary<string, RevolutOrderRetrieveResult> Orders { get; } =
+                new(StringComparer.Ordinal);
+
             public int ChangePlanCallCount { get; private set; }
 
             public string? LastSubscriptionId { get; private set; }
@@ -659,7 +747,20 @@ namespace TummlyBackend.Tests.Services
             public Task<RevolutOrderRetrieveResult> GetOrderAsync(
                 string orderId,
                 CancellationToken cancellationToken = default
-            ) => throw new NotImplementedException();
+            )
+            {
+                if (Orders.TryGetValue(orderId, out var order))
+                {
+                    return Task.FromResult(order);
+                }
+
+                return Task.FromResult(
+                    new RevolutOrderRetrieveResult(
+                        Succeeded: false,
+                        ErrorCode: "not_found"
+                    )
+                );
+            }
 
             public Task<RevolutMerchantCreateResult> UpdateOrderMerchantReferenceAsync(
                 string orderId,

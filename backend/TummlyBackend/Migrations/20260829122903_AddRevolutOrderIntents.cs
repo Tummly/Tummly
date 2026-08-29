@@ -1,15 +1,11 @@
-using System;
-using Microsoft.EntityFrameworkCore.Infrastructure;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
-using TummlyBackend.Data;
 
 #nullable disable
 
 namespace TummlyBackend.Migrations
 {
     /// <inheritdoc />
-    [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260829123000_AddRevolutOrderIntents")]
     public partial class AddRevolutOrderIntents : Migration
     {
         /// <inheritdoc />
