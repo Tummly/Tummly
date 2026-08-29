@@ -113,12 +113,14 @@ export const SHOP_CATALOG_PRODUCTS: ShopProduct[] = [
 
 type ShopCatalogSectionProps = {
   searchQuery: string
-  onAddToCart: (product: ShopProduct, quantity: number) => void
+  onAddToCart: (product: ShopProduct, quantity?: number) => void
+  onSelectProduct?: (product: ShopProduct) => void
 }
 
 export function ShopCatalogSection({
   searchQuery,
   onAddToCart,
+  onSelectProduct,
 }: ShopCatalogSectionProps) {
   const filteredProducts = SHOP_CATALOG_PRODUCTS.filter((product) => {
     return (
@@ -148,7 +150,9 @@ export function ShopCatalogSection({
             description={product.description}
             price={product.price}
             imageSrc={product.imageSrc}
-            onViewMaterial={() => onAddToCart(product, 1)}
+            onViewMaterial={() =>
+              onSelectProduct ? onSelectProduct(product) : onAddToCart(product, 1)
+            }
           />
         ))}
       </div>
