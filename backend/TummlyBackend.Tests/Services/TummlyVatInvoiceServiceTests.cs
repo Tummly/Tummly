@@ -82,6 +82,45 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(1201, TummlyVatMath.GrossMinorFromNetPence(1001));
         }
 
+        [Fact]
+        public async Task Mint_FailsClosed_WhenSellerVatIncomplete()
+        {
+            await using var context = CreateContext();
+            var restaurantId = await SeedRestaurantAsync(context);
+            var service = new TummlyVatInvoiceService(
+                context,
+                _pricebook,
+                Options.Create(new TummlySellerVatSettings())
+            );
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.MintForCompletedOrderAsync(Request(restaurantId, "ord_no_vat"))
+            );
+            Assert.Equal(RevolutMerchantCreateGate.VatNotReady, ex.Message);
+            Assert.Equal(0, await context.TummlyVatInvoices.CountAsync());
+        }
+
+        [Fact]
+        public void MissingVatEnv_StillFailClosedBeforePay()
+        {
+            var gate = new RevolutMerchantCreateGate(
+                Options.Create(new TummlySellerVatSettings()),
+                Options.Create(
+                    new RevolutSettings
+                    {
+                        SecretKey = "sk_test",
+                        ApiBaseUrl = RevolutSettings.SandboxApiBaseUrl,
+                        ApiVersion = RevolutSettings.DefaultApiVersion,
+                    }
+                )
+            );
+
+            Assert.Equal(
+                RevolutMerchantCreateGate.VatNotReady,
+                gate.Evaluate(planVariationLookupKey: null)
+            );
+        }
+
         private TummlyVatInvoiceMintRequest Request(int restaurantId, string orderId)
         {
             return new TummlyVatInvoiceMintRequest(

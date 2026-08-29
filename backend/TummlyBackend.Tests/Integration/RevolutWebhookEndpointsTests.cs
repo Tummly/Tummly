@@ -1,5 +1,7 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -208,17 +210,45 @@ namespace TummlyBackend.Tests.Integration
                 factory.Merchant.MerchantReferencePatches[0]
             );
 
-            var vat = scope.ServiceProvider.GetRequiredService<ITummlyVatInvoiceService>();
-            var rows = await vat.ListInvoiceRowsForRestaurantAsync(seeded.RestaurantId);
-            Assert.Single(rows);
-            Assert.Equal(invoice.DocumentNumber, rows[0].InvoiceNo);
-
-            var pdf = await vat.RenderPdfAsync(
-                seeded.RestaurantId,
-                invoice.DocumentNumber
+            using var listRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/billing-credits"
             );
-            Assert.NotNull(pdf);
-            Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(pdf!.Value.Content));
+            listRequest.Headers.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                seeded.OwnerJwt
+            );
+            var listResponse = await client.SendAsync(listRequest);
+            Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+            using var listBody = JsonDocument.Parse(
+                await listResponse.Content.ReadAsStringAsync()
+            );
+            var invoices = listBody.RootElement.GetProperty("invoices");
+            Assert.Equal(1, invoices.GetArrayLength());
+            Assert.Equal(
+                invoice.DocumentNumber,
+                invoices[0].GetProperty("invoiceNo").GetString()
+            );
+
+            using var pdfRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/billing-credits/invoices/{invoice.DocumentNumber}/pdf"
+            );
+            pdfRequest.Headers.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                seeded.OwnerJwt
+            );
+            var pdfResponse = await client.SendAsync(pdfRequest);
+            Assert.Equal(HttpStatusCode.OK, pdfResponse.StatusCode);
+            Assert.Equal(
+                "application/pdf",
+                pdfResponse.Content.Headers.ContentType?.MediaType
+            );
+            var pdfBytes = await pdfResponse.Content.ReadAsByteArrayAsync();
+            Assert.StartsWith(
+                "%PDF",
+                System.Text.Encoding.ASCII.GetString(pdfBytes)
+            );
         }
 
         [Fact]
@@ -378,6 +408,7 @@ namespace TummlyBackend.Tests.Integration
             await using var scope = factory.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var pricebook = scope.ServiceProvider.GetRequiredService<IPricebookCatalog>();
+            var jwtService = scope.ServiceProvider.GetRequiredService<IJwtService>();
             var now = DateTime.UtcNow;
             var owner = new User
             {
@@ -385,6 +416,12 @@ namespace TummlyBackend.Tests.Integration
                 PasswordHash = "x",
                 FullName = "Webhook Owner",
                 Role = "Owner",
+                AccountType = "Single",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                TermsAccepted = true,
+                ActivatedAt = now,
+                ActivationExpiresAt = now.AddDays(30),
                 CreatedAt = now,
             };
             db.Users.Add(owner);
@@ -402,6 +439,26 @@ namespace TummlyBackend.Tests.Integration
             };
             db.Restaurants.Add(restaurant);
             await db.SaveChangesAsync();
+
+            owner.SelectedRestaurantId = restaurant.Id;
+            db.RestaurantLocations.Add(
+                new RestaurantLocation
+                {
+                    RestaurantId = restaurant.Id,
+                    LocationName = "Main",
+                    Address = "1 High Street",
+                    CreatedAt = now,
+                }
+            );
+            db.RestaurantMemberships.Add(
+                new RestaurantMembership
+                {
+                    RestaurantId = restaurant.Id,
+                    UserId = owner.Id,
+                    PermissionRole = PermissionRoles.Owner,
+                    Status = MembershipStatus.Active,
+                }
+            );
 
             var billing = BillingCreditsService.CreateDefaultBillingAccount(
                 restaurant.Id,
@@ -428,13 +485,24 @@ namespace TummlyBackend.Tests.Integration
             );
             await db.SaveChangesAsync();
 
-            return new SeededPending(restaurant.Id, pendingId, subscriptionId);
+            var ownerJwt = jwtService.GenerateToken(
+                owner.Id.ToString(),
+                owner.Email,
+                owner.Role
+            );
+            return new SeededPending(
+                restaurant.Id,
+                pendingId,
+                subscriptionId,
+                ownerJwt
+            );
         }
 
         private sealed record SeededPending(
             int RestaurantId,
             Guid PendingId,
-            string SubscriptionId
+            string SubscriptionId,
+            string OwnerJwt
         );
 
         private static async Task<HttpResponseMessage> SendSignedAsync(
@@ -506,6 +574,13 @@ namespace TummlyBackend.Tests.Integration
                             RevolutSettings.SandboxApiBaseUrl,
                         ["Revolut:ApiVersion"] =
                             RevolutSettings.DefaultApiVersion,
+                        [TummlySellerVatSettings.RegistrationNumberKey] =
+                            "GB123456789",
+                        [TummlySellerVatSettings.EffectiveDateKey] =
+                            "2024-01-01",
+                        [TummlySellerVatSettings.LegalNameKey] = "Tummly Ltd",
+                        [TummlySellerVatSettings.RegisteredAddressKey] =
+                            "1 Example Road, London",
                     }
                 );
             });

@@ -205,17 +205,10 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            var owner = await _context.Users
+            var billingAccount = await _context.BillingAccounts
                 .AsNoTracking()
-                .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
-
-            if (
-                await BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
-                    _context,
-                    restaurantId,
-                    owner
-                )
-            )
+                .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
+            if (billingAccount == null || IsPilotBillingAccount(billingAccount))
             {
                 return null;
             }

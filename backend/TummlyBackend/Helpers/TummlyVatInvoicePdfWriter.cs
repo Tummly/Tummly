@@ -46,23 +46,19 @@ namespace TummlyBackend.Helpers
         }
 
         internal static string FormatPoundsFromPence(int pence)
-        {
-            if (pence % 100 == 0)
-            {
-                return $"GBP {pence / 100}";
-            }
-
-            return $"GBP {(pence / 100m).ToString("0.00", CultureInfo.GetCultureInfo("en-GB"))}";
-        }
+            => FormatMoneyFromPence(pence, "GBP ");
 
         internal static string FormatAmountLabel(int pence)
+            => FormatMoneyFromPence(pence, "£");
+
+        private static string FormatMoneyFromPence(int pence, string prefix)
         {
             if (pence % 100 == 0)
             {
-                return $"£{pence / 100}";
+                return $"{prefix}{pence / 100}";
             }
 
-            return $"£{(pence / 100m).ToString("0.00", CultureInfo.GetCultureInfo("en-GB"))}";
+            return $"{prefix}{(pence / 100m).ToString("0.00", CultureInfo.GetCultureInfo("en-GB"))}";
         }
 
         private static string BuildContentStream(IReadOnlyList<string> lines)

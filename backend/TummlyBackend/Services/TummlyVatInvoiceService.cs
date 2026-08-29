@@ -50,6 +50,13 @@ namespace TummlyBackend.Services
                 return existing;
             }
 
+            if (!_sellerVat.IsComplete)
+            {
+                throw new InvalidOperationException(
+                    RevolutMerchantCreateGate.VatNotReady
+                );
+            }
+
             var billingAccount = await _context.BillingAccounts
                 .AsNoTracking()
                 .FirstOrDefaultAsync(
