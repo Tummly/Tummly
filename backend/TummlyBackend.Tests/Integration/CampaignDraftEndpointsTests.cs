@@ -3,10 +3,12 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -691,6 +693,94 @@ namespace TummlyBackend.Tests.Integration
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", jwt);
             return request;
+        }
+
+        [Fact]
+        public async Task PostCampaign_Returns403_SoftLock()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-soft-lock");
+            await SetBillingStatusAsync(seeded.LocationId, BillingStatuses.SoftLock);
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    name = "Blocked draft",
+                    goalId = "thank-recent-guests",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("soft_lock", body.GetProperty("code").GetString());
+            Assert.Equal("soft_lock", body.GetProperty("message").GetString());
+        }
+
+        [Fact]
+        public async Task PostCampaign_AllowsCreate_WhenPastDueDay7()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-past-due-day7");
+            await SetBillingStatusAsync(
+                seeded.LocationId,
+                BillingStatuses.PastDue,
+                dunningStartedAt: DateTime.UtcNow.AddDays(-7)
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    name = "Day 7 draft",
+                    goalId = "thank-recent-guests",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        private async Task SetBillingStatusAsync(
+            int locationId,
+            string billingStatus,
+            DateTime? dunningStartedAt = null
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await context.RestaurantLocations
+                .Where(row => row.Id == locationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+
+            var account = await context.BillingAccounts.SingleOrDefaultAsync(
+                row => row.RestaurantId == restaurantId
+            );
+            if (account == null)
+            {
+                account = BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurantId,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                );
+                account.SubscriptionPlan = BillingSubscriptionPlans.Growth;
+                account.BillingCycle = BillingCycles.Monthly;
+                context.BillingAccounts.Add(account);
+            }
+
+            account.BillingStatus = billingStatus;
+            account.DunningEpisodeStartedAt = dunningStartedAt;
+            if (billingStatus == BillingStatuses.SoftLock)
+            {
+                account.SoftLockEnteredAt = DateTime.UtcNow.AddDays(-1);
+            }
+
+            await context.SaveChangesAsync();
         }
 
         private static HttpRequestMessage AuthorizedJson(

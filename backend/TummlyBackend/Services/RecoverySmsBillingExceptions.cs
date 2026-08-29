@@ -28,15 +28,4 @@ namespace TummlyBackend.Services
 
         public int Requested { get; }
     }
-
-    public sealed class OperatorBillingLockedException : Exception
-    {
-        public OperatorBillingLockedException(string code)
-            : base(code)
-        {
-            Code = code;
-        }
-
-        public string Code { get; }
-    }
 }

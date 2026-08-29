@@ -12,6 +12,7 @@ namespace TummlyBackend.DTOs.Capture
         Conflict,
         InvalidTransition,
         LocationLocked,
+        OperatorBillingLocked,
     }
 
     public sealed class QrLifecycleResult
@@ -95,6 +96,14 @@ namespace TummlyBackend.DTOs.Capture
             Kind = QrLifecycleResultKind.LocationLocked,
             Message = message,
         };
+
+        public static QrLifecycleResult OperatorBillingLocked(string code) =>
+            new()
+            {
+                Kind = QrLifecycleResultKind.OperatorBillingLocked,
+                Code = code,
+                Message = code,
+            };
     }
 
     public sealed class CreateDigitalGuestLinkCommand

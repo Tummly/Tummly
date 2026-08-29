@@ -72,6 +72,12 @@ namespace TummlyBackend.Services
             CampaignProductAllowLists.EnsureOptionalChannel(channel);
             CampaignProductAllowLists.EnsureOptionalOfferStance(offerStance);
 
+            await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+                _context,
+                request.LocationId,
+                cancellationToken
+            );
+
             var offerId = await ResolveOfferIdAsync(
                 request.LocationId,
                 offerStance,
@@ -178,6 +184,12 @@ namespace TummlyBackend.Services
             {
                 return new CampaignDraftWriteResult.Conflict();
             }
+
+            await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+                _context,
+                entity.RestaurantLocationId,
+                cancellationToken
+            );
 
             var previousOfferId = entity.OfferId;
 

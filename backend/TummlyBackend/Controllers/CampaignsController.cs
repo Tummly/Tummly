@@ -490,6 +490,10 @@ namespace TummlyBackend.Controllers
                     campaign,
                 });
             }
+            catch (OperatorBillingLockedException ex)
+            {
+                return OperatorBillingLockGate.Forbidden(ex.Code);
+            }
             catch (PlanEntitlementCapException ex)
             {
                 return PlanEntitlementHttp.ToConflict(this, ex);
@@ -613,6 +617,10 @@ namespace TummlyBackend.Controllers
                         }
                     ),
                 };
+            }
+            catch (OperatorBillingLockedException ex)
+            {
+                return OperatorBillingLockGate.Forbidden(ex.Code);
             }
             catch (PlanEntitlementCapException ex)
             {

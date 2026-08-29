@@ -61,6 +61,48 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PostOffer_Returns403_SoftLock()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-catalog-soft-lock");
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var restaurantId = await context.RestaurantLocations
+                    .Where(row => row.Id == seeded.LocationId)
+                    .Select(row => row.RestaurantId)
+                    .SingleAsync();
+                var account = await context.BillingAccounts.SingleAsync(
+                    row => row.RestaurantId == restaurantId
+                );
+                account.BillingStatus = BillingStatuses.SoftLock;
+                account.SoftLockEnteredAt = DateTime.UtcNow.AddDays(-1);
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/offers",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    offerType = "percentage_discount",
+                    title = "Blocked offer",
+                    description = "Should not create under Soft lock.",
+                    validity = "30_days_after_issue",
+                    discountPercentage = 10m,
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("soft_lock", body.GetProperty("code").GetString());
+            Assert.Equal("soft_lock", body.GetProperty("message").GetString());
+        }
+
+        [Fact]
         public async Task PostOfferDraft_CreatesStoredDraft_Attachable()
         {
             var seeded = await SeedOwnerWithLocationAsync("offers-catalog-draft-create");

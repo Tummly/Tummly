@@ -363,6 +363,10 @@ namespace TummlyBackend.Controllers
                     StatusCode = StatusCodes.Status403Forbidden,
                 };
             }
+            catch (OperatorBillingLockedException ex)
+            {
+                return OperatorBillingLockGate.Forbidden(ex.Code);
+            }
             catch (ArgumentException ex)
             {
                 return BadRequest(new

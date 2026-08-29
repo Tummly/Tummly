@@ -130,6 +130,12 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("locationId is required.");
             }
 
+            await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+                _context,
+                request.LocationId,
+                cancellationToken
+            );
+
             var fields = ParseAndValidateFields(request);
             var now = _utcNow();
             var createdByDisplayName = await ResolveCreatedByDisplayNameAsync(
@@ -177,6 +183,12 @@ namespace TummlyBackend.Services
             {
                 return new CatalogOfferLifecycleResult.NotFound();
             }
+
+            await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+                _context,
+                entity.RestaurantLocationId,
+                cancellationToken
+            );
 
             var today = CatalogOfferStatus.VenueLocalToday(
                 _utcNow(),
@@ -739,6 +751,12 @@ namespace TummlyBackend.Services
                 return new CatalogOfferLifecycleResult.NotFound();
             }
 
+            await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+                _context,
+                entity.RestaurantLocationId,
+                cancellationToken
+            );
+
             if (!string.Equals(
                     entity.Status,
                     CatalogOfferStatus.Paused,
@@ -848,6 +866,12 @@ namespace TummlyBackend.Services
             {
                 return new CatalogOfferLifecycleResult.NotFound();
             }
+
+            await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+                _context,
+                entity.RestaurantLocationId,
+                cancellationToken
+            );
 
             var now = _utcNow();
             var createdByDisplayName = await ResolveCreatedByDisplayNameAsync(

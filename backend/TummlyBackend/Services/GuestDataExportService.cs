@@ -64,6 +64,19 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var billingDeny = await OperatorBillingLockGate.EvaluatePaidWriteDenyAsync(
+                _context,
+                restaurantId
+            );
+            if (billingDeny != null)
+            {
+                return (
+                    null,
+                    billingDeny,
+                    StatusCodes.Status403Forbidden
+                );
+            }
+
             var guests = await _context.LocationGuests
                 .AsNoTracking()
                 .Include(lg => lg.MasterGuest)

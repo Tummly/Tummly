@@ -109,6 +109,15 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .FirstAsync(l => l.Id == command.LocationId);
 
+            var billingDeny = await OperatorBillingLockGate.EvaluatePaidWriteDenyAsync(
+                _context,
+                location.RestaurantId
+            );
+            if (billingDeny != null)
+            {
+                return QrLifecycleResult.OperatorBillingLocked(billingDeny);
+            }
+
             var status =
                 location.CaptureLocationStatus == CaptureLocationStatus.Paused
                     ? QrCodeStatus.Paused
@@ -297,6 +306,18 @@ namespace TummlyBackend.Services
             if (qrCode == null)
             {
                 return QrLifecycleResult.NotFound();
+            }
+
+            var rotateLocation = await _context.RestaurantLocations
+                .AsNoTracking()
+                .FirstAsync(l => l.Id == command.LocationId);
+            var rotateDeny = await OperatorBillingLockGate.EvaluatePaidWriteDenyAsync(
+                _context,
+                rotateLocation.RestaurantId
+            );
+            if (rotateDeny != null)
+            {
+                return QrLifecycleResult.OperatorBillingLocked(rotateDeny);
             }
 
             if (qrCode.QrType == QrType.DigitalGuestLink)

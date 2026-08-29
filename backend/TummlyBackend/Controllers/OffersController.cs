@@ -148,6 +148,10 @@ namespace TummlyBackend.Controllers
                     offer,
                 });
             }
+            catch (OperatorBillingLockedException ex)
+            {
+                return OperatorBillingLockGate.Forbidden(ex.Code);
+            }
             catch (ArgumentException ex)
             {
                 return BadRequest(new
@@ -193,6 +197,10 @@ namespace TummlyBackend.Controllers
                     success = true,
                     offer,
                 });
+            }
+            catch (OperatorBillingLockedException ex)
+            {
+                return OperatorBillingLockGate.Forbidden(ex.Code);
             }
             catch (ArgumentException ex)
             {
@@ -261,6 +269,10 @@ namespace TummlyBackend.Controllers
                     }),
                     _ => StatusCode(StatusCodes.Status500InternalServerError),
                 };
+            }
+            catch (OperatorBillingLockedException ex)
+            {
+                return OperatorBillingLockGate.Forbidden(ex.Code);
             }
             catch (ArgumentException ex)
             {
@@ -1197,44 +1209,51 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
-            var result = await action(offerId, userId, CancellationToken.None);
-
-            return result switch
+            try
             {
-                CatalogOfferLifecycleResult.Ok ok => Ok(new
+                var result = await action(offerId, userId, CancellationToken.None);
+
+                return result switch
                 {
-                    success = true,
-                    offer = ok.Offer,
-                }),
-                CatalogOfferLifecycleResult.Duplicated duplicated => Ok(new
-                {
-                    success = true,
-                    offer = duplicated.Offer,
-                }),
-                CatalogOfferLifecycleResult.NotFound => NotFound(new
-                {
-                    success = false,
-                    message = "Offer not found.",
-                }),
-                CatalogOfferLifecycleResult.InvalidStatus invalid => Conflict(new
-                {
-                    success = false,
-                    code = "invalid_status",
-                    message = invalid.Message,
-                }),
-                CatalogOfferLifecycleResult.CapReached cap => Conflict(new
-                {
-                    success = false,
-                    code = ActiveOfferCapGate.CapReachedCode,
-                    cap = cap.Cap,
-                    current = cap.Current,
-                }),
-                CatalogOfferLifecycleResult.FailClosed => Conflict(new
-                {
-                    success = false,
-                }),
-                _ => StatusCode(StatusCodes.Status500InternalServerError),
-            };
+                    CatalogOfferLifecycleResult.Ok ok => Ok(new
+                    {
+                        success = true,
+                        offer = ok.Offer,
+                    }),
+                    CatalogOfferLifecycleResult.Duplicated duplicated => Ok(new
+                    {
+                        success = true,
+                        offer = duplicated.Offer,
+                    }),
+                    CatalogOfferLifecycleResult.NotFound => NotFound(new
+                    {
+                        success = false,
+                        message = "Offer not found.",
+                    }),
+                    CatalogOfferLifecycleResult.InvalidStatus invalid => Conflict(new
+                    {
+                        success = false,
+                        code = "invalid_status",
+                        message = invalid.Message,
+                    }),
+                    CatalogOfferLifecycleResult.CapReached cap => Conflict(new
+                    {
+                        success = false,
+                        code = ActiveOfferCapGate.CapReachedCode,
+                        cap = cap.Cap,
+                        current = cap.Current,
+                    }),
+                    CatalogOfferLifecycleResult.FailClosed => Conflict(new
+                    {
+                        success = false,
+                    }),
+                    _ => StatusCode(StatusCodes.Status500InternalServerError),
+                };
+            }
+            catch (OperatorBillingLockedException ex)
+            {
+                return OperatorBillingLockGate.Forbidden(ex.Code);
+            }
         }
 
         private static DateTime EnsureUtc(DateTime value)

@@ -338,6 +338,19 @@ namespace TummlyBackend.Controllers
 
             if (error != null)
             {
+                if (
+                    statusCode == StatusCodes.Status403Forbidden
+                    && (
+                        error
+                            is OperatorBillingLockEvaluator.SoftLock
+                                or OperatorBillingLockEvaluator.Dormant
+                                or OperatorBillingLockEvaluator.ChargebackRestricted
+                    )
+                )
+                {
+                    return OperatorBillingLockGate.Forbidden(error);
+                }
+
                 return StatusCode(
                     statusCode,
                     new
