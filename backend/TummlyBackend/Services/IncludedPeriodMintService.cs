@@ -19,13 +19,15 @@ namespace TummlyBackend.Services
         private readonly TimeProvider _clock;
         private readonly ICreditThresholdEvaluator _thresholdEvaluator;
         private readonly IPlanChangeService _planChange;
+        private readonly IRevolutCancelAtPeriodEndAdapter _revolutCancel;
 
         public IncludedPeriodMintService(
             ApplicationDbContext context,
             IPricebookCatalog pricebook,
             TimeProvider clock,
             ICreditThresholdEvaluator? thresholdEvaluator = null,
-            IPlanChangeService? planChange = null
+            IPlanChangeService? planChange = null,
+            IRevolutCancelAtPeriodEndAdapter? revolutCancel = null
         )
         {
             _context = context;
@@ -34,6 +36,8 @@ namespace TummlyBackend.Services
             _thresholdEvaluator =
                 thresholdEvaluator ?? NullCreditThresholdEvaluator.Instance;
             _planChange = planChange ?? NullPlanChangeService.Instance;
+            _revolutCancel =
+                revolutCancel ?? NullRevolutCancelAtPeriodEndAdapter.Instance;
         }
 
         public Task<IncludedPeriodMintResult> MintOnOrderCompletedAsync(
@@ -140,6 +144,12 @@ namespace TummlyBackend.Services
                         && effectiveNow >= billingAccount.RenewalDateUtc.Value
                     )
                     {
+                        // Revolut native cancel only at period end (ticket 23).
+                        // Fail before clearing the slot so the job can retry.
+                        await _revolutCancel.CancelNativeSubscriptionAsync(
+                            billingAccount.RestaurantId,
+                            cancellationToken
+                        );
                         billingAccount.ClearScheduledChangeSlot();
                         return await FinishCancelApplyAsync(
                             expiryRowsWritten,

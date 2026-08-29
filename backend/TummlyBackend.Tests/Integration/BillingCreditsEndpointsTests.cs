@@ -1188,6 +1188,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task PostCancelPlan_ReturnsScheduled_ForOwnerPaid()
         {
             var seeded = await SeedPaidWorkspaceAsync();
+            var cancelCallsBefore = _factory.Merchant.CancelSubscriptionCallCount;
             using var request = Authorized(
                 HttpMethod.Post,
                 "/api/billing-credits/cancel-plan",
@@ -1202,6 +1203,12 @@ namespace TummlyBackend.Tests.Integration
                 "Cancels on",
                 body.GetProperty("scheduledChangeLine").GetString()
             );
+            // Ticket 23: confirm does not open HPP / redirect for cancel.
+            Assert.False(body.TryGetProperty("redirectUrl", out _));
+            Assert.Equal(
+                cancelCallsBefore,
+                _factory.Merchant.CancelSubscriptionCallCount
+            );
 
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -1211,6 +1218,35 @@ namespace TummlyBackend.Tests.Integration
                 .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
             Assert.True(account.ScheduledCancelPlan);
             Assert.True(account.HasScheduledChange);
+        }
+
+        [Fact]
+        public async Task PostCancelPlan_DoesNotRedirectToHpp_ForCancel()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            var cancelBefore = _factory.Merchant.CancelSubscriptionCallCount;
+            var orderBefore = _factory.Merchant.CreateOrderCallCount;
+            var subscriptionBefore = _factory.Merchant.CreateSubscriptionCallCount;
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/cancel-plan",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("scheduled", body.GetProperty("outcome").GetString());
+            Assert.False(body.TryGetProperty("redirectUrl", out _));
+            Assert.Equal(
+                cancelBefore,
+                _factory.Merchant.CancelSubscriptionCallCount
+            );
+            Assert.Equal(orderBefore, _factory.Merchant.CreateOrderCallCount);
+            Assert.Equal(
+                subscriptionBefore,
+                _factory.Merchant.CreateSubscriptionCallCount
+            );
         }
 
         [Fact]

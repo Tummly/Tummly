@@ -75,6 +75,7 @@ namespace TummlyBackend.Tests.Helpers
 
         public RevolutCreateOrderRequest? LastCreateOrderRequest { get; private set; }
 
+<<<<<<< HEAD
         public int ChangeSubscriptionPlanCallCount { get; private set; }
 
         public string? LastChangePlanSubscriptionId { get; private set; }
@@ -97,12 +98,19 @@ namespace TummlyBackend.Tests.Helpers
                 )
             );
         }
+=======
+        public int CancelSubscriptionCallCount { get; private set; }
+
+        public string? LastCancelledSubscriptionId { get; private set; }
+>>>>>>> 4e39a19c (Call Revolut cancel only at period end for cancel-at-period-end (ticket 23).)
 
         public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
             string subscriptionId,
             CancellationToken cancellationToken = default
         )
         {
+            CancelSubscriptionCallCount++;
+            LastCancelledSubscriptionId = subscriptionId;
             return Task.FromResult(
                 new RevolutMerchantCreateResult(Succeeded: true, Id: subscriptionId)
             );
