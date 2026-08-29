@@ -606,6 +606,191 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(0, factory.Merchant.CancelSubscriptionCallCount);
         }
 
+        [Fact]
+        public async Task PostWebhook_SubscriptionFinished_SyncOnly_LeavesDunningOpen()
+        {
+            await using var factory = new RevolutWebhookWebApplicationFactory();
+            var seeded = await SeedPaidWithSubscriptionAsync(
+                factory,
+                "sub_finished",
+                "ord_cycle_finished"
+            );
+            await using (var seedScope = factory.Services.CreateAsyncScope())
+            {
+                var db = seedScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var pastDue = await db.BillingAccounts.SingleAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                );
+                pastDue.BillingStatus = BillingStatuses.PastDue;
+                pastDue.DunningEpisodeStartedAt = DateTime.UtcNow.AddDays(-2);
+                pastDue.DunningOutstandingOrderId = "ord_cycle_finished";
+                await db.SaveChangesAsync();
+            }
+
+            var client = factory.CreateClient();
+            var body =
+                """{"event":"SUBSCRIPTION_FINISHED","subscription_id":"sub_finished"}""";
+
+            var response = await SendSignedAsync(client, body);
+
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+            await using var scope = factory.Services.CreateAsyncScope();
+            var dbAssert = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var account = await dbAssert.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal(BillingStatuses.PastDue, account.BillingStatus);
+            Assert.NotNull(account.DunningEpisodeStartedAt);
+            Assert.Equal("ord_cycle_finished", account.DunningOutstandingOrderId);
+            Assert.Equal(
+                1,
+                await dbAssert.RevolutWebhookEventClaims.CountAsync(row =>
+                    row.Event == "SUBSCRIPTION_FINISHED"
+                )
+            );
+            Assert.Equal(0, factory.Merchant.CancelSubscriptionCallCount);
+        }
+
+        [Fact]
+        public async Task PostWebhook_SubscriptionOverdue_AfterRecover_StartsNewEpisode()
+        {
+            await using var factory = new RevolutWebhookWebApplicationFactory();
+            var seeded = await SeedPaidWithSubscriptionAsync(
+                factory,
+                "sub_overdue_again",
+                "ord_cycle_again"
+            );
+            factory.Merchant.Subscriptions["sub_overdue_again"] =
+                new RevolutSubscriptionRetrieveResult(
+                    Succeeded: true,
+                    Id: "sub_overdue_again",
+                    State: "overdue",
+                    CurrentCycleId: "cyc_again",
+                    PaymentMethodId: "pm_card_1"
+                );
+            factory.Merchant.Cycles[("sub_overdue_again", "cyc_again")] =
+                new RevolutSubscriptionCycleRetrieveResult(
+                    Succeeded: true,
+                    Id: "cyc_again",
+                    OrderId: "ord_cycle_again"
+                );
+            factory.Merchant.Orders["ord_cycle_again"] = new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: "ord_cycle_again",
+                State: "pending",
+                SubscriptionId: "sub_overdue_again"
+            );
+            var client = factory.CreateClient();
+            var overdueBody =
+                """{"event":"SUBSCRIPTION_OVERDUE","subscription_id":"sub_overdue_again"}""";
+
+            Assert.Equal(
+                HttpStatusCode.NoContent,
+                (await SendSignedAsync(client, overdueBody)).StatusCode
+            );
+
+            await using (var clearScope = factory.Services.CreateAsyncScope())
+            {
+                var db = clearScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var lifecycle = clearScope.ServiceProvider.GetRequiredService<IBillingAccountLifecycle>();
+                await lifecycle.RecoverDunningAsync(
+                    seeded.RestaurantId,
+                    DateTime.UtcNow
+                );
+                var cleared = await db.BillingAccounts.AsNoTracking().SingleAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                );
+                Assert.Null(cleared.DunningEpisodeStartedAt);
+            }
+
+            Assert.Equal(
+                HttpStatusCode.NoContent,
+                (await SendSignedAsync(client, overdueBody)).StatusCode
+            );
+
+            await using var scope = factory.Services.CreateAsyncScope();
+            var assertDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var account = await assertDb.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal(BillingStatuses.PastDue, account.BillingStatus);
+            Assert.NotNull(account.DunningEpisodeStartedAt);
+            Assert.Equal("ord_cycle_again", account.DunningOutstandingOrderId);
+            Assert.Equal(
+                1,
+                await assertDb.RevolutWebhookEventClaims.CountAsync(row =>
+                    row.Event == "SUBSCRIPTION_OVERDUE"
+                    && row.ObjectId == "sub_overdue_again"
+                )
+            );
+        }
+
+        [Fact]
+        public async Task PostWebhook_OrderCompleted_PaymentMethodUpdate_WhileDunning_PaysNotRecover()
+        {
+            await using var factory = new RevolutWebhookWebApplicationFactory();
+            var seeded = await SeedPaidWithSubscriptionAsync(
+                factory,
+                "sub_pm_update",
+                "ord_cycle_outstanding"
+            );
+            await using (var seedScope = factory.Services.CreateAsyncScope())
+            {
+                var db = seedScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var account = await db.BillingAccounts.SingleAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                );
+                account.BillingStatus = BillingStatuses.PastDue;
+                account.DunningEpisodeStartedAt = DateTime.UtcNow.AddDays(-1);
+                account.DunningFiredSteps = "0";
+                account.DunningOutstandingOrderId = "ord_cycle_outstanding";
+                await db.SaveChangesAsync();
+            }
+
+            factory.Merchant.Orders["ord_pm_update"] = new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: "ord_pm_update",
+                State: "completed",
+                BillingReason: null,
+                SubscriptionId: "sub_pm_update",
+                RawBody: """{"id":"ord_pm_update","state":"completed"}"""
+            );
+            factory.Merchant.Orders["ord_cycle_outstanding"] =
+                new RevolutOrderRetrieveResult(
+                    Succeeded: true,
+                    Id: "ord_cycle_outstanding",
+                    State: "pending",
+                    SubscriptionId: "sub_pm_update"
+                );
+            factory.Merchant.Subscriptions["sub_pm_update"] =
+                new RevolutSubscriptionRetrieveResult(
+                    Succeeded: true,
+                    Id: "sub_pm_update",
+                    State: "overdue",
+                    CurrentCycleId: "cyc_pm",
+                    PaymentMethodId: "pm_new"
+                );
+            var client = factory.CreateClient();
+            var payCountBefore = factory.Merchant.PayOrderCallCount;
+
+            var response = await SendSignedAsync(
+                client,
+                OrderCompletedBody("ord_pm_update")
+            );
+
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+            await using var scope = factory.Services.CreateAsyncScope();
+            var assertDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var stillOpen = await assertDb.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal(BillingStatuses.PastDue, stillOpen.BillingStatus);
+            Assert.NotNull(stillOpen.DunningEpisodeStartedAt);
+            Assert.Equal("ord_cycle_outstanding", stillOpen.DunningOutstandingOrderId);
+            Assert.True(factory.Merchant.PayOrderCallCount > payCountBefore);
+            Assert.Contains("ord_cycle_outstanding", factory.Merchant.PayOrderIds);
+        }
+
         private static async Task<SeededPending> SeedPilotWithPendingAsync(
             RevolutWebhookWebApplicationFactory factory,
             string setupOrderId

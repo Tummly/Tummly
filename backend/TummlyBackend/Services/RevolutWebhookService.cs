@@ -51,6 +51,7 @@ namespace TummlyBackend.Services
         private readonly IRevolutMerchantClient _merchant;
         private readonly IRevolutOrderCompletedApplier _applier;
         private readonly IBillingAccountLifecycle _lifecycle;
+        private readonly IRevolutDunningPayAdapter _dunningPay;
         private readonly TimeProvider _clock;
         private readonly RevolutSettings _settings;
         private readonly ILogger<RevolutWebhookService> _logger;
@@ -62,13 +63,15 @@ namespace TummlyBackend.Services
             IBillingAccountLifecycle lifecycle,
             TimeProvider clock,
             IOptions<RevolutSettings> settings,
-            ILogger<RevolutWebhookService>? logger = null
+            ILogger<RevolutWebhookService>? logger = null,
+            IRevolutDunningPayAdapter? dunningPay = null
         )
         {
             _context = context;
             _merchant = merchant;
             _applier = applier;
             _lifecycle = lifecycle;
+            _dunningPay = dunningPay ?? NoOpRevolutDunningPayAdapter.Instance;
             _clock = clock;
             _settings = settings.Value;
             _logger =
@@ -330,9 +333,10 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                await TryRecoverDunningAfterCompletedAsync(
+                await TryRecoverOrPayDunningAfterCompletedAsync(
                     orderId,
                     retrieved.SubscriptionId,
+                    isMintable,
                     cancellationToken
                 );
 
@@ -422,18 +426,6 @@ namespace TummlyBackend.Services
 
             var subscriptionId = envelope.SubscriptionId.Trim();
 
-            var existing = await FindClaimAsync(
-                "SUBSCRIPTION_OVERDUE",
-                subscriptionId,
-                cancellationToken
-            );
-            if (existing != null)
-            {
-                return new RevolutWebhookHandleResult(
-                    RevolutWebhookHandleStatus.Replay
-                );
-            }
-
             var retrieved = await _merchant.GetSubscriptionAsync(
                 subscriptionId,
                 cancellationToken
@@ -475,6 +467,8 @@ namespace TummlyBackend.Services
                 }
             }
 
+            // Start before claim Replay so a later overdue after Recover can
+            // open a new episode (claim stays keyed on subscription_id).
             var restaurantId = await ResolveRestaurantIdBySubscriptionAsync(
                 subscriptionId,
                 cancellationToken
@@ -489,6 +483,18 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var existing = await FindClaimAsync(
+                "SUBSCRIPTION_OVERDUE",
+                subscriptionId,
+                cancellationToken
+            );
+            if (existing != null)
+            {
+                return new RevolutWebhookHandleResult(
+                    RevolutWebhookHandleStatus.Replay
+                );
+            }
+
             return await ClaimRecordOnlyAsync(
                 "SUBSCRIPTION_OVERDUE",
                 subscriptionId,
@@ -497,9 +503,14 @@ namespace TummlyBackend.Services
             );
         }
 
-        private async Task TryRecoverDunningAfterCompletedAsync(
+        /// <summary>
+        /// Cycle / restoration completes recover. Other completes while an
+        /// episode is open (e.g. Update payment method) trigger Pay only.
+        /// </summary>
+        private async Task TryRecoverOrPayDunningAfterCompletedAsync(
             string orderId,
             string? subscriptionId,
+            bool isMintableBillingReason,
             CancellationToken cancellationToken
         )
         {
@@ -513,22 +524,34 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            var episodeOpen = await _context.BillingAccounts
+            var account = await _context.BillingAccounts
                 .AsNoTracking()
-                .AnyAsync(
-                    row =>
-                        row.RestaurantId == restaurantId.Value
-                        && row.DunningEpisodeStartedAt != null,
+                .FirstOrDefaultAsync(
+                    row => row.RestaurantId == restaurantId.Value,
                     cancellationToken
                 );
-            if (!episodeOpen)
+            if (account?.DunningEpisodeStartedAt == null)
             {
                 return;
             }
 
-            await _lifecycle.RecoverDunningAsync(
+            var isOutstandingCycleOrder = string.Equals(
+                account.DunningOutstandingOrderId?.Trim(),
+                orderId,
+                StringComparison.Ordinal
+            );
+            if (isOutstandingCycleOrder || isMintableBillingReason)
+            {
+                await _lifecycle.RecoverDunningAsync(
+                    restaurantId.Value,
+                    _clock.GetUtcNow().UtcDateTime,
+                    cancellationToken
+                );
+                return;
+            }
+
+            await _dunningPay.TryPayOutstandingAsync(
                 restaurantId.Value,
-                _clock.GetUtcNow().UtcDateTime,
                 cancellationToken
             );
         }

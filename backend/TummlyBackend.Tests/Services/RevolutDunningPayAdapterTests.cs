@@ -199,6 +199,70 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(0, merchant.CancelSubscriptionCallCount);
         }
 
+        [Fact]
+        public async Task DormantEnter_DoesNotCancelRevolutSubscription()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .ConfigureWarnings(w =>
+                    w.Ignore(InMemoryEventId.TransactionIgnoredWarning)
+                )
+                .Options;
+            await using var context = new ApplicationDbContext(options);
+            var merchant = new RecordingDunningMerchant();
+            var notifier = new NoOpNotifier();
+            var lifecycle = new BillingAccountLifecycleService(
+                context,
+                notifier,
+                new RevolutDunningPayAdapter(context, merchant)
+            );
+
+            var restaurant = await SeedRestaurantAsync(context);
+            var start = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+            context.BillingAccounts.Add(
+                new BillingAccount
+                {
+                    RestaurantId = restaurant.Id,
+                    SubscriptionPlan = BillingSubscriptionPlans.Starter,
+                    BillingCycle = BillingCycles.Monthly,
+                    BillingStatus = BillingStatuses.SoftLock,
+                    ContractedPricebookId = "pb",
+                    StarterKitState = StarterKitStates.Unused,
+                    DunningEpisodeStartedAt = start,
+                    SoftLockEnteredAt = start.AddHours(
+                        BillingAccountLifecycleService.DunningSoftLockHours
+                    ),
+                    DunningFiredSteps = "0,3,7,10,24",
+                    DunningOutstandingOrderId = "ord_dormant",
+                }
+            );
+            context.RevolutPendingPaySessions.Add(
+                new RevolutPendingPaySession
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = restaurant.Id,
+                    TargetPlan = BillingSubscriptionPlans.Starter,
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = "sub_dormant",
+                    SetupOrderId = "ord_setup_dormant",
+                    CheckoutUrl = "https://checkout.test",
+                    IdempotencyKey = Guid.NewGuid().ToString("D"),
+                    IsOpen = false,
+                    CreatedAtUtc = DateTime.UtcNow,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var dormantAt = start.AddHours(
+                BillingAccountLifecycleService.DunningDormantHours
+            );
+            await lifecycle.TickAsync(restaurant.Id, dormantAt);
+
+            var account = await context.BillingAccounts.AsNoTracking().SingleAsync();
+            Assert.Equal(BillingStatuses.Dormant, account.BillingStatus);
+            Assert.Equal(0, merchant.CancelSubscriptionCallCount);
+        }
+
         private async Task<Seeded> SeedOpenEpisodeAsync(string orderId)
         {
             var restaurant = await SeedRestaurantAsync(_context);

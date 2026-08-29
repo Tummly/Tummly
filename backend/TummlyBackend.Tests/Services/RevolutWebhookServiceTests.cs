@@ -80,10 +80,58 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("setup_intent", applier.Last.BillingReason);
         }
 
+        [Theory]
+        [InlineData("SUBSCRIPTION_CANCELLED", "sub_cancel_sync")]
+        [InlineData("SUBSCRIPTION_FINISHED", "sub_finished_sync")]
+        public async Task SubscriptionCancelOrFinished_SyncOnly_DoesNotRecoverDunning(
+            string eventName,
+            string subscriptionId
+        )
+        {
+            await using var context = CreateContext();
+            var restaurant = await SeedRestaurantWithOpenDunningAsync(
+                context,
+                subscriptionId
+            );
+            var lifecycle = new RecordingLifecycle();
+            var service = CreateService(
+                context,
+                new FixedOrderMerchant(
+                    new RevolutOrderRetrieveResult(Succeeded: false)
+                ),
+                new RecordingApplier(),
+                lifecycle
+            );
+            var body =
+                $"{{\"event\":\"{eventName}\",\"subscription_id\":\"{subscriptionId}\"}}";
+            var timestamp = "1710000000";
+            var signature = RevolutWebhookSignature.SignForTests(
+                "whsec_service",
+                timestamp,
+                body
+            );
+
+            var result = await service.HandleAsync(body, signature, timestamp);
+
+            Assert.Equal(RevolutWebhookHandleStatus.Accepted, result.Status);
+            Assert.Equal(0, lifecycle.RecoverCallCount);
+            var account = await context.BillingAccounts.AsNoTracking().SingleAsync(row =>
+                row.RestaurantId == restaurant.Id
+            );
+            Assert.NotNull(account.DunningEpisodeStartedAt);
+            Assert.Equal(
+                1,
+                await context.RevolutWebhookEventClaims.CountAsync(row =>
+                    row.Event == eventName && row.ObjectId == subscriptionId
+                )
+            );
+        }
+
         private static RevolutWebhookService CreateService(
             ApplicationDbContext context,
             IRevolutMerchantClient merchant,
-            IRevolutOrderCompletedApplier applier
+            IRevolutOrderCompletedApplier applier,
+            IBillingAccountLifecycle? lifecycle = null
         )
         {
             var settings = Options.Create(
@@ -99,10 +147,78 @@ namespace TummlyBackend.Tests.Services
                 context,
                 merchant,
                 applier,
-                new NoOpBillingAccountLifecycle(),
+                lifecycle ?? new NoOpBillingAccountLifecycle(),
                 TimeProvider.System,
                 settings
             );
+        }
+
+        private static async Task<Restaurant> SeedRestaurantWithOpenDunningAsync(
+            ApplicationDbContext context,
+            string subscriptionId
+        )
+        {
+            var now = DateTime.UtcNow;
+            var owner = new User
+            {
+                Email = $"{Guid.NewGuid():N}@example.com",
+                PasswordHash = "x",
+                FullName = "Webhook Sync Owner",
+                Role = "Owner",
+                AccountType = "Single",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                TermsAccepted = true,
+                ActivatedAt = now,
+                ActivationExpiresAt = now.AddDays(30),
+                CreatedAt = now,
+            };
+            context.Users.Add(owner);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Webhook Sync Venue",
+                AccountType = "Single",
+                OwnerUserId = owner.Id,
+                BillingContactUserId = owner.Id,
+                PrivacyContactUserId = owner.Id,
+                SupportContactUserId = owner.Id,
+                CreatedAt = now,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            context.BillingAccounts.Add(
+                new BillingAccount
+                {
+                    RestaurantId = restaurant.Id,
+                    SubscriptionPlan = BillingSubscriptionPlans.Starter,
+                    BillingCycle = BillingCycles.Monthly,
+                    BillingStatus = BillingStatuses.PastDue,
+                    ContractedPricebookId = "pb",
+                    StarterKitState = StarterKitStates.Unused,
+                    DunningEpisodeStartedAt = now.AddDays(-1),
+                    DunningOutstandingOrderId = "ord_open",
+                }
+            );
+            context.RevolutPendingPaySessions.Add(
+                new RevolutPendingPaySession
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = restaurant.Id,
+                    TargetPlan = BillingSubscriptionPlans.Starter,
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = subscriptionId,
+                    SetupOrderId = "ord_setup_sync",
+                    CheckoutUrl = "https://checkout.test",
+                    IdempotencyKey = Guid.NewGuid().ToString("D"),
+                    IsOpen = false,
+                    CreatedAtUtc = now,
+                }
+            );
+            await context.SaveChangesAsync();
+            return restaurant;
         }
 
         private static ApplicationDbContext CreateContext()
@@ -114,6 +230,53 @@ namespace TummlyBackend.Tests.Services
                 )
                 .Options;
             return new ApplicationDbContext(options);
+        }
+
+        private sealed class RecordingLifecycle : IBillingAccountLifecycle
+        {
+            public int RecoverCallCount { get; private set; }
+
+            public Task TickAsync(
+                int restaurantId,
+                DateTime now,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
+
+            public Task<BillingLifecycleCommandResult> StartDunningEpisodeAsync(
+                int restaurantId,
+                DateTime now,
+                string? outstandingOrderId = null,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(BillingLifecycleCommandResult.NoOp());
+
+            public Task RecoverDunningAsync(
+                int restaurantId,
+                DateTime now,
+                CancellationToken cancellationToken = default
+            )
+            {
+                RecoverCallCount++;
+                return Task.CompletedTask;
+            }
+
+            public Task ActivatePaidPlanAsync(
+                int restaurantId,
+                DateTime now,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
+
+            public Task<BillingLifecycleCommandResult> ExtendPilotActivationAsync(
+                int restaurantId,
+                DateTime newPeriodEnd,
+                DateTime now,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(BillingLifecycleCommandResult.NoOp());
+
+            public Task SetChargebackRestrictionAsync(
+                int restaurantId,
+                bool restricted,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
         }
 
         private sealed class FixedOrderMerchant : IRevolutMerchantClient

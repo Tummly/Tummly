@@ -1,15 +1,10 @@
-using System;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
-using TummlyBackend.Data;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace TummlyBackend.Migrations
 {
     /// <inheritdoc />
-    [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260829120000_AddBillingAccountDunningOutstandingOrderId")]
     public partial class AddBillingAccountDunningOutstandingOrderId : Migration
     {
         /// <inheritdoc />
