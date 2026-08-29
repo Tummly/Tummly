@@ -203,8 +203,9 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Single(_reserve.SettleCalls);
             Assert.Equal(ok.Campaign.AcceptedCount, _reserve.SettleCalls[0].AcceptedUnits);
-            // Remaining reservation held for retry / lifecycle release — not full release.
-            Assert.Empty(_reserve.ReleaseCalls);
+            // Mid-send stop closes the hold (Settle then Release) per lock 04.
+            Assert.Single(_reserve.ReleaseCalls);
+            Assert.Null(ok.Campaign.BillingReservationRef);
         }
 
         [Fact]

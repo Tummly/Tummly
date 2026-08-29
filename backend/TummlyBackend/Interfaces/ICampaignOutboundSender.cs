@@ -39,9 +39,11 @@ namespace TummlyBackend.Interfaces
         {
         }
 
-        /// <summary>Provider accepted the unit - settle one credit.</summary>
+        /// <summary>Provider accepted the unit(s) — settle AcceptedUnits credits.</summary>
         public sealed class Accepted : CampaignOutboundSendResult
         {
+            /// <summary>Email = 1; SMS = provider billable segments.</summary>
+            public int AcceptedUnits { get; init; } = 1;
         }
 
         /// <summary>Provider rejected; do not settle.</summary>
