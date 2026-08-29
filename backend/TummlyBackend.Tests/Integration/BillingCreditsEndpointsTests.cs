@@ -887,6 +887,7 @@ namespace TummlyBackend.Tests.Integration
                 .AsNoTracking()
                 .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
             Assert.True(account.ScheduledCancelPlan);
+            Assert.True(account.HasScheduledChange);
         }
 
         [Fact]
