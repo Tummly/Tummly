@@ -84,9 +84,7 @@ namespace TummlyBackend.Services
                 ? $"Pilot ends {UkDateLabels.Format(pilotEndsAt.Value)}"
                 : isPilot
                     ? null
-                    : billingAccount.RenewalDateUtc == null
-                        ? "Renews 15 September 2026"
-                        : $"Renews {UkDateLabels.Format(billingAccount.RenewalDateUtc.Value)}";
+                    : FormatRenewsLabel(billingAccount.RenewalDateUtc);
             var scheduledChangeLine = billingAccount.ScheduledCancelPlan
                 && billingAccount.RenewalDateUtc != null
                     ? $"Cancels on {UkDateLabels.Format(billingAccount.RenewalDateUtc.Value)}"
@@ -572,13 +570,7 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (
-                string.Equals(
-                    billingAccount.SubscriptionPlan,
-                    BillingSubscriptionPlans.Pilot,
-                    StringComparison.Ordinal
-                )
-            )
+            if (IsPilotBillingAccount(billingAccount))
             {
                 throw new InvalidOperationException("cancel_not_available");
             }
@@ -604,10 +596,7 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (billingAccount.RenewalDateUtc == null)
-            {
-                throw new InvalidOperationException("cancel_not_available");
-            }
+            await EnsureRenewalDateUtcAsync(billingAccount);
 
             // Cancel is exclusive on the slot (replaces a pending downgrade / cadence / extra).
             billingAccount.ClearScheduledChangeSlot();
@@ -615,12 +604,76 @@ namespace TummlyBackend.Services
             billingAccount.ScheduledCancelPlan = true;
             await _context.SaveChangesAsync();
 
-            var renewalLabel = UkDateLabels.Format(billingAccount.RenewalDateUtc.Value);
+            var renewalLabel = UkDateLabels.Format(billingAccount.RenewalDateUtc!.Value);
             return new CancelPlanResultDto
             {
                 Outcome = "scheduled",
                 ScheduledChangeLine = $"Cancels on {renewalLabel}",
             };
+        }
+
+        /// <summary>
+        /// Paid accounts must have a Renewal date for Cancel plan. Derive from the
+        /// open included window when the column is still empty (payment apply /
+        /// ticket 24 will stamp it later).
+        /// </summary>
+        private async Task EnsureRenewalDateUtcAsync(BillingAccount billingAccount)
+        {
+            if (billingAccount.RenewalDateUtc != null)
+            {
+                return;
+            }
+
+            var nowUtc = DateTime.UtcNow;
+            var includedStarts = await _context.CreditLedgerEntries
+                .AsNoTracking()
+                .Where(row =>
+                    row.RestaurantId == billingAccount.RestaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
+                    && row.PeriodStartUtc != null
+                    && row.ExpiresAtUtc != null
+                )
+                .Select(row => new
+                {
+                    PeriodStartUtc = row.PeriodStartUtc!.Value,
+                    ExpiresAtUtc = row.ExpiresAtUtc!.Value,
+                })
+                .ToListAsync();
+
+            if (
+                string.Equals(
+                    billingAccount.BillingCycle,
+                    BillingCycles.Annual,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                var yearStart = IncludedPeriodCalculator.InferAnnualYearStart(
+                    includedStarts.Select(row => row.PeriodStartUtc),
+                    nowUtc
+                );
+                if (yearStart != null)
+                {
+                    billingAccount.RenewalDateUtc = yearStart.Value.AddMonths(12);
+                    return;
+                }
+
+                billingAccount.RenewalDateUtc = nowUtc.Date.AddMonths(12);
+                return;
+            }
+
+            var openExpiry = includedStarts
+                .Where(row => row.ExpiresAtUtc > nowUtc)
+                .Select(row => row.ExpiresAtUtc)
+                .DefaultIfEmpty()
+                .Max();
+            if (openExpiry != default)
+            {
+                billingAccount.RenewalDateUtc = openExpiry;
+                return;
+            }
+
+            billingAccount.RenewalDateUtc = nowUtc.Date.AddMonths(1);
         }
 
         private async Task<(
@@ -658,15 +711,20 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var renewalDateLabel = billingAccount.RenewalDateUtc == null
-                ? "Renews 15 September 2026"
-                : $"Renews {UkDateLabels.Format(billingAccount.RenewalDateUtc.Value)}";
+            var renewalDateLabel = FormatRenewsLabel(billingAccount.RenewalDateUtc);
 
             return (
                 billingAccount.SubscriptionPlan,
                 includedLocations,
                 renewalDateLabel
             );
+        }
+
+        private static string FormatRenewsLabel(DateTime? renewalDateUtc)
+        {
+            return renewalDateUtc == null
+                ? "Renews 15 September 2026"
+                : $"Renews {UkDateLabels.Format(renewalDateUtc.Value)}";
         }
 
         public async Task<(
