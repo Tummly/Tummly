@@ -20,16 +20,19 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IIncludedPeriodMintService _mint;
+        private readonly ITummlyVatInvoiceService _vatInvoices;
         private readonly TimeProvider _clock;
 
         public RevolutOrderCompletedApplier(
             ApplicationDbContext context,
             IIncludedPeriodMintService mint,
+            ITummlyVatInvoiceService vatInvoices,
             TimeProvider clock
         )
         {
             _context = context;
             _mint = mint;
+            _vatInvoices = vatInvoices;
             _clock = clock;
         }
 
@@ -136,6 +139,20 @@ namespace TummlyBackend.Services
                     mintResult.Code ?? "included_mint_failed"
                 );
             }
+
+            await _vatInvoices.MintForCompletedOrderAsync(
+                new TummlyVatInvoiceMintRequest(
+                    RevolutOrderId: request.OrderId,
+                    RevolutSubscriptionId: request.SubscriptionId
+                        ?? pending.RevolutSubscriptionId,
+                    RestaurantId: billingAccount.RestaurantId,
+                    Plan: billingAccount.SubscriptionPlan,
+                    BillingCycle: billingAccount.BillingCycle
+                        ?? BillingCycles.Monthly,
+                    PaymentSuccessUtc: nowUtc
+                ),
+                cancellationToken
+            );
         }
 
         private async Task<RevolutPendingPaySession?> ResolvePendingAsync(

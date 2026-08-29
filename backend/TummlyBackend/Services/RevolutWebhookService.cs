@@ -280,6 +280,14 @@ namespace TummlyBackend.Services
                 await _context.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
+                if (isMintable)
+                {
+                    await TryPatchMerchantInvoiceReferenceAsync(
+                        orderId,
+                        cancellationToken
+                    );
+                }
+
                 return new RevolutWebhookHandleResult(
                     RevolutWebhookHandleStatus.Accepted
                 );
@@ -306,6 +314,49 @@ namespace TummlyBackend.Services
             {
                 await AbortClaimTransactionAsync(claimId, cancellationToken);
                 throw;
+            }
+        }
+
+        private async Task TryPatchMerchantInvoiceReferenceAsync(
+            string orderId,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                var invoice = await _context.TummlyVatInvoices
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        row => row.RevolutOrderId == orderId,
+                        cancellationToken
+                    );
+                if (invoice == null)
+                {
+                    return;
+                }
+
+                var result = await _merchant.UpdateOrderMerchantReferenceAsync(
+                    orderId,
+                    invoice.DocumentNumber,
+                    cancellationToken
+                );
+                if (!result.Succeeded)
+                {
+                    _logger.LogWarning(
+                        "Revolut merchant reference PATCH failed for order {OrderId} invoice {DocumentNumber}: {ErrorCode}",
+                        orderId,
+                        invoice.DocumentNumber,
+                        result.ErrorCode ?? "(none)"
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Revolut merchant reference PATCH threw for order {OrderId}",
+                    orderId
+                );
             }
         }
 

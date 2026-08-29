@@ -73,6 +73,10 @@ namespace TummlyBackend.Data
             set;
         }
 
+        public DbSet<TummlyDocumentSequence> TummlyDocumentSequences { get; set; }
+
+        public DbSet<TummlyVatInvoice> TummlyVatInvoices { get; set; }
+
         public DbSet<RevolutPendingPaySession> RevolutPendingPaySessions
         {
             get;
@@ -800,6 +804,93 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<RevolutPendingPaySession>()
                 .HasIndex(row => new { row.RestaurantId, row.IsOpen });
+
+            /*
+             =========================================
+             TUMMLY VAT INVOICES / DOCUMENT SEQUENCES (ticket 17)
+             =========================================
+             */
+
+            modelBuilder.Entity<TummlyDocumentSequence>()
+                .HasKey(row => new { row.DocumentPrefix, row.Year });
+
+            modelBuilder.Entity<TummlyDocumentSequence>()
+                .Property(row => row.DocumentPrefix)
+                .HasMaxLength(8)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .HasOne(row => row.BillingAccount)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .HasIndex(row => row.DocumentNumber)
+                .IsUnique();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .HasIndex(row => row.RevolutOrderId)
+                .IsUnique();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.DocumentNumber)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.DocumentPrefix)
+                .HasMaxLength(8)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.RevolutOrderId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.RevolutSubscriptionId)
+                .HasMaxLength(128);
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.LineDescription)
+                .HasMaxLength(256)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.Currency)
+                .HasMaxLength(8)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.PaymentStatus)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.CustomerBusinessName)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.CustomerAddress)
+                .HasMaxLength(1000)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.SellerLegalName)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.SellerRegisteredAddress)
+                .HasMaxLength(1000)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.SellerVatRegistrationNumber)
+                .HasMaxLength(64)
+                .IsRequired();
 
             /*
              =========================================

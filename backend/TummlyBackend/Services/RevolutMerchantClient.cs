@@ -352,6 +352,63 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task<RevolutMerchantCreateResult> UpdateOrderMerchantReferenceAsync(
+            string orderId,
+            string merchantReference,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (
+                string.IsNullOrWhiteSpace(orderId)
+                || string.IsNullOrWhiteSpace(merchantReference)
+                || string.IsNullOrWhiteSpace(_settings.SecretKey)
+                || string.IsNullOrWhiteSpace(_settings.ApiVersion)
+            )
+            {
+                return new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_not_ready"
+                );
+            }
+
+            var client = _httpClientFactory.CreateClient(HttpClientName);
+            using var message = new HttpRequestMessage(
+                HttpMethod.Patch,
+                $"api/1.0/orders/{Uri.EscapeDataString(orderId.Trim())}"
+            );
+            message.Content = JsonContent.Create(
+                new
+                {
+                    merchant_order_data = new
+                    {
+                        reference = merchantReference.Trim(),
+                    },
+                },
+                options: JsonOptions
+            );
+            ApplyAuthHeaders(message);
+
+            using var response = await client.SendAsync(
+                message,
+                cancellationToken
+            );
+            var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_http_error",
+                    RawBody: raw
+                );
+            }
+
+            return new RevolutMerchantCreateResult(
+                Succeeded: true,
+                Id: orderId.Trim(),
+                RawBody: raw
+            );
+        }
+
         private async Task<RevolutMerchantCreateResult> PostCreateAsync(
             string relativePath,
             object body,

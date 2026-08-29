@@ -24,7 +24,8 @@ namespace TummlyBackend.Tests.Services
             var pending = await SeedPilotPendingAsync(context, "ord_txn", "sub_txn");
             var clock = new FixedTimeProvider(_now);
             var mint = new IncludedPeriodMintService(context, _pricebook, clock);
-            var applier = new RevolutOrderCompletedApplier(context, mint, clock);
+            var vat = CreateVatService(context);
+            var applier = new RevolutOrderCompletedApplier(context, mint, vat, clock);
 
             await using var ambient =
                 await context.Database.BeginTransactionAsync();
@@ -74,6 +75,9 @@ namespace TummlyBackend.Tests.Services
                     && row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
                 )
             );
+            var invoice = await context.TummlyVatInvoices.SingleAsync();
+            Assert.Equal("ord_txn", invoice.RevolutOrderId);
+            Assert.StartsWith("TM-2026-", invoice.DocumentNumber);
         }
 
         [Fact]
@@ -138,7 +142,8 @@ namespace TummlyBackend.Tests.Services
 
             var clock = new FixedTimeProvider(_now);
             var mint = new IncludedPeriodMintService(context, _pricebook, clock);
-            var applier = new RevolutOrderCompletedApplier(context, mint, clock);
+            var vat = CreateVatService(context);
+            var applier = new RevolutOrderCompletedApplier(context, mint, vat, clock);
 
             await applier.ApplyAsync(
                 new RevolutOrderCompletedApplyRequest(
@@ -160,6 +165,12 @@ namespace TummlyBackend.Tests.Services
                 await context.CreditLedgerEntries.CountAsync(row =>
                     row.RestaurantId == account.RestaurantId
                     && row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
+                )
+            );
+            Assert.Equal(
+                1,
+                await context.TummlyVatInvoices.CountAsync(row =>
+                    row.RevolutOrderId == "ord_cycle"
                 )
             );
         }
@@ -286,6 +297,23 @@ namespace TummlyBackend.Tests.Services
             return new ApplicationDbContext(options);
         }
 
+        private TummlyVatInvoiceService CreateVatService(ApplicationDbContext context)
+        {
+            return new TummlyVatInvoiceService(
+                context,
+                _pricebook,
+                Options.Create(
+                    new TummlySellerVatSettings
+                    {
+                        RegistrationNumber = "GB123456789",
+                        EffectiveDate = "2024-01-01",
+                        LegalName = "Tummly Ltd",
+                        RegisteredAddress = "1 High Street",
+                    }
+                )
+            );
+        }
+
         private sealed class CountingApplier : IRevolutOrderCompletedApplier
         {
             public int Calls { get; private set; }
@@ -342,6 +370,15 @@ namespace TummlyBackend.Tests.Services
                 string orderId,
                 CancellationToken cancellationToken = default
             ) => Task.FromResult(_order);
+
+            public Task<RevolutMerchantCreateResult> UpdateOrderMerchantReferenceAsync(
+                string orderId,
+                string merchantReference,
+                CancellationToken cancellationToken = default
+            ) =>
+                Task.FromResult(
+                    new RevolutMerchantCreateResult(Succeeded: true, Id: orderId)
+                );
         }
 
         private sealed class RecordingLandMerchant : IRevolutMerchantClient
@@ -408,6 +445,15 @@ namespace TummlyBackend.Tests.Services
                     )
                 );
             }
+
+            public Task<RevolutMerchantCreateResult> UpdateOrderMerchantReferenceAsync(
+                string orderId,
+                string merchantReference,
+                CancellationToken cancellationToken = default
+            ) =>
+                Task.FromResult(
+                    new RevolutMerchantCreateResult(Succeeded: true, Id: orderId)
+                );
         }
     }
 

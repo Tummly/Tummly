@@ -99,5 +99,16 @@ namespace TummlyBackend.Tests.Helpers
                 )
             );
         }
+
+        public Task<RevolutMerchantCreateResult> UpdateOrderMerchantReferenceAsync(
+            string orderId,
+            string merchantReference,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return Task.FromResult(
+                new RevolutMerchantCreateResult(Succeeded: true, Id: orderId)
+            );
+        }
     }
 }

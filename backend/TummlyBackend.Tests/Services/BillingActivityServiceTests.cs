@@ -125,9 +125,35 @@ namespace TummlyBackend.Tests.Services
                 ),
                 new AlwaysReadyRevolutMerchantCreateGate(),
                 new ThrowingFirstPaidConversionPaySession(),
-                new ThrowingPaymentMethodUpdatePaySession()
+                new ThrowingPaymentMethodUpdatePaySession(),
+                new EmptyTummlyVatInvoiceService()
             );
             return new Harness(context, service, restaurant.Id);
+        }
+
+        private sealed class EmptyTummlyVatInvoiceService : ITummlyVatInvoiceService
+        {
+            public Task<TummlyVatInvoice> MintForCompletedOrderAsync(
+                TummlyVatInvoiceMintRequest request,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<TummlyVatInvoice?> FindByRevolutOrderIdAsync(
+                string revolutOrderId,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult<TummlyVatInvoice?>(null);
+
+            public Task<IReadOnlyList<InvoiceRowDto>> ListInvoiceRowsForRestaurantAsync(
+                int restaurantId,
+                CancellationToken cancellationToken = default
+            ) =>
+                Task.FromResult<IReadOnlyList<InvoiceRowDto>>([]);
+
+            public Task<(byte[] Content, string FileName)?> RenderPdfAsync(
+                int restaurantId,
+                string documentNumber,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult<(byte[] Content, string FileName)?>(null);
         }
 
         private sealed class ThrowingFirstPaidConversionPaySession

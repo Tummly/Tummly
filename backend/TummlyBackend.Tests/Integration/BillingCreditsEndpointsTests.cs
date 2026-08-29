@@ -1583,6 +1583,11 @@ namespace TummlyBackend.Tests.Integration
         public async Task Get_ReturnsInvoices_ForPaidAccountView()
         {
             var seeded = await SeedPaidWorkspaceAsync();
+            await SeedTummlyVatInvoiceAsync(
+                seeded.RestaurantId,
+                "TM-2026-000001",
+                "ord_bc_list"
+            );
             using var request = Authorized(
                 HttpMethod.Get,
                 "/api/billing-credits",
@@ -1593,17 +1598,39 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             var invoices = body.GetProperty("invoices");
-            Assert.Equal(3, invoices.GetArrayLength());
+            Assert.Equal(1, invoices.GetArrayLength());
             Assert.Equal(
                 "TM-2026-000001",
                 invoices[0].GetProperty("invoiceNo").GetString()
             );
+            Assert.Equal("Paid", invoices[0].GetProperty("status").GetString());
+        }
+
+        [Fact]
+        public async Task Get_ReturnsEmptyInvoices_WhenPaidAccountHasNone()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Get,
+                "/api/billing-credits",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(0, body.GetProperty("invoices").GetArrayLength());
         }
 
         [Fact]
         public async Task GetInvoicePdf_ReturnsPdf_ForView()
         {
             var seeded = await SeedPaidWorkspaceAsync();
+            await SeedTummlyVatInvoiceAsync(
+                seeded.RestaurantId,
+                "TM-2026-000001",
+                "ord_bc_pdf"
+            );
             using var request = Authorized(
                 HttpMethod.Get,
                 "/api/billing-credits/invoices/TM-2026-000001/pdf",
@@ -1615,6 +1642,12 @@ namespace TummlyBackend.Tests.Integration
                 "application/pdf",
                 response.Content.Headers.ContentType?.MediaType
             );
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            Assert.True(bytes.Length > 4);
+            Assert.Equal((byte)'%', bytes[0]);
+            Assert.Equal((byte)'P', bytes[1]);
+            Assert.Equal((byte)'D', bytes[2]);
+            Assert.Equal((byte)'F', bytes[3]);
         }
 
         [Fact]
@@ -2478,6 +2511,44 @@ namespace TummlyBackend.Tests.Integration
             string MarketingJwt,
             string BillingAdminJwt
         );
+
+        private async Task SeedTummlyVatInvoiceAsync(
+            int restaurantId,
+            string documentNumber,
+            string revolutOrderId
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var now = new DateTime(2026, 7, 12, 12, 0, 0, DateTimeKind.Utc);
+            context.TummlyVatInvoices.Add(
+                new TummlyVatInvoice
+                {
+                    Id = Guid.NewGuid(),
+                    DocumentNumber = documentNumber,
+                    DocumentPrefix = TummlyDocumentSequence.PrefixTm,
+                    RevolutOrderId = revolutOrderId,
+                    RestaurantId = restaurantId,
+                    InvoiceDateUtc = now,
+                    TaxPointUtc = now,
+                    LineDescription = "Growth plan (Monthly)",
+                    Quantity = 1,
+                    NetPence = 9900,
+                    VatRateBps = 2000,
+                    VatPence = 1980,
+                    GrossPence = 11880,
+                    Currency = TummlyVatInvoice.CurrencyGbp,
+                    PaymentStatus = TummlyVatInvoice.PaymentStatusPaid,
+                    CustomerBusinessName = "Paid Billing Venue",
+                    CustomerAddress = string.Empty,
+                    SellerLegalName = "Tummly Ltd",
+                    SellerRegisteredAddress = "1 Test Street",
+                    SellerVatRegistrationNumber = "GB123",
+                }
+            );
+            await context.SaveChangesAsync();
+        }
 
         private sealed record PendingActivationSeeded(
             int RestaurantId,

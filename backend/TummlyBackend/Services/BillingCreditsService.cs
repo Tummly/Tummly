@@ -19,6 +19,7 @@ namespace TummlyBackend.Services
         private readonly IRevolutMerchantCreateGate _revolutMerchantCreateGate;
         private readonly IFirstPaidConversionPaySession _firstPaidConversionPaySession;
         private readonly IPaymentMethodUpdatePaySession _paymentMethodUpdatePaySession;
+        private readonly ITummlyVatInvoiceService _vatInvoices;
 
         public BillingCreditsService(
             ApplicationDbContext context,
@@ -28,7 +29,8 @@ namespace TummlyBackend.Services
             IPlanChangeService planChange,
             IRevolutMerchantCreateGate revolutMerchantCreateGate,
             IFirstPaidConversionPaySession firstPaidConversionPaySession,
-            IPaymentMethodUpdatePaySession paymentMethodUpdatePaySession
+            IPaymentMethodUpdatePaySession paymentMethodUpdatePaySession,
+            ITummlyVatInvoiceService vatInvoices
         )
         {
             _context = context;
@@ -39,6 +41,7 @@ namespace TummlyBackend.Services
             _revolutMerchantCreateGate = revolutMerchantCreateGate;
             _firstPaidConversionPaySession = firstPaidConversionPaySession;
             _paymentMethodUpdatePaySession = paymentMethodUpdatePaySession;
+            _vatInvoices = vatInvoices;
         }
 
         public async Task<BillingCreditsPageDto?> GetPageAsync(
@@ -170,7 +173,13 @@ namespace TummlyBackend.Services
                     AllowSms5000TopUp = billingAccount.AllowSms5000TopUp,
                 },
                 PaymentMethod = isPilot ? null : BuildStubPaymentMethod(),
-                Invoices = isPilot ? [] : BuildStubInvoices(),
+                Invoices = isPilot
+                    ? []
+                    : (
+                        await _vatInvoices.ListInvoiceRowsForRestaurantAsync(
+                            restaurantId
+                        )
+                    ).ToList(),
                 BillingContacts = MapBillingContacts(
                     restaurant,
                     billingAccount,
@@ -211,12 +220,7 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            if (!IsKnownInvoiceNo(invoiceNo))
-            {
-                return null;
-            }
-
-            return (BuildStubPdfBytes(invoiceNo), $"{invoiceNo}.pdf");
+            return await _vatInvoices.RenderPdfAsync(restaurantId, invoiceNo);
         }
 
         public async Task<PaymentMethodUpdateSessionDto?> CreatePaymentMethodUpdateSessionAsync(
@@ -292,51 +296,6 @@ namespace TummlyBackend.Services
                 Last4 = "4242",
                 ExpiryLabel = "08/28",
             };
-        }
-
-        private static List<InvoiceRowDto> BuildStubInvoices()
-        {
-            return
-            [
-                new InvoiceRowDto
-                {
-                    InvoiceNo = "TM-2026-000001",
-                    InvoiceDateLabel = "12 Jul 2026",
-                    Description = "Growth plan",
-                    AmountLabel = "£118.80",
-                    Status = "Paid",
-                    ShowActions = true,
-                },
-                new InvoiceRowDto
-                {
-                    InvoiceNo = "TCN-2026-000001",
-                    InvoiceDateLabel = "18 Jul 2026",
-                    Description = "Credit note for TM-2026-000001",
-                    AmountLabel = "−£11.88",
-                    Status = "Issued",
-                    ShowActions = true,
-                },
-                new InvoiceRowDto
-                {
-                    InvoiceNo = "TM-2026-000002",
-                    InvoiceDateLabel = "1 Aug 2026",
-                    Description = "Growth plan",
-                    AmountLabel = "£118.80",
-                    Status = "Void",
-                    ShowActions = false,
-                },
-            ];
-        }
-
-        private static bool IsKnownInvoiceNo(string invoiceNo)
-        {
-            return invoiceNo is "TM-2026-000001" or "TCN-2026-000001";
-        }
-
-        private static byte[] BuildStubPdfBytes(string invoiceNo)
-        {
-            var text = $"%PDF-1.4 stub invoice {invoiceNo}\n%%EOF\n";
-            return System.Text.Encoding.UTF8.GetBytes(text);
         }
 
         public async Task<CreditsUsageSnapshotDto?> GetUsageAsync(int restaurantId)

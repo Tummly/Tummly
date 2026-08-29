@@ -155,6 +155,15 @@ namespace TummlyBackend.Tests.Services
                 string orderId,
                 CancellationToken cancellationToken = default
             ) => Task.FromResult(_order);
+
+            public Task<RevolutMerchantCreateResult> UpdateOrderMerchantReferenceAsync(
+                string orderId,
+                string merchantReference,
+                CancellationToken cancellationToken = default
+            ) =>
+                Task.FromResult(
+                    new RevolutMerchantCreateResult(Succeeded: true, Id: orderId)
+                );
         }
 
         private sealed class ThrowingApplier : IRevolutOrderCompletedApplier

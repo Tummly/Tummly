@@ -170,6 +170,94 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PostWebhook_SetupIntent_MintsTmInvoice_AndPatchesMerchantReference()
+        {
+            await using var factory = new RevolutWebhookWebApplicationFactory();
+            var seeded = await SeedPilotWithPendingAsync(factory, "ord_tm_mint");
+            factory.Merchant.Orders["ord_tm_mint"] = new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: "ord_tm_mint",
+                State: "completed",
+                BillingReason: "setup_intent",
+                SubscriptionId: seeded.SubscriptionId,
+                RawBody: """{"id":"ord_tm_mint","state":"completed"}"""
+            );
+            var client = factory.CreateClient();
+
+            var response = await SendSignedAsync(
+                client,
+                OrderCompletedBody("ord_tm_mint")
+            );
+
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var invoice = await db.TummlyVatInvoices.SingleAsync(row =>
+                row.RestaurantId == seeded.RestaurantId
+            );
+            Assert.StartsWith("TM-", invoice.DocumentNumber);
+            Assert.Equal("ord_tm_mint", invoice.RevolutOrderId);
+            Assert.DoesNotContain(
+                invoice.DocumentNumber,
+                "ord_tm_mint",
+                StringComparison.Ordinal
+            );
+            Assert.Single(factory.Merchant.MerchantReferencePatches);
+            Assert.Equal(
+                ("ord_tm_mint", invoice.DocumentNumber),
+                factory.Merchant.MerchantReferencePatches[0]
+            );
+
+            var vat = scope.ServiceProvider.GetRequiredService<ITummlyVatInvoiceService>();
+            var rows = await vat.ListInvoiceRowsForRestaurantAsync(seeded.RestaurantId);
+            Assert.Single(rows);
+            Assert.Equal(invoice.DocumentNumber, rows[0].InvoiceNo);
+
+            var pdf = await vat.RenderPdfAsync(
+                seeded.RestaurantId,
+                invoice.DocumentNumber
+            );
+            Assert.NotNull(pdf);
+            Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(pdf!.Value.Content));
+        }
+
+        [Fact]
+        public async Task PostWebhook_SetupIntent_Replay_DoesNotMintSecondInvoice()
+        {
+            await using var factory = new RevolutWebhookWebApplicationFactory();
+            var seeded = await SeedPilotWithPendingAsync(factory, "ord_tm_replay");
+            factory.Merchant.Orders["ord_tm_replay"] = new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: "ord_tm_replay",
+                State: "completed",
+                BillingReason: "setup_intent",
+                SubscriptionId: seeded.SubscriptionId,
+                RawBody: """{"id":"ord_tm_replay","state":"completed"}"""
+            );
+            var client = factory.CreateClient();
+            var body = OrderCompletedBody("ord_tm_replay");
+
+            Assert.Equal(
+                HttpStatusCode.NoContent,
+                (await SendSignedAsync(client, body)).StatusCode
+            );
+            Assert.Equal(
+                HttpStatusCode.NoContent,
+                (await SendSignedAsync(client, body)).StatusCode
+            );
+
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                1,
+                await db.TummlyVatInvoices.CountAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                )
+            );
+            Assert.Single(factory.Merchant.MerchantReferencePatches);
+        }
+
+        [Fact]
         public async Task PostWebhook_SetupIntent_Replay_Returns204_WithoutSecondMint()
         {
             await using var factory = new RevolutWebhookWebApplicationFactory();
@@ -524,6 +612,21 @@ namespace TummlyBackend.Tests.Integration
                     Succeeded: false,
                     ErrorCode: "not_found"
                 )
+            );
+        }
+
+        public List<(string OrderId, string Reference)> MerchantReferencePatches
+        { get; } = [];
+
+        public Task<RevolutMerchantCreateResult> UpdateOrderMerchantReferenceAsync(
+            string orderId,
+            string merchantReference,
+            CancellationToken cancellationToken = default
+        )
+        {
+            MerchantReferencePatches.Add((orderId, merchantReference));
+            return Task.FromResult(
+                new RevolutMerchantCreateResult(Succeeded: true, Id: orderId)
             );
         }
     }

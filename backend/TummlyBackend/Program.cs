@@ -532,6 +532,7 @@ builder.Services.AddScoped<
     IRevolutOrderCompletedApplier,
     RevolutOrderCompletedApplier
 >();
+builder.Services.AddScoped<ITummlyVatInvoiceService, TummlyVatInvoiceService>();
 builder.Services.AddScoped<IRevolutWebhookService, RevolutWebhookService>();
 builder.Services.AddScoped<IBillingCreditsService, BillingCreditsService>();
 builder.Services.AddScoped<IExtraGroupLocationService, ExtraGroupLocationService>();

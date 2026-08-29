@@ -69,6 +69,16 @@ namespace TummlyBackend.Interfaces
             string orderId,
             CancellationToken cancellationToken = default
         );
+
+        /// <summary>
+        /// PATCHes <c>merchant_order_data.reference</c> with the Tummly
+        /// invoice number (support link). Does not use the create gate.
+        /// </summary>
+        Task<RevolutMerchantCreateResult> UpdateOrderMerchantReferenceAsync(
+            string orderId,
+            string merchantReference,
+            CancellationToken cancellationToken = default
+        );
     }
 
     public sealed class RevolutMerchantNotReadyException : Exception
