@@ -76,33 +76,20 @@ namespace TummlyBackend.Services
             }
 
             var restaurant = location.Restaurant;
-            await _lifecycle.TickAsync(restaurant.Id, DateTime.UtcNow);
+            var access = await EvaluateGuestAccessAfterTickAsync(restaurant);
 
-            var billingStatus = await LoadBillingStatusAsync(restaurant.Id);
-            if (billingStatus == BillingStatuses.Dormant)
+            if (access == GuestQrAccessKind.Dormant)
             {
-                var brandLogoObjectKey = restaurant.BrandLogoObjectKey;
-                var brandLogoPublicUrl =
-                    string.IsNullOrWhiteSpace(brandLogoObjectKey)
-                        ? null
-                        : BrandLogoRules.BuildPublicUrl(brandLogoObjectKey);
-
                 return new GuestQrResolveResult.Dormant(
                     restaurant.Name ?? "",
-                    brandLogoPublicUrl
+                    BuildBrandLogoPublicUrl(restaurant.BrandLogoObjectKey)
                 );
             }
 
-            if (restaurant.WorkspaceStatus == WorkspaceStatus.Paused)
+            if (access == GuestQrAccessKind.Denied)
             {
                 return new GuestQrResolveResult.NotFound();
             }
-
-            var liveLogoKey = restaurant.BrandLogoObjectKey;
-            var liveLogoUrl =
-                string.IsNullOrWhiteSpace(liveLogoKey)
-                    ? null
-                    : BrandLogoRules.BuildPublicUrl(liveLogoKey);
 
             return new GuestQrResolveResult.Live(
                 new GuestLinkLocationInfo
@@ -111,7 +98,9 @@ namespace TummlyBackend.Services
                     RestaurantName = restaurant.Name ?? "",
                     LocationName = location.LocationName,
                     Address = location.Address ?? "",
-                    BrandLogoPublicUrl = liveLogoUrl,
+                    BrandLogoPublicUrl = BuildBrandLogoPublicUrl(
+                        restaurant.BrandLogoObjectKey
+                    ),
                     QrCodeId = qrCode.Id,
                     QrType = qrCode.QrType
                 }
@@ -143,15 +132,8 @@ namespace TummlyBackend.Services
             }
 
             var restaurant = qrCode.RestaurantLocation.Restaurant;
-            await _lifecycle.TickAsync(restaurant.Id, DateTime.UtcNow);
-
-            var billingStatus = await LoadBillingStatusAsync(restaurant.Id);
-            if (billingStatus == BillingStatuses.Dormant)
-            {
-                return null;
-            }
-
-            if (restaurant.WorkspaceStatus == WorkspaceStatus.Paused)
+            var access = await EvaluateGuestAccessAfterTickAsync(restaurant);
+            if (access != GuestQrAccessKind.Allowed)
             {
                 return null;
             }
@@ -186,6 +168,26 @@ namespace TummlyBackend.Services
                 .FirstOrDefaultAsync();
         }
 
+        private async Task<GuestQrAccessKind> EvaluateGuestAccessAfterTickAsync(
+            Restaurant restaurant
+        )
+        {
+            await _lifecycle.TickAsync(restaurant.Id, DateTime.UtcNow);
+
+            var billingStatus = await LoadBillingStatusAsync(restaurant.Id);
+            if (billingStatus == BillingStatuses.Dormant)
+            {
+                return GuestQrAccessKind.Dormant;
+            }
+
+            if (restaurant.WorkspaceStatus == WorkspaceStatus.Paused)
+            {
+                return GuestQrAccessKind.Denied;
+            }
+
+            return GuestQrAccessKind.Allowed;
+        }
+
         private async Task<string?> LoadBillingStatusAsync(int restaurantId)
         {
             return await _context.BillingAccounts
@@ -193,6 +195,20 @@ namespace TummlyBackend.Services
                 .Where(row => row.RestaurantId == restaurantId)
                 .Select(row => row.BillingStatus)
                 .FirstOrDefaultAsync();
+        }
+
+        private static string? BuildBrandLogoPublicUrl(string? brandLogoObjectKey)
+        {
+            return string.IsNullOrWhiteSpace(brandLogoObjectKey)
+                ? null
+                : BrandLogoRules.BuildPublicUrl(brandLogoObjectKey);
+        }
+
+        private enum GuestQrAccessKind
+        {
+            Allowed,
+            Denied,
+            Dormant,
         }
 
         private static string? NormalizeToken(string? token)

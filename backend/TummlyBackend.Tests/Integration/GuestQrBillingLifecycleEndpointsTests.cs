@@ -87,6 +87,31 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetScan_WhenSoftLock_ReturnsLiveFeedbackMetadata()
+        {
+            const string token = "guest-soft-lock-read-token-1234";
+            await SeedGuestWorkspaceAsync(
+                token,
+                restaurantName: "Soft Lock Read Venue",
+                billingStatus: BillingStatuses.SoftLock,
+                softLockEnteredAt: DateTime.UtcNow.AddDays(-2),
+                pilotPeriodEnd: DateTime.UtcNow.AddDays(-2)
+            );
+
+            var response = await _client.GetAsync($"/api/scan/{token}");
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "Soft Lock Read Venue",
+                body.GetProperty("restaurantName").GetString()
+            );
+            Assert.Equal("Main", body.GetProperty("locationName").GetString());
+            Assert.False(body.TryGetProperty("status", out _));
+        }
+
+        [Fact]
         public async Task SubmitFeedback_WhenSoftLock_Succeeds()
         {
             const string token = "guest-soft-lock-write-token-123";
