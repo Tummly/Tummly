@@ -171,7 +171,7 @@ export function ShopCatalogSection({
           return (
             <div
               key={product.id}
-              className="flex flex-col justify-between rounded-xl border border-op-border-default bg-op-card-background p-5 transition-shadow hover:shadow-md"
+              className="flex flex-col justify-between rounded-md border border-op-border-default bg-op-card-background p-5 transition-shadow hover:shadow-md"
             >
               <div>
                 <div className="flex items-start justify-between gap-2">
