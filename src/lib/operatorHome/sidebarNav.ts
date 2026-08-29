@@ -33,7 +33,8 @@ export type OperatorSidebarNavId =
 /** Ids that may be the active Operator dashboard section. */
 export type OperatorSidebarActiveId =
   | OperatorSidebarPrimaryNavId
-  | OperatorSidebarSettingsChildId;
+  | OperatorSidebarSettingsChildId
+  | OperatorSidebarFooterNavId;
 
 export interface OperatorSidebarNavItem {
   id: OperatorSidebarNavId;
@@ -179,8 +180,16 @@ export function getOperatorSidebarNav(
       {
         id: OPERATOR_SIDEBAR_SHOP.id,
         label: OPERATOR_SIDEBAR_SHOP.label,
-        navigable: false,
-        active: false,
+        navigable: true,
+        active: activeId === OPERATOR_SIDEBAR_SHOP.id,
+        to:
+          navTargets != null
+            ? operatorDashboardNavPath(
+                navTargets.mode,
+                OPERATOR_SIDEBAR_SHOP.id,
+                navTargets.locationId,
+              )
+            : undefined,
       },
     ],
   };

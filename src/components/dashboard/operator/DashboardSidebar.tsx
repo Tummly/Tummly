@@ -415,30 +415,61 @@ export function DashboardSidebar({
         <div className="flex flex-col items-stretch pb-2">
           {sidebarNav.footer.map((item) => {
             const icon = iconForItem(item)
+            const rowClass = navItemClass({
+              active: item.active,
+              collapsed,
+              interactive: item.navigable,
+            })
+
+            if (!item.navigable) {
+              return (
+                <Button
+                  key={item.id}
+                  type="button"
+                  variant="ghost"
+                  disabled
+                  aria-disabled="true"
+                  aria-label={item.label}
+                  title={collapsed ? item.label : undefined}
+                  className={cn(
+                    rowClass,
+                    "h-auto min-h-0 justify-start gap-0 rounded-none border-0 px-1.5 py-1 hover:bg-transparent hover:text-op-sidebar-item-disabled disabled:opacity-100"
+                  )}
+                >
+                  <NavRowContent
+                    label={item.label}
+                    collapsed={collapsed}
+                    iconSrc={icon}
+                  />
+                </Button>
+              )
+            }
+
             return (
-            <Button
-              key={item.id}
-              type="button"
-              variant="ghost"
-              disabled
-              aria-disabled="true"
-              aria-label={item.label}
-              title={collapsed ? item.label : undefined}
-              className={cn(
-                navItemClass({
-                  active: false,
-                  collapsed,
-                  interactive: false,
-                }),
-                "h-auto min-h-0 justify-start gap-0 rounded-none border-0 px-1.5 py-1 hover:bg-transparent hover:text-op-sidebar-item-disabled disabled:opacity-100"
-              )}
-            >
-              <NavRowContent
-                label={item.label}
-                collapsed={collapsed}
-                iconSrc={icon}
-              />
-            </Button>
+              <NavLink
+                key={item.id}
+                to={item.to ?? ""}
+                aria-current={item.active ? "page" : undefined}
+                aria-label={item.label}
+                title={collapsed ? item.label : undefined}
+                className={rowClass}
+                onClick={(event) => {
+                  const href = item.to ?? ""
+                  if (!tryLeaveDirtyNavigate(href)) {
+                    event.preventDefault()
+                    return
+                  }
+                  onNavigate?.()
+                }}
+              >
+                <NavRowContent
+                  label={item.label}
+                  collapsed={collapsed}
+                  iconSrc={icon}
+                  active={item.active}
+                  enabled
+                />
+              </NavLink>
             )
           })}
         </div>

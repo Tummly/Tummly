@@ -49,6 +49,7 @@ import { AccountWorkspacePageModuleProvider } from "@/components/dashboard/opera
 import { AccountWorkspaceRoute } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceRoute";
 import { TeamPermissionsPageModuleProvider } from "@/components/dashboard/operator/TeamPermissions/TeamPermissionsPageModuleProvider";
 import { TeamPermissionsRoute } from "@/components/dashboard/operator/TeamPermissions/TeamPermissionsRoute";
+import { ShopRoute } from "@/components/dashboard/operator/Shop/ShopRoute";
 import AdminDashboard from "../../components/dashboard/admin/Dashboard";
 import SupportDashboard from "../../components/dashboard/support/Dashboard";
 import SupportQueryDetailPage from "../../components/dashboard/support/SupportQueryDetailPage";
@@ -210,6 +211,7 @@ function AppRoutes() {
                     </TeamPermissionsPageModuleProvider>
                   }
                 />
+                <Route path="shop" element={<ShopRoute />} />
               </Route>
             </Route>
             <Route element={<OperatorDashboardRoute mode="multi" />}>
@@ -279,6 +281,7 @@ function AppRoutes() {
                     </TeamPermissionsPageModuleProvider>
                   }
                 />
+                <Route path="shop" element={<ShopRoute />} />
               </Route>
             </Route>
             <Route

@@ -1,4 +1,5 @@
 import type {
+  OperatorSidebarFooterNavId,
   OperatorSidebarPrimaryNavId,
   OperatorSidebarSettingsChildId,
 } from "@/lib/operatorHome/sidebarNav"
@@ -29,9 +30,15 @@ export type NavigableOperatorSidebarSettingsChildId = Extract<
   "account-workspace" | "team-permissions"
 >
 
+export type NavigableOperatorSidebarFooterNavId = Extract<
+  OperatorSidebarFooterNavId,
+  "tummly-shop"
+>
+
 export type NavigableOperatorSidebarNavId =
   | NavigableOperatorSidebarPrimaryNavId
   | NavigableOperatorSidebarSettingsChildId
+  | NavigableOperatorSidebarFooterNavId
 
 export function operatorDashboardRootPath(
   mode: OperatorDashboardMode
@@ -95,7 +102,9 @@ export function operatorDashboardNavPath(
         ? `${root}/settings/account-workspace`
         : navId === "team-permissions"
           ? `${root}/settings/team-permissions`
-          : `${root}/${navId}`
+          : navId === "tummly-shop"
+            ? `${root}/shop`
+            : `${root}/${navId}`
   return `${path}?location=${locationId}`
 }
 
@@ -257,6 +266,9 @@ export function resolveOperatorSidebarActiveId(
   }
   if (segments.includes("offers")) {
     return "offers"
+  }
+  if (segments.includes("shop")) {
+    return "tummly-shop"
   }
 
   return "home"
