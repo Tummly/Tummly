@@ -207,6 +207,7 @@ namespace TummlyBackend.Services
             await using var transaction =
                 await _context.Database.BeginTransactionAsync(cancellationToken);
 
+            var claimId = Guid.NewGuid();
             try
             {
                 var again = await FindClaimAsync(
@@ -222,16 +223,18 @@ namespace TummlyBackend.Services
                     );
                 }
 
+                // Unique claim must land before side effects (lock 04).
                 _context.RevolutWebhookEventClaims.Add(
                     new RevolutWebhookEventClaim
                     {
-                        Id = Guid.NewGuid(),
+                        Id = claimId,
                         Event = "ORDER_COMPLETED",
                         ObjectId = orderId,
                         Disposition = RevolutWebhookClaimDispositions.Applied,
                         CreatedAtUtc = DateTime.UtcNow,
                     }
                 );
+                await _context.SaveChangesAsync(cancellationToken);
 
                 await _applier.ApplyAsync(
                     new RevolutOrderCompletedApplyRequest(
@@ -254,8 +257,7 @@ namespace TummlyBackend.Services
             }
             catch (DbUpdateException)
             {
-                await transaction.RollbackAsync(cancellationToken);
-                _context.ChangeTracker.Clear();
+                await AbortClaimTransactionAsync(claimId, cancellationToken);
 
                 var conflict = await FindClaimAsync(
                     "ORDER_COMPLETED",
@@ -273,9 +275,38 @@ namespace TummlyBackend.Services
             }
             catch
             {
-                await transaction.RollbackAsync(cancellationToken);
-                _context.ChangeTracker.Clear();
+                await AbortClaimTransactionAsync(claimId, cancellationToken);
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// Rolls back the claim+apply transaction. Also deletes this attempt's
+        /// claim by id when the provider ignores transactions (InMemory tests).
+        /// </summary>
+        private async Task AbortClaimTransactionAsync(
+            Guid claimId,
+            CancellationToken cancellationToken
+        )
+        {
+            if (_context.Database.CurrentTransaction != null)
+            {
+                await _context.Database.RollbackTransactionAsync(
+                    cancellationToken
+                );
+            }
+
+            _context.ChangeTracker.Clear();
+
+            var leftover = await _context.RevolutWebhookEventClaims
+                .FirstOrDefaultAsync(
+                    row => row.Id == claimId,
+                    cancellationToken
+                );
+            if (leftover != null)
+            {
+                _context.RevolutWebhookEventClaims.Remove(leftover);
+                await _context.SaveChangesAsync(cancellationToken);
             }
         }
 

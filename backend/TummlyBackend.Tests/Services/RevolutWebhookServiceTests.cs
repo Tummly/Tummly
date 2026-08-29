@@ -23,7 +23,7 @@ namespace TummlyBackend.Tests.Services
                     RawBody: """{"id":"ord_rollback","state":"completed"}"""
                 )
             );
-            var applier = new ThrowingApplier();
+            var applier = new ThrowingApplier(context);
             var service = CreateService(context, merchant, applier);
             var body = """{"event":"ORDER_COMPLETED","order_id":"ord_rollback"}""";
             var timestamp = "1710000000";
@@ -37,8 +37,12 @@ namespace TummlyBackend.Tests.Services
                 service.HandleAsync(body, signature, timestamp)
             );
 
-            Assert.Equal(0, await context.RevolutWebhookEventClaims.CountAsync());
             Assert.True(applier.Called);
+            Assert.True(
+                applier.ClaimVisibleDuringApply,
+                "Claim must be inserted before apply side effects."
+            );
+            Assert.Equal(0, await context.RevolutWebhookEventClaims.CountAsync());
         }
 
         [Fact]
@@ -144,7 +148,16 @@ namespace TummlyBackend.Tests.Services
 
         private sealed class ThrowingApplier : IRevolutOrderCompletedApplier
         {
+            private readonly ApplicationDbContext _context;
+
+            public ThrowingApplier(ApplicationDbContext context)
+            {
+                _context = context;
+            }
+
             public bool Called { get; private set; }
+
+            public bool ClaimVisibleDuringApply { get; private set; }
 
             public Task ApplyAsync(
                 RevolutOrderCompletedApplyRequest request,
@@ -152,6 +165,11 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 Called = true;
+                ClaimVisibleDuringApply = _context.RevolutWebhookEventClaims.Any(
+                    row =>
+                        row.Event == "ORDER_COMPLETED"
+                        && row.ObjectId == request.OrderId
+                );
                 throw new InvalidOperationException("simulated apply failure");
             }
         }

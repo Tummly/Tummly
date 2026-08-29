@@ -17,8 +17,7 @@ namespace TummlyBackend.Tests.Integration
 {
     public class RevolutWebhookEndpointsTests
     {
-        private const string SigningSecret =
-            RevolutWebhookEndpointsTests_SigningSecret.Value;
+        private const string SigningSecret = WebhookTestSigningSecret.Value;
 
         [Fact]
         public async Task PostWebhook_BadSignature_Returns401_AndCreatesNoClaim()
@@ -189,7 +188,7 @@ namespace TummlyBackend.Tests.Integration
                     new Dictionary<string, string?>
                     {
                         ["Revolut:WebhookSigningSecret"] =
-                            RevolutWebhookEndpointsTests_SigningSecret.Value,
+                            WebhookTestSigningSecret.Value,
                         ["Revolut:SecretKey"] = "sk_test_placeholder",
                         ["Revolut:ApiBaseUrl"] =
                             RevolutSettings.SandboxApiBaseUrl,
@@ -229,7 +228,7 @@ namespace TummlyBackend.Tests.Integration
     }
 
     /// <summary>Holds the signing secret used by the factory config.</summary>
-    internal static class RevolutWebhookEndpointsTests_SigningSecret
+    internal static class WebhookTestSigningSecret
     {
         public const string Value = "whsec_test_ticket_15";
     }
