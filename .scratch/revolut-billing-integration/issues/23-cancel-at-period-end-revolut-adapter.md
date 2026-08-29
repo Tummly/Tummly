@@ -31,7 +31,7 @@ Shipped on `feat/settings-billing`.
 - `RevolutCancelAtPeriodEndAdapter` runs from included-period job cancel apply: resolve subscription id via `RevolutSubscriptionCorrelation`, native cancel, close open pay sessions, then clear slot / entitlement end on Tummly clocks. Missing correlation is a no-op (same as cycle-end change-plan). Revolut failure throws before the slot clears so the job can retry.
 - Named HTTP: `PostCancelPlan_DoesNotRedirectToHpp_ForCancel`. Service: `RevolutCancelAtPeriodEndAdapterTests` (renewal / before-renewal / sync).
 
-**Commits:** `5222dd47` (implement), `c3e2af14` (shared correlation), `aa4db9ca` (rebase fake markers), plus review sync-state coverage commit on this branch.
+**Commits:** `5222dd47` (implement), `c3e2af14` (shared correlation), `aa4db9ca` (rebase fake markers), `1ca2566a3196e0706d4c97e6ef5fb049807bcdc6` (review: sync-state test + ticket Answer).
 
 ## Comments
 
