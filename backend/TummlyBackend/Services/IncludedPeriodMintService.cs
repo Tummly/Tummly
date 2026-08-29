@@ -17,16 +17,20 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IPricebookCatalog _pricebook;
         private readonly TimeProvider _clock;
+        private readonly ICreditThresholdEvaluator _thresholdEvaluator;
 
         public IncludedPeriodMintService(
             ApplicationDbContext context,
             IPricebookCatalog pricebook,
-            TimeProvider clock
+            TimeProvider clock,
+            ICreditThresholdEvaluator? thresholdEvaluator = null
         )
         {
             _context = context;
             _pricebook = pricebook;
             _clock = clock;
+            _thresholdEvaluator =
+                thresholdEvaluator ?? NullCreditThresholdEvaluator.Instance;
         }
 
         public Task<IncludedPeriodMintResult> MintOnOrderCompletedAsync(
@@ -411,6 +415,14 @@ namespace TummlyBackend.Services
                 return await AbortOwnedAsync(
                     session,
                     IncludedPeriodMintResult.Skipped("grant_already_exists"),
+                    cancellationToken
+                );
+            }
+
+            if (insertedIds.Count > 0)
+            {
+                await _thresholdEvaluator.ResetBandsForIncludedPeriodMintAsync(
+                    billingAccount.RestaurantId,
                     cancellationToken
                 );
             }

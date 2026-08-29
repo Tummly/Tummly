@@ -17,16 +17,20 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly TimeProvider _clock;
         private readonly IPricebookCatalog _pricebookCatalog;
+        private readonly ICreditThresholdEvaluator _thresholdEvaluator;
 
         public CreditLedgerService(
             ApplicationDbContext context,
             TimeProvider clock,
-            IPricebookCatalog pricebookCatalog
+            IPricebookCatalog pricebookCatalog,
+            ICreditThresholdEvaluator? thresholdEvaluator = null
         )
         {
             _context = context;
             _clock = clock;
             _pricebookCatalog = pricebookCatalog;
+            _thresholdEvaluator =
+                thresholdEvaluator ?? NullCreditThresholdEvaluator.Instance;
         }
 
         public async Task<CreditLedgerWriteResult> ConsumeOnSuccessAsync(
@@ -910,8 +914,20 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var thresholdApply = await _thresholdEvaluator.ApplyInTransactionAsync(
+                request.RestaurantId,
+                request.Channel,
+                [.. entries, .. inserted],
+                cancellationToken
+            );
+
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+
+            await _thresholdEvaluator.NotifyAfterCommitAsync(
+                thresholdApply,
+                cancellationToken
+            );
 
             return CreditLedgerWriteResult.Ok(
                 inserted.Select(row => new CreditLedgerInsertedRow
@@ -1080,8 +1096,20 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var thresholdApply = await _thresholdEvaluator.ApplyInTransactionAsync(
+                request.RestaurantId,
+                request.Channel,
+                [.. entries, .. inserted],
+                cancellationToken
+            );
+
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+
+            await _thresholdEvaluator.NotifyAfterCommitAsync(
+                thresholdApply,
+                cancellationToken
+            );
 
             return CreditLedgerWriteResult.Ok(
                 inserted.Select(row => new CreditLedgerInsertedRow
@@ -1289,8 +1317,20 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var thresholdApply = await _thresholdEvaluator.ApplyInTransactionAsync(
+                request.RestaurantId,
+                request.Channel,
+                [.. entries, .. inserted],
+                cancellationToken
+            );
+
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+
+            await _thresholdEvaluator.NotifyAfterCommitAsync(
+                thresholdApply,
+                cancellationToken
+            );
 
             return CreditLedgerWriteResult.Ok(
                 inserted.Select(row => new CreditLedgerInsertedRow
@@ -1435,11 +1475,23 @@ namespace TummlyBackend.Services
                     );
                 }
 
+                var thresholdApply = await _thresholdEvaluator.ApplyInTransactionAsync(
+                    request.RestaurantId,
+                    request.Channel,
+                    [.. entries, .. inserted],
+                    cancellationToken
+                );
+
                 await _context.SaveChangesAsync(cancellationToken);
                 if (owned is not null)
                 {
                     await owned.CommitAsync(cancellationToken);
                 }
+
+                await _thresholdEvaluator.NotifyAfterCommitAsync(
+                    thresholdApply,
+                    cancellationToken
+                );
 
                 return CreditLedgerWriteResult.Ok(
                     inserted.Select(row => new CreditLedgerInsertedRow
