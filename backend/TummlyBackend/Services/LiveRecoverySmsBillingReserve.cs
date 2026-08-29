@@ -81,40 +81,26 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var feedback = await _context.Feedbacks
-                .AsNoTracking()
-                .FirstOrDefaultAsync(
-                    row => row.Id == request.FeedbackId,
-                    cancellationToken
-                );
-            if (feedback == null)
-            {
-                return new RecoverySmsBillingSettleResult.Failed
-                {
-                    Message = "Feedback not found.",
-                };
-            }
-
-            var restaurantId = await ResolveRestaurantIdAsync(
-                feedback.RestaurantLocationId,
+            var scope = await ResolveFeedbackBillingScopeAsync(
+                request.FeedbackId,
                 cancellationToken
             );
-            if (restaurantId == null)
+            if (scope.ErrorMessage != null)
             {
                 return new RecoverySmsBillingSettleResult.Failed
                 {
-                    Message = "Location not in account.",
+                    Message = scope.ErrorMessage,
                 };
             }
 
             var result = await _ledger.SettleAsync(
                 new CreditLedgerSettleRequest
                 {
-                    RestaurantId = restaurantId.Value,
+                    RestaurantId = scope.RestaurantId,
                     Channel = CreditChannels.Sms,
                     ReservationRef = request.ReservationRef,
                     AcceptedUnits = request.AcceptedUnits,
-                    LocationId = feedback.RestaurantLocationId,
+                    LocationId = scope.LocationId,
                 },
                 cancellationToken
             );
@@ -132,39 +118,25 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var feedback = await _context.Feedbacks
-                .AsNoTracking()
-                .FirstOrDefaultAsync(
-                    row => row.Id == request.FeedbackId,
-                    cancellationToken
-                );
-            if (feedback == null)
-            {
-                return new RecoverySmsBillingReleaseResult.Failed
-                {
-                    Message = "Feedback not found.",
-                };
-            }
-
-            var restaurantId = await ResolveRestaurantIdAsync(
-                feedback.RestaurantLocationId,
+            var scope = await ResolveFeedbackBillingScopeAsync(
+                request.FeedbackId,
                 cancellationToken
             );
-            if (restaurantId == null)
+            if (scope.ErrorMessage != null)
             {
                 return new RecoverySmsBillingReleaseResult.Failed
                 {
-                    Message = "Location not in account.",
+                    Message = scope.ErrorMessage,
                 };
             }
 
             var result = await _ledger.ReleaseAsync(
                 new CreditLedgerReleaseRequest
                 {
-                    RestaurantId = restaurantId.Value,
+                    RestaurantId = scope.RestaurantId,
                     Channel = CreditChannels.Sms,
                     ReservationRef = request.ReservationRef,
-                    LocationId = feedback.RestaurantLocationId,
+                    LocationId = scope.LocationId,
                 },
                 cancellationToken
             );
@@ -175,6 +147,37 @@ namespace TummlyBackend.Services
                 {
                     Message = result.Code ?? "Release failed.",
                 };
+        }
+
+        private async Task<FeedbackBillingScope> ResolveFeedbackBillingScopeAsync(
+            int feedbackId,
+            CancellationToken cancellationToken
+        )
+        {
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.Id == feedbackId,
+                    cancellationToken
+                );
+            if (feedback == null)
+            {
+                return FeedbackBillingScope.Fail("Feedback not found.");
+            }
+
+            var restaurantId = await ResolveRestaurantIdAsync(
+                feedback.RestaurantLocationId,
+                cancellationToken
+            );
+            if (restaurantId == null)
+            {
+                return FeedbackBillingScope.Fail("Location not in account.");
+            }
+
+            return FeedbackBillingScope.Ok(
+                restaurantId.Value,
+                feedback.RestaurantLocationId
+            );
         }
 
         private async Task<int> RemainingSmsAsync(
@@ -202,6 +205,25 @@ namespace TummlyBackend.Services
                 .Where(row => row.Id == locationId)
                 .Select(row => (int?)row.RestaurantId)
                 .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        private readonly struct FeedbackBillingScope
+        {
+            public int RestaurantId { get; init; }
+
+            public int LocationId { get; init; }
+
+            public string? ErrorMessage { get; init; }
+
+            public static FeedbackBillingScope Ok(int restaurantId, int locationId)
+                => new()
+                {
+                    RestaurantId = restaurantId,
+                    LocationId = locationId,
+                };
+
+            public static FeedbackBillingScope Fail(string message)
+                => new() { ErrorMessage = message };
         }
     }
 }

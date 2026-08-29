@@ -1145,12 +1145,16 @@ namespace TummlyBackend.Data
                 .HasOne(row => row.Feedback)
                 .WithMany()
                 .HasForeignKey(row => row.FeedbackId)
+                // NoAction: SQL Server rejects Feedback CASCADE alongside
+                // Restaurant CASCADE (error 1785, multiple cascade paths).
                 .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<RecoverySmsSendIdempotency>()
                 .HasOne(row => row.CompletedGuestResponse)
                 .WithMany()
                 .HasForeignKey(row => row.CompletedGuestResponseId)
+                // NoAction: SQL Server rejects guest-response CASCADE alongside
+                // Restaurant CASCADE (error 1785, multiple cascade paths).
                 .OnDelete(DeleteBehavior.NoAction)
                 .IsRequired(false);
 

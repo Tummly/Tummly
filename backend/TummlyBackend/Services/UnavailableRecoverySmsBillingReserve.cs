@@ -3,7 +3,8 @@ using TummlyBackend.Interfaces;
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// Default Recovery SMS billing reserve — not live until ledger Reserve ships.
+    /// Stub Recovery SMS billing reserve for tests that assert the 503 hard-block
+    /// when reserve is not live.
     /// </summary>
     public sealed class UnavailableRecoverySmsBillingReserve
         : IRecoverySmsBillingReserve

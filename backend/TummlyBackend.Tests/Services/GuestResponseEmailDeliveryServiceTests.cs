@@ -559,40 +559,6 @@ namespace TummlyBackend.Tests.Services
                 new NullFileProvider();
         }
 
-        private sealed class NoOpRecoverySmsBillingReserve : IRecoverySmsBillingReserve
-        {
-            public bool IsLive => false;
-
-            public Task<RecoverySmsBillingReserveResult> ReserveAsync(
-                RecoverySmsBillingReserveRequest request,
-                CancellationToken cancellationToken = default
-            )
-                => Task.FromResult<RecoverySmsBillingReserveResult>(
-                    new RecoverySmsBillingReserveResult.Failed
-                    {
-                        Code = "billing_reserve_unavailable",
-                        Remaining = 0,
-                        Requested = request.Units,
-                    }
-                );
-
-            public Task<RecoverySmsBillingSettleResult> SettleAsync(
-                RecoverySmsBillingSettleRequest request,
-                CancellationToken cancellationToken = default
-            )
-                => Task.FromResult<RecoverySmsBillingSettleResult>(
-                    new RecoverySmsBillingSettleResult.Ok()
-                );
-
-            public Task<RecoverySmsBillingReleaseResult> ReleaseAsync(
-                RecoverySmsBillingReleaseRequest request,
-                CancellationToken cancellationToken = default
-            )
-                => Task.FromResult<RecoverySmsBillingReleaseResult>(
-                    new RecoverySmsBillingReleaseResult.Ok()
-                );
-        }
-
         private sealed class NoOpRecoveryGuestSmsDelivery : IRecoveryGuestSmsDelivery
         {
             public Task<RecoveryGuestSmsDeliveryResult> SendAsync(
