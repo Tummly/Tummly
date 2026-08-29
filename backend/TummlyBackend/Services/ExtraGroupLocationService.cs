@@ -3,6 +3,7 @@ using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.BillingCredits;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -321,6 +322,14 @@ namespace TummlyBackend.Services
 
         private static void RequireActiveBillingStatus(BillingAccount account)
         {
+            var paidDeny = OperatorBillingLockEvaluator.EvaluatePaidWriteDeny(
+                OperatorBillingLockEvaluator.FromBillingAccount(account)
+            );
+            if (paidDeny != null)
+            {
+                throw new ExtraGroupLocationException(paidDeny);
+            }
+
             if (
                 !string.Equals(
                     account.BillingStatus,

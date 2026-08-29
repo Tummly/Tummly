@@ -162,6 +162,57 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("draft", campaign.Status);
         }
 
+        [Fact]
+        public async Task Commit_Returns403_PastDueSendsBlocked_OnDay7()
+        {
+            var client = CreateClientWithReserve(new LiveBillingReserve());
+            var seeded = await SeedReviewReadyDraftAsync(
+                "commit-past-due-day7",
+                emailEligibleCount: 1
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var campaign = await context.Campaigns
+                    .Include(c => c.RestaurantLocation)
+                    .SingleAsync(c => c.Id == seeded.CampaignId);
+                var account = await context.BillingAccounts.SingleAsync(
+                    row => row.RestaurantId == campaign.RestaurantLocation!.RestaurantId
+                );
+                account.SubscriptionPlan = BillingSubscriptionPlans.Growth;
+                account.BillingCycle = BillingCycles.Monthly;
+                account.BillingStatus = BillingStatuses.PastDue;
+                account.DunningEpisodeStartedAt = DateTime.UtcNow.AddDays(-7);
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                $"/api/campaigns/{seeded.CampaignId}/commit",
+                seeded.Jwt,
+                new
+                {
+                    rowVersion = Convert.ToBase64String(seeded.RowVersion),
+                    scheduleMode = "send-now",
+                    scheduleTimeZone = "Europe/London",
+                }
+            );
+            var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "past_due_sends_blocked",
+                body.GetProperty("code").GetString()
+            );
+            Assert.Equal(
+                "past_due_sends_blocked",
+                body.GetProperty("message").GetString()
+            );
+        }
+
         private HttpClient CreateClientWithReserve(ICampaignBillingReserve reserve)
         {
             return _factory.WithWebHostBuilder(builder =>

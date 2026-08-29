@@ -1558,6 +1558,18 @@ namespace TummlyBackend.Controllers
                     }
                 );
             }
+            catch (OperatorBillingLockedException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        code = ex.Code,
+                        message = ex.Code,
+                    }
+                );
+            }
             catch (InvalidOperationException ex)
             {
                 return Unauthorized(new

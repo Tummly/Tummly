@@ -63,5 +63,8 @@ namespace TummlyBackend.Interfaces
 
         public sealed record IdempotencyKeyRequired()
             : BilledAiActionResult;
+
+        public sealed record OperatorBillingLocked(string Code)
+            : BilledAiActionResult;
     }
 }

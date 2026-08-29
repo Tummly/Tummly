@@ -205,17 +205,32 @@ namespace TummlyBackend.Services
             return (BuildStubPdfBytes(invoiceNo), $"{invoiceNo}.pdf");
         }
 
-        public Task<PaymentMethodUpdateSessionDto?> CreatePaymentMethodUpdateSessionAsync(
+        public async Task<PaymentMethodUpdateSessionDto?> CreatePaymentMethodUpdateSessionAsync(
             int restaurantId
         )
         {
-            return Task.FromResult<PaymentMethodUpdateSessionDto?>(
-                new PaymentMethodUpdateSessionDto
-                {
-                    RedirectUrl =
-                        "https://sandbox-merchant.revolut.com/hpp/update-payment-method",
-                }
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurantId);
+            if (restaurant == null)
+            {
+                return null;
+            }
+
+            var billingAccount = await LoadRequiredBillingAccountAsync(restaurantId);
+            var restorationDeny = OperatorBillingLockEvaluator.EvaluateRestorationDeny(
+                OperatorBillingLockEvaluator.FromBillingAccount(billingAccount)
             );
+            if (restorationDeny != null)
+            {
+                throw new InvalidOperationException(restorationDeny);
+            }
+
+            return new PaymentMethodUpdateSessionDto
+            {
+                RedirectUrl =
+                    "https://sandbox-merchant.revolut.com/hpp/update-payment-method",
+            };
         }
 
         private static bool IsPilotBillingAccount(BillingAccount billingAccount)
@@ -385,9 +400,9 @@ namespace TummlyBackend.Services
                 throw new InvalidOperationException("invalid-target");
             }
 
-            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
-                restaurant.Name,
-                owner?.ActivationExpiresAt
+            var billingAccount = await LoadRequiredBillingAccountAsync(restaurantId);
+            var lockState = OperatorBillingLockEvaluator.FromBillingAccount(
+                billingAccount
             );
             var simulatePaidGrowth =
                 string.Equals(
@@ -395,23 +410,33 @@ namespace TummlyBackend.Services
                     "Billing Venue Schedule Test",
                     StringComparison.Ordinal
                 );
+            var isPilot = simulatePaidGrowth
+                ? false
+                : IsPilotBillingAccount(billingAccount);
             var currentPlan = simulatePaidGrowth
                 ? "Growth"
-                : lifecycle.IsPilot
+                : isPilot
                     ? "Pilot"
-                    : lifecycle.SubscriptionPlan;
-            var isPilot = simulatePaidGrowth ? false : lifecycle.IsPilot;
+                    : billingAccount.SubscriptionPlan;
             string? liveCadence = simulatePaidGrowth || !isPilot ? "monthly" : null;
 
-            if (
-                BillingPlanSnapshotHelper.IsAccountLocked(lifecycle.BillingStatus)
-                && !isPilot
-            )
+            if (isPilot)
             {
-                throw new InvalidOperationException(
-                    BillingPlanSnapshotHelper.LockDenyCode(lifecycle.BillingStatus)
-                        ?? "forbidden"
-                );
+                var restorationDeny =
+                    OperatorBillingLockEvaluator.EvaluateRestorationDeny(lockState);
+                if (restorationDeny != null)
+                {
+                    throw new InvalidOperationException(restorationDeny);
+                }
+            }
+            else
+            {
+                var paidDeny =
+                    OperatorBillingLockEvaluator.EvaluatePaidWriteDeny(lockState);
+                if (paidDeny != null)
+                {
+                    throw new InvalidOperationException(paidDeny);
+                }
             }
 
             var payNow = ResolvePlanChangeRequiresPay(
@@ -580,20 +605,12 @@ namespace TummlyBackend.Services
                 throw new InvalidOperationException("cancel_not_available");
             }
 
-            var owner = await _context.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
-
-            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
-                restaurant.Name,
-                owner?.ActivationExpiresAt
+            var paidDeny = OperatorBillingLockEvaluator.EvaluatePaidWriteDeny(
+                OperatorBillingLockEvaluator.FromBillingAccount(billingAccount)
             );
-            if (BillingPlanSnapshotHelper.IsAccountLocked(lifecycle.BillingStatus))
+            if (paidDeny != null)
             {
-                throw new InvalidOperationException(
-                    BillingPlanSnapshotHelper.LockDenyCode(lifecycle.BillingStatus)
-                        ?? "forbidden"
-                );
+                throw new InvalidOperationException(paidDeny);
             }
 
             await EnsureRenewalDateUtcAsync(billingAccount);
@@ -1126,12 +1143,19 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (BillingPlanSnapshotHelper.IsAccountLocked(context.BillingStatus))
+            var paidDeny = OperatorBillingLockEvaluator.EvaluatePaidWriteDeny(
+                new OperatorBillingLockEvaluator.AccountLockState(
+                    context.BillingStatus,
+                    context.ChargebackRestricted,
+                    context.DunningEpisodeStartedAt
+                )
+            );
+            if (paidDeny != null)
             {
                 return (
                     null,
                     StatusCodes.Status403Forbidden,
-                    BillingPlanSnapshotHelper.LockDenyCode(context.BillingStatus)
+                    paidDeny
                 );
             }
 
@@ -1174,6 +1198,8 @@ namespace TummlyBackend.Services
             bool IsPilot,
             string SubscriptionPlan,
             string BillingStatus,
+            bool ChargebackRestricted,
+            DateTime? DunningEpisodeStartedAt,
             bool AllowSms5000TopUp
         );
 
@@ -1188,22 +1214,15 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            var owner = await _context.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
-
-            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
-                restaurant.Name,
-                owner?.ActivationExpiresAt
-            );
             var billingAccount = await LoadRequiredBillingAccountAsync(restaurantId);
+            var isPilot = IsPilotBillingAccount(billingAccount);
 
             return new CreditTopUpContext(
-                lifecycle.IsPilot,
-                lifecycle.IsPilot
-                    ? "Pilot"
-                    : ResolveSubscriptionPlan(restaurant.Name, lifecycle.IsPilot),
-                lifecycle.BillingStatus,
+                isPilot,
+                billingAccount.SubscriptionPlan,
+                billingAccount.BillingStatus,
+                billingAccount.ChargebackRestricted,
+                billingAccount.DunningEpisodeStartedAt,
                 billingAccount.AllowSms5000TopUp
             );
         }

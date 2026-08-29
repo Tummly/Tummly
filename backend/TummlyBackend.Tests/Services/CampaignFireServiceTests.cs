@@ -96,6 +96,54 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task FireAsync_SoftLockBillingAccount_WithOpenRef_IsCannotStartNotChannelHardStopped()
+        {
+            var seeded = await SeedScheduledCampaignAsync(
+                frozenEligibleCount: 2,
+                scheduledAtUtc: _now.AddMinutes(-5)
+            );
+
+            var campaign = await _context.Campaigns
+                .Include(c => c.RestaurantLocation)
+                .SingleAsync(c => c.Id == seeded.CampaignId);
+            var restaurantId = campaign.RestaurantLocation!.RestaurantId;
+            _context.BillingAccounts.Add(
+                new BillingAccount
+                {
+                    RestaurantId = restaurantId,
+                    SubscriptionPlan = BillingSubscriptionPlans.Growth,
+                    BillingCycle = BillingCycles.Monthly,
+                    BillingStatus = BillingStatuses.SoftLock,
+                    ContractedPricebookId = "TUMMLY-UK-GBP-2026-08-V3",
+                    StarterKitState = StarterKitStates.Unused,
+                    SoftLockEnteredAt = _now.AddDays(-1),
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var liveGate = new ClearCampaignSendStartGate(_context, () => _now);
+            var fire = new CampaignFireService(
+                _context,
+                _eligibility,
+                _reserve,
+                _outbound,
+                liveGate,
+                utcNow: () => _now
+            );
+
+            var result = await fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.CannotStart>(result);
+            Assert.IsNotType<CampaignFireResult.Ok>(result);
+            Assert.Single(_reserve.ReleaseCalls);
+            Assert.Empty(_outbound.Calls);
+            Assert.Equal(
+                CampaignFireService.FailedStatus,
+                (await _context.Campaigns.SingleAsync(c => c.Id == seeded.CampaignId)).Status
+            );
+        }
+
+        [Fact]
         public async Task FireAsync_WorkspacePaused_SetsFailedAndReleases_WithoutSending()
         {
             var seeded = await SeedScheduledCampaignAsync(

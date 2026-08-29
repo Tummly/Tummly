@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Helpers;
 
 namespace TummlyBackend.Services
 {
@@ -53,6 +54,15 @@ namespace TummlyBackend.Services
             if (cached != null)
             {
                 return new BilledAiActionResult.Cached(ToPayload(cached));
+            }
+
+            var lockDeny = await EvaluateOperatorBillingLockAsync(
+                request.RestaurantId,
+                cancellationToken
+            );
+            if (lockDeny != null)
+            {
+                return new BilledAiActionResult.OperatorBillingLocked(lockDeny);
             }
 
             var remaining = await ReadAiRemainingAsync(
@@ -119,6 +129,28 @@ namespace TummlyBackend.Services
             await _context.SaveChangesAsync(cancellationToken);
 
             return new BilledAiActionResult.Succeeded(payload);
+        }
+
+        private async Task<string?> EvaluateOperatorBillingLockAsync(
+            int restaurantId,
+            CancellationToken cancellationToken
+        )
+        {
+            var account = await _context.BillingAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.RestaurantId == restaurantId,
+                    cancellationToken
+                );
+            if (account == null)
+            {
+                return null;
+            }
+
+            return OperatorBillingLockEvaluator.EvaluateSendOrReserveDeny(
+                OperatorBillingLockEvaluator.FromBillingAccount(account),
+                _clock.GetUtcNow().UtcDateTime
+            );
         }
 
         private async Task<int> ReadAiRemainingAsync(

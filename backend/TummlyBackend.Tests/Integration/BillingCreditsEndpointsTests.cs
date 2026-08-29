@@ -1723,6 +1723,79 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("pay", body.GetProperty("outcome").GetString());
         }
 
+        [Fact]
+        public async Task PostPlanChange_Returns403_ChargebackRestricted_OnRestoration()
+        {
+            var seeded = await SeedSoftLockPilotWorkspaceAsync();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var account = await context.BillingAccounts.SingleAsync(
+                    row => row.RestaurantId == seeded.RestaurantId
+                );
+                account.ChargebackRestricted = true;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change"
+            );
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                seeded.OwnerJwt
+            );
+            request.Content = JsonContent.Create(
+                new { targetPlan = "Starter", targetCadence = "monthly" }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "chargeback_restricted",
+                body.GetProperty("code").GetString()
+            );
+            Assert.Equal(
+                "chargeback_restricted",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PostPaymentMethodUpdate_Returns403_ChargebackRestricted()
+        {
+            var seeded = await SeedNamedPaidWorkspaceAsync("Paid Growth Venue Chargeback");
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var account = await context.BillingAccounts.SingleAsync(
+                    row => row.RestaurantId == seeded.RestaurantId
+                );
+                account.ChargebackRestricted = true;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/billing-credits/payment-method/update"
+            );
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "chargeback_restricted",
+                body.GetProperty("code").GetString()
+            );
+        }
+
         private Task<Seeded> SeedSoftLockPilotWorkspaceAsync()
         {
             return SeedWorkspaceAsync(restaurantName: "Soft lock Billing Venue");

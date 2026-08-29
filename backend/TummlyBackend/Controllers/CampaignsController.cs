@@ -726,6 +726,16 @@ namespace TummlyBackend.Controllers
                             message =
                                 "This channel has no remaining credits. Schedule and send stay blocked on this channel.",
                         }),
+                    CampaignScheduleCommitResult.OperatorBillingLocked locked =>
+                        StatusCode(
+                            StatusCodes.Status403Forbidden,
+                            new
+                            {
+                                success = false,
+                                code = locked.Code,
+                                message = locked.Code,
+                            }
+                        ),
                     CampaignScheduleCommitResult.InsufficientCredits insufficient =>
                         UnprocessableEntity(new
                         {
@@ -966,6 +976,16 @@ namespace TummlyBackend.Controllers
                         message =
                             "This channel has no remaining credits. Resume and retry stay blocked on this channel.",
                     }),
+                CampaignLifecycleResult.OperatorBillingLocked locked =>
+                    StatusCode(
+                        StatusCodes.Status403Forbidden,
+                        new
+                        {
+                            success = false,
+                            code = locked.Code,
+                            message = locked.Code,
+                        }
+                    ),
                 CampaignLifecycleResult.InsufficientCredits insufficient =>
                     UnprocessableEntity(new
                     {

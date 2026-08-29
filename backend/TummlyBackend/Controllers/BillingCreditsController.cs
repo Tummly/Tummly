@@ -133,19 +133,26 @@ namespace TummlyBackend.Controllers
                 return forbidden;
             }
 
-            var session = await _billingCredits.CreatePaymentMethodUpdateSessionAsync(
-                manage.RestaurantId
-            );
-            if (session == null)
+            try
             {
-                return NotFound(new
+                var session = await _billingCredits.CreatePaymentMethodUpdateSessionAsync(
+                    manage.RestaurantId
+                );
+                if (session == null)
                 {
-                    success = false,
-                    message = "Restaurant not found.",
-                });
-            }
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Restaurant not found.",
+                    });
+                }
 
-            return Ok(session);
+                return Ok(session);
+            }
+            catch (InvalidOperationException ex) when (IsOperatorBillingLockCode(ex.Message))
+            {
+                return OperatorBillingLockForbidden(ex.Message);
+            }
         }
 
         [HttpGet("usage")]
@@ -232,10 +239,12 @@ namespace TummlyBackend.Controllers
                 });
             }
             catch (InvalidOperationException ex) when (
-                ex.Message is "forbidden" or "soft_lock" or "dormant"
+                IsOperatorBillingLockCode(ex.Message) || ex.Message == "forbidden"
             )
             {
-                return Forbid();
+                return OperatorBillingLockForbidden(
+                    ex.Message == "forbidden" ? "forbidden" : ex.Message
+                );
             }
         }
 
@@ -481,6 +490,20 @@ namespace TummlyBackend.Controllers
                 );
             }
             catch (ExtraGroupLocationException ex) when (
+                OperatorBillingLockEvaluator.IsLockCode(ex.Code)
+            )
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        code = ex.Code,
+                        message = ex.Code,
+                    }
+                );
+            }
+            catch (ExtraGroupLocationException ex) when (
                 ex.Code == ExtraGroupLocationService.BillingStatusNotActiveCode
             )
             {
@@ -571,10 +594,12 @@ namespace TummlyBackend.Controllers
                 return Ok(result);
             }
             catch (InvalidOperationException ex) when (
-                ex.Message is "forbidden" or "soft_lock" or "dormant"
+                IsOperatorBillingLockCode(ex.Message) || ex.Message == "forbidden"
             )
             {
-                return Forbid();
+                return OperatorBillingLockForbidden(
+                    ex.Message == "forbidden" ? "forbidden" : ex.Message
+                );
             }
             catch (InvalidOperationException ex) when (ex.Message == "cancel_not_available")
             {
@@ -585,6 +610,36 @@ namespace TummlyBackend.Controllers
                     message = "Cancel plan is not available.",
                 });
             }
+        }
+
+        private static bool IsOperatorBillingLockCode(string message)
+        {
+            return message
+                is OperatorBillingLockEvaluator.SoftLock
+                    or OperatorBillingLockEvaluator.Dormant
+                    or OperatorBillingLockEvaluator.ChargebackRestricted
+                    or OperatorBillingLockEvaluator.PastDueSendsBlocked;
+        }
+
+        private ObjectResult OperatorBillingLockForbidden(string code)
+        {
+            if (code == "forbidden")
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new { success = false, message = "forbidden" }
+                );
+            }
+
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                new
+                {
+                    success = false,
+                    code,
+                    message = code,
+                }
+            );
         }
 
     }

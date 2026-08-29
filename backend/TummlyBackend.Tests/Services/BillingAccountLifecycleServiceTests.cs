@@ -245,6 +245,154 @@ namespace TummlyBackend.Tests.Services
             Assert.False(account.PilotSoftLockNotified);
         }
 
+        [Fact]
+        public async Task Tick_DormantEnter_ReleasesOpenHoldsThenExpiresUnheldPilot()
+        {
+            var periodEnd = new DateTime(2026, 8, 1, 12, 0, 0, DateTimeKind.Utc);
+            var now = periodEnd.AddHours(BillingAccountLifecycleService.PilotDormantHours);
+            var seeded = await SeedPilotAsync(periodEnd);
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = seeded.RestaurantId,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.RestaurantLocations.Add(location);
+            await _context.SaveChangesAsync();
+
+            var pilotGrantId = Guid.NewGuid();
+            var includedGrantId = Guid.NewGuid();
+            var reservationRef = Guid.NewGuid().ToString("D");
+            _context.CreditLedgerEntries.AddRange(
+                new CreditLedgerEntry
+                {
+                    Id = pilotGrantId,
+                    RestaurantId = seeded.RestaurantId,
+                    Channel = CreditChannels.Sms,
+                    EntryType = CreditLedgerEntryTypes.PilotAllocation,
+                    Quantity = 100,
+                    CreatedAtUtc = periodEnd.AddDays(-20),
+                    ExpiresAtUtc = periodEnd.AddDays(40),
+                },
+                new CreditLedgerEntry
+                {
+                    Id = includedGrantId,
+                    RestaurantId = seeded.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    EntryType = CreditLedgerEntryTypes.IncludedAllocation,
+                    Quantity = 50,
+                    CreatedAtUtc = periodEnd.AddDays(-5),
+                    ExpiresAtUtc = periodEnd.AddDays(25),
+                    PeriodStartUtc = periodEnd.AddDays(-5),
+                    PricebookVersion = "TUMMLY-UK-GBP-2026-08-V3",
+                },
+                new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = seeded.RestaurantId,
+                    Channel = CreditChannels.Sms,
+                    EntryType = CreditLedgerEntryTypes.Reservation,
+                    Quantity = 10,
+                    AllocationId = pilotGrantId,
+                    ReservationRef = reservationRef,
+                    LocationId = location.Id,
+                    CreatedAtUtc = periodEnd.AddDays(-1),
+                }
+            );
+
+            var campaign = new Campaign
+            {
+                RestaurantLocationId = location.Id,
+                Name = "Held Campaign",
+                Status = "scheduled",
+                Channel = "sms",
+                AudienceKey = "all",
+                OfferStance = "none",
+                MessageBody = "Hello",
+                BillingReservationRef = reservationRef,
+                ReservedEstimate = 10,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+            _context.Campaigns.Add(campaign);
+            await _context.SaveChangesAsync();
+
+            await _lifecycle.TickAsync(seeded.RestaurantId, now);
+
+            Assert.Equal(
+                BillingStatuses.Dormant,
+                (await ReloadAsync(seeded.RestaurantId)).BillingStatus
+            );
+
+            var entries = await _context.CreditLedgerEntries
+                .Where(row => row.RestaurantId == seeded.RestaurantId)
+                .ToListAsync();
+            Assert.Contains(
+                entries,
+                row =>
+                    row.EntryType == CreditLedgerEntryTypes.Release
+                    && row.ReservationRef == reservationRef
+                    && row.Quantity == 10
+            );
+            Assert.Contains(
+                entries,
+                row =>
+                    row.EntryType == CreditLedgerEntryTypes.Expiry
+                    && row.AllocationId == pilotGrantId
+                    && row.Quantity == 100
+            );
+            Assert.DoesNotContain(
+                entries,
+                row =>
+                    row.EntryType == CreditLedgerEntryTypes.Expiry
+                    && row.AllocationId == includedGrantId
+            );
+
+            _context.ChangeTracker.Clear();
+            var reloadedCampaign = await _context.Campaigns.SingleAsync(
+                row => row.Id == campaign.Id
+            );
+            Assert.Null(reloadedCampaign.BillingReservationRef);
+        }
+
+        [Fact]
+        public async Task Tick_SoftLockEnter_DoesNotExpirePilotLeftover()
+        {
+            var now = new DateTime(2026, 8, 28, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddHours(-1);
+            var seeded = await SeedPilotAsync(periodEnd);
+
+            var pilotGrantId = Guid.NewGuid();
+            _context.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = pilotGrantId,
+                    RestaurantId = seeded.RestaurantId,
+                    Channel = CreditChannels.Ai,
+                    EntryType = CreditLedgerEntryTypes.PilotAllocation,
+                    Quantity = 40,
+                    CreatedAtUtc = periodEnd.AddDays(-10),
+                    ExpiresAtUtc = periodEnd.AddDays(20),
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            await _lifecycle.TickAsync(seeded.RestaurantId, now);
+
+            Assert.Equal(
+                BillingStatuses.SoftLock,
+                (await ReloadAsync(seeded.RestaurantId)).BillingStatus
+            );
+            Assert.DoesNotContain(
+                await _context.CreditLedgerEntries
+                    .Where(row => row.RestaurantId == seeded.RestaurantId)
+                    .ToListAsync(),
+                row => row.EntryType == CreditLedgerEntryTypes.Expiry
+            );
+        }
+
         private async Task<SeededAccount> SeedPilotAsync(DateTime periodEnd)
         {
             var owner = new User

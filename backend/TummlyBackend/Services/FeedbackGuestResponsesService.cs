@@ -88,6 +88,11 @@ namespace TummlyBackend.Services
                 channel
             );
 
+            await EnsureOperatorBillingAllowsSendAsync(
+                feedback.RestaurantLocationId,
+                cancellationToken
+            );
+
             if (channel == FeedbackGuestResponseChannel.Email)
             {
                 return await SendEmailAsync(
@@ -559,6 +564,42 @@ namespace TummlyBackend.Services
             {
                 _context.RecoverySmsSendIdempotencies.Remove(open);
                 await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        private async Task EnsureOperatorBillingAllowsSendAsync(
+            int locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            var restaurantId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == locationId)
+                .Select(row => row.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (restaurantId == 0)
+            {
+                return;
+            }
+
+            var account = await _context.BillingAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.RestaurantId == restaurantId,
+                    cancellationToken
+                );
+            if (account == null)
+            {
+                return;
+            }
+
+            var deny = OperatorBillingLockEvaluator.EvaluateSendOrReserveDeny(
+                OperatorBillingLockEvaluator.FromBillingAccount(account),
+                _clock.GetUtcNow().UtcDateTime
+            );
+            if (deny != null)
+            {
+                throw new OperatorBillingLockedException(deny);
             }
         }
 

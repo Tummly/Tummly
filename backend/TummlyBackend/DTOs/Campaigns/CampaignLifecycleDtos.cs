@@ -133,6 +133,11 @@ namespace TummlyBackend.DTOs.Campaigns
             public int Requested { get; init; }
         }
 
+        public sealed class OperatorBillingLocked : CampaignLifecycleResult
+        {
+            public required string Code { get; init; }
+        }
+
         public sealed class Deleted : CampaignLifecycleResult
         {
         }

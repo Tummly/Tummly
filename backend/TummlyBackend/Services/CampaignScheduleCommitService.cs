@@ -191,6 +191,18 @@ namespace TummlyBackend.Services
                 };
             }
 
+            var lockDeny = await EvaluateOperatorBillingLockAsync(
+                restaurantId,
+                cancellationToken
+            );
+            if (lockDeny != null)
+            {
+                return new CampaignScheduleCommitResult.OperatorBillingLocked
+                {
+                    Code = lockDeny,
+                };
+            }
+
             var snapshot = await _creditBalance.GetAccountAsync(
                 restaurantId,
                 cancellationToken
@@ -422,6 +434,28 @@ namespace TummlyBackend.Services
             {
                 Message = code,
             };
+        }
+
+        private async Task<string?> EvaluateOperatorBillingLockAsync(
+            int restaurantId,
+            CancellationToken cancellationToken
+        )
+        {
+            var account = await _context.BillingAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.RestaurantId == restaurantId,
+                    cancellationToken
+                );
+            if (account == null)
+            {
+                return null;
+            }
+
+            return OperatorBillingLockEvaluator.EvaluateSendOrReserveDeny(
+                OperatorBillingLockEvaluator.FromBillingAccount(account),
+                _utcNow()
+            );
         }
 
         private static CampaignScheduleCommitDto ToDto(

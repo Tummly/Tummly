@@ -37,18 +37,33 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            var enteredDormant = false;
             var pending = await MutateAsync(
                 restaurantId,
                 cancellationToken,
                 async account =>
                 {
+                    var wasDormant = account.BillingStatus == BillingStatuses.Dormant;
                     await EnsurePilotPeriodEndAsync(account, cancellationToken);
                     var events = new List<LifecycleEvent>();
                     AdvanceUnpaidPilot(account, now, events);
                     AdvanceDunning(account, now, events);
+                    enteredDormant =
+                        !wasDormant
+                        && account.BillingStatus == BillingStatuses.Dormant;
                     return events;
                 }
             );
+
+            if (enteredDormant)
+            {
+                await ReleaseAllOpenHoldsAsync(restaurantId, now, cancellationToken);
+                await ExpireUnheldPilotLeftoverAsync(
+                    restaurantId,
+                    now,
+                    cancellationToken
+                );
+            }
 
             await DispatchAsync(restaurantId, pending, cancellationToken);
         }
@@ -495,6 +510,142 @@ namespace TummlyBackend.Services
 
         private static string EncodeFired(IEnumerable<int> steps) =>
             string.Join(',', steps.OrderBy(step => step));
+
+        private async Task ReleaseAllOpenHoldsAsync(
+            int restaurantId,
+            DateTime nowUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            var entries = await _context.CreditLedgerEntries
+                .Where(row => row.RestaurantId == restaurantId)
+                .ToListAsync(cancellationToken);
+
+            var openRefs = entries
+                .Where(row =>
+                    row.EntryType == CreditLedgerEntryTypes.Reservation
+                    && !string.IsNullOrWhiteSpace(row.ReservationRef)
+                )
+                .Select(row => row.ReservationRef!)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
+            var releasedRefs = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var reservationRef in openRefs)
+            {
+                var slices = CreditLedgerCalculator.ReservationSlices(
+                    entries,
+                    reservationRef
+                );
+                if (CreditLedgerCalculator.IsReservationClosed(slices))
+                {
+                    continue;
+                }
+
+                var sample = entries.First(row =>
+                    row.EntryType == CreditLedgerEntryTypes.Reservation
+                    && row.ReservationRef == reservationRef
+                );
+
+                foreach (var slice in slices.Where(row => row.RemainingHold > 0))
+                {
+                    var release = new CreditLedgerEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        RestaurantId = restaurantId,
+                        Channel = sample.Channel,
+                        EntryType = CreditLedgerEntryTypes.Release,
+                        Quantity = slice.RemainingHold,
+                        AllocationId = slice.AllocationId,
+                        ReservationRef = reservationRef,
+                        LocationId = sample.LocationId,
+                        CreatedAtUtc = nowUtc,
+                    };
+                    entries.Add(release);
+                    _context.CreditLedgerEntries.Add(release);
+                }
+
+                releasedRefs.Add(reservationRef);
+            }
+
+            if (releasedRefs.Count == 0)
+            {
+                return;
+            }
+
+            var campaigns = await _context.Campaigns
+                .Where(row =>
+                    row.RestaurantLocation!.RestaurantId == restaurantId
+                    && row.BillingReservationRef != null
+                    && releasedRefs.Contains(row.BillingReservationRef)
+                )
+                .ToListAsync(cancellationToken);
+            foreach (var campaign in campaigns)
+            {
+                campaign.BillingReservationRef = null;
+                campaign.ReservedEstimate = null;
+                campaign.SettledUnits = 0;
+            }
+
+            var guestResponses = await _context.FeedbackGuestResponses
+                .Where(row =>
+                    row.BillingReservationRef != null
+                    && releasedRefs.Contains(row.BillingReservationRef)
+                    && row.Feedback!.RestaurantLocation!.RestaurantId
+                        == restaurantId
+                )
+                .ToListAsync(cancellationToken);
+            foreach (var response in guestResponses)
+            {
+                response.BillingReservationRef = null;
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        private async Task ExpireUnheldPilotLeftoverAsync(
+            int restaurantId,
+            DateTime nowUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            var entries = await _context.CreditLedgerEntries
+                .Where(row => row.RestaurantId == restaurantId)
+                .ToListAsync(cancellationToken);
+            var states = CreditLedgerCalculator.Project(entries, nowUtc);
+            var written = 0;
+
+            foreach (var state in states.Where(row =>
+                row.EntryType == CreditLedgerEntryTypes.PilotAllocation
+            ))
+            {
+                var unheldLeftover = state.Remaining - state.Held;
+                if (unheldLeftover <= 0)
+                {
+                    continue;
+                }
+
+                var grant = entries.First(row => row.Id == state.Id);
+                var expiry = new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = grant.RestaurantId,
+                    Channel = grant.Channel,
+                    EntryType = CreditLedgerEntryTypes.Expiry,
+                    Quantity = unheldLeftover,
+                    AllocationId = grant.Id,
+                    CreatedAtUtc = nowUtc,
+                };
+                entries.Add(expiry);
+                _context.CreditLedgerEntries.Add(expiry);
+                written++;
+            }
+
+            if (written > 0)
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
 
         private abstract record LifecycleEvent
         {

@@ -44,6 +44,17 @@ namespace TummlyBackend.Helpers
                         retryable = false,
                     }
                 ),
+                BilledAiActionResult.OperatorBillingLocked locked => new ObjectResult(
+                    new
+                    {
+                        success = false,
+                        code = locked.Code,
+                        message = locked.Code,
+                    }
+                )
+                {
+                    StatusCode = StatusCodes.Status403Forbidden,
+                },
                 _ => new ObjectResult(
                     new
                     {
