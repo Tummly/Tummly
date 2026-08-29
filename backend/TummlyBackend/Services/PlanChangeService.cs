@@ -183,14 +183,14 @@ namespace TummlyBackend.Services
                 return string.Empty;
             }
 
-            if (billingAccount.ScheduledCancelPlan)
-            {
-                return $"Cancels on {renewalDateLabel}";
-            }
-
             var date = renewalDateLabel.StartsWith("Renews ", StringComparison.Ordinal)
                 ? renewalDateLabel["Renews ".Length..]
                 : renewalDateLabel;
+
+            if (billingAccount.ScheduledCancelPlan)
+            {
+                return $"Cancels on {date}";
+            }
 
             var livePlan = billingAccount.SubscriptionPlan;
             var targetPlan = billingAccount.ScheduledTargetSubscriptionPlan ?? livePlan;
