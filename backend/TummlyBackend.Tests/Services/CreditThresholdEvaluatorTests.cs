@@ -225,7 +225,15 @@ namespace TummlyBackend.Tests.Services
             var ledger = new CreditLedgerService(
                 context,
                 _clock,
-                new StubPricebookCatalog(),
+                new StubPricebookCatalog(
+                    new TummlyBackend.Billing.Pricebook.PricebookChannelCredits
+                    {
+                        Email = 100,
+                        Sms = 100,
+                        Ai = 100,
+                    },
+                    PricebookId
+                ),
                 evaluator
             );
 
@@ -354,6 +362,15 @@ namespace TummlyBackend.Tests.Services
             }
 
             public Task NotifyUnpaidPilotLockEnterAsync(
+                int restaurantId,
+                string episodeKey,
+                CancellationToken cancellationToken = default
+            )
+            {
+                return Task.CompletedTask;
+            }
+
+            public Task NotifyUnpaidPilotDormantEnterAsync(
                 int restaurantId,
                 string episodeKey,
                 CancellationToken cancellationToken = default
