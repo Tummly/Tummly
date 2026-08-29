@@ -631,7 +631,12 @@ namespace TummlyBackend.Tests.Integration
             );
             await db.SaveChangesAsync();
 
-            return new SeededPending(restaurant.Id, intentId, subscriptionId);
+            return new SeededPending(
+                restaurant.Id,
+                intentId,
+                subscriptionId,
+                OwnerJwt: string.Empty
+            );
         }
 
         private sealed record SeededPending(
