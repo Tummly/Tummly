@@ -2,8 +2,10 @@ namespace TummlyBackend.Interfaces
 {
     /// <summary>
     /// Side effects for a verified <c>ORDER_COMPLETED</c> with retrieve
-    /// <c>state: completed</c>. Ticket 15 ships a no-op; ticket 16+ mints
-    /// and applies payment inside the same claim transaction.
+    /// <c>state: completed</c> and a mintable <c>billing_reason</c>
+    /// (<c>setup_intent</c> / <c>cycle_billing</c>). Applies payment then
+    /// <see cref="IIncludedPeriodMintService.MintOnOrderCompletedAsync"/>
+    /// inside the webhook claim transaction (ticket 16).
     /// </summary>
     public interface IRevolutOrderCompletedApplier
     {

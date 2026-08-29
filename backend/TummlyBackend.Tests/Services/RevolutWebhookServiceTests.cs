@@ -20,6 +20,7 @@ namespace TummlyBackend.Tests.Services
                     Succeeded: true,
                     Id: "ord_rollback",
                     State: "completed",
+                    BillingReason: "setup_intent",
                     RawBody: """{"id":"ord_rollback","state":"completed"}"""
                 )
             );

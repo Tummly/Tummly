@@ -35,5 +35,8 @@ namespace TummlyBackend.Models
         public const string SkippedTerminal = "skipped_terminal";
 
         public const string Applied = "applied";
+
+        public const string SkippedUnknownBillingReason =
+            "skipped_unknown_billing_reason";
     }
 }

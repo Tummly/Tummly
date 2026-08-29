@@ -530,7 +530,7 @@ builder.Services.AddScoped<
 >();
 builder.Services.AddScoped<
     IRevolutOrderCompletedApplier,
-    NoOpRevolutOrderCompletedApplier
+    RevolutOrderCompletedApplier
 >();
 builder.Services.AddScoped<IRevolutWebhookService, RevolutWebhookService>();
 builder.Services.AddScoped<IBillingCreditsService, BillingCreditsService>();

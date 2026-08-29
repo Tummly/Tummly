@@ -125,6 +125,193 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task PostWebhook_SetupIntent_ActivatesOnce_AndMintsIncluded()
+        {
+            await using var factory = new RevolutWebhookWebApplicationFactory();
+            var seeded = await SeedPilotWithPendingAsync(factory, "ord_setup_once");
+            factory.Merchant.Orders["ord_setup_once"] = new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: "ord_setup_once",
+                State: "completed",
+                BillingReason: "setup_intent",
+                SubscriptionId: seeded.SubscriptionId,
+                RawBody: """{"id":"ord_setup_once","state":"completed"}"""
+            );
+            var client = factory.CreateClient();
+            var body = OrderCompletedBody("ord_setup_once");
+
+            var response = await SendSignedAsync(client, body);
+
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var account = await db.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal(BillingSubscriptionPlans.Starter, account.SubscriptionPlan);
+            Assert.Equal(BillingStatuses.Active, account.BillingStatus);
+            Assert.Equal(BillingCycles.Monthly, account.BillingCycle);
+            Assert.NotNull(account.RenewalDateUtc);
+            var claim = await db.RevolutWebhookEventClaims.SingleAsync();
+            Assert.Equal(RevolutWebhookClaimDispositions.Applied, claim.Disposition);
+            Assert.True(
+                await db.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
+                ) >= 1
+            );
+            Assert.False(
+                await db.RevolutPendingPaySessions
+                    .Where(row => row.Id == seeded.PendingId)
+                    .Select(row => row.IsOpen)
+                    .SingleAsync()
+            );
+        }
+
+        [Fact]
+        public async Task PostWebhook_SetupIntent_Replay_Returns204_WithoutSecondMint()
+        {
+            await using var factory = new RevolutWebhookWebApplicationFactory();
+            var seeded = await SeedPilotWithPendingAsync(factory, "ord_setup_replay");
+            factory.Merchant.Orders["ord_setup_replay"] = new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: "ord_setup_replay",
+                State: "completed",
+                BillingReason: "setup_intent",
+                SubscriptionId: seeded.SubscriptionId,
+                RawBody: """{"id":"ord_setup_replay","state":"completed"}"""
+            );
+            var client = factory.CreateClient();
+            var body = OrderCompletedBody("ord_setup_replay");
+
+            Assert.Equal(
+                HttpStatusCode.NoContent,
+                (await SendSignedAsync(client, body)).StatusCode
+            );
+            Assert.Equal(
+                HttpStatusCode.NoContent,
+                (await SendSignedAsync(client, body)).StatusCode
+            );
+
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(1, await db.RevolutWebhookEventClaims.CountAsync());
+            var mintCount = await db.CreditLedgerEntries.CountAsync(row =>
+                row.RestaurantId == seeded.RestaurantId
+                && row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
+            );
+            Assert.Equal(3, mintCount);
+            Assert.Equal(1, factory.Merchant.GetOrderCallCount);
+        }
+
+        [Fact]
+        public async Task PostWebhook_UnknownBillingReason_Skips_NoMint()
+        {
+            await using var factory = new RevolutWebhookWebApplicationFactory();
+            var seeded = await SeedPilotWithPendingAsync(factory, "ord_unknown");
+            factory.Merchant.Orders["ord_unknown"] = new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: "ord_unknown",
+                State: "completed",
+                BillingReason: "final_settlement",
+                SubscriptionId: seeded.SubscriptionId,
+                RawBody: """{"id":"ord_unknown","state":"completed"}"""
+            );
+            var client = factory.CreateClient();
+            var body = OrderCompletedBody("ord_unknown");
+
+            var response = await SendSignedAsync(client, body);
+
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var claim = await db.RevolutWebhookEventClaims.SingleAsync();
+            Assert.Equal(
+                RevolutWebhookClaimDispositions.SkippedUnknownBillingReason,
+                claim.Disposition
+            );
+            var account = await db.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
+            Assert.Equal(BillingStatuses.Pilot, account.BillingStatus);
+            Assert.Equal(
+                0,
+                await db.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
+                )
+            );
+        }
+
+        private static async Task<SeededPending> SeedPilotWithPendingAsync(
+            RevolutWebhookWebApplicationFactory factory,
+            string setupOrderId
+        )
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var pricebook = scope.ServiceProvider.GetRequiredService<IPricebookCatalog>();
+            var now = DateTime.UtcNow;
+            var owner = new User
+            {
+                Email = $"{Guid.NewGuid():N}@example.com",
+                PasswordHash = "x",
+                FullName = "Webhook Owner",
+                Role = "Owner",
+                CreatedAt = now,
+            };
+            db.Users.Add(owner);
+            await db.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Webhook Pilot Venue",
+                AccountType = "Single",
+                OwnerUserId = owner.Id,
+                BillingContactUserId = owner.Id,
+                PrivacyContactUserId = owner.Id,
+                SupportContactUserId = owner.Id,
+                CreatedAt = now,
+            };
+            db.Restaurants.Add(restaurant);
+            await db.SaveChangesAsync();
+
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                pricebook.CurrentPricebookId
+            );
+            db.BillingAccounts.Add(billing);
+
+            var subscriptionId = $"sub_{setupOrderId}";
+            var pendingId = Guid.NewGuid();
+            db.RevolutPendingPaySessions.Add(
+                new RevolutPendingPaySession
+                {
+                    Id = pendingId,
+                    RestaurantId = restaurant.Id,
+                    TargetPlan = BillingSubscriptionPlans.Starter,
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = subscriptionId,
+                    SetupOrderId = setupOrderId,
+                    CheckoutUrl = "https://checkout.revolut.test/pay",
+                    IdempotencyKey = Guid.NewGuid().ToString("D"),
+                    IsOpen = true,
+                    CreatedAtUtc = now,
+                }
+            );
+            await db.SaveChangesAsync();
+
+            return new SeededPending(restaurant.Id, pendingId, subscriptionId);
+        }
+
+        private sealed record SeededPending(
+            int RestaurantId,
+            Guid PendingId,
+            string SubscriptionId
+        );
+
         private static async Task<HttpResponseMessage> SendSignedAsync(
             HttpClient client,
             string body
@@ -165,7 +352,7 @@ namespace TummlyBackend.Tests.Integration
                 Succeeded: true,
                 Id: orderId,
                 State: "completed",
-                BillingReason: "setup_intent",
+                BillingReason: null,
                 RawBody: $$"""{"id":"{{orderId}}","state":"completed"}"""
             );
         }

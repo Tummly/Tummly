@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
@@ -50,18 +51,23 @@ namespace TummlyBackend.Services
         private readonly IRevolutMerchantClient _merchant;
         private readonly IRevolutOrderCompletedApplier _applier;
         private readonly RevolutSettings _settings;
+        private readonly ILogger<RevolutWebhookService> _logger;
 
         public RevolutWebhookService(
             ApplicationDbContext context,
             IRevolutMerchantClient merchant,
             IRevolutOrderCompletedApplier applier,
-            IOptions<RevolutSettings> settings
+            IOptions<RevolutSettings> settings,
+            ILogger<RevolutWebhookService>? logger = null
         )
         {
             _context = context;
             _merchant = merchant;
             _applier = applier;
             _settings = settings.Value;
+            _logger =
+                logger
+                ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<RevolutWebhookService>.Instance;
         }
 
         public async Task<RevolutWebhookHandleResult> HandleAsync(
@@ -204,6 +210,22 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            var reason = retrieved.BillingReason?.Trim() ?? string.Empty;
+            var mintReason =
+                string.Equals(
+                    reason,
+                    RevolutOrderCompletedApplier.SetupIntent,
+                    StringComparison.Ordinal
+                )
+                || string.Equals(
+                    reason,
+                    RevolutOrderCompletedApplier.CycleBilling,
+                    StringComparison.Ordinal
+                );
+            var disposition = mintReason
+                ? RevolutWebhookClaimDispositions.Applied
+                : RevolutWebhookClaimDispositions.SkippedUnknownBillingReason;
+
             await using var transaction =
                 await _context.Database.BeginTransactionAsync(cancellationToken);
 
@@ -230,23 +252,34 @@ namespace TummlyBackend.Services
                         Id = claimId,
                         Event = "ORDER_COMPLETED",
                         ObjectId = orderId,
-                        Disposition = RevolutWebhookClaimDispositions.Applied,
+                        Disposition = disposition,
                         CreatedAtUtc = DateTime.UtcNow,
                     }
                 );
                 await _context.SaveChangesAsync(cancellationToken);
 
-                await _applier.ApplyAsync(
-                    new RevolutOrderCompletedApplyRequest(
-                        OrderId: orderId,
-                        OrderState: state,
-                        BillingReason: retrieved.BillingReason,
-                        SubscriptionId: retrieved.SubscriptionId,
-                        RawWebhookBody: rawBody,
-                        RawOrderBody: retrieved.RawBody ?? string.Empty
-                    ),
-                    cancellationToken
-                );
+                if (!mintReason)
+                {
+                    _logger.LogWarning(
+                        "Revolut ORDER_COMPLETED skipped unknown billing_reason {BillingReason} for order {OrderId}",
+                        string.IsNullOrEmpty(reason) ? "(missing)" : reason,
+                        orderId
+                    );
+                }
+                else
+                {
+                    await _applier.ApplyAsync(
+                        new RevolutOrderCompletedApplyRequest(
+                            OrderId: orderId,
+                            OrderState: state,
+                            BillingReason: retrieved.BillingReason,
+                            SubscriptionId: retrieved.SubscriptionId,
+                            RawWebhookBody: rawBody,
+                            RawOrderBody: retrieved.RawBody ?? string.Empty
+                        ),
+                        cancellationToken
+                    );
+                }
 
                 await _context.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
