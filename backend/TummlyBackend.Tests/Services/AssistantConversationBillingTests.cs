@@ -173,6 +173,66 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             )
                 => Task.FromResult(CreditLedgerWriteResult.Fail("insufficient_credits"));
+
+            public Task<CreditLedgerWriteResult> ReserveAsync(
+                CreditLedgerReserveRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerWriteResult> SettleAsync(
+                CreditLedgerSettleRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerWriteResult> ReleaseAsync(
+                CreditLedgerReleaseRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerWriteResult> StaffManualAdjustAsync(
+                StaffManualAdjustRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerWriteResult> StaffReverseAsync(
+                StaffReverseRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerMintTopupResult> MintTopupAllocationAsync(
+                CreditLedgerMintTopupRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult(CreditLedgerMintTopupResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerDrainTopupResult> DrainUnusedTopupAsync(
+                CreditLedgerDrainTopupRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult(CreditLedgerDrainTopupResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerRestoreTopupResult> RestoreUnusedTopupAsync(
+                CreditLedgerRestoreTopupRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult(CreditLedgerRestoreTopupResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerWriteResult> ReleaseHeldAsync(
+                CreditLedgerReleaseHeldRequest request,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerWriteResult> MintPilotAtActivationAsync(
+                int restaurantId,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
         }
     }
 }

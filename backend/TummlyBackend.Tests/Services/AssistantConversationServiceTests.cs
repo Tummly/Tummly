@@ -84,7 +84,11 @@ namespace TummlyBackend.Tests.Services
             _homeRecommendation = new ControllableHomeRecommendation();
             _weeklyBriefGenerate = new ControllableWeeklyBriefGenerate();
             _clock = new ManualTimeProvider(_now);
-            _creditLedger = new CreditLedgerService(_context, _clock);
+            _creditLedger = new CreditLedgerService(
+                _context,
+                _clock,
+                TestPricebookPaths.LoadV3()
+            );
             _creditSnapshot = new CreditBalanceSnapshotService(_context, _clock);
             _aiBilling = new AssistantAiBillingService(
                 _context,
