@@ -141,6 +141,54 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("sub_confirm_never", merchant.LastCancelledSubscriptionId);
         }
 
+        [Fact]
+        public async Task Adapter_CancelNative_ClosesOpenPaySessions_ForSubscription()
+        {
+            var merchant = new RecordingCancelMerchant();
+            var context = CreateContext();
+            var restaurant = new Restaurant
+            {
+                Name = "Sync Cancel Cafe",
+                AccountType = "Single",
+                OwnerUserId = 1,
+                CreatedAt = _now,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurant.Id,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                )
+            );
+            var sessionId = Guid.NewGuid();
+            context.RevolutPendingPaySessions.Add(
+                new RevolutPendingPaySession
+                {
+                    Id = sessionId,
+                    RestaurantId = restaurant.Id,
+                    TargetPlan = BillingSubscriptionPlans.Growth,
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = "sub_open_sync",
+                    SetupOrderId = "ord_open",
+                    CheckoutUrl = "https://checkout.revolut.com/open",
+                    IdempotencyKey = "open-key",
+                    IsOpen = true,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var adapter = new RevolutCancelAtPeriodEndAdapter(context, merchant);
+            await adapter.CancelNativeSubscriptionAsync(restaurant.Id);
+
+            Assert.Equal(1, merchant.CancelCallCount);
+            var session = await context.RevolutPendingPaySessions
+                .SingleAsync(row => row.Id == sessionId);
+            Assert.False(session.IsOpen);
+        }
+
         private async Task<Harness> SeedPaidWithSubscriptionAsync(
             RecordingCancelMerchant merchant,
             DateTime utcNow,

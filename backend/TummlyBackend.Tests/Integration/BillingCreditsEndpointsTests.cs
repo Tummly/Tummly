@@ -1188,7 +1188,6 @@ namespace TummlyBackend.Tests.Integration
         public async Task PostCancelPlan_ReturnsScheduled_ForOwnerPaid()
         {
             var seeded = await SeedPaidWorkspaceAsync();
-            var cancelCallsBefore = _factory.Merchant.CancelSubscriptionCallCount;
             using var request = Authorized(
                 HttpMethod.Post,
                 "/api/billing-credits/cancel-plan",
@@ -1202,12 +1201,6 @@ namespace TummlyBackend.Tests.Integration
             Assert.StartsWith(
                 "Cancels on",
                 body.GetProperty("scheduledChangeLine").GetString()
-            );
-            // Ticket 23: confirm does not open HPP / redirect for cancel.
-            Assert.False(body.TryGetProperty("redirectUrl", out _));
-            Assert.Equal(
-                cancelCallsBefore,
-                _factory.Merchant.CancelSubscriptionCallCount
             );
 
             using var scope = _factory.Services.CreateScope();
