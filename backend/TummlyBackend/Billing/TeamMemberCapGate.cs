@@ -89,7 +89,7 @@ namespace TummlyBackend.Billing
                 return false;
             }
 
-            // Ticket 26 owns writing PaidExtraLocationCount; until then the row stays 0.
+            // Ticket 26 writes PaidExtraLocationCount on extra-Location apply.
             cap = plan.IncludedTeamMembers
                 + (account.PaidExtraLocationCount * ExtraUsersPerLocation);
             return true;

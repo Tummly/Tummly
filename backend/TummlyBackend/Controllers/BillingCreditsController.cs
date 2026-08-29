@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Controllers
 {
@@ -13,14 +15,17 @@ namespace TummlyBackend.Controllers
     public class BillingCreditsController : ControllerBase
     {
         private readonly IBillingCreditsService _billingCredits;
+        private readonly IExtraGroupLocationService _extraGroupLocation;
         private readonly IRestaurantPermissionHelper _permissions;
 
         public BillingCreditsController(
             IBillingCreditsService billingCredits,
+            IExtraGroupLocationService extraGroupLocation,
             IRestaurantPermissionHelper permissions
         )
         {
             _billingCredits = billingCredits;
+            _extraGroupLocation = extraGroupLocation;
             _permissions = permissions;
         }
 
@@ -403,8 +408,10 @@ namespace TummlyBackend.Controllers
             return Ok(response);
         }
 
-        [HttpPost("extra-location/add")]
-        public async Task<IActionResult> AddExtraGroupLocation()
+        [HttpPost("extra-location")]
+        public async Task<IActionResult> PostExtraLocation(
+            [FromBody] ExtraLocationRequestDto request
+        )
         {
             var unauthorized =
                 OperatorAuth.TryRequireUserId(User, out var userId);
@@ -424,11 +431,29 @@ namespace TummlyBackend.Controllers
                 return forbidden;
             }
 
+            var action = (request?.Action ?? string.Empty).Trim().ToLowerInvariant();
+            if (action == "add")
+            {
+                if (
+                    !Request.Headers.TryGetValue("Idempotency-Key", out var key)
+                    || string.IsNullOrWhiteSpace(key)
+                )
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        code = "idempotency_key_required",
+                        message = "Idempotency-Key header is required.",
+                    });
+                }
+            }
+
             try
             {
-                var result = await _billingCredits.AddExtraGroupLocationAsync(
+                var result = await _extraGroupLocation.SubmitAsync(
                     userId,
-                    manage.RestaurantId
+                    manage.RestaurantId,
+                    action
                 );
                 if (result == null)
                 {
@@ -441,88 +466,70 @@ namespace TummlyBackend.Controllers
 
                 return Ok(result);
             }
-            catch (InvalidOperationException ex) when (
-                ex.Message is "forbidden" or "soft_lock" or "dormant"
+            catch (ExtraGroupLocationException ex) when (
+                ex.Code == ExtraGroupLocationService.BillingWriteNotPermittedCode
             )
             {
-                return Forbid();
-            }
-            catch (InvalidOperationException ex) when (ex.Message == "not-group-plan")
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Additional Group Location is only available on Group.",
-                });
-            }
-            catch (InvalidOperationException ex) when (ex.Message == "location-cap-reached")
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "The Group location cap has been reached.",
-                });
-            }
-        }
-
-        [HttpPost("extra-location/remove")]
-        public async Task<IActionResult> RemoveExtraGroupLocation()
-        {
-            var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
-            if (unauthorized != null)
-            {
-                return unauthorized;
-            }
-
-            var manage = await _permissions.AuthorizeAsync(
-                User,
-                OperatorAreaIds.BillingCredits,
-                PermissionLevel.Manage
-            );
-            var forbidden = manage.ToForbiddenResult();
-            if (forbidden != null)
-            {
-                return forbidden;
-            }
-
-            try
-            {
-                var result = await _billingCredits.RemoveExtraGroupLocationAsync(
-                    userId,
-                    manage.RestaurantId
-                );
-                if (result == null)
-                {
-                    return NotFound(new
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
                     {
                         success = false,
-                        message = "Restaurant not found.",
-                    });
-                }
-
-                return Ok(result);
+                        code = ex.Code,
+                        message = "Only the account owner may change Additional Group Location.",
+                    }
+                );
             }
-            catch (InvalidOperationException ex) when (
-                ex.Message is "forbidden" or "soft_lock" or "dormant"
+            catch (ExtraGroupLocationException ex) when (
+                ex.Code == ExtraGroupLocationService.BillingStatusNotActiveCode
+                || ex.Code == "soft_lock"
+                || ex.Code == "dormant"
             )
             {
-                return Forbid();
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        code = ex.Code,
+                        message = "Billing status does not allow this change.",
+                    }
+                );
             }
-            catch (InvalidOperationException ex) when (ex.Message == "not-group-plan")
+            catch (ExtraGroupLocationException ex) when (
+                ex.Code == ExtraGroupLocationService.ExtraLocationNotGroupCode
+            )
             {
                 return BadRequest(new
                 {
                     success = false,
+                    code = ex.Code,
                     message = "Additional Group Location is only available on Group.",
                 });
             }
-            catch (InvalidOperationException ex) when (ex.Message == "remove-below-floor")
+            catch (ExtraGroupLocationException ex) when (
+                ex.Code == ExtraGroupLocationService.GroupSelfServeMaxReachedCode
+            )
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = ex.Code,
+                    cap = ex.Cap ?? LocationCap.GroupSelfServeMax,
+                    current = ex.Current ?? LocationCap.GroupSelfServeMax,
+                    message = "Group self-serve location cap reached.",
+                });
+            }
+            catch (ExtraGroupLocationException ex) when (
+                ex.Code == ExtraGroupLocationService.RemoveBelowFloorCode
+                || ex.Code == ExtraGroupLocationService.InvalidActionCode
+            )
             {
                 return BadRequest(new
                 {
                     success = false,
-                    message = "Cannot remove an extra Location below the included allowance.",
+                    code = ex.Code,
+                    message = "Cannot apply this Additional Group Location change.",
                 });
             }
         }

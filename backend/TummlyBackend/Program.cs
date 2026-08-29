@@ -497,6 +497,7 @@ else
     builder.Services.AddScoped<IRecoveryGuestSmsDelivery, TwilioRecoveryGuestSmsDelivery>();
 }
 builder.Services.AddScoped<IBillingCreditsService, BillingCreditsService>();
+builder.Services.AddScoped<IExtraGroupLocationService, ExtraGroupLocationService>();
 builder.Services.AddScoped<IBillingAccountLifecycle, BillingAccountLifecycleService>();
 builder.Services.AddScoped<
     IBillingAccountNoticeNotifier,

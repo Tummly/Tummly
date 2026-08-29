@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.Helpers;
@@ -515,69 +516,17 @@ namespace TummlyBackend.Services
         }
 
         public static bool CanRemoveExtraGroupLocation(
-            int includedLocations,
+            int paidExtraLocationCount,
+            int entitledAfterRemove,
             int activeLocations
         )
         {
-            if (includedLocations <= GroupIncludedLocations)
+            if (paidExtraLocationCount < 1)
             {
                 return false;
             }
 
-            return includedLocations - 1 >= activeLocations;
-        }
-
-        public async Task<ExtraLocationResultDto?> AddExtraGroupLocationAsync(
-            int userId,
-            int restaurantId
-        )
-        {
-            var context = await RequireOwnerGroupPlanContextAsync(userId, restaurantId);
-            if (context == null)
-            {
-                return null;
-            }
-
-            if (context.IncludedLocations >= GroupLocationCap)
-            {
-                throw new InvalidOperationException("location-cap-reached");
-            }
-
-            return new ExtraLocationResultDto
-            {
-                Outcome = "pay",
-                RedirectUrl =
-                    $"https://checkout.revolut.com/pay/example/{restaurantId}/extra-location",
-            };
-        }
-
-        public async Task<ExtraLocationResultDto?> RemoveExtraGroupLocationAsync(
-            int userId,
-            int restaurantId
-        )
-        {
-            var context = await RequireOwnerGroupPlanContextAsync(userId, restaurantId);
-            if (context == null)
-            {
-                return null;
-            }
-
-            if (
-                !CanRemoveExtraGroupLocation(
-                    context.IncludedLocations,
-                    context.ActiveLocations
-                )
-            )
-            {
-                throw new InvalidOperationException("remove-below-floor");
-            }
-
-            return new ExtraLocationResultDto
-            {
-                Outcome = "scheduled",
-                ScheduledChangeLine =
-                    $"Removes 1 Additional Group Location on {context.RenewalDateLabel}",
-            };
+            return entitledAfterRemove >= activeLocations;
         }
 
         public async Task<CancelPlanResultDto?> CancelPlanAsync(
@@ -672,116 +621,18 @@ namespace TummlyBackend.Services
                 )
             )
             {
-                // Stub until ticket 24 stamps paid extra Location count on the row.
-                var restaurantName = await _context.Restaurants
-                    .AsNoTracking()
-                    .Where(row => row.Id == restaurantId)
-                    .Select(row => row.Name)
-                    .FirstAsync();
-                if (
-                    restaurantName.Contains(
-                        "Group Extra",
-                        StringComparison.Ordinal
-                    )
-                )
-                {
-                    includedLocations += 2;
-                }
+                LocationCap.TryResolve(
+                    book,
+                    billingAccount.SubscriptionPlan,
+                    billingAccount.PaidExtraLocationCount,
+                    out includedLocations
+                );
             }
 
             return (
                 billingAccount.SubscriptionPlan,
                 includedLocations,
                 "Renews 15 September 2026"
-            );
-        }
-
-        private async Task<int> CountActiveLocationsAsync(int restaurantId)
-        {
-            return await _context.RestaurantLocations
-                .AsNoTracking()
-                .CountAsync(row => row.RestaurantId == restaurantId);
-        }
-
-        private sealed record OwnerGroupPlanContext(
-            int IncludedLocations,
-            int ActiveLocations,
-            string RenewalDateLabel
-        );
-
-        private async Task<OwnerGroupPlanContext?> RequireOwnerGroupPlanContextAsync(
-            int userId,
-            int restaurantId
-        )
-        {
-            var restaurant = await _context.Restaurants
-                .AsNoTracking()
-                .FirstOrDefaultAsync(row => row.Id == restaurantId);
-
-            if (restaurant == null)
-            {
-                return null;
-            }
-
-            var actorMembership = await _context.RestaurantMemberships
-                .AsNoTracking()
-                .FirstOrDefaultAsync(row =>
-                    row.UserId == userId
-                    && row.RestaurantId == restaurantId
-                    && row.Status == MembershipStatus.Active
-                );
-            var actorRole =
-                actorMembership?.PermissionRole ?? PermissionRoles.Owner;
-
-            if (actorRole != PermissionRoles.Owner)
-            {
-                throw new InvalidOperationException("forbidden");
-            }
-
-            var owner = await _context.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
-
-            var isPilot = await BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
-                _context,
-                restaurantId,
-                owner
-            );
-            if (isPilot)
-            {
-                throw new InvalidOperationException("not-group-plan");
-            }
-
-            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
-                restaurant.Name,
-                owner?.ActivationExpiresAt
-            );
-            if (BillingPlanSnapshotHelper.IsAccountLocked(lifecycle.BillingStatus))
-            {
-                throw new InvalidOperationException(
-                    BillingPlanSnapshotHelper.LockDenyCode(lifecycle.BillingStatus)
-                        ?? "forbidden"
-                );
-            }
-
-            var activeLocations = await CountActiveLocationsAsync(restaurantId);
-            var planContext = await ResolveLivePlanContextAsync(restaurantId);
-
-            if (
-                !string.Equals(
-                    planContext.SubscriptionPlan,
-                    BillingSubscriptionPlans.Group,
-                    StringComparison.OrdinalIgnoreCase
-                )
-            )
-            {
-                throw new InvalidOperationException("not-group-plan");
-            }
-
-            return new OwnerGroupPlanContext(
-                planContext.IncludedLocations,
-                activeLocations,
-                planContext.RenewalDateLabel.Replace("Renews ", "")
             );
         }
 

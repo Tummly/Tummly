@@ -32,12 +32,13 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Theory]
-        [InlineData(5, 5, false)]
-        [InlineData(6, 6, false)]
-        [InlineData(7, 6, true)]
-        [InlineData(7, 7, false)]
+        [InlineData(0, 5, 5, false)]
+        [InlineData(1, 5, 6, false)]
+        [InlineData(2, 6, 6, true)]
+        [InlineData(2, 6, 7, false)]
         public void CanRemoveExtraGroupLocation_MatchesContract(
-            int includedLocations,
+            int paidExtra,
+            int entitledAfterRemove,
             int activeLocations,
             bool expected
         )
@@ -45,7 +46,8 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(
                 expected,
                 BillingCreditsService.CanRemoveExtraGroupLocation(
-                    includedLocations,
+                    paidExtra,
+                    entitledAfterRemove,
                     activeLocations
                 )
             );

@@ -53,16 +53,6 @@ namespace TummlyBackend.Interfaces
                 CreditTopUpRequestDto request
             );
 
-        Task<ExtraLocationResultDto?> AddExtraGroupLocationAsync(
-            int userId,
-            int restaurantId
-        );
-
-        Task<ExtraLocationResultDto?> RemoveExtraGroupLocationAsync(
-            int userId,
-            int restaurantId
-        );
-
         Task<CancelPlanResultDto?> CancelPlanAsync(
             int userId,
             int restaurantId

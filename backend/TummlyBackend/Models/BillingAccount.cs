@@ -70,6 +70,34 @@ namespace TummlyBackend.Models
         public int PaidExtraLocationCount { get; set; }
 
         /// <summary>
+        /// When true, a <see cref="Scheduled change"/> snapshot is pending for the
+        /// <c>Renewal date</c>. Empty slot when false.
+        /// </summary>
+        public bool HasScheduledChange { get; set; }
+
+        /// <summary>
+        /// Target <see cref="SubscriptionPlan"/> for the scheduled snapshot.
+        /// </summary>
+        [MaxLength(32)]
+        public string? ScheduledTargetSubscriptionPlan { get; set; }
+
+        /// <summary>
+        /// Target <see cref="BillingCycle"/> for the scheduled snapshot.
+        /// </summary>
+        [MaxLength(16)]
+        public string? ScheduledTargetBillingCycle { get; set; }
+
+        /// <summary>
+        /// Target <see cref="PaidExtraLocationCount"/> for the scheduled snapshot.
+        /// </summary>
+        public int? ScheduledTargetExtraLocationCount { get; set; }
+
+        /// <summary>
+        /// When true, cancel is exclusive at apply (lock 07).
+        /// </summary>
+        public bool ScheduledCancelPlan { get; set; }
+
+        /// <summary>
         /// Unpaid Pilot clock. Copied from Activation period at Account activation
         /// and on Extend activation. Cleared on <c>ActivatePaidPlan</c>.
         /// </summary>

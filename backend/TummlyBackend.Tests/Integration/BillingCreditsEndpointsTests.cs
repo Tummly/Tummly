@@ -667,36 +667,41 @@ namespace TummlyBackend.Tests.Integration
         public async Task PostExtraLocationAdd_Returns403_ForAdminView()
         {
             var seeded = await SeedGroupWorkspaceAsync();
-            using var request = Authorized(
-                HttpMethod.Post,
-                "/api/billing-credits/extra-location/add",
-                seeded.AdminJwt
+            using var request = AuthorizedExtraLocation(
+                seeded.AdminJwt,
+                "add",
+                withIdempotencyKey: true
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
         [Fact]
-        public async Task PostExtraLocationAdd_Returns403_ForBillingAdminManage()
+        public async Task PostExtraLocationAdd_Returns403_ForNonOwner()
         {
             var seeded = await SeedGroupWorkspaceAsync();
-            using var request = Authorized(
-                HttpMethod.Post,
-                "/api/billing-credits/extra-location/add",
-                seeded.BillingAdminJwt
+            using var request = AuthorizedExtraLocation(
+                seeded.BillingAdminJwt,
+                "add",
+                withIdempotencyKey: true
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "billing_write_not_permitted",
+                body.GetProperty("code").GetString()
+            );
         }
 
         [Fact]
         public async Task PostExtraLocationAdd_ReturnsPayRedirect_ForOwnerGroup()
         {
             var seeded = await SeedGroupWorkspaceAsync();
-            using var request = Authorized(
-                HttpMethod.Post,
-                "/api/billing-credits/extra-location/add",
-                seeded.OwnerJwt
+            using var request = AuthorizedExtraLocation(
+                seeded.OwnerJwt,
+                "add",
+                withIdempotencyKey: true
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -710,39 +715,105 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PostExtraLocationAdd_Returns400_WhenNotGroup()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var request = AuthorizedExtraLocation(
+                seeded.OwnerJwt,
+                "add",
+                withIdempotencyKey: true
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "extra_location_not_group",
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PostExtraLocationAdd_Returns409_AtSelfServeMax()
+        {
+            var seeded = await SeedGroupWorkspaceAsync(paidExtraLocationCount: 25);
+            using var request = AuthorizedExtraLocation(
+                seeded.OwnerJwt,
+                "add",
+                withIdempotencyKey: true
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "group_location_self_serve_max_reached",
+                body.GetProperty("code").GetString()
+            );
+            Assert.Equal(30, body.GetProperty("cap").GetInt32());
+            Assert.Equal(30, body.GetProperty("current").GetInt32());
+        }
+
+        [Fact]
         public async Task PostExtraLocationRemove_Returns403_ForAdminView()
         {
-            var seeded = await SeedGroupWorkspaceAsync(extraLocations: true);
-            using var request = Authorized(
-                HttpMethod.Post,
-                "/api/billing-credits/extra-location/remove",
-                seeded.AdminJwt
+            var seeded = await SeedGroupWorkspaceAsync(paidExtraLocationCount: 2);
+            using var request = AuthorizedExtraLocation(
+                seeded.AdminJwt,
+                "remove",
+                withIdempotencyKey: false
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
         [Fact]
-        public async Task PostExtraLocationRemove_Returns403_ForBillingAdminManage()
+        public async Task PostExtraLocationRemove_Returns403_ForNonOwner()
         {
-            var seeded = await SeedGroupWorkspaceAsync(extraLocations: true);
-            using var request = Authorized(
-                HttpMethod.Post,
-                "/api/billing-credits/extra-location/remove",
-                seeded.BillingAdminJwt
+            var seeded = await SeedGroupWorkspaceAsync(paidExtraLocationCount: 2);
+            using var request = AuthorizedExtraLocation(
+                seeded.BillingAdminJwt,
+                "remove",
+                withIdempotencyKey: false
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PostExtraLocationRemove_Schedules_ForOwnerGroup()
+        {
+            var seeded = await SeedGroupWorkspaceAsync(paidExtraLocationCount: 2);
+            using var request = AuthorizedExtraLocation(
+                seeded.OwnerJwt,
+                "remove",
+                withIdempotencyKey: false
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("scheduled", body.GetProperty("outcome").GetString());
+            Assert.Contains(
+                "Removes 1 Additional Group Location",
+                body.GetProperty("scheduledChangeLine").GetString()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var account = await context.BillingAccounts.SingleAsync(row =>
+                row.RestaurantId == seeded.RestaurantId
+            );
+            Assert.True(account.HasScheduledChange);
+            Assert.Equal(1, account.ScheduledTargetExtraLocationCount);
+            Assert.Equal(2, account.PaidExtraLocationCount);
         }
 
         [Fact]
         public async Task PostExtraLocationRemove_RejectsBelowFloor_ForOwnerGroup()
         {
             var seeded = await SeedGroupWorkspaceAsync();
-            using var request = Authorized(
-                HttpMethod.Post,
-                "/api/billing-credits/extra-location/remove",
-                seeded.OwnerJwt
+            using var request = AuthorizedExtraLocation(
+                seeded.OwnerJwt,
+                "remove",
+                withIdempotencyKey: false
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -836,7 +907,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         private async Task<Seeded> SeedGroupWorkspaceAsync(
-            bool extraLocations = false
+            int paidExtraLocationCount = 0
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -850,9 +921,7 @@ namespace TummlyBackend.Tests.Integration
 
             var restaurant = new Restaurant
             {
-                Name = extraLocations
-                    ? "Paid Billing Venue Group Extra Test"
-                    : "Paid Billing Venue Group Test",
+                Name = "Paid Billing Venue Group Test",
                 AccountType = "Multi",
                 OwnerUserId = owner.Id,
                 BillingContactUserId = owner.Id,
@@ -863,9 +932,9 @@ namespace TummlyBackend.Tests.Integration
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
 
-            context.BillingAccounts.Add(
-                CreateSeedBillingAccount(restaurant.Id, restaurant.Name)
-            );
+            var account = CreateSeedBillingAccount(restaurant.Id, restaurant.Name);
+            account.PaidExtraLocationCount = paidExtraLocationCount;
+            context.BillingAccounts.Add(account);
 
             owner.SelectedRestaurantId = restaurant.Id;
 
@@ -957,6 +1026,29 @@ namespace TummlyBackend.Tests.Integration
                     billingAdmin.Role
                 )
             );
+        }
+
+        private static HttpRequestMessage AuthorizedExtraLocation(
+            string jwt,
+            string action,
+            bool withIdempotencyKey
+        )
+        {
+            var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/billing-credits/extra-location"
+            );
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+            if (withIdempotencyKey)
+            {
+                request.Headers.TryAddWithoutValidation(
+                    "Idempotency-Key",
+                    Guid.NewGuid().ToString("N")
+                );
+            }
+
+            request.Content = JsonContent.Create(new { action });
+            return request;
         }
 
         [Fact]

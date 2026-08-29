@@ -554,6 +554,14 @@ namespace TummlyBackend.Data
                 .HasDefaultValue(0);
 
             modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.ScheduledTargetSubscriptionPlan)
+                .HasMaxLength(32);
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.ScheduledTargetBillingCycle)
+                .HasMaxLength(16);
+
+            modelBuilder.Entity<BillingAccount>()
                 .Property(b => b.DunningFiredSteps)
                 .HasMaxLength(32);
 

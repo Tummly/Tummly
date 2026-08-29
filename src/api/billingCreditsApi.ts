@@ -283,7 +283,13 @@ type ExtraLocationResponse = {
 
 export async function addExtraGroupLocation(): Promise<PlanChangeResult> {
   const { data } = await axiosInstance.post<ExtraLocationResponse>(
-    "/billing-credits/extra-location/add"
+    "/billing-credits/extra-location",
+    { action: "add" },
+    {
+      headers: {
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+    }
   )
   return {
     outcome: data.outcome,
@@ -294,7 +300,8 @@ export async function addExtraGroupLocation(): Promise<PlanChangeResult> {
 
 export async function removeExtraGroupLocation(): Promise<PlanChangeResult> {
   const { data } = await axiosInstance.post<ExtraLocationResponse>(
-    "/billing-credits/extra-location/remove"
+    "/billing-credits/extra-location",
+    { action: "remove" }
   )
   return {
     outcome: data.outcome,
