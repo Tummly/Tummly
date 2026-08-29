@@ -203,7 +203,14 @@ namespace TummlyBackend.Services
                 }
             }
 
-            var estimate = SmsSegmentEstimate.EstimateSegments(content.Body);
+            var estimate = CampaignSmsSegmentCalculator.CountSegments(content.Body);
+            await ReleaseExpiredOpenHoldForKeyAsync(
+                restaurantId,
+                feedback.Id,
+                normalizedKey,
+                cancellationToken
+            );
+
             var reservationRef = await ResolveOpenReservationRefAsync(
                 restaurantId,
                 feedback.Id,
@@ -236,24 +243,21 @@ namespace TummlyBackend.Services
                 reservationRef =
                     ((RecoverySmsBillingReserveResult.Ok)reserve).ReservationRef;
 
-                if (normalizedKey.Length > 0)
-                {
-                    var now = _clock.GetUtcNow().UtcDateTime;
-                    _context.RecoverySmsSendIdempotencies.Add(
-                        new RecoverySmsSendIdempotency
-                        {
-                            RestaurantId = restaurantId,
-                            FeedbackId = feedback.Id,
-                            IdempotencyKey = normalizedKey,
-                            ReservationRef = reservationRef,
-                            ReservedUnits = estimate,
-                            ReservedAtUtc = now,
-                            HoldExpiresAtUtc = now
-                                + CreditReservationSweeperBackgroundService.HoldTtl,
-                        }
-                    );
-                    await _context.SaveChangesAsync(cancellationToken);
-                }
+                var now = _clock.GetUtcNow().UtcDateTime;
+                _context.RecoverySmsSendIdempotencies.Add(
+                    new RecoverySmsSendIdempotency
+                    {
+                        RestaurantId = restaurantId,
+                        FeedbackId = feedback.Id,
+                        IdempotencyKey = TrackingKey(normalizedKey, reservationRef),
+                        ReservationRef = reservationRef,
+                        ReservedUnits = estimate,
+                        ReservedAtUtc = now,
+                        HoldExpiresAtUtc = now
+                            + CreditReservationSweeperBackgroundService.HoldTtl,
+                    }
+                );
+                await _context.SaveChangesAsync(cancellationToken);
             }
 
             var delivery = await _smsDelivery.SendAsync(
@@ -272,9 +276,10 @@ namespace TummlyBackend.Services
                     },
                     cancellationToken
                 );
-                await ClearOpenIdempotencyAsync(
+                await ClearOpenHoldAsync(
                     restaurantId,
                     normalizedKey,
+                    reservationRef,
                     cancellationToken
                 );
 
@@ -305,9 +310,10 @@ namespace TummlyBackend.Services
                     },
                     cancellationToken
                 );
-                await ClearOpenIdempotencyAsync(
+                await ClearOpenHoldAsync(
                     restaurantId,
                     normalizedKey,
+                    reservationRef,
                     cancellationToken
                 );
 
@@ -335,12 +341,56 @@ namespace TummlyBackend.Services
             await MarkIdempotencyCompletedAsync(
                 restaurantId,
                 normalizedKey,
+                reservationRef,
                 row,
                 cancellationToken
             );
             await _context.SaveChangesAsync(cancellationToken);
 
             return BuildResult(feedback, row);
+        }
+
+        private static string TrackingKey(string clientKey, string reservationRef)
+            => clientKey.Length > 0 ? clientKey : $"anon:{reservationRef}";
+
+        private async Task ReleaseExpiredOpenHoldForKeyAsync(
+            int restaurantId,
+            int feedbackId,
+            string idempotencyKey,
+            CancellationToken cancellationToken
+        )
+        {
+            if (idempotencyKey.Length == 0)
+            {
+                return;
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            var expired = await _context.RecoverySmsSendIdempotencies
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.RestaurantId == restaurantId
+                        && row.IdempotencyKey == idempotencyKey
+                        && row.CompletedGuestResponseId == null
+                        && row.HoldExpiresAtUtc <= now,
+                    cancellationToken
+                );
+
+            if (expired == null)
+            {
+                return;
+            }
+
+            await _smsBilling.ReleaseAsync(
+                new RecoverySmsBillingReleaseRequest
+                {
+                    FeedbackId = feedbackId,
+                    ReservationRef = expired.ReservationRef,
+                },
+                cancellationToken
+            );
+            _context.RecoverySmsSendIdempotencies.Remove(expired);
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         private async Task<SendFeedbackGuestResponseResultDto?> TryReplayCompletedAsync(
@@ -422,34 +472,50 @@ namespace TummlyBackend.Services
         private async Task MarkIdempotencyCompletedAsync(
             int restaurantId,
             string idempotencyKey,
+            string reservationRef,
             FeedbackGuestResponse row,
             CancellationToken cancellationToken
         )
         {
-            if (idempotencyKey.Length == 0)
-            {
-                return;
-            }
-
+            var trackingKey = TrackingKey(idempotencyKey, reservationRef);
             var open = await _context.RecoverySmsSendIdempotencies
                 .FirstOrDefaultAsync(
                     item =>
                         item.RestaurantId == restaurantId
-                        && item.IdempotencyKey == idempotencyKey
+                        && item.IdempotencyKey == trackingKey
                         && item.CompletedGuestResponseId == null,
                     cancellationToken
                 );
 
             if (open == null)
             {
+                open = await _context.RecoverySmsSendIdempotencies
+                    .FirstOrDefaultAsync(
+                        item =>
+                            item.RestaurantId == restaurantId
+                            && item.ReservationRef == reservationRef
+                            && item.CompletedGuestResponseId == null,
+                        cancellationToken
+                    );
+            }
+
+            if (open == null)
+            {
+                if (idempotencyKey.Length == 0)
+                {
+                    return;
+                }
+
                 _context.RecoverySmsSendIdempotencies.Add(
                     new RecoverySmsSendIdempotency
                     {
                         RestaurantId = restaurantId,
                         FeedbackId = row.FeedbackId,
                         IdempotencyKey = idempotencyKey,
-                        ReservationRef = row.BillingReservationRef!,
-                        ReservedUnits = SmsSegmentEstimate.EstimateSegments(row.Body),
+                        ReservationRef = reservationRef,
+                        ReservedUnits = CampaignSmsSegmentCalculator.CountSegments(
+                            row.Body
+                        ),
                         ReservedAtUtc = row.CreatedAt,
                         HoldExpiresAtUtc = row.CreatedAt,
                         CompletedGuestResponse = row,
@@ -459,26 +525,32 @@ namespace TummlyBackend.Services
                 return;
             }
 
+            if (idempotencyKey.Length == 0)
+            {
+                _context.RecoverySmsSendIdempotencies.Remove(open);
+                return;
+            }
+
             open.CompletedGuestResponse = row;
             open.CompletedAtUtc = _clock.GetUtcNow().UtcDateTime;
         }
 
-        private async Task ClearOpenIdempotencyAsync(
+        private async Task ClearOpenHoldAsync(
             int restaurantId,
             string idempotencyKey,
+            string reservationRef,
             CancellationToken cancellationToken
         )
         {
-            if (idempotencyKey.Length == 0)
-            {
-                return;
-            }
-
+            var trackingKey = TrackingKey(idempotencyKey, reservationRef);
             var open = await _context.RecoverySmsSendIdempotencies
                 .FirstOrDefaultAsync(
                     item =>
                         item.RestaurantId == restaurantId
-                        && item.IdempotencyKey == idempotencyKey
+                        && (
+                            item.IdempotencyKey == trackingKey
+                            || item.ReservationRef == reservationRef
+                        )
                         && item.CompletedGuestResponseId == null,
                     cancellationToken
                 );

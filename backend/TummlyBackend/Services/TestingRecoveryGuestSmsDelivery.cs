@@ -1,3 +1,4 @@
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Services
@@ -16,7 +17,7 @@ namespace TummlyBackend.Services
             return Task.FromResult<RecoveryGuestSmsDeliveryResult>(
                 new RecoveryGuestSmsDeliveryResult.Accepted
                 {
-                    AcceptedSegments = Helpers.SmsSegmentEstimate.EstimateSegments(body),
+                    AcceptedSegments = CampaignSmsSegmentCalculator.CountSegments(body),
                 }
             );
         }

@@ -167,6 +167,28 @@ namespace TummlyBackend.Tests.Integration
                 .AsNoTracking()
                 .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
             Assert.False(string.IsNullOrWhiteSpace(guestResponse.BillingReservationRef));
+
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            Assert.Equal(
+                1,
+                await context.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == restaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.Consumption
+                    && row.Channel == CreditChannels.Sms
+                    && row.ReservationRef == guestResponse.BillingReservationRef
+                )
+            );
+            Assert.False(
+                await context.RecoverySmsSendIdempotencies.AnyAsync(row =>
+                    row.RestaurantId == restaurantId
+                    && row.ReservationRef == guestResponse.BillingReservationRef
+                    && row.CompletedGuestResponseId == null
+                )
+            );
         }
 
         [Fact]

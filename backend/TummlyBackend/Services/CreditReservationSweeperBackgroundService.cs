@@ -45,7 +45,7 @@ namespace TummlyBackend.Services
             }
         }
 
-        internal async Task SweepExpiredHoldsAsync(CancellationToken cancellationToken)
+        public async Task SweepExpiredHoldsAsync(CancellationToken cancellationToken)
         {
             using var scope = _scopeFactory.CreateScope();
             var context = scope.ServiceProvider
