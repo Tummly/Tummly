@@ -18,12 +18,14 @@ namespace TummlyBackend.Services
         private readonly IPricebookCatalog _pricebook;
         private readonly TimeProvider _clock;
         private readonly ICreditThresholdEvaluator _thresholdEvaluator;
+        private readonly IPlanChangeService _planChange;
 
         public IncludedPeriodMintService(
             ApplicationDbContext context,
             IPricebookCatalog pricebook,
             TimeProvider clock,
-            ICreditThresholdEvaluator? thresholdEvaluator = null
+            ICreditThresholdEvaluator? thresholdEvaluator = null,
+            IPlanChangeService? planChange = null
         )
         {
             _context = context;
@@ -31,6 +33,7 @@ namespace TummlyBackend.Services
             _clock = clock;
             _thresholdEvaluator =
                 thresholdEvaluator ?? NullCreditThresholdEvaluator.Instance;
+            _planChange = planChange ?? NullPlanChangeService.Instance;
         }
 
         public Task<IncludedPeriodMintResult> MintOnOrderCompletedAsync(
@@ -55,6 +58,22 @@ namespace TummlyBackend.Services
                             session,
                             IncludedPeriodMintResult.Skipped(
                                 "billing_status_not_active"
+                            ),
+                            cancellationToken
+                        );
+                    }
+
+                    var scheduleResult =
+                        await _planChange.ApplyScheduledChangeOnRenewalAsync(
+                            billingAccount,
+                            cancellationToken
+                        );
+                    if (scheduleResult == ScheduledChangeApplyResult.GateFailed)
+                    {
+                        return await AbortOwnedAsync(
+                            session,
+                            IncludedPeriodMintResult.Skipped(
+                                "scheduled_change_gate_failed"
                             ),
                             cancellationToken
                         );
@@ -705,5 +724,57 @@ namespace TummlyBackend.Services
             bool OwnsTransaction,
             IDbContextTransaction Transaction
         );
+    }
+
+    internal sealed class NullPlanChangeService : IPlanChangeService
+    {
+        public static readonly NullPlanChangeService Instance = new();
+
+        public Task ApplyImmediateSameCadenceUpgradeAsync(
+            int restaurantId,
+            string targetPlan,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task<ScheduledChangeApplyResult> ApplyScheduledChangeOnRenewalAsync(
+            BillingAccount billingAccount,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return Task.FromResult(ScheduledChangeApplyResult.Empty);
+        }
+
+        public bool HasScheduledChange(BillingAccount billingAccount) => false;
+
+        public void ClearScheduledChange(BillingAccount billingAccount)
+        {
+        }
+
+        public void SetScheduledChange(
+            BillingAccount billingAccount,
+            string targetPlan,
+            string targetBillingCycle,
+            int targetPaidExtraLocationCount
+        )
+        {
+        }
+
+        public string FormatScheduledChangeLine(
+            BillingAccount billingAccount,
+            string renewalDateLabel
+        ) => string.Empty;
+
+        public Task EnsureEntitlementGateAsync(
+            string targetPlan,
+            int targetPaidExtraLocationCount,
+            int restaurantId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return Task.CompletedTask;
+        }
     }
 }

@@ -24,7 +24,13 @@ namespace TummlyBackend.Interfaces
         Task<PlanChangeResultDto?> SubmitPlanChangeAsync(
             int userId,
             int restaurantId,
-            PlanChangeRequestDto request
+            PlanChangeRequestDto request,
+            string? idempotencyKey = null
+        );
+
+        Task<(bool Success, string? ErrorCode)?> ClearScheduledChangeAsync(
+            int userId,
+            int restaurantId
         );
 
         Task<(

@@ -201,23 +201,31 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            var manage = await _permissions.AuthorizeAsync(
+            var view = await _permissions.AuthorizeAsync(
                 User,
                 OperatorAreaIds.BillingCredits,
-                PermissionLevel.Manage
+                PermissionLevel.View
             );
-            var forbidden = manage.ToForbiddenResult();
+            var forbidden = view.ToForbiddenResult();
             if (forbidden != null)
             {
                 return forbidden;
+            }
+
+            Request.Headers.TryGetValue("Idempotency-Key", out var idempotencyHeader);
+            var idempotencyKey = idempotencyHeader.ToString();
+            if (string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                idempotencyKey = null;
             }
 
             try
             {
                 var result = await _billingCredits.SubmitPlanChangeAsync(
                     userId,
-                    manage.RestaurantId,
-                    request
+                    view.RestaurantId,
+                    request,
+                    idempotencyKey
                 );
                 if (result == null)
                 {
@@ -230,12 +238,40 @@ namespace TummlyBackend.Controllers
 
                 return Ok(result);
             }
-            catch (InvalidOperationException ex) when (ex.Message == "invalid-target")
+            catch (InvalidOperationException ex) when (
+                ex.Message == "billing_write_not_permitted"
+            )
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        code = "billing_write_not_permitted",
+                        message = "Only the account owner may change the plan.",
+                    }
+                );
+            }
+            catch (InvalidOperationException ex) when (
+                ex.Message == "invalid_plan_target"
+            )
             {
                 return BadRequest(new
                 {
                     success = false,
+                    code = "invalid_plan_target",
                     message = "Pilot is not a valid plan-change target.",
+                });
+            }
+            catch (InvalidOperationException ex) when (
+                ex.Message == "idempotency_key_required"
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "idempotency_key_required",
+                    message = "Idempotency-Key header is required.",
                 });
             }
             catch (InvalidOperationException ex) when (
@@ -246,6 +282,105 @@ namespace TummlyBackend.Controllers
                     ex.Message == "forbidden" ? "forbidden" : ex.Message
                 );
             }
+            catch (InvalidOperationException ex) when (
+                ex.Message is "billing_status_not_active"
+            )
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        code = "billing_status_not_active",
+                        message = "Plan change requires an Active billing status.",
+                    }
+                );
+            }
+            catch (InvalidOperationException ex) when (
+                ex.Message is "soft_lock" or "dormant"
+            )
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        code = ex.Message,
+                        message = ex.Message,
+                    }
+                );
+            }
+            catch (InvalidOperationException ex) when (
+                ex.Message is "location_cap_reached" or "team_member_cap_reached"
+            )
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = ex.Message,
+                    message = "Resolve locations or team members before this plan change.",
+                });
+            }
+        }
+
+        [HttpDelete("scheduled-change")]
+        public async Task<IActionResult> DeleteScheduledChange()
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var view = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.BillingCredits,
+                PermissionLevel.View
+            );
+            var forbidden = view.ToForbiddenResult();
+            if (forbidden != null)
+            {
+                return forbidden;
+            }
+
+            var cleared = await _billingCredits.ClearScheduledChangeAsync(
+                userId,
+                view.RestaurantId
+            );
+            if (cleared == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Restaurant not found.",
+                });
+            }
+
+            if (!cleared.Value.Success)
+            {
+                if (cleared.Value.ErrorCode == "billing_write_not_permitted")
+                {
+                    return StatusCode(
+                        StatusCodes.Status403Forbidden,
+                        new
+                        {
+                            success = false,
+                            code = "billing_write_not_permitted",
+                            message = "Only the account owner may clear a scheduled change.",
+                        }
+                    );
+                }
+
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "scheduled_change_empty",
+                    message = "There is no scheduled change to clear.",
+                });
+            }
+
+            return Ok(new { success = true });
         }
 
         [HttpGet("activity")]

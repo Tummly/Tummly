@@ -41,5 +41,11 @@ namespace TummlyBackend.Services
 
             return (int)decimal.Floor(monthlyIncrement * ratio);
         }
+
+        public static int PositiveIncrement(int newMonthly, int oldMonthly)
+        {
+            var delta = newMonthly - oldMonthly;
+            return delta > 0 ? delta : 0;
+        }
     }
 }

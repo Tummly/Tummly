@@ -572,6 +572,12 @@ namespace TummlyBackend.Tests.Integration
             });
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "billing_write_not_permitted",
+                body.GetProperty("code").GetString()
+            );
         }
 
         [Fact]
@@ -590,6 +596,60 @@ namespace TummlyBackend.Tests.Integration
             });
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "billing_write_not_permitted",
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PostPlanChange_Returns400_InvalidPlanTarget_ForPilot()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change",
+                seeded.OwnerJwt
+            );
+            request.Content = JsonContent.Create(new
+            {
+                targetPlan = "Pilot",
+                targetCadence = "monthly",
+            });
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "invalid_plan_target",
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PostPlanChange_Returns400_IdempotencyKeyRequired_WhenPayNow()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change",
+                seeded.OwnerJwt
+            );
+            request.Content = JsonContent.Create(new
+            {
+                targetPlan = "Starter",
+                targetCadence = "monthly",
+            });
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "idempotency_key_required",
+                body.GetProperty("code").GetString()
+            );
         }
 
         [Fact]
@@ -601,6 +661,7 @@ namespace TummlyBackend.Tests.Integration
                 "/api/billing-credits/plan-change",
                 seeded.OwnerJwt
             );
+            request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
             request.Content = JsonContent.Create(new
             {
                 targetPlan = "Starter",
@@ -626,6 +687,7 @@ namespace TummlyBackend.Tests.Integration
                 "/api/billing-credits/plan-change",
                 seeded.OwnerJwt
             );
+            request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
             request.Content = JsonContent.Create(new
             {
                 targetPlan = "Starter",
@@ -660,6 +722,125 @@ namespace TummlyBackend.Tests.Integration
             Assert.Contains(
                 "Changes to Starter on",
                 body.GetProperty("scheduledChangeLine").GetString()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var account = await context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal(
+                BillingSubscriptionPlans.Starter,
+                account.ScheduledTargetSubscriptionPlan
+            );
+            Assert.Equal(BillingCycles.Monthly, account.ScheduledTargetBillingCycle);
+            Assert.Equal(0, account.ScheduledTargetExtraLocationCount);
+            Assert.False(account.ScheduledCancelPlan);
+            Assert.True(account.HasScheduledChange);
+        }
+
+        [Fact]
+        public async Task DeleteScheduledChange_Returns400_WhenSlotEmpty()
+        {
+            var seeded = await SeedWorkspaceAsync(scheduleTestRestaurant: true);
+            using var request = Authorized(
+                HttpMethod.Delete,
+                "/api/billing-credits/scheduled-change",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "scheduled_change_empty",
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task DeleteScheduledChange_Returns403_ForBillingAdmin()
+        {
+            var seeded = await SeedWorkspaceAsync(
+                includeBillingAdmin: true,
+                scheduleTestRestaurant: true
+            );
+            using (var schedule = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change",
+                seeded.OwnerJwt
+            ))
+            {
+                schedule.Content = JsonContent.Create(new
+                {
+                    targetPlan = "Starter",
+                    targetCadence = "monthly",
+                });
+                var scheduleResponse = await _client.SendAsync(schedule);
+                Assert.Equal(HttpStatusCode.OK, scheduleResponse.StatusCode);
+            }
+
+            using var request = Authorized(
+                HttpMethod.Delete,
+                "/api/billing-credits/scheduled-change",
+                seeded.BillingAdminJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "billing_write_not_permitted",
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task DeleteScheduledChange_ClearsSlot_ForOwner()
+        {
+            var seeded = await SeedWorkspaceAsync(scheduleTestRestaurant: true);
+            using (var schedule = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change",
+                seeded.OwnerJwt
+            ))
+            {
+                schedule.Content = JsonContent.Create(new
+                {
+                    targetPlan = "Starter",
+                    targetCadence = "monthly",
+                });
+                var scheduleResponse = await _client.SendAsync(schedule);
+                Assert.Equal(HttpStatusCode.OK, scheduleResponse.StatusCode);
+            }
+
+            using var request = Authorized(
+                HttpMethod.Delete,
+                "/api/billing-credits/scheduled-change",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var account = await context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Null(account.ScheduledTargetSubscriptionPlan);
+            Assert.Null(account.ScheduledTargetBillingCycle);
+            Assert.False(account.ScheduledCancelPlan);
+            Assert.False(account.HasScheduledChange);
+            Assert.Equal(
+                0,
+                await context.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                )
             );
         }
 
@@ -1272,7 +1453,7 @@ namespace TummlyBackend.Tests.Integration
             {
                 Name = restaurantName
                     ?? (scheduleTestRestaurant
-                        ? "Billing Venue Schedule Test"
+                        ? "Paid Billing Venue Schedule Test"
                         : "Billing Venue"),
                 AccountType = "Multi",
                 OwnerUserId = owner.Id,
@@ -1317,43 +1498,49 @@ namespace TummlyBackend.Tests.Integration
             marketing.SelectedRestaurantId = restaurant.Id;
             await context.SaveChangesAsync();
 
-            AddMembership(
-                context,
-                admin.Id,
-                restaurant.Id,
-                PermissionRoles.Admin,
-                LocationScopeKind.AllLocations,
-                "[]"
-            );
-            AddMembership(
-                context,
-                staff.Id,
-                restaurant.Id,
-                PermissionRoles.Staff,
-                LocationScopeKind.NamedList,
-                MembershipLocationScope.SerializeNamedIds([location.Id])
-            );
-            AddMembership(
-                context,
-                marketing.Id,
-                restaurant.Id,
-                PermissionRoles.Marketing,
-                LocationScopeKind.AllLocations,
-                "[]"
-            );
+            if (!scheduleTestRestaurant)
+            {
+                AddMembership(
+                    context,
+                    admin.Id,
+                    restaurant.Id,
+                    PermissionRoles.Admin,
+                    LocationScopeKind.AllLocations,
+                    "[]"
+                );
+                AddMembership(
+                    context,
+                    staff.Id,
+                    restaurant.Id,
+                    PermissionRoles.Staff,
+                    LocationScopeKind.NamedList,
+                    MembershipLocationScope.SerializeNamedIds([location.Id])
+                );
+                AddMembership(
+                    context,
+                    marketing.Id,
+                    restaurant.Id,
+                    PermissionRoles.Marketing,
+                    LocationScopeKind.AllLocations,
+                    "[]"
+                );
+            }
 
             var billingAdmin = AddUser(context, "Billing Admin Sixteen", "Owner");
             billingAdmin.SelectedRestaurantId = restaurant.Id;
             await context.SaveChangesAsync();
 
-            AddMembership(
-                context,
-                billingAdmin.Id,
-                restaurant.Id,
-                PermissionRoles.BillingAdmin,
-                LocationScopeKind.AllLocations,
-                "[]"
-            );
+            if (!scheduleTestRestaurant || includeBillingAdmin)
+            {
+                AddMembership(
+                    context,
+                    billingAdmin.Id,
+                    restaurant.Id,
+                    PermissionRoles.BillingAdmin,
+                    LocationScopeKind.AllLocations,
+                    "[]"
+                );
+            }
 
             await context.SaveChangesAsync();
 
@@ -1695,6 +1882,7 @@ namespace TummlyBackend.Tests.Integration
                 "Bearer",
                 seeded.OwnerJwt
             );
+            request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
             request.Content = JsonContent.Create(
                 new { targetPlan = "Group", targetCadence = "monthly" }
             );
@@ -1714,6 +1902,7 @@ namespace TummlyBackend.Tests.Integration
                 "Bearer",
                 seeded.OwnerJwt
             );
+            request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
             request.Content = JsonContent.Create(
                 new { targetPlan = "Starter", targetCadence = "monthly" }
             );

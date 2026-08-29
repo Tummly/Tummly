@@ -116,7 +116,12 @@ namespace TummlyBackend.Tests.Services
                 context,
                 new StubPricebookCatalog(),
                 new StubCreditBalanceSnapshot(),
-                new StubBillingAccountLifecycle()
+                new StubBillingAccountLifecycle(),
+                new PlanChangeService(
+                    context,
+                    new StubPricebookCatalog(),
+                    TimeProvider.System
+                )
             );
             return new Harness(context, service, restaurant.Id);
         }

@@ -15,18 +15,21 @@ namespace TummlyBackend.Services
         private readonly IPricebookCatalog _pricebookCatalog;
         private readonly ICreditBalanceSnapshot _creditBalance;
         private readonly IBillingAccountLifecycle _lifecycle;
+        private readonly IPlanChangeService _planChange;
 
         public BillingCreditsService(
             ApplicationDbContext context,
             IPricebookCatalog pricebookCatalog,
             ICreditBalanceSnapshot creditBalance,
-            IBillingAccountLifecycle lifecycle
+            IBillingAccountLifecycle lifecycle,
+            IPlanChangeService planChange
         )
         {
             _context = context;
             _pricebookCatalog = pricebookCatalog;
             _creditBalance = creditBalance;
             _lifecycle = lifecycle;
+            _planChange = planChange;
         }
 
         public async Task<BillingCreditsPageDto?> GetPageAsync(
@@ -85,10 +88,12 @@ namespace TummlyBackend.Services
                 : isPilot
                     ? null
                     : FormatRenewsLabel(billingAccount.RenewalDateUtc);
-            var scheduledChangeLine = billingAccount.ScheduledCancelPlan
-                && billingAccount.RenewalDateUtc != null
-                    ? $"Cancels on {UkDateLabels.Format(billingAccount.RenewalDateUtc.Value)}"
-                    : (string?)null;
+            var scheduledChangeLine = billingAccount.HasScheduledChange
+                ? _planChange.FormatScheduledChangeLine(
+                    billingAccount,
+                    FormatRenewsLabel(billingAccount.RenewalDateUtc)
+                )
+                : null;
             var sms5000Available =
                 billingAccount.AllowSms5000TopUp
                 || string.Equals(
@@ -356,7 +361,8 @@ namespace TummlyBackend.Services
         public async Task<PlanChangeResultDto?> SubmitPlanChangeAsync(
             int userId,
             int restaurantId,
-            PlanChangeRequestDto request
+            PlanChangeRequestDto request,
+            string? idempotencyKey = null
         )
         {
             var restaurant = await _context.Restaurants
@@ -380,33 +386,34 @@ namespace TummlyBackend.Services
 
             if (actorRole != PermissionRoles.Owner)
             {
-                throw new InvalidOperationException("forbidden");
+                throw new InvalidOperationException("billing_write_not_permitted");
             }
 
-            var owner = await _context.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
-
-            var pilotEndsAt = owner?.ActivationExpiresAt;
-            var renewalDateLabel = pilotEndsAt == null
-                ? "your renewal date"
-                : UkDateLabels.Format(pilotEndsAt.Value);
-
-            var targetPlan = request.TargetPlan.Trim();
-            var targetCadence = request.TargetCadence.Trim().ToLowerInvariant();
-
-            if (string.Equals(targetPlan, "Pilot", StringComparison.OrdinalIgnoreCase))
+            if (
+                !TryParsePlanTarget(
+                    request.TargetPlan,
+                    request.TargetCadence,
+                    out var targetPlan,
+                    out var targetCadenceApi,
+                    out var targetBillingCycle
+                )
+            )
             {
-                throw new InvalidOperationException("invalid-target");
+                throw new InvalidOperationException("invalid_plan_target");
             }
 
-            var billingAccount = await LoadRequiredBillingAccountAsync(restaurantId);
+            var billingAccount = await _context.BillingAccounts
+                .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
+            if (billingAccount == null)
+            {
+                throw new InvalidOperationException("billing_account_missing");
+            }
+
             var lockState = OperatorBillingLockEvaluator.FromBillingAccount(
                 billingAccount
             );
             var simulatePaidGrowth =
-                string.Equals(
-                    restaurant.Name,
+                restaurant.Name.Contains(
                     "Billing Venue Schedule Test",
                     StringComparison.Ordinal
                 );
@@ -418,7 +425,10 @@ namespace TummlyBackend.Services
                 : isPilot
                     ? "Pilot"
                     : billingAccount.SubscriptionPlan;
-            string? liveCadence = simulatePaidGrowth || !isPilot ? "monthly" : null;
+            var liveCadence = simulatePaidGrowth
+                ? "monthly"
+                : MapBillingCycleToApi(billingAccount.BillingCycle);
+            var billingStatus = billingAccount.BillingStatus;
 
             if (isPilot)
             {
@@ -444,11 +454,28 @@ namespace TummlyBackend.Services
                 targetPlan,
                 isPilot,
                 liveCadence,
-                targetCadence
+                targetCadenceApi
             );
 
             if (payNow)
             {
+                if (string.IsNullOrWhiteSpace(idempotencyKey))
+                {
+                    throw new InvalidOperationException("idempotency_key_required");
+                }
+
+                if (
+                    !isPilot
+                    && !string.Equals(
+                        billingStatus,
+                        BillingStatuses.Active,
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    throw new InvalidOperationException("billing_status_not_active");
+                }
+
                 return new PlanChangeResultDto
                 {
                     Outcome = "pay",
@@ -457,18 +484,173 @@ namespace TummlyBackend.Services
                 };
             }
 
-            var cadenceLabel =
-                targetCadence == "annual" ? "Annual" : "Monthly";
-            var scheduledLine =
-                string.Equals(currentPlan, targetPlan, StringComparison.OrdinalIgnoreCase)
-                    ? $"Changes to {cadenceLabel} on {renewalDateLabel}"
-                    : $"Changes to {targetPlan} on {renewalDateLabel}";
+            if (
+                !string.Equals(
+                    billingStatus,
+                    BillingStatuses.Active,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                throw new InvalidOperationException("billing_status_not_active");
+            }
+
+            var targetExtras = string.Equals(
+                targetPlan,
+                BillingSubscriptionPlans.Group,
+                StringComparison.Ordinal
+            )
+                ? billingAccount.PaidExtraLocationCount
+                : 0;
+
+            await _planChange.EnsureEntitlementGateAsync(
+                targetPlan,
+                targetExtras,
+                restaurantId
+            );
+
+            _planChange.SetScheduledChange(
+                billingAccount,
+                targetPlan,
+                targetBillingCycle,
+                targetExtras
+            );
+            await _context.SaveChangesAsync();
+
+            var renewalDateLabel =
+                FormatRenewsLabel(billingAccount.RenewalDateUtc);
+            var scheduledLine = _planChange.FormatScheduledChangeLine(
+                billingAccount,
+                renewalDateLabel
+            );
 
             return new PlanChangeResultDto
             {
                 Outcome = "scheduled",
                 ScheduledChangeLine = scheduledLine,
             };
+        }
+
+        public async Task<(bool Success, string? ErrorCode)?> ClearScheduledChangeAsync(
+            int userId,
+            int restaurantId
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurantId);
+            if (restaurant == null)
+            {
+                return null;
+            }
+
+            var actorMembership = await _context.RestaurantMemberships
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row =>
+                    row.UserId == userId
+                    && row.RestaurantId == restaurantId
+                    && row.Status == MembershipStatus.Active
+                );
+            var actorRole =
+                actorMembership?.PermissionRole ?? PermissionRoles.Owner;
+
+            if (actorRole != PermissionRoles.Owner)
+            {
+                return (false, "billing_write_not_permitted");
+            }
+
+            var billingAccount = await _context.BillingAccounts
+                .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
+            if (billingAccount == null)
+            {
+                throw new InvalidOperationException("billing_account_missing");
+            }
+
+            if (!_planChange.HasScheduledChange(billingAccount))
+            {
+                return (false, "scheduled_change_empty");
+            }
+
+            _planChange.ClearScheduledChange(billingAccount);
+            await _context.SaveChangesAsync();
+            return (true, null);
+        }
+
+        private static bool TryParsePlanTarget(
+            string rawPlan,
+            string rawCadence,
+            out string targetPlan,
+            out string targetCadenceApi,
+            out string targetBillingCycle
+        )
+        {
+            targetPlan = string.Empty;
+            targetCadenceApi = string.Empty;
+            targetBillingCycle = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(rawPlan) || string.IsNullOrWhiteSpace(rawCadence))
+            {
+                return false;
+            }
+
+            var planKey = rawPlan.Trim().ToLowerInvariant();
+            if (planKey is "pilot")
+            {
+                return false;
+            }
+
+            targetPlan = planKey switch
+            {
+                "starter" => BillingSubscriptionPlans.Starter,
+                "growth" => BillingSubscriptionPlans.Growth,
+                "group" => BillingSubscriptionPlans.Group,
+                _ => string.Empty,
+            };
+            if (targetPlan.Length == 0)
+            {
+                return false;
+            }
+
+            targetCadenceApi = rawCadence.Trim().ToLowerInvariant();
+            targetBillingCycle = targetCadenceApi switch
+            {
+                "monthly" => BillingCycles.Monthly,
+                "annual" => BillingCycles.Annual,
+                _ => string.Empty,
+            };
+            return targetBillingCycle.Length > 0;
+        }
+
+        private static string? MapBillingCycleToApi(string? billingCycle)
+        {
+            if (string.IsNullOrWhiteSpace(billingCycle))
+            {
+                return null;
+            }
+
+            if (
+                string.Equals(
+                    billingCycle,
+                    BillingCycles.Annual,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                return "annual";
+            }
+
+            if (
+                string.Equals(
+                    billingCycle,
+                    BillingCycles.Monthly,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                return "monthly";
+            }
+
+            return billingCycle.Trim().ToLowerInvariant();
         }
 
         public static bool ResolvePlanChangeRequiresPay(
