@@ -207,10 +207,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            string? subscriptionId = null;
-            string? cadenceApi = null;
-
-            var result = await RunWithOptionalTransactionAsync(
+            return await RunWithOptionalTransactionAsync(
                 async () =>
                 {
                     var account = await LockBillingAccountAsync(
@@ -249,48 +246,19 @@ namespace TummlyBackend.Services
                     }
 
                     // Extra remove: decrement by 1. No credit clawback this period.
+                    // Revolut change-plan (at_cycle_end) is posted on submit when
+                    // target extras go to 0 — do not call it again here.
                     account.PaidExtraLocationCount = Math.Max(
                         0,
                         account.PaidExtraLocationCount - 1
                     );
                     account.ClearScheduledChangeSlot();
 
-                    if (
-                        account.PaidExtraLocationCount == 0
-                    )
-                    {
-                        subscriptionId =
-                            await RevolutSubscriptionCorrelation.ResolveLatestSubscriptionIdAsync(
-                                _context,
-                                restaurantId,
-                                cancellationToken
-                            );
-                        cadenceApi = CadenceApi(account.BillingCycle);
-                    }
-
                     await _context.SaveChangesAsync(cancellationToken);
                     return ExtraGroupLocationApplyResult.Ok();
                 },
                 cancellationToken
             );
-
-            if (
-                result.Succeeded
-                && !string.IsNullOrWhiteSpace(subscriptionId)
-                && cadenceApi != null
-            )
-            {
-                await TryChangePlanAtCycleEndAsync(
-                    subscriptionId,
-                    RevolutPlanVariationKeys.ForPlanCadence(
-                        BillingSubscriptionPlans.Group,
-                        cadenceApi
-                    )!,
-                    cancellationToken
-                );
-            }
-
-            return result;
         }
 
         private async Task<ExtraLocationResultDto> SubmitAddAsync(

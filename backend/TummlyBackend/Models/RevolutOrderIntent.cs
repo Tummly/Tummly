@@ -60,12 +60,8 @@ namespace TummlyBackend.Models
 
     public static class RevolutOrderIntentPurposes
     {
-        public const string Topup = "topup";
-
         public const string PlanUpgradeProration = "plan_upgrade_proration";
 
         public const string ExtraLocation = "extra_location";
-
-        public const string SubscriptionSetup = "subscription_setup";
     }
 }

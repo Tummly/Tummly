@@ -310,6 +310,11 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            if (!intent.IsOpen)
+            {
+                return;
+            }
+
             var nowUtc = _clock.GetUtcNow().UtcDateTime;
             var apply = await _extraGroupLocation.ApplyAddOnOrderCompletedAsync(
                 intent.RestaurantId,

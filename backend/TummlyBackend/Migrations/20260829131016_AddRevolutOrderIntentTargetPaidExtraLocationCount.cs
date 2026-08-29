@@ -1,14 +1,10 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
-using TummlyBackend.Data;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace TummlyBackend.Migrations
 {
     /// <inheritdoc />
-    [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260829140000_AddRevolutOrderIntentTargetPaidExtraLocationCount")]
     public partial class AddRevolutOrderIntentTargetPaidExtraLocationCount : Migration
     {
         /// <inheritdoc />

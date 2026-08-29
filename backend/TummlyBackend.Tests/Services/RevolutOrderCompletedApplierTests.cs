@@ -356,6 +356,139 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Apply_ExtraLocation_ClosedIntent_DoesNotDoubleApply()
+        {
+            await using var context = CreateContext();
+            var account = await SeedActiveGroupAsync(context);
+            var merchant = new RecordingChangePlanMerchant();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock, merchant);
+
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_extra_replay",
+                    RestaurantId = account.RestaurantId,
+                    Purpose = RevolutOrderIntentPurposes.ExtraLocation,
+                    TargetPlan = BillingSubscriptionPlans.Group,
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = "sub_extra",
+                    CheckoutUrl = "https://checkout.revolut.test/extra",
+                    IdempotencyKey = "extra-replay",
+                    IsOpen = true,
+                    NetAmountMinor = 2000,
+                    VatAmountMinor = 400,
+                    GrossAmountMinor = 2400,
+                    TargetPaidExtraLocationCount = 1,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var request = new RevolutOrderCompletedApplyRequest(
+                OrderId: "ord_extra_replay",
+                OrderState: "completed",
+                BillingReason: null,
+                SubscriptionId: "sub_extra",
+                RawWebhookBody: "{}",
+                RawOrderBody: "{}"
+            );
+            await applier.ApplyAsync(request);
+            await applier.ApplyAsync(request);
+
+            await context.Entry(account).ReloadAsync();
+            Assert.Equal(1, account.PaidExtraLocationCount);
+            Assert.Equal(1, merchant.ChangePlanCallCount);
+            Assert.Equal(
+                1,
+                await context.TummlyVatInvoices.CountAsync(row =>
+                    row.RevolutOrderId == "ord_extra_replay"
+                )
+            );
+        }
+
+        [Fact]
+        public async Task Webhook_ExtraLocation_Replay_DoesNotDoubleApply()
+        {
+            await using var context = CreateContext();
+            var account = await SeedActiveGroupAsync(context);
+            var merchant = new RecordingChangePlanMerchant();
+            merchant.Orders["ord_extra_wh"] = new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: "ord_extra_wh",
+                State: "completed",
+                BillingReason: null,
+                SubscriptionId: "sub_extra_wh",
+                RawBody: """{"id":"ord_extra_wh","state":"completed"}"""
+            );
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_extra_wh",
+                    RestaurantId = account.RestaurantId,
+                    Purpose = RevolutOrderIntentPurposes.ExtraLocation,
+                    TargetPlan = BillingSubscriptionPlans.Group,
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = "sub_extra_wh",
+                    CheckoutUrl = "https://checkout.revolut.test/extra",
+                    IdempotencyKey = "extra-wh",
+                    IsOpen = true,
+                    NetAmountMinor = 2000,
+                    VatAmountMinor = 400,
+                    GrossAmountMinor = 2400,
+                    TargetPaidExtraLocationCount = 1,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock, merchant);
+            var webhook = new RevolutWebhookService(
+                context,
+                merchant,
+                applier,
+                Options.Create(
+                    new RevolutSettings
+                    {
+                        WebhookSigningSecret = "whsec_replay_extra",
+                        SecretKey = "sk_test",
+                        ApiBaseUrl = RevolutSettings.SandboxApiBaseUrl,
+                        ApiVersion = RevolutSettings.DefaultApiVersion,
+                    }
+                )
+            );
+
+            const string body =
+                """{"event":"ORDER_COMPLETED","order_id":"ord_extra_wh"}""";
+            const string timestamp = "1710000000";
+            var signature = RevolutWebhookSignature.SignForTests(
+                "whsec_replay_extra",
+                timestamp,
+                body
+            );
+
+            var first = await webhook.HandleAsync(body, signature, timestamp);
+            var second = await webhook.HandleAsync(body, signature, timestamp);
+
+            Assert.Equal(RevolutWebhookHandleStatus.Accepted, first.Status);
+            Assert.Equal(RevolutWebhookHandleStatus.Replay, second.Status);
+            Assert.Equal(1, merchant.ChangePlanCallCount);
+            Assert.Equal(
+                1,
+                await context.TummlyVatInvoices.CountAsync(row =>
+                    row.RevolutOrderId == "ord_extra_wh"
+                )
+            );
+            await context.Entry(account).ReloadAsync();
+            Assert.Equal(1, account.PaidExtraLocationCount);
+        }
+
+        [Fact]
         public async Task Apply_WithoutIntent_FallsThroughToBillingReasonPath()
         {
             await using var context = CreateContext();
