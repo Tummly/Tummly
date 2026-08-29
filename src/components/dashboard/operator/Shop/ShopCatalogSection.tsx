@@ -1,84 +1,113 @@
-import { useState } from "react"
-import { Plus, Check, QrCode, Shield, Layers, Sparkles, CreditCard, UserCheck } from "lucide-react"
+
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { ShopCatalogItemCard } from "@/components/dashboard/operator/Shop/ShopCatalogItemCard"
+import tummlyStickerImg from "@/assets/images/shop/tummly-sticker.png"
+import tummlyBagImg from "@/assets/images/shop/tummly-bag.png"
 
 export type ShopProduct = {
   id: string
   title: string
-  category: "tabletop" | "window" | "payment" | "staff"
+  category: "tabletop" | "window" | "payment" | "staff" | "takeaway" | "delivery"
   description: string
   material: string
   dimensions: string
   price: number
   isPlanIncluded?: boolean
   popularBadge?: string
-  icon: "qr" | "layers" | "shield" | "credit-card" | "user" | "sparkles"
+  imageSrc: string
 }
 
 export const SHOP_CATALOG_PRODUCTS: ShopProduct[] = [
   {
-    id: "table-stands",
-    title: "Tabletop Acrylic Stands (Pack of 10)",
+    id: "table-tents",
+    title: "Table tents",
     category: "tabletop",
-    description: "Premium double-sided matte acrylic table tents with scannable feedback QR code.",
+    description:
+      "Place a branded QR prompt on guest tables to collect private feedback after a dine-in visit.",
     material: "3mm Matte Frosted Acrylic",
     dimensions: "105mm x 148mm (A6)",
-    price: 0,
+    price: 24.0,
     isPlanIncluded: true,
     popularBadge: "Essential",
-    icon: "layers",
+    imageSrc: tummlyStickerImg,
   },
   {
-    id: "bill-presenters",
-    title: "Bill Presenter Card Inserts (Pack of 50)",
+    id: "counter-cards-1",
+    title: "Counter cards",
     category: "payment",
-    description: "Heavyweight tactile cards designed to slot into guest bill presenters upon payment.",
+    description:
+      "Place a compact QR prompt on ordering, payment or collection counter.",
     material: "350gsm Soft-touch Recycled Card",
     dimensions: "85mm x 55mm (Card size)",
-    price: 12.0,
-    popularBadge: "High Response Rate",
-    icon: "credit-card",
+    price: 18.0,
+    imageSrc: tummlyStickerImg,
   },
   {
-    id: "window-decals",
-    title: "Storefront Window Decals (Pack of 4)",
+    id: "counter-cards-2",
+    title: "Counter cards",
+    category: "payment",
+    description:
+      "Place a compact QR prompt on ordering, payment or collection counter.",
+    material: "350gsm Soft-touch Recycled Card",
+    dimensions: "85mm x 55mm (Card size)",
+    price: 18.0,
+    imageSrc: tummlyStickerImg,
+  },
+  {
+    id: "window-stickers",
+    title: "Window stickers",
     category: "window",
-    description: "Weatherproof static-cling window stickers for front entrance, door, and windows.",
+    description:
+      "Invite guests to share feedback using a branded QR prompt at an entrance or front windows.",
     material: "UV-resistant Clear Vinyl Cling",
     dimensions: "150mm x 150mm",
-    price: 8.5,
-    icon: "shield",
+    price: 14.0,
+    imageSrc: tummlyStickerImg,
   },
   {
-    id: "staff-badges",
-    title: "Staff Lapel QR Badges (Pack of 5)",
-    category: "staff",
-    description: "Magnetic wearable server pins allowing guests to scan and leave direct feedback.",
-    material: "Enamel Coated Metal with Magnet",
-    dimensions: "40mm Diameter",
-    price: 18.0,
-    icon: "user",
-  },
-  {
-    id: "coaster-packs",
-    title: "Feedback Beer & Drink Coasters (Pack of 100)",
-    category: "tabletop",
-    description: "Absorbent branded drink coasters featuring your high-contrast QR prompt.",
-    material: "1.5mm Absorbent Pulpboard",
-    dimensions: "95mm Square with Rounded Corners",
+    id: "packaging-stickers",
+    title: "Packaging stickers",
+    category: "takeaway",
+    description:
+      "Add a compact feedback prompt to takeaway packaging, food boxes or paper bags.",
+    material: "Matte Sticker Paper with Strong Adhesive",
+    dimensions: "50mm x 50mm",
     price: 22.0,
-    icon: "qr",
+    imageSrc: tummlyStickerImg,
   },
   {
-    id: "outdoor-plaque",
-    title: "Outdoor Waterproof Metal Plaque (Single)",
-    category: "tabletop",
-    description: "Laser-engraved aluminium weatherproof plate for patio tables and outdoor benches.",
-    material: "Brushed Anodised Aluminium",
-    dimensions: "120mm x 80mm",
-    price: 15.0,
-    icon: "sparkles",
+    id: "receipt-stickers-1",
+    title: "Receipt stickers",
+    category: "payment",
+    description:
+      "Add a small QR prompt to printed receipts, collection bags or order slips.",
+    material: "Direct Thermal Matte Sticker Roll",
+    dimensions: "40mm x 40mm",
+    price: 16.0,
+    imageSrc: tummlyStickerImg,
+  },
+  {
+    id: "receipt-stickers-bag",
+    title: "Receipt stickers",
+    category: "takeaway",
+    description:
+      "Add a small QR prompt to printed receipts, collection bags or order slips.",
+    material: "Heavy Kraft Paper Bag with QR Brand Print",
+    dimensions: "320mm x 260mm x 120mm",
+    price: 16.0,
+    imageSrc: tummlyBagImg,
+  },
+  {
+    id: "delivery-inserts",
+    title: "Delivery inserts",
+    category: "delivery",
+    description:
+      "Include a branded feedback card inside delivery and collection orders.",
+    material: "250gsm Silk Finish Card",
+    dimensions: "A6 Postcard Size",
+    price: 32.0,
+    imageSrc: tummlyStickerImg,
   },
 ]
 
@@ -91,157 +120,66 @@ export function ShopCatalogSection({
   searchQuery,
   onAddToCart,
 }: ShopCatalogSectionProps) {
-  const [selectedCategory, setSelectedCategory] = useState<string>("all")
-  const [addedProductIds, setAddedProductIds] = useState<Record<string, boolean>>({})
-
   const filteredProducts = SHOP_CATALOG_PRODUCTS.filter((product) => {
-    const matchesSearch =
+    return (
       searchQuery.trim() === "" ||
       product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.material.toLowerCase().includes(searchQuery.toLowerCase())
-
-    const matchesCategory =
-      selectedCategory === "all" || product.category === selectedCategory
-
-    return matchesSearch && matchesCategory
+      product.description.toLowerCase().includes(searchQuery.toLowerCase())
+    )
   })
 
-  const handleAdd = (product: ShopProduct) => {
-    onAddToCart(product, 1)
-    setAddedProductIds((prev) => ({ ...prev, [product.id]: true }))
-    setTimeout(() => {
-      setAddedProductIds((prev) => ({ ...prev, [product.id]: false }))
-    }, 1500)
-  }
-
-  const renderIcon = (icon: ShopProduct["icon"]) => {
-    switch (icon) {
-      case "layers":
-        return <Layers className="size-5 text-op-action-primary" />
-      case "credit-card":
-        return <CreditCard className="size-5 text-op-action-primary" />
-      case "shield":
-        return <Shield className="size-5 text-op-action-primary" />
-      case "user":
-        return <UserCheck className="size-5 text-op-action-primary" />
-      case "sparkles":
-        return <Sparkles className="size-5 text-op-action-primary" />
-      case "qr":
-      default:
-        return <QrCode className="size-5 text-op-action-primary" />
-    }
-  }
-
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="text-xl font-bold tracking-tight text-foreground">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
           A suggested QR materials kit
         </h3>
-
-        <div className="flex flex-wrap items-center gap-1.5">
-          {[
-            { id: "all", label: "All materials" },
-            { id: "tabletop", label: "Tabletop" },
-            { id: "payment", label: "Bill & Payment" },
-            { id: "window", label: "Window & Doors" },
-            { id: "staff", label: "Staff" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setSelectedCategory(tab.id)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                selectedCategory === tab.id
-                  ? "bg-op-action-primary text-white"
-                  : "bg-op-surface-secondary text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <p className="text-xs font-normal text-muted-foreground sm:text-sm">
+          Based on your location setup and recent QR activity, Tummly recommends the following materials.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredProducts.map((product) => {
-          const isAdded = addedProductIds[product.id]
+      {/* 4-column responsive grid */}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        {filteredProducts.map((product) => (
+          <ShopCatalogItemCard
+            key={product.id}
+            title={product.title}
+            description={product.description}
+            price={product.price}
+            imageSrc={product.imageSrc}
+            onViewMaterial={() => onAddToCart(product, 1)}
+          />
+        ))}
+      </div>
 
-          return (
-            <div
-              key={product.id}
-              className="flex flex-col justify-between rounded-md border border-op-border-default bg-op-card-background p-5 transition-shadow hover:shadow-md"
-            >
-              <div>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="rounded-lg border border-op-border-default bg-op-surface-secondary p-2.5">
-                    {renderIcon(product.icon)}
-                  </div>
-                  {product.popularBadge && (
-                    <Badge variant="secondary" className="bg-op-surface-secondary text-[11px] font-medium text-foreground">
-                      {product.popularBadge}
-                    </Badge>
-                  )}
-                  {product.isPlanIncluded && (
-                    <Badge variant="outline" className="border-op-action-primary/40 bg-op-action-primary/10 text-[11px] font-semibold text-op-text-success">
-                      Plan Included
-                    </Badge>
-                  )}
-                </div>
+      {/* Bottom pagination */}
+      <div className="flex items-center justify-between border-t border-op-border-default/60 pt-4 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-md border-op-border-default bg-op-card-background px-3 text-xs text-foreground hover:bg-op-surface-secondary"
+            disabled
+          >
+            <ChevronLeft className="size-3.5" />
+            Previous
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-md border-op-border-default bg-op-card-background px-3 text-xs text-foreground hover:bg-op-surface-secondary"
+          >
+            Next
+            <ChevronRight className="size-3.5" />
+          </Button>
+        </div>
 
-                <h4 className="mt-4 text-base font-semibold text-foreground">
-                  {product.title}
-                </h4>
-                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                  {product.description}
-                </p>
-
-                <div className="mt-4 flex flex-col gap-1 rounded-md bg-op-surface-secondary/70 p-2.5 text-[11px] text-muted-foreground">
-                  <div className="flex justify-between">
-                    <span>Specs:</span>
-                    <span className="font-medium text-foreground">{product.dimensions}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Material:</span>
-                    <span className="font-medium text-foreground">{product.material}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 flex items-center justify-between border-t border-op-border-default/60 pt-4">
-                <div>
-                  <span className="text-xs text-muted-foreground">Price: </span>
-                  <span className="text-sm font-bold text-foreground">
-                    {product.price === 0 ? "Free (Included)" : `£${product.price.toFixed(2)}`}
-                  </span>
-                </div>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={isAdded ? "outline" : "op-primary"}
-                  className={`h-8 gap-1.5 rounded-md px-3 text-xs font-medium transition-all ${
-                    isAdded ? "border-op-action-primary text-op-text-success" : ""
-                  }`}
-                  onClick={() => handleAdd(product)}
-                >
-                  {isAdded ? (
-                    <>
-                      <Check className="size-3.5" />
-                      Added
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="size-3.5" />
-                      Add to cart
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          )
-        })}
+        <span>
+          Showing 1–{filteredProducts.length} of {SHOP_CATALOG_PRODUCTS.length} items
+        </span>
       </div>
     </div>
   )

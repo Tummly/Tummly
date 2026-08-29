@@ -44,7 +44,7 @@ export function ShopBanner({
           <Button
             type="button"
             variant="op-secondary"
-            className="h-10 rounded-md px-4 text-sm font-medium bg-[#27272a] text-white hover:bg-[#3f3f46]"
+            className="h-10 rounded-md bg-op-surface-secondary px-4 text-sm font-medium text-foreground hover:bg-op-action-secondary-hover"
             onClick={onSeeWhatsIncluded}
           >
             See what&apos;s included

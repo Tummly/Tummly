@@ -98,9 +98,9 @@ export function ShopPage({
   }
 
   const handleAddStarterKitToCart = () => {
-    const starterProduct = SHOP_CATALOG_PRODUCTS.find(
-      (p) => p.id === "table-stands"
-    )
+    const starterProduct =
+      SHOP_CATALOG_PRODUCTS.find((p) => p.id === "table-tents") ??
+      SHOP_CATALOG_PRODUCTS[0]
     if (starterProduct) {
       handleAddToCart(starterProduct, 1)
       setIsCartOpen(true)
@@ -108,14 +108,31 @@ export function ShopPage({
   }
 
   const handleAddRecommendedKitToCart = () => {
-    if (!locationDetails) return
-    const tableStands = SHOP_CATALOG_PRODUCTS.find((p) => p.id === "table-stands")
-    const decals = SHOP_CATALOG_PRODUCTS.find((p) => p.id === "window-decals")
-    const billCards = SHOP_CATALOG_PRODUCTS.find((p) => p.id === "bill-presenters")
+    const tableStands =
+      SHOP_CATALOG_PRODUCTS.find((p) => p.id === "table-tents") ??
+      SHOP_CATALOG_PRODUCTS[0]
+    const decals =
+      SHOP_CATALOG_PRODUCTS.find((p) => p.id === "window-stickers") ??
+      SHOP_CATALOG_PRODUCTS[3]
+    const billCards =
+      SHOP_CATALOG_PRODUCTS.find((p) => p.id === "counter-cards-1") ??
+      SHOP_CATALOG_PRODUCTS[1]
 
-    if (tableStands) handleAddToCart(tableStands, Math.ceil(locationDetails.tableCount / 10))
-    if (decals) handleAddToCart(decals, 1)
-    if (billCards) handleAddToCart(billCards, 1)
+    if (tableStands) {
+      handleAddToCart(
+        tableStands,
+        locationDetails?.tableCount ? Math.ceil(locationDetails.tableCount / 10) : 2
+      )
+    }
+    if (decals) {
+      handleAddToCart(
+        decals,
+        locationDetails?.entranceCount ? Math.ceil(locationDetails.entranceCount / 2) : 1
+      )
+    }
+    if (billCards) {
+      handleAddToCart(billCards, 1)
+    }
 
     toast.success(`Recommended materials kit added to cart for ${locationName}`)
     setIsCartOpen(true)
