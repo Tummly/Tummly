@@ -31,12 +31,12 @@ Shipped on `feat/settings-billing`.
 - Shared `RevolutSubscriptionCorrelation.ResolveLatestSubscriptionIdAsync` for tickets 20/21.
 - Renewal apply-before-mint stays on sister ledger **24** / included mint.
 
-**Commits:** `2945d6db` (implement, rebased onto ticket 20), review fix commit below.
+**Commits:** `2945d6db` (implement, rebased onto ticket 20), `28150d0b` (review: schedule→change-plan order; shared sub id; cadence HTTP).
 
 ## Comments
 
 ### Review (post-merge)
 
 - Reordered schedule path: set slot → Revolut `change-plan` → save (fail closed without persist when Revolut refuses).
-- Deduped subscription-id resolve with ticket 20.
+- Deduped subscription-id resolve with ticket 20 via `RevolutSubscriptionCorrelation`.
 - Added cadence-only schedule HTTP coverage (no `redirectUrl`).
