@@ -828,6 +828,52 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PostPlanChange_ReturnsScheduled_ForOwnerCadenceChange_NoRedirect()
+        {
+            var seeded = await SeedWorkspaceAsync(scheduleTestRestaurant: true);
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change",
+                seeded.OwnerJwt
+            );
+            request.Content = JsonContent.Create(new
+            {
+                targetPlan = "Growth",
+                targetCadence = "annual",
+            });
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("scheduled", body.GetProperty("outcome").GetString());
+            if (body.TryGetProperty("redirectUrl", out var redirect))
+            {
+                Assert.True(
+                    redirect.ValueKind == JsonValueKind.Null
+                        || string.IsNullOrWhiteSpace(redirect.GetString())
+                );
+            }
+
+            Assert.Contains(
+                "Changes to Annual on",
+                body.GetProperty("scheduledChangeLine").GetString()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var account = await context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal(
+                BillingSubscriptionPlans.Growth,
+                account.ScheduledTargetSubscriptionPlan
+            );
+            Assert.Equal(BillingCycles.Annual, account.ScheduledTargetBillingCycle);
+            Assert.True(account.HasScheduledChange);
+        }
+
+        [Fact]
         public async Task DeleteScheduledChange_Returns400_WhenSlotEmpty()
         {
             var seeded = await SeedWorkspaceAsync(scheduleTestRestaurant: true);

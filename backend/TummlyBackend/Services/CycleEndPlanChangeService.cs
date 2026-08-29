@@ -29,10 +29,12 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var subscriptionId = await ResolveSubscriptionIdAsync(
-                restaurantId,
-                cancellationToken
-            );
+            var subscriptionId =
+                await RevolutSubscriptionCorrelation.ResolveLatestSubscriptionIdAsync(
+                    _context,
+                    restaurantId,
+                    cancellationToken
+                );
             if (string.IsNullOrWhiteSpace(subscriptionId))
             {
                 return;
@@ -65,22 +67,6 @@ namespace TummlyBackend.Services
             {
                 throw new InvalidOperationException(ex.Code);
             }
-        }
-
-        private async Task<string?> ResolveSubscriptionIdAsync(
-            int restaurantId,
-            CancellationToken cancellationToken
-        )
-        {
-            return await _context.RevolutPendingPaySessions
-                .AsNoTracking()
-                .Where(row =>
-                    row.RestaurantId == restaurantId
-                    && row.RevolutSubscriptionId != ""
-                )
-                .OrderByDescending(row => row.CreatedAtUtc)
-                .Select(row => row.RevolutSubscriptionId)
-                .FirstOrDefaultAsync(cancellationToken);
         }
     }
 }

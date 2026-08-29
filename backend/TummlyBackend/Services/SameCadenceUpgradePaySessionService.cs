@@ -81,10 +81,12 @@ namespace TummlyBackend.Services
 
             _merchant.EnsureReadyForCreate(lookupKey);
 
-            var subscriptionId = await ResolveSubscriptionIdAsync(
-                billingAccount.RestaurantId,
-                cancellationToken
-            );
+            var subscriptionId =
+                await RevolutSubscriptionCorrelation.ResolveLatestSubscriptionIdAsync(
+                    _context,
+                    billingAccount.RestaurantId,
+                    cancellationToken
+                );
             if (string.IsNullOrWhiteSpace(subscriptionId))
             {
                 throw new InvalidOperationException(
@@ -316,19 +318,6 @@ namespace TummlyBackend.Services
             );
             var vat = PlanUpgradeProrationMath.VatOnNetPence(net);
             return (net, vat, net + vat);
-        }
-
-        private async Task<string?> ResolveSubscriptionIdAsync(
-            int restaurantId,
-            CancellationToken cancellationToken
-        )
-        {
-            return await _context.RevolutPendingPaySessions
-                .AsNoTracking()
-                .Where(row => row.RestaurantId == restaurantId)
-                .OrderByDescending(row => row.CreatedAtUtc)
-                .Select(row => row.RevolutSubscriptionId)
-                .FirstOrDefaultAsync(cancellationToken);
         }
 
         private async Task<string?> TryReuseCheckoutAsync(

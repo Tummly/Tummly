@@ -568,18 +568,19 @@ namespace TummlyBackend.Services
                 restaurantId
             );
 
-            await _cycleEndPlanChange.ApplyRevolutChangePlanIfNeededAsync(
-                restaurantId,
-                targetPlan,
-                targetCadenceApi
-            );
-
             _planChange.SetScheduledChange(
                 billingAccount,
                 targetPlan,
                 targetBillingCycle,
                 targetExtras
             );
+
+            await _cycleEndPlanChange.ApplyRevolutChangePlanIfNeededAsync(
+                restaurantId,
+                targetPlan,
+                targetCadenceApi
+            );
+
             await _context.SaveChangesAsync();
 
             var renewalDateLabel =
