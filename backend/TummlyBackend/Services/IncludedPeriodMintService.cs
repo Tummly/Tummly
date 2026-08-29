@@ -43,12 +43,16 @@ namespace TummlyBackend.Services
 
             return RunLockedAsync(
                 request.RestaurantId,
-                async (billingAccount, entries, nowUtc, transaction) =>
+                async (billingAccount, entries, nowUtc, session) =>
                 {
                     if (!CanMintIncluded(billingAccount))
                     {
-                        return IncludedPeriodMintResult.Skipped(
-                            "billing_status_not_active"
+                        return await AbortOwnedAsync(
+                            session,
+                            IncludedPeriodMintResult.Skipped(
+                                "billing_status_not_active"
+                            ),
+                            cancellationToken
                         );
                     }
 
@@ -58,7 +62,11 @@ namespace TummlyBackend.Services
                     );
                     if (period == null)
                     {
-                        return IncludedPeriodMintResult.Skipped("invalid_period");
+                        return await AbortOwnedAsync(
+                            session,
+                            IncludedPeriodMintResult.Skipped("invalid_period"),
+                            cancellationToken
+                        );
                     }
 
                     return await MintPeriodAsync(
@@ -67,7 +75,7 @@ namespace TummlyBackend.Services
                         nowUtc,
                         period.Value.PeriodStartUtc,
                         period.Value.ExpiresAtUtc,
-                        transaction,
+                        session,
                         cancellationToken
                     );
                 },
@@ -80,13 +88,27 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            return ProcessJobForRestaurantAsync(
+                restaurantId,
+                nowUtc: null,
+                cancellationToken
+            );
+        }
+
+        public Task<IncludedPeriodMintResult> ProcessJobForRestaurantAsync(
+            int restaurantId,
+            DateTime? nowUtc,
+            CancellationToken cancellationToken = default
+        )
+        {
             return RunLockedAsync(
                 restaurantId,
-                async (billingAccount, entries, nowUtc, transaction) =>
+                async (billingAccount, entries, clockNowUtc, session) =>
                 {
+                    var effectiveNow = nowUtc ?? clockNowUtc;
                     var expiryRowsWritten = WriteEndedIncludedExpiries(
                         entries,
-                        nowUtc
+                        effectiveNow
                     );
 
                     if (
@@ -102,12 +124,11 @@ namespace TummlyBackend.Services
                         )
                     )
                     {
-                        await SaveIfNeededAsync(
+                        return await FinishWithoutMintAsync(
                             expiryRowsWritten,
-                            transaction,
+                            session,
                             cancellationToken
                         );
-                        return IncludedPeriodMintResult.Ok([], expiryRowsWritten);
                     }
 
                     var periodStarts = entries
@@ -119,16 +140,15 @@ namespace TummlyBackend.Services
                         .Select(row => row.PeriodStartUtc!.Value);
                     var yearStartUtc = IncludedPeriodCalculator.InferAnnualYearStart(
                         periodStarts,
-                        nowUtc
+                        effectiveNow
                     );
                     if (yearStartUtc == null)
                     {
-                        await SaveIfNeededAsync(
+                        return await FinishWithoutMintAsync(
                             expiryRowsWritten,
-                            transaction,
+                            session,
                             cancellationToken
                         );
-                        return IncludedPeriodMintResult.Ok([], expiryRowsWritten);
                     }
 
                     var yearEndUtc = ResolveAnnualYearEndUtc(
@@ -138,16 +158,15 @@ namespace TummlyBackend.Services
                     var sliceIndex = IncludedPeriodCalculator.CurrentAnnualSliceIndex(
                         yearStartUtc.Value,
                         yearEndUtc,
-                        nowUtc
+                        effectiveNow
                     );
                     if (sliceIndex is null or 0)
                     {
-                        await SaveIfNeededAsync(
+                        return await FinishWithoutMintAsync(
                             expiryRowsWritten,
-                            transaction,
+                            session,
                             cancellationToken
                         );
-                        return IncludedPeriodMintResult.Ok([], expiryRowsWritten);
                     }
 
                     var slice = IncludedPeriodCalculator.ResolveAnnualSlice(
@@ -157,25 +176,23 @@ namespace TummlyBackend.Services
                     );
                     if (slice == null)
                     {
-                        await SaveIfNeededAsync(
+                        return await FinishWithoutMintAsync(
                             expiryRowsWritten,
-                            transaction,
+                            session,
                             cancellationToken
                         );
-                        return IncludedPeriodMintResult.Ok([], expiryRowsWritten);
                     }
 
-                    var mintResult = await MintPeriodAsync(
+                    return await MintPeriodAsync(
                         billingAccount,
                         entries,
-                        nowUtc,
+                        effectiveNow,
                         slice.Value.PeriodStartUtc,
                         slice.Value.ExpiresAtUtc,
-                        transaction,
+                        session,
                         cancellationToken,
                         expiryRowsWritten
                     );
-                    return mintResult;
                 },
                 cancellationToken
             );
@@ -187,7 +204,7 @@ namespace TummlyBackend.Services
                 BillingAccount,
                 List<CreditLedgerEntry>,
                 DateTime,
-                IDbContextTransaction,
+                LockSession,
                 Task<IncludedPeriodMintResult>
             > action,
             CancellationToken cancellationToken
@@ -227,39 +244,62 @@ namespace TummlyBackend.Services
                 BillingAccount,
                 List<CreditLedgerEntry>,
                 DateTime,
-                IDbContextTransaction,
+                LockSession,
                 Task<IncludedPeriodMintResult>
             > action,
             CancellationToken cancellationToken
         )
         {
-            await using var transaction =
-                await _context.Database.BeginTransactionAsync(
+            var ambient = _context.Database.CurrentTransaction;
+            var ownsTransaction = ambient == null;
+            IDbContextTransaction? owned = null;
+            if (ownsTransaction)
+            {
+                owned = await _context.Database.BeginTransactionAsync(
                     IsolationLevel.ReadCommitted,
                     cancellationToken
                 );
-
-            var billingAccount = await LockBillingAccountAsync(
-                restaurantId,
-                cancellationToken
-            );
-            if (billingAccount == null)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-                return IncludedPeriodMintResult.Skipped("billing_account_missing");
             }
 
-            var nowUtc = _clock.GetUtcNow().UtcDateTime;
-            var entries = await _context.CreditLedgerEntries
-                .Where(row => row.RestaurantId == restaurantId)
-                .ToListAsync(cancellationToken);
+            var session = new LockSession(ownsTransaction, owned ?? ambient!);
 
-            return await action(
-                billingAccount,
-                entries,
-                nowUtc,
-                transaction
-            );
+            try
+            {
+                var billingAccount = await LockBillingAccountAsync(
+                    restaurantId,
+                    cancellationToken
+                );
+                if (billingAccount == null)
+                {
+                    return await AbortOwnedAsync(
+                        session,
+                        IncludedPeriodMintResult.Skipped("billing_account_missing"),
+                        cancellationToken
+                    );
+                }
+
+                var nowUtc = _clock.GetUtcNow().UtcDateTime;
+                var entries = await _context.CreditLedgerEntries
+                    .Where(row => row.RestaurantId == restaurantId)
+                    .ToListAsync(cancellationToken);
+
+                return await action(
+                    billingAccount,
+                    entries,
+                    nowUtc,
+                    session
+                );
+            }
+            catch
+            {
+                if (ownsTransaction && owned != null)
+                {
+                    await owned.RollbackAsync(cancellationToken);
+                    await owned.DisposeAsync();
+                }
+
+                throw;
+            }
         }
 
         private async Task<IncludedPeriodMintResult> MintPeriodAsync(
@@ -268,19 +308,27 @@ namespace TummlyBackend.Services
             DateTime nowUtc,
             DateTime periodStartUtc,
             DateTime expiresAtUtc,
-            IDbContextTransaction transaction,
+            LockSession session,
             CancellationToken cancellationToken,
             int expiryRowsWritten = 0
         )
         {
             if (expiresAtUtc <= nowUtc)
             {
-                return IncludedPeriodMintResult.Skipped("period_already_ended");
+                return await AbortOwnedAsync(
+                    session,
+                    IncludedPeriodMintResult.Skipped("period_already_ended"),
+                    cancellationToken
+                );
             }
 
             if (periodStartUtc > nowUtc)
             {
-                return IncludedPeriodMintResult.Skipped("future_period");
+                return await AbortOwnedAsync(
+                    session,
+                    IncludedPeriodMintResult.Skipped("future_period"),
+                    cancellationToken
+                );
             }
 
             expiryRowsWritten += WriteEndedIncludedExpiries(entries, nowUtc);
@@ -290,14 +338,20 @@ namespace TummlyBackend.Services
             var planKey = SubscriptionPlanKey(billingAccount.SubscriptionPlan);
             if (!pricebook.Plans.TryGetValue(planKey, out var plan))
             {
-                await transaction.RollbackAsync(cancellationToken);
-                return IncludedPeriodMintResult.Skipped("plan_not_in_pricebook");
+                return await AbortOwnedAsync(
+                    session,
+                    IncludedPeriodMintResult.Skipped("plan_not_in_pricebook"),
+                    cancellationToken
+                );
             }
 
             if (plan.CreditsMonthly == null)
             {
-                await transaction.RollbackAsync(cancellationToken);
-                return IncludedPeriodMintResult.Skipped("plan_has_no_monthly_credits");
+                return await AbortOwnedAsync(
+                    session,
+                    IncludedPeriodMintResult.Skipped("plan_has_no_monthly_credits"),
+                    cancellationToken
+                );
             }
 
             var quantities = ResolveChannelQuantities(
@@ -345,18 +399,27 @@ namespace TummlyBackend.Services
             var postState = CreditLedgerCalculator.Project(entries, nowUtc);
             if (!CreditLedgerCalculator.InvariantsHold(postState))
             {
-                await transaction.RollbackAsync(cancellationToken);
-                return IncludedPeriodMintResult.Skipped("ledger_invariants_failed");
+                return await AbortOwnedAsync(
+                    session,
+                    IncludedPeriodMintResult.Skipped("ledger_invariants_failed"),
+                    cancellationToken
+                );
             }
 
             if (insertedIds.Count == 0 && expiryRowsWritten == 0)
             {
-                await transaction.RollbackAsync(cancellationToken);
-                return IncludedPeriodMintResult.Skipped("grant_already_exists");
+                return await AbortOwnedAsync(
+                    session,
+                    IncludedPeriodMintResult.Skipped("grant_already_exists"),
+                    cancellationToken
+                );
             }
 
             await _context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            if (session.OwnsTransaction)
+            {
+                await session.Transaction.CommitAsync(cancellationToken);
+            }
 
             return IncludedPeriodMintResult.Ok(insertedIds, expiryRowsWritten);
         }
@@ -486,6 +549,10 @@ namespace TummlyBackend.Services
             );
         }
 
+        /// <summary>
+        /// First paid included mint uses Current Pricebook. Later mints use Contracted.
+        /// Pilot grants are <c>pilot_allocation</c>, so they do not count as prior included.
+        /// </summary>
         private string ResolveMintPricebookId(
             BillingAccount billingAccount,
             IReadOnlyList<CreditLedgerEntry> entries
@@ -554,20 +621,47 @@ namespace TummlyBackend.Services
             );
         }
 
-        private async Task SaveIfNeededAsync(
+        private async Task<IncludedPeriodMintResult> FinishWithoutMintAsync(
             int expiryRowsWritten,
-            IDbContextTransaction transaction,
+            LockSession session,
             CancellationToken cancellationToken
         )
         {
             if (expiryRowsWritten == 0)
             {
-                await transaction.RollbackAsync(cancellationToken);
-                return;
+                return await AbortOwnedAsync(
+                    session,
+                    IncludedPeriodMintResult.Ok([], 0),
+                    cancellationToken
+                );
             }
 
             await _context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            if (session.OwnsTransaction)
+            {
+                await session.Transaction.CommitAsync(cancellationToken);
+            }
+
+            return IncludedPeriodMintResult.Ok([], expiryRowsWritten);
         }
+
+        private static async Task<IncludedPeriodMintResult> AbortOwnedAsync(
+            LockSession session,
+            IncludedPeriodMintResult result,
+            CancellationToken cancellationToken
+        )
+        {
+            if (session.OwnsTransaction)
+            {
+                await session.Transaction.RollbackAsync(cancellationToken);
+            }
+
+            return result;
+        }
+
+        private sealed record LockSession(
+            bool OwnsTransaction,
+            IDbContextTransaction Transaction
+        );
     }
 }

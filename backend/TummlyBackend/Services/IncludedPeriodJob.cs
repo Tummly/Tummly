@@ -24,13 +24,11 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            // Paid accounts (any cadence): catch-up expiry. Annual Active also mints
+            // the current open slice inside ProcessJobForRestaurantAsync.
             var restaurantIds = await _context.BillingAccounts
                 .AsNoTracking()
-                .Where(row =>
-                    row.BillingCycle == BillingCycles.Annual
-                    && row.BillingStatus == BillingStatuses.Active
-                    && row.SubscriptionPlan != BillingSubscriptionPlans.Pilot
-                )
+                .Where(row => row.BillingCycle != null)
                 .Select(row => row.RestaurantId)
                 .ToListAsync(cancellationToken);
 
@@ -42,6 +40,7 @@ namespace TummlyBackend.Services
                 {
                     var result = await _mint.ProcessJobForRestaurantAsync(
                         restaurantId,
+                        nowUtc,
                         cancellationToken
                     );
                     if (result.InsertedAllocationIds.Count > 0)

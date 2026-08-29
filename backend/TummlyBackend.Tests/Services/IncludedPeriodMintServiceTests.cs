@@ -8,7 +8,7 @@ using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Services
 {
-    public class IncludedPeriodMintServiceTests : IDisposable
+    public class IncludedPeriodMintServiceTests
     {
         private const string PricebookId = "TUMMLY-UK-GBP-2026-08-V3";
         private readonly string _databaseName = Guid.NewGuid().ToString();
@@ -153,12 +153,9 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.Equal(3, sliceZero.InsertedAllocationIds.Count);
 
-            var jobHarness = await RebindHarnessClockAsync(
-                harness,
+            var result = await harness.Mint.ProcessJobForRestaurantAsync(
+                harness.RestaurantId,
                 new DateTime(2026, 2, 15, 12, 0, 0, DateTimeKind.Utc)
-            );
-            var result = await jobHarness.Mint.ProcessJobForRestaurantAsync(
-                jobHarness.RestaurantId
             );
 
             Assert.True(result.Succeeded);
@@ -174,6 +171,140 @@ namespace TummlyBackend.Tests.Services
                 .ToListAsync();
             Assert.Equal(3, grants.Count);
             Assert.All(grants, row => Assert.Equal(sliceOneEnd, row.ExpiresAtUtc));
+        }
+
+        [Fact]
+        public async Task ProcessJobForRestaurant_Monthly_ExpiresEndedIncludedLeftoverOnly()
+        {
+            var harness = await SeedPaidAccountAsync(
+                BillingSubscriptionPlans.Growth,
+                BillingCycles.Monthly
+            );
+            var oldStart = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            var oldEnd = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
+            var oldGrantId = await InsertIncludedGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditChannels.Email,
+                quantity: 10_000,
+                oldStart,
+                oldEnd
+            );
+
+            var result = await harness.Mint.ProcessJobForRestaurantAsync(
+                harness.RestaurantId
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.Empty(result.InsertedAllocationIds);
+            Assert.Equal(1, result.ExpiryRowsWritten);
+
+            var expiry = await harness.Context.CreditLedgerEntries
+                .SingleAsync(row =>
+                    row.EntryType == CreditLedgerEntryTypes.Expiry
+                    && row.AllocationId == oldGrantId
+                );
+            Assert.Equal(10_000, expiry.Quantity);
+
+            Assert.Empty(
+                await harness.Context.CreditLedgerEntries
+                    .Where(row =>
+                        row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
+                        && row.PeriodStartUtc != oldStart
+                    )
+                    .ToListAsync()
+            );
+        }
+
+        [Fact]
+        public async Task MintOnOrderCompleted_AfterPilot_UsesCurrentPricebook()
+        {
+            var harness = await SeedPaidAccountAsync(
+                BillingSubscriptionPlans.Growth,
+                BillingCycles.Monthly
+            );
+            harness.Context.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    EntryType = CreditLedgerEntryTypes.PilotAllocation,
+                    Quantity = 500,
+                    PricebookVersion = PricebookId,
+                    CreatedAtUtc = _now.AddDays(-20),
+                }
+            );
+            await harness.Context.SaveChangesAsync();
+
+            var periodStart = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
+            var periodEnd = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+            var result = await harness.Mint.MintOnOrderCompletedAsync(
+                new IncludedPeriodOrderCompletedRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    PaymentCompleted = true,
+                    CycleStartUtc = periodStart,
+                    NextCycleStartUtc = periodEnd,
+                }
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.Equal(3, result.InsertedAllocationIds.Count);
+
+            var grants = await harness.Context.CreditLedgerEntries
+                .Where(row =>
+                    row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
+                )
+                .ToListAsync();
+            Assert.All(
+                grants,
+                row => Assert.Equal(_pricebook.CurrentPricebookId, row.PricebookVersion)
+            );
+        }
+
+        [Fact]
+        public async Task MintOnOrderCompleted_AmbientTransaction_SharesCallerLock()
+        {
+            var harness = await SeedPaidAccountAsync(
+                BillingSubscriptionPlans.Growth,
+                BillingCycles.Monthly
+            );
+            var periodStart = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
+            var periodEnd = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            await using var ambient =
+                await harness.Context.Database.BeginTransactionAsync();
+            harness.Context.BillingAccounts.First().BillingEmail = "billing@example.com";
+            await harness.Context.SaveChangesAsync();
+
+            var result = await harness.Mint.MintOnOrderCompletedAsync(
+                new IncludedPeriodOrderCompletedRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    PaymentCompleted = true,
+                    CycleStartUtc = periodStart,
+                    NextCycleStartUtc = periodEnd,
+                }
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.Equal(3, result.InsertedAllocationIds.Count);
+
+            await ambient.CommitAsync();
+
+            var email = await harness.Context.BillingAccounts
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == harness.RestaurantId)
+                .Select(row => row.BillingEmail)
+                .SingleAsync();
+            Assert.Equal("billing@example.com", email);
+            Assert.Equal(
+                3,
+                await harness.Context.CreditLedgerEntries.CountAsync(row =>
+                    row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
+                )
+            );
         }
 
         [Fact]
@@ -282,10 +413,6 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(10_000, newGrant.Quantity);
         }
 
-        public void Dispose()
-        {
-        }
-
         private async Task<Harness> SeedPaidAccountAsync(
             string subscriptionPlan,
             string billingCycle,
@@ -343,24 +470,6 @@ namespace TummlyBackend.Tests.Services
                 new IncludedPeriodMintService(context, _pricebook, clock),
                 restaurant.Id,
                 location.Id
-            );
-        }
-
-        private static Task<Harness> RebindHarnessClockAsync(
-            Harness harness,
-            DateTime utcNow
-        )
-        {
-            var clock = new FixedTimeProvider(utcNow);
-            return Task.FromResult(
-                harness with
-                {
-                    Mint = new IncludedPeriodMintService(
-                        harness.Context,
-                        PricebookCatalog.LoadFromDirectory(PackDirectory()),
-                        clock
-                    ),
-                }
             );
         }
 

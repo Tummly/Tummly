@@ -19,6 +19,16 @@ namespace TummlyBackend.Interfaces
             int restaurantId,
             CancellationToken cancellationToken = default
         );
+
+        /// <summary>
+        /// Same as <see cref="ProcessJobForRestaurantAsync(int, CancellationToken)"/>
+        /// with an explicit job clock (batch passes <c>nowUtc</c>).
+        /// </summary>
+        Task<IncludedPeriodMintResult> ProcessJobForRestaurantAsync(
+            int restaurantId,
+            DateTime? nowUtc,
+            CancellationToken cancellationToken = default
+        );
     }
 
     public interface IIncludedPeriodJob
