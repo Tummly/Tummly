@@ -40,6 +40,15 @@ namespace TummlyBackend.Interfaces
             RevolutCreateOrderRequest request,
             CancellationToken cancellationToken = default
         );
+
+        /// <summary>
+        /// Retrieves an order by id (webhook retrieve gate). Does not use the
+        /// Merchant create gate; still needs Merchant API credentials.
+        /// </summary>
+        Task<RevolutOrderRetrieveResult> GetOrderAsync(
+            string orderId,
+            CancellationToken cancellationToken = default
+        );
     }
 
     public sealed class RevolutMerchantNotReadyException : Exception
@@ -73,6 +82,16 @@ namespace TummlyBackend.Interfaces
     public sealed record RevolutMerchantCreateResult(
         bool Succeeded,
         string? Id = null,
+        string? ErrorCode = null,
+        string? RawBody = null
+    );
+
+    public sealed record RevolutOrderRetrieveResult(
+        bool Succeeded,
+        string? Id = null,
+        string? State = null,
+        string? BillingReason = null,
+        string? SubscriptionId = null,
         string? ErrorCode = null,
         string? RawBody = null
     );

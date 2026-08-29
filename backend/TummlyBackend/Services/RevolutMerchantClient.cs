@@ -106,6 +106,110 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task<RevolutOrderRetrieveResult> GetOrderAsync(
+            string orderId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (
+                string.IsNullOrWhiteSpace(orderId)
+                || string.IsNullOrWhiteSpace(_settings.SecretKey)
+                || string.IsNullOrWhiteSpace(_settings.ApiVersion)
+            )
+            {
+                return new RevolutOrderRetrieveResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_not_ready"
+                );
+            }
+
+            var client = _httpClientFactory.CreateClient(HttpClientName);
+            using var message = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"api/1.0/orders/{Uri.EscapeDataString(orderId.Trim())}"
+            );
+            ApplyAuthHeaders(message);
+
+            using var response = await client.SendAsync(
+                message,
+                cancellationToken
+            );
+            var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new RevolutOrderRetrieveResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_http_error",
+                    RawBody: raw
+                );
+            }
+
+            string? id = null;
+            string? state = null;
+            string? billingReason = null;
+            string? subscriptionId = null;
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                using var doc = JsonDocument.Parse(raw);
+                var root = doc.RootElement;
+                if (
+                    root.TryGetProperty("id", out var idElement)
+                    && idElement.ValueKind == JsonValueKind.String
+                )
+                {
+                    id = idElement.GetString();
+                }
+
+                if (
+                    root.TryGetProperty("state", out var stateElement)
+                    && stateElement.ValueKind == JsonValueKind.String
+                )
+                {
+                    state = stateElement.GetString();
+                }
+
+                if (
+                    root.TryGetProperty(
+                        "subscription_data",
+                        out var subscriptionData
+                    )
+                    && subscriptionData.ValueKind == JsonValueKind.Object
+                )
+                {
+                    if (
+                        subscriptionData.TryGetProperty(
+                            "billing_reason",
+                            out var reasonElement
+                        )
+                        && reasonElement.ValueKind == JsonValueKind.String
+                    )
+                    {
+                        billingReason = reasonElement.GetString();
+                    }
+
+                    if (
+                        subscriptionData.TryGetProperty(
+                            "subscription_id",
+                            out var subIdElement
+                        )
+                        && subIdElement.ValueKind == JsonValueKind.String
+                    )
+                    {
+                        subscriptionId = subIdElement.GetString();
+                    }
+                }
+            }
+
+            return new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: id,
+                State: state,
+                BillingReason: billingReason,
+                SubscriptionId: subscriptionId,
+                RawBody: raw
+            );
+        }
+
         private async Task<RevolutMerchantCreateResult> PostCreateAsync(
             string relativePath,
             object body,

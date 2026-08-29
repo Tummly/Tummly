@@ -67,6 +67,12 @@ namespace TummlyBackend.Data
             set;
         }
 
+        public DbSet<RevolutWebhookEventClaim> RevolutWebhookEventClaims
+        {
+            get;
+            set;
+        }
+
         public DbSet<RestaurantLocation> RestaurantLocations { get; set; }
 
         public DbSet<QrCode> QrCodes { get; set; }
@@ -714,6 +720,31 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<AiActionIdempotencyRecord>()
                 .Property(row => row.Body)
+                .IsRequired();
+
+            /*
+             =========================================
+             REVOLUT WEBHOOK EVENT CLAIMS
+             =========================================
+             */
+
+            modelBuilder.Entity<RevolutWebhookEventClaim>()
+                .HasIndex(row => new { row.Event, row.ObjectId })
+                .IsUnique();
+
+            modelBuilder.Entity<RevolutWebhookEventClaim>()
+                .Property(row => row.Event)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutWebhookEventClaim>()
+                .Property(row => row.ObjectId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutWebhookEventClaim>()
+                .Property(row => row.Disposition)
+                .HasMaxLength(64)
                 .IsRequired();
 
             /*

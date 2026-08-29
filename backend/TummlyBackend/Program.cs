@@ -520,6 +520,11 @@ else
 builder.Services.AddScoped<IPlanChangeService, PlanChangeService>();
 builder.Services.AddScoped<IRevolutMerchantCreateGate, RevolutMerchantCreateGate>();
 builder.Services.AddScoped<IRevolutMerchantClient, RevolutMerchantClient>();
+builder.Services.AddScoped<
+    IRevolutOrderCompletedApplier,
+    NoOpRevolutOrderCompletedApplier
+>();
+builder.Services.AddScoped<IRevolutWebhookService, RevolutWebhookService>();
 builder.Services.AddScoped<IBillingCreditsService, BillingCreditsService>();
 builder.Services.AddScoped<IExtraGroupLocationService, ExtraGroupLocationService>();
 builder.Services.AddScoped<IBillingAccountLifecycle, BillingAccountLifecycleService>();
