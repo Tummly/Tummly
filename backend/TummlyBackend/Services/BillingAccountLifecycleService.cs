@@ -21,14 +21,17 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IBillingAccountNoticeNotifier _notifier;
+        private readonly IRevolutDunningPayAdapter _dunningPay;
 
         public BillingAccountLifecycleService(
             ApplicationDbContext context,
-            IBillingAccountNoticeNotifier notifier
+            IBillingAccountNoticeNotifier notifier,
+            IRevolutDunningPayAdapter? dunningPay = null
         )
         {
             _context = context;
             _notifier = notifier;
+            _dunningPay = dunningPay ?? NoOpRevolutDunningPayAdapter.Instance;
         }
 
         public async Task TickAsync(
@@ -76,6 +79,7 @@ namespace TummlyBackend.Services
         public async Task<BillingLifecycleCommandResult> StartDunningEpisodeAsync(
             int restaurantId,
             DateTime now,
+            string? outstandingOrderId = null,
             CancellationToken cancellationToken = default
         )
         {
@@ -105,6 +109,11 @@ namespace TummlyBackend.Services
 
                     account.BillingStatus = BillingStatuses.PastDue;
                     account.DunningEpisodeStartedAt = now;
+                    if (!string.IsNullOrWhiteSpace(outstandingOrderId))
+                    {
+                        account.DunningOutstandingOrderId = outstandingOrderId.Trim();
+                    }
+
                     var fired = new HashSet<int>();
                     var events = new List<LifecycleEvent>();
                     FireDunningStep(account, 0, fired, events);
@@ -132,6 +141,7 @@ namespace TummlyBackend.Services
                     account.BillingStatus = BillingStatuses.Active;
                     account.DunningEpisodeStartedAt = null;
                     account.DunningFiredSteps = null;
+                    account.DunningOutstandingOrderId = null;
                     account.SoftLockEnteredAt = null;
                     account.DormantEnteredAt = null;
                     return Task.FromResult(new List<LifecycleEvent>());
@@ -469,6 +479,11 @@ namespace TummlyBackend.Services
                             restaurantId,
                             dunning.DayStep,
                             dunning.EpisodeId,
+                            cancellationToken
+                        );
+                        await _dunningPay.HandleDayStepAsync(
+                            restaurantId,
+                            dunning.DayStep,
                             cancellationToken
                         );
                         break;

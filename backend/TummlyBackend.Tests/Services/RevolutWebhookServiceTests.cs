@@ -6,6 +6,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -98,6 +99,8 @@ namespace TummlyBackend.Tests.Services
                 context,
                 merchant,
                 applier,
+                new NoOpBillingAccountLifecycle(),
+                TimeProvider.System,
                 settings
             );
         }

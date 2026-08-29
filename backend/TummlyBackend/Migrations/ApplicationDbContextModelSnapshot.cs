@@ -359,6 +359,10 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
 
+                    b.Property<string>("DunningOutstandingOrderId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.Property<bool>("HasScheduledChange")
                         .HasColumnType("bit");
 

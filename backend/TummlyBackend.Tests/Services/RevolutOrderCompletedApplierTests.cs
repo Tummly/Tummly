@@ -192,6 +192,8 @@ namespace TummlyBackend.Tests.Services
                 context,
                 merchant,
                 applier,
+                new NoOpBillingAccountLifecycle(),
+                TimeProvider.System,
                 Options.Create(
                     new RevolutSettings
                     {

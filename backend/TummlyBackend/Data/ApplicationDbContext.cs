@@ -583,6 +583,10 @@ namespace TummlyBackend.Data
                 .Property(b => b.DunningFiredSteps)
                 .HasMaxLength(32);
 
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.DunningOutstandingOrderId)
+                .HasMaxLength(128);
+
             /*
              =========================================
              BILLING ACCOUNT -> CREDIT LEDGER ENTRIES

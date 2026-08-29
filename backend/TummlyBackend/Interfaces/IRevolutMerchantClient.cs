@@ -82,6 +82,7 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
+        /// <summary>
         /// PATCHes <c>merchant_order_data.reference</c> with the Tummly
         /// invoice number (support link). Does not use the create gate.
         /// </summary>
@@ -90,6 +91,49 @@ namespace TummlyBackend.Interfaces
             string merchantReference,
             CancellationToken cancellationToken = default
         );
+
+        /// <summary>
+        /// Retrieves a subscription (overdue gate / cycle order refresh).
+        /// </summary>
+        Task<RevolutSubscriptionRetrieveResult> GetSubscriptionAsync(
+            string subscriptionId,
+            CancellationToken cancellationToken = default
+        ) =>
+            Task.FromResult(
+                new RevolutSubscriptionRetrieveResult(
+                    Succeeded: false,
+                    ErrorCode: "not_implemented"
+                )
+            );
+
+        /// <summary>
+        /// Retrieves a subscription cycle (outstanding cycle <c>order_id</c>).
+        /// </summary>
+        Task<RevolutSubscriptionCycleRetrieveResult> GetSubscriptionCycleAsync(
+            string subscriptionId,
+            string cycleId,
+            CancellationToken cancellationToken = default
+        ) =>
+            Task.FromResult(
+                new RevolutSubscriptionCycleRetrieveResult(
+                    Succeeded: false,
+                    ErrorCode: "not_implemented"
+                )
+            );
+
+        /// <summary>
+        /// Merchant-initiated Pay on a saved payment method for an order.
+        /// </summary>
+        Task<RevolutMerchantCreateResult> PayOrderAsync(
+            RevolutPayOrderRequest request,
+            CancellationToken cancellationToken = default
+        ) =>
+            Task.FromResult(
+                new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "not_implemented"
+                )
+            );
     }
 
     public sealed class RevolutMerchantNotReadyException : Exception
@@ -163,5 +207,31 @@ namespace TummlyBackend.Interfaces
         string? ErrorCode = null,
         string? RawBody = null,
         string? CheckoutUrl = null
+    );
+
+    public sealed record RevolutSubscriptionRetrieveResult(
+        bool Succeeded,
+        string? Id = null,
+        string? State = null,
+        string? CurrentCycleId = null,
+        string? PaymentMethodId = null,
+        string? CustomerId = null,
+        string? ErrorCode = null,
+        string? RawBody = null
+    );
+
+    public sealed record RevolutSubscriptionCycleRetrieveResult(
+        bool Succeeded,
+        string? Id = null,
+        string? OrderId = null,
+        string? ErrorCode = null,
+        string? RawBody = null
+    );
+
+    public sealed record RevolutPayOrderRequest(
+        string OrderId,
+        string SavedPaymentMethodId,
+        string SavedPaymentMethodType = "card",
+        string Initiator = "merchant"
     );
 }

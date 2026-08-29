@@ -470,6 +470,200 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task<RevolutSubscriptionRetrieveResult> GetSubscriptionAsync(
+            string subscriptionId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (
+                string.IsNullOrWhiteSpace(subscriptionId)
+                || string.IsNullOrWhiteSpace(_settings.SecretKey)
+                || string.IsNullOrWhiteSpace(_settings.ApiVersion)
+            )
+            {
+                return new RevolutSubscriptionRetrieveResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_not_ready"
+                );
+            }
+
+            var client = _httpClientFactory.CreateClient(HttpClientName);
+            using var message = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"api/1.0/subscriptions/{Uri.EscapeDataString(subscriptionId.Trim())}"
+            );
+            ApplyAuthHeaders(message);
+
+            using var response = await client.SendAsync(
+                message,
+                cancellationToken
+            );
+            var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new RevolutSubscriptionRetrieveResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_http_error",
+                    RawBody: raw
+                );
+            }
+
+            string? id = null;
+            string? state = null;
+            string? currentCycleId = null;
+            string? paymentMethodId = null;
+            string? customerId = null;
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                using var doc = JsonDocument.Parse(raw);
+                var root = doc.RootElement;
+                id = ReadStringProp(root, "id");
+                state = ReadStringProp(root, "state");
+                currentCycleId = ReadStringProp(root, "current_cycle_id");
+                paymentMethodId = ReadStringProp(root, "payment_method_id");
+                customerId = ReadStringProp(root, "customer_id");
+            }
+
+            return new RevolutSubscriptionRetrieveResult(
+                Succeeded: true,
+                Id: id,
+                State: state,
+                CurrentCycleId: currentCycleId,
+                PaymentMethodId: paymentMethodId,
+                CustomerId: customerId,
+                RawBody: raw
+            );
+        }
+
+        public async Task<RevolutSubscriptionCycleRetrieveResult> GetSubscriptionCycleAsync(
+            string subscriptionId,
+            string cycleId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (
+                string.IsNullOrWhiteSpace(subscriptionId)
+                || string.IsNullOrWhiteSpace(cycleId)
+                || string.IsNullOrWhiteSpace(_settings.SecretKey)
+                || string.IsNullOrWhiteSpace(_settings.ApiVersion)
+            )
+            {
+                return new RevolutSubscriptionCycleRetrieveResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_not_ready"
+                );
+            }
+
+            var client = _httpClientFactory.CreateClient(HttpClientName);
+            using var message = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"api/1.0/subscriptions/{Uri.EscapeDataString(subscriptionId.Trim())}/cycles/{Uri.EscapeDataString(cycleId.Trim())}"
+            );
+            ApplyAuthHeaders(message);
+
+            using var response = await client.SendAsync(
+                message,
+                cancellationToken
+            );
+            var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new RevolutSubscriptionCycleRetrieveResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_http_error",
+                    RawBody: raw
+                );
+            }
+
+            string? id = null;
+            string? orderId = null;
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                using var doc = JsonDocument.Parse(raw);
+                var root = doc.RootElement;
+                id = ReadStringProp(root, "id");
+                orderId = ReadStringProp(root, "order_id");
+            }
+
+            return new RevolutSubscriptionCycleRetrieveResult(
+                Succeeded: true,
+                Id: id,
+                OrderId: orderId,
+                RawBody: raw
+            );
+        }
+
+        public async Task<RevolutMerchantCreateResult> PayOrderAsync(
+            RevolutPayOrderRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (
+                string.IsNullOrWhiteSpace(request.OrderId)
+                || string.IsNullOrWhiteSpace(request.SavedPaymentMethodId)
+                || string.IsNullOrWhiteSpace(_settings.SecretKey)
+                || string.IsNullOrWhiteSpace(_settings.ApiVersion)
+            )
+            {
+                return new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_not_ready"
+                );
+            }
+
+            var client = _httpClientFactory.CreateClient(HttpClientName);
+            using var message = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"api/orders/{Uri.EscapeDataString(request.OrderId.Trim())}/payments"
+            );
+            message.Content = JsonContent.Create(
+                new
+                {
+                    saved_payment_method = new
+                    {
+                        type = request.SavedPaymentMethodType,
+                        id = request.SavedPaymentMethodId,
+                        initiator = request.Initiator,
+                    },
+                },
+                options: JsonOptions
+            );
+            ApplyAuthHeaders(message);
+
+            using var response = await client.SendAsync(
+                message,
+                cancellationToken
+            );
+            var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_http_error",
+                    RawBody: raw
+                );
+            }
+
+            return new RevolutMerchantCreateResult(
+                Succeeded: true,
+                Id: request.OrderId.Trim(),
+                RawBody: raw
+            );
+        }
+
+        private static string? ReadStringProp(JsonElement root, string name)
+        {
+            if (
+                !root.TryGetProperty(name, out var element)
+                || element.ValueKind != JsonValueKind.String
+            )
+            {
+                return null;
+            }
+
+            return element.GetString();
+        }
+
         private async Task<RevolutMerchantCreateResult> PostCreateAsync(
             string relativePath,
             object body,

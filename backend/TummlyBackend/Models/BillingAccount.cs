@@ -120,6 +120,13 @@ namespace TummlyBackend.Models
         [MaxLength(32)]
         public string? DunningFiredSteps { get; set; }
 
+        /// <summary>
+        /// Outstanding Revolut cycle order id for day 0 / 3 merchant Pay.
+        /// Cleared on <c>RecoverDunning</c>.
+        /// </summary>
+        [MaxLength(128)]
+        public string? DunningOutstandingOrderId { get; set; }
+
         public DateTime? SoftLockEnteredAt { get; set; }
 
         public DateTime? DormantEnteredAt { get; set; }

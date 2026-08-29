@@ -50,6 +50,8 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IRevolutMerchantClient _merchant;
         private readonly IRevolutOrderCompletedApplier _applier;
+        private readonly IBillingAccountLifecycle _lifecycle;
+        private readonly TimeProvider _clock;
         private readonly RevolutSettings _settings;
         private readonly ILogger<RevolutWebhookService> _logger;
 
@@ -57,6 +59,8 @@ namespace TummlyBackend.Services
             ApplicationDbContext context,
             IRevolutMerchantClient merchant,
             IRevolutOrderCompletedApplier applier,
+            IBillingAccountLifecycle lifecycle,
+            TimeProvider clock,
             IOptions<RevolutSettings> settings,
             ILogger<RevolutWebhookService>? logger = null
         )
@@ -64,6 +68,8 @@ namespace TummlyBackend.Services
             _context = context;
             _merchant = merchant;
             _applier = applier;
+            _lifecycle = lifecycle;
+            _clock = clock;
             _settings = settings.Value;
             _logger =
                 logger
@@ -112,6 +118,20 @@ namespace TummlyBackend.Services
                 return await HandleOrderCompletedAsync(
                     envelope,
                     rawBody,
+                    cancellationToken
+                );
+            }
+
+            if (
+                string.Equals(
+                    envelope.Event,
+                    "SUBSCRIPTION_OVERDUE",
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return await HandleSubscriptionOverdueAsync(
+                    envelope,
                     cancellationToken
                 );
             }
@@ -310,6 +330,12 @@ namespace TummlyBackend.Services
                     );
                 }
 
+                await TryRecoverDunningAfterCompletedAsync(
+                    orderId,
+                    retrieved.SubscriptionId,
+                    cancellationToken
+                );
+
                 return new RevolutWebhookHandleResult(
                     RevolutWebhookHandleStatus.Accepted
                 );
@@ -380,6 +406,182 @@ namespace TummlyBackend.Services
                     orderId
                 );
             }
+        }
+
+        private async Task<RevolutWebhookHandleResult> HandleSubscriptionOverdueAsync(
+            WebhookEnvelope envelope,
+            CancellationToken cancellationToken
+        )
+        {
+            if (string.IsNullOrWhiteSpace(envelope.SubscriptionId))
+            {
+                return new RevolutWebhookHandleResult(
+                    RevolutWebhookHandleStatus.Accepted
+                );
+            }
+
+            var subscriptionId = envelope.SubscriptionId.Trim();
+
+            var existing = await FindClaimAsync(
+                "SUBSCRIPTION_OVERDUE",
+                subscriptionId,
+                cancellationToken
+            );
+            if (existing != null)
+            {
+                return new RevolutWebhookHandleResult(
+                    RevolutWebhookHandleStatus.Replay
+                );
+            }
+
+            var retrieved = await _merchant.GetSubscriptionAsync(
+                subscriptionId,
+                cancellationToken
+            );
+            if (retrieved is null || !retrieved.Succeeded)
+            {
+                return new RevolutWebhookHandleResult(
+                    RevolutWebhookHandleStatus.RetryLater
+                );
+            }
+
+            if (
+                !string.Equals(
+                    retrieved.State?.Trim(),
+                    "overdue",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                return await ClaimRecordOnlyAsync(
+                    "SUBSCRIPTION_OVERDUE",
+                    subscriptionId,
+                    RevolutWebhookClaimDispositions.Recorded,
+                    cancellationToken
+                );
+            }
+
+            string? outstandingOrderId = null;
+            if (!string.IsNullOrWhiteSpace(retrieved.CurrentCycleId))
+            {
+                var cycle = await _merchant.GetSubscriptionCycleAsync(
+                    subscriptionId,
+                    retrieved.CurrentCycleId.Trim(),
+                    cancellationToken
+                );
+                if (cycle.Succeeded && !string.IsNullOrWhiteSpace(cycle.OrderId))
+                {
+                    outstandingOrderId = cycle.OrderId.Trim();
+                }
+            }
+
+            var restaurantId = await ResolveRestaurantIdBySubscriptionAsync(
+                subscriptionId,
+                cancellationToken
+            );
+            if (restaurantId != null)
+            {
+                await _lifecycle.StartDunningEpisodeAsync(
+                    restaurantId.Value,
+                    _clock.GetUtcNow().UtcDateTime,
+                    outstandingOrderId,
+                    cancellationToken
+                );
+            }
+
+            return await ClaimRecordOnlyAsync(
+                "SUBSCRIPTION_OVERDUE",
+                subscriptionId,
+                RevolutWebhookClaimDispositions.Recorded,
+                cancellationToken
+            );
+        }
+
+        private async Task TryRecoverDunningAfterCompletedAsync(
+            string orderId,
+            string? subscriptionId,
+            CancellationToken cancellationToken
+        )
+        {
+            var restaurantId = await ResolveRestaurantIdForCompletedOrderAsync(
+                orderId,
+                subscriptionId,
+                cancellationToken
+            );
+            if (restaurantId == null)
+            {
+                return;
+            }
+
+            var episodeOpen = await _context.BillingAccounts
+                .AsNoTracking()
+                .AnyAsync(
+                    row =>
+                        row.RestaurantId == restaurantId.Value
+                        && row.DunningEpisodeStartedAt != null,
+                    cancellationToken
+                );
+            if (!episodeOpen)
+            {
+                return;
+            }
+
+            await _lifecycle.RecoverDunningAsync(
+                restaurantId.Value,
+                _clock.GetUtcNow().UtcDateTime,
+                cancellationToken
+            );
+        }
+
+        private async Task<int?> ResolveRestaurantIdForCompletedOrderAsync(
+            string orderId,
+            string? subscriptionId,
+            CancellationToken cancellationToken
+        )
+        {
+            var byOutstanding = await _context.BillingAccounts
+                .AsNoTracking()
+                .Where(row => row.DunningOutstandingOrderId == orderId)
+                .Select(row => (int?)row.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (byOutstanding != null)
+            {
+                return byOutstanding;
+            }
+
+            var bySetup = await _context.RevolutPendingPaySessions
+                .AsNoTracking()
+                .Where(row => row.SetupOrderId == orderId)
+                .OrderByDescending(row => row.CreatedAtUtc)
+                .Select(row => (int?)row.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (bySetup != null)
+            {
+                return bySetup;
+            }
+
+            if (string.IsNullOrWhiteSpace(subscriptionId))
+            {
+                return null;
+            }
+
+            return await ResolveRestaurantIdBySubscriptionAsync(
+                subscriptionId.Trim(),
+                cancellationToken
+            );
+        }
+
+        private Task<int?> ResolveRestaurantIdBySubscriptionAsync(
+            string subscriptionId,
+            CancellationToken cancellationToken
+        )
+        {
+            return _context.RevolutPendingPaySessions
+                .AsNoTracking()
+                .Where(row => row.RevolutSubscriptionId == subscriptionId)
+                .OrderByDescending(row => row.CreatedAtUtc)
+                .Select(row => (int?)row.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
         /// <summary>

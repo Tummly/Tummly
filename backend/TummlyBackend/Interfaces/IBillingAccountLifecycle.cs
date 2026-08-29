@@ -11,6 +11,7 @@ namespace TummlyBackend.Interfaces
         Task<BillingLifecycleCommandResult> StartDunningEpisodeAsync(
             int restaurantId,
             DateTime now,
+            string? outstandingOrderId = null,
             CancellationToken cancellationToken = default
         );
 

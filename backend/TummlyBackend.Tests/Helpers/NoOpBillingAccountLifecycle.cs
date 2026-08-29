@@ -17,6 +17,7 @@ namespace TummlyBackend.Tests.Helpers
         public Task<BillingLifecycleCommandResult> StartDunningEpisodeAsync(
             int restaurantId,
             DateTime now,
+            string? outstandingOrderId = null,
             CancellationToken cancellationToken = default
         ) => Task.FromResult(BillingLifecycleCommandResult.NoOp());
 

@@ -543,6 +543,7 @@ builder.Services.AddScoped<
 >();
 builder.Services.AddScoped<ITummlyVatInvoiceService, TummlyVatInvoiceService>();
 builder.Services.AddScoped<IRevolutWebhookService, RevolutWebhookService>();
+builder.Services.AddScoped<IRevolutDunningPayAdapter, RevolutDunningPayAdapter>();
 builder.Services.AddScoped<IBillingCreditsService, BillingCreditsService>();
 builder.Services.AddScoped<IExtraGroupLocationService, ExtraGroupLocationService>();
 builder.Services.AddScoped<IBillingAccountLifecycle, BillingAccountLifecycleService>();
