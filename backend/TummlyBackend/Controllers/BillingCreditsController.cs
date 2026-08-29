@@ -576,12 +576,13 @@ namespace TummlyBackend.Controllers
             {
                 return Forbid();
             }
-            catch (InvalidOperationException ex) when (ex.Message == "pilot-cancel-not-allowed")
+            catch (InvalidOperationException ex) when (ex.Message == "cancel_not_available")
             {
                 return BadRequest(new
                 {
                     success = false,
-                    message = "Cancel plan is not available on Pilot.",
+                    code = "cancel_not_available",
+                    message = "Cancel plan is not available.",
                 });
             }
         }

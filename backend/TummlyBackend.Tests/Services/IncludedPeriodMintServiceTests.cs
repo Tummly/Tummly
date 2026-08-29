@@ -217,6 +217,107 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ProcessJobForRestaurant_CancelAtRenewalDate_AppliesAndSkipsMint()
+        {
+            var renewal = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+            var harness = await SeedPaidAccountAsync(
+                BillingSubscriptionPlans.Growth,
+                BillingCycles.Annual,
+                utcNow: renewal
+            );
+            var account = await harness.Context.BillingAccounts.SingleAsync();
+            account.ScheduledCancelPlan = true;
+            account.RenewalDateUtc = renewal;
+            account.HasScheduledChange = true;
+            account.ScheduledTargetSubscriptionPlan = BillingSubscriptionPlans.Starter;
+            await harness.Context.SaveChangesAsync();
+
+            var yearStart = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            await InsertIncludedGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditChannels.Email,
+                10_000,
+                yearStart,
+                yearStart.AddMonths(1)
+            );
+
+            var result = await harness.Mint.ProcessJobForRestaurantAsync(
+                harness.RestaurantId,
+                nowUtc: renewal
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.Empty(result.InsertedAllocationIds);
+
+            await harness.Context.Entry(account).ReloadAsync();
+            Assert.False(account.ScheduledCancelPlan);
+            Assert.False(account.HasScheduledChange);
+            Assert.Null(account.ScheduledTargetSubscriptionPlan);
+
+            var newGrants = await harness.Context.CreditLedgerEntries
+                .Where(row =>
+                    row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
+                    && row.PeriodStartUtc == yearStart.AddMonths(2)
+                )
+                .ToListAsync();
+            Assert.Empty(newGrants);
+        }
+
+        [Fact]
+        public async Task ProcessJobForRestaurant_CancelBeforeRenewalDate_DoesNotApply()
+        {
+            var renewal = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+            var beforeRenewal = new DateTime(2026, 2, 15, 12, 0, 0, DateTimeKind.Utc);
+            var harness = await SeedPaidAccountAsync(
+                BillingSubscriptionPlans.Growth,
+                BillingCycles.Annual,
+                utcNow: beforeRenewal
+            );
+            var account = await harness.Context.BillingAccounts.SingleAsync();
+            account.ScheduledCancelPlan = true;
+            account.RenewalDateUtc = renewal;
+            await harness.Context.SaveChangesAsync();
+
+            var yearStart = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            await InsertIncludedGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditChannels.Email,
+                10_000,
+                yearStart,
+                yearStart.AddMonths(1)
+            );
+            await InsertIncludedGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditChannels.Ai,
+                500,
+                yearStart,
+                yearStart.AddMonths(1)
+            );
+            await InsertIncludedGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditChannels.Sms,
+                350,
+                yearStart,
+                yearStart.AddMonths(1)
+            );
+
+            var result = await harness.Mint.ProcessJobForRestaurantAsync(
+                harness.RestaurantId,
+                nowUtc: beforeRenewal
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.Equal(3, result.InsertedAllocationIds.Count);
+
+            await harness.Context.Entry(account).ReloadAsync();
+            Assert.True(account.ScheduledCancelPlan);
+        }
+
+        [Fact]
         public async Task MintOnOrderCompleted_AfterPilot_UsesCurrentPricebook()
         {
             var harness = await SeedPaidAccountAsync(

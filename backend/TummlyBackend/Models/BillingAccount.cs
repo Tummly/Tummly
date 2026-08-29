@@ -70,25 +70,31 @@ namespace TummlyBackend.Models
         public int PaidExtraLocationCount { get; set; }
 
         /// <summary>
-        /// When true, a <see cref="Scheduled change"/> snapshot is pending for the
-        /// <c>Renewal date</c>. Empty slot when false.
+        /// End of the current paid period. Scheduled change and Cancel plan apply here.
+        /// Null on unpaid Pilot.
+        /// </summary>
+        public DateTime? RenewalDateUtc { get; set; }
+
+        /// <summary>
+        /// When true, a Scheduled change snapshot is pending for the Renewal date.
+        /// Empty slot when false.
         /// </summary>
         public bool HasScheduledChange { get; set; }
 
         /// <summary>
-        /// Target <see cref="SubscriptionPlan"/> for the scheduled snapshot.
+        /// Target Subscription plan for the scheduled snapshot.
         /// </summary>
         [MaxLength(32)]
         public string? ScheduledTargetSubscriptionPlan { get; set; }
 
         /// <summary>
-        /// Target <see cref="BillingCycle"/> for the scheduled snapshot.
+        /// Target Billing cycle for the scheduled snapshot.
         /// </summary>
         [MaxLength(16)]
         public string? ScheduledTargetBillingCycle { get; set; }
 
         /// <summary>
-        /// Target <see cref="PaidExtraLocationCount"/> for the scheduled snapshot.
+        /// Target PaidExtraLocationCount for the scheduled snapshot.
         /// </summary>
         public int? ScheduledTargetExtraLocationCount { get; set; }
 

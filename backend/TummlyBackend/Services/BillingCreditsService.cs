@@ -84,8 +84,13 @@ namespace TummlyBackend.Services
                 ? $"Pilot ends {UkDateLabels.Format(pilotEndsAt.Value)}"
                 : isPilot
                     ? null
-                    : "Renews 15 September 2026";
-            var scheduledChangeLine = (string?)null;
+                    : billingAccount.RenewalDateUtc == null
+                        ? "Renews 15 September 2026"
+                        : $"Renews {UkDateLabels.Format(billingAccount.RenewalDateUtc.Value)}";
+            var scheduledChangeLine = billingAccount.ScheduledCancelPlan
+                && billingAccount.RenewalDateUtc != null
+                    ? $"Cancels on {UkDateLabels.Format(billingAccount.RenewalDateUtc.Value)}"
+                    : (string?)null;
             var sms5000Available =
                 billingAccount.AllowSms5000TopUp
                 || string.Equals(
@@ -558,19 +563,34 @@ namespace TummlyBackend.Services
                 throw new InvalidOperationException("forbidden");
             }
 
+            var billingAccount = await _context.BillingAccounts
+                .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
+            if (billingAccount == null)
+            {
+                throw new InvalidOperationException(
+                    $"Billing Account is missing for restaurant {restaurantId}."
+                );
+            }
+
+            if (
+                string.Equals(
+                    billingAccount.SubscriptionPlan,
+                    BillingSubscriptionPlans.Pilot,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                throw new InvalidOperationException("cancel_not_available");
+            }
+
+            if (billingAccount.ScheduledCancelPlan)
+            {
+                throw new InvalidOperationException("cancel_not_available");
+            }
+
             var owner = await _context.Users
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
-
-            var isPilot = await BillingPlanSnapshotHelper.IsPilotRestaurantAsync(
-                _context,
-                restaurantId,
-                owner
-            );
-            if (isPilot)
-            {
-                throw new InvalidOperationException("pilot-cancel-not-allowed");
-            }
 
             var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
                 restaurant.Name,
@@ -584,13 +604,22 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var planContext = await ResolveLivePlanContextAsync(restaurantId);
+            if (billingAccount.RenewalDateUtc == null)
+            {
+                throw new InvalidOperationException("cancel_not_available");
+            }
 
-            var renewalDate = planContext.RenewalDateLabel.Replace("Renews ", "");
+            // Cancel is exclusive on the slot (replaces a pending downgrade / cadence / extra).
+            billingAccount.ClearScheduledChangeSlot();
+            billingAccount.HasScheduledChange = true;
+            billingAccount.ScheduledCancelPlan = true;
+            await _context.SaveChangesAsync();
 
+            var renewalLabel = UkDateLabels.Format(billingAccount.RenewalDateUtc.Value);
             return new CancelPlanResultDto
             {
-                ScheduledChangeLine = $"Cancels on {renewalDate}",
+                Outcome = "scheduled",
+                ScheduledChangeLine = $"Cancels on {renewalLabel}",
             };
         }
 
@@ -629,10 +658,14 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var renewalDateLabel = billingAccount.RenewalDateUtc == null
+                ? "Renews 15 September 2026"
+                : $"Renews {UkDateLabels.Format(billingAccount.RenewalDateUtc.Value)}";
+
             return (
                 billingAccount.SubscriptionPlan,
                 includedLocations,
-                "Renews 15 September 2026"
+                renewalDateLabel
             );
         }
 

@@ -856,10 +856,13 @@ namespace TummlyBackend.Tests.Integration
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("cancel_not_available", body.GetProperty("code").GetString());
         }
 
         [Fact]
-        public async Task PostCancelPlan_ReturnsScheduledLine_ForOwnerPaid()
+        public async Task PostCancelPlan_ReturnsScheduled_ForOwnerPaid()
         {
             var seeded = await SeedPaidWorkspaceAsync();
             using var request = Authorized(
@@ -871,10 +874,43 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
             var body = await ReadJsonAsync(response);
+            Assert.Equal("scheduled", body.GetProperty("outcome").GetString());
             Assert.StartsWith(
                 "Cancels on",
                 body.GetProperty("scheduledChangeLine").GetString()
             );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var account = await context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.True(account.ScheduledCancelPlan);
+        }
+
+        [Fact]
+        public async Task PostCancelPlan_SecondPost_ReturnsCancelNotAvailable()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var first = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/cancel-plan",
+                seeded.OwnerJwt
+            );
+            var firstResponse = await _client.SendAsync(first);
+            Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+
+            using var second = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/cancel-plan",
+                seeded.OwnerJwt
+            );
+            var secondResponse = await _client.SendAsync(second);
+            Assert.Equal(HttpStatusCode.BadRequest, secondResponse.StatusCode);
+
+            var body = await ReadJsonAsync(secondResponse);
+            Assert.Equal("cancel_not_available", body.GetProperty("code").GetString());
         }
 
 
@@ -901,6 +937,15 @@ namespace TummlyBackend.Tests.Integration
             if (!lifecycle.IsPilot)
             {
                 account.BillingCycle = BillingCycles.Monthly;
+                account.RenewalDateUtc = new DateTime(
+                    2026,
+                    9,
+                    15,
+                    0,
+                    0,
+                    0,
+                    DateTimeKind.Utc
+                );
             }
 
             return account;

@@ -391,6 +391,9 @@ namespace TummlyBackend.Migrations
                     b.Property<bool>("PilotSoftLockNotified")
                         .HasColumnType("bit");
 
+                    b.Property<DateTime?>("RenewalDateUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("RevolutCustomerId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");

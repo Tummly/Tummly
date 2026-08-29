@@ -116,6 +116,20 @@ namespace TummlyBackend.Services
                     );
 
                     if (
+                        billingAccount.ScheduledCancelPlan
+                        && billingAccount.RenewalDateUtc != null
+                        && effectiveNow >= billingAccount.RenewalDateUtc.Value
+                    )
+                    {
+                        billingAccount.ClearScheduledChangeSlot();
+                        return await FinishCancelApplyAsync(
+                            expiryRowsWritten,
+                            session,
+                            cancellationToken
+                        );
+                    }
+
+                    if (
                         !string.Equals(
                             billingAccount.BillingCycle,
                             BillingCycles.Annual,
@@ -655,6 +669,22 @@ namespace TummlyBackend.Services
             }
 
             return IncludedPeriodMintResult.Ok([], expiryRowsWritten);
+        }
+
+        private async Task<IncludedPeriodMintResult> FinishCancelApplyAsync(
+            int expiryRowsWritten,
+            LockSession session,
+            CancellationToken cancellationToken
+        )
+        {
+            _ = expiryRowsWritten;
+            await _context.SaveChangesAsync(cancellationToken);
+            if (session.OwnsTransaction)
+            {
+                await session.Transaction.CommitAsync(cancellationToken);
+            }
+
+            return IncludedPeriodMintResult.Skipped("cancel_applied");
         }
 
         private static async Task<IncludedPeriodMintResult> AbortOwnedAsync(
