@@ -4,6 +4,7 @@ using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -121,7 +122,8 @@ namespace TummlyBackend.Tests.Services
                     context,
                     new StubPricebookCatalog(),
                     TimeProvider.System
-                )
+                ),
+                new AlwaysReadyRevolutMerchantCreateGate()
             );
             return new Harness(context, service, restaurant.Id);
         }

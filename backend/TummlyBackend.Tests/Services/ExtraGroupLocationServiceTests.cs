@@ -5,6 +5,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -238,7 +239,11 @@ namespace TummlyBackend.Tests.Services
 
             return new Harness(
                 context,
-                new ExtraGroupLocationService(context, _pricebook),
+                new ExtraGroupLocationService(
+                    context,
+                    _pricebook,
+                    new AlwaysReadyRevolutMerchantCreateGate()
+                ),
                 restaurant.Id,
                 owner.Id
             );

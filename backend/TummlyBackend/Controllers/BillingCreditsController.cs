@@ -153,6 +153,12 @@ namespace TummlyBackend.Controllers
             {
                 return OperatorBillingLockForbidden(ex.Message);
             }
+            catch (InvalidOperationException ex) when (
+                IsRevolutMerchantNotReadyCode(ex.Message)
+            )
+            {
+                return RevolutMerchantNotReady(ex.Message);
+            }
         }
 
         [HttpGet("usage")]
@@ -320,6 +326,12 @@ namespace TummlyBackend.Controllers
                     code = ex.Message,
                     message = "Resolve locations or team members before this plan change.",
                 });
+            }
+            catch (InvalidOperationException ex) when (
+                IsRevolutMerchantNotReadyCode(ex.Message)
+            )
+            {
+                return RevolutMerchantNotReady(ex.Message);
             }
         }
 
@@ -704,6 +716,12 @@ namespace TummlyBackend.Controllers
                     message = "Cannot apply this Additional Group Location change.",
                 });
             }
+            catch (ExtraGroupLocationException ex) when (
+                IsRevolutMerchantNotReadyCode(ex.Code)
+            )
+            {
+                return RevolutMerchantNotReady(ex.Code);
+            }
         }
 
         [HttpPost("cancel-plan")]
@@ -770,6 +788,27 @@ namespace TummlyBackend.Controllers
                     or OperatorBillingLockEvaluator.Dormant
                     or OperatorBillingLockEvaluator.ChargebackRestricted
                     or OperatorBillingLockEvaluator.PastDueSendsBlocked;
+        }
+
+        private static bool IsRevolutMerchantNotReadyCode(string message)
+        {
+            return message
+                is RevolutMerchantCreateGate.VatNotReady
+                    or RevolutMerchantCreateGate.RevolutNotReady
+                    or RevolutMerchantCreateGate.PlanVariationMissing;
+        }
+
+        private ObjectResult RevolutMerchantNotReady(string code)
+        {
+            return StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                new
+                {
+                    success = false,
+                    code,
+                    message = code,
+                }
+            );
         }
 
         private ObjectResult OperatorBillingLockForbidden(string code)

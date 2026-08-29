@@ -26,14 +26,17 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IPricebookCatalog _pricebook;
+        private readonly IRevolutMerchantCreateGate _revolutMerchantCreateGate;
 
         public ExtraGroupLocationService(
             ApplicationDbContext context,
-            IPricebookCatalog pricebook
+            IPricebookCatalog pricebook,
+            IRevolutMerchantCreateGate revolutMerchantCreateGate
         )
         {
             _context = context;
             _pricebook = pricebook;
+            _revolutMerchantCreateGate = revolutMerchantCreateGate;
         }
 
         public async Task<ExtraLocationResultDto?> SubmitAsync(
@@ -276,6 +279,20 @@ namespace TummlyBackend.Services
                     LocationCap.GroupSelfServeMax,
                     current
                 );
+            }
+
+            var cadenceApi = string.Equals(
+                account.BillingCycle,
+                "Annual",
+                StringComparison.OrdinalIgnoreCase
+            )
+                ? "annual"
+                : "monthly";
+            var lookupKey = RevolutPlanVariationKeys.ForExtraLocation(cadenceApi);
+            var gateCode = _revolutMerchantCreateGate.Evaluate(lookupKey);
+            if (gateCode != null)
+            {
+                throw new ExtraGroupLocationException(gateCode);
             }
 
             return new ExtraLocationResultDto

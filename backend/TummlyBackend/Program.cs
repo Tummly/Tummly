@@ -96,6 +96,27 @@ builder.Services.Configure<TwilioSettings>(
     builder.Configuration.GetSection("TwilioSettings")
 );
 
+builder.Services.Configure<RevolutSettings>(
+    builder.Configuration.GetSection(RevolutSettings.SectionName)
+);
+
+builder.Services.AddOptions<TummlySellerVatSettings>()
+    .Configure<IConfiguration>((options, configuration) =>
+    {
+        options.RegistrationNumber =
+            configuration[TummlySellerVatSettings.RegistrationNumberKey]
+            ?? string.Empty;
+        options.EffectiveDate =
+            configuration[TummlySellerVatSettings.EffectiveDateKey]
+            ?? string.Empty;
+        options.LegalName =
+            configuration[TummlySellerVatSettings.LegalNameKey]
+            ?? string.Empty;
+        options.RegisteredAddress =
+            configuration[TummlySellerVatSettings.RegisteredAddressKey]
+            ?? string.Empty;
+    });
+
 /*
  =========================================
  JWT SETTINGS
@@ -497,6 +518,8 @@ else
     builder.Services.AddScoped<IRecoveryGuestSmsDelivery, TwilioRecoveryGuestSmsDelivery>();
 }
 builder.Services.AddScoped<IPlanChangeService, PlanChangeService>();
+builder.Services.AddScoped<IRevolutMerchantCreateGate, RevolutMerchantCreateGate>();
+builder.Services.AddScoped<IRevolutMerchantClient, RevolutMerchantClient>();
 builder.Services.AddScoped<IBillingCreditsService, BillingCreditsService>();
 builder.Services.AddScoped<IExtraGroupLocationService, ExtraGroupLocationService>();
 builder.Services.AddScoped<IBillingAccountLifecycle, BillingAccountLifecycleService>();
@@ -506,6 +529,24 @@ builder.Services.AddScoped<
 >();
 builder.Services.AddScoped<ITeamInvitationAcceptService, TeamInvitationAcceptService>();
 builder.Services.AddScoped<IGuestDataExportService, GuestDataExportService>();
+
+builder.Services.AddHttpClient(
+    RevolutMerchantClient.HttpClientName,
+    (sp, client) =>
+    {
+        var settings = sp.GetRequiredService<
+            Microsoft.Extensions.Options.IOptions<RevolutSettings>
+        >().Value;
+        if (!string.IsNullOrWhiteSpace(settings.ApiBaseUrl))
+        {
+            client.BaseAddress = new Uri(
+                settings.ApiBaseUrl.TrimEnd('/') + "/"
+            );
+        }
+
+        client.Timeout = TimeSpan.FromSeconds(30);
+    }
+);
 
 builder.Services.AddHttpClient(
     "Resend",

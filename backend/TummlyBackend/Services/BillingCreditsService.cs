@@ -16,13 +16,15 @@ namespace TummlyBackend.Services
         private readonly ICreditBalanceSnapshot _creditBalance;
         private readonly IBillingAccountLifecycle _lifecycle;
         private readonly IPlanChangeService _planChange;
+        private readonly IRevolutMerchantCreateGate _revolutMerchantCreateGate;
 
         public BillingCreditsService(
             ApplicationDbContext context,
             IPricebookCatalog pricebookCatalog,
             ICreditBalanceSnapshot creditBalance,
             IBillingAccountLifecycle lifecycle,
-            IPlanChangeService planChange
+            IPlanChangeService planChange,
+            IRevolutMerchantCreateGate revolutMerchantCreateGate
         )
         {
             _context = context;
@@ -30,6 +32,7 @@ namespace TummlyBackend.Services
             _creditBalance = creditBalance;
             _lifecycle = lifecycle;
             _planChange = planChange;
+            _revolutMerchantCreateGate = revolutMerchantCreateGate;
         }
 
         public async Task<BillingCreditsPageDto?> GetPageAsync(
@@ -231,6 +234,8 @@ namespace TummlyBackend.Services
                 throw new InvalidOperationException(restorationDeny);
             }
 
+            EnsureMerchantCreateReady(planVariationLookupKey: null);
+
             return new PaymentMethodUpdateSessionDto
             {
                 RedirectUrl =
@@ -245,6 +250,15 @@ namespace TummlyBackend.Services
                 BillingSubscriptionPlans.Pilot,
                 StringComparison.Ordinal
             );
+        }
+
+        private void EnsureMerchantCreateReady(string? planVariationLookupKey)
+        {
+            var code = _revolutMerchantCreateGate.Evaluate(planVariationLookupKey);
+            if (code != null)
+            {
+                throw new InvalidOperationException(code);
+            }
         }
 
         private static PaymentMethodSnapshotDto BuildStubPaymentMethod()
@@ -475,6 +489,12 @@ namespace TummlyBackend.Services
                 {
                     throw new InvalidOperationException("billing_status_not_active");
                 }
+
+                var lookupKey = RevolutPlanVariationKeys.ForPlanCadence(
+                    targetPlan,
+                    targetCadenceApi
+                );
+                EnsureMerchantCreateReady(lookupKey);
 
                 return new PlanChangeResultDto
                 {
