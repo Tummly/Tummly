@@ -1680,6 +1680,7 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             Assert.Equal("soft_lock", body.GetProperty("message").GetString());
+            Assert.Equal("soft_lock", body.GetProperty("code").GetString());
         }
 
         [Fact]

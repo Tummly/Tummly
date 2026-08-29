@@ -37,7 +37,6 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var enteredDormant = false;
             var pending = await MutateAsync(
                 restaurantId,
                 cancellationToken,
@@ -48,22 +47,28 @@ namespace TummlyBackend.Services
                     var events = new List<LifecycleEvent>();
                     AdvanceUnpaidPilot(account, now, events);
                     AdvanceDunning(account, now, events);
-                    enteredDormant =
+                    // Same UPDLOCK transaction as status write (lock 10): Release then
+                    // expire unheld Pilot leftover before commit.
+                    if (
                         !wasDormant
-                        && account.BillingStatus == BillingStatuses.Dormant;
+                        && account.BillingStatus == BillingStatuses.Dormant
+                    )
+                    {
+                        await ReleaseAllOpenHoldsAsync(
+                            restaurantId,
+                            now,
+                            cancellationToken
+                        );
+                        await ExpireUnheldPilotLeftoverAsync(
+                            restaurantId,
+                            now,
+                            cancellationToken
+                        );
+                    }
+
                     return events;
                 }
             );
-
-            if (enteredDormant)
-            {
-                await ReleaseAllOpenHoldsAsync(restaurantId, now, cancellationToken);
-                await ExpireUnheldPilotLeftoverAsync(
-                    restaurantId,
-                    now,
-                    cancellationToken
-                );
-            }
 
             await DispatchAsync(restaurantId, pending, cancellationToken);
         }

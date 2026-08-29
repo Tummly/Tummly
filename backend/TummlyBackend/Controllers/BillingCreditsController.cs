@@ -364,6 +364,14 @@ namespace TummlyBackend.Controllers
 
             if (response == null)
             {
+                if (
+                    errorMessage != null
+                    && OperatorBillingLockEvaluator.IsLockCode(errorMessage)
+                )
+                {
+                    return OperatorBillingLockForbidden(errorMessage);
+                }
+
                 return StatusCode(statusCode, new
                 {
                     success = false,
@@ -407,6 +415,14 @@ namespace TummlyBackend.Controllers
 
             if (response == null)
             {
+                if (
+                    errorMessage != null
+                    && OperatorBillingLockEvaluator.IsLockCode(errorMessage)
+                )
+                {
+                    return OperatorBillingLockForbidden(errorMessage);
+                }
+
                 return StatusCode(statusCode, new
                 {
                     success = false,

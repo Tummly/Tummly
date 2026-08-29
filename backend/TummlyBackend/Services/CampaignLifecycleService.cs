@@ -340,6 +340,39 @@ namespace TummlyBackend.Services
             }
 
             var source = found.Entity;
+            var restaurantId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == source.RestaurantLocationId)
+                .Select(row => row.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (restaurantId == 0)
+            {
+                return new CampaignLifecycleResult.InvalidStatus
+                {
+                    Message = "Campaign location was not found.",
+                };
+            }
+
+            var billingAccount = await _context.BillingAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.RestaurantId == restaurantId,
+                    cancellationToken
+                );
+            if (billingAccount != null)
+            {
+                var paidDeny = OperatorBillingLockEvaluator.EvaluatePaidWriteDeny(
+                    OperatorBillingLockEvaluator.FromBillingAccount(billingAccount)
+                );
+                if (paidDeny != null)
+                {
+                    return new CampaignLifecycleResult.OperatorBillingLocked
+                    {
+                        Code = paidDeny,
+                    };
+                }
+            }
+
             if (
                 !string.Equals(
                     source.Status,
