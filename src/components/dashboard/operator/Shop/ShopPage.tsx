@@ -24,6 +24,7 @@ import {
   ShopOrdersDialog,
   type ShopOrder,
 } from "@/components/dashboard/operator/Shop/ShopOrdersDialog"
+import { ShopOrdersScreen } from "@/components/dashboard/operator/Shop/ShopOrdersScreen"
 import { ShopCreateQrAssetDialog } from "@/components/dashboard/operator/Shop/ShopCreateQrAssetDialog"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
 
@@ -39,6 +40,7 @@ export function ShopPage({
   locations,
   onSelectLocation,
 }: ShopPageProps) {
+  const [currentView, setCurrentView] = useState<"shop" | "orders">("shop")
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false)
@@ -160,35 +162,46 @@ export function ShopPage({
 
   return (
     <div className="flex flex-col gap-6 pb-20">
-      <ShopHeader
-        selectedLocationName={locationName}
-        locations={locations}
-        onSelectLocation={onSelectLocation}
-      />
+      {currentView === "orders" ? (
+        <ShopOrdersScreen
+          selectedLocationName={locationName}
+          locations={locations}
+          onSelectLocation={onSelectLocation}
+          onBackToShop={() => setCurrentView("shop")}
+        />
+      ) : (
+        <>
+          <ShopHeader
+            selectedLocationName={locationName}
+            locations={locations}
+            onSelectLocation={onSelectLocation}
+          />
 
-      <ShopToolbar
-        searchQuery={searchQuery}
-        onSearchQueryChange={setSearchQuery}
-        onCreateQrAsset={() => setIsCreateQrAssetOpen(true)}
-        onViewOrders={() => setIsOrdersOpen(true)}
-      />
+          <ShopToolbar
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            onCreateQrAsset={() => setIsCreateQrAssetOpen(true)}
+            onViewOrders={() => setCurrentView("orders")}
+          />
 
-      <ShopBanner
-        onReviewStarterKit={() => setIsStarterKitOpen(true)}
-        onSeeWhatsIncluded={() => setIsStarterKitOpen(true)}
-      />
+          <ShopBanner
+            onReviewStarterKit={() => setIsStarterKitOpen(true)}
+            onSeeWhatsIncluded={() => setIsStarterKitOpen(true)}
+          />
 
-      <ShopRecommendationSection
-        locationName={locationName}
-        locationDetails={locationDetails}
-        onAddLocationDetails={() => setIsLocationDetailsOpen(true)}
-        onAddRecommendedToCart={handleAddRecommendedKitToCart}
-      />
+          <ShopRecommendationSection
+            locationName={locationName}
+            locationDetails={locationDetails}
+            onAddLocationDetails={() => setIsLocationDetailsOpen(true)}
+            onAddRecommendedToCart={handleAddRecommendedKitToCart}
+          />
 
-      <ShopCatalogSection
-        searchQuery={searchQuery}
-        onAddToCart={handleAddToCart}
-      />
+          <ShopCatalogSection
+            searchQuery={searchQuery}
+            onAddToCart={handleAddToCart}
+          />
+        </>
+      )}
 
       <ShopCartFloatingButton
         itemCount={totalCartCount}

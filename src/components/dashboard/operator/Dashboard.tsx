@@ -30,7 +30,7 @@ import { resolveOperatorSidebarActiveId } from "@/lib/operatorHome/operatorDashb
 import { clearAuthSession } from "@/pages/utils/authHelpers"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 
-type DashboardProps = {
+export type DashboardProps = {
   mode: "single" | "multi"
 }
 
@@ -68,9 +68,9 @@ function DashboardContent({ mode }: DashboardProps) {
       selectedAssistantLocation == null
         ? null
         : {
-            id: selectedAssistantLocation.id,
-            name: selectedAssistantLocation.locationName,
-          },
+          id: selectedAssistantLocation.id,
+          name: selectedAssistantLocation.locationName,
+        },
     locations: workspace.snapshot.locations.map((location) => ({
       id: location.id,
       name: location.locationName,
@@ -85,20 +85,20 @@ function DashboardContent({ mode }: DashboardProps) {
     }) => {
       const plan = sendScheduleRoute
         ? planAssistantSendScheduleRoute({
-            route: sendScheduleRoute,
-            analysisScope,
-            mode,
-            recoveryDraft,
-            campaignDraft,
-          })
+          route: sendScheduleRoute,
+          analysisScope,
+          mode,
+          recoveryDraft,
+          campaignDraft,
+        })
         : planAssistantActionNavigate({
-            action,
-            analysisScope,
-            mode,
-            recoveryDraft,
-            campaignDraft,
-            catalogOffer,
-          })
+          action,
+          analysisScope,
+          mode,
+          recoveryDraft,
+          campaignDraft,
+          catalogOffer,
+        })
       if (plan.selectLocationId != null) {
         workspace.selectLocation(plan.selectLocationId)
       }
@@ -320,73 +320,73 @@ function DashboardContent({ mode }: DashboardProps) {
       aiAssistant={
         workspace.snapshot.aiAssistantAccess
           ? {
-        snapshot: aiAssistant.snapshot,
-        onOpen: () => {
-          notifications.closeDrawer()
-          aiAssistant.openDrawer({
-            operatorFirstName: presentation.profileFirstName,
-          })
-        },
-        onOpenChange: (open) => {
-          if (open) {
-            notifications.closeDrawer()
-            aiAssistant.openDrawer({
-              operatorFirstName: presentation.profileFirstName,
-            })
-          } else {
-            aiAssistant.closeDrawer()
+            snapshot: aiAssistant.snapshot,
+            onOpen: () => {
+              notifications.closeDrawer()
+              aiAssistant.openDrawer({
+                operatorFirstName: presentation.profileFirstName,
+              })
+            },
+            onOpenChange: (open) => {
+              if (open) {
+                notifications.closeDrawer()
+                aiAssistant.openDrawer({
+                  operatorFirstName: presentation.profileFirstName,
+                })
+              } else {
+                aiAssistant.closeDrawer()
+              }
+            },
+            onStartNewChat: aiAssistant.startNewChat,
+            onOpenRecent: aiAssistant.openRecent,
+            onOpenArchive: aiAssistant.openArchive,
+            onBackToConversation: aiAssistant.backToConversation,
+            onSearchQueryChange: aiAssistant.setSearchQuery,
+            onOpenConversation: aiAssistant.openConversation,
+            onArchiveConversation: aiAssistant.archiveConversation,
+            onUnarchiveConversation: aiAssistant.unarchiveConversation,
+            onRequestDelete: aiAssistant.requestDelete,
+            onCancelDelete: aiAssistant.cancelDelete,
+            onConfirmDelete: aiAssistant.confirmDelete,
+            onRetryList: aiAssistant.retryList,
+            onRetryBody: aiAssistant.retryBody,
+            onExpand: aiAssistant.expandDrawer,
+            onLeaveExpand: aiAssistant.leaveExpand,
+            onRouteDestination: aiAssistant.closeDrawer,
+            onOpenChangeScope: aiAssistant.openChangeScope,
+            onChangeScopeOpenChange: (open) => {
+              if (open) {
+                aiAssistant.openChangeScope()
+              } else {
+                aiAssistant.cancelChangeScope()
+              }
+            },
+            onChangeScopeDraftLocation: aiAssistant.setChangeScopeDraftLocation,
+            onChangeScopeDraftReportingPeriod:
+              aiAssistant.setChangeScopeDraftReportingPeriod,
+            onApplyChangeScope: aiAssistant.applyChangeScope,
+            onSetComposerDraft: aiAssistant.setComposerDraft,
+            onFillComposerFromChip: aiAssistant.fillComposerFromChip,
+            onSend: aiAssistant.send,
+            onStartMic: () => {
+              void aiAssistant.startMic()
+            },
+            onConfirmMic: () => {
+              void aiAssistant.confirmMic()
+            },
+            onCancelMic: () => {
+              void aiAssistant.cancelMic()
+            },
+            onDismissMicError: aiAssistant.dismissMicError,
+            micAudioLevelSource: aiAssistant.micAudioLevelSource,
+            onRetry: aiAssistant.retry,
+            onToggleHelpful: aiAssistant.toggleHelpful,
+            onActivateAction: aiAssistant.clickAction,
+            onDismissFromEscape: aiAssistant.dismissFromEscape,
+            onViewUsage: aiAssistant.viewUsage,
+            onAddCredits: aiAssistant.addCredits,
           }
-        },
-        onStartNewChat: aiAssistant.startNewChat,
-        onOpenRecent: aiAssistant.openRecent,
-        onOpenArchive: aiAssistant.openArchive,
-        onBackToConversation: aiAssistant.backToConversation,
-        onSearchQueryChange: aiAssistant.setSearchQuery,
-        onOpenConversation: aiAssistant.openConversation,
-        onArchiveConversation: aiAssistant.archiveConversation,
-        onUnarchiveConversation: aiAssistant.unarchiveConversation,
-        onRequestDelete: aiAssistant.requestDelete,
-        onCancelDelete: aiAssistant.cancelDelete,
-        onConfirmDelete: aiAssistant.confirmDelete,
-        onRetryList: aiAssistant.retryList,
-        onRetryBody: aiAssistant.retryBody,
-        onExpand: aiAssistant.expandDrawer,
-        onLeaveExpand: aiAssistant.leaveExpand,
-        onRouteDestination: aiAssistant.closeDrawer,
-        onOpenChangeScope: aiAssistant.openChangeScope,
-        onChangeScopeOpenChange: (open) => {
-          if (open) {
-            aiAssistant.openChangeScope()
-          } else {
-            aiAssistant.cancelChangeScope()
-          }
-        },
-        onChangeScopeDraftLocation: aiAssistant.setChangeScopeDraftLocation,
-        onChangeScopeDraftReportingPeriod:
-          aiAssistant.setChangeScopeDraftReportingPeriod,
-        onApplyChangeScope: aiAssistant.applyChangeScope,
-        onSetComposerDraft: aiAssistant.setComposerDraft,
-        onFillComposerFromChip: aiAssistant.fillComposerFromChip,
-        onSend: aiAssistant.send,
-        onStartMic: () => {
-          void aiAssistant.startMic()
-        },
-        onConfirmMic: () => {
-          void aiAssistant.confirmMic()
-        },
-        onCancelMic: () => {
-          void aiAssistant.cancelMic()
-        },
-        onDismissMicError: aiAssistant.dismissMicError,
-        micAudioLevelSource: aiAssistant.micAudioLevelSource,
-        onRetry: aiAssistant.retry,
-        onToggleHelpful: aiAssistant.toggleHelpful,
-        onActivateAction: aiAssistant.clickAction,
-        onDismissFromEscape: aiAssistant.dismissFromEscape,
-        onViewUsage: aiAssistant.viewUsage,
-        onAddCredits: aiAssistant.addCredits,
-      }
-        : undefined
+          : undefined
       }
     >
       <Outlet
