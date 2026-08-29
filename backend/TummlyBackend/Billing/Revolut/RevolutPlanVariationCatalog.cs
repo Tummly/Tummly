@@ -53,37 +53,52 @@ namespace TummlyBackend.Billing.Revolut
                 var annualNet = plan.GetProperty("annual_price_pence").GetInt32();
 
                 rows.Add(
-                    new RevolutPlanVariationRow(
-                        PlanKey: planKey,
-                        LookupKey: monthlyKey,
-                        Cadence: "monthly",
-                        CycleDuration: "P1M",
-                        NetPence: monthlyNet,
-                        GrossMinor: TummlyVatMath.GrossMinorFromNetPence(
-                            monthlyNet,
-                            vatRateBps
-                        ),
-                        Currency: "GBP"
+                    Row(
+                        planKey,
+                        monthlyKey,
+                        "monthly",
+                        "P1M",
+                        monthlyNet,
+                        vatRateBps
                     )
                 );
                 rows.Add(
-                    new RevolutPlanVariationRow(
-                        PlanKey: planKey,
-                        LookupKey: annualKey,
-                        Cadence: "annual",
-                        CycleDuration: "P1Y",
-                        NetPence: annualNet,
-                        GrossMinor: TummlyVatMath.GrossMinorFromNetPence(
-                            annualNet,
-                            vatRateBps
-                        ),
-                        Currency: "GBP"
+                    Row(
+                        planKey,
+                        annualKey,
+                        "annual",
+                        "P1Y",
+                        annualNet,
+                        vatRateBps
                     )
                 );
             }
 
             ValidateAgainstKnownKeys(rows);
             return rows;
+        }
+
+        private static RevolutPlanVariationRow Row(
+            string planKey,
+            string lookupKey,
+            string cadence,
+            string cycleDuration,
+            int netPence,
+            int vatRateBps
+        )
+        {
+            return new RevolutPlanVariationRow(
+                PlanKey: planKey,
+                LookupKey: lookupKey,
+                Cadence: cadence,
+                CycleDuration: cycleDuration,
+                NetPence: netPence,
+                GrossMinor: TummlyVatMath.GrossMinorFromNetPence(
+                    netPence,
+                    vatRateBps
+                ),
+                Currency: "GBP"
+            );
         }
 
         public static IReadOnlyList<RevolutCreatePlanBody> ToCreatePlanBodies(
@@ -185,19 +200,19 @@ namespace TummlyBackend.Billing.Revolut
         }
 
         /// <summary>
-        /// JSON body for <c>POST /api/subscription-plans</c>. Variation label is
-        /// the pack lookup key (lock 06); amount is Tummly gross minor units.
+        /// JSON body for <c>POST /api/subscription-plans</c>. Variation
+        /// <c>name</c> (label) is the pack lookup key (lock 06); phase
+        /// <c>amount</c> is Tummly gross minor units. Create only — never PATCH.
         /// </summary>
         public static string ToCreatePlanRequestJson(RevolutCreatePlanBody body)
         {
-            // Merchant API Variation-Creation has no name field. Product "label"
-            // is the pack lookup_key — carried in our map keys and dry-run output,
-            // not as a PATCH/name field on a live variation.
             var variations = body.Variations.Select(v => new Dictionary<
                 string,
                 object?
             >
             {
+                // Lock 06: variation label = pack lookup_key.
+                ["name"] = v.Label,
                 ["phases"] = new object[]
                 {
                     new Dictionary<string, object?>

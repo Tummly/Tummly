@@ -2,9 +2,9 @@
 
 Repo-owned runbook. Creates the **eight** recurring Revolut subscription plan
 variations from pack lookup keys. Amounts are Tummly **gross** minor units
-(net pack pence + 20% UK VAT, half-up). Variation product label = pack
-`lookup_key` (env map key). **Never PATCH** a live variation amount — new
-pricebook → new lookup keys → new variations.
+(net pack pence + 20% UK VAT, half-up). Each variation `name` (label) is the
+pack `lookup_key` (same string as the env map key). **Never PATCH** a live
+variation amount — new pricebook → new lookup keys → new variations.
 
 Top-ups have **no** Revolut catalog object.
 

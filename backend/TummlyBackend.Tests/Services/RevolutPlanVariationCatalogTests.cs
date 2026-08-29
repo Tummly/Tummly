@@ -95,6 +95,18 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.Equal(4680, monthly.AmountGrossMinor);
             Assert.Equal("GBP", monthly.Currency);
+
+            var createJson = RevolutPlanVariationCatalog.ToCreatePlanRequestJson(
+                starter
+            );
+            using var doc = JsonDocument.Parse(createJson);
+            var named = doc
+                .RootElement.GetProperty("variations")
+                .EnumerateArray()
+                .Select(v => v.GetProperty("name").GetString())
+                .ToArray();
+            Assert.Contains(RevolutPlanVariationKeys.StarterMonthly, named);
+            Assert.Contains(RevolutPlanVariationKeys.StarterAnnual, named);
         }
 
         [Fact]
