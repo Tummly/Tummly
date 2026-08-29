@@ -96,8 +96,16 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("Sorry about your visit", guestResponse.Subject);
             Assert.Equal("Thank you for telling us.", guestResponse.Body);
 
-            var ledgerRows = await context.CreditLedgerEntries.ToListAsync();
-            Assert.Empty(ledgerRows);
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            Assert.False(
+                await context.CreditLedgerEntries.AnyAsync(
+                    row => row.RestaurantId == restaurantId
+                )
+            );
 
             using var get = new HttpRequestMessage(
                 HttpMethod.Get,
