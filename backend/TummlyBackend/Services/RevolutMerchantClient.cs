@@ -760,6 +760,161 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task<RevolutDisputeRetrieveResult> GetDisputeAsync(
+            string disputeId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (
+                string.IsNullOrWhiteSpace(disputeId)
+                || string.IsNullOrWhiteSpace(_settings.SecretKey)
+                || string.IsNullOrWhiteSpace(_settings.ApiVersion)
+            )
+            {
+                return new RevolutDisputeRetrieveResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_not_ready"
+                );
+            }
+
+            var client = _httpClientFactory.CreateClient(HttpClientName);
+            using var message = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"api/disputes/{Uri.EscapeDataString(disputeId.Trim())}"
+            );
+            ApplyAuthHeaders(message);
+
+            using var response = await client.SendAsync(
+                message,
+                cancellationToken
+            );
+            var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new RevolutDisputeRetrieveResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_http_error",
+                    RawBody: raw
+                );
+            }
+
+            string? id = null;
+            string? paymentOrderId = null;
+            int? amountMinor = null;
+            string? currency = null;
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                using var doc = JsonDocument.Parse(raw);
+                var root = doc.RootElement;
+                id = ReadStringProp(root, "id");
+                currency = ReadStringProp(root, "currency");
+                if (
+                    root.TryGetProperty("amount", out var amountElement)
+                    && amountElement.ValueKind == JsonValueKind.Number
+                    && amountElement.TryGetInt32(out var amount)
+                )
+                {
+                    amountMinor = amount;
+                }
+
+                if (
+                    root.TryGetProperty("payment", out var payment)
+                    && payment.ValueKind == JsonValueKind.Object
+                )
+                {
+                    paymentOrderId = ReadStringProp(payment, "order_id");
+                }
+            }
+
+            return new RevolutDisputeRetrieveResult(
+                Succeeded: true,
+                Id: id,
+                PaymentOrderId: paymentOrderId,
+                AmountMinor: amountMinor,
+                Currency: currency,
+                RawBody: raw
+            );
+        }
+
+        public async Task<RevolutMerchantCreateResult> AcceptDisputeAsync(
+            string disputeId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return await PostDisputeActionAsync(
+                disputeId,
+                "accept",
+                body: null,
+                cancellationToken
+            );
+        }
+
+        public async Task<RevolutMerchantCreateResult> ChallengeDisputeAsync(
+            string disputeId,
+            string reason,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return await PostDisputeActionAsync(
+                disputeId,
+                "challenge",
+                body: new { reason },
+                cancellationToken
+            );
+        }
+
+        private async Task<RevolutMerchantCreateResult> PostDisputeActionAsync(
+            string disputeId,
+            string action,
+            object? body,
+            CancellationToken cancellationToken
+        )
+        {
+            if (
+                string.IsNullOrWhiteSpace(disputeId)
+                || string.IsNullOrWhiteSpace(_settings.SecretKey)
+                || string.IsNullOrWhiteSpace(_settings.ApiVersion)
+            )
+            {
+                return new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_not_ready"
+                );
+            }
+
+            var client = _httpClientFactory.CreateClient(HttpClientName);
+            using var message = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"api/disputes/{Uri.EscapeDataString(disputeId.Trim())}/{action}"
+            );
+            if (body != null)
+            {
+                message.Content = JsonContent.Create(body, options: JsonOptions);
+            }
+
+            ApplyAuthHeaders(message);
+
+            using var response = await client.SendAsync(
+                message,
+                cancellationToken
+            );
+            var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_http_error",
+                    RawBody: raw
+                );
+            }
+
+            return new RevolutMerchantCreateResult(
+                Succeeded: true,
+                Id: disputeId.Trim(),
+                RawBody: raw
+            );
+        }
+
         private static string? ReadStringProp(JsonElement root, string name)
         {
             if (

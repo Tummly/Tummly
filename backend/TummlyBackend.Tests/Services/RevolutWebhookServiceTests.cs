@@ -127,11 +127,88 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task DisputeActionRequired_ClaimIsIdempotent_OnReplay()
+        {
+            await using var context = CreateContext();
+            var restaurant = await SeedRestaurantWithOpenDunningAsync(
+                context,
+                "sub_disp_idem"
+            );
+            const string paymentOrderId = "ord_disp_idem";
+            const string disputeId = "disp_idem";
+            context.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = restaurant.Id,
+                    Channel = CreditChannels.Email,
+                    EntryType = CreditLedgerEntryTypes.TopupAllocation,
+                    Quantity = 40,
+                    AllocationId = Guid.NewGuid(),
+                    SourcePaymentRef = paymentOrderId,
+                    CreatedAtUtc = DateTime.UtcNow,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var lifecycle = new RecordingLifecycle();
+            var ledger = new RecordingLedger();
+            var merchant = new FixedDisputeMerchant(
+                new RevolutDisputeRetrieveResult(
+                    Succeeded: true,
+                    Id: disputeId,
+                    PaymentOrderId: paymentOrderId
+                )
+            );
+            var service = CreateService(
+                context,
+                merchant,
+                new RecordingApplier(),
+                lifecycle,
+                ledger
+            );
+            var body =
+                $$"""{"event":"DISPUTE_ACTION_REQUIRED","dispute_id":"{{disputeId}}"}""";
+            var timestamp = "1710000000";
+            var signature = RevolutWebhookSignature.SignForTests(
+                "whsec_service",
+                timestamp,
+                body
+            );
+
+            var first = await service.HandleAsync(body, signature, timestamp);
+            var second = await service.HandleAsync(body, signature, timestamp);
+
+            Assert.Equal(RevolutWebhookHandleStatus.Accepted, first.Status);
+            Assert.Equal(RevolutWebhookHandleStatus.Replay, second.Status);
+            Assert.Equal(1, lifecycle.ChargebackOpenCount);
+            Assert.Equal(1, ledger.DrainCallCount);
+            Assert.Equal(
+                1,
+                await context.RevolutWebhookEventClaims.CountAsync(row =>
+                    row.Event == "DISPUTE_ACTION_REQUIRED"
+                    && row.ObjectId == disputeId
+                )
+            );
+            Assert.Equal(1, merchant.GetDisputeCallCount);
+        }
+
+        [Fact]
+        public void ChallengeReason_UsesRefundAlreadyIssued_WhenPaymentRefundDrainExists()
+        {
+            Assert.Equal(
+                RevolutDisputeChallengeReasons.RefundAlreadyIssued,
+                RevolutDisputeChallengeReasons.ForSupportRefundAlreadyCompleted()
+            );
+        }
+
         private static RevolutWebhookService CreateService(
             ApplicationDbContext context,
             IRevolutMerchantClient merchant,
             IRevolutOrderCompletedApplier applier,
-            IBillingAccountLifecycle? lifecycle = null
+            IBillingAccountLifecycle? lifecycle = null,
+            ICreditLedger? ledger = null
         )
         {
             var settings = Options.Create(
@@ -149,7 +226,9 @@ namespace TummlyBackend.Tests.Services
                 applier,
                 lifecycle ?? new NoOpBillingAccountLifecycle(),
                 TimeProvider.System,
-                settings
+                settings,
+                dunningPay: null,
+                ledger: ledger
             );
         }
 
@@ -236,6 +315,10 @@ namespace TummlyBackend.Tests.Services
         {
             public int RecoverCallCount { get; private set; }
 
+            public int ChargebackOpenCount { get; private set; }
+
+            public int ChargebackClearCount { get; private set; }
+
             public Task TickAsync(
                 int restaurantId,
                 DateTime now,
@@ -276,7 +359,171 @@ namespace TummlyBackend.Tests.Services
                 int restaurantId,
                 bool restricted,
                 CancellationToken cancellationToken = default
-            ) => Task.CompletedTask;
+            )
+            {
+                if (restricted)
+                {
+                    ChargebackOpenCount++;
+                }
+                else
+                {
+                    ChargebackClearCount++;
+                }
+
+                return Task.CompletedTask;
+            }
+        }
+
+        private sealed class RecordingLedger : ICreditLedger
+        {
+            public int DrainCallCount { get; private set; }
+
+            public int RestoreCallCount { get; private set; }
+
+            public Task<CreditLedgerWriteResult> ConsumeOnSuccessAsync(
+                CreditLedgerConsumeRequest request,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerWriteResult> ReserveAsync(
+                CreditLedgerReserveRequest request,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerWriteResult> SettleAsync(
+                CreditLedgerSettleRequest request,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerWriteResult> ReleaseAsync(
+                CreditLedgerReleaseRequest request,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerWriteResult> StaffManualAdjustAsync(
+                StaffManualAdjustRequest request,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerWriteResult> StaffReverseAsync(
+                StaffReverseRequest request,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerMintTopupResult> MintTopupAllocationAsync(
+                CreditLedgerMintTopupRequest request,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(CreditLedgerMintTopupResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerDrainTopupResult> DrainUnusedTopupAsync(
+                CreditLedgerDrainTopupRequest request,
+                CancellationToken cancellationToken = default
+            )
+            {
+                DrainCallCount++;
+                return Task.FromResult(
+                    CreditLedgerDrainTopupResult.Ok(
+                        [
+                            new TopupPaymentChannelSnapshot
+                            {
+                                Channel = request.SourcePaymentRef,
+                                Refunded = 40,
+                                Held = 0,
+                                Consumed = 0,
+                            },
+                        ]
+                    )
+                );
+            }
+
+            public Task<CreditLedgerRestoreTopupResult> RestoreUnusedTopupAsync(
+                CreditLedgerRestoreTopupRequest request,
+                CancellationToken cancellationToken = default
+            )
+            {
+                RestoreCallCount++;
+                return Task.FromResult(CreditLedgerRestoreTopupResult.Ok([]));
+            }
+
+            public Task<CreditLedgerWriteResult> ReleaseHeldAsync(
+                CreditLedgerReleaseHeldRequest request,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+            public Task<CreditLedgerWriteResult> MintPilotAtActivationAsync(
+                int restaurantId,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(CreditLedgerWriteResult.Ok([]));
+        }
+
+        private sealed class FixedDisputeMerchant : IRevolutMerchantClient
+        {
+            private readonly RevolutDisputeRetrieveResult _dispute;
+
+            public FixedDisputeMerchant(RevolutDisputeRetrieveResult dispute)
+            {
+                _dispute = dispute;
+            }
+
+            public int GetDisputeCallCount { get; private set; }
+
+            public void EnsureReadyForCreate(string? planVariationLookupKey = null)
+            {
+            }
+
+            public Task<RevolutListCustomersResult> ListCustomersByEmailAsync(
+                string email,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<RevolutMerchantCreateResult> CreateCustomerAsync(
+                RevolutCreateCustomerRequest request,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<RevolutMerchantCreateResult> CreateSubscriptionAsync(
+                RevolutCreateSubscriptionRequest request,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<RevolutMerchantCreateResult> CreateOrderAsync(
+                RevolutCreateOrderRequest request,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<RevolutMerchantCreateResult> ChangeSubscriptionPlanAsync(
+                string subscriptionId,
+                string planVariationLookupKey,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
+                string subscriptionId,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<RevolutOrderRetrieveResult> GetOrderAsync(
+                string orderId,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(new RevolutOrderRetrieveResult(Succeeded: false));
+
+            public Task<RevolutMerchantCreateResult> UpdateOrderMerchantReferenceAsync(
+                string orderId,
+                string merchantReference,
+                CancellationToken cancellationToken = default
+            ) =>
+                Task.FromResult(
+                    new RevolutMerchantCreateResult(Succeeded: true, Id: orderId)
+                );
+
+            public Task<RevolutDisputeRetrieveResult> GetDisputeAsync(
+                string disputeId,
+                CancellationToken cancellationToken = default
+            )
+            {
+                GetDisputeCallCount++;
+                return Task.FromResult(_dispute);
+            }
         }
 
         private sealed class FixedOrderMerchant : IRevolutMerchantClient

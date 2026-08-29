@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -53,6 +54,8 @@ namespace TummlyBackend.Services
         private readonly IBillingAccountLifecycle _lifecycle;
         private readonly IRevolutDunningPayAdapter _dunningPay;
         private readonly IRevolutPaymentRefundCompletedHandler _paymentRefundHandler;
+        private readonly ICreditLedger _ledger;
+        private readonly ITummlyVatInvoiceService _vatInvoices;
         private readonly TimeProvider _clock;
         private readonly RevolutSettings _settings;
         private readonly ILogger<RevolutWebhookService> _logger;
@@ -66,7 +69,9 @@ namespace TummlyBackend.Services
             IOptions<RevolutSettings> settings,
             ILogger<RevolutWebhookService>? logger = null,
             IRevolutDunningPayAdapter? dunningPay = null,
-            IRevolutPaymentRefundCompletedHandler? paymentRefundHandler = null
+            IRevolutPaymentRefundCompletedHandler? paymentRefundHandler = null,
+            ICreditLedger? ledger = null,
+            ITummlyVatInvoiceService? vatInvoices = null
         )
         {
             _context = context;
@@ -76,6 +81,8 @@ namespace TummlyBackend.Services
             _dunningPay = dunningPay ?? NoOpRevolutDunningPayAdapter.Instance;
             _paymentRefundHandler =
                 paymentRefundHandler ?? NoOpPaymentRefundCompletedHandler.Instance;
+            _ledger = ledger ?? NoOpWebhookCreditLedger.Instance;
+            _vatInvoices = vatInvoices ?? NoOpWebhookVatInvoiceService.Instance;
             _clock = clock;
             _settings = settings.Value;
             _logger =
@@ -143,6 +150,11 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (DisputeEvents.Contains(envelope.Event))
+            {
+                return await HandleDisputeAsync(envelope, cancellationToken);
+            }
+
             if (!TryResolveObjectId(envelope, out var objectId))
             {
                 return new RevolutWebhookHandleResult(
@@ -156,6 +168,409 @@ namespace TummlyBackend.Services
                 RevolutWebhookClaimDispositions.Recorded,
                 cancellationToken
             );
+        }
+
+        private async Task<RevolutWebhookHandleResult> HandleDisputeAsync(
+            WebhookEnvelope envelope,
+            CancellationToken cancellationToken
+        )
+        {
+            if (string.IsNullOrWhiteSpace(envelope.DisputeId))
+            {
+                return new RevolutWebhookHandleResult(
+                    RevolutWebhookHandleStatus.Accepted
+                );
+            }
+
+            var disputeId = envelope.DisputeId.Trim();
+            var eventName = envelope.Event;
+
+            if (
+                string.Equals(
+                    eventName,
+                    "DISPUTE_UNDER_REVIEW",
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return await ClaimRecordOnlyAsync(
+                    eventName,
+                    disputeId,
+                    RevolutWebhookClaimDispositions.Recorded,
+                    cancellationToken
+                );
+            }
+
+            var existing = await FindClaimAsync(
+                eventName,
+                disputeId,
+                cancellationToken
+            );
+            if (existing != null)
+            {
+                return new RevolutWebhookHandleResult(
+                    RevolutWebhookHandleStatus.Replay
+                );
+            }
+
+            var retrieved = await _merchant.GetDisputeAsync(
+                disputeId,
+                cancellationToken
+            );
+            if (retrieved is null || !retrieved.Succeeded)
+            {
+                return new RevolutWebhookHandleResult(
+                    RevolutWebhookHandleStatus.RetryLater
+                );
+            }
+
+            var paymentOrderId = retrieved.PaymentOrderId?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(paymentOrderId))
+            {
+                return await ClaimRecordOnlyAsync(
+                    eventName,
+                    disputeId,
+                    RevolutWebhookClaimDispositions.Recorded,
+                    cancellationToken
+                );
+            }
+
+            var restaurantId = await ResolveRestaurantIdForPaymentOrderAsync(
+                paymentOrderId,
+                cancellationToken
+            );
+            if (restaurantId == null)
+            {
+                return await ClaimRecordOnlyAsync(
+                    eventName,
+                    disputeId,
+                    RevolutWebhookClaimDispositions.Recorded,
+                    cancellationToken
+                );
+            }
+
+            return await ClaimAndApplyDisputeAsync(
+                eventName,
+                disputeId,
+                paymentOrderId,
+                restaurantId.Value,
+                cancellationToken
+            );
+        }
+
+        private async Task<RevolutWebhookHandleResult> ClaimAndApplyDisputeAsync(
+            string eventName,
+            string disputeId,
+            string paymentOrderId,
+            int restaurantId,
+            CancellationToken cancellationToken
+        )
+        {
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync(cancellationToken);
+
+            var claimId = Guid.NewGuid();
+            try
+            {
+                var again = await FindClaimAsync(
+                    eventName,
+                    disputeId,
+                    cancellationToken
+                );
+                if (again != null)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    return new RevolutWebhookHandleResult(
+                        RevolutWebhookHandleStatus.Replay
+                    );
+                }
+
+                _context.RevolutWebhookEventClaims.Add(
+                    new RevolutWebhookEventClaim
+                    {
+                        Id = claimId,
+                        Event = eventName,
+                        ObjectId = disputeId,
+                        Disposition = RevolutWebhookClaimDispositions.Applied,
+                        CreatedAtUtc = DateTime.UtcNow,
+                    }
+                );
+                await _context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (DbUpdateException)
+            {
+                await AbortClaimTransactionAsync(claimId, cancellationToken);
+                var conflict = await FindClaimAsync(
+                    eventName,
+                    disputeId,
+                    cancellationToken
+                );
+                if (conflict != null)
+                {
+                    return new RevolutWebhookHandleResult(
+                        RevolutWebhookHandleStatus.Replay
+                    );
+                }
+
+                throw;
+            }
+            catch
+            {
+                await AbortClaimTransactionAsync(claimId, cancellationToken);
+                throw;
+            }
+
+            try
+            {
+                if (
+                    string.Equals(
+                        eventName,
+                        "DISPUTE_ACTION_REQUIRED",
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    await ApplyDisputeActionRequiredAsync(
+                        restaurantId,
+                        paymentOrderId,
+                        cancellationToken
+                    );
+                }
+                else if (
+                    string.Equals(
+                        eventName,
+                        "DISPUTE_WON",
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    await ApplyDisputeWonAsync(
+                        restaurantId,
+                        paymentOrderId,
+                        cancellationToken
+                    );
+                }
+                else if (
+                    string.Equals(
+                        eventName,
+                        "DISPUTE_LOST",
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    await ApplyDisputeLostAsync(
+                        restaurantId,
+                        paymentOrderId,
+                        disputeId,
+                        cancellationToken
+                    );
+                }
+            }
+            catch
+            {
+                await AbortClaimTransactionAsync(claimId, cancellationToken);
+                throw;
+            }
+
+            return new RevolutWebhookHandleResult(
+                RevolutWebhookHandleStatus.Accepted
+            );
+        }
+
+        private async Task ApplyDisputeActionRequiredAsync(
+            int restaurantId,
+            string paymentOrderId,
+            CancellationToken cancellationToken
+        )
+        {
+            await _lifecycle.SetChargebackRestrictionAsync(
+                restaurantId,
+                restricted: true,
+                cancellationToken
+            );
+
+            var hasTopup = await HasTopupAllocationAsync(
+                restaurantId,
+                paymentOrderId,
+                cancellationToken
+            );
+            if (!hasTopup)
+            {
+                return;
+            }
+
+            await _ledger.DrainUnusedTopupAsync(
+                new CreditLedgerDrainTopupRequest
+                {
+                    RestaurantId = restaurantId,
+                    SourcePaymentRef = paymentOrderId,
+                    CorrectionSource = CorrectionSources.Dispute,
+                },
+                cancellationToken
+            );
+        }
+
+        private async Task ApplyDisputeWonAsync(
+            int restaurantId,
+            string paymentOrderId,
+            CancellationToken cancellationToken
+        )
+        {
+            var hadDisputeDrain = await HasDisputeDrainAsync(
+                restaurantId,
+                paymentOrderId,
+                cancellationToken
+            );
+            if (hadDisputeDrain)
+            {
+                await _ledger.RestoreUnusedTopupAsync(
+                    new CreditLedgerRestoreTopupRequest
+                    {
+                        RestaurantId = restaurantId,
+                        SourcePaymentRef = paymentOrderId,
+                    },
+                    cancellationToken
+                );
+            }
+
+            await _lifecycle.SetChargebackRestrictionAsync(
+                restaurantId,
+                restricted: false,
+                cancellationToken
+            );
+        }
+
+        private async Task ApplyDisputeLostAsync(
+            int restaurantId,
+            string paymentOrderId,
+            string disputeId,
+            CancellationToken cancellationToken
+        )
+        {
+            await _vatInvoices.MintCreditNoteForRefundAsync(
+                new TummlyVatCreditNoteMintRequest(
+                    RefundOrderId: disputeId,
+                    OriginalPaymentOrderId: paymentOrderId,
+                    RestaurantId: restaurantId,
+                    RefundCompletedUtc: _clock.GetUtcNow().UtcDateTime,
+                    LineDescriptionOverride: "Credit note — dispute"
+                ),
+                cancellationToken
+            );
+
+            var hadDisputeDrain = await HasDisputeDrainAsync(
+                restaurantId,
+                paymentOrderId,
+                cancellationToken
+            );
+            if (!hadDisputeDrain)
+            {
+                return;
+            }
+
+            var snapshot = await _ledger.DrainUnusedTopupAsync(
+                new CreditLedgerDrainTopupRequest
+                {
+                    RestaurantId = restaurantId,
+                    SourcePaymentRef = paymentOrderId,
+                    CorrectionSource = CorrectionSources.Dispute,
+                },
+                cancellationToken
+            );
+            if (
+                snapshot.Succeeded
+                && snapshot.Channels.Count > 0
+                && snapshot.Channels.All(row =>
+                    row.Consumed == 0 && row.Held == 0
+                )
+            )
+            {
+                await _lifecycle.SetChargebackRestrictionAsync(
+                    restaurantId,
+                    restricted: false,
+                    cancellationToken
+                );
+            }
+        }
+
+        private Task<bool> HasTopupAllocationAsync(
+            int restaurantId,
+            string paymentOrderId,
+            CancellationToken cancellationToken
+        )
+        {
+            return _context.CreditLedgerEntries
+                .AsNoTracking()
+                .AnyAsync(
+                    row =>
+                        row.RestaurantId == restaurantId
+                        && row.SourcePaymentRef == paymentOrderId
+                        && row.EntryType
+                            == CreditLedgerEntryTypes.TopupAllocation,
+                    cancellationToken
+                );
+        }
+
+        private Task<bool> HasDisputeDrainAsync(
+            int restaurantId,
+            string paymentOrderId,
+            CancellationToken cancellationToken
+        )
+        {
+            return _context.CreditLedgerEntries
+                .AsNoTracking()
+                .AnyAsync(
+                    row =>
+                        row.RestaurantId == restaurantId
+                        && row.SourcePaymentRef == paymentOrderId
+                        && row.EntryType == CreditLedgerEntryTypes.Refund
+                        && row.CorrectionSource == CorrectionSources.Dispute,
+                    cancellationToken
+                );
+        }
+
+        private async Task<int?> ResolveRestaurantIdForPaymentOrderAsync(
+            string paymentOrderId,
+            CancellationToken cancellationToken
+        )
+        {
+            var fromLedger = await _context.CreditLedgerEntries
+                .AsNoTracking()
+                .Where(row => row.SourcePaymentRef == paymentOrderId)
+                .Select(row => (int?)row.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (fromLedger != null)
+            {
+                return fromLedger;
+            }
+
+            var fromInvoice = await _context.TummlyVatInvoices
+                .AsNoTracking()
+                .Where(row => row.RevolutOrderId == paymentOrderId)
+                .Select(row => (int?)row.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (fromInvoice != null)
+            {
+                return fromInvoice;
+            }
+
+            var fromIntent = await _context.RevolutOrderIntents
+                .AsNoTracking()
+                .Where(row => row.OrderId == paymentOrderId)
+                .Select(row => (int?)row.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (fromIntent != null)
+            {
+                return fromIntent;
+            }
+
+            return await _context.RevolutPendingPaySessions
+                .AsNoTracking()
+                .Where(row => row.SetupOrderId == paymentOrderId)
+                .OrderByDescending(row => row.CreatedAtUtc)
+                .Select(row => (int?)row.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
         private async Task<RevolutWebhookHandleResult> HandleOrderCompletedAsync(
@@ -254,6 +669,11 @@ namespace TummlyBackend.Services
                     || string.Equals(
                         intent.Purpose,
                         RevolutOrderIntentPurposes.ExtraLocation,
+                        StringComparison.Ordinal
+                    )
+                    || string.Equals(
+                        intent.Purpose,
+                        RevolutOrderIntentPurposes.Topup,
                         StringComparison.Ordinal
                     )
                 );
@@ -874,5 +1294,119 @@ namespace TummlyBackend.Services
             string? SubscriptionId,
             string? DisputeId
         );
+    }
+
+    /// <summary>
+    /// Fallback when unit tests construct the webhook service without a ledger.
+    /// </summary>
+    file sealed class NoOpWebhookCreditLedger : ICreditLedger
+    {
+        public static readonly NoOpWebhookCreditLedger Instance = new();
+
+        public Task<CreditLedgerWriteResult> ConsumeOnSuccessAsync(
+            CreditLedgerConsumeRequest request,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+        public Task<CreditLedgerWriteResult> ReserveAsync(
+            CreditLedgerReserveRequest request,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+        public Task<CreditLedgerWriteResult> SettleAsync(
+            CreditLedgerSettleRequest request,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+        public Task<CreditLedgerWriteResult> ReleaseAsync(
+            CreditLedgerReleaseRequest request,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+        public Task<CreditLedgerWriteResult> StaffManualAdjustAsync(
+            StaffManualAdjustRequest request,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+        public Task<CreditLedgerWriteResult> StaffReverseAsync(
+            StaffReverseRequest request,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+        public Task<CreditLedgerMintTopupResult> MintTopupAllocationAsync(
+            CreditLedgerMintTopupRequest request,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(CreditLedgerMintTopupResult.Fail("not_implemented"));
+
+        public Task<CreditLedgerDrainTopupResult> DrainUnusedTopupAsync(
+            CreditLedgerDrainTopupRequest request,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(CreditLedgerDrainTopupResult.Ok([]));
+
+        public Task<CreditLedgerRestoreTopupResult> RestoreUnusedTopupAsync(
+            CreditLedgerRestoreTopupRequest request,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(CreditLedgerRestoreTopupResult.Ok([]));
+
+        public Task<CreditLedgerWriteResult> ReleaseHeldAsync(
+            CreditLedgerReleaseHeldRequest request,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+
+        public Task<CreditLedgerWriteResult> MintPilotAtActivationAsync(
+            int restaurantId,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult(CreditLedgerWriteResult.Ok([]));
+    }
+
+    file sealed class NoOpWebhookVatInvoiceService : ITummlyVatInvoiceService
+    {
+        public static readonly NoOpWebhookVatInvoiceService Instance = new();
+
+        public Task<TummlyVatInvoice> MintForCompletedOrderAsync(
+            TummlyVatInvoiceMintRequest request,
+            CancellationToken cancellationToken = default
+        ) =>
+            Task.FromResult(
+                new TummlyVatInvoice
+                {
+                    Id = Guid.NewGuid(),
+                    RevolutOrderId = request.RevolutOrderId,
+                    RestaurantId = request.RestaurantId,
+                }
+            );
+
+        public Task<TummlyVatInvoice> MintCreditNoteForRefundAsync(
+            TummlyVatCreditNoteMintRequest request,
+            CancellationToken cancellationToken = default
+        ) =>
+            Task.FromResult(
+                new TummlyVatInvoice
+                {
+                    Id = Guid.NewGuid(),
+                    DocumentPrefix = TummlyDocumentSequence.PrefixTcn,
+                    DocumentNumber = "TCN-noop",
+                    RevolutOrderId = request.RefundOrderId,
+                    RelatedRevolutOrderId = request.OriginalPaymentOrderId,
+                    RestaurantId = request.RestaurantId,
+                    PaymentStatus = TummlyVatInvoice.PaymentStatusPaid,
+                }
+            );
+
+        public Task<TummlyVatInvoice?> FindByRevolutOrderIdAsync(
+            string revolutOrderId,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult<TummlyVatInvoice?>(null);
+
+        public Task<IReadOnlyList<InvoiceRowDto>> ListInvoiceRowsForRestaurantAsync(
+            int restaurantId,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult<IReadOnlyList<InvoiceRowDto>>([]);
+
+        public Task<(byte[] Content, string FileName)?> RenderPdfAsync(
+            int restaurantId,
+            string documentNumber,
+            CancellationToken cancellationToken = default
+        ) => Task.FromResult<(byte[] Content, string FileName)?>(null);
     }
 }

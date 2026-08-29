@@ -791,6 +791,342 @@ namespace TummlyBackend.Tests.Integration
             Assert.Contains("ord_cycle_outstanding", factory.Merchant.PayOrderIds);
         }
 
+        [Fact]
+        public async Task PostWebhook_DisputeActionRequired_DrainsTopupOnce()
+        {
+            await using var factory = new RevolutWebhookWebApplicationFactory();
+            var seeded = await SeedPaidWithSubscriptionAsync(
+                factory,
+                "sub_disp_topup",
+                "ord_setup_disp_topup"
+            );
+            const string paymentOrderId = "ord_topup_disp";
+            const string disputeId = "disp_topup_once";
+            await SeedTopupAllocationAsync(
+                factory,
+                seeded.RestaurantId,
+                paymentOrderId,
+                quantity: 100
+            );
+            factory.Merchant.Disputes[disputeId] = new RevolutDisputeRetrieveResult(
+                Succeeded: true,
+                Id: disputeId,
+                PaymentOrderId: paymentOrderId,
+                AmountMinor: 1200,
+                Currency: "GBP"
+            );
+            var client = factory.CreateClient();
+            var body = DisputeBody("DISPUTE_ACTION_REQUIRED", disputeId);
+
+            var first = await SendSignedAsync(client, body);
+            Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);
+
+            var second = await SendSignedAsync(client, body);
+            Assert.Equal(HttpStatusCode.NoContent, second.StatusCode);
+
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var account = await db.BillingAccounts.AsNoTracking().SingleAsync(row =>
+                row.RestaurantId == seeded.RestaurantId
+            );
+            Assert.True(account.ChargebackRestricted);
+            Assert.Equal(
+                1,
+                await db.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.Refund
+                    && row.SourcePaymentRef == paymentOrderId
+                    && row.CorrectionSource == CorrectionSources.Dispute
+                )
+            );
+            Assert.Equal(
+                1,
+                await db.RevolutWebhookEventClaims.CountAsync(row =>
+                    row.Event == "DISPUTE_ACTION_REQUIRED"
+                    && row.ObjectId == disputeId
+                )
+            );
+            Assert.Equal(1, factory.Merchant.GetDisputeCallCount);
+        }
+
+        [Fact]
+        public async Task PostWebhook_DisputeActionRequired_PlanInvoice_OpensOverlayOnly_NoIncludedRefund()
+        {
+            await using var factory = new RevolutWebhookWebApplicationFactory();
+            var seeded = await SeedPaidWithSubscriptionAsync(
+                factory,
+                "sub_disp_plan",
+                "ord_setup_disp_plan"
+            );
+            const string paymentOrderId = "ord_cycle_disp_plan";
+            const string disputeId = "disp_plan_only";
+            await SeedIncludedAllocationAsync(
+                factory,
+                seeded.RestaurantId,
+                quantity: 500
+            );
+            await SeedTmInvoiceAsync(
+                factory,
+                seeded.RestaurantId,
+                paymentOrderId
+            );
+            factory.Merchant.Disputes[disputeId] = new RevolutDisputeRetrieveResult(
+                Succeeded: true,
+                Id: disputeId,
+                PaymentOrderId: paymentOrderId
+            );
+            var client = factory.CreateClient();
+
+            var response = await SendSignedAsync(
+                client,
+                DisputeBody("DISPUTE_ACTION_REQUIRED", disputeId)
+            );
+
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var account = await db.BillingAccounts.AsNoTracking().SingleAsync(row =>
+                row.RestaurantId == seeded.RestaurantId
+            );
+            Assert.True(account.ChargebackRestricted);
+            Assert.Equal(
+                0,
+                await db.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.Refund
+                )
+            );
+            Assert.Equal(
+                1,
+                await db.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
+                )
+            );
+        }
+
+        [Fact]
+        public async Task PostWebhook_DisputeWon_RestoresTopupAndClearsOverlay()
+        {
+            await using var factory = new RevolutWebhookWebApplicationFactory();
+            var seeded = await SeedPaidWithSubscriptionAsync(
+                factory,
+                "sub_disp_won",
+                "ord_setup_disp_won"
+            );
+            const string paymentOrderId = "ord_topup_won";
+            const string disputeId = "disp_won";
+            await SeedTopupAllocationAsync(
+                factory,
+                seeded.RestaurantId,
+                paymentOrderId,
+                quantity: 80
+            );
+            factory.Merchant.Disputes[disputeId] = new RevolutDisputeRetrieveResult(
+                Succeeded: true,
+                Id: disputeId,
+                PaymentOrderId: paymentOrderId
+            );
+            var client = factory.CreateClient();
+
+            Assert.Equal(
+                HttpStatusCode.NoContent,
+                (
+                    await SendSignedAsync(
+                        client,
+                        DisputeBody("DISPUTE_ACTION_REQUIRED", disputeId)
+                    )
+                ).StatusCode
+            );
+
+            var won = await SendSignedAsync(
+                client,
+                DisputeBody("DISPUTE_WON", disputeId)
+            );
+            Assert.Equal(HttpStatusCode.NoContent, won.StatusCode);
+
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var account = await db.BillingAccounts.AsNoTracking().SingleAsync(row =>
+                row.RestaurantId == seeded.RestaurantId
+            );
+            Assert.False(account.ChargebackRestricted);
+            Assert.Equal(
+                0,
+                await db.TummlyVatInvoices.CountAsync(row =>
+                    row.DocumentPrefix == TummlyDocumentSequence.PrefixTcn
+                )
+            );
+            Assert.True(
+                await db.CreditLedgerEntries.AnyAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.SourcePaymentRef == paymentOrderId
+                    && row.EntryType == CreditLedgerEntryTypes.TopupAllocation
+                )
+            );
+        }
+
+        [Fact]
+        public async Task PostWebhook_DisputeLost_MintsTcn()
+        {
+            await using var factory = new RevolutWebhookWebApplicationFactory();
+            var seeded = await SeedPaidWithSubscriptionAsync(
+                factory,
+                "sub_disp_lost",
+                "ord_setup_disp_lost"
+            );
+            const string paymentOrderId = "ord_topup_lost";
+            const string disputeId = "disp_lost_tcn";
+            await SeedTopupAllocationAsync(
+                factory,
+                seeded.RestaurantId,
+                paymentOrderId,
+                quantity: 50
+            );
+            await SeedTmInvoiceAsync(
+                factory,
+                seeded.RestaurantId,
+                paymentOrderId,
+                netPence: 1000,
+                vatPence: 200,
+                grossPence: 1200
+            );
+            factory.Merchant.Disputes[disputeId] = new RevolutDisputeRetrieveResult(
+                Succeeded: true,
+                Id: disputeId,
+                PaymentOrderId: paymentOrderId,
+                AmountMinor: 1200
+            );
+            var client = factory.CreateClient();
+
+            Assert.Equal(
+                HttpStatusCode.NoContent,
+                (
+                    await SendSignedAsync(
+                        client,
+                        DisputeBody("DISPUTE_ACTION_REQUIRED", disputeId)
+                    )
+                ).StatusCode
+            );
+
+            var lost = await SendSignedAsync(
+                client,
+                DisputeBody("DISPUTE_LOST", disputeId)
+            );
+            Assert.Equal(HttpStatusCode.NoContent, lost.StatusCode);
+
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var tcn = await db.TummlyVatInvoices.SingleAsync(row =>
+                row.DocumentPrefix == TummlyDocumentSequence.PrefixTcn
+            );
+            Assert.Equal(disputeId, tcn.RevolutOrderId);
+            Assert.StartsWith("TCN-", tcn.DocumentNumber);
+            Assert.Equal(
+                TummlyVatInvoice.PaymentStatusCreditNote,
+                tcn.PaymentStatus
+            );
+
+            var replay = await SendSignedAsync(
+                client,
+                DisputeBody("DISPUTE_LOST", disputeId)
+            );
+            Assert.Equal(HttpStatusCode.NoContent, replay.StatusCode);
+            Assert.Equal(
+                1,
+                await db.TummlyVatInvoices.CountAsync(row =>
+                    row.DocumentPrefix == TummlyDocumentSequence.PrefixTcn
+                )
+            );
+        }
+
+        private static async Task SeedTopupAllocationAsync(
+            RevolutWebhookWebApplicationFactory factory,
+            int restaurantId,
+            string paymentOrderId,
+            int quantity
+        )
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var ledger = scope.ServiceProvider.GetRequiredService<ICreditLedger>();
+            var result = await ledger.MintTopupAllocationAsync(
+                new CreditLedgerMintTopupRequest
+                {
+                    RestaurantId = restaurantId,
+                    Channel = CreditChannels.Email,
+                    Quantity = quantity,
+                    SourcePaymentRef = paymentOrderId,
+                }
+            );
+            Assert.True(result.Succeeded, result.Code);
+        }
+
+        private static async Task SeedIncludedAllocationAsync(
+            RevolutWebhookWebApplicationFactory factory,
+            int restaurantId,
+            int quantity
+        )
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var now = DateTime.UtcNow;
+            var allocationId = Guid.NewGuid();
+            db.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = allocationId,
+                    RestaurantId = restaurantId,
+                    Channel = CreditChannels.Email,
+                    EntryType = CreditLedgerEntryTypes.IncludedAllocation,
+                    Quantity = quantity,
+                    AllocationId = allocationId,
+                    CreatedAtUtc = now,
+                    PeriodStartUtc = now,
+                    ExpiresAtUtc = now.AddMonths(1),
+                }
+            );
+            await db.SaveChangesAsync();
+        }
+
+        private static async Task SeedTmInvoiceAsync(
+            RevolutWebhookWebApplicationFactory factory,
+            int restaurantId,
+            string revolutOrderId,
+            int netPence = 5000,
+            int vatPence = 1000,
+            int grossPence = 6000
+        )
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var now = DateTime.UtcNow;
+            db.TummlyVatInvoices.Add(
+                new TummlyVatInvoice
+                {
+                    Id = Guid.NewGuid(),
+                    DocumentNumber = $"TM-2026-{Guid.NewGuid().ToString("N")[..6]}",
+                    DocumentPrefix = TummlyDocumentSequence.PrefixTm,
+                    RevolutOrderId = revolutOrderId,
+                    RestaurantId = restaurantId,
+                    InvoiceDateUtc = now,
+                    TaxPointUtc = now,
+                    LineDescription = "Plan invoice",
+                    Quantity = 1,
+                    NetPence = netPence,
+                    VatRateBps = 2000,
+                    VatPence = vatPence,
+                    GrossPence = grossPence,
+                    Currency = TummlyVatInvoice.CurrencyGbp,
+                    PaymentStatus = TummlyVatInvoice.PaymentStatusPaid,
+                    CustomerBusinessName = "Test",
+                    SellerLegalName = "Tummly Ltd",
+                    SellerRegisteredAddress = "1 Example Road",
+                    SellerVatRegistrationNumber = "GB123456789",
+                }
+            );
+            await db.SaveChangesAsync();
+        }
+
         private static async Task<SeededPending> SeedPilotWithPendingAsync(
             RevolutWebhookWebApplicationFactory factory,
             string setupOrderId
@@ -1046,6 +1382,11 @@ namespace TummlyBackend.Tests.Integration
             return $$"""{"event":"ORDER_COMPLETED","order_id":"{{orderId}}"}""";
         }
 
+        private static string DisputeBody(string eventName, string disputeId)
+        {
+            return $$"""{"event":"{{eventName}}","dispute_id":"{{disputeId}}"}""";
+        }
+
         private static RevolutOrderRetrieveResult CompletedOrder(string orderId)
         {
             return new RevolutOrderRetrieveResult(
@@ -1132,6 +1473,9 @@ namespace TummlyBackend.Tests.Integration
         public Dictionary<string, RevolutOrderRetrieveResult> Orders { get; } =
             new(StringComparer.Ordinal);
 
+        public Dictionary<string, RevolutDisputeRetrieveResult> Disputes { get; } =
+            new(StringComparer.Ordinal);
+
         public Dictionary<string, RevolutSubscriptionRetrieveResult> Subscriptions { get; } =
             new(StringComparer.Ordinal);
 
@@ -1141,6 +1485,8 @@ namespace TummlyBackend.Tests.Integration
         > Cycles { get; } = new();
 
         public int GetOrderCallCount { get; private set; }
+
+        public int GetDisputeCallCount { get; private set; }
 
         public int GetSubscriptionCallCount { get; private set; }
 
@@ -1233,6 +1579,25 @@ namespace TummlyBackend.Tests.Integration
 
             return Task.FromResult(
                 new RevolutOrderRetrieveResult(
+                    Succeeded: false,
+                    ErrorCode: "not_found"
+                )
+            );
+        }
+
+        public Task<RevolutDisputeRetrieveResult> GetDisputeAsync(
+            string disputeId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            GetDisputeCallCount++;
+            if (Disputes.TryGetValue(disputeId, out var dispute))
+            {
+                return Task.FromResult(dispute);
+            }
+
+            return Task.FromResult(
+                new RevolutDisputeRetrieveResult(
                     Succeeded: false,
                     ErrorCode: "not_found"
                 )

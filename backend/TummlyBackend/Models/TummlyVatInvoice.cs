@@ -11,7 +11,11 @@ namespace TummlyBackend.Models
     {
         public const string PrefixTm = TummlyDocumentSequence.PrefixTm;
 
+        public const string PrefixTcn = TummlyDocumentSequence.PrefixTcn;
+
         public const string PaymentStatusPaid = "Paid";
+
+        public const string PaymentStatusCreditNote = "Credit note";
 
         public const string CurrencyGbp = "GBP";
 

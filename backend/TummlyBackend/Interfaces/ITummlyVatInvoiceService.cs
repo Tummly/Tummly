@@ -16,9 +16,10 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
-        /// Idempotent TCN mint for a completed Revolut refund order. Reuses the
-        /// row when <see cref="TummlyVatCreditNoteMintRequest.RefundOrderId"/>
-        /// already exists as <see cref="TummlyVatInvoice.RevolutOrderId"/>.
+        /// Idempotent TCN mint for a money loss (Revolut refund order UUID or
+        /// dispute id). Reuses the row when
+        /// <see cref="TummlyVatCreditNoteMintRequest.RefundOrderId"/> already
+        /// exists as <see cref="TummlyVatInvoice.RevolutOrderId"/>.
         /// </summary>
         Task<TummlyVatInvoice> MintCreditNoteForRefundAsync(
             TummlyVatCreditNoteMintRequest request,

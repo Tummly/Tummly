@@ -151,6 +151,65 @@ namespace TummlyBackend.Interfaces
                     ErrorCode: "not_implemented"
                 )
             );
+
+        /// <summary>
+        /// Retrieves a dispute (resolve <c>payment.order_id</c> for
+        /// <c>DISPUTE_*</c> handlers). Production Merchant API.
+        /// </summary>
+        Task<RevolutDisputeRetrieveResult> GetDisputeAsync(
+            string disputeId,
+            CancellationToken cancellationToken = default
+        ) =>
+            Task.FromResult(
+                new RevolutDisputeRetrieveResult(
+                    Succeeded: false,
+                    ErrorCode: "not_implemented"
+                )
+            );
+
+        /// <summary>
+        /// Accepts a dispute (Production). Not the order refund endpoint.
+        /// </summary>
+        Task<RevolutMerchantCreateResult> AcceptDisputeAsync(
+            string disputeId,
+            CancellationToken cancellationToken = default
+        ) =>
+            Task.FromResult(
+                new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "not_implemented"
+                )
+            );
+
+        /// <summary>
+        /// Challenges a dispute (Production). Use
+        /// <see cref="RevolutDisputeChallengeReasons.RefundAlreadyIssued"/>
+        /// when a Support <c>payment_refund</c> already completed.
+        /// </summary>
+        Task<RevolutMerchantCreateResult> ChallengeDisputeAsync(
+            string disputeId,
+            string reason,
+            CancellationToken cancellationToken = default
+        ) =>
+            Task.FromResult(
+                new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "not_implemented"
+                )
+            );
+    }
+
+    public static class RevolutDisputeChallengeReasons
+    {
+        public const string RefundAlreadyIssued = "refund_already_issued";
+
+        /// <summary>
+        /// Challenge reason when Support already completed a
+        /// <c>payment_refund</c> for the disputed order. Dispute accept is not
+        /// the refund endpoint.
+        /// </summary>
+        public static string ForSupportRefundAlreadyCompleted() =>
+            RefundAlreadyIssued;
     }
 
     public sealed class RevolutMerchantNotReadyException : Exception
@@ -281,5 +340,15 @@ namespace TummlyBackend.Interfaces
         string SavedPaymentMethodId,
         string SavedPaymentMethodType = "card",
         string Initiator = "merchant"
+    );
+
+    public sealed record RevolutDisputeRetrieveResult(
+        bool Succeeded,
+        string? Id = null,
+        string? PaymentOrderId = null,
+        int? AmountMinor = null,
+        string? Currency = null,
+        string? ErrorCode = null,
+        string? RawBody = null
     );
 }
