@@ -21,6 +21,7 @@ namespace TummlyBackend.Services
         private readonly ISameCadenceUpgradePaySession _sameCadenceUpgradePaySession;
         private readonly IPaymentMethodUpdatePaySession _paymentMethodUpdatePaySession;
         private readonly ITummlyVatInvoiceService _vatInvoices;
+        private readonly ICycleEndPlanChange _cycleEndPlanChange;
 
         public BillingCreditsService(
             ApplicationDbContext context,
@@ -32,7 +33,8 @@ namespace TummlyBackend.Services
             IFirstPaidConversionPaySession firstPaidConversionPaySession,
             ISameCadenceUpgradePaySession sameCadenceUpgradePaySession,
             IPaymentMethodUpdatePaySession paymentMethodUpdatePaySession,
-            ITummlyVatInvoiceService vatInvoices
+            ITummlyVatInvoiceService vatInvoices,
+            ICycleEndPlanChange cycleEndPlanChange
         )
         {
             _context = context;
@@ -45,6 +47,7 @@ namespace TummlyBackend.Services
             _sameCadenceUpgradePaySession = sameCadenceUpgradePaySession;
             _paymentMethodUpdatePaySession = paymentMethodUpdatePaySession;
             _vatInvoices = vatInvoices;
+            _cycleEndPlanChange = cycleEndPlanChange;
         }
 
         public async Task<BillingCreditsPageDto?> GetPageAsync(
@@ -563,6 +566,12 @@ namespace TummlyBackend.Services
                 targetPlan,
                 targetExtras,
                 restaurantId
+            );
+
+            await _cycleEndPlanChange.ApplyRevolutChangePlanIfNeededAsync(
+                restaurantId,
+                targetPlan,
+                targetCadenceApi
             );
 
             _planChange.SetScheduledChange(

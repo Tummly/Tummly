@@ -532,6 +532,7 @@ builder.Services.AddScoped<
     IPaymentMethodUpdatePaySession,
     PaymentMethodUpdatePaySessionService
 >();
+builder.Services.AddScoped<ICycleEndPlanChange, CycleEndPlanChangeService>();
 builder.Services.AddScoped<
     IRevolutOrderCompletedApplier,
     RevolutOrderCompletedApplier

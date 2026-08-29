@@ -53,7 +53,8 @@ namespace TummlyBackend.Interfaces
 
         /// <summary>
         /// Schedules a subscription plan variation change at cycle end
-        /// (ticket 20). Gates and resolves the variation id first.
+        /// (<c>POST …/change-plan</c> with <c>scheduled: at_cycle_end</c>).
+        /// Gates and resolves the variation id first; never PATCHes live amounts.
         /// </summary>
         Task<RevolutMerchantCreateResult> ChangeSubscriptionPlanAsync(
             string subscriptionId,

@@ -734,6 +734,14 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             Assert.Equal("scheduled", body.GetProperty("outcome").GetString());
+            if (body.TryGetProperty("redirectUrl", out var redirect))
+            {
+                Assert.True(
+                    redirect.ValueKind == JsonValueKind.Null
+                        || string.IsNullOrWhiteSpace(redirect.GetString())
+                );
+            }
+
             Assert.Contains(
                 "Changes to Starter on",
                 body.GetProperty("scheduledChangeLine").GetString()
@@ -753,6 +761,70 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(0, account.ScheduledTargetExtraLocationCount);
             Assert.False(account.ScheduledCancelPlan);
             Assert.True(account.HasScheduledChange);
+        }
+
+        [Fact]
+        public async Task PostPlanChange_ScheduleWithRevolutSubscription_CallsChangePlan_NoRedirect()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                context.RevolutPendingPaySessions.Add(
+                    new RevolutPendingPaySession
+                    {
+                        Id = Guid.NewGuid(),
+                        RestaurantId = seeded.RestaurantId,
+                        TargetPlan = "Growth",
+                        TargetCadence = "monthly",
+                        RevolutSubscriptionId = "sub_paid_schedule",
+                        SetupOrderId = "ord_setup_paid",
+                        CheckoutUrl = "https://checkout.example/paid",
+                        IdempotencyKey = "idem-paid-schedule",
+                        IsOpen = false,
+                        CreatedAtUtc = DateTime.UtcNow.AddDays(-5),
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            var before = _factory.Merchant.ChangeSubscriptionPlanCallCount;
+            using var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change",
+                seeded.OwnerJwt
+            );
+            request.Content = JsonContent.Create(new
+            {
+                targetPlan = "Starter",
+                targetCadence = "monthly",
+            });
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("scheduled", body.GetProperty("outcome").GetString());
+            if (body.TryGetProperty("redirectUrl", out var redirect))
+            {
+                Assert.True(
+                    redirect.ValueKind == JsonValueKind.Null
+                        || string.IsNullOrWhiteSpace(redirect.GetString())
+                );
+            }
+
+            Assert.Equal(
+                before + 1,
+                _factory.Merchant.ChangeSubscriptionPlanCallCount
+            );
+            Assert.Equal(
+                "sub_paid_schedule",
+                _factory.Merchant.LastChangePlanSubscriptionId
+            );
+            Assert.Equal(
+                RevolutPlanVariationKeys.StarterMonthly,
+                _factory.Merchant.LastChangePlanLookupKey
+            );
         }
 
         [Fact]

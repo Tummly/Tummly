@@ -127,7 +127,8 @@ namespace TummlyBackend.Tests.Services
                 new ThrowingFirstPaidConversionPaySession(),
                 new ThrowingSameCadenceUpgradePaySession(),
                 new ThrowingPaymentMethodUpdatePaySession(),
-                new EmptyTummlyVatInvoiceService()
+                new EmptyTummlyVatInvoiceService(),
+                new NoOpCycleEndPlanChange()
             );
             return new Harness(context, service, restaurant.Id);
         }
@@ -155,6 +156,16 @@ namespace TummlyBackend.Tests.Services
                 string documentNumber,
                 CancellationToken cancellationToken = default
             ) => Task.FromResult<(byte[] Content, string FileName)?>(null);
+        }
+
+        private sealed class NoOpCycleEndPlanChange : ICycleEndPlanChange
+        {
+            public Task ApplyRevolutChangePlanIfNeededAsync(
+                int restaurantId,
+                string targetPlan,
+                string targetCadenceApi,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
         }
 
         private sealed class ThrowingFirstPaidConversionPaySession
