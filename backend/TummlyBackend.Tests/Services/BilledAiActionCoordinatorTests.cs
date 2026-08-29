@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using System.Text.Json;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.BillingCredits;
@@ -57,6 +58,10 @@ namespace TummlyBackend.Tests.Services
                 result
             );
             Assert.Equal("insufficient_credits", consumeFailed.Code);
+            Assert.DoesNotContain(
+                "Secret draft",
+                JsonSerializer.Serialize(result)
+            );
             Assert.Empty(
                 await harness.Context.AiActionIdempotencyRecords.ToListAsync()
             );

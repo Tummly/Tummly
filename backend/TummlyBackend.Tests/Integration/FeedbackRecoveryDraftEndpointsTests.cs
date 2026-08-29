@@ -86,6 +86,191 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PrepareDraft_BurnsOneAiCredit()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-draft-burn-tok",
+                ContactType.Email,
+                "burn@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "recovery-burn-owner@example.com",
+                aiCredits: 3
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeFeedbackRecoveryDraftProvider>();
+            fake.SucceedWith(
+                "Burn body",
+                "Burn subject",
+                "email"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-draft"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                purpose = "acknowledge_feedback",
+                tone = "warm_and_apologetic",
+                mode = "prepare",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var verifyScope = _factory.Services.CreateScope();
+            var context = verifyScope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var consumptions = await context.CreditLedgerEntries
+                .Where(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.Channel == CreditChannels.Ai
+                    && row.EntryType == CreditLedgerEntryTypes.Consumption
+                )
+                .ToListAsync();
+            Assert.Single(consumptions);
+            Assert.Equal(1, consumptions[0].Quantity);
+            Assert.Equal(seeded.LocationId, consumptions[0].LocationId);
+        }
+
+        [Fact]
+        public async Task PrepareDraft_RemainingZero_RefusesWithoutCallingProvider()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-draft-zero-tok",
+                ContactType.Email,
+                "zero@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "recovery-zero-owner@example.com",
+                aiCredits: 0
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeFeedbackRecoveryDraftProvider>();
+            fake.SucceedWith(
+                "Should not return",
+                "Should not return",
+                "email"
+            );
+            fake.ResetCallCount();
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-draft"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                purpose = "acknowledge_feedback",
+                tone = "warm_and_apologetic",
+                mode = "prepare",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "channel_hard_stopped",
+                body.GetProperty("code").GetString()
+            );
+            Assert.Equal(0, fake.CallCount);
+        }
+
+        [Fact]
+        public async Task RewriteSubjectThenMessage_BurnsTwoAiCredits()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-draft-rewrite-burn-tok",
+                ContactType.Email,
+                "rewrite-burn@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "recovery-rewrite-burn-owner@example.com",
+                aiCredits: 5
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeFeedbackRecoveryDraftProvider>();
+            fake.SucceedWith(
+                "Rewritten body",
+                "Rewritten subject",
+                "email"
+            );
+
+            using var subjectPost = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-draft"
+            );
+            subjectPost.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            subjectPost.Headers.Add(
+                "Idempotency-Key",
+                Guid.NewGuid().ToString("D")
+            );
+            subjectPost.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                purpose = "acknowledge_feedback",
+                tone = "warm_and_apologetic",
+                mode = "rewrite_subject",
+                currentBody = "Prior body",
+                currentSubject = "Prior subject",
+            });
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(subjectPost)).StatusCode
+            );
+
+            using var messagePost = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-draft"
+            );
+            messagePost.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            messagePost.Headers.Add(
+                "Idempotency-Key",
+                Guid.NewGuid().ToString("D")
+            );
+            messagePost.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                purpose = "acknowledge_feedback",
+                tone = "warm_and_apologetic",
+                mode = "rewrite_message",
+                currentBody = "Prior body",
+                currentSubject = "Prior subject",
+            });
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(messagePost)).StatusCode
+            );
+
+            using var verifyScope = _factory.Services.CreateScope();
+            var context = verifyScope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var consumptions = await context.CreditLedgerEntries
+                .Where(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.Channel == CreditChannels.Ai
+                    && row.EntryType == CreditLedgerEntryTypes.Consumption
+                )
+                .ToListAsync();
+            Assert.Equal(2, consumptions.Count);
+            Assert.Equal(2, consumptions.Sum(row => row.Quantity));
+        }
+
+        [Fact]
         public async Task RewriteDraft_PassesCurrentBodyAndSubject()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(
@@ -323,13 +508,15 @@ namespace TummlyBackend.Tests.Integration
         private async Task<(
             string Jwt,
             int LocationId,
-            int FeedbackId
+            int FeedbackId,
+            int RestaurantId
         )> SeedOwnerWithFeedbackAsync(
             string linkToken,
             ContactType contactType,
             string guestContact,
             FeedbackWorkflowStatus workflowStatus,
-            string email = "recovery-draft-owner@example.com"
+            string email = "recovery-draft-owner@example.com",
+            int aiCredits = 20
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -400,19 +587,22 @@ namespace TummlyBackend.Tests.Integration
             context.Feedbacks.Add(feedback);
             await context.SaveChangesAsync();
 
-            context.CreditLedgerEntries.Add(
-                new CreditLedgerEntry
-                {
-                    Id = Guid.NewGuid(),
-                    RestaurantId = restaurant.Id,
-                    Channel = CreditChannels.Ai,
-                    EntryType = CreditLedgerEntryTypes.PilotAllocation,
-                    Quantity = 20,
-                    PricebookVersion = PricebookId,
-                    CreatedAtUtc = DateTime.UtcNow.AddDays(-1),
-                }
-            );
-            await context.SaveChangesAsync();
+            if (aiCredits > 0)
+            {
+                context.CreditLedgerEntries.Add(
+                    new CreditLedgerEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        RestaurantId = restaurant.Id,
+                        Channel = CreditChannels.Ai,
+                        EntryType = CreditLedgerEntryTypes.PilotAllocation,
+                        Quantity = aiCredits,
+                        PricebookVersion = PricebookId,
+                        CreatedAtUtc = DateTime.UtcNow.AddDays(-1),
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
 
             var jwt = jwtService.GenerateToken(
                 user.Id.ToString(),
@@ -420,7 +610,7 @@ namespace TummlyBackend.Tests.Integration
                 user.Role
             );
 
-            return (jwt, location.Id, feedback.Id);
+            return (jwt, location.Id, feedback.Id, restaurant.Id);
         }
 
         private static async Task<JsonElement> ReadJsonAsync(

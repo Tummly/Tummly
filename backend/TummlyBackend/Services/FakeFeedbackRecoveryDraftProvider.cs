@@ -22,6 +22,14 @@ namespace TummlyBackend.Services
 
         public FeedbackRecoveryDraftInput? LastInput => _lastInput;
 
+        public int CallCount { get; private set; }
+
+        public void ResetCallCount()
+        {
+            CallCount = 0;
+            _lastInput = null;
+        }
+
         public void SucceedWith(
             string body,
             string? subject,
@@ -54,6 +62,7 @@ namespace TummlyBackend.Services
         )
         {
             cancellationToken.ThrowIfCancellationRequested();
+            CallCount++;
             _lastInput = input;
 
             if (_throwOnDraft is not null)

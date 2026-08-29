@@ -1774,9 +1774,8 @@ namespace TummlyBackend.Controllers
 
                         if (result == null)
                         {
-                            return new BilledAiGenerationResult.Failed(
-                                "Feedback not found.",
-                                Retryable: false
+                            return new BilledAiGenerationResult.NotFound(
+                                "Feedback not found."
                             );
                         }
 

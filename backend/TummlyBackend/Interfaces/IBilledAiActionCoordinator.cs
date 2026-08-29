@@ -36,6 +36,9 @@ namespace TummlyBackend.Interfaces
 
         public sealed record Failed(string Message, bool Retryable)
             : BilledAiGenerationResult;
+
+        public sealed record NotFound(string Message)
+            : BilledAiGenerationResult;
     }
 
     public abstract record BilledAiActionResult
@@ -53,6 +56,9 @@ namespace TummlyBackend.Interfaces
             : BilledAiActionResult;
 
         public sealed record ProviderFailed(string Message, bool Retryable)
+            : BilledAiActionResult;
+
+        public sealed record ResourceNotFound(string Message)
             : BilledAiActionResult;
 
         public sealed record IdempotencyKeyRequired()

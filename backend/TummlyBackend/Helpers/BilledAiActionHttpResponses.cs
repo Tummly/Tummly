@@ -28,6 +28,13 @@ namespace TummlyBackend.Helpers
                 {
                     StatusCode = StatusCodes.Status502BadGateway,
                 },
+                BilledAiActionResult.ResourceNotFound notFound => new NotFoundObjectResult(
+                    new
+                    {
+                        success = false,
+                        message = notFound.Message,
+                    }
+                ),
                 BilledAiActionResult.IdempotencyKeyRequired => new BadRequestObjectResult(
                     new
                     {

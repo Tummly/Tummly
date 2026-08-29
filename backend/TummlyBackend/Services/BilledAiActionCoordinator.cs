@@ -65,6 +65,11 @@ namespace TummlyBackend.Services
             }
 
             var generated = await generateAsync(cancellationToken);
+            if (generated is BilledAiGenerationResult.NotFound notFound)
+            {
+                return new BilledAiActionResult.ResourceNotFound(notFound.Message);
+            }
+
             if (generated is BilledAiGenerationResult.Failed failed)
             {
                 return new BilledAiActionResult.ProviderFailed(
