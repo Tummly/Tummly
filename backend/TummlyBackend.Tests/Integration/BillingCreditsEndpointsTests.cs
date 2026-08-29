@@ -11,6 +11,7 @@ using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -672,10 +673,20 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             Assert.Equal("pay", body.GetProperty("outcome").GetString());
-            Assert.Contains(
-                "checkout.revolut.com",
+            Assert.Equal(
+                FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
                 body.GetProperty("redirectUrl").GetString()
             );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var account = await context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
+            Assert.Equal(BillingStatuses.Pilot, account.BillingStatus);
+            Assert.False(string.IsNullOrWhiteSpace(account.RevolutCustomerId));
         }
 
         [Fact]
@@ -698,6 +709,10 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             Assert.Equal("pay", body.GetProperty("outcome").GetString());
+            Assert.Equal(
+                FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
+                body.GetProperty("redirectUrl").GetString()
+            );
         }
 
         [Fact]

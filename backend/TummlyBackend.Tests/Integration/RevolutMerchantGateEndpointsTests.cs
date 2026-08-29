@@ -8,12 +8,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -134,6 +136,10 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var body = await ReadJsonAsync(response);
             Assert.Equal("pay", body.GetProperty("outcome").GetString());
+            Assert.Equal(
+                FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
+                body.GetProperty("redirectUrl").GetString()
+            );
         }
 
         private static HttpRequestMessage AuthorizedPlanChange(
@@ -301,6 +307,14 @@ namespace TummlyBackend.Tests.Integration
                         w.Ignore(InMemoryEventId.TransactionIgnoredWarning)
                     );
                 });
+
+                if (_mode == RevolutGateConfigMode.FullReady)
+                {
+                    services.RemoveAll<IRevolutMerchantClient>();
+                    services.AddSingleton<IRevolutMerchantClient>(
+                        new FakeFirstPaidRevolutMerchantClient()
+                    );
+                }
             });
         }
 
@@ -308,7 +322,10 @@ namespace TummlyBackend.Tests.Integration
             RevolutGateConfigMode mode
         )
         {
-            var values = new Dictionary<string, string?>();
+            var values = new Dictionary<string, string?>
+            {
+                ["Frontend:BaseUrl"] = "https://tummly.example",
+            };
             if (mode == RevolutGateConfigMode.Empty)
             {
                 return values;

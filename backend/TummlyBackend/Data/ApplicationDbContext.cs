@@ -73,6 +73,12 @@ namespace TummlyBackend.Data
             set;
         }
 
+        public DbSet<RevolutPendingPaySession> RevolutPendingPaySessions
+        {
+            get;
+            set;
+        }
+
         public DbSet<RestaurantLocation> RestaurantLocations { get; set; }
 
         public DbSet<QrCode> QrCodes { get; set; }
@@ -746,6 +752,54 @@ namespace TummlyBackend.Data
                 .Property(row => row.Disposition)
                 .HasMaxLength(64)
                 .IsRequired();
+
+            /*
+             =========================================
+             REVOLUT PENDING PAY SESSIONS (ticket 14)
+             =========================================
+             */
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .HasOne(row => row.BillingAccount)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .Property(row => row.TargetPlan)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .Property(row => row.TargetCadence)
+                .HasMaxLength(16)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .Property(row => row.RevolutSubscriptionId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .Property(row => row.SetupOrderId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .Property(row => row.CheckoutUrl)
+                .HasMaxLength(2048)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .Property(row => row.IdempotencyKey)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .HasIndex(row => new { row.RestaurantId, row.IdempotencyKey });
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .HasIndex(row => new { row.RestaurantId, row.IsOpen });
 
             /*
              =========================================

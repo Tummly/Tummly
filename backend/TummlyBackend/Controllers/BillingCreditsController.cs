@@ -281,6 +281,28 @@ namespace TummlyBackend.Controllers
                 });
             }
             catch (InvalidOperationException ex) when (
+                ex.Message == "idempotency_target_mismatch"
+            )
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = "idempotency_target_mismatch",
+                    message = "Idempotency-Key was already used for a different plan target.",
+                });
+            }
+            catch (InvalidOperationException ex) when (
+                ex.Message == "billing_email_required"
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "billing_email_required",
+                    message = "A valid billing or owner email is required for pay.",
+                });
+            }
+            catch (InvalidOperationException ex) when (
                 IsOperatorBillingLockCode(ex.Message) || ex.Message == "forbidden"
             )
             {

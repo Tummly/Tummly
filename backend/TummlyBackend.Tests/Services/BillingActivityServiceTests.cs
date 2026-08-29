@@ -123,9 +123,30 @@ namespace TummlyBackend.Tests.Services
                     new StubPricebookCatalog(),
                     TimeProvider.System
                 ),
-                new AlwaysReadyRevolutMerchantCreateGate()
+                new AlwaysReadyRevolutMerchantCreateGate(),
+                new ThrowingFirstPaidConversionPaySession()
             );
             return new Harness(context, service, restaurant.Id);
+        }
+
+        private sealed class ThrowingFirstPaidConversionPaySession
+            : IFirstPaidConversionPaySession
+        {
+            public Task<PlanChangeResultDto> StartAsync(
+                BillingAccount billingAccount,
+                User owner,
+                string restaurantAccountType,
+                int locationId,
+                string targetPlan,
+                string targetCadenceApi,
+                string idempotencyKey,
+                CancellationToken cancellationToken = default
+            )
+            {
+                throw new NotImplementedException(
+                    "First paid conversion is not under test here."
+                );
+            }
         }
 
         private sealed class Harness : IAsyncDisposable

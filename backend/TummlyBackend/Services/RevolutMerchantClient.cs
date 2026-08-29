@@ -42,6 +42,88 @@ namespace TummlyBackend.Services
             }
         }
 
+        public async Task<RevolutListCustomersResult> ListCustomersByEmailAsync(
+            string email,
+            CancellationToken cancellationToken = default
+        )
+        {
+            EnsureReadyForCreate(planVariationLookupKey: null);
+            if (
+                string.IsNullOrWhiteSpace(_settings.SecretKey)
+                || string.IsNullOrWhiteSpace(_settings.ApiVersion)
+            )
+            {
+                return new RevolutListCustomersResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_not_ready"
+                );
+            }
+
+            var client = _httpClientFactory.CreateClient(HttpClientName);
+            var path =
+                $"api/1.0/customers?email={Uri.EscapeDataString(email.Trim())}";
+            using var message = new HttpRequestMessage(HttpMethod.Get, path);
+            ApplyAuthHeaders(message);
+
+            using var response = await client.SendAsync(
+                message,
+                cancellationToken
+            );
+            var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new RevolutListCustomersResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_http_error",
+                    RawBody: raw
+                );
+            }
+
+            string? firstId = null;
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                using var doc = JsonDocument.Parse(raw);
+                var root = doc.RootElement;
+                if (root.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in root.EnumerateArray())
+                    {
+                        if (
+                            item.TryGetProperty("id", out var idElement)
+                            && idElement.ValueKind == JsonValueKind.String
+                        )
+                        {
+                            firstId = idElement.GetString();
+                            break;
+                        }
+                    }
+                }
+                else if (
+                    root.TryGetProperty("customers", out var customers)
+                    && customers.ValueKind == JsonValueKind.Array
+                )
+                {
+                    foreach (var item in customers.EnumerateArray())
+                    {
+                        if (
+                            item.TryGetProperty("id", out var idElement)
+                            && idElement.ValueKind == JsonValueKind.String
+                        )
+                        {
+                            firstId = idElement.GetString();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            return new RevolutListCustomersResult(
+                Succeeded: true,
+                FirstCustomerId: firstId,
+                RawBody: raw
+            );
+        }
+
         public async Task<RevolutMerchantCreateResult> CreateCustomerAsync(
             RevolutCreateCustomerRequest request,
             CancellationToken cancellationToken = default
@@ -84,6 +166,7 @@ namespace TummlyBackend.Services
                     customer_id = request.CustomerId,
                     plan_variation_id = variationId,
                     setup_order_redirect_url = request.SetupOrderRedirectUrl,
+                    trial_duration = "P0D",
                 },
                 cancellationToken
             );
@@ -103,6 +186,51 @@ namespace TummlyBackend.Services
                     currency = request.Currency,
                 },
                 cancellationToken
+            );
+        }
+
+        public async Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
+            string subscriptionId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (
+                string.IsNullOrWhiteSpace(subscriptionId)
+                || string.IsNullOrWhiteSpace(_settings.SecretKey)
+                || string.IsNullOrWhiteSpace(_settings.ApiVersion)
+            )
+            {
+                return new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_not_ready"
+                );
+            }
+
+            var client = _httpClientFactory.CreateClient(HttpClientName);
+            using var message = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"api/1.0/subscriptions/{Uri.EscapeDataString(subscriptionId.Trim())}/cancel"
+            );
+            ApplyAuthHeaders(message);
+
+            using var response = await client.SendAsync(
+                message,
+                cancellationToken
+            );
+            var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_http_error",
+                    RawBody: raw
+                );
+            }
+
+            return new RevolutMerchantCreateResult(
+                Succeeded: true,
+                Id: subscriptionId.Trim(),
+                RawBody: raw
             );
         }
 
@@ -148,6 +276,7 @@ namespace TummlyBackend.Services
             string? state = null;
             string? billingReason = null;
             string? subscriptionId = null;
+            string? checkoutUrl = null;
             if (!string.IsNullOrWhiteSpace(raw))
             {
                 using var doc = JsonDocument.Parse(raw);
@@ -166,6 +295,14 @@ namespace TummlyBackend.Services
                 )
                 {
                     state = stateElement.GetString();
+                }
+
+                if (
+                    root.TryGetProperty("checkout_url", out var checkoutElement)
+                    && checkoutElement.ValueKind == JsonValueKind.String
+                )
+                {
+                    checkoutUrl = checkoutElement.GetString();
                 }
 
                 if (
@@ -206,7 +343,8 @@ namespace TummlyBackend.Services
                 State: state,
                 BillingReason: billingReason,
                 SubscriptionId: subscriptionId,
-                RawBody: raw
+                RawBody: raw,
+                CheckoutUrl: checkoutUrl
             );
         }
 
@@ -239,22 +377,33 @@ namespace TummlyBackend.Services
             }
 
             string? id = null;
+            string? setupOrderId = null;
             if (!string.IsNullOrWhiteSpace(raw))
             {
                 using var doc = JsonDocument.Parse(raw);
+                var root = doc.RootElement;
                 if (
-                    doc.RootElement.TryGetProperty("id", out var idElement)
+                    root.TryGetProperty("id", out var idElement)
                     && idElement.ValueKind == JsonValueKind.String
                 )
                 {
                     id = idElement.GetString();
+                }
+
+                if (
+                    root.TryGetProperty("setup_order_id", out var setupElement)
+                    && setupElement.ValueKind == JsonValueKind.String
+                )
+                {
+                    setupOrderId = setupElement.GetString();
                 }
             }
 
             return new RevolutMerchantCreateResult(
                 Succeeded: true,
                 Id: id,
-                RawBody: raw
+                RawBody: raw,
+                SetupOrderId: setupOrderId
             );
         }
 

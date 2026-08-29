@@ -521,6 +521,10 @@ builder.Services.AddScoped<IPlanChangeService, PlanChangeService>();
 builder.Services.AddScoped<IRevolutMerchantCreateGate, RevolutMerchantCreateGate>();
 builder.Services.AddScoped<IRevolutMerchantClient, RevolutMerchantClient>();
 builder.Services.AddScoped<
+    IFirstPaidConversionPaySession,
+    FirstPaidConversionPaySessionService
+>();
+builder.Services.AddScoped<
     IRevolutOrderCompletedApplier,
     NoOpRevolutOrderCompletedApplier
 >();

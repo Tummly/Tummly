@@ -17,6 +17,7 @@ namespace TummlyBackend.Services
         private readonly IBillingAccountLifecycle _lifecycle;
         private readonly IPlanChangeService _planChange;
         private readonly IRevolutMerchantCreateGate _revolutMerchantCreateGate;
+        private readonly IFirstPaidConversionPaySession _firstPaidConversionPaySession;
 
         public BillingCreditsService(
             ApplicationDbContext context,
@@ -24,7 +25,8 @@ namespace TummlyBackend.Services
             ICreditBalanceSnapshot creditBalance,
             IBillingAccountLifecycle lifecycle,
             IPlanChangeService planChange,
-            IRevolutMerchantCreateGate revolutMerchantCreateGate
+            IRevolutMerchantCreateGate revolutMerchantCreateGate,
+            IFirstPaidConversionPaySession firstPaidConversionPaySession
         )
         {
             _context = context;
@@ -33,6 +35,7 @@ namespace TummlyBackend.Services
             _lifecycle = lifecycle;
             _planChange = planChange;
             _revolutMerchantCreateGate = revolutMerchantCreateGate;
+            _firstPaidConversionPaySession = firstPaidConversionPaySession;
         }
 
         public async Task<BillingCreditsPageDto?> GetPageAsync(
@@ -495,6 +498,45 @@ namespace TummlyBackend.Services
                     targetCadenceApi
                 );
                 EnsureMerchantCreateReady(lookupKey);
+
+                if (isPilot)
+                {
+                    var owner = await _context.Users
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
+                    if (owner == null)
+                    {
+                        throw new InvalidOperationException("billing_email_required");
+                    }
+
+                    var locationId = await _context.RestaurantLocations
+                        .AsNoTracking()
+                        .Where(row => row.RestaurantId == restaurantId)
+                        .OrderBy(row => row.Id)
+                        .Select(row => row.Id)
+                        .FirstOrDefaultAsync();
+                    if (locationId == 0)
+                    {
+                        locationId = restaurantId;
+                    }
+
+                    try
+                    {
+                        return await _firstPaidConversionPaySession.StartAsync(
+                            billingAccount,
+                            owner,
+                            restaurant.AccountType,
+                            locationId,
+                            targetPlan,
+                            targetCadenceApi,
+                            idempotencyKey.Trim()
+                        );
+                    }
+                    catch (RevolutMerchantNotReadyException ex)
+                    {
+                        throw new InvalidOperationException(ex.Code);
+                    }
+                }
 
                 return new PlanChangeResultDto
                 {

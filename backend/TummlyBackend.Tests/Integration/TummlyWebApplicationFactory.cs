@@ -4,9 +4,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.Interfaces;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -14,6 +17,8 @@ namespace TummlyBackend.Tests.Integration
         : WebApplicationFactory<Program>
     {
         private readonly string _databaseName = Guid.NewGuid().ToString();
+
+        public FakeFirstPaidRevolutMerchantClient Merchant { get; } = new();
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -27,6 +32,7 @@ namespace TummlyBackend.Tests.Integration
                 config.AddInMemoryCollection(
                     new Dictionary<string, string?>
                     {
+                        ["Frontend:BaseUrl"] = "https://tummly.example",
                         [TummlySellerVatSettings.RegistrationNumberKey] =
                             "GB123456789",
                         [TummlySellerVatSettings.EffectiveDateKey] =
@@ -90,6 +96,9 @@ namespace TummlyBackend.Tests.Integration
                         w.Ignore(InMemoryEventId.TransactionIgnoredWarning)
                     );
                 });
+
+                services.RemoveAll<IRevolutMerchantClient>();
+                services.AddSingleton<IRevolutMerchantClient>(Merchant);
             });
         }
     }

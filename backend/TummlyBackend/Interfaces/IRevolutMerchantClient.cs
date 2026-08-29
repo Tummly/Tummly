@@ -14,6 +14,15 @@ namespace TummlyBackend.Interfaces
         void EnsureReadyForCreate(string? planVariationLookupKey = null);
 
         /// <summary>
+        /// Lists Revolut customers by email. Gates first; does not call HTTP
+        /// when blocked. Revolut does not dedupe — prefer list before create.
+        /// </summary>
+        Task<RevolutListCustomersResult> ListCustomersByEmailAsync(
+            string email,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
         /// Creates a Revolut customer. Gates first; does not call HTTP when
         /// blocked.
         /// </summary>
@@ -24,7 +33,8 @@ namespace TummlyBackend.Interfaces
 
         /// <summary>
         /// Creates a Revolut subscription for a mapped plan variation. Gates
-        /// with the lookup key first.
+        /// with the lookup key first. Response may include
+        /// <see cref="RevolutMerchantCreateResult.SetupOrderId"/>.
         /// </summary>
         Task<RevolutMerchantCreateResult> CreateSubscriptionAsync(
             RevolutCreateSubscriptionRequest request,
@@ -42,8 +52,18 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
-        /// Retrieves an order by id (webhook retrieve gate). Does not use the
-        /// Merchant create gate; still needs Merchant API credentials.
+        /// Cancels a Revolut subscription (abandon pending setup). Needs
+        /// Merchant API credentials; does not use the create gate variation map.
+        /// </summary>
+        Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
+            string subscriptionId,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
+        /// Retrieves an order by id (webhook retrieve gate / setup checkout).
+        /// Does not use the Merchant create gate; still needs Merchant API
+        /// credentials.
         /// </summary>
         Task<RevolutOrderRetrieveResult> GetOrderAsync(
             string orderId,
@@ -83,6 +103,14 @@ namespace TummlyBackend.Interfaces
         bool Succeeded,
         string? Id = null,
         string? ErrorCode = null,
+        string? RawBody = null,
+        string? SetupOrderId = null
+    );
+
+    public sealed record RevolutListCustomersResult(
+        bool Succeeded,
+        string? FirstCustomerId = null,
+        string? ErrorCode = null,
         string? RawBody = null
     );
 
@@ -93,6 +121,7 @@ namespace TummlyBackend.Interfaces
         string? BillingReason = null,
         string? SubscriptionId = null,
         string? ErrorCode = null,
-        string? RawBody = null
+        string? RawBody = null,
+        string? CheckoutUrl = null
     );
 }

@@ -125,6 +125,11 @@ namespace TummlyBackend.Tests.Services
             {
             }
 
+            public Task<RevolutListCustomersResult> ListCustomersByEmailAsync(
+                string email,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
             public Task<RevolutMerchantCreateResult> CreateCustomerAsync(
                 RevolutCreateCustomerRequest request,
                 CancellationToken cancellationToken = default
@@ -137,6 +142,11 @@ namespace TummlyBackend.Tests.Services
 
             public Task<RevolutMerchantCreateResult> CreateOrderAsync(
                 RevolutCreateOrderRequest request,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
+                string subscriptionId,
                 CancellationToken cancellationToken = default
             ) => throw new NotImplementedException();
 
