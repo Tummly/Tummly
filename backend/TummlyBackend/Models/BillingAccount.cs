@@ -123,6 +123,15 @@ namespace TummlyBackend.Models
         public bool PilotDormantNotified { get; set; }
 
         public bool ChargebackRestricted { get; set; }
+
+        public void ClearScheduledChangeSlot()
+        {
+            HasScheduledChange = false;
+            ScheduledTargetSubscriptionPlan = null;
+            ScheduledTargetBillingCycle = null;
+            ScheduledTargetExtraLocationCount = null;
+            ScheduledCancelPlan = false;
+        }
     }
 
     public static class BillingSubscriptionPlans

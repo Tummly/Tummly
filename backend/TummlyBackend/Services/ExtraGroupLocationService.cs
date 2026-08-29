@@ -154,7 +154,7 @@ namespace TummlyBackend.Services
 
                 account.PaidExtraLocationCount += 1;
                 account.ContractedPricebookId = _pricebook.CurrentPricebookId;
-                ClearScheduledChange(account);
+                account.ClearScheduledChangeSlot();
 
                 var inserted = new List<Guid>();
                 if (openPeriod != null)
@@ -225,12 +225,24 @@ namespace TummlyBackend.Services
                     return ExtraGroupLocationApplyResult.Fail("invalid_scheduled_extra");
                 }
 
+                if (
+                    !await ReducingChangeGatesPassAsync(
+                        account,
+                        targetExtra,
+                        cancellationToken
+                    )
+                )
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    return ExtraGroupLocationApplyResult.Fail("apply_gate_failed");
+                }
+
                 // Extra remove: decrement by 1. No credit clawback this period.
                 account.PaidExtraLocationCount = Math.Max(
                     0,
                     account.PaidExtraLocationCount - 1
                 );
-                ClearScheduledChange(account);
+                account.ClearScheduledChangeSlot();
 
                 await _context.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
@@ -248,16 +260,7 @@ namespace TummlyBackend.Services
             int restaurantId
         )
         {
-            if (
-                !string.Equals(
-                    account.BillingStatus,
-                    BillingStatuses.Active,
-                    StringComparison.Ordinal
-                )
-            )
-            {
-                throw new ExtraGroupLocationException(BillingStatusNotActiveCode);
-            }
+            RequireActiveBillingStatus(account);
 
             if (!CanRaiseSelfServeCap(account.PaidExtraLocationCount))
             {
@@ -287,26 +290,15 @@ namespace TummlyBackend.Services
             int restaurantId
         )
         {
+            RequireActiveBillingStatus(account);
+
             if (account.PaidExtraLocationCount < 1)
             {
                 throw new ExtraGroupLocationException(RemoveBelowFloorCode);
             }
 
-            var activeLocations = await _context.RestaurantLocations
-                .AsNoTracking()
-                .CountAsync(row => row.RestaurantId == restaurantId);
-
             var targetExtra = account.PaidExtraLocationCount - 1;
-            var book = _pricebook.GetRequired(account.ContractedPricebookId);
-            if (
-                !LocationCap.TryResolve(
-                    book,
-                    account.SubscriptionPlan,
-                    targetExtra,
-                    out var entitledAfter
-                )
-                || activeLocations > entitledAfter
-            )
+            if (!await ReducingChangeGatesPassAsync(account, targetExtra))
             {
                 throw new ExtraGroupLocationException(RemoveBelowFloorCode);
             }
@@ -327,6 +319,20 @@ namespace TummlyBackend.Services
             };
         }
 
+        private static void RequireActiveBillingStatus(BillingAccount account)
+        {
+            if (
+                !string.Equals(
+                    account.BillingStatus,
+                    BillingStatuses.Active,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                throw new ExtraGroupLocationException(BillingStatusNotActiveCode);
+            }
+        }
+
         private async Task EnsureOwnerAsync(int userId, int restaurantId)
         {
             var actorMembership = await _context.RestaurantMemberships
@@ -336,12 +342,78 @@ namespace TummlyBackend.Services
                     && row.RestaurantId == restaurantId
                     && row.Status == MembershipStatus.Active
                 );
-            var actorRole =
-                actorMembership?.PermissionRole ?? PermissionRoles.Owner;
-            if (actorRole != PermissionRoles.Owner)
+            if (
+                actorMembership == null
+                || actorMembership.PermissionRole != PermissionRoles.Owner
+            )
             {
                 throw new ExtraGroupLocationException(BillingWriteNotPermittedCode);
             }
+        }
+
+        private async Task<bool> ReducingChangeGatesPassAsync(
+            BillingAccount account,
+            int targetExtraLocationCount,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var book = _pricebook.GetRequired(account.ContractedPricebookId);
+            if (
+                !LocationCap.TryResolve(
+                    book,
+                    account.SubscriptionPlan,
+                    targetExtraLocationCount,
+                    out var entitledLocations
+                )
+            )
+            {
+                return false;
+            }
+
+            var activeLocations = await _context.RestaurantLocations
+                .AsNoTracking()
+                .CountAsync(
+                    row => row.RestaurantId == account.RestaurantId,
+                    cancellationToken
+                );
+            if (activeLocations > entitledLocations)
+            {
+                return false;
+            }
+
+            var planKey = account.SubscriptionPlan.Trim().ToLowerInvariant();
+            if (!book.Plans.TryGetValue(planKey, out var plan))
+            {
+                return false;
+            }
+
+            var teamCap =
+                plan.IncludedTeamMembers
+                + (Math.Max(0, targetExtraLocationCount) * ExtraUsersPerPaidLocation);
+            var teamUsage = await CountTeamMemberUsageAsync(
+                account.RestaurantId,
+                cancellationToken
+            );
+            return teamUsage <= teamCap;
+        }
+
+        private async Task<int> CountTeamMemberUsageAsync(
+            int restaurantId,
+            CancellationToken cancellationToken
+        )
+        {
+            var now = DateTime.UtcNow;
+            var active = await _context.RestaurantMemberships.CountAsync(
+                row =>
+                    row.RestaurantId == restaurantId
+                    && row.Status == MembershipStatus.Active,
+                cancellationToken
+            );
+            var pending = await _context.TeamInvitations.CountAsync(
+                row => row.RestaurantId == restaurantId && row.ExpiresAt > now,
+                cancellationToken
+            );
+            return active + pending;
         }
 
         public static bool CanRaiseSelfServeCap(int paidExtraLocationCount)
@@ -359,14 +431,7 @@ namespace TummlyBackend.Services
             return after > before;
         }
 
-        public static void ClearScheduledChange(BillingAccount account)
-        {
-            account.HasScheduledChange = false;
-            account.ScheduledTargetSubscriptionPlan = null;
-            account.ScheduledTargetBillingCycle = null;
-            account.ScheduledTargetExtraLocationCount = null;
-            account.ScheduledCancelPlan = false;
-        }
+        private const int ExtraUsersPerPaidLocation = 2;
 
         private List<Guid> InsertPlanMigrationGrants(
             int restaurantId,

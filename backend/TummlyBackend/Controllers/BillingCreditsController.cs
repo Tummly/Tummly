@@ -482,8 +482,6 @@ namespace TummlyBackend.Controllers
             }
             catch (ExtraGroupLocationException ex) when (
                 ex.Code == ExtraGroupLocationService.BillingStatusNotActiveCode
-                || ex.Code == "soft_lock"
-                || ex.Code == "dormant"
             )
             {
                 return StatusCode(
