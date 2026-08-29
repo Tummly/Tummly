@@ -27,6 +27,7 @@ obj/
 
 # Environment
 .env
+backend/TummlyBackend/.env.revolut.sandbox.local
 infra/qa/secrets.qa.env
 infra/qa/sql-admin-password.local.txt
 
