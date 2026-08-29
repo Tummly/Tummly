@@ -177,6 +177,28 @@ namespace TummlyBackend.Services
         )
         {
             EnsureReadyForCreate(request.PlanVariationLookupKey);
+            object? lineItems = null;
+            if (request.LineItems is { Count: > 0 })
+            {
+                lineItems = request.LineItems
+                    .Select(item => new
+                    {
+                        name = item.Name,
+                        unit_price_amount = item.UnitPriceAmount,
+                        quantity = item.Quantity,
+                        total_amount = item.TotalAmount,
+                        taxes = item.Taxes
+                            .Select(tax => new
+                            {
+                                name = tax.Name,
+                                percentage = tax.Percentage,
+                                amount = tax.Amount,
+                            })
+                            .ToArray(),
+                    })
+                    .ToArray();
+            }
+
             return await PostCreateAsync(
                 "api/1.0/orders",
                 new
@@ -188,6 +210,45 @@ namespace TummlyBackend.Services
                     customer = string.IsNullOrWhiteSpace(request.CustomerId)
                         ? null
                         : new { id = request.CustomerId },
+                    line_items = lineItems,
+                },
+                cancellationToken
+            );
+        }
+
+        public async Task<RevolutMerchantCreateResult> ChangeSubscriptionPlanAsync(
+            string subscriptionId,
+            string planVariationLookupKey,
+            CancellationToken cancellationToken = default
+        )
+        {
+            EnsureReadyForCreate(planVariationLookupKey);
+            if (
+                !_settings.TryGetPlanVariationId(
+                    planVariationLookupKey,
+                    out var variationId
+                )
+            )
+            {
+                throw new RevolutMerchantNotReadyException(
+                    RevolutMerchantCreateGate.PlanVariationMissing
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(subscriptionId))
+            {
+                return new RevolutMerchantCreateResult(
+                    Succeeded: false,
+                    ErrorCode: "revolut_subscription_required"
+                );
+            }
+
+            return await PostCreateAsync(
+                $"api/1.0/subscriptions/{Uri.EscapeDataString(subscriptionId.Trim())}/change-plan",
+                new
+                {
+                    plan_variation_id = variationId,
+                    scheduled = "at_cycle_end",
                 },
                 cancellationToken
             );

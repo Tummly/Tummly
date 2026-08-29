@@ -18,6 +18,7 @@ namespace TummlyBackend.Services
         private readonly IPlanChangeService _planChange;
         private readonly IRevolutMerchantCreateGate _revolutMerchantCreateGate;
         private readonly IFirstPaidConversionPaySession _firstPaidConversionPaySession;
+        private readonly ISameCadenceUpgradePaySession _sameCadenceUpgradePaySession;
         private readonly IPaymentMethodUpdatePaySession _paymentMethodUpdatePaySession;
         private readonly ITummlyVatInvoiceService _vatInvoices;
 
@@ -29,6 +30,7 @@ namespace TummlyBackend.Services
             IPlanChangeService planChange,
             IRevolutMerchantCreateGate revolutMerchantCreateGate,
             IFirstPaidConversionPaySession firstPaidConversionPaySession,
+            ISameCadenceUpgradePaySession sameCadenceUpgradePaySession,
             IPaymentMethodUpdatePaySession paymentMethodUpdatePaySession,
             ITummlyVatInvoiceService vatInvoices
         )
@@ -40,6 +42,7 @@ namespace TummlyBackend.Services
             _planChange = planChange;
             _revolutMerchantCreateGate = revolutMerchantCreateGate;
             _firstPaidConversionPaySession = firstPaidConversionPaySession;
+            _sameCadenceUpgradePaySession = sameCadenceUpgradePaySession;
             _paymentMethodUpdatePaySession = paymentMethodUpdatePaySession;
             _vatInvoices = vatInvoices;
         }
@@ -509,12 +512,32 @@ namespace TummlyBackend.Services
                     }
                 }
 
-                return new PlanChangeResultDto
+                var upgradeLocationId = await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .Where(row => row.RestaurantId == restaurantId)
+                    .OrderBy(row => row.Id)
+                    .Select(row => row.Id)
+                    .FirstOrDefaultAsync();
+                if (upgradeLocationId == 0)
                 {
-                    Outcome = "pay",
-                    RedirectUrl =
-                        $"https://checkout.revolut.com/pay/example/{restaurantId}/{targetPlan.ToLowerInvariant()}",
-                };
+                    upgradeLocationId = restaurantId;
+                }
+
+                try
+                {
+                    return await _sameCadenceUpgradePaySession.StartAsync(
+                        billingAccount,
+                        restaurant.AccountType,
+                        upgradeLocationId,
+                        targetPlan,
+                        targetCadenceApi,
+                        idempotencyKey.Trim()
+                    );
+                }
+                catch (RevolutMerchantNotReadyException ex)
+                {
+                    throw new InvalidOperationException(ex.Code);
+                }
             }
 
             if (

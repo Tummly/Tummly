@@ -24,8 +24,7 @@ namespace TummlyBackend.Tests.Services
             var pending = await SeedPilotPendingAsync(context, "ord_txn", "sub_txn");
             var clock = new FixedTimeProvider(_now);
             var mint = new IncludedPeriodMintService(context, _pricebook, clock);
-            var vat = CreateVatService(context);
-            var applier = new RevolutOrderCompletedApplier(context, mint, vat, clock);
+            var applier = CreateApplier(context, mint, clock);
 
             await using var ambient =
                 await context.Database.BeginTransactionAsync();
@@ -142,8 +141,7 @@ namespace TummlyBackend.Tests.Services
 
             var clock = new FixedTimeProvider(_now);
             var mint = new IncludedPeriodMintService(context, _pricebook, clock);
-            var vat = CreateVatService(context);
-            var applier = new RevolutOrderCompletedApplier(context, mint, vat, clock);
+            var applier = CreateApplier(context, mint, clock);
 
             await applier.ApplyAsync(
                 new RevolutOrderCompletedApplyRequest(
@@ -220,6 +218,142 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(
                 RevolutWebhookClaimDispositions.SkippedUnknownBillingReason,
                 claim.Disposition
+            );
+        }
+
+        [Fact]
+        public async Task Apply_PlanUpgradeProration_UpgradesChangePlanAndMintsTm()
+        {
+            await using var context = CreateContext();
+            var account = await SeedActiveStarterAsync(context);
+            var merchant = new RecordingChangePlanMerchant();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock, merchant);
+
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_upgrade",
+                    RestaurantId = account.RestaurantId,
+                    Purpose = RevolutOrderIntentPurposes.PlanUpgradeProration,
+                    TargetPlan = BillingSubscriptionPlans.Growth,
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = "sub_upgrade",
+                    CheckoutUrl = "https://checkout.revolut.test/up",
+                    IdempotencyKey = "k1",
+                    IsOpen = true,
+                    NetAmountMinor = 3000,
+                    VatAmountMinor = 600,
+                    GrossAmountMinor = 3600,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_upgrade",
+                    OrderState: "completed",
+                    BillingReason: null,
+                    SubscriptionId: "sub_upgrade",
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            await context.Entry(account).ReloadAsync();
+            Assert.Equal(BillingSubscriptionPlans.Growth, account.SubscriptionPlan);
+            Assert.Equal(1, merchant.ChangePlanCallCount);
+            Assert.Equal("sub_upgrade", merchant.LastSubscriptionId);
+            Assert.Equal(
+                RevolutPlanVariationKeys.GrowthMonthly,
+                merchant.LastLookupKey
+            );
+            Assert.Equal(
+                1,
+                await context.TummlyVatInvoices.CountAsync(row =>
+                    row.RevolutOrderId == "ord_upgrade"
+                )
+            );
+            Assert.False(
+                await context.RevolutOrderIntents
+                    .Where(row => row.OrderId == "ord_upgrade")
+                    .Select(row => row.IsOpen)
+                    .SingleAsync()
+            );
+            Assert.Equal(
+                0,
+                await context.CreditLedgerEntries.CountAsync(row =>
+                    row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
+                )
+            );
+        }
+
+        [Fact]
+        public async Task Apply_WithoutIntent_FallsThroughToBillingReasonPath()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(context, "ord_setup", "sub_s");
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock);
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_setup",
+                    OrderState: "completed",
+                    BillingReason: RevolutOrderCompletedApplier.SetupIntent,
+                    SubscriptionId: pending.RevolutSubscriptionId,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            var account = await context.BillingAccounts.SingleAsync();
+            Assert.Equal(BillingSubscriptionPlans.Starter, account.SubscriptionPlan);
+            Assert.True(
+                await context.CreditLedgerEntries.CountAsync(row =>
+                    row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
+                ) >= 1
+            );
+            Assert.Equal(
+                1,
+                await context.TummlyVatInvoices.CountAsync(row =>
+                    row.RevolutOrderId == "ord_setup"
+                )
+            );
+        }
+
+        private async Task<BillingAccount> SeedActiveStarterAsync(
+            ApplicationDbContext context
+        )
+        {
+            var (account, _) = await SeedPilotAccountAsync(context);
+            account.SubscriptionPlan = BillingSubscriptionPlans.Starter;
+            account.BillingStatus = BillingStatuses.Active;
+            account.BillingCycle = BillingCycles.Monthly;
+            account.RenewalDateUtc = _now.Date.AddMonths(1);
+            account.RevolutCustomerId = "cust_active";
+            await context.SaveChangesAsync();
+            return account;
+        }
+
+        private RevolutOrderCompletedApplier CreateApplier(
+            ApplicationDbContext context,
+            IIncludedPeriodMintService mint,
+            TimeProvider clock,
+            IRevolutMerchantClient? merchant = null
+        )
+        {
+            return new RevolutOrderCompletedApplier(
+                context,
+                mint,
+                CreateVatService(context),
+                new PlanChangeService(context, _pricebook, clock),
+                merchant ?? new RecordingLandMerchant(),
+                clock
             );
         }
 
@@ -361,6 +495,12 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             ) => throw new NotImplementedException();
 
+            public Task<RevolutMerchantCreateResult> ChangeSubscriptionPlanAsync(
+                string subscriptionId,
+                string planVariationLookupKey,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
             public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
                 string subscriptionId,
                 CancellationToken cancellationToken = default
@@ -426,6 +566,12 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             ) => throw new NotImplementedException();
 
+            public Task<RevolutMerchantCreateResult> ChangeSubscriptionPlanAsync(
+                string subscriptionId,
+                string planVariationLookupKey,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
             public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
                 string subscriptionId,
                 CancellationToken cancellationToken = default
@@ -445,6 +591,75 @@ namespace TummlyBackend.Tests.Services
                     )
                 );
             }
+
+            public Task<RevolutMerchantCreateResult> UpdateOrderMerchantReferenceAsync(
+                string orderId,
+                string merchantReference,
+                CancellationToken cancellationToken = default
+            ) =>
+                Task.FromResult(
+                    new RevolutMerchantCreateResult(Succeeded: true, Id: orderId)
+                );
+        }
+
+        private sealed class RecordingChangePlanMerchant : IRevolutMerchantClient
+        {
+            public int ChangePlanCallCount { get; private set; }
+
+            public string? LastSubscriptionId { get; private set; }
+
+            public string? LastLookupKey { get; private set; }
+
+            public void EnsureReadyForCreate(string? planVariationLookupKey = null)
+            {
+            }
+
+            public Task<RevolutListCustomersResult> ListCustomersByEmailAsync(
+                string email,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<RevolutMerchantCreateResult> CreateCustomerAsync(
+                RevolutCreateCustomerRequest request,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<RevolutMerchantCreateResult> CreateSubscriptionAsync(
+                RevolutCreateSubscriptionRequest request,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<RevolutMerchantCreateResult> CreateOrderAsync(
+                RevolutCreateOrderRequest request,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<RevolutMerchantCreateResult> ChangeSubscriptionPlanAsync(
+                string subscriptionId,
+                string planVariationLookupKey,
+                CancellationToken cancellationToken = default
+            )
+            {
+                ChangePlanCallCount++;
+                LastSubscriptionId = subscriptionId;
+                LastLookupKey = planVariationLookupKey;
+                return Task.FromResult(
+                    new RevolutMerchantCreateResult(
+                        Succeeded: true,
+                        Id: subscriptionId
+                    )
+                );
+            }
+
+            public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
+                string subscriptionId,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<RevolutOrderRetrieveResult> GetOrderAsync(
+                string orderId,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
 
             public Task<RevolutMerchantCreateResult> UpdateOrderMerchantReferenceAsync(
                 string orderId,

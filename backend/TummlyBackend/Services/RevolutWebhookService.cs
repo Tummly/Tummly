@@ -210,10 +210,24 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            var intent = await _context.RevolutOrderIntents
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.OrderId == orderId,
+                    cancellationToken
+                );
+            var isPlanUpgrade =
+                intent != null
+                && string.Equals(
+                    intent.Purpose,
+                    RevolutOrderIntentPurposes.PlanUpgradeProration,
+                    StringComparison.Ordinal
+                );
+
             var reason = retrieved.BillingReason?.Trim() ?? string.Empty;
             var isMintable =
                 RevolutOrderCompletedApplier.IsMintableBillingReason(reason);
-            var disposition = isMintable
+            var disposition = isPlanUpgrade || isMintable
                 ? RevolutWebhookClaimDispositions.Applied
                 : RevolutOrderCompletedApplier.IsFinalSettlement(reason)
                     ? RevolutWebhookClaimDispositions.Recorded
@@ -262,14 +276,15 @@ namespace TummlyBackend.Services
                         orderId
                     );
                 }
-                else if (isMintable)
+                else if (isPlanUpgrade || isMintable)
                 {
                     await _applier.ApplyAsync(
                         new RevolutOrderCompletedApplyRequest(
                             OrderId: orderId,
                             OrderState: state,
                             BillingReason: retrieved.BillingReason,
-                            SubscriptionId: retrieved.SubscriptionId,
+                            SubscriptionId: retrieved.SubscriptionId
+                                ?? intent?.RevolutSubscriptionId,
                             RawWebhookBody: rawBody,
                             RawOrderBody: retrieved.RawBody ?? string.Empty
                         ),

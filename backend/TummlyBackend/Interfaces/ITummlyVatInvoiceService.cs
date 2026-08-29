@@ -38,6 +38,8 @@ namespace TummlyBackend.Interfaces
         int RestaurantId,
         string Plan,
         string BillingCycle,
-        DateTime PaymentSuccessUtc
+        DateTime PaymentSuccessUtc,
+        int? NetPenceOverride = null,
+        string? LineDescriptionOverride = null
     );
 }

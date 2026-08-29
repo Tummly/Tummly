@@ -6,8 +6,8 @@ using TummlyBackend.Models;
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// ORDER_COMPLETED apply+mint for <c>setup_intent</c> and
-    /// <c>cycle_billing</c> (ticket 16 / lock 04). Runs inside the webhook
+    /// ORDER_COMPLETED apply for setup/cycle mint (ticket 16) and
+    /// plan_upgrade_proration (ticket 20 / lock 04). Runs inside the webhook
     /// claim transaction.
     /// </summary>
     public sealed class RevolutOrderCompletedApplier : IRevolutOrderCompletedApplier
@@ -21,18 +21,24 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IIncludedPeriodMintService _mint;
         private readonly ITummlyVatInvoiceService _vatInvoices;
+        private readonly IPlanChangeService _planChange;
+        private readonly IRevolutMerchantClient _merchant;
         private readonly TimeProvider _clock;
 
         public RevolutOrderCompletedApplier(
             ApplicationDbContext context,
             IIncludedPeriodMintService mint,
             ITummlyVatInvoiceService vatInvoices,
+            IPlanChangeService planChange,
+            IRevolutMerchantClient merchant,
             TimeProvider clock
         )
         {
             _context = context;
             _mint = mint;
             _vatInvoices = vatInvoices;
+            _planChange = planChange;
+            _merchant = merchant;
             _clock = clock;
         }
 
@@ -57,6 +63,27 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            var intent = await _context.RevolutOrderIntents
+                .FirstOrDefaultAsync(
+                    row => row.OrderId == request.OrderId,
+                    cancellationToken
+                );
+            if (
+                intent != null
+                && string.Equals(
+                    intent.Purpose,
+                    RevolutOrderIntentPurposes.PlanUpgradeProration,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                await ApplyPlanUpgradeProrationAsync(
+                    intent,
+                    cancellationToken
+                );
+                return;
+            }
+
             var reason = request.BillingReason?.Trim() ?? string.Empty;
             if (!IsMintableBillingReason(reason))
             {
@@ -153,6 +180,60 @@ namespace TummlyBackend.Services
                 ),
                 cancellationToken
             );
+        }
+
+        private async Task ApplyPlanUpgradeProrationAsync(
+            RevolutOrderIntent intent,
+            CancellationToken cancellationToken
+        )
+        {
+            await _planChange.ApplyImmediateSameCadenceUpgradeAsync(
+                intent.RestaurantId,
+                intent.TargetPlan,
+                cancellationToken
+            );
+
+            var lookupKey = RevolutPlanVariationKeys.ForPlanCadence(
+                intent.TargetPlan,
+                intent.TargetCadence
+            );
+            if (lookupKey == null)
+            {
+                throw new InvalidOperationException("invalid_plan_target");
+            }
+
+            var change = await _merchant.ChangeSubscriptionPlanAsync(
+                intent.RevolutSubscriptionId,
+                lookupKey,
+                cancellationToken
+            );
+            if (!change.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    change.ErrorCode ?? "revolut_http_error"
+                );
+            }
+
+            var taxPoint = _clock.GetUtcNow().UtcDateTime;
+            await _vatInvoices.MintForCompletedOrderAsync(
+                new TummlyVatInvoiceMintRequest(
+                    RevolutOrderId: intent.OrderId,
+                    RevolutSubscriptionId: intent.RevolutSubscriptionId,
+                    RestaurantId: intent.RestaurantId,
+                    Plan: intent.TargetPlan,
+                    BillingCycle: CadenceToBillingCycle(intent.TargetCadence),
+                    PaymentSuccessUtc: taxPoint,
+                    NetPenceOverride: intent.NetAmountMinor,
+                    LineDescriptionOverride: $"Plan upgrade to {intent.TargetPlan}"
+                ),
+                cancellationToken
+            );
+
+            if (intent.IsOpen)
+            {
+                intent.IsOpen = false;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
         }
 
         private async Task<RevolutPendingPaySession?> ResolvePendingAsync(

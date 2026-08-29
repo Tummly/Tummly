@@ -142,6 +142,46 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task PostPlanChange_SameCadenceUpgrade_ReturnsHppRedirect_WhenFullReady()
+        {
+            await using var factory = new RevolutGateWebApplicationFactory(
+                RevolutGateConfigMode.FullReady
+            );
+            var client = factory.CreateClient();
+            var seeded = await SeedPaidStarterAsync(factory);
+
+            using var request = AuthorizedPlanChange(
+                seeded.OwnerJwt,
+                "Growth",
+                "monthly",
+                withIdempotency: true
+            );
+            var response = await client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("pay", body.GetProperty("outcome").GetString());
+            Assert.Equal(
+                FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
+                body.GetProperty("redirectUrl").GetString()
+            );
+
+            using var scope = factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var intent = await context.RevolutOrderIntents
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal(
+                RevolutOrderIntentPurposes.PlanUpgradeProration,
+                intent.Purpose
+            );
+            Assert.Equal(BillingSubscriptionPlans.Growth, intent.TargetPlan);
+            Assert.True(intent.IsOpen);
+            Assert.True(intent.GrossAmountMinor > 0);
+        }
+
         private static HttpRequestMessage AuthorizedPlanChange(
             string jwt,
             string targetPlan,
@@ -243,6 +283,102 @@ namespace TummlyBackend.Tests.Integration
                     restaurant.Id,
                     "TUMMLY-UK-GBP-2026-08-V3"
                 )
+            );
+            await context.SaveChangesAsync();
+
+            var token = jwt.GenerateToken(
+                owner.Id.ToString(),
+                owner.Email,
+                owner.Role
+            );
+            return (token, restaurant.Id);
+        }
+
+        private static async Task<(string OwnerJwt, int RestaurantId)> SeedPaidStarterAsync(
+            RevolutGateWebApplicationFactory factory
+        )
+        {
+            using var scope = factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwt = scope.ServiceProvider.GetRequiredService<IJwtService>();
+
+            var owner = new User
+            {
+                FullName = "Paid Upgrade Owner",
+                Email = $"paid-upgrade-{Guid.NewGuid():N}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900112",
+                Role = "Owner",
+                AccountType = "Single",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(owner);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Paid Upgrade Venue",
+                AccountType = "Single",
+                OwnerUserId = owner.Id,
+                BillingContactUserId = owner.Id,
+                PrivacyContactUserId = owner.Id,
+                SupportContactUserId = owner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            owner.SelectedRestaurantId = restaurant.Id;
+
+            context.RestaurantLocations.Add(
+                new RestaurantLocation
+                {
+                    RestaurantId = restaurant.Id,
+                    LocationName = "Main",
+                    Address = "1 High Street",
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            context.RestaurantMemberships.Add(
+                new RestaurantMembership
+                {
+                    UserId = owner.Id,
+                    RestaurantId = restaurant.Id,
+                    PermissionRole = PermissionRoles.Owner,
+                    Status = MembershipStatus.Active,
+                    LocationScope = LocationScopeKind.AllLocations,
+                    NamedLocationIdsJson = "[]",
+                }
+            );
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                "TUMMLY-UK-GBP-2026-08-V3"
+            );
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Starter;
+            billing.BillingStatus = BillingStatuses.Active;
+            billing.BillingCycle = BillingCycles.Monthly;
+            billing.RevolutCustomerId = "cust_paid_upgrade";
+            billing.RenewalDateUtc = DateTime.UtcNow.Date.AddDays(15);
+            context.BillingAccounts.Add(billing);
+            context.RevolutPendingPaySessions.Add(
+                new RevolutPendingPaySession
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = restaurant.Id,
+                    TargetPlan = BillingSubscriptionPlans.Starter,
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = "sub_paid_live",
+                    SetupOrderId = "ord_setup_paid",
+                    CheckoutUrl = "https://checkout.revolut.test/old",
+                    IdempotencyKey = Guid.NewGuid().ToString("D"),
+                    IsOpen = false,
+                    CreatedAtUtc = DateTime.UtcNow.AddDays(-20),
+                }
             );
             await context.SaveChangesAsync();
 

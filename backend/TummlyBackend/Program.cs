@@ -525,6 +525,10 @@ builder.Services.AddScoped<
     FirstPaidConversionPaySessionService
 >();
 builder.Services.AddScoped<
+    ISameCadenceUpgradePaySession,
+    SameCadenceUpgradePaySessionService
+>();
+builder.Services.AddScoped<
     IPaymentMethodUpdatePaySession,
     PaymentMethodUpdatePaySessionService
 >();

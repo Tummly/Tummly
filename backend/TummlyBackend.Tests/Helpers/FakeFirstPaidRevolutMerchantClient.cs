@@ -75,6 +75,29 @@ namespace TummlyBackend.Tests.Helpers
 
         public RevolutCreateOrderRequest? LastCreateOrderRequest { get; private set; }
 
+        public int ChangeSubscriptionPlanCallCount { get; private set; }
+
+        public string? LastChangePlanSubscriptionId { get; private set; }
+
+        public string? LastChangePlanLookupKey { get; private set; }
+
+        public Task<RevolutMerchantCreateResult> ChangeSubscriptionPlanAsync(
+            string subscriptionId,
+            string planVariationLookupKey,
+            CancellationToken cancellationToken = default
+        )
+        {
+            ChangeSubscriptionPlanCallCount++;
+            LastChangePlanSubscriptionId = subscriptionId;
+            LastChangePlanLookupKey = planVariationLookupKey;
+            return Task.FromResult(
+                new RevolutMerchantCreateResult(
+                    Succeeded: true,
+                    Id: subscriptionId
+                )
+            );
+        }
+
         public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
             string subscriptionId,
             CancellationToken cancellationToken = default

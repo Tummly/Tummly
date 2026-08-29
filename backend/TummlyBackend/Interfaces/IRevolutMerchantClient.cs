@@ -52,6 +52,16 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
+        /// Schedules a subscription plan variation change at cycle end
+        /// (ticket 20). Gates and resolves the variation id first.
+        /// </summary>
+        Task<RevolutMerchantCreateResult> ChangeSubscriptionPlanAsync(
+            string subscriptionId,
+            string planVariationLookupKey,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
         /// Cancels a Revolut subscription (abandon pending setup). Needs
         /// Merchant API credentials; does not use the create gate variation map.
         /// </summary>
@@ -109,7 +119,22 @@ namespace TummlyBackend.Interfaces
         string? PlanVariationLookupKey = null,
         string? CustomerId = null,
         string? RedirectUrl = null,
-        string? Description = null
+        string? Description = null,
+        IReadOnlyList<RevolutOrderLineItem>? LineItems = null
+    );
+
+    public sealed record RevolutOrderLineItem(
+        string Name,
+        int UnitPriceAmount,
+        int Quantity,
+        int TotalAmount,
+        IReadOnlyList<RevolutOrderLineItemTax> Taxes
+    );
+
+    public sealed record RevolutOrderLineItemTax(
+        string Name,
+        string Percentage,
+        int Amount
     );
 
     public sealed record RevolutMerchantCreateResult(

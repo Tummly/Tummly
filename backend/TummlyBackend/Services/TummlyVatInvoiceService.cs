@@ -86,11 +86,12 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
 
-            var netPence = ResolveNetPence(
-                billingAccount.ContractedPricebookId,
-                request.Plan,
-                request.BillingCycle
-            );
+            var netPence = request.NetPenceOverride
+                ?? ResolveNetPence(
+                    billingAccount.ContractedPricebookId,
+                    request.Plan,
+                    request.BillingCycle
+                );
             var vatRateBps = TummlyVatMath.DefaultVatRateBps;
             var vatPence = TummlyVatMath.VatPenceFromNetPence(netPence, vatRateBps);
             var grossPence = netPence + vatPence;
@@ -101,6 +102,12 @@ namespace TummlyBackend.Services
                 year,
                 cancellationToken
             );
+
+            var lineDescription = string.IsNullOrWhiteSpace(
+                request.LineDescriptionOverride
+            )
+                ? FormatLineDescription(request.Plan, request.BillingCycle)
+                : request.LineDescriptionOverride.Trim();
 
             var invoice = new TummlyVatInvoice
             {
@@ -116,10 +123,7 @@ namespace TummlyBackend.Services
                 RestaurantId = request.RestaurantId,
                 InvoiceDateUtc = paymentUtc,
                 TaxPointUtc = paymentUtc,
-                LineDescription = FormatLineDescription(
-                    request.Plan,
-                    request.BillingCycle
-                ),
+                LineDescription = lineDescription,
                 Quantity = 1,
                 NetPence = netPence,
                 VatRateBps = vatRateBps,

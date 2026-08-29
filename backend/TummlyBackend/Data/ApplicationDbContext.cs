@@ -83,6 +83,8 @@ namespace TummlyBackend.Data
             set;
         }
 
+        public DbSet<RevolutOrderIntent> RevolutOrderIntents { get; set; }
+
         public DbSet<RestaurantLocation> RestaurantLocations { get; set; }
 
         public DbSet<QrCode> QrCodes { get; set; }
@@ -803,6 +805,63 @@ namespace TummlyBackend.Data
                 .HasIndex(row => new { row.RestaurantId, row.IdempotencyKey });
 
             modelBuilder.Entity<RevolutPendingPaySession>()
+                .HasIndex(row => new { row.RestaurantId, row.IsOpen });
+
+            /*
+             =========================================
+             REVOLUT ORDER INTENTS (ticket 20)
+             =========================================
+             */
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .HasOne(row => row.BillingAccount)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.OrderId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.Purpose)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.TargetPlan)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.TargetCadence)
+                .HasMaxLength(16)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.RevolutSubscriptionId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.CheckoutUrl)
+                .HasMaxLength(2048)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.IdempotencyKey)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .HasIndex(row => row.OrderId)
+                .IsUnique();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .HasIndex(row => new { row.RestaurantId, row.IdempotencyKey });
+
+            modelBuilder.Entity<RevolutOrderIntent>()
                 .HasIndex(row => new { row.RestaurantId, row.IsOpen });
 
             /*

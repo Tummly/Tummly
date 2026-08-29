@@ -324,6 +324,57 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PostWebhook_PlanUpgradeProration_AppliesOnce_ChangePlanAndTm()
+        {
+            await using var factory = new RevolutWebhookWebApplicationFactory();
+            var seeded = await SeedPaidUpgradeIntentAsync(factory, "ord_up_once");
+            factory.Merchant.Orders["ord_up_once"] = new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: "ord_up_once",
+                State: "completed",
+                BillingReason: null,
+                SubscriptionId: seeded.SubscriptionId,
+                RawBody: """{"id":"ord_up_once","state":"completed"}"""
+            );
+            var client = factory.CreateClient();
+            var body = OrderCompletedBody("ord_up_once");
+
+            Assert.Equal(
+                HttpStatusCode.NoContent,
+                (await SendSignedAsync(client, body)).StatusCode
+            );
+            Assert.Equal(
+                HttpStatusCode.NoContent,
+                (await SendSignedAsync(client, body)).StatusCode
+            );
+
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var account = await db.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal(BillingSubscriptionPlans.Growth, account.SubscriptionPlan);
+            Assert.Equal(1, await db.RevolutWebhookEventClaims.CountAsync());
+            Assert.Equal(
+                RevolutWebhookClaimDispositions.Applied,
+                (await db.RevolutWebhookEventClaims.SingleAsync()).Disposition
+            );
+            Assert.Equal(1, factory.Merchant.ChangeSubscriptionPlanCallCount);
+            Assert.Equal(
+                1,
+                await db.TummlyVatInvoices.CountAsync(row =>
+                    row.RevolutOrderId == "ord_up_once"
+                )
+            );
+            Assert.False(
+                await db.RevolutOrderIntents
+                    .Where(row => row.OrderId == "ord_up_once")
+                    .Select(row => row.IsOpen)
+                    .SingleAsync()
+            );
+        }
+
+        [Fact]
         public async Task PostWebhook_UnknownBillingReason_Skips_NoMint()
         {
             await using var factory = new RevolutWebhookWebApplicationFactory();
@@ -498,6 +549,91 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        private static async Task<SeededPending> SeedPaidUpgradeIntentAsync(
+            RevolutWebhookWebApplicationFactory factory,
+            string orderId
+        )
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var pricebook = scope.ServiceProvider.GetRequiredService<IPricebookCatalog>();
+            var now = DateTime.UtcNow;
+            var owner = new User
+            {
+                Email = $"{Guid.NewGuid():N}@example.com",
+                PasswordHash = "x",
+                FullName = "Upgrade Webhook Owner",
+                Role = "Owner",
+                CreatedAt = now,
+            };
+            db.Users.Add(owner);
+            await db.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Webhook Upgrade Venue",
+                AccountType = "Single",
+                OwnerUserId = owner.Id,
+                BillingContactUserId = owner.Id,
+                PrivacyContactUserId = owner.Id,
+                SupportContactUserId = owner.Id,
+                CreatedAt = now,
+            };
+            db.Restaurants.Add(restaurant);
+            await db.SaveChangesAsync();
+
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                pricebook.CurrentPricebookId
+            );
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Starter;
+            billing.BillingStatus = BillingStatuses.Active;
+            billing.BillingCycle = BillingCycles.Monthly;
+            billing.RevolutCustomerId = "cust_webhook_up";
+            billing.RenewalDateUtc = now.Date.AddDays(15);
+            db.BillingAccounts.Add(billing);
+
+            var subscriptionId = $"sub_{orderId}";
+            db.RevolutPendingPaySessions.Add(
+                new RevolutPendingPaySession
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = restaurant.Id,
+                    TargetPlan = BillingSubscriptionPlans.Starter,
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = subscriptionId,
+                    SetupOrderId = $"ord_setup_{orderId}",
+                    CheckoutUrl = "https://checkout.revolut.test/old",
+                    IdempotencyKey = Guid.NewGuid().ToString("D"),
+                    IsOpen = false,
+                    CreatedAtUtc = now.AddDays(-10),
+                }
+            );
+            var intentId = Guid.NewGuid();
+            db.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = intentId,
+                    OrderId = orderId,
+                    RestaurantId = restaurant.Id,
+                    Purpose = RevolutOrderIntentPurposes.PlanUpgradeProration,
+                    TargetPlan = BillingSubscriptionPlans.Growth,
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = subscriptionId,
+                    CheckoutUrl = "https://checkout.revolut.test/up",
+                    IdempotencyKey = Guid.NewGuid().ToString("D"),
+                    IsOpen = true,
+                    NetAmountMinor = 3000,
+                    VatAmountMinor = 600,
+                    GrossAmountMinor = 3600,
+                    CreatedAtUtc = now,
+                }
+            );
+            await db.SaveChangesAsync();
+
+            return new SeededPending(restaurant.Id, intentId, subscriptionId);
+        }
+
         private sealed record SeededPending(
             int RestaurantId,
             Guid PendingId,
@@ -661,6 +797,29 @@ namespace TummlyBackend.Tests.Integration
         )
         {
             throw new NotImplementedException();
+        }
+
+        public int ChangeSubscriptionPlanCallCount { get; private set; }
+
+        public string? LastChangePlanSubscriptionId { get; private set; }
+
+        public string? LastChangePlanLookupKey { get; private set; }
+
+        public Task<RevolutMerchantCreateResult> ChangeSubscriptionPlanAsync(
+            string subscriptionId,
+            string planVariationLookupKey,
+            CancellationToken cancellationToken = default
+        )
+        {
+            ChangeSubscriptionPlanCallCount++;
+            LastChangePlanSubscriptionId = subscriptionId;
+            LastChangePlanLookupKey = planVariationLookupKey;
+            return Task.FromResult(
+                new RevolutMerchantCreateResult(
+                    Succeeded: true,
+                    Id: subscriptionId
+                )
+            );
         }
 
         public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(

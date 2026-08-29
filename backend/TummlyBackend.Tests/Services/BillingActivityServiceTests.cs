@@ -125,6 +125,7 @@ namespace TummlyBackend.Tests.Services
                 ),
                 new AlwaysReadyRevolutMerchantCreateGate(),
                 new ThrowingFirstPaidConversionPaySession(),
+                new ThrowingSameCadenceUpgradePaySession(),
                 new ThrowingPaymentMethodUpdatePaySession(),
                 new EmptyTummlyVatInvoiceService()
             );
@@ -172,6 +173,25 @@ namespace TummlyBackend.Tests.Services
             {
                 throw new NotImplementedException(
                     "First paid conversion is not under test here."
+                );
+            }
+        }
+
+        private sealed class ThrowingSameCadenceUpgradePaySession
+            : ISameCadenceUpgradePaySession
+        {
+            public Task<PlanChangeResultDto> StartAsync(
+                BillingAccount billingAccount,
+                string restaurantAccountType,
+                int locationId,
+                string targetPlan,
+                string targetCadenceApi,
+                string idempotencyKey,
+                CancellationToken cancellationToken = default
+            )
+            {
+                throw new NotImplementedException(
+                    "Same-cadence upgrade is not under test here."
                 );
             }
         }
