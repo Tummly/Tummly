@@ -166,7 +166,6 @@ namespace TummlyBackend.Services
                     customer_id = request.CustomerId,
                     plan_variation_id = variationId,
                     setup_order_redirect_url = request.SetupOrderRedirectUrl,
-                    trial_duration = "P0D",
                 },
                 cancellationToken
             );

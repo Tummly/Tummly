@@ -97,6 +97,85 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task StartAsync_CancelsPending_WhenSameTargetNotReusable()
+        {
+            await using var context = CreateContext();
+            var (account, owner) = await SeedPilotAsync(context);
+            account.RevolutCustomerId = "cust_1";
+            context.RevolutPendingPaySessions.Add(
+                new RevolutPendingPaySession
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = account.RestaurantId,
+                    TargetPlan = "Starter",
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = "sub_stale",
+                    SetupOrderId = "ord_stale",
+                    CheckoutUrl = "https://checkout.revolut.com/stale",
+                    IdempotencyKey = "old-key",
+                    IsOpen = true,
+                    CreatedAtUtc = DateTime.UtcNow,
+                }
+            );
+            await context.SaveChangesAsync();
+            var merchant = new RecordingMerchant
+            {
+                CancelResult = new RevolutMerchantCreateResult(Succeeded: true),
+                CreateSubscriptionResult = new RevolutMerchantCreateResult(
+                    Succeeded: true,
+                    Id: "sub_new",
+                    SetupOrderId: "ord_new"
+                ),
+                GetOrderResult = new RevolutOrderRetrieveResult(
+                    Succeeded: true,
+                    Id: "ord_stale",
+                    State: "cancelled",
+                    CheckoutUrl: null
+                ),
+            };
+            var getCount = 0;
+            merchant.GetOrderOverride = orderId =>
+            {
+                getCount++;
+                if (getCount == 1)
+                {
+                    return new RevolutOrderRetrieveResult(
+                        Succeeded: true,
+                        Id: orderId,
+                        State: "cancelled",
+                        CheckoutUrl: null
+                    );
+                }
+
+                return new RevolutOrderRetrieveResult(
+                    Succeeded: true,
+                    Id: orderId,
+                    State: "pending",
+                    CheckoutUrl: "https://checkout.revolut.com/new"
+                );
+            };
+            var service = CreateService(context, merchant);
+
+            var result = await service.StartAsync(
+                account,
+                owner,
+                "Single",
+                1,
+                "Starter",
+                "monthly",
+                "new-key"
+            );
+
+            Assert.Equal(1, merchant.CancelCallCount);
+            Assert.Equal("sub_stale", merchant.LastCancelledSubscriptionId);
+            Assert.Equal(1, merchant.CreateSubscriptionCallCount);
+            Assert.Equal(
+                "https://checkout.revolut.com/new",
+                result.RedirectUrl
+            );
+        }
+
+        [Fact]
         public async Task StartAsync_ReusesPending_SamePlanCadence()
         {
             await using var context = CreateContext();
@@ -385,6 +464,8 @@ namespace TummlyBackend.Tests.Services
                     CheckoutUrl: "https://checkout.revolut.com/x"
                 );
 
+            public Func<string, RevolutOrderRetrieveResult>? GetOrderOverride { get; set; }
+
             public int ListCallCount { get; private set; }
 
             public int CreateCustomerCallCount { get; private set; }
@@ -452,6 +533,11 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 GetOrderCallCount++;
+                if (GetOrderOverride != null)
+                {
+                    return Task.FromResult(GetOrderOverride(orderId));
+                }
+
                 return Task.FromResult(GetOrderResult);
             }
         }

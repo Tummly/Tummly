@@ -1926,6 +1926,55 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             Assert.Equal("pay", body.GetProperty("outcome").GetString());
+            Assert.Equal(
+                FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
+                body.GetProperty("redirectUrl").GetString()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var account = await context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
+            Assert.Equal(BillingStatuses.SoftLock, account.BillingStatus);
+        }
+
+        [Fact]
+        public async Task PostPlanChange_AllowsUnpaidPilotRestoration_DuringDormant()
+        {
+            var seeded = await SeedDormantPilotWorkspaceAsync();
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/billing-credits/plan-change"
+            );
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                seeded.OwnerJwt
+            );
+            request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
+            request.Content = JsonContent.Create(
+                new { targetPlan = "Starter", targetCadence = "monthly" }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("pay", body.GetProperty("outcome").GetString());
+            Assert.Equal(
+                FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
+                body.GetProperty("redirectUrl").GetString()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var account = await context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
+            Assert.Equal(BillingStatuses.Dormant, account.BillingStatus);
         }
 
         [Fact]
