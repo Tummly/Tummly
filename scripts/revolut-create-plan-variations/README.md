@@ -38,7 +38,10 @@ export REVOLUT_API_BASE_URL=https://sandbox-merchant.revolut.com
 
 Mount the printed `Revolut__PlanVariations__*` lines into the deploy env
 (or the gitignored local file). Live Production UUIDs stay out of git
-(ticket 27 / 10).
+(ticket 27 / 10). Full ACA/Key Vault HITL checklist:
+[`infra/qa/REVOLUT-GO-LIVE.md`](../../infra/qa/REVOLUT-GO-LIVE.md);
+empty ACA placeholders:
+[`infra/qa/secrets.revolut.env.example`](../../infra/qa/secrets.revolut.env.example).
 
 ## Mount in the app
 
