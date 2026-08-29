@@ -168,12 +168,12 @@ export function ShopLocationDetailsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="z-[120] max-h-[95vh] w-full overflow-y-auto rounded-[6px] border border-op-border-default bg-[#18181b] p-6 sm:max-w-4xl sm:p-8 lg:max-w-[980px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="z-[120] max-h-[95vh] w-full overflow-y-auto rounded-[6px] border border-op-border-default bg-op-card-background p-6 sm:max-w-4xl sm:p-8 lg:max-w-[980px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         <form onSubmit={handleSubmit} className="relative">
           <button
             type="button"
-            className="absolute right-0 top-0 flex size-8 items-center justify-center rounded-[4px] bg-[#27272a] text-muted-foreground transition-colors hover:bg-[#3f3f46] hover:text-white focus-visible:outline-none"
+            className="absolute right-0 top-0 flex size-8 items-center justify-center rounded-[4px] bg-op-surface-secondary text-muted-foreground transition-colors hover:bg-op-action-secondary-hover hover:text-foreground focus-visible:outline-none"
             aria-label="Close"
             onClick={() => onOpenChange(false)}
           >
@@ -181,10 +181,10 @@ export function ShopLocationDetailsDialog({
           </button>
 
           <DialogHeader className="gap-1.5 pr-12 text-left">
-            <DialogTitle className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+            <DialogTitle className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
               Tell us about {locationName}
             </DialogTitle>
-            <DialogDescription className="text-xs text-neutral-400">
+            <DialogDescription className="text-xs text-muted-foreground">
               These details help Tummly recommend practical materials and quantities. You can update them at any time.
             </DialogDescription>
           </DialogHeader>
@@ -194,7 +194,7 @@ export function ShopLocationDetailsDialog({
             <div className="flex flex-col gap-2">
               <Label
                 htmlFor="tableCount"
-                className="text-xs font-semibold text-white"
+                className="text-xs font-semibold text-foreground"
               >
                 How many guest tables are there?
               </Label>
@@ -205,9 +205,9 @@ export function ShopLocationDetailsDialog({
                 placeholder="Enter number of tables"
                 value={tableCount}
                 onChange={(e) => setTableCount(e.target.value)}
-                className="h-11 w-full rounded-[4px] border border-[#2e2e2e] bg-[#141414] px-4 text-xs text-white placeholder:text-neutral-500 focus-visible:ring-1 focus-visible:ring-op-action-primary"
+                className="h-11 w-full rounded-[4px] border border-op-border-default bg-op-background-primary px-4 text-xs text-foreground placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-op-action-primary"
               />
-              <p className="text-[11px] text-neutral-400">
+              <p className="text-[11px] text-muted-foreground">
                 Include tables that are normally available for dine-in guests.
               </p>
             </div>
@@ -216,7 +216,7 @@ export function ShopLocationDetailsDialog({
             <div className="flex flex-col gap-2">
               <Label
                 htmlFor="counterCount"
-                className="text-xs font-semibold text-white"
+                className="text-xs font-semibold text-foreground"
               >
                 How many service or collection counters are there?
               </Label>
@@ -227,9 +227,9 @@ export function ShopLocationDetailsDialog({
                 placeholder="Enter number of counters"
                 value={counterCount}
                 onChange={(e) => setCounterCount(e.target.value)}
-                className="h-11 w-full rounded-[4px] border border-[#2e2e2e] bg-[#141414] px-4 text-xs text-white placeholder:text-neutral-500 focus-visible:ring-1 focus-visible:ring-op-action-primary"
+                className="h-11 w-full rounded-[4px] border border-op-border-default bg-op-background-primary px-4 text-xs text-foreground placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-op-action-primary"
               />
-              <p className="text-[11px] text-neutral-400">
+              <p className="text-[11px] text-muted-foreground">
                 Include ordering, payment and collection counters where a QR card could be displayed.
               </p>
             </div>
@@ -238,7 +238,7 @@ export function ShopLocationDetailsDialog({
             <div className="flex flex-col gap-2">
               <Label
                 htmlFor="entranceCount"
-                className="text-xs font-semibold text-white"
+                className="text-xs font-semibold text-foreground"
               >
                 How many guest-facing entrances or windows could display a sticker?
               </Label>
@@ -249,7 +249,7 @@ export function ShopLocationDetailsDialog({
                 placeholder="Enter number of entrances or windows"
                 value={entranceCount}
                 onChange={(e) => setEntranceCount(e.target.value)}
-                className="h-11 w-full rounded-[4px] border border-[#2e2e2e] bg-[#141414] px-4 text-xs text-white placeholder:text-neutral-500 focus-visible:ring-1 focus-visible:ring-op-action-primary"
+                className="h-11 w-full rounded-[4px] border border-op-border-default bg-op-background-primary px-4 text-xs text-foreground placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-op-action-primary"
               />
             </div>
 
@@ -257,7 +257,7 @@ export function ShopLocationDetailsDialog({
             <div className="flex flex-col gap-2">
               <Label
                 htmlFor="secondaryEntranceCount"
-                className="text-xs font-semibold text-white"
+                className="text-xs font-semibold text-foreground"
               >
                 How many guest-facing entrances or windows could display a sticker?
               </Label>
@@ -268,9 +268,9 @@ export function ShopLocationDetailsDialog({
                 placeholder="Enter number of entrances or windows"
                 value={secondaryEntranceCount}
                 onChange={(e) => setSecondaryEntranceCount(e.target.value)}
-                className="h-11 w-full rounded-[4px] border border-[#2e2e2e] bg-[#141414] px-4 text-xs text-white placeholder:text-neutral-500 focus-visible:ring-1 focus-visible:ring-op-action-primary"
+                className="h-11 w-full rounded-[4px] border border-op-border-default bg-op-background-primary px-4 text-xs text-foreground placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-op-action-primary"
               />
-              <p className="text-[11px] text-neutral-400">
+              <p className="text-[11px] text-muted-foreground">
                 Include ordering, payment and collection counters where a QR card could be displayed.
               </p>
             </div>
@@ -279,7 +279,7 @@ export function ShopLocationDetailsDialog({
             <div className="flex flex-col gap-2">
               <Label
                 htmlFor="takeawayVolume"
-                className="text-xs font-semibold text-white"
+                className="text-xs font-semibold text-foreground"
               >
                 How many takeaway or delivery orders does this location complete each week?
               </Label>
@@ -289,11 +289,11 @@ export function ShopLocationDetailsDialog({
               >
                 <SelectTrigger
                   id="takeawayVolume"
-                  className="h-11 w-full rounded-[4px] border border-[#2e2e2e] bg-[#141414] px-4 text-xs text-white data-placeholder:text-neutral-500"
+                  className="h-11 w-full rounded-[4px] border border-op-border-default bg-op-background-primary px-4 text-xs text-foreground data-placeholder:text-muted-foreground"
                 >
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
-                <SelectContent className="z-[130] rounded-[4px] border border-[#2e2e2e] bg-[#18181b] text-xs text-white">
+                <SelectContent className="z-[130] rounded-[4px] border border-op-border-default bg-op-card-background text-xs text-foreground">
                   {TAKEAWAY_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
@@ -307,7 +307,7 @@ export function ShopLocationDetailsDialog({
             <div className="flex flex-col gap-2">
               <Label
                 htmlFor="promptLocations"
-                className="text-xs font-semibold text-white"
+                className="text-xs font-semibold text-foreground"
               >
                 Where should guests see a QR prompt?
               </Label>
@@ -316,22 +316,22 @@ export function ShopLocationDetailsDialog({
                   <button
                     type="button"
                     id="promptLocations"
-                    className="flex h-11 w-full items-center justify-between rounded-[4px] border border-[#2e2e2e] bg-[#141414] px-4 text-left text-xs text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-op-action-primary"
+                    className="flex h-11 w-full items-center justify-between rounded-[4px] border border-op-border-default bg-op-background-primary px-4 text-left text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-op-action-primary"
                   >
                     <span
                       className={cn(
                         "truncate",
-                        !promptTriggerLabel() && "text-neutral-500"
+                        !promptTriggerLabel() && "text-muted-foreground"
                       )}
                     >
                       {promptTriggerLabel() ?? "Select all that apply"}
                     </span>
-                    <ChevronDown className="size-4 shrink-0 text-neutral-400" />
+                    <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
                   </button>
                 </PopoverTrigger>
                 <PopoverContent
                   align="start"
-                  className="z-[140] w-(--radix-popover-trigger-width) min-w-[280px] rounded-[4px] border border-[#2e2e2e] bg-[#18181b] p-1.5 text-xs text-white shadow-xl"
+                  className="z-[140] w-(--radix-popover-trigger-width) min-w-[280px] rounded-[4px] border border-op-border-default bg-op-card-background p-1.5 text-xs text-foreground shadow-xl"
                 >
                   <div className="flex flex-col gap-1">
                     {PROMPT_OPTIONS.map((opt) => {
@@ -341,14 +341,14 @@ export function ShopLocationDetailsDialog({
                           key={opt.id}
                           type="button"
                           onClick={() => handleTogglePrompt(opt.id)}
-                          className="flex w-full items-center gap-2.5 rounded-[4px] px-2.5 py-2 text-left text-xs text-white transition-colors hover:bg-[#27272a]"
+                          className="flex w-full items-center gap-2.5 rounded-[4px] px-2.5 py-2 text-left text-xs text-foreground transition-colors hover:bg-op-surface-secondary"
                         >
                           <div
                             className={cn(
-                              "flex size-4 shrink-0 items-center justify-center rounded-[3px] border border-[#3e3e42] transition-colors",
+                              "flex size-4 shrink-0 items-center justify-center rounded-[3px] border border-op-border-default transition-colors",
                               isChecked
                                 ? "border-op-action-primary bg-op-action-primary text-white"
-                                : "bg-[#141414]"
+                                : "bg-op-background-primary"
                             )}
                           >
                             {isChecked && <Check className="size-3" />}
@@ -366,7 +366,7 @@ export function ShopLocationDetailsDialog({
             <div className="flex flex-col gap-2 md:col-span-2">
               <Label
                 htmlFor="existingMaterials"
-                className="text-xs font-semibold text-white"
+                className="text-xs font-semibold text-foreground"
               >
                 Does this location already use any Tummly QR materials?
               </Label>
@@ -376,11 +376,11 @@ export function ShopLocationDetailsDialog({
               >
                 <SelectTrigger
                   id="existingMaterials"
-                  className="h-11 w-full rounded-[4px] border border-[#2e2e2e] bg-[#141414] px-4 text-xs text-white data-placeholder:text-neutral-500"
+                  className="h-11 w-full rounded-[4px] border border-op-border-default bg-op-background-primary px-4 text-xs text-foreground data-placeholder:text-muted-foreground"
                 >
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
-                <SelectContent className="z-[130] rounded-[4px] border border-[#2e2e2e] bg-[#18181b] text-xs text-white">
+                <SelectContent className="z-[130] rounded-[4px] border border-op-border-default bg-op-card-background text-xs text-foreground">
                   {EXISTING_MATERIALS_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
@@ -389,7 +389,7 @@ export function ShopLocationDetailsDialog({
                 </SelectContent>
               </Select>
               {existingMaterials === "yes" && (
-                <p className="text-[11px] text-neutral-400">
+                <p className="text-[11px] text-muted-foreground">
                   Tummly will use active placement and previous-order information when preparing the recommendation.
                 </p>
               )}
@@ -408,7 +408,7 @@ export function ShopLocationDetailsDialog({
             <Button
               type="button"
               variant="op-secondary"
-              className="h-10 rounded-[4px] bg-[#27272a] px-5 text-xs font-medium text-white hover:bg-[#3f3f46]"
+              className="h-10 rounded-[4px] bg-op-surface-secondary px-5 text-xs font-medium text-foreground hover:bg-op-action-secondary-hover"
               onClick={() => onOpenChange(false)}
             >
               Cancel
