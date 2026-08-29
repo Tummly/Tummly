@@ -5052,25 +5052,48 @@ namespace TummlyBackend.Services
 
             if (turnBilling is not null && turnBilling.ShouldConsume(assistantMessage))
             {
-                var consume = await _aiBilling.ConsumeCompletedAnswerAsync(
-                    turnBilling.RestaurantId,
-                    turnBilling.LocationId,
-                    cancellationToken
-                );
-                if (!consume.Succeeded)
+                await using var transaction =
+                    await _context.Database.BeginTransactionAsync(cancellationToken);
+                try
                 {
-                    return CreditSpendFromConsumeFail(consume);
+                    var consume = await _aiBilling.ConsumeCompletedAnswerAsync(
+                        turnBilling.RestaurantId,
+                        turnBilling.LocationId,
+                        cancellationToken
+                    );
+                    if (!consume.Succeeded)
+                    {
+                        await transaction.RollbackAsync(cancellationToken);
+                        return CreditSpendFromConsumeFail(consume);
+                    }
+
+                    AssistantConversationTitle.TryApply(
+                        conversation,
+                        assistantMessage,
+                        proposedConversationTitle
+                    );
+                    conversation.Messages.Add(assistantMessage);
+                    conversation.LastActivityAt = assistantMessage.CreatedAt;
+                    await _context.SaveChangesAsync(cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+                }
+                catch
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    throw;
                 }
             }
-
-            AssistantConversationTitle.TryApply(
-                conversation,
-                assistantMessage,
-                proposedConversationTitle
-            );
-            conversation.Messages.Add(assistantMessage);
-            conversation.LastActivityAt = assistantMessage.CreatedAt;
-            await _context.SaveChangesAsync(cancellationToken);
+            else
+            {
+                AssistantConversationTitle.TryApply(
+                    conversation,
+                    assistantMessage,
+                    proposedConversationTitle
+                );
+                conversation.Messages.Add(assistantMessage);
+                conversation.LastActivityAt = assistantMessage.CreatedAt;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
 
             var dto = AssistantAnalysisScope.ToConversationDto(conversation);
             dto.SendScheduleRoute = sendScheduleRoute;
@@ -5140,7 +5163,20 @@ namespace TummlyBackend.Services
             }
             catch (InvalidOperationException)
             {
-                return new BilledLiveAnswerGate(null, null);
+                if (AssistantAnalysisScope.IsAll(conversation))
+                {
+                    return new BilledLiveAnswerGate(null, null);
+                }
+
+                return new BilledLiveAnswerGate(
+                    null,
+                    new AssistantTurnOutcome.CreditSpendDenied(
+                        "location_required",
+                        CreditChannels.Ai,
+                        0,
+                        AssistantAiBillingRules.CompletedAnswerUnits
+                    )
+                );
             }
 
             var restaurantId = await _aiBilling.TryResolveRestaurantIdAsync(

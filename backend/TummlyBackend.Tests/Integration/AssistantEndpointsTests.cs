@@ -573,10 +573,7 @@ var reply = LastMessage(conversation);
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
-            var restaurantId = await context.RestaurantLocations
-                .Where(location => location.Id == owner.LocationId)
-                .Select(location => location.RestaurantId)
-                .SingleAsync();
+            var restaurantId = await RestaurantIdForLocationAsync(owner.LocationId);
             var consumption = await context.CreditLedgerEntries
                 .Where(row =>
                     row.RestaurantId == restaurantId
@@ -604,10 +601,52 @@ var reply = LastMessage(conversation);
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
-            var restaurantId = await context.RestaurantLocations
-                .Where(location => location.Id == owner.LocationId)
-                .Select(location => location.RestaurantId)
-                .SingleAsync();
+            var restaurantId = await RestaurantIdForLocationAsync(owner.LocationId);
+            Assert.False(
+                await context.CreditLedgerEntries.AnyAsync(row =>
+                    row.RestaurantId == restaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.Consumption
+                )
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_Timeout_BurnsZero()
+        {
+            var owner = await SeedOwnerAsync("assistant-billing-timeout-tok");
+            ResetFake();
+            FakeLive.Delay = TimeSpan.FromSeconds(30);
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/assistant/turns"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", owner.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                message = "Summarise recent feedback",
+                analysisScope = new
+                {
+                    ownedLocationId = owner.LocationId,
+                    reportingPeriod = new { kind = "preset", presetId = "last7" },
+                },
+            });
+
+            try
+            {
+                await _client.SendAsync(request, cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Client cancel / empty controller result.
+            }
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await RestaurantIdForLocationAsync(owner.LocationId);
             Assert.False(
                 await context.CreditLedgerEntries.AnyAsync(row =>
                     row.RestaurantId == restaurantId
@@ -726,15 +765,23 @@ var reply = LastMessage(conversation);
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
-            var restaurantId = await context.RestaurantLocations
-                .Where(location => location.Id == owner.LocationId)
-                .Select(location => location.RestaurantId)
-                .SingleAsync();
+            var restaurantId = await RestaurantIdForLocationAsync(owner.LocationId);
             var burns = await context.CreditLedgerEntries.CountAsync(row =>
                 row.RestaurantId == restaurantId
                 && row.EntryType == CreditLedgerEntryTypes.Consumption
             );
             Assert.Equal(1, burns);
+        }
+
+        private async Task<int> RestaurantIdForLocationAsync(int locationId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            return await context.RestaurantLocations
+                .Where(location => location.Id == locationId)
+                .Select(location => location.RestaurantId)
+                .SingleAsync();
         }
 
         private async Task<string> TranscribeAsync(string jwt)
