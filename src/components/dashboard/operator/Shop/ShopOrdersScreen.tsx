@@ -140,7 +140,7 @@ export function ShopOrdersScreen({
           onClick={onBackToShop}
           className="text-op-text-primary transition-colors hover:underline"
         >
-          Shop
+          Tummly Shop
         </button>
         <ChevronRight className="size-3.5 text-op-text-muted" />
         <span className="text-op-text-muted">Orders</span>

@@ -20,8 +20,9 @@ export function ShopCatalogItemCard({
 }: ShopCatalogItemCardProps) {
   return (
     <div
+      onClick={onViewMaterial}
       className={cn(
-        "flex w-full flex-col justify-between overflow-hidden rounded-[6px] border border-op-border-default bg-op-card-background transition-shadow hover:border-op-action-tertiary",
+        "group flex w-full cursor-pointer flex-col justify-between overflow-hidden rounded-[6px] border border-op-border-default bg-op-card-background transition-all hover:border-op-action-tertiary",
         "shadow-[-5px_0px_10px_0px_rgba(0,0,0,0.03)] shadow-[-19px_0px_19px_0px_rgba(0,0,0,0.03)]",
         className
       )}
@@ -30,7 +31,7 @@ export function ShopCatalogItemCard({
         <img
           src={imageSrc}
           alt={title}
-          className="size-full scale-[1.08] object-contain transition-transform duration-200"
+          className="size-full scale-[1.08] object-contain transition-transform duration-200 group-hover:scale-[1.14]"
         />
       </div>
 

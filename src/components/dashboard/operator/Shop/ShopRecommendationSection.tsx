@@ -3,14 +3,18 @@ import { SlidersHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { LocationDetails } from "@/components/dashboard/operator/Shop/ShopLocationDetailsDialog"
 import { ShopRecommendationCard } from "@/components/dashboard/operator/Shop/ShopRecommendationCard"
+import {
+  type ShopProduct,
+  SHOP_CATALOG_PRODUCTS,
+} from "@/components/dashboard/operator/Shop/ShopCatalogSection"
 import tummlyStickerImg from "@/assets/images/shop/tummly-sticker.png"
-
 
 type ShopRecommendationSectionProps = {
   locationName: string
   locationDetails: LocationDetails | null
   onAddLocationDetails: () => void
   onAddRecommendedToCart: () => void
+  onSelectProduct?: (product: ShopProduct) => void
 }
 
 export function ShopRecommendationSection({
@@ -18,6 +22,7 @@ export function ShopRecommendationSection({
   locationDetails,
   onAddLocationDetails,
   onAddRecommendedToCart,
+  onSelectProduct,
 }: ShopRecommendationSectionProps) {
   const [hasDismissed, setHasDismissed] = useState(false)
 
@@ -113,6 +118,12 @@ export function ShopRecommendationSection({
               initialQuantity={20}
               imageSrc={tummlyStickerImg}
               onOrderNow={onAddRecommendedToCart}
+              onSelectCard={() => {
+                const prod =
+                  SHOP_CATALOG_PRODUCTS.find((p) => p.id === "table-tents") ??
+                  SHOP_CATALOG_PRODUCTS[0]
+                onSelectProduct?.(prod)
+              }}
             />
             <ShopRecommendationCard
               title="Counter cards"
@@ -122,6 +133,12 @@ export function ShopRecommendationSection({
               initialQuantity={20}
               imageSrc={tummlyStickerImg}
               onOrderNow={onAddRecommendedToCart}
+              onSelectCard={() => {
+                const prod =
+                  SHOP_CATALOG_PRODUCTS.find((p) => p.id === "counter-cards-1") ??
+                  SHOP_CATALOG_PRODUCTS[1]
+                onSelectProduct?.(prod)
+              }}
             />
             <ShopRecommendationCard
               title="Window stickers"
@@ -131,6 +148,12 @@ export function ShopRecommendationSection({
               initialQuantity={20}
               imageSrc={tummlyStickerImg}
               onOrderNow={onAddRecommendedToCart}
+              onSelectCard={() => {
+                const prod =
+                  SHOP_CATALOG_PRODUCTS.find((p) => p.id === "window-stickers") ??
+                  SHOP_CATALOG_PRODUCTS[3]
+                onSelectProduct?.(prod)
+              }}
             />
           </div>
 
@@ -145,7 +168,7 @@ export function ShopRecommendationSection({
               </span>
             </div>
 
-            <div className="flex w-full max-w-md flex-col gap-2 rounded-md border border-op-border-default/60 bg-op-background-primary/50 p-4 text-xs sm:text-sm">
+            <div className="flex w-full max-w-md flex-col gap-2 rounded-md border border-op-border-default/60 bg-op-card-background p-4 text-xs sm:text-sm">
               <div className="flex items-center justify-between text-muted-foreground">
                 <span>Materials sub-total:</span>
                 <span className="font-semibold text-foreground">£145.00</span>

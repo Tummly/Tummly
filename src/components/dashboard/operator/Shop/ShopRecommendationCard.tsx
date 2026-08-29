@@ -12,6 +12,7 @@ export type ShopRecommendationCardProps = {
   imageSrc: string
   className?: string
   onOrderNow?: (quantity: number) => void
+  onSelectCard?: () => void
 }
 
 export function ShopRecommendationCard({
@@ -23,23 +24,32 @@ export function ShopRecommendationCard({
   imageSrc,
   className,
   onOrderNow,
+  onSelectCard,
 }: ShopRecommendationCardProps) {
   const [quantity, setQuantity] = useState<number>(initialQuantity)
 
-  const handleDecrease = () => {
+  const handleDecrease = (e: React.MouseEvent) => {
+    e.stopPropagation()
     setQuantity((prev) => Math.max(1, prev - 1))
   }
 
-  const handleIncrease = () => {
+  const handleIncrease = (e: React.MouseEvent) => {
+    e.stopPropagation()
     setQuantity((prev) => prev + 1)
+  }
+
+  const handleOrderClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onOrderNow?.(quantity)
   }
 
   const totalPrice = (price * (quantity / Math.max(1, initialQuantity))).toFixed(2)
 
   return (
     <div
+      onClick={onSelectCard}
       className={cn(
-        "flex w-full min-w-[280px] max-w-[460px] shrink-0 flex-col overflow-hidden rounded-[6px] border border-op-border-default bg-op-card-background sm:flex-row",
+        "group flex w-full min-w-[280px] max-w-[460px] shrink-0 cursor-pointer flex-col overflow-hidden rounded-[6px] border border-op-border-default bg-op-card-background transition-all hover:border-op-action-tertiary sm:flex-row",
         "shadow-[-5px_0px_10px_0px_rgba(0,0,0,0.03)] shadow-[-19px_0px_19px_0px_rgba(0,0,0,0.03)]",
         className
       )}
@@ -48,7 +58,7 @@ export function ShopRecommendationCard({
         <img
           src={imageSrc}
           alt={title}
-          className="size-full max-h-[190px] scale-[1.22] object-contain transition-transform duration-200"
+          className="size-full max-h-[190px] scale-[1.22] object-contain transition-transform duration-200 group-hover:scale-[1.28]"
         />
       </div>
 
@@ -102,7 +112,7 @@ export function ShopRecommendationCard({
           type="button"
           variant="op-secondary"
           className="h-8.5 w-full rounded-[4px] text-xs font-medium"
-          onClick={() => onOrderNow?.(quantity)}
+          onClick={handleOrderClick}
         >
           Order now
         </Button>

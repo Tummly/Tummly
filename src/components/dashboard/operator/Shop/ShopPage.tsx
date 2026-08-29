@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { ShopHeader } from "@/components/dashboard/operator/Shop/ShopHeader"
@@ -25,6 +26,10 @@ import {
   type ShopOrder,
 } from "@/components/dashboard/operator/Shop/ShopOrdersDialog"
 import { ShopOrdersScreen } from "@/components/dashboard/operator/Shop/ShopOrdersScreen"
+import {
+  ShopProductScreen,
+  scrollShopPaneToTop,
+} from "@/components/dashboard/operator/Shop/ShopProductScreen"
 import { ShopCreateQrAssetDialog } from "@/components/dashboard/operator/Shop/ShopCreateQrAssetDialog"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
 
@@ -40,7 +45,18 @@ export function ShopPage({
   locations,
   onSelectLocation,
 }: ShopPageProps) {
-  const [currentView, setCurrentView] = useState<"shop" | "orders">("shop")
+  const [searchParams, setSearchParams] = useSearchParams()
+  const productParam = searchParams.get("product")
+  const viewParam = searchParams.get("view")
+
+  const currentView: "shop" | "orders" | "product" =
+    productParam ? "product" : viewParam === "orders" ? "orders" : "shop"
+
+  const selectedProduct = productParam
+    ? SHOP_CATALOG_PRODUCTS.find((p) => p.id === productParam) ??
+      SHOP_CATALOG_PRODUCTS[0]
+    : null
+
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false)
@@ -160,6 +176,26 @@ export function ShopPage({
     }, 1200)
   }
 
+  const handleSelectProduct = (product: ShopProduct) => {
+    setSearchParams({ product: product.id })
+    scrollShopPaneToTop()
+  }
+
+  const handleViewOrders = () => {
+    setSearchParams({ view: "orders" })
+    scrollShopPaneToTop()
+  }
+
+  const handleOrderNow = (product: ShopProduct, quantity: number) => {
+    handleAddToCart(product, quantity)
+    setIsCartOpen(true)
+  }
+
+  const handleBackToShop = () => {
+    setSearchParams({})
+    scrollShopPaneToTop()
+  }
+
   return (
     <div className="flex flex-col gap-6 pb-20">
       {currentView === "orders" ? (
@@ -167,7 +203,18 @@ export function ShopPage({
           selectedLocationName={locationName}
           locations={locations}
           onSelectLocation={onSelectLocation}
-          onBackToShop={() => setCurrentView("shop")}
+          onBackToShop={handleBackToShop}
+        />
+      ) : currentView === "product" && selectedProduct ? (
+        <ShopProductScreen
+          product={selectedProduct}
+          selectedLocationName={locationName}
+          locations={locations}
+          onSelectLocation={onSelectLocation}
+          onBackToShop={handleBackToShop}
+          onAddToCart={handleAddToCart}
+          onOrderNow={handleOrderNow}
+          onSelectRelatedProduct={handleSelectProduct}
         />
       ) : (
         <>
@@ -181,7 +228,7 @@ export function ShopPage({
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
             onCreateQrAsset={() => setIsCreateQrAssetOpen(true)}
-            onViewOrders={() => setCurrentView("orders")}
+            onViewOrders={handleViewOrders}
           />
 
           <ShopBanner
@@ -194,11 +241,13 @@ export function ShopPage({
             locationDetails={locationDetails}
             onAddLocationDetails={() => setIsLocationDetailsOpen(true)}
             onAddRecommendedToCart={handleAddRecommendedKitToCart}
+            onSelectProduct={handleSelectProduct}
           />
 
           <ShopCatalogSection
             searchQuery={searchQuery}
             onAddToCart={handleAddToCart}
+            onSelectProduct={handleSelectProduct}
           />
         </>
       )}
