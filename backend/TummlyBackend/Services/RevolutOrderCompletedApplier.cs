@@ -16,6 +16,8 @@ namespace TummlyBackend.Services
 
         public const string CycleBilling = "cycle_billing";
 
+        public const string FinalSettlement = "final_settlement";
+
         private readonly ApplicationDbContext _context;
         private readonly IIncludedPeriodMintService _mint;
         private readonly TimeProvider _clock;
@@ -31,18 +33,30 @@ namespace TummlyBackend.Services
             _clock = clock;
         }
 
+        public static bool IsMintableBillingReason(string? billingReason)
+        {
+            var reason = billingReason?.Trim() ?? string.Empty;
+            return string.Equals(reason, SetupIntent, StringComparison.Ordinal)
+                || string.Equals(reason, CycleBilling, StringComparison.Ordinal);
+        }
+
+        public static bool IsFinalSettlement(string? billingReason)
+        {
+            return string.Equals(
+                billingReason?.Trim() ?? string.Empty,
+                FinalSettlement,
+                StringComparison.Ordinal
+            );
+        }
+
         public async Task ApplyAsync(
             RevolutOrderCompletedApplyRequest request,
             CancellationToken cancellationToken = default
         )
         {
             var reason = request.BillingReason?.Trim() ?? string.Empty;
-            if (
-                !string.Equals(reason, SetupIntent, StringComparison.Ordinal)
-                && !string.Equals(reason, CycleBilling, StringComparison.Ordinal)
-            )
+            if (!IsMintableBillingReason(reason))
             {
-                // Caller claims skipped_unknown_billing_reason before invoke.
                 return;
             }
 
@@ -71,24 +85,26 @@ namespace TummlyBackend.Services
             }
 
             var nowUtc = _clock.GetUtcNow().UtcDateTime;
+            var isSetup = string.Equals(
+                reason,
+                SetupIntent,
+                StringComparison.Ordinal
+            );
             var cycle = ResolveCycleWindow(
                 billingAccount,
                 pending,
-                reason,
+                isSetup,
                 nowUtc
             );
 
             ApplyPaymentFields(
                 billingAccount,
                 pending,
-                reason,
+                isSetup,
                 cycle.RenewalDateUtc
             );
 
-            if (
-                string.Equals(reason, SetupIntent, StringComparison.Ordinal)
-                && pending.IsOpen
-            )
+            if (isSetup && pending.IsOpen)
             {
                 pending.IsOpen = false;
             }
@@ -152,11 +168,11 @@ namespace TummlyBackend.Services
         private static void ApplyPaymentFields(
             BillingAccount billingAccount,
             RevolutPendingPaySession pending,
-            string reason,
+            bool isSetup,
             DateTime renewalDateUtc
         )
         {
-            if (string.Equals(reason, SetupIntent, StringComparison.Ordinal))
+            if (isSetup)
             {
                 billingAccount.SubscriptionPlan = pending.TargetPlan;
                 billingAccount.BillingCycle = CadenceToBillingCycle(
@@ -164,6 +180,8 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // Pilot→paid / renewal dates only. Dunning episode clears stay on
+            // ticket 24 RecoverDunningAsync.
             billingAccount.BillingStatus = BillingStatuses.Active;
             billingAccount.RenewalDateUtc = renewalDateUtc;
             billingAccount.PilotPeriodEnd = null;
@@ -171,8 +189,6 @@ namespace TummlyBackend.Services
             billingAccount.DormantEnteredAt = null;
             billingAccount.PilotSoftLockNotified = false;
             billingAccount.PilotDormantNotified = false;
-            billingAccount.DunningEpisodeStartedAt = null;
-            billingAccount.DunningFiredSteps = null;
         }
 
         private static (
@@ -183,13 +199,13 @@ namespace TummlyBackend.Services
         ) ResolveCycleWindow(
             BillingAccount billingAccount,
             RevolutPendingPaySession pending,
-            string reason,
+            bool isSetup,
             DateTime nowUtc
         )
         {
             var cycleStart = nowUtc.Date;
             if (
-                string.Equals(reason, CycleBilling, StringComparison.Ordinal)
+                !isSetup
                 && billingAccount.RenewalDateUtc is DateTime priorRenewal
             )
             {
@@ -198,10 +214,9 @@ namespace TummlyBackend.Services
                     : DateTime.SpecifyKind(priorRenewal, DateTimeKind.Utc);
             }
 
-            var billingCycle =
-                string.Equals(reason, SetupIntent, StringComparison.Ordinal)
-                    ? CadenceToBillingCycle(pending.TargetCadence)
-                    : billingAccount.BillingCycle ?? BillingCycles.Monthly;
+            var billingCycle = isSetup
+                ? CadenceToBillingCycle(pending.TargetCadence)
+                : billingAccount.BillingCycle ?? BillingCycles.Monthly;
 
             if (
                 string.Equals(

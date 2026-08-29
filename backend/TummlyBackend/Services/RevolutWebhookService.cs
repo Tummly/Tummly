@@ -211,20 +211,13 @@ namespace TummlyBackend.Services
         )
         {
             var reason = retrieved.BillingReason?.Trim() ?? string.Empty;
-            var mintReason =
-                string.Equals(
-                    reason,
-                    RevolutOrderCompletedApplier.SetupIntent,
-                    StringComparison.Ordinal
-                )
-                || string.Equals(
-                    reason,
-                    RevolutOrderCompletedApplier.CycleBilling,
-                    StringComparison.Ordinal
-                );
-            var disposition = mintReason
+            var isMintable =
+                RevolutOrderCompletedApplier.IsMintableBillingReason(reason);
+            var disposition = isMintable
                 ? RevolutWebhookClaimDispositions.Applied
-                : RevolutWebhookClaimDispositions.SkippedUnknownBillingReason;
+                : RevolutOrderCompletedApplier.IsFinalSettlement(reason)
+                    ? RevolutWebhookClaimDispositions.Recorded
+                    : RevolutWebhookClaimDispositions.SkippedUnknownBillingReason;
 
             await using var transaction =
                 await _context.Database.BeginTransactionAsync(cancellationToken);
@@ -258,7 +251,10 @@ namespace TummlyBackend.Services
                 );
                 await _context.SaveChangesAsync(cancellationToken);
 
-                if (!mintReason)
+                if (
+                    disposition
+                    == RevolutWebhookClaimDispositions.SkippedUnknownBillingReason
+                )
                 {
                     _logger.LogWarning(
                         "Revolut ORDER_COMPLETED skipped unknown billing_reason {BillingReason} for order {OrderId}",
@@ -266,7 +262,7 @@ namespace TummlyBackend.Services
                         orderId
                     );
                 }
-                else
+                else if (isMintable)
                 {
                     await _applier.ApplyAsync(
                         new RevolutOrderCompletedApplyRequest(

@@ -214,7 +214,7 @@ namespace TummlyBackend.Tests.Integration
                 Succeeded: true,
                 Id: "ord_unknown",
                 State: "completed",
-                BillingReason: "final_settlement",
+                BillingReason: "weird_reason",
                 SubscriptionId: seeded.SubscriptionId,
                 RawBody: """{"id":"ord_unknown","state":"completed"}"""
             );
@@ -236,6 +236,43 @@ namespace TummlyBackend.Tests.Integration
                 .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
             Assert.Equal(BillingSubscriptionPlans.Pilot, account.SubscriptionPlan);
             Assert.Equal(BillingStatuses.Pilot, account.BillingStatus);
+            Assert.Equal(
+                0,
+                await db.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
+                )
+            );
+        }
+
+        [Fact]
+        public async Task PostWebhook_FinalSettlement_RecordsOnly_NoMint()
+        {
+            await using var factory = new RevolutWebhookWebApplicationFactory();
+            var seeded = await SeedPilotWithPendingAsync(factory, "ord_final");
+            factory.Merchant.Orders["ord_final"] = new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: "ord_final",
+                State: "completed",
+                BillingReason: "final_settlement",
+                SubscriptionId: seeded.SubscriptionId,
+                RawBody: """{"id":"ord_final","state":"completed"}"""
+            );
+            var client = factory.CreateClient();
+
+            var response = await SendSignedAsync(
+                client,
+                OrderCompletedBody("ord_final")
+            );
+
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var claim = await db.RevolutWebhookEventClaims.SingleAsync();
+            Assert.Equal(
+                RevolutWebhookClaimDispositions.Recorded,
+                claim.Disposition
+            );
             Assert.Equal(
                 0,
                 await db.CreditLedgerEntries.CountAsync(row =>

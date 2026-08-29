@@ -77,7 +77,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task RedirectLand_PaySession_DoesNotActivate()
+        public async Task PaySessionStart_DoesNotActivate_BeforeWebhook()
         {
             await using var context = CreateContext();
             var (account, owner) = await SeedPilotAccountAsync(context);
@@ -112,6 +112,51 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(account.BillingCycle);
             Assert.Equal(
                 0,
+                await context.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == account.RestaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
+                )
+            );
+        }
+
+        [Fact]
+        public async Task Apply_CycleBilling_RenewsAndMints()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(
+                context,
+                "ord_cycle",
+                "sub_cycle"
+            );
+            var account = await context.BillingAccounts.SingleAsync();
+            account.SubscriptionPlan = BillingSubscriptionPlans.Starter;
+            account.BillingCycle = BillingCycles.Monthly;
+            account.BillingStatus = BillingStatuses.Active;
+            account.RenewalDateUtc = _now.Date;
+            pending.IsOpen = false;
+            await context.SaveChangesAsync();
+
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = new RevolutOrderCompletedApplier(context, mint, clock);
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_cycle",
+                    OrderState: "completed",
+                    BillingReason: RevolutOrderCompletedApplier.CycleBilling,
+                    SubscriptionId: pending.RevolutSubscriptionId,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            await context.Entry(account).ReloadAsync();
+            Assert.Equal(BillingStatuses.Active, account.BillingStatus);
+            Assert.Equal(_now.Date.AddMonths(1), account.RenewalDateUtc);
+            Assert.Null(account.DunningEpisodeStartedAt);
+            Assert.Equal(
+                3,
                 await context.CreditLedgerEntries.CountAsync(row =>
                     row.RestaurantId == account.RestaurantId
                     && row.EntryType == CreditLedgerEntryTypes.IncludedAllocation
