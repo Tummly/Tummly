@@ -16,6 +16,30 @@ namespace TummlyBackend.Tests.Helpers
             return Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
         }
 
+        public Task<CreditLedgerWriteResult> ReserveAsync(
+            CreditLedgerReserveRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+        }
+
+        public Task<CreditLedgerWriteResult> SettleAsync(
+            CreditLedgerSettleRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+        }
+
+        public Task<CreditLedgerWriteResult> ReleaseAsync(
+            CreditLedgerReleaseRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return Task.FromResult(CreditLedgerWriteResult.Fail("not_implemented"));
+        }
+
         public Task<CreditLedgerWriteResult> StaffManualAdjustAsync(
             StaffManualAdjustRequest request,
             CancellationToken cancellationToken = default
