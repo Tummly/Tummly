@@ -54,5 +54,11 @@ namespace TummlyBackend.Interfaces
         public bool IsPilot { get; init; }
 
         public bool SuppressNotify { get; init; }
+
+        public decimal UsedShare { get; init; }
+
+        public int Remaining { get; init; }
+
+        public int Used { get; init; }
     }
 }

@@ -487,8 +487,13 @@ namespace TummlyBackend.Services
                 );
             }
 
-            await _context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            await SaveCommitAndNotifyThresholdAsync(
+                transaction,
+                liveTarget.RestaurantId,
+                liveTarget.Channel,
+                [.. entries, reversal],
+                cancellationToken
+            );
 
             return CreditLedgerWriteResult.Ok(
                 [
@@ -658,8 +663,13 @@ namespace TummlyBackend.Services
                 }
             );
 
-            await _context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            await SaveCommitAndNotifyThresholdAsync(
+                transaction,
+                request.RestaurantId,
+                request.Channel,
+                [.. entries, .. inserted],
+                cancellationToken
+            );
 
             return CreditLedgerWriteResult.Ok(
                 inserted.Select(row => new CreditLedgerInsertedRow
@@ -1573,8 +1583,18 @@ namespace TummlyBackend.Services
                 return CreditLedgerMintTopupResult.Fail("invalid_grant");
             }
 
-            await _context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            var channelEntries = await LoadRestaurantEntriesAsync(
+                request.RestaurantId,
+                request.Channel,
+                cancellationToken
+            );
+            await SaveCommitAndNotifyThresholdAsync(
+                transaction,
+                request.RestaurantId,
+                request.Channel,
+                [.. channelEntries.Where(entry => entry.Id != row.Id), row],
+                cancellationToken
+            );
             return CreditLedgerMintTopupResult.Ok(allocationId);
         }
 
@@ -1657,8 +1677,13 @@ namespace TummlyBackend.Services
                 );
             }
 
-            await _context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            await SaveCommitAndNotifyThresholdsAsync(
+                transaction,
+                request.RestaurantId,
+                working,
+                refundedThisCommit.Keys,
+                cancellationToken
+            );
 
             var channels = CreditLedgerCalculator
                 .SummarizePaymentRef(
@@ -1750,8 +1775,13 @@ namespace TummlyBackend.Services
                 return CreditLedgerRestoreTopupResult.Fail("negative_remaining_refused");
             }
 
-            await _context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            await SaveCommitAndNotifyThresholdsAsync(
+                transaction,
+                request.RestaurantId,
+                working,
+                inserted.Select(row => row.Channel),
+                cancellationToken
+            );
 
             var channels = CreditLedgerCalculator
                 .SummarizePaymentRef(working, request.SourcePaymentRef, now)
@@ -1941,8 +1971,13 @@ namespace TummlyBackend.Services
                 );
             }
 
-            await _context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            await SaveCommitAndNotifyThresholdAsync(
+                transaction,
+                request.RestaurantId,
+                request.Channel,
+                [.. entries, .. inserted],
+                cancellationToken
+            );
 
             return CreditLedgerWriteResult.Ok(
                 inserted.Select(row => new CreditLedgerInsertedRow
@@ -2071,6 +2106,62 @@ namespace TummlyBackend.Services
                 row => row.RestaurantId == restaurantId,
                 cancellationToken
             );
+        }
+
+        private async Task SaveCommitAndNotifyThresholdAsync(
+            IDbContextTransaction transaction,
+            int restaurantId,
+            string channel,
+            IReadOnlyList<CreditLedgerEntry> channelEntriesIncludingPending,
+            CancellationToken cancellationToken
+        )
+        {
+            var thresholdApply = await _thresholdEvaluator.ApplyInTransactionAsync(
+                restaurantId,
+                channel,
+                channelEntriesIncludingPending,
+                cancellationToken
+            );
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            await _thresholdEvaluator.NotifyAfterCommitAsync(
+                thresholdApply,
+                cancellationToken
+            );
+        }
+
+        private async Task SaveCommitAndNotifyThresholdsAsync(
+            IDbContextTransaction transaction,
+            int restaurantId,
+            IReadOnlyList<CreditLedgerEntry> allEntriesIncludingPending,
+            IEnumerable<string> channels,
+            CancellationToken cancellationToken
+        )
+        {
+            var applies = new List<CreditThresholdApplyResult>();
+            foreach (var channel in channels.Distinct())
+            {
+                applies.Add(
+                    await _thresholdEvaluator.ApplyInTransactionAsync(
+                        restaurantId,
+                        channel,
+                        allEntriesIncludingPending
+                            .Where(row => row.Channel == channel)
+                            .ToList(),
+                        cancellationToken
+                    )
+                );
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            foreach (var apply in applies)
+            {
+                await _thresholdEvaluator.NotifyAfterCommitAsync(
+                    apply,
+                    cancellationToken
+                );
+            }
         }
 
         private static async Task<CreditLedgerWriteResult> AbortAsync(

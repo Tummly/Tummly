@@ -100,6 +100,40 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ReserveLastUnit_Emits100Only_Not80Or90()
+        {
+            var harness = await SeedAsync();
+            await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.PilotAllocation,
+                10,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: null
+            );
+
+            var reserve = await harness.Ledger.ReserveAsync(
+                new CreditLedgerReserveRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Email,
+                    Units = 10,
+                    LocationId = harness.LocationId,
+                }
+            );
+
+            Assert.True(reserve.Succeeded);
+            var watermark = await LoadWatermarkAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditChannels.Email
+            );
+            Assert.Equal(CreditThresholdBands.Band100, watermark);
+            var notification = Assert.Single(_notifier.CreditThresholdCalls);
+            Assert.Equal(100, notification.ThresholdBand);
+        }
+
+        [Fact]
         public async Task SoftLock_AdvancesWatermarkWithNoNotify()
         {
             var harness = await SeedAsync(BillingStatuses.SoftLock);

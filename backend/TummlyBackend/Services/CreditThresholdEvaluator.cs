@@ -93,7 +93,9 @@ namespace TummlyBackend.Services
 
             var bandsToEmit = CreditThresholdMath.BandsToEmit(
                 watermark.HighestBandThisPeriod,
-                targetBand
+                targetBand,
+                remaining,
+                used
             );
             watermark.HighestBandThisPeriod = Math.Max(
                 watermark.HighestBandThisPeriod,
@@ -113,6 +115,9 @@ namespace TummlyBackend.Services
                     BillingStatus = billingAccount.BillingStatus,
                     IsPilot = isPilot,
                     SuppressNotify = suppressNotify,
+                    UsedShare = usedShare,
+                    Remaining = remaining,
+                    Used = used,
                 })
                 .ToList();
 
