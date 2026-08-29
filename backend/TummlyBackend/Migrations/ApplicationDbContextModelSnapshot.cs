@@ -2967,6 +2967,9 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("GrossAmountMinor")
                         .HasColumnType("int");
 
+                    b.Property<int?>("TargetPaidExtraLocationCount")
+                        .HasColumnType("int");
+
                     b.Property<string>("IdempotencyKey")
                         .IsRequired()
                         .HasMaxLength(128)

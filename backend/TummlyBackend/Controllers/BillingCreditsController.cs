@@ -645,6 +645,7 @@ namespace TummlyBackend.Controllers
             }
 
             var action = (request?.Action ?? string.Empty).Trim().ToLowerInvariant();
+            string? idempotencyKey = null;
             if (action == "add")
             {
                 if (
@@ -659,6 +660,8 @@ namespace TummlyBackend.Controllers
                         message = "Idempotency-Key header is required.",
                     });
                 }
+
+                idempotencyKey = key.ToString();
             }
 
             try
@@ -666,7 +669,8 @@ namespace TummlyBackend.Controllers
                 var result = await _extraGroupLocation.SubmitAsync(
                     userId,
                     manage.RestaurantId,
-                    action
+                    action,
+                    idempotencyKey
                 );
                 if (result == null)
                 {
@@ -758,10 +762,35 @@ namespace TummlyBackend.Controllers
                 });
             }
             catch (ExtraGroupLocationException ex) when (
+                ex.Code == ExtraGroupLocationService.RevolutCustomerRequiredCode
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = ex.Code,
+                    message = "A Revolut customer is required before adding an Additional Group Location.",
+                });
+            }
+            catch (ExtraGroupLocationException ex) when (
                 IsRevolutMerchantNotReadyCode(ex.Code)
             )
             {
                 return RevolutMerchantNotReady(ex.Code);
+            }
+            catch (ExtraGroupLocationException ex) when (
+                ex.Code is "revolut_http_error" or "extra_location_price_missing"
+            )
+            {
+                return StatusCode(
+                    StatusCodes.Status502BadGateway,
+                    new
+                    {
+                        success = false,
+                        code = ex.Code,
+                        message = ex.Code,
+                    }
+                );
             }
         }
 

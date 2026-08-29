@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace TummlyBackend.Models
 {
     /// <summary>
-    /// One-time Revolut order intent (ticket 20). Purpose routes webhook apply.
+    /// One-time Revolut order intent (tickets 20 / 22). Purpose routes webhook apply.
     /// </summary>
     public class RevolutOrderIntent
     {
@@ -19,7 +19,9 @@ namespace TummlyBackend.Models
         [ForeignKey(nameof(RestaurantId))]
         public BillingAccount? BillingAccount { get; set; }
 
-        /// <summary>e.g. <c>plan_upgrade_proration</c>.</summary>
+        /// <summary>
+        /// e.g. <c>plan_upgrade_proration</c>, <c>extra_location</c>.
+        /// </summary>
         [MaxLength(64)]
         public string Purpose { get; set; } = string.Empty;
 
@@ -48,11 +50,22 @@ namespace TummlyBackend.Models
 
         public int GrossAmountMinor { get; set; }
 
+        /// <summary>
+        /// Target <c>PaidExtraLocationCount</c> after an extra-location add.
+        /// </summary>
+        public int? TargetPaidExtraLocationCount { get; set; }
+
         public DateTime CreatedAtUtc { get; set; }
     }
 
     public static class RevolutOrderIntentPurposes
     {
+        public const string Topup = "topup";
+
         public const string PlanUpgradeProration = "plan_upgrade_proration";
+
+        public const string ExtraLocation = "extra_location";
+
+        public const string SubscriptionSetup = "subscription_setup";
     }
 }

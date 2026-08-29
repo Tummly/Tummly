@@ -1,4 +1,7 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Configuration;
 using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
@@ -24,25 +27,37 @@ namespace TummlyBackend.Services
 
         public const string RemoveBelowFloorCode = "remove_below_floor";
 
+        public const string RevolutCustomerRequiredCode = "revolut_customer_required";
+
         private readonly ApplicationDbContext _context;
         private readonly IPricebookCatalog _pricebook;
         private readonly IRevolutMerchantCreateGate _revolutMerchantCreateGate;
+        private readonly IRevolutMerchantClient _merchant;
+        private readonly IConfiguration _configuration;
+        private readonly TimeProvider _clock;
 
         public ExtraGroupLocationService(
             ApplicationDbContext context,
             IPricebookCatalog pricebook,
-            IRevolutMerchantCreateGate revolutMerchantCreateGate
+            IRevolutMerchantCreateGate revolutMerchantCreateGate,
+            IRevolutMerchantClient merchant,
+            IConfiguration configuration,
+            TimeProvider clock
         )
         {
             _context = context;
             _pricebook = pricebook;
             _revolutMerchantCreateGate = revolutMerchantCreateGate;
+            _merchant = merchant;
+            _configuration = configuration;
+            _clock = clock;
         }
 
         public async Task<ExtraLocationResultDto?> SubmitAsync(
             int userId,
             int restaurantId,
-            string action
+            string action,
+            string? idempotencyKey = null
         )
         {
             var normalized = (action ?? string.Empty).Trim().ToLowerInvariant();
@@ -84,7 +99,7 @@ namespace TummlyBackend.Services
 
             if (normalized == "add")
             {
-                return SubmitAdd(account, restaurantId);
+                return await SubmitAddAsync(account, restaurant, idempotencyKey);
             }
 
             return await SubmitRemoveAsync(account, restaurantId);
@@ -96,100 +111,94 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            await using var transaction =
-                await _context.Database.BeginTransactionAsync(cancellationToken);
-            try
-            {
-                var account = await LockBillingAccountAsync(
-                    restaurantId,
-                    cancellationToken
-                );
-                if (account == null)
+            return await RunWithOptionalTransactionAsync(
+                async () =>
                 {
-                    await transaction.RollbackAsync(cancellationToken);
-                    return ExtraGroupLocationApplyResult.Fail("restaurant_not_found");
-                }
-
-                if (
-                    !string.Equals(
-                        account.SubscriptionPlan,
-                        BillingSubscriptionPlans.Group,
-                        StringComparison.Ordinal
-                    )
-                )
-                {
-                    await transaction.RollbackAsync(cancellationToken);
-                    return ExtraGroupLocationApplyResult.Fail(ExtraLocationNotGroupCode);
-                }
-
-                if (
-                    !string.Equals(
-                        account.BillingStatus,
-                        BillingStatuses.Active,
-                        StringComparison.Ordinal
-                    )
-                )
-                {
-                    await transaction.RollbackAsync(cancellationToken);
-                    return ExtraGroupLocationApplyResult.Fail(BillingStatusNotActiveCode);
-                }
-
-                if (!CanRaiseSelfServeCap(account.PaidExtraLocationCount))
-                {
-                    await transaction.RollbackAsync(cancellationToken);
-                    return ExtraGroupLocationApplyResult.Fail(
-                        GroupSelfServeMaxReachedCode
+                    var account = await LockBillingAccountAsync(
+                        restaurantId,
+                        cancellationToken
                     );
-                }
+                    if (account == null)
+                    {
+                        return ExtraGroupLocationApplyResult.Fail("restaurant_not_found");
+                    }
 
-                var currentBook = _pricebook.GetRequired(_pricebook.CurrentPricebookId);
-                var extrasMonthly = currentBook.ExtraLocationCreditsMonthly;
-                if (extrasMonthly == null)
-                {
-                    await transaction.RollbackAsync(cancellationToken);
-                    return ExtraGroupLocationApplyResult.Fail("extra_credits_missing");
-                }
+                    if (
+                        !string.Equals(
+                            account.SubscriptionPlan,
+                            BillingSubscriptionPlans.Group,
+                            StringComparison.Ordinal
+                        )
+                    )
+                    {
+                        return ExtraGroupLocationApplyResult.Fail(
+                            ExtraLocationNotGroupCode
+                        );
+                    }
 
-                var openPeriod = await FindOpenIncludedPeriodAsync(
-                    restaurantId,
-                    nowUtc,
-                    cancellationToken
-                );
+                    if (
+                        !string.Equals(
+                            account.BillingStatus,
+                            BillingStatuses.Active,
+                            StringComparison.Ordinal
+                        )
+                    )
+                    {
+                        return ExtraGroupLocationApplyResult.Fail(
+                            BillingStatusNotActiveCode
+                        );
+                    }
 
-                account.PaidExtraLocationCount += 1;
-                account.ContractedPricebookId = _pricebook.CurrentPricebookId;
-                account.ClearScheduledChangeSlot();
+                    if (!CanRaiseSelfServeCap(account.PaidExtraLocationCount))
+                    {
+                        return ExtraGroupLocationApplyResult.Fail(
+                            GroupSelfServeMaxReachedCode
+                        );
+                    }
 
-                var inserted = new List<Guid>();
-                if (openPeriod != null)
-                {
-                    var ratio = PlanMigrationMath.RemainingPeriodRatio(
-                        openPeriod.Value.Start,
-                        openPeriod.Value.End,
-                        nowUtc
+                    var currentBook = _pricebook.GetRequired(_pricebook.CurrentPricebookId);
+                    var extrasMonthly = currentBook.ExtraLocationCreditsMonthly;
+                    if (extrasMonthly == null)
+                    {
+                        return ExtraGroupLocationApplyResult.Fail("extra_credits_missing");
+                    }
+
+                    var openPeriod = await FindOpenIncludedPeriodAsync(
+                        restaurantId,
+                        nowUtc,
+                        cancellationToken
                     );
-                    inserted.AddRange(
-                        InsertPlanMigrationGrants(
-                            restaurantId,
-                            extrasMonthly,
-                            ratio,
+
+                    account.PaidExtraLocationCount += 1;
+                    account.ContractedPricebookId = _pricebook.CurrentPricebookId;
+                    account.ClearScheduledChangeSlot();
+
+                    var inserted = new List<Guid>();
+                    if (openPeriod != null)
+                    {
+                        var ratio = PlanMigrationMath.RemainingPeriodRatio(
                             openPeriod.Value.Start,
                             openPeriod.Value.End,
-                            _pricebook.CurrentPricebookId,
                             nowUtc
-                        )
-                    );
-                }
+                        );
+                        inserted.AddRange(
+                            InsertPlanMigrationGrants(
+                                restaurantId,
+                                extrasMonthly,
+                                ratio,
+                                openPeriod.Value.Start,
+                                openPeriod.Value.End,
+                                _pricebook.CurrentPricebookId,
+                                nowUtc
+                            )
+                        );
+                    }
 
-                await _context.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                return ExtraGroupLocationApplyResult.Ok(inserted);
-            }
-            catch
-            {
-                await transaction.RollbackAsync(cancellationToken);
-                throw;
-            }
+                    await _context.SaveChangesAsync(cancellationToken);
+                    return ExtraGroupLocationApplyResult.Ok(inserted);
+                },
+                cancellationToken
+            );
         }
 
         public async Task<ExtraGroupLocationApplyResult> ApplyScheduledRemoveAsync(
@@ -198,70 +207,96 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            await using var transaction =
-                await _context.Database.BeginTransactionAsync(cancellationToken);
-            try
+            string? subscriptionId = null;
+            string? cadenceApi = null;
+
+            var result = await RunWithOptionalTransactionAsync(
+                async () =>
+                {
+                    var account = await LockBillingAccountAsync(
+                        restaurantId,
+                        cancellationToken
+                    );
+                    if (account == null)
+                    {
+                        return ExtraGroupLocationApplyResult.Fail("restaurant_not_found");
+                    }
+
+                    if (
+                        !account.HasScheduledChange
+                        || account.ScheduledCancelPlan
+                        || account.ScheduledTargetExtraLocationCount == null
+                    )
+                    {
+                        return ExtraGroupLocationApplyResult.Fail("scheduled_change_empty");
+                    }
+
+                    var targetExtra = account.ScheduledTargetExtraLocationCount.Value;
+                    if (targetExtra < 0 || targetExtra >= account.PaidExtraLocationCount)
+                    {
+                        return ExtraGroupLocationApplyResult.Fail("invalid_scheduled_extra");
+                    }
+
+                    if (
+                        !await ReducingChangeGatesPassAsync(
+                            account,
+                            targetExtra,
+                            cancellationToken
+                        )
+                    )
+                    {
+                        return ExtraGroupLocationApplyResult.Fail("apply_gate_failed");
+                    }
+
+                    // Extra remove: decrement by 1. No credit clawback this period.
+                    account.PaidExtraLocationCount = Math.Max(
+                        0,
+                        account.PaidExtraLocationCount - 1
+                    );
+                    account.ClearScheduledChangeSlot();
+
+                    if (
+                        account.PaidExtraLocationCount == 0
+                    )
+                    {
+                        subscriptionId =
+                            await RevolutSubscriptionCorrelation.ResolveLatestSubscriptionIdAsync(
+                                _context,
+                                restaurantId,
+                                cancellationToken
+                            );
+                        cadenceApi = CadenceApi(account.BillingCycle);
+                    }
+
+                    await _context.SaveChangesAsync(cancellationToken);
+                    return ExtraGroupLocationApplyResult.Ok();
+                },
+                cancellationToken
+            );
+
+            if (
+                result.Succeeded
+                && !string.IsNullOrWhiteSpace(subscriptionId)
+                && cadenceApi != null
+            )
             {
-                var account = await LockBillingAccountAsync(
-                    restaurantId,
+                await TryChangePlanAtCycleEndAsync(
+                    subscriptionId,
+                    RevolutPlanVariationKeys.ForPlanCadence(
+                        BillingSubscriptionPlans.Group,
+                        cadenceApi
+                    )!,
                     cancellationToken
                 );
-                if (account == null)
-                {
-                    await transaction.RollbackAsync(cancellationToken);
-                    return ExtraGroupLocationApplyResult.Fail("restaurant_not_found");
-                }
-
-                if (
-                    !account.HasScheduledChange
-                    || account.ScheduledCancelPlan
-                    || account.ScheduledTargetExtraLocationCount == null
-                )
-                {
-                    await transaction.RollbackAsync(cancellationToken);
-                    return ExtraGroupLocationApplyResult.Fail("scheduled_change_empty");
-                }
-
-                var targetExtra = account.ScheduledTargetExtraLocationCount.Value;
-                if (targetExtra < 0 || targetExtra >= account.PaidExtraLocationCount)
-                {
-                    await transaction.RollbackAsync(cancellationToken);
-                    return ExtraGroupLocationApplyResult.Fail("invalid_scheduled_extra");
-                }
-
-                if (
-                    !await ReducingChangeGatesPassAsync(
-                        account,
-                        targetExtra,
-                        cancellationToken
-                    )
-                )
-                {
-                    await transaction.RollbackAsync(cancellationToken);
-                    return ExtraGroupLocationApplyResult.Fail("apply_gate_failed");
-                }
-
-                // Extra remove: decrement by 1. No credit clawback this period.
-                account.PaidExtraLocationCount = Math.Max(
-                    0,
-                    account.PaidExtraLocationCount - 1
-                );
-                account.ClearScheduledChangeSlot();
-
-                await _context.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                return ExtraGroupLocationApplyResult.Ok();
             }
-            catch
-            {
-                await transaction.RollbackAsync(cancellationToken);
-                throw;
-            }
+
+            return result;
         }
 
-        private ExtraLocationResultDto SubmitAdd(
+        private async Task<ExtraLocationResultDto> SubmitAddAsync(
             BillingAccount account,
-            int restaurantId
+            Restaurant restaurant,
+            string? idempotencyKey
         )
         {
             RequireActiveBillingStatus(account);
@@ -281,13 +316,12 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var cadenceApi = string.Equals(
-                account.BillingCycle,
-                "Annual",
-                StringComparison.OrdinalIgnoreCase
-            )
-                ? "annual"
-                : "monthly";
+            if (string.IsNullOrWhiteSpace(account.RevolutCustomerId))
+            {
+                throw new ExtraGroupLocationException(RevolutCustomerRequiredCode);
+            }
+
+            var cadenceApi = CadenceApi(account.BillingCycle);
             var lookupKey = RevolutPlanVariationKeys.ForExtraLocation(cadenceApi);
             var gateCode = _revolutMerchantCreateGate.Evaluate(lookupKey);
             if (gateCode != null)
@@ -295,11 +329,114 @@ namespace TummlyBackend.Services
                 throw new ExtraGroupLocationException(gateCode);
             }
 
+            var nowUtc = _clock.GetUtcNow().UtcDateTime;
+            var amounts = await ComputeProratedAmountsAsync(
+                account,
+                cadenceApi,
+                nowUtc
+            );
+
+            var locationId = await ResolveLocationIdAsync(restaurant.Id);
+            var successRedirectUrl = BuildPlanSubscriptionRedirectUrl(
+                restaurant.AccountType,
+                locationId
+            );
+
+            var subscriptionId =
+                await RevolutSubscriptionCorrelation.ResolveLatestSubscriptionIdAsync(
+                    _context,
+                    restaurant.Id
+                ) ?? string.Empty;
+
+            RevolutMerchantCreateResult created;
+            try
+            {
+                created = await _merchant.CreateOrderAsync(
+                    new RevolutCreateOrderRequest(
+                        AmountMinor: amounts.GrossAmountMinor,
+                        Currency: "GBP",
+                        PlanVariationLookupKey: lookupKey,
+                        CustomerId: account.RevolutCustomerId,
+                        RedirectUrl: successRedirectUrl,
+                        Description: "Additional Group Location",
+                        LineItems:
+                        [
+                            new RevolutOrderLineItem(
+                                Name: "Additional Group Location",
+                                UnitPriceAmount: amounts.NetAmountMinor,
+                                Quantity: 1,
+                                TotalAmount: amounts.GrossAmountMinor,
+                                Taxes:
+                                [
+                                    new RevolutOrderLineItemTax(
+                                        Name: "VAT",
+                                        Percentage: "20.00",
+                                        Amount: amounts.VatAmountMinor
+                                    ),
+                                ]
+                            ),
+                        ]
+                    )
+                );
+            }
+            catch (RevolutMerchantNotReadyException ex)
+            {
+                throw new ExtraGroupLocationException(ex.Code);
+            }
+
+            if (!created.Succeeded || string.IsNullOrWhiteSpace(created.Id))
+            {
+                throw new ExtraGroupLocationException(
+                    created.ErrorCode ?? "revolut_http_error"
+                );
+            }
+
+            var checkoutUrl = created.CheckoutUrl;
+            if (string.IsNullOrWhiteSpace(checkoutUrl))
+            {
+                var order = await _merchant.GetOrderAsync(created.Id);
+                if (
+                    !order.Succeeded
+                    || string.IsNullOrWhiteSpace(order.CheckoutUrl)
+                )
+                {
+                    throw new ExtraGroupLocationException(
+                        order.ErrorCode ?? "revolut_http_error"
+                    );
+                }
+
+                checkoutUrl = order.CheckoutUrl;
+            }
+
+            _context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = created.Id.Trim(),
+                    RestaurantId = restaurant.Id,
+                    Purpose = RevolutOrderIntentPurposes.ExtraLocation,
+                    TargetPlan = BillingSubscriptionPlans.Group,
+                    TargetCadence = cadenceApi,
+                    RevolutSubscriptionId = subscriptionId,
+                    CheckoutUrl = checkoutUrl,
+                    IdempotencyKey = string.IsNullOrWhiteSpace(idempotencyKey)
+                        ? Guid.NewGuid().ToString("D")
+                        : idempotencyKey.Trim(),
+                    IsOpen = true,
+                    NetAmountMinor = amounts.NetAmountMinor,
+                    VatAmountMinor = amounts.VatAmountMinor,
+                    GrossAmountMinor = amounts.GrossAmountMinor,
+                    TargetPaidExtraLocationCount =
+                        account.PaidExtraLocationCount + 1,
+                    CreatedAtUtc = nowUtc,
+                }
+            );
+            await _context.SaveChangesAsync();
+
             return new ExtraLocationResultDto
             {
                 Outcome = "pay",
-                RedirectUrl =
-                    $"https://checkout.revolut.com/pay/example/{restaurantId}/extra-location",
+                RedirectUrl = checkoutUrl,
             };
         }
 
@@ -328,13 +465,181 @@ namespace TummlyBackend.Services
             account.ScheduledCancelPlan = false;
             await _context.SaveChangesAsync();
 
-            var renewalLabel = "15 September 2026";
+            // When the scheduled remove lands at 0 extras, tell Revolut to drop
+            // the add-on SKU at cycle end (binary Group vs GroupLocation map).
+            if (targetExtra == 0)
+            {
+                var subscriptionId =
+                    await RevolutSubscriptionCorrelation.ResolveLatestSubscriptionIdAsync(
+                        _context,
+                        restaurantId
+                    );
+                var cadenceApi = CadenceApi(account.BillingCycle);
+                var baseKey = RevolutPlanVariationKeys.ForPlanCadence(
+                    BillingSubscriptionPlans.Group,
+                    cadenceApi
+                );
+                if (
+                    !string.IsNullOrWhiteSpace(subscriptionId)
+                    && baseKey != null
+                )
+                {
+                    await TryChangePlanAtCycleEndAsync(subscriptionId, baseKey);
+                }
+            }
+
+            var renewalLabel = FormatRenewalLabel(account.RenewalDateUtc);
             return new ExtraLocationResultDto
             {
                 Outcome = "scheduled",
                 ScheduledChangeLine =
                     $"Removes 1 Additional Group Location on {renewalLabel}",
             };
+        }
+
+        private async Task<(
+            int NetAmountMinor,
+            int VatAmountMinor,
+            int GrossAmountMinor
+        )> ComputeProratedAmountsAsync(
+            BillingAccount account,
+            string cadenceApi,
+            DateTime nowUtc
+        )
+        {
+            var book = _pricebook.GetRequired(account.ContractedPricebookId);
+            var annual = string.Equals(
+                cadenceApi,
+                "annual",
+                StringComparison.OrdinalIgnoreCase
+            );
+            var periodNet = annual
+                ? book.ExtraGroupLocationAnnualNetPence
+                    ?? book.ExtraGroupLocationMonthlyNetPence
+                : book.ExtraGroupLocationMonthlyNetPence;
+            if (periodNet == null || periodNet.Value < 0)
+            {
+                throw new ExtraGroupLocationException("extra_location_price_missing");
+            }
+
+            var ratio = 1m;
+            var openPeriod = await FindOpenIncludedPeriodAsync(
+                account.RestaurantId,
+                nowUtc
+            );
+            if (openPeriod != null)
+            {
+                ratio = PlanMigrationMath.RemainingPeriodRatio(
+                    openPeriod.Value.Start,
+                    openPeriod.Value.End,
+                    nowUtc
+                );
+            }
+            else if (
+                account.RenewalDateUtc is DateTime renewal
+                && renewal > nowUtc
+            )
+            {
+                var periodStart = annual
+                    ? renewal.AddMonths(-12)
+                    : renewal.AddMonths(-1);
+                if (periodStart < nowUtc)
+                {
+                    ratio = PlanMigrationMath.RemainingPeriodRatio(
+                        periodStart,
+                        renewal,
+                        nowUtc
+                    );
+                }
+            }
+
+            var net = (int)
+                decimal.Round(
+                    periodNet.Value * ratio,
+                    0,
+                    MidpointRounding.AwayFromZero
+                );
+            var gross = TummlyVatMath.GrossMinorFromNetPence(net, book.VatRateBps);
+            return (net, gross - net, gross);
+        }
+
+        private async Task TryChangePlanAtCycleEndAsync(
+            string subscriptionId,
+            string planVariationLookupKey,
+            CancellationToken cancellationToken = default
+        )
+        {
+            try
+            {
+                await _merchant.ChangeSubscriptionPlanAsync(
+                    subscriptionId,
+                    planVariationLookupKey,
+                    cancellationToken
+                );
+            }
+            catch (RevolutMerchantNotReadyException)
+            {
+                // Schedule / ledger already committed; gate miss is non-fatal here.
+            }
+        }
+
+        private string BuildPlanSubscriptionRedirectUrl(
+            string restaurantAccountType,
+            int locationId
+        )
+        {
+            var baseUrl = _configuration["Frontend:BaseUrl"]?.Trim().TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(baseUrl))
+            {
+                throw new InvalidOperationException(
+                    "Frontend:BaseUrl is not configured."
+                );
+            }
+
+            var root = string.Equals(
+                restaurantAccountType,
+                "Multi",
+                StringComparison.Ordinal
+            )
+                ? "/multi-dashboard"
+                : "/single-dashboard";
+
+            return $"{baseUrl}{root}/settings/billing-credits?location={locationId}&tab=plan-subscription";
+        }
+
+        private async Task<int> ResolveLocationIdAsync(int restaurantId)
+        {
+            var locationId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurantId)
+                .OrderBy(row => row.Id)
+                .Select(row => row.Id)
+                .FirstOrDefaultAsync();
+            return locationId == 0 ? restaurantId : locationId;
+        }
+
+        private static string CadenceApi(string? billingCycle)
+        {
+            return string.Equals(
+                billingCycle,
+                BillingCycles.Annual,
+                StringComparison.OrdinalIgnoreCase
+            )
+                ? "annual"
+                : "monthly";
+        }
+
+        private static string FormatRenewalLabel(DateTime? renewalDateUtc)
+        {
+            if (renewalDateUtc == null)
+            {
+                return "renewal";
+            }
+
+            var utc = renewalDateUtc.Value.Kind == DateTimeKind.Utc
+                ? renewalDateUtc.Value
+                : DateTime.SpecifyKind(renewalDateUtc.Value, DateTimeKind.Utc);
+            return utc.ToString("d MMMM yyyy");
         }
 
         private static void RequireActiveBillingStatus(BillingAccount account)
@@ -428,7 +733,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            var now = DateTime.UtcNow;
+            var now = _clock.GetUtcNow().UtcDateTime;
             var active = await _context.RestaurantMemberships.CountAsync(
                 row =>
                     row.RestaurantId == restaurantId
@@ -511,7 +816,7 @@ namespace TummlyBackend.Services
         private async Task<(DateTime Start, DateTime End)?> FindOpenIncludedPeriodAsync(
             int restaurantId,
             DateTime nowUtc,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken = default
         )
         {
             var rows = await _context.CreditLedgerEntries
@@ -537,6 +842,57 @@ namespace TummlyBackend.Services
             }
 
             return (rows.PeriodStartUtc.Value, rows.ExpiresAtUtc.Value);
+        }
+
+        private async Task<ExtraGroupLocationApplyResult> RunWithOptionalTransactionAsync(
+            Func<Task<ExtraGroupLocationApplyResult>> action,
+            CancellationToken cancellationToken
+        )
+        {
+            var ambient = _context.Database.CurrentTransaction;
+            var ownsTransaction = ambient == null;
+            IDbContextTransaction? owned = null;
+            if (ownsTransaction)
+            {
+                owned = await _context.Database.BeginTransactionAsync(
+                    IsolationLevel.ReadCommitted,
+                    cancellationToken
+                );
+            }
+
+            try
+            {
+                var result = await action();
+                if (ownsTransaction && owned != null)
+                {
+                    if (result.Succeeded)
+                    {
+                        await owned.CommitAsync(cancellationToken);
+                    }
+                    else
+                    {
+                        await owned.RollbackAsync(cancellationToken);
+                    }
+                }
+
+                return result;
+            }
+            catch
+            {
+                if (ownsTransaction && owned != null)
+                {
+                    await owned.RollbackAsync(cancellationToken);
+                }
+
+                throw;
+            }
+            finally
+            {
+                if (owned != null)
+                {
+                    await owned.DisposeAsync();
+                }
+            }
         }
 
         private async Task<BillingAccount?> LockBillingAccountAsync(

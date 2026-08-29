@@ -12,6 +12,8 @@ namespace TummlyBackend.Billing.Pricebook
 
         public int? ExtraGroupLocationMonthlyNetPence { get; init; }
 
+        public int? ExtraGroupLocationAnnualNetPence { get; init; }
+
         /// <summary>Per extra Group Location monthly credits (pack additional_group_location).</summary>
         public PricebookChannelCredits? ExtraLocationCreditsMonthly { get; init; }
 

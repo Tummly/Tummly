@@ -6,9 +6,9 @@ using TummlyBackend.Models;
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// ORDER_COMPLETED apply for setup/cycle mint (ticket 16) and
-    /// plan_upgrade_proration (ticket 20 / lock 04). Runs inside the webhook
-    /// claim transaction.
+    /// ORDER_COMPLETED apply for setup/cycle mint (ticket 16),
+    /// plan_upgrade_proration (ticket 20), and extra_location (ticket 22).
+    /// Runs inside the webhook claim transaction.
     /// </summary>
     public sealed class RevolutOrderCompletedApplier : IRevolutOrderCompletedApplier
     {
@@ -22,6 +22,7 @@ namespace TummlyBackend.Services
         private readonly IIncludedPeriodMintService _mint;
         private readonly ITummlyVatInvoiceService _vatInvoices;
         private readonly IPlanChangeService _planChange;
+        private readonly IExtraGroupLocationService _extraGroupLocation;
         private readonly IRevolutMerchantClient _merchant;
         private readonly TimeProvider _clock;
 
@@ -30,6 +31,7 @@ namespace TummlyBackend.Services
             IIncludedPeriodMintService mint,
             ITummlyVatInvoiceService vatInvoices,
             IPlanChangeService planChange,
+            IExtraGroupLocationService extraGroupLocation,
             IRevolutMerchantClient merchant,
             TimeProvider clock
         )
@@ -38,6 +40,7 @@ namespace TummlyBackend.Services
             _mint = mint;
             _vatInvoices = vatInvoices;
             _planChange = planChange;
+            _extraGroupLocation = extraGroupLocation;
             _merchant = merchant;
             _clock = clock;
         }
@@ -81,6 +84,19 @@ namespace TummlyBackend.Services
                     intent,
                     cancellationToken
                 );
+                return;
+            }
+
+            if (
+                intent != null
+                && string.Equals(
+                    intent.Purpose,
+                    RevolutOrderIntentPurposes.ExtraLocation,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                await ApplyExtraLocationAsync(intent, cancellationToken);
                 return;
             }
 
@@ -287,6 +303,79 @@ namespace TummlyBackend.Services
             billingAccount.DormantEnteredAt = null;
             billingAccount.PilotSoftLockNotified = false;
             billingAccount.PilotDormantNotified = false;
+        }
+
+        private async Task ApplyExtraLocationAsync(
+            RevolutOrderIntent intent,
+            CancellationToken cancellationToken
+        )
+        {
+            var nowUtc = _clock.GetUtcNow().UtcDateTime;
+            var apply = await _extraGroupLocation.ApplyAddOnOrderCompletedAsync(
+                intent.RestaurantId,
+                nowUtc,
+                cancellationToken
+            );
+            if (!apply.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    apply.Code ?? "extra_location_apply_failed"
+                );
+            }
+
+            var subscriptionId = intent.RevolutSubscriptionId;
+            if (string.IsNullOrWhiteSpace(subscriptionId))
+            {
+                subscriptionId =
+                    await RevolutSubscriptionCorrelation.ResolveLatestSubscriptionIdAsync(
+                        _context,
+                        intent.RestaurantId,
+                        cancellationToken
+                    ) ?? string.Empty;
+            }
+
+            var cadenceApi = string.IsNullOrWhiteSpace(intent.TargetCadence)
+                ? "monthly"
+                : intent.TargetCadence.Trim().ToLowerInvariant();
+            var lookupKey = RevolutPlanVariationKeys.ForExtraLocation(cadenceApi);
+            if (!string.IsNullOrWhiteSpace(subscriptionId))
+            {
+                var change = await _merchant.ChangeSubscriptionPlanAsync(
+                    subscriptionId,
+                    lookupKey,
+                    cancellationToken
+                );
+                if (!change.Succeeded)
+                {
+                    throw new InvalidOperationException(
+                        change.ErrorCode ?? "revolut_http_error"
+                    );
+                }
+            }
+
+            await _vatInvoices.MintForCompletedOrderAsync(
+                new TummlyVatInvoiceMintRequest(
+                    RevolutOrderId: intent.OrderId,
+                    RevolutSubscriptionId: string.IsNullOrWhiteSpace(subscriptionId)
+                        ? null
+                        : subscriptionId,
+                    RestaurantId: intent.RestaurantId,
+                    Plan: BillingSubscriptionPlans.Group,
+                    BillingCycle: CadenceToBillingCycle(cadenceApi),
+                    PaymentSuccessUtc: nowUtc,
+                    NetPenceOverride: intent.NetAmountMinor > 0
+                        ? intent.NetAmountMinor
+                        : null,
+                    LineDescriptionOverride: "Additional Group Location"
+                ),
+                cancellationToken
+            );
+
+            if (intent.IsOpen)
+            {
+                intent.IsOpen = false;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
         }
 
         private static (

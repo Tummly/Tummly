@@ -216,18 +216,25 @@ namespace TummlyBackend.Services
                     row => row.OrderId == orderId,
                     cancellationToken
                 );
-            var isPlanUpgrade =
+            var isOneTimeIntent =
                 intent != null
-                && string.Equals(
-                    intent.Purpose,
-                    RevolutOrderIntentPurposes.PlanUpgradeProration,
-                    StringComparison.Ordinal
+                && (
+                    string.Equals(
+                        intent.Purpose,
+                        RevolutOrderIntentPurposes.PlanUpgradeProration,
+                        StringComparison.Ordinal
+                    )
+                    || string.Equals(
+                        intent.Purpose,
+                        RevolutOrderIntentPurposes.ExtraLocation,
+                        StringComparison.Ordinal
+                    )
                 );
 
             var reason = retrieved.BillingReason?.Trim() ?? string.Empty;
             var isMintable =
                 RevolutOrderCompletedApplier.IsMintableBillingReason(reason);
-            var disposition = isPlanUpgrade || isMintable
+            var disposition = isOneTimeIntent || isMintable
                 ? RevolutWebhookClaimDispositions.Applied
                 : RevolutOrderCompletedApplier.IsFinalSettlement(reason)
                     ? RevolutWebhookClaimDispositions.Recorded
@@ -276,7 +283,7 @@ namespace TummlyBackend.Services
                         orderId
                     );
                 }
-                else if (isPlanUpgrade || isMintable)
+                else if (isOneTimeIntent || isMintable)
                 {
                     await _applier.ApplyAsync(
                         new RevolutOrderCompletedApplyRequest(
@@ -295,7 +302,7 @@ namespace TummlyBackend.Services
                 await _context.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
-                if (isMintable)
+                if (isMintable || isOneTimeIntent)
                 {
                     await TryPatchMerchantInvoiceReferenceAsync(
                         orderId,

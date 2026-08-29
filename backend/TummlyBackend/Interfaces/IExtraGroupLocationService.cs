@@ -7,7 +7,8 @@ namespace TummlyBackend.Interfaces
         Task<ExtraLocationResultDto?> SubmitAsync(
             int userId,
             int restaurantId,
-            string action
+            string action,
+            string? idempotencyKey = null
         );
 
         /// <summary>

@@ -292,6 +292,70 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Apply_ExtraLocation_AppliesAddOnChangePlanAndMintsTm()
+        {
+            await using var context = CreateContext();
+            var account = await SeedActiveGroupAsync(context);
+            var merchant = new RecordingChangePlanMerchant();
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock, merchant);
+
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_extra",
+                    RestaurantId = account.RestaurantId,
+                    Purpose = RevolutOrderIntentPurposes.ExtraLocation,
+                    TargetPlan = BillingSubscriptionPlans.Group,
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = "sub_extra",
+                    CheckoutUrl = "https://checkout.revolut.test/extra",
+                    IdempotencyKey = "extra-1",
+                    IsOpen = true,
+                    NetAmountMinor = 2000,
+                    VatAmountMinor = 400,
+                    GrossAmountMinor = 2400,
+                    TargetPaidExtraLocationCount = 1,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_extra",
+                    OrderState: "completed",
+                    BillingReason: null,
+                    SubscriptionId: "sub_extra",
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            await context.Entry(account).ReloadAsync();
+            Assert.Equal(1, account.PaidExtraLocationCount);
+            Assert.Equal(1, merchant.ChangePlanCallCount);
+            Assert.Equal(
+                RevolutPlanVariationKeys.GroupLocationMonthly,
+                merchant.LastLookupKey
+            );
+            Assert.Equal(
+                1,
+                await context.TummlyVatInvoices.CountAsync(row =>
+                    row.RevolutOrderId == "ord_extra"
+                )
+            );
+            Assert.False(
+                await context.RevolutOrderIntents
+                    .Where(row => row.OrderId == "ord_extra")
+                    .Select(row => row.IsOpen)
+                    .SingleAsync()
+            );
+        }
+
+        [Fact]
         public async Task Apply_WithoutIntent_FallsThroughToBillingReasonPath()
         {
             await using var context = CreateContext();
@@ -425,6 +489,21 @@ namespace TummlyBackend.Tests.Services
             return account;
         }
 
+        private async Task<BillingAccount> SeedActiveGroupAsync(
+            ApplicationDbContext context
+        )
+        {
+            var (account, _) = await SeedPilotAccountAsync(context);
+            account.SubscriptionPlan = BillingSubscriptionPlans.Group;
+            account.BillingStatus = BillingStatuses.Active;
+            account.BillingCycle = BillingCycles.Monthly;
+            account.RenewalDateUtc = _now.Date.AddMonths(1);
+            account.RevolutCustomerId = "cust_group";
+            account.PaidExtraLocationCount = 0;
+            await context.SaveChangesAsync();
+            return account;
+        }
+
         private RevolutOrderCompletedApplier CreateApplier(
             ApplicationDbContext context,
             IIncludedPeriodMintService mint,
@@ -437,6 +516,21 @@ namespace TummlyBackend.Tests.Services
                 mint,
                 CreateVatService(context),
                 new PlanChangeService(context, _pricebook, clock),
+                new ExtraGroupLocationService(
+                    context,
+                    _pricebook,
+                    new AlwaysReadyRevolutMerchantCreateGate(),
+                    merchant ?? new RecordingLandMerchant(),
+                    new ConfigurationBuilder()
+                        .AddInMemoryCollection(
+                            new Dictionary<string, string?>
+                            {
+                                ["Frontend:BaseUrl"] = "https://app.test",
+                            }
+                        )
+                        .Build(),
+                    clock
+                ),
                 merchant ?? new RecordingLandMerchant(),
                 clock
             );

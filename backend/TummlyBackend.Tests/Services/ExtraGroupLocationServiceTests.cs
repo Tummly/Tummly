@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
@@ -15,6 +16,81 @@ namespace TummlyBackend.Tests.Services
         private readonly string _databaseName = Guid.NewGuid().ToString();
         private readonly IPricebookCatalog _pricebook =
             PricebookCatalog.LoadFromDirectory(PackDirectory());
+
+        [Fact]
+        public async Task SubmitAdd_CreatesOrderIntent_AndReturnsCheckoutUrl()
+        {
+            var harness = await SeedGroupAsync(paidExtra: 0);
+            var merchant = new FakeFirstPaidRevolutMerchantClient();
+            var service = new ExtraGroupLocationService(
+                harness.Context,
+                _pricebook,
+                new AlwaysReadyRevolutMerchantCreateGate(),
+                merchant,
+                new ConfigurationBuilder()
+                    .AddInMemoryCollection(
+                        new Dictionary<string, string?>
+                        {
+                            ["Frontend:BaseUrl"] = "https://tummly.example",
+                        }
+                    )
+                    .Build(),
+                TimeProvider.System
+            );
+
+            var result = await service.SubmitAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId,
+                "add"
+            );
+
+            Assert.NotNull(result);
+            Assert.Equal("pay", result!.Outcome);
+            Assert.Equal(FakeFirstPaidRevolutMerchantClient.CheckoutUrl, result.RedirectUrl);
+            Assert.Equal(1, merchant.CreateOrderCallCount);
+            Assert.Equal(
+                RevolutPlanVariationKeys.GroupLocationMonthly,
+                merchant.LastCreateOrderRequest!.PlanVariationLookupKey
+            );
+
+            var intent = await harness.Context.RevolutOrderIntents.SingleAsync();
+            Assert.Equal(RevolutOrderIntentPurposes.ExtraLocation, intent.Purpose);
+            Assert.Equal("cust_extra_seed", merchant.LastCreateOrderRequest!.CustomerId);
+            Assert.StartsWith("ord_pm_", intent.OrderId);
+            Assert.Equal(1, intent.TargetPaidExtraLocationCount);
+        }
+
+        [Fact]
+        public async Task SubmitRemove_DoesNotCreateOrder()
+        {
+            var harness = await SeedGroupAsync(paidExtra: 2, locationCount: 5);
+            var merchant = new FakeFirstPaidRevolutMerchantClient();
+            var service = new ExtraGroupLocationService(
+                harness.Context,
+                _pricebook,
+                new AlwaysReadyRevolutMerchantCreateGate(),
+                merchant,
+                new ConfigurationBuilder()
+                    .AddInMemoryCollection(
+                        new Dictionary<string, string?>
+                        {
+                            ["Frontend:BaseUrl"] = "https://tummly.example",
+                        }
+                    )
+                    .Build(),
+                TimeProvider.System
+            );
+
+            var result = await service.SubmitAsync(
+                harness.OwnerUserId,
+                harness.RestaurantId,
+                "remove"
+            );
+
+            Assert.NotNull(result);
+            Assert.Equal("scheduled", result!.Outcome);
+            Assert.Equal(0, merchant.CreateOrderCallCount);
+        }
 
         [Fact]
         public async Task ApplyAddOnOrderCompleted_16Of31_GrantsExtraAddFloorQuantities()
@@ -209,6 +285,16 @@ namespace TummlyBackend.Tests.Services
             account.BillingCycle = BillingCycles.Monthly;
             account.BillingStatus = BillingStatuses.Active;
             account.PaidExtraLocationCount = paidExtra;
+            account.RevolutCustomerId = "cust_extra_seed";
+            account.RenewalDateUtc = new DateTime(
+                2026,
+                9,
+                15,
+                0,
+                0,
+                0,
+                DateTimeKind.Utc
+            );
             context.BillingAccounts.Add(account);
 
             for (var i = 0; i < locationCount; i++)
@@ -242,7 +328,17 @@ namespace TummlyBackend.Tests.Services
                 new ExtraGroupLocationService(
                     context,
                     _pricebook,
-                    new AlwaysReadyRevolutMerchantCreateGate()
+                    new AlwaysReadyRevolutMerchantCreateGate(),
+                    new FakeFirstPaidRevolutMerchantClient(),
+                    new ConfigurationBuilder()
+                        .AddInMemoryCollection(
+                            new Dictionary<string, string?>
+                            {
+                                ["Frontend:BaseUrl"] = "https://tummly.example",
+                            }
+                        )
+                        .Build(),
+                    TimeProvider.System
                 ),
                 restaurant.Id,
                 owner.Id

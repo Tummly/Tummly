@@ -267,6 +267,7 @@ namespace TummlyBackend.Billing.Pricebook
             }
 
             int? extraMonthly = null;
+            int? extraAnnual = null;
             PricebookChannelCredits? extraCreditsMonthly = null;
             if (
                 plansElement.TryGetProperty(
@@ -276,6 +277,11 @@ namespace TummlyBackend.Billing.Pricebook
             )
             {
                 extraMonthly = extra.GetProperty("monthly_price_pence").GetInt32();
+                if (extra.TryGetProperty("annual_price_pence", out var annualExtra))
+                {
+                    extraAnnual = annualExtra.GetInt32();
+                }
+
                 if (extra.TryGetProperty("credits_monthly_added", out var extraCredits))
                 {
                     extraCreditsMonthly = BindCredits(extraCredits);
@@ -291,6 +297,7 @@ namespace TummlyBackend.Billing.Pricebook
                 TopUpPacks = topUps,
                 VatRateBps = vatRateBps,
                 ExtraGroupLocationMonthlyNetPence = extraMonthly,
+                ExtraGroupLocationAnnualNetPence = extraAnnual,
                 ExtraLocationCreditsMonthly = extraCreditsMonthly,
                 InternalCostAssumptions = null,
                 PaymentProvider = null,

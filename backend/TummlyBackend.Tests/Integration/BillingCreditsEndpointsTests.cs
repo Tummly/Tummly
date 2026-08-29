@@ -1012,6 +1012,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task PostExtraLocationAdd_ReturnsPayRedirect_ForOwnerGroup()
         {
             var seeded = await SeedGroupWorkspaceAsync();
+            var createOrdersBefore = _factory.Merchant.CreateOrderCallCount;
             using var request = AuthorizedExtraLocation(
                 seeded.OwnerJwt,
                 "add",
@@ -1022,10 +1023,46 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             Assert.Equal("pay", body.GetProperty("outcome").GetString());
-            Assert.Contains(
-                "checkout.revolut.com",
+            Assert.Equal(
+                FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
                 body.GetProperty("redirectUrl").GetString()
             );
+            Assert.Equal(createOrdersBefore + 1, _factory.Merchant.CreateOrderCallCount);
+            Assert.NotNull(_factory.Merchant.LastCreateOrderRequest);
+            Assert.Equal(
+                "cust_group_extra",
+                _factory.Merchant.LastCreateOrderRequest!.CustomerId
+            );
+        }
+
+        [Fact]
+        public async Task PostExtraLocationRemove_Schedules_ForOwnerGroup()
+        {
+            var seeded = await SeedGroupWorkspaceAsync(paidExtraLocationCount: 2);
+            var createOrdersBefore = _factory.Merchant.CreateOrderCallCount;
+            using var request = AuthorizedExtraLocation(
+                seeded.OwnerJwt,
+                "remove",
+                withIdempotencyKey: false
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("scheduled", body.GetProperty("outcome").GetString());
+            Assert.Contains(
+                "Removes 1 Additional Group Location",
+                body.GetProperty("scheduledChangeLine").GetString()
+            );
+            Assert.Equal(createOrdersBefore, _factory.Merchant.CreateOrderCallCount);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var account = await context.BillingAccounts.SingleAsync(row =>
+                row.RestaurantId == seeded.RestaurantId
+            );
+            Assert.True(account.HasScheduledChange);
+            Assert.Equal(1, account.ScheduledTargetExtraLocationCount);
+            Assert.Equal(2, account.PaidExtraLocationCount);
         }
 
         [Fact]
@@ -1090,34 +1127,6 @@ namespace TummlyBackend.Tests.Integration
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        }
-
-        [Fact]
-        public async Task PostExtraLocationRemove_Schedules_ForOwnerGroup()
-        {
-            var seeded = await SeedGroupWorkspaceAsync(paidExtraLocationCount: 2);
-            using var request = AuthorizedExtraLocation(
-                seeded.OwnerJwt,
-                "remove",
-                withIdempotencyKey: false
-            );
-            var response = await _client.SendAsync(request);
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            var body = await ReadJsonAsync(response);
-            Assert.Equal("scheduled", body.GetProperty("outcome").GetString());
-            Assert.Contains(
-                "Removes 1 Additional Group Location",
-                body.GetProperty("scheduledChangeLine").GetString()
-            );
-
-            using var scope = _factory.Services.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var account = await context.BillingAccounts.SingleAsync(row =>
-                row.RestaurantId == seeded.RestaurantId
-            );
-            Assert.True(account.HasScheduledChange);
-            Assert.Equal(1, account.ScheduledTargetExtraLocationCount);
-            Assert.Equal(2, account.PaidExtraLocationCount);
         }
 
         [Fact]
@@ -1294,6 +1303,7 @@ namespace TummlyBackend.Tests.Integration
 
             var account = CreateSeedBillingAccount(restaurant.Id, restaurant.Name);
             account.PaidExtraLocationCount = paidExtraLocationCount;
+            account.RevolutCustomerId = "cust_group_extra";
             context.BillingAccounts.Add(account);
 
             owner.SelectedRestaurantId = restaurant.Id;
