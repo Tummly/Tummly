@@ -127,6 +127,7 @@ namespace TummlyBackend.Tests.Services
                 new ThrowingFirstPaidConversionPaySession(),
                 new ThrowingSameCadenceUpgradePaySession(),
                 new ThrowingPaymentMethodUpdatePaySession(),
+                new ThrowingCreditTopUpPaySession(),
                 new EmptyTummlyVatInvoiceService(),
                 new NoOpCycleEndPlanChange()
             );
@@ -219,6 +220,23 @@ namespace TummlyBackend.Tests.Services
             {
                 throw new NotImplementedException(
                     "Payment method update is not under test here."
+                );
+            }
+        }
+
+        private sealed class ThrowingCreditTopUpPaySession : ICreditTopUpPaySession
+        {
+            public Task<string> StartAsync(
+                BillingAccount billingAccount,
+                string restaurantAccountType,
+                int locationId,
+                PricebookTopUpPack pack,
+                string idempotencyKey,
+                CancellationToken cancellationToken = default
+            )
+            {
+                throw new NotImplementedException(
+                    "Credit top-up pay is not under test here."
                 );
             }
         }

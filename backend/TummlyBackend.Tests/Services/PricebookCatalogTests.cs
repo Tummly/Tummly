@@ -67,7 +67,17 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(2000, book.VatRateBps);
             Assert.Contains(
                 book.TopUpPacks,
-                pack => pack.Channel == "sms" && pack.Quantity == 5000
+                pack =>
+                    pack.Channel == "sms"
+                    && pack.Quantity == 5000
+                    && pack.LookupKey == "tummly_sms_5000_gbp_v3"
+            );
+            Assert.Contains(
+                book.TopUpPacks,
+                pack =>
+                    pack.Channel == "ai"
+                    && pack.Quantity == 500
+                    && pack.LookupKey == "tummly_ai_500_gbp_v3"
             );
         }
 

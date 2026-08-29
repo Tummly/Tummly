@@ -187,6 +187,9 @@ namespace TummlyBackend.Services
                         unit_price_amount = item.UnitPriceAmount,
                         quantity = item.Quantity,
                         total_amount = item.TotalAmount,
+                        external_id = string.IsNullOrWhiteSpace(item.ExternalId)
+                            ? null
+                            : item.ExternalId.Trim(),
                         taxes = item.Taxes
                             .Select(tax => new
                             {

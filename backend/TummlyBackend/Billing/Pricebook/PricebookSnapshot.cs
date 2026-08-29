@@ -64,6 +64,8 @@ namespace TummlyBackend.Billing.Pricebook
 
         public int NetPence { get; init; }
 
+        public required string LookupKey { get; init; }
+
         public bool ApprovalRequired { get; init; }
     }
 }

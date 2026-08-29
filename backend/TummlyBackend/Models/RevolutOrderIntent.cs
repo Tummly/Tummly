@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace TummlyBackend.Models
 {
     /// <summary>
-    /// One-time Revolut order intent (tickets 20 / 22). Purpose routes webhook apply.
+    /// One-time Revolut order intent (tickets 18 / 20 / 22). Purpose routes webhook apply.
     /// </summary>
     public class RevolutOrderIntent
     {
@@ -20,7 +20,7 @@ namespace TummlyBackend.Models
         public BillingAccount? BillingAccount { get; set; }
 
         /// <summary>
-        /// e.g. <c>plan_upgrade_proration</c>, <c>extra_location</c>.
+        /// e.g. <c>plan_upgrade_proration</c>, <c>extra_location</c>, <c>topup</c>.
         /// </summary>
         [MaxLength(64)]
         public string Purpose { get; set; } = string.Empty;
@@ -55,6 +55,17 @@ namespace TummlyBackend.Models
         /// </summary>
         public int? TargetPaidExtraLocationCount { get; set; }
 
+        /// <summary>Credit channel for <c>topup</c> intents (<c>ai</c> / <c>email</c> / <c>sms</c>).</summary>
+        [MaxLength(16)]
+        public string? Channel { get; set; }
+
+        /// <summary>Pack quantity for <c>topup</c> intents.</summary>
+        public int? Quantity { get; set; }
+
+        /// <summary>Pricebook pack lookup key for <c>topup</c> intents.</summary>
+        [MaxLength(128)]
+        public string? PackLookupKey { get; set; }
+
         public DateTime CreatedAtUtc { get; set; }
     }
 
@@ -63,5 +74,7 @@ namespace TummlyBackend.Models
         public const string PlanUpgradeProration = "plan_upgrade_proration";
 
         public const string ExtraLocation = "extra_location";
+
+        public const string Topup = "topup";
     }
 }

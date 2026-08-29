@@ -6,44 +6,48 @@ using TummlyBackend.Models;
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// ORDER_COMPLETED apply for setup/cycle mint (ticket 16),
-    /// plan_upgrade_proration (ticket 20), and extra_location (ticket 22).
-    /// Runs inside the webhook claim transaction.
-    /// </summary>
-    public sealed class RevolutOrderCompletedApplier : IRevolutOrderCompletedApplier
-    {
-        public const string SetupIntent = "setup_intent";
-
-        public const string CycleBilling = "cycle_billing";
-
-        public const string FinalSettlement = "final_settlement";
-
-        private readonly ApplicationDbContext _context;
-        private readonly IIncludedPeriodMintService _mint;
-        private readonly ITummlyVatInvoiceService _vatInvoices;
-        private readonly IPlanChangeService _planChange;
-        private readonly IExtraGroupLocationService _extraGroupLocation;
-        private readonly IRevolutMerchantClient _merchant;
-        private readonly TimeProvider _clock;
-
-        public RevolutOrderCompletedApplier(
-            ApplicationDbContext context,
-            IIncludedPeriodMintService mint,
-            ITummlyVatInvoiceService vatInvoices,
-            IPlanChangeService planChange,
-            IExtraGroupLocationService extraGroupLocation,
-            IRevolutMerchantClient merchant,
-            TimeProvider clock
-        )
+        /// ORDER_COMPLETED apply for setup/cycle mint (ticket 16),
+        /// plan_upgrade_proration (ticket 20), extra_location (ticket 22),
+        /// and topup (ticket 18).
+        /// Runs inside the webhook claim transaction.
+        /// </summary>
+        public sealed class RevolutOrderCompletedApplier : IRevolutOrderCompletedApplier
         {
-            _context = context;
-            _mint = mint;
-            _vatInvoices = vatInvoices;
-            _planChange = planChange;
-            _extraGroupLocation = extraGroupLocation;
-            _merchant = merchant;
-            _clock = clock;
-        }
+            public const string SetupIntent = "setup_intent";
+
+            public const string CycleBilling = "cycle_billing";
+
+            public const string FinalSettlement = "final_settlement";
+
+            private readonly ApplicationDbContext _context;
+            private readonly IIncludedPeriodMintService _mint;
+            private readonly ITummlyVatInvoiceService _vatInvoices;
+            private readonly IPlanChangeService _planChange;
+            private readonly IExtraGroupLocationService _extraGroupLocation;
+            private readonly ICreditLedger _creditLedger;
+            private readonly IRevolutMerchantClient _merchant;
+            private readonly TimeProvider _clock;
+
+            public RevolutOrderCompletedApplier(
+                ApplicationDbContext context,
+                IIncludedPeriodMintService mint,
+                ITummlyVatInvoiceService vatInvoices,
+                IPlanChangeService planChange,
+                IExtraGroupLocationService extraGroupLocation,
+                ICreditLedger creditLedger,
+                IRevolutMerchantClient merchant,
+                TimeProvider clock
+            )
+            {
+                _context = context;
+                _mint = mint;
+                _vatInvoices = vatInvoices;
+                _planChange = planChange;
+                _extraGroupLocation = extraGroupLocation;
+                _creditLedger = creditLedger;
+                _merchant = merchant;
+                _clock = clock;
+            }
 
         public static bool IsMintableBillingReason(string? billingReason)
         {
@@ -97,6 +101,19 @@ namespace TummlyBackend.Services
             )
             {
                 await ApplyExtraLocationAsync(intent, cancellationToken);
+                return;
+            }
+
+            if (
+                intent != null
+                && string.Equals(
+                    intent.Purpose,
+                    RevolutOrderIntentPurposes.Topup,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                await ApplyTopupAsync(intent, cancellationToken);
                 return;
             }
 
@@ -381,6 +398,100 @@ namespace TummlyBackend.Services
                 intent.IsOpen = false;
                 await _context.SaveChangesAsync(cancellationToken);
             }
+        }
+
+        private async Task ApplyTopupAsync(
+            RevolutOrderIntent intent,
+            CancellationToken cancellationToken
+        )
+        {
+            if (!intent.IsOpen)
+            {
+                return;
+            }
+
+            var channel = (intent.Channel ?? string.Empty).Trim().ToLowerInvariant();
+            var quantity = intent.Quantity ?? 0;
+            if (string.IsNullOrWhiteSpace(channel) || quantity <= 0)
+            {
+                throw new InvalidOperationException("invalid_topup_intent");
+            }
+
+            var alreadyMinted = await _context.CreditLedgerEntries
+                .AsNoTracking()
+                .AnyAsync(
+                    row =>
+                        row.RestaurantId == intent.RestaurantId
+                        && row.SourcePaymentRef == intent.OrderId
+                        && row.EntryType == CreditLedgerEntryTypes.TopupAllocation,
+                    cancellationToken
+                );
+
+            if (!alreadyMinted)
+            {
+                var mintResult = await _creditLedger.MintTopupAllocationAsync(
+                    new CreditLedgerMintTopupRequest
+                    {
+                        RestaurantId = intent.RestaurantId,
+                        Channel = channel,
+                        Quantity = quantity,
+                        SourcePaymentRef = intent.OrderId,
+                    },
+                    cancellationToken
+                );
+                if (!mintResult.Succeeded)
+                {
+                    throw new InvalidOperationException(
+                        mintResult.Code ?? "topup_allocate_failed"
+                    );
+                }
+            }
+
+            var nowUtc = _clock.GetUtcNow().UtcDateTime;
+            var billingAccount = await _context.BillingAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.RestaurantId == intent.RestaurantId,
+                    cancellationToken
+                );
+            var plan = billingAccount?.SubscriptionPlan
+                ?? BillingSubscriptionPlans.Starter;
+            var cycle = billingAccount?.BillingCycle ?? BillingCycles.Monthly;
+            var lineName = FormatTopupLineDescription(channel, quantity);
+
+            await _vatInvoices.MintForCompletedOrderAsync(
+                new TummlyVatInvoiceMintRequest(
+                    RevolutOrderId: intent.OrderId,
+                    RevolutSubscriptionId: null,
+                    RestaurantId: intent.RestaurantId,
+                    Plan: plan,
+                    BillingCycle: cycle,
+                    PaymentSuccessUtc: nowUtc,
+                    NetPenceOverride: intent.NetAmountMinor > 0
+                        ? intent.NetAmountMinor
+                        : null,
+                    LineDescriptionOverride: lineName
+                ),
+                cancellationToken
+            );
+
+            if (intent.IsOpen)
+            {
+                intent.IsOpen = false;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        private static string FormatTopupLineDescription(string channel, int quantity)
+        {
+            var label = channel switch
+            {
+                "sms" => "SMS",
+                "email" => "Email",
+                "ai" => "AI",
+                _ => channel,
+            };
+            return $"{label} credit pack ({quantity:N0})";
         }
 
         private static (

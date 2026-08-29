@@ -380,12 +380,17 @@ namespace TummlyBackend.Billing.Pricebook
 
                 foreach (var pack in channelPacks.EnumerateArray())
                 {
+                    var lookupKey = pack.GetProperty("lookup_key").GetString()
+                        ?? throw new InvalidOperationException(
+                            $"topups.packs.{channel} lookup_key is missing."
+                        );
                     list.Add(
                         new PricebookTopUpPack
                         {
                             Channel = channel,
                             Quantity = pack.GetProperty("quantity").GetInt32(),
                             NetPence = pack.GetProperty("price_pence").GetInt32(),
+                            LookupKey = lookupKey,
                             ApprovalRequired =
                                 pack.TryGetProperty("approval_required", out var approval)
                                 && approval.GetBoolean(),

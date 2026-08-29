@@ -536,6 +536,7 @@ builder.Services.AddScoped<
     IPaymentMethodUpdatePaySession,
     PaymentMethodUpdatePaySessionService
 >();
+builder.Services.AddScoped<ICreditTopUpPaySession, CreditTopUpPaySessionService>();
 builder.Services.AddScoped<ICycleEndPlanChange, CycleEndPlanChangeService>();
 builder.Services.AddScoped<
     IRevolutOrderCompletedApplier,

@@ -224,6 +224,220 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Apply_Topup_AllocatesOnceAndMintsTm()
+        {
+            await using var context = CreateContext();
+            var account = await SeedActiveStarterAsync(context);
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock);
+
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_topup_ai",
+                    RestaurantId = account.RestaurantId,
+                    Purpose = RevolutOrderIntentPurposes.Topup,
+                    TargetPlan = string.Empty,
+                    TargetCadence = string.Empty,
+                    RevolutSubscriptionId = string.Empty,
+                    CheckoutUrl = "https://checkout.revolut.test/topup",
+                    IdempotencyKey = "k_topup",
+                    IsOpen = true,
+                    NetAmountMinor = 1500,
+                    VatAmountMinor = 300,
+                    GrossAmountMinor = 1800,
+                    Channel = "ai",
+                    Quantity = 500,
+                    PackLookupKey = "tummly_ai_500_gbp_v3",
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_topup_ai",
+                    OrderState: "completed",
+                    BillingReason: null,
+                    SubscriptionId: null,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            Assert.Equal(
+                1,
+                await context.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == account.RestaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.TopupAllocation
+                    && row.SourcePaymentRef == "ord_topup_ai"
+                    && row.Channel == CreditChannels.Ai
+                    && row.Quantity == 500
+                )
+            );
+            var invoice = await context.TummlyVatInvoices.SingleAsync(row =>
+                row.RevolutOrderId == "ord_topup_ai"
+            );
+            Assert.Equal(1500, invoice.NetPence);
+            Assert.Contains("AI", invoice.LineDescription);
+            Assert.False(
+                await context.RevolutOrderIntents
+                    .Where(row => row.OrderId == "ord_topup_ai")
+                    .Select(row => row.IsOpen)
+                    .SingleAsync()
+            );
+        }
+
+        [Fact]
+        public async Task Apply_Topup_ClosedIntent_DoesNotDoubleAllocate()
+        {
+            await using var context = CreateContext();
+            var account = await SeedActiveStarterAsync(context);
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock);
+
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_topup_closed",
+                    RestaurantId = account.RestaurantId,
+                    Purpose = RevolutOrderIntentPurposes.Topup,
+                    CheckoutUrl = "https://checkout.revolut.test/topup",
+                    IdempotencyKey = "k_closed",
+                    IsOpen = false,
+                    NetAmountMinor = 1500,
+                    VatAmountMinor = 300,
+                    GrossAmountMinor = 1800,
+                    Channel = "ai",
+                    Quantity = 500,
+                    PackLookupKey = "tummly_ai_500_gbp_v3",
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_topup_closed",
+                    OrderState: "completed",
+                    BillingReason: null,
+                    SubscriptionId: null,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            Assert.Equal(
+                0,
+                await context.CreditLedgerEntries.CountAsync(row =>
+                    row.EntryType == CreditLedgerEntryTypes.TopupAllocation
+                )
+            );
+            Assert.Equal(0, await context.TummlyVatInvoices.CountAsync());
+        }
+
+        [Fact]
+        public async Task Apply_Topup_AbandonedOpenIntent_DoesNotAllocateWithoutApply()
+        {
+            await using var context = CreateContext();
+            var account = await SeedActiveStarterAsync(context);
+
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_topup_abandon",
+                    RestaurantId = account.RestaurantId,
+                    Purpose = RevolutOrderIntentPurposes.Topup,
+                    CheckoutUrl = "https://checkout.revolut.test/topup",
+                    IdempotencyKey = "k_abandon",
+                    IsOpen = true,
+                    NetAmountMinor = 1500,
+                    VatAmountMinor = 300,
+                    GrossAmountMinor = 1800,
+                    Channel = "ai",
+                    Quantity = 500,
+                    PackLookupKey = "tummly_ai_500_gbp_v3",
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            Assert.Equal(
+                0,
+                await context.CreditLedgerEntries.CountAsync(row =>
+                    row.EntryType == CreditLedgerEntryTypes.TopupAllocation
+                )
+            );
+            Assert.True(
+                await context.RevolutOrderIntents
+                    .Where(row => row.OrderId == "ord_topup_abandon")
+                    .Select(row => row.IsOpen)
+                    .SingleAsync()
+            );
+        }
+
+        [Fact]
+        public async Task Apply_Topup_ReplayAfterApply_DoesNotDoubleAllocate()
+        {
+            await using var context = CreateContext();
+            var account = await SeedActiveStarterAsync(context);
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock);
+
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_topup_replay",
+                    RestaurantId = account.RestaurantId,
+                    Purpose = RevolutOrderIntentPurposes.Topup,
+                    CheckoutUrl = "https://checkout.revolut.test/topup",
+                    IdempotencyKey = "k_replay_topup",
+                    IsOpen = true,
+                    NetAmountMinor = 1500,
+                    VatAmountMinor = 300,
+                    GrossAmountMinor = 1800,
+                    Channel = "ai",
+                    Quantity = 500,
+                    PackLookupKey = "tummly_ai_500_gbp_v3",
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var request = new RevolutOrderCompletedApplyRequest(
+                OrderId: "ord_topup_replay",
+                OrderState: "completed",
+                BillingReason: null,
+                SubscriptionId: null,
+                RawWebhookBody: "{}",
+                RawOrderBody: "{}"
+            );
+            await applier.ApplyAsync(request);
+            await applier.ApplyAsync(request);
+
+            Assert.Equal(
+                1,
+                await context.CreditLedgerEntries.CountAsync(row =>
+                    row.EntryType == CreditLedgerEntryTypes.TopupAllocation
+                    && row.SourcePaymentRef == "ord_topup_replay"
+                )
+            );
+            Assert.Equal(
+                1,
+                await context.TummlyVatInvoices.CountAsync(row =>
+                    row.RevolutOrderId == "ord_topup_replay"
+                )
+            );
+        }
+
+        [Fact]
         public async Task Apply_PlanUpgradeProration_UpgradesChangePlanAndMintsTm()
         {
             await using var context = CreateContext();
@@ -670,6 +884,7 @@ namespace TummlyBackend.Tests.Services
                         .Build(),
                     clock
                 ),
+                new CreditLedgerService(context, clock, _pricebook),
                 merchant ?? new RecordingLandMerchant(),
                 clock
             );

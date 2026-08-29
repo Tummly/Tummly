@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Billing.PlanEntitlements;
+using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.Helpers;
@@ -20,6 +21,7 @@ namespace TummlyBackend.Services
         private readonly IFirstPaidConversionPaySession _firstPaidConversionPaySession;
         private readonly ISameCadenceUpgradePaySession _sameCadenceUpgradePaySession;
         private readonly IPaymentMethodUpdatePaySession _paymentMethodUpdatePaySession;
+        private readonly ICreditTopUpPaySession _creditTopUpPaySession;
         private readonly ITummlyVatInvoiceService _vatInvoices;
         private readonly ICycleEndPlanChange _cycleEndPlanChange;
 
@@ -33,6 +35,7 @@ namespace TummlyBackend.Services
             IFirstPaidConversionPaySession firstPaidConversionPaySession,
             ISameCadenceUpgradePaySession sameCadenceUpgradePaySession,
             IPaymentMethodUpdatePaySession paymentMethodUpdatePaySession,
+            ICreditTopUpPaySession creditTopUpPaySession,
             ITummlyVatInvoiceService vatInvoices,
             ICycleEndPlanChange cycleEndPlanChange
         )
@@ -46,6 +49,7 @@ namespace TummlyBackend.Services
             _firstPaidConversionPaySession = firstPaidConversionPaySession;
             _sameCadenceUpgradePaySession = sameCadenceUpgradePaySession;
             _paymentMethodUpdatePaySession = paymentMethodUpdatePaySession;
+            _creditTopUpPaySession = creditTopUpPaySession;
             _vatInvoices = vatInvoices;
             _cycleEndPlanChange = cycleEndPlanChange;
         }
@@ -1309,7 +1313,8 @@ namespace TummlyBackend.Services
                 int userId,
                 int restaurantId,
                 bool actorCanManage,
-                CreditTopUpRequestDto request
+                CreditTopUpRequestDto request,
+                string? idempotencyKey = null
             )
         {
             var denial = await ValidateCreditTopUpRequestAsync(
@@ -1327,34 +1332,105 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var context = await LoadCreditTopUpContextAsync(restaurantId);
-            if (context == null)
+            if (string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                return (
+                    null,
+                    StatusCodes.Status400BadRequest,
+                    "idempotency_key_required"
+                );
+            }
+
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurantId);
+            if (restaurant == null)
             {
                 return (null, StatusCodes.Status404NotFound, "Restaurant not found.");
             }
 
-            var pack = CreditTopUpPricebook.FindPack(request.Channel, request.Quantity)!;
-            var gateCode = _revolutMerchantCreateGate.Evaluate(
-                planVariationLookupKey: null
+            var billingAccount = await LoadRequiredBillingAccountAsync(restaurantId);
+            if (string.IsNullOrWhiteSpace(billingAccount.RevolutCustomerId))
+            {
+                return (
+                    null,
+                    StatusCodes.Status400BadRequest,
+                    "revolut_customer_required"
+                );
+            }
+
+            var pack = FindCurrentPricebookTopUpPack(
+                request.Channel,
+                request.Quantity
             );
-            if (gateCode != null)
+            if (pack == null)
+            {
+                return (
+                    null,
+                    StatusCodes.Status400BadRequest,
+                    "invalid_topup_pack"
+                );
+            }
+
+            var locationId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurantId)
+                .OrderBy(row => row.Id)
+                .Select(row => row.Id)
+                .FirstOrDefaultAsync();
+            if (locationId == 0)
+            {
+                locationId = restaurantId;
+            }
+
+            try
+            {
+                var checkoutUrl = await _creditTopUpPaySession.StartAsync(
+                    billingAccount,
+                    restaurant.AccountType,
+                    locationId,
+                    pack,
+                    idempotencyKey.Trim()
+                );
+                return (
+                    new CreditTopUpPayDto { RedirectUrl = checkoutUrl },
+                    StatusCodes.Status200OK,
+                    null
+                );
+            }
+            catch (RevolutMerchantNotReadyException ex)
             {
                 return (
                     null,
                     StatusCodes.Status503ServiceUnavailable,
-                    gateCode
+                    ex.Code
                 );
             }
-
-            return (
-                new CreditTopUpPayDto
-                {
-                    RedirectUrl =
-                        $"https://checkout.revolut.com/pay/top-up/{restaurantId}/{pack.Channel}/{pack.Quantity}",
-                },
-                StatusCodes.Status200OK,
-                null
-            );
+            catch (InvalidOperationException ex) when (
+                ex.Message
+                    is "idempotency_target_mismatch"
+                        or "revolut_customer_required"
+                        or "Frontend:BaseUrl is not configured."
+            )
+            {
+                var status = ex.Message == "idempotency_target_mismatch"
+                    ? StatusCodes.Status409Conflict
+                    : StatusCodes.Status400BadRequest;
+                return (null, status, ex.Message);
+            }
+            catch (InvalidOperationException ex) when (
+                ex.Message
+                    is RevolutMerchantCreateGate.VatNotReady
+                        or RevolutMerchantCreateGate.RevolutNotReady
+                        or RevolutMerchantCreateGate.PlanVariationMissing
+            )
+            {
+                return (
+                    null,
+                    StatusCodes.Status503ServiceUnavailable,
+                    ex.Message
+                );
+            }
         }
 
         private async Task<(
@@ -1399,7 +1475,7 @@ namespace TummlyBackend.Services
                 return (
                     null,
                     StatusCodes.Status403Forbidden,
-                    "Credit top-ups are unavailable during Pilot."
+                    "pilot_topup_unavailable"
                 );
             }
 
@@ -1419,19 +1495,23 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var pack = CreditTopUpPricebook.FindPack(request.Channel, request.Quantity);
+            var pack = FindCurrentPricebookTopUpPack(
+                request.Channel,
+                request.Quantity
+            );
             if (pack == null)
             {
                 return (
                     null,
                     StatusCodes.Status400BadRequest,
-                    "Unknown credit top-up pack."
+                    "invalid_topup_pack"
                 );
             }
 
             if (
-                !CreditTopUpPricebook.IsPackVisible(
-                    pack,
+                pack.Channel == "sms"
+                && pack.Quantity == 5000
+                && !CreditTopUpPricebook.IsSms5000Allowed(
                     context.SubscriptionPlan,
                     context.AllowSms5000TopUp
                 )
@@ -1445,6 +1525,20 @@ namespace TummlyBackend.Services
             }
 
             return null;
+        }
+
+        private PricebookTopUpPack? FindCurrentPricebookTopUpPack(
+            string channel,
+            int quantity
+        )
+        {
+            var normalized = channel.Trim().ToLowerInvariant();
+            var book = _pricebookCatalog.GetRequired(
+                _pricebookCatalog.CurrentPricebookId
+            );
+            return book.TopUpPacks.FirstOrDefault(pack =>
+                pack.Channel == normalized && pack.Quantity == quantity
+            );
         }
 
         private static bool CanBuyCreditTopUp(string permissionRole)

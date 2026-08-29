@@ -1917,9 +1917,9 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
 
             var body = await ReadJsonAsync(response);
-            Assert.Contains(
-                "Pilot",
-                body.GetProperty("message").GetString()
+            Assert.Equal(
+                "pilot_topup_unavailable",
+                body.GetProperty("code").GetString()
             );
         }
 
@@ -1933,6 +1933,12 @@ namespace TummlyBackend.Tests.Integration
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "pilot_topup_unavailable",
+                body.GetProperty("code").GetString()
+            );
         }
 
         [Fact]
@@ -2307,6 +2313,148 @@ namespace TummlyBackend.Tests.Integration
                 "checkout.revolut.com",
                 payBody.GetProperty("redirectUrl").GetString()
             );
+            Assert.Equal(
+                FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
+                payBody.GetProperty("redirectUrl").GetString()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var intent = await context.RevolutOrderIntents.SingleAsync(row =>
+                row.RestaurantId == seeded.RestaurantId
+                && row.Purpose == RevolutOrderIntentPurposes.Topup
+            );
+            Assert.Equal("ai", intent.Channel);
+            Assert.Equal(500, intent.Quantity);
+            Assert.Equal("tummly_ai_500_gbp_v3", intent.PackLookupKey);
+            Assert.True(intent.IsOpen);
+            Assert.Equal(
+                0,
+                await context.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.TopupAllocation
+                )
+            );
+        }
+
+        [Fact]
+        public async Task PostTopUpPay_Returns400_WhenIdempotencyKeyMissing()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/billing-credits/top-up/pay"
+            );
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                seeded.OwnerJwt
+            );
+            request.Content = JsonContent.Create(
+                new { channel = "ai", quantity = 500 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "idempotency_key_required",
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PostTopUpPay_Returns400_ForInvalidPack()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var request = AuthorizedTopUpPay(
+                seeded.OwnerJwt,
+                new { channel = "ai", quantity = 999 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "invalid_topup_pack",
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PostTopUpPay_Returns403_SoftLockPaid()
+        {
+            var seeded = await SeedNamedPaidWorkspaceAsync(
+                "Soft lock Paid Growth Venue"
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var account = await context.BillingAccounts.SingleAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                );
+                account.RevolutCustomerId = "cust_soft_lock";
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedTopUpPay(
+                seeded.OwnerJwt,
+                new { channel = "sms", quantity = 100 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("soft_lock", body.GetProperty("code").GetString());
+        }
+
+        [Fact]
+        public async Task PostTopUpPay_Returns400_WhenRevolutCustomerMissing()
+        {
+            var seeded = await SeedPaidWorkspaceAsync(revolutCustomerId: null);
+            using var request = AuthorizedTopUpPay(
+                seeded.OwnerJwt,
+                new { channel = "ai", quantity = 500 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "revolut_customer_required",
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PostTopUpPay_AllowsPastDue()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var account = await context.BillingAccounts.SingleAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                );
+                account.BillingStatus = BillingStatuses.PastDue;
+                account.DunningEpisodeStartedAt = DateTime.UtcNow.AddDays(-1);
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedTopUpPay(
+                seeded.OwnerJwt,
+                new { channel = "ai", quantity = 500 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Contains(
+                "checkout.revolut.com",
+                body.GetProperty("redirectUrl").GetString()
+            );
         }
 
         private async Task<PaidSeeded> SeedPaidStarterWorkspaceAsync(
@@ -2402,7 +2550,8 @@ namespace TummlyBackend.Tests.Integration
 
         private static HttpRequestMessage AuthorizedTopUpPay(
             string jwt,
-            object payload
+            object payload,
+            string? idempotencyKey = null
         )
         {
             var request = new HttpRequestMessage(
@@ -2410,6 +2559,10 @@ namespace TummlyBackend.Tests.Integration
                 "/api/billing-credits/top-up/pay"
             );
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+            request.Headers.Add(
+                "Idempotency-Key",
+                idempotencyKey ?? Guid.NewGuid().ToString("D")
+            );
             request.Content = JsonContent.Create(payload);
             return request;
         }

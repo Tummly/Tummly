@@ -552,6 +552,20 @@ namespace TummlyBackend.Controllers
                     return OperatorBillingLockForbidden(errorMessage);
                 }
 
+                if (
+                    errorMessage
+                        is "pilot_topup_unavailable"
+                            or "invalid_topup_pack"
+                )
+                {
+                    return StatusCode(statusCode, new
+                    {
+                        success = false,
+                        code = errorMessage,
+                        message = errorMessage,
+                    });
+                }
+
                 return StatusCode(statusCode, new
                 {
                     success = false,
@@ -585,12 +599,26 @@ namespace TummlyBackend.Controllers
                 return forbidden;
             }
 
+            if (
+                !Request.Headers.TryGetValue("Idempotency-Key", out var key)
+                || string.IsNullOrWhiteSpace(key)
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "idempotency_key_required",
+                    message = "Idempotency-Key header is required.",
+                });
+            }
+
             var (response, statusCode, errorMessage) =
                 await _billingCredits.PayCreditTopUpAsync(
                     userId,
                     manage.RestaurantId,
                     manage.Status == RestaurantPermissionStatus.Allowed,
-                    request
+                    request,
+                    key.ToString()
                 );
 
             if (response == null)
@@ -609,6 +637,33 @@ namespace TummlyBackend.Controllers
                 )
                 {
                     return RevolutMerchantNotReady(errorMessage);
+                }
+
+                if (errorMessage == "idempotency_target_mismatch")
+                {
+                    return Conflict(new
+                    {
+                        success = false,
+                        code = "idempotency_target_mismatch",
+                        message =
+                            "Idempotency-Key was already used for a different top-up pack.",
+                    });
+                }
+
+                if (
+                    errorMessage
+                        is "pilot_topup_unavailable"
+                            or "invalid_topup_pack"
+                            or "idempotency_key_required"
+                            or "revolut_customer_required"
+                )
+                {
+                    return StatusCode(statusCode, new
+                    {
+                        success = false,
+                        code = errorMessage,
+                        message = errorMessage,
+                    });
                 }
 
                 return StatusCode(statusCode, new

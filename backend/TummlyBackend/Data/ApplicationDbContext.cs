@@ -868,6 +868,14 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<RevolutOrderIntent>()
                 .HasIndex(row => new { row.RestaurantId, row.IsOpen });
 
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.Channel)
+                .HasMaxLength(16);
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.PackLookupKey)
+                .HasMaxLength(128);
+
             /*
              =========================================
              TUMMLY VAT INVOICES / DOCUMENT SEQUENCES (ticket 17)

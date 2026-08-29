@@ -173,7 +173,8 @@ namespace TummlyBackend.Interfaces
         int UnitPriceAmount,
         int Quantity,
         int TotalAmount,
-        IReadOnlyList<RevolutOrderLineItemTax> Taxes
+        IReadOnlyList<RevolutOrderLineItemTax> Taxes,
+        string? ExternalId = null
     );
 
     public sealed record RevolutOrderLineItemTax(

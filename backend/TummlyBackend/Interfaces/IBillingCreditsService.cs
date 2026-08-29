@@ -56,7 +56,8 @@ namespace TummlyBackend.Interfaces
                 int userId,
                 int restaurantId,
                 bool actorCanManage,
-                CreditTopUpRequestDto request
+                CreditTopUpRequestDto request,
+                string? idempotencyKey = null
             );
 
         Task<CancelPlanResultDto?> CancelPlanAsync(
