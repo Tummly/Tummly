@@ -21,6 +21,7 @@ namespace TummlyBackend.Interfaces
             string? purpose,
             string? tone,
             string? includeNotes,
+            string? idempotencyKey = null,
             CancellationToken cancellationToken = default
         );
 

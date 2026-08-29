@@ -1123,6 +1123,112 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(again.Inserted);
         }
 
+        [Fact]
+        public async Task ReserveAsync_ReturnsChannelHardStoppedWhenRemainingZero()
+        {
+            var harness = await SeedAsync();
+
+            var result = await harness.Ledger.ReserveAsync(
+                new CreditLedgerReserveRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Sms,
+                    Units = 1,
+                    LocationId = harness.LocationId,
+                }
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("channel_hard_stopped", result.Code);
+        }
+
+        [Fact]
+        public async Task SettleAsync_AcceptedGreaterThanReservedDoesNotConsumeExtra()
+        {
+            var harness = await SeedAsync();
+            await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.PilotAllocation,
+                2,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: null,
+                channel: CreditChannels.Sms
+            );
+
+            var reserve = await harness.Ledger.ReserveAsync(
+                new CreditLedgerReserveRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Sms,
+                    Units = 2,
+                    LocationId = harness.LocationId,
+                }
+            );
+            Assert.True(reserve.Succeeded);
+
+            var settle = await harness.Ledger.SettleAsync(
+                new CreditLedgerSettleRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Sms,
+                    ReservationRef = reserve.ReservationRef!,
+                    AcceptedUnits = 5,
+                    LocationId = harness.LocationId,
+                }
+            );
+            Assert.True(settle.Succeeded);
+            Assert.Equal(2, settle.SettledUnits);
+
+            var snapshot = await harness.Snapshot.GetAccountAsync(harness.RestaurantId);
+            var sms = Channel(snapshot, CreditChannels.Sms);
+            Assert.Equal(0, sms.Remaining);
+            Assert.Equal(0, sms.Held);
+            Assert.Equal(2, sms.UsedThisCycle);
+        }
+
+        [Fact]
+        public async Task ReleaseAsync_AfterHoldReturnsAvailable()
+        {
+            var harness = await SeedAsync();
+            await InsertGrantAsync(
+                harness.Context,
+                harness.RestaurantId,
+                CreditLedgerEntryTypes.PilotAllocation,
+                4,
+                createdAtUtc: _now.AddDays(-1),
+                expiresAtUtc: null,
+                channel: CreditChannels.Sms
+            );
+
+            var reserve = await harness.Ledger.ReserveAsync(
+                new CreditLedgerReserveRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Sms,
+                    Units = 2,
+                    LocationId = harness.LocationId,
+                }
+            );
+            Assert.True(reserve.Succeeded);
+
+            var release = await harness.Ledger.ReleaseAsync(
+                new CreditLedgerReleaseRequest
+                {
+                    RestaurantId = harness.RestaurantId,
+                    Channel = CreditChannels.Sms,
+                    ReservationRef = reserve.ReservationRef!,
+                    LocationId = harness.LocationId,
+                }
+            );
+            Assert.True(release.Succeeded);
+
+            var snapshot = await harness.Snapshot.GetAccountAsync(harness.RestaurantId);
+            var sms = Channel(snapshot, CreditChannels.Sms);
+            Assert.Equal(4, sms.Remaining);
+            Assert.Equal(0, sms.Held);
+        }
+
         public void Dispose()
         {
         }
@@ -1196,7 +1302,8 @@ namespace TummlyBackend.Tests.Services
             string entryType,
             int quantity,
             DateTime createdAtUtc,
-            DateTime? expiresAtUtc
+            DateTime? expiresAtUtc,
+            string channel = CreditChannels.Email
         )
         {
             var id = Guid.NewGuid();
@@ -1208,7 +1315,7 @@ namespace TummlyBackend.Tests.Services
                 {
                     Id = id,
                     RestaurantId = restaurantId,
-                    Channel = CreditChannels.Email,
+                    Channel = channel,
                     EntryType = entryType,
                     Quantity = quantity,
                     PricebookVersion = PricebookId,

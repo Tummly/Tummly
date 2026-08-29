@@ -105,6 +105,8 @@ namespace TummlyBackend.Data
 
         public DbSet<FeedbackGuestResponse> FeedbackGuestResponses { get; set; }
 
+        public DbSet<RecoverySmsSendIdempotency> RecoverySmsSendIdempotencies { get; set; }
+
         public DbSet<FeedbackInternalAction> FeedbackInternalActions { get; set; }
 
         public DbSet<FeedbackRecoveryOffer> FeedbackRecoveryOffers { get; set; }
@@ -1131,6 +1133,36 @@ namespace TummlyBackend.Data
                 {
                     r.EmailDeliveryStatus,
                     r.EmailDeliveryRetryAfter,
+                });
+
+            modelBuilder.Entity<RecoverySmsSendIdempotency>()
+                .HasOne(row => row.Restaurant)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RecoverySmsSendIdempotency>()
+                .HasOne(row => row.Feedback)
+                .WithMany()
+                .HasForeignKey(row => row.FeedbackId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<RecoverySmsSendIdempotency>()
+                .HasOne(row => row.CompletedGuestResponse)
+                .WithMany()
+                .HasForeignKey(row => row.CompletedGuestResponseId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<RecoverySmsSendIdempotency>()
+                .HasIndex(row => new { row.RestaurantId, row.IdempotencyKey })
+                .IsUnique();
+
+            modelBuilder.Entity<RecoverySmsSendIdempotency>()
+                .HasIndex(row => new
+                {
+                    row.CompletedGuestResponseId,
+                    row.HoldExpiresAtUtc,
                 });
 
             /*

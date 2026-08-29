@@ -480,6 +480,21 @@ builder.Services.AddScoped<IIncludedPeriodMintService, IncludedPeriodMintService
 builder.Services.AddScoped<IIncludedPeriodJob, IncludedPeriodJob>();
 builder.Services.AddScoped<IAssistantAiBilling, AssistantAiBillingService>();
 builder.Services.AddScoped<IBilledAiActionCoordinator, BilledAiActionCoordinator>();
+builder.Services.AddScoped<
+    IRecoverySmsBillingReserve,
+    LiveRecoverySmsBillingReserve
+>();
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddScoped<
+        IRecoveryGuestSmsDelivery,
+        TestingRecoveryGuestSmsDelivery
+    >();
+}
+else
+{
+    builder.Services.AddScoped<IRecoveryGuestSmsDelivery, TwilioRecoveryGuestSmsDelivery>();
+}
 builder.Services.AddScoped<IBillingCreditsService, BillingCreditsService>();
 builder.Services.AddScoped<IBillingAccountLifecycle, BillingAccountLifecycleService>();
 builder.Services.AddScoped<
@@ -810,6 +825,7 @@ builder.Services.AddSingleton<
     GuestResponseEmailDeliveryWork
 >();
 builder.Services.AddHostedService<GuestResponseEmailDeliveryBackgroundService>();
+builder.Services.AddHostedService<CreditReservationSweeperBackgroundService>();
 
 builder.Services.AddHttpClient(
     SignInMetadataResolverHttpClient.Name,

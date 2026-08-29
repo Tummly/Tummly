@@ -1485,6 +1485,9 @@ namespace TummlyBackend.Controllers
 
             try
             {
+                Request.Headers.TryGetValue("Idempotency-Key", out var idempotencyHeader);
+                var idempotencyKey = idempotencyHeader.FirstOrDefault();
+
                 var result = await _guestResponses.SendAsync(
                     feedbackId,
                     userId,
@@ -1494,7 +1497,8 @@ namespace TummlyBackend.Controllers
                     dto.Body,
                     dto.Purpose,
                     dto.Tone,
-                    dto.IncludeNotes
+                    dto.IncludeNotes,
+                    idempotencyKey
                 );
 
                 if (result == null)
@@ -1525,6 +1529,34 @@ namespace TummlyBackend.Controllers
                     success = false,
                     message = ex.Message,
                 });
+            }
+            catch (RecoverySmsBillingUnavailableException)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        success = false,
+                        code = "billing_reserve_unavailable",
+                        message =
+                            "Billing Reserve is not available. Recovery SMS send stays blocked.",
+                    }
+                );
+            }
+            catch (RecoverySmsCreditRefusedException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        code = ex.Code,
+                        message = ex.Message,
+                        channel = CreditChannels.Sms,
+                        remaining = ex.Remaining,
+                        requested = ex.Requested,
+                    }
+                );
             }
             catch (InvalidOperationException ex)
             {
