@@ -570,6 +570,14 @@ namespace TummlyBackend.Controllers
                     return OperatorBillingLockForbidden(errorMessage);
                 }
 
+                if (
+                    errorMessage != null
+                    && IsRevolutMerchantNotReadyCode(errorMessage)
+                )
+                {
+                    return RevolutMerchantNotReady(errorMessage);
+                }
+
                 return StatusCode(statusCode, new
                 {
                     success = false,

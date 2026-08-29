@@ -39,7 +39,6 @@ namespace TummlyBackend.Configurations
 
         public bool HasMerchantApiConfig =>
             !string.IsNullOrWhiteSpace(SecretKey)
-            && !string.IsNullOrWhiteSpace(WebhookSigningSecret)
             && !string.IsNullOrWhiteSpace(ApiBaseUrl)
             && !string.IsNullOrWhiteSpace(ApiVersion);
 

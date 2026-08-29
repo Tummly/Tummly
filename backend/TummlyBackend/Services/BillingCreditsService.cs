@@ -1288,6 +1288,18 @@ namespace TummlyBackend.Services
             }
 
             var pack = CreditTopUpPricebook.FindPack(request.Channel, request.Quantity)!;
+            var gateCode = _revolutMerchantCreateGate.Evaluate(
+                planVariationLookupKey: null
+            );
+            if (gateCode != null)
+            {
+                return (
+                    null,
+                    StatusCodes.Status503ServiceUnavailable,
+                    gateCode
+                );
+            }
+
             return (
                 new CreditTopUpPayDto
                 {

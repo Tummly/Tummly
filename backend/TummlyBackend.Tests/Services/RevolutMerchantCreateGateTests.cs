@@ -47,16 +47,13 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public void Evaluate_ReturnsRevolutNotReady_WhenWebhookSigningSecretMissing()
+        public void Evaluate_Passes_WhenWebhookSigningSecretMissing()
         {
             var revolut = FullLiveRevolut(withStarterMonthly: true);
             revolut.WebhookSigningSecret = "  ";
             var gate = CreateGate(FullVat(), revolut);
 
-            Assert.Equal(
-                RevolutMerchantCreateGate.RevolutNotReady,
-                gate.Evaluate(StarterMonthly)
-            );
+            Assert.Null(gate.Evaluate(StarterMonthly));
         }
 
         [Fact]
