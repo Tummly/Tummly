@@ -224,6 +224,118 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Apply_CycleBilling_OpenPending_AppliesPlanFromPending()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(
+                context,
+                "ord_first_cycle",
+                "sub_first_cycle"
+            );
+            pending.TargetPlan = BillingSubscriptionPlans.Starter;
+            pending.TargetCadence = "monthly";
+            pending.IsOpen = true;
+            await context.SaveChangesAsync();
+
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock);
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_first_cycle",
+                    OrderState: "completed",
+                    BillingReason: RevolutOrderCompletedApplier.CycleBilling,
+                    SubscriptionId: pending.RevolutSubscriptionId,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            var account = await context.BillingAccounts.SingleAsync();
+            Assert.Equal(BillingSubscriptionPlans.Starter, account.SubscriptionPlan);
+            Assert.Equal(BillingCycles.Monthly, account.BillingCycle);
+            Assert.Equal(BillingStatuses.Active, account.BillingStatus);
+            Assert.False(
+                (
+                    await context.RevolutPendingPaySessions.SingleAsync()
+                ).IsOpen
+            );
+        }
+
+        [Fact]
+        public async Task Webhook_RetriesSkippedUnknownBillingReason_AndApplies()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(
+                context,
+                "ord_retry",
+                "sub_retry"
+            );
+            context.RevolutWebhookEventClaims.Add(
+                new RevolutWebhookEventClaim
+                {
+                    Id = Guid.NewGuid(),
+                    Event = "ORDER_COMPLETED",
+                    ObjectId = "ord_retry",
+                    Disposition =
+                        RevolutWebhookClaimDispositions.SkippedUnknownBillingReason,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var merchant = new FixedOrderMerchant(
+                new RevolutOrderRetrieveResult(
+                    Succeeded: true,
+                    Id: "ord_retry",
+                    State: "completed",
+                    BillingReason: RevolutOrderCompletedApplier.CycleBilling,
+                    SubscriptionId: pending.RevolutSubscriptionId,
+                    RawBody: """{"id":"ord_retry","state":"completed"}"""
+                )
+            );
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock);
+            var service = new RevolutWebhookService(
+                context,
+                merchant,
+                applier,
+                new NoOpBillingAccountLifecycle(),
+                clock,
+                Options.Create(
+                    new RevolutSettings
+                    {
+                        WebhookSigningSecret = "whsec_service",
+                        SecretKey = "sk_test",
+                        ApiBaseUrl = RevolutSettings.SandboxApiBaseUrl,
+                        ApiVersion = RevolutSettings.DefaultApiVersion,
+                    }
+                )
+            );
+            var body = """{"event":"ORDER_COMPLETED","order_id":"ord_retry"}""";
+            var timestamp = "1710000000";
+            var signature = RevolutWebhookSignature.SignForTests(
+                "whsec_service",
+                timestamp,
+                body
+            );
+
+            var result = await service.HandleAsync(body, signature, timestamp);
+
+            Assert.Equal(RevolutWebhookHandleStatus.Accepted, result.Status);
+            var claim = await context.RevolutWebhookEventClaims.SingleAsync();
+            Assert.Equal(
+                RevolutWebhookClaimDispositions.Applied,
+                claim.Disposition
+            );
+            var account = await context.BillingAccounts.SingleAsync();
+            Assert.Equal(BillingSubscriptionPlans.Starter, account.SubscriptionPlan);
+            Assert.Equal(BillingStatuses.Active, account.BillingStatus);
+        }
+
+        [Fact]
         public async Task Apply_Topup_AllocatesOnceAndMintsTm()
         {
             await using var context = CreateContext();

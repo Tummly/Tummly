@@ -320,9 +320,12 @@ namespace TummlyBackend.Services
             }
 
             var client = _httpClientFactory.CreateClient(HttpClientName);
+            // Merchant Orders API (no 1.0): includes subscription_data.billing_reason
+            // + subscription_id. api/1.0/orders omits those fields and webhook apply
+            // then skips as unknown billing reason.
             using var message = new HttpRequestMessage(
                 HttpMethod.Get,
-                $"api/1.0/orders/{Uri.EscapeDataString(orderId.Trim())}"
+                $"api/orders/{Uri.EscapeDataString(orderId.Trim())}"
             );
             ApplyAuthHeaders(message);
 
@@ -426,6 +429,23 @@ namespace TummlyBackend.Services
                     {
                         subscriptionId = subIdElement.GetString();
                     }
+                }
+
+                if (
+                    string.IsNullOrWhiteSpace(subscriptionId)
+                    && root.TryGetProperty(
+                        "channel_data",
+                        out var channelData
+                    )
+                    && channelData.ValueKind == JsonValueKind.Object
+                    && channelData.TryGetProperty(
+                        "subscription_id",
+                        out var channelSubId
+                    )
+                    && channelSubId.ValueKind == JsonValueKind.String
+                )
+                {
+                    subscriptionId = channelSubId.GetString();
                 }
             }
 

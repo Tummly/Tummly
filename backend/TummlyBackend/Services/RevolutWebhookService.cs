@@ -587,16 +587,34 @@ namespace TummlyBackend.Services
 
             var orderId = envelope.OrderId.Trim();
 
-            var existing = await FindClaimAsync(
-                "ORDER_COMPLETED",
-                orderId,
-                cancellationToken
-            );
+            var existing = await _context.RevolutWebhookEventClaims
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.Event == "ORDER_COMPLETED"
+                        && row.ObjectId == orderId,
+                    cancellationToken
+                );
             if (existing != null)
             {
-                return new RevolutWebhookHandleResult(
-                    RevolutWebhookHandleStatus.Replay
-                );
+                // Earlier retrieve used api/1.0/orders without subscription_data,
+                // so we claimed skipped_unknown. Drop that claim and re-apply.
+                if (
+                    string.Equals(
+                        existing.Disposition,
+                        RevolutWebhookClaimDispositions.SkippedUnknownBillingReason,
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    _context.RevolutWebhookEventClaims.Remove(existing);
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+                else
+                {
+                    return new RevolutWebhookHandleResult(
+                        RevolutWebhookHandleStatus.Replay
+                    );
+                }
             }
 
             var retrieved = await _merchant.GetOrderAsync(

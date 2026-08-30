@@ -149,11 +149,23 @@ namespace TummlyBackend.Services
             }
 
             var nowUtc = _clock.GetUtcNow().UtcDateTime;
-            var isSetup = string.Equals(
-                reason,
-                SetupIntent,
-                StringComparison.Ordinal
-            );
+            // Sandbox/Merchant may bill the first subscription charge as
+            // cycle_billing (not setup_intent). Open pending pay session still
+            // means first-paid conversion — apply plan/cadence from pending.
+            var isSetup =
+                string.Equals(
+                    reason,
+                    SetupIntent,
+                    StringComparison.Ordinal
+                )
+                || (
+                    pending.IsOpen
+                    && string.Equals(
+                        reason,
+                        CycleBilling,
+                        StringComparison.Ordinal
+                    )
+                );
             var cycle = ResolveCycleWindow(
                 billingAccount,
                 pending,

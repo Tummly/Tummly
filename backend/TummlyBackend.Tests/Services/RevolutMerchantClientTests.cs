@@ -81,6 +81,54 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(1, handler.SendCount);
         }
 
+        [Fact]
+        public async Task GetOrderAsync_UsesOrdersApi_AndParsesSubscriptionData()
+        {
+            HttpRequestMessage? captured = null;
+            var handler = new CountingHandler
+            {
+                ResponseFactory = () =>
+                    new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(
+                            """
+                            {
+                              "id":"ord_1",
+                              "state":"completed",
+                              "type":"payment",
+                              "amount":4680,
+                              "checkout_url":"https://checkout.example/link",
+                              "subscription_data":{
+                                "subscription_id":"sub_1",
+                                "billing_reason":"cycle_billing"
+                              }
+                            }
+                            """
+                        ),
+                    },
+                OnSend = request => captured = request,
+            };
+            var client = CreateClient(handler, FullVat(), FullRevolut());
+
+            var result = await client.GetOrderAsync("ord_1");
+
+            Assert.True(result.Succeeded);
+            Assert.Equal("ord_1", result.Id);
+            Assert.Equal("completed", result.State);
+            Assert.Equal("cycle_billing", result.BillingReason);
+            Assert.Equal("sub_1", result.SubscriptionId);
+            Assert.Equal(4680, result.AmountMinor);
+            Assert.Equal(
+                "https://checkout.example/link",
+                result.CheckoutUrl
+            );
+            Assert.NotNull(captured);
+            Assert.EndsWith(
+                "/api/orders/ord_1",
+                captured!.RequestUri!.AbsolutePath
+            );
+        }
+
         private static IRevolutMerchantClient CreateClient(
             CountingHandler handler,
             TummlySellerVatSettings vat,
@@ -139,12 +187,15 @@ namespace TummlyBackend.Tests.Services
 
             public Func<HttpResponseMessage>? ResponseFactory { get; set; }
 
+            public Action<HttpRequestMessage>? OnSend { get; set; }
+
             protected override Task<HttpResponseMessage> SendAsync(
                 HttpRequestMessage request,
                 CancellationToken cancellationToken
             )
             {
                 SendCount++;
+                OnSend?.Invoke(request);
                 var response =
                     ResponseFactory?.Invoke()
                     ?? new HttpResponseMessage(HttpStatusCode.OK)
