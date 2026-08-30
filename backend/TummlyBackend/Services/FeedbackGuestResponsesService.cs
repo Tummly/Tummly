@@ -327,6 +327,23 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // Lock 05 / ticket 22: settle accepted units, then release unused hold
+            // (same close order as CampaignBillingClose).
+            var release = await _smsBilling.ReleaseAsync(
+                new RecoverySmsBillingReleaseRequest
+                {
+                    FeedbackId = feedback.Id,
+                    ReservationRef = reservationRef,
+                },
+                cancellationToken
+            );
+            if (release is RecoverySmsBillingReleaseResult.Failed)
+            {
+                throw new InvalidOperationException(
+                    "Unable to release Recovery SMS credit hold."
+                );
+            }
+
             var row = FeedbackGuestResponseComposer.Build(
                 feedback,
                 FeedbackGuestResponseChannel.Sms,

@@ -2,9 +2,11 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -430,6 +432,89 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SendGuestResponse_Sms_AcceptedLessThanReserved_ReleasesLeftoverHold()
+        {
+            // GSM estimate for 161 basic chars is 2 segments; delivery accepts 1.
+            var body = new string('a', 161);
+            Assert.Equal(2, CampaignSmsSegmentCalculator.CountSegments(body));
+
+            await using var customized = CreateFactoryWithFixedAcceptedSmsSegments(
+                acceptedSegments: 1
+            );
+            var client = customized.CreateClient();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-sms-leftover-tok",
+                ContactType.Phone,
+                "+447700900777",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-leftover-owner@example.com",
+                smsCredits: 10,
+                services: customized.Services
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "sms",
+                body,
+                intent = "respond_to_guest",
+            });
+
+            var postResponse = await client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, postResponse.StatusCode);
+
+            using var scope = customized.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var snapshot = scope.ServiceProvider
+                .GetRequiredService<ICreditBalanceSnapshot>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var guestResponse = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+
+            Assert.Equal(
+                1,
+                await context.CreditLedgerEntries
+                    .Where(row =>
+                        row.RestaurantId == restaurantId
+                        && row.EntryType == CreditLedgerEntryTypes.Consumption
+                        && row.Channel == CreditChannels.Sms
+                        && row.ReservationRef == guestResponse.BillingReservationRef
+                    )
+                    .SumAsync(row => row.Quantity)
+            );
+            Assert.Equal(
+                1,
+                await context.CreditLedgerEntries
+                    .Where(row =>
+                        row.RestaurantId == restaurantId
+                        && row.EntryType == CreditLedgerEntryTypes.Release
+                        && row.Channel == CreditChannels.Sms
+                        && row.ReservationRef == guestResponse.BillingReservationRef
+                    )
+                    .SumAsync(row => row.Quantity)
+            );
+
+            var account = await snapshot.GetAccountAsync(restaurantId);
+            var sms = Assert.Single(
+                account!.Channels,
+                row => row.Channel == CreditChannels.Sms
+            );
+            Assert.Equal(0, sms.Held);
+            Assert.Equal(9, sms.Remaining);
+        }
+
+        [Fact]
         public async Task SendGuestResponse_Sms_SameIdempotencyKeyBeforeTtlDoesNotDoubleBurn()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(
@@ -642,10 +727,11 @@ namespace TummlyBackend.Tests.Integration
             string guestContact,
             FeedbackWorkflowStatus workflowStatus,
             string email = "guest-response-owner@example.com",
-            int smsCredits = 20
+            int smsCredits = 20,
+            IServiceProvider? services = null
         )
         {
-            using var scope = _factory.Services.CreateScope();
+            using var scope = (services ?? _factory.Services).CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
             var jwtService = scope.ServiceProvider
@@ -810,6 +896,54 @@ namespace TummlyBackend.Tests.Integration
                     >();
                 });
             }).CreateClient();
+        }
+
+        private WebApplicationFactory<Program> CreateFactoryWithFixedAcceptedSmsSegments(
+            int acceptedSegments
+        )
+        {
+            return _factory.WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureServices(services =>
+                {
+                    var descriptors = services
+                        .Where(d =>
+                            d.ServiceType == typeof(IRecoveryGuestSmsDelivery)
+                        )
+                        .ToList();
+                    foreach (var descriptor in descriptors)
+                    {
+                        services.Remove(descriptor);
+                    }
+
+                    services.AddSingleton<IRecoveryGuestSmsDelivery>(
+                        new FixedAcceptedRecoveryGuestSmsDelivery(acceptedSegments)
+                    );
+                });
+            });
+        }
+
+        private sealed class FixedAcceptedRecoveryGuestSmsDelivery
+            : IRecoveryGuestSmsDelivery
+        {
+            private readonly int _acceptedSegments;
+
+            public FixedAcceptedRecoveryGuestSmsDelivery(int acceptedSegments)
+            {
+                _acceptedSegments = acceptedSegments;
+            }
+
+            public Task<RecoveryGuestSmsDeliveryResult> SendAsync(
+                string phoneNumber,
+                string body,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult<RecoveryGuestSmsDeliveryResult>(
+                    new RecoveryGuestSmsDeliveryResult.Accepted
+                    {
+                        AcceptedSegments = _acceptedSegments,
+                    }
+                );
         }
     }
 }
