@@ -1393,7 +1393,11 @@ namespace TummlyBackend.Services
                     idempotencyKey.Trim()
                 );
                 return (
-                    new CreditTopUpPayDto { RedirectUrl = checkoutUrl },
+                    new CreditTopUpPayDto
+                    {
+                        Outcome = "pay",
+                        RedirectUrl = checkoutUrl,
+                    },
                     StatusCodes.Status200OK,
                     null
                 );

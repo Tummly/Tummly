@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -457,7 +458,10 @@ namespace TummlyBackend.Services
             var plan = billingAccount?.SubscriptionPlan
                 ?? BillingSubscriptionPlans.Starter;
             var cycle = billingAccount?.BillingCycle ?? BillingCycles.Monthly;
-            var lineName = FormatTopupLineDescription(channel, quantity);
+            var lineName = CreditTopUpLineCopy.FormatLineDescription(
+                channel,
+                quantity
+            );
 
             await _vatInvoices.MintForCompletedOrderAsync(
                 new TummlyVatInvoiceMintRequest(
@@ -480,18 +484,6 @@ namespace TummlyBackend.Services
                 intent.IsOpen = false;
                 await _context.SaveChangesAsync(cancellationToken);
             }
-        }
-
-        private static string FormatTopupLineDescription(string channel, int quantity)
-        {
-            var label = channel switch
-            {
-                "sms" => "SMS",
-                "email" => "Email",
-                "ai" => "AI",
-                _ => channel,
-            };
-            return $"{label} credit pack ({quantity:N0})";
         }
 
         private static (

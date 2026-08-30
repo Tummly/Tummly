@@ -143,6 +143,35 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PostTopUpPay_Returns503_VatNotReady_WhenConfigEmpty()
+        {
+            await using var factory = new RevolutGateWebApplicationFactory();
+            var client = factory.CreateClient();
+            var seeded = await SeedPaidStarterAsync(factory);
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/billing-credits/top-up/pay"
+            );
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                seeded.OwnerJwt
+            );
+            request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
+            request.Content = JsonContent.Create(
+                new { channel = "ai", quantity = 500 }
+            );
+            var response = await client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                RevolutMerchantCreateGate.VatNotReady,
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
         public async Task PostPlanChange_SameCadenceUpgrade_ReturnsHppRedirect_WhenFullReady()
         {
             await using var factory = new RevolutGateWebApplicationFactory(

@@ -2309,6 +2309,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, payResponse.StatusCode);
 
             var payBody = await ReadJsonAsync(payResponse);
+            Assert.Equal("pay", payBody.GetProperty("outcome").GetString());
             Assert.Contains(
                 "checkout.revolut.com",
                 payBody.GetProperty("redirectUrl").GetString()
@@ -2455,6 +2456,78 @@ namespace TummlyBackend.Tests.Integration
                 "checkout.revolut.com",
                 body.GetProperty("redirectUrl").GetString()
             );
+            Assert.Equal("pay", body.GetProperty("outcome").GetString());
+        }
+
+        [Fact]
+        public async Task PostTopUpPay_Returns403_DormantPaid()
+        {
+            var seeded = await SeedNamedPaidWorkspaceAsync(
+                "Dormant Paid Growth Venue"
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var account = await context.BillingAccounts.SingleAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                );
+                account.RevolutCustomerId = "cust_dormant";
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedTopUpPay(
+                seeded.OwnerJwt,
+                new { channel = "sms", quantity = 100 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("dormant", body.GetProperty("code").GetString());
+        }
+
+        [Fact]
+        public async Task PostTopUpPay_Returns403_ChargebackRestricted()
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var account = await context.BillingAccounts.SingleAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                );
+                account.ChargebackRestricted = true;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedTopUpPay(
+                seeded.OwnerJwt,
+                new { channel = "ai", quantity = 500 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "chargeback_restricted",
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PostTopUpPay_Returns403_ForSms5000_OnStarterWithoutApproval()
+        {
+            var seeded = await SeedPaidStarterWorkspaceAsync(
+                allowSms5000TopUp: false
+            );
+            using var request = AuthorizedTopUpPay(
+                seeded.OwnerJwt,
+                new { channel = "sms", quantity = 5000 }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
         private async Task<PaidSeeded> SeedPaidStarterWorkspaceAsync(

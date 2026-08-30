@@ -111,7 +111,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task StartAsync_NewKey_ClosesPriorOpenWithoutAllocate()
+        public async Task StartAsync_NewKey_LeavesPriorOpenWithoutAllocate()
         {
             await using var context = CreateContext();
             var account = await SeedPaidStarterAsync(context);
@@ -125,7 +125,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(2, merchant.CreateOrderCallCount);
             Assert.Equal(2, await context.RevolutOrderIntents.CountAsync());
             Assert.Equal(
-                1,
+                2,
                 await context.RevolutOrderIntents.CountAsync(row => row.IsOpen)
             );
             Assert.Equal(

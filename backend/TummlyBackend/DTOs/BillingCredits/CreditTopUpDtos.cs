@@ -28,6 +28,8 @@ namespace TummlyBackend.DTOs.BillingCredits
     {
         public bool Success { get; set; } = true;
 
+        public string Outcome { get; set; } = "pay";
+
         public string RedirectUrl { get; set; } = string.Empty;
     }
 }

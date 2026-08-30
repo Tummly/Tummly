@@ -120,16 +120,17 @@ namespace TummlyBackend.Services
                     }
                 }
 
-                // New key (or unusable prior): close without allocate.
-                openIntent.IsOpen = false;
-                await _context.SaveChangesAsync(cancellationToken);
+                // New key → new order; leave prior pending unpaid (lock 07).
             }
 
             var vatRateBps = TummlyVatMath.DefaultVatRateBps;
             var net = pack.NetPence;
             var vat = TummlyVatMath.VatPenceFromNetPence(net, vatRateBps);
             var gross = net + vat;
-            var lineName = FormatLineName(channel, pack.Quantity);
+            var lineName = CreditTopUpLineCopy.FormatLineDescription(
+                channel,
+                pack.Quantity
+            );
             var redirectUrl = BuildCreditsUsageRedirectUrl(
                 restaurantAccountType,
                 locationId
@@ -306,16 +307,5 @@ namespace TummlyBackend.Services
                 && intent.Quantity == quantity;
         }
 
-        private static string FormatLineName(string channel, int quantity)
-        {
-            var label = channel switch
-            {
-                "sms" => "SMS",
-                "email" => "Email",
-                "ai" => "AI",
-                _ => channel,
-            };
-            return $"{label} credit pack ({quantity:N0})";
-        }
     }
 }
