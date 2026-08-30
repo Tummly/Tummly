@@ -30,6 +30,7 @@ import {
   ShopProductScreen,
   scrollShopPaneToTop,
 } from "@/components/dashboard/operator/Shop/ShopProductScreen"
+import { ShopCheckoutScreen } from "@/components/dashboard/operator/Shop/ShopCheckoutScreen"
 import { ShopCreateQrAssetDialog } from "@/components/dashboard/operator/Shop/ShopCreateQrAssetDialog"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
 
@@ -49,13 +50,19 @@ export function ShopPage({
   const productParam = searchParams.get("product")
   const viewParam = searchParams.get("view")
 
-  const currentView: "shop" | "orders" | "product" =
-    productParam ? "product" : viewParam === "orders" ? "orders" : "shop"
+  const currentView: "shop" | "orders" | "product" | "checkout" =
+    viewParam === "checkout"
+      ? "checkout"
+      : productParam
+      ? "product"
+      : viewParam === "orders"
+      ? "orders"
+      : "shop"
 
   const selectedProduct = productParam
     ? SHOP_CATALOG_PRODUCTS.find((p) => p.id === productParam) ??
       SHOP_CATALOG_PRODUCTS[0]
-    : null
+    : SHOP_CATALOG_PRODUCTS[0]
 
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [cartItems, setCartItems] = useState<CartItem[]>([])
@@ -157,23 +164,14 @@ export function ShopPage({
   }
 
   const handleCheckout = () => {
-    setIsSubmittingOrder(true)
-    setTimeout(() => {
-      const newOrder: ShopOrder = {
-        id: `ord-${Date.now()}`,
-        orderNumber: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
-        date: "Just now",
-        locationName,
-        items: cartItems.map((item) => `${item.quantity}x ${item.product.title}`),
-        status: "processing",
-      }
-
-      setOrders((prev) => [newOrder, ...prev])
-      setCartItems([])
-      setIsSubmittingOrder(false)
-      setIsCartOpen(false)
-      toast.success("Order placed successfully! Tracking updates sent to your email.")
-    }, 1200)
+    setIsCartOpen(false)
+    const firstProduct = cartItems[0]?.product || selectedProduct
+    if (firstProduct) {
+      setSearchParams({ view: "checkout", product: firstProduct.id })
+    } else {
+      setSearchParams({ view: "checkout" })
+    }
+    scrollShopPaneToTop()
   }
 
   const handleSelectProduct = (product: ShopProduct) => {
@@ -188,7 +186,8 @@ export function ShopPage({
 
   const handleOrderNow = (product: ShopProduct, quantity: number) => {
     handleAddToCart(product, quantity)
-    setIsCartOpen(true)
+    setSearchParams({ view: "checkout", product: product.id })
+    scrollShopPaneToTop()
   }
 
   const handleBackToShop = () => {
@@ -198,19 +197,48 @@ export function ShopPage({
 
   return (
     <div className="flex flex-col gap-6 pb-20">
-      {currentView === "orders" ? (
+      {currentView === "checkout" ? (
+        <ShopCheckoutScreen
+          product={selectedProduct}
+          selectedLocationName={locationName}
+          selectedLocationAddress={locationAddress}
+          locations={locations}
+          onSelectLocation={onSelectLocation}
+          onBackToShop={handleBackToShop}
+          onBackToProduct={() => {
+            if (selectedProduct) {
+              setSearchParams({ product: selectedProduct.id })
+            } else {
+              setSearchParams({})
+            }
+            scrollShopPaneToTop()
+          }}
+          onOrderPlaced={(_newOrder) => {
+            setCartItems([])
+            setSearchParams({ view: "orders" })
+            scrollShopPaneToTop()
+          }}
+          onSaveDraft={(_draft) => {
+            toast.success("Draft saved successfully")
+            setSearchParams({ view: "orders" })
+            scrollShopPaneToTop()
+          }}
+        />
+      ) : currentView === "orders" ? (
         <ShopOrdersScreen
           selectedLocationName={locationName}
           locations={locations}
           onSelectLocation={onSelectLocation}
           onBackToShop={handleBackToShop}
           onContinueCheckoutDraft={(draft) => {
-            setIsCartOpen(true)
+            setSearchParams({ view: "checkout" })
+            scrollShopPaneToTop()
             toast.info(`Resuming checkout for ${draft.draftNumber}`)
           }}
           onReorder={(order) => {
-            setIsCartOpen(true)
-            toast.success(`Items from ${order.orderNumber} added to cart for review`)
+            setSearchParams({ view: "checkout" })
+            scrollShopPaneToTop()
+            toast.success(`Reviewing reorder for ${order.orderNumber}`)
           }}
         />
       ) : currentView === "product" && selectedProduct ? (
