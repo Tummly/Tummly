@@ -106,29 +106,60 @@ namespace TummlyBackend.Tests.Services
             await context.SaveChangesAsync();
 
             var lifecycle = new RecordingChargebackLifecycle();
-            var webhookLifecycle = lifecycle;
             var ledger = new RecordingLedger();
             var vat = new RecordingVatInvoiceService();
-            var handler = new RevolutPaymentRefundCompletedHandler(
+            var refundHandler = new RevolutPaymentRefundCompletedHandler(
                 context,
                 ledger,
                 vat,
                 TimeProvider.System
             );
-
-            await handler.HandleAsync(
-                new RevolutPaymentRefundCompletedRequest(
-                    RefundOrderId: "ord_refund_clean",
-                    RelatedOrderId: seeded.PaymentOrderId,
+            var merchant = new FixedOrderMerchant(
+                new RevolutOrderRetrieveResult(
+                    Succeeded: true,
+                    Id: "ord_refund_clean",
+                    State: "completed",
                     OrderType: RevolutOrderTypes.Refund,
+                    RelatedOrderId: seeded.PaymentOrderId,
                     AmountMinor: 1200,
-                    RawOrderBody: "{}"
+                    RawBody: """{"id":"ord_refund_clean","type":"refund","state":"completed"}"""
                 )
             );
+            var service = new RevolutWebhookService(
+                context,
+                merchant,
+                new RecordingApplier(),
+                lifecycle,
+                TimeProvider.System,
+                Options.Create(
+                    new RevolutSettings
+                    {
+                        WebhookSigningSecret = "whsec_overlay",
+                        SecretKey = "sk_test",
+                        ApiBaseUrl = RevolutSettings.SandboxApiBaseUrl,
+                        ApiVersion = RevolutSettings.DefaultApiVersion,
+                    }
+                ),
+                paymentRefundHandler: refundHandler
+            );
+            var body =
+                """{"event":"ORDER_COMPLETED","order_id":"ord_refund_clean"}""";
+            var timestamp = "1710000001";
+            var signature = RevolutWebhookSignature.SignForTests(
+                "whsec_overlay",
+                timestamp,
+                body
+            );
 
+            var result = await service.HandleAsync(body, signature, timestamp);
+
+            Assert.Equal(RevolutWebhookHandleStatus.Accepted, result.Status);
             Assert.Equal(1, ledger.DrainCallCount);
             Assert.Equal(0, lifecycle.SetChargebackCallCount);
-            Assert.Equal(0, webhookLifecycle.SetChargebackCallCount);
+            var account = await context.BillingAccounts.SingleAsync(
+                row => row.RestaurantId == seeded.RestaurantId
+            );
+            Assert.False(account.ChargebackRestricted);
         }
 
         [Fact]
