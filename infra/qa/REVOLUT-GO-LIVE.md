@@ -4,6 +4,10 @@ HITL ops checklist before the first **live** paid transaction on an
 environment (Azure Container Apps / Key Vault). Product locks:
 [`.scratch/revolut-billing-integration/issues/10-go-live-vat-and-revolut-credentials.md`](../../.scratch/revolut-billing-integration/issues/10-go-live-vat-and-revolut-credentials.md).
 
+**QA first:** rehearse on Sandbox with test cards —
+[`REVOLUT-QA-SANDBOX.md`](./REVOLUT-QA-SANDBOX.md) — before this Production
+checklist. Do not put Production Merchant secrets on QA.
+
 **Do not** paste real secrets, Production variation UUIDs, or webhook
 signing secrets into git, tickets, pack JSON, or this file. Empty
 placeholders only — see
@@ -37,19 +41,24 @@ Sandbox and Production are **separate** Revolut Business accounts, Merchant
 secrets, webhook signing secrets, webhook registrations, and eight-key
 variation maps. UUIDs and secrets **do not** transfer between accounts.
 
-| | Sandbox | Production (live paid) |
+| | Sandbox (QA rehearsal) | Production (live paid) |
 | --- | --- | --- |
 | Revolut account | Sandbox Business | Production Business |
 | `Revolut__ApiBaseUrl` | `https://sandbox-merchant.revolut.com` | `https://merchant.revolut.com` |
+| `Revolut__RequireSandboxHost` | `true` (refuse live host) | omit / `false` |
 | `Revolut__SecretKey` | Sandbox Merchant secret | Production Merchant secret |
 | `Revolut__WebhookSigningSecret` | Sandbox webhook `signing_secret` | Production webhook `signing_secret` |
 | `Revolut__PlanVariations__*` | Sandbox variation UUIDs | Production variation UUIDs |
 | Webhook URL | Sandbox/QA API host + `/api/webhooks/revolut` | Live API host + `/api/webhooks/revolut` |
+| Cards | Revolut test PANs only | Real cards |
 
 Pin `Revolut__ApiVersion` per deploy (research default `2026-04-20`).
 
 HPP first conversion does **not** need a Merchant public / publishable key
 on the frontend.
+
+Probe (non-secret): `GET /health/revolut` or
+`./scripts/probe-qa-revolut-sandbox.sh`.
 
 ---
 
@@ -134,6 +143,7 @@ if any A/B config is empty or the target recurring SKU has no C map entry.
 | --- | --- | --- |
 | Any VAT A key missing | `vat_not_ready` / **503** | No redirect to HPP; no Merchant create |
 | `Revolut__SecretKey` / `ApiBaseUrl` / `ApiVersion` missing | `revolut_not_ready` / **503** | No Merchant call |
+| `RequireSandboxHost=true` but host is not Sandbox | `revolut_sandbox_required` / **503** | No Merchant call (QA safety) |
 | Target recurring `plan_variation_id` missing from C | `plan_variation_missing` / **503** | No subscription create / change onto that SKU |
 | Empty or wrong `Revolut__WebhookSigningSecret` | Bad signature → **401/400** | No event row; do not enable live paid conversion in an env that cannot verify webhooks |
 

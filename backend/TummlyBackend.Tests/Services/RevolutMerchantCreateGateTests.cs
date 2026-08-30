@@ -110,6 +110,30 @@ namespace TummlyBackend.Tests.Services
             Assert.True(sandbox.IsSandboxHost);
         }
 
+        [Fact]
+        public void Evaluate_ReturnsSandboxRequired_WhenRequireSandboxAndLiveHost()
+        {
+            var live = FullLiveRevolut(withStarterMonthly: true);
+            live.RequireSandboxHost = true;
+            var gate = CreateGate(FullVat(), live);
+
+            Assert.Equal(
+                RevolutMerchantCreateGate.RevolutSandboxRequired,
+                gate.Evaluate(StarterMonthly)
+            );
+        }
+
+        [Fact]
+        public void Evaluate_Passes_WhenRequireSandboxAndSandboxHost()
+        {
+            var sandbox = FullLiveRevolut(withStarterMonthly: true);
+            sandbox.ApiBaseUrl = RevolutSettings.SandboxApiBaseUrl;
+            sandbox.RequireSandboxHost = true;
+            var gate = CreateGate(FullVat(), sandbox);
+
+            Assert.Null(gate.Evaluate(StarterMonthly));
+        }
+
         private static RevolutMerchantCreateGate CreateGate(
             TummlySellerVatSettings vat,
             RevolutSettings revolut

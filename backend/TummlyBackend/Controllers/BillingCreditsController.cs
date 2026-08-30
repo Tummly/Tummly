@@ -920,6 +920,7 @@ namespace TummlyBackend.Controllers
             return message
                 is RevolutMerchantCreateGate.VatNotReady
                     or RevolutMerchantCreateGate.RevolutNotReady
+                    or RevolutMerchantCreateGate.RevolutSandboxRequired
                     or RevolutMerchantCreateGate.PlanVariationMissing;
         }
 

@@ -1072,6 +1072,43 @@ app.MapGet("/health/ready", async (
     }
 });
 
+// Non-secret Revolut readiness for QA sandbox rehearsal. Does not gate deploy.
+app.MapGet("/health/revolut", (
+    Microsoft.Extensions.Options.IOptions<RevolutSettings> revolutOptions,
+    Microsoft.Extensions.Options.IOptions<TummlySellerVatSettings> vatOptions
+) =>
+{
+    var revolut = revolutOptions.Value;
+    var vat = vatOptions.Value;
+    var configuredVariations = 0;
+    foreach (var key in RevolutPlanVariationKeys.All)
+    {
+        if (revolut.TryGetPlanVariationId(key, out _))
+        {
+            configuredVariations++;
+        }
+    }
+
+    var gate = new RevolutMerchantCreateGate(vatOptions, revolutOptions);
+    var createBlocked = gate.Evaluate(RevolutPlanVariationKeys.StarterMonthly);
+
+    return Results.Ok(
+        new
+        {
+            status = createBlocked is null ? "ready" : "not_ready",
+            hostMode = revolut.HostMode,
+            requireSandboxHost = revolut.RequireSandboxHost,
+            merchantApiConfigured = revolut.HasMerchantApiConfig,
+            webhookSigningSecretConfigured =
+                !string.IsNullOrWhiteSpace(revolut.WebhookSigningSecret),
+            sellerVatComplete = vat.IsComplete,
+            planVariationsConfigured = configuredVariations,
+            planVariationsExpected = RevolutPlanVariationKeys.All.Count,
+            createBlockedCode = createBlocked,
+        }
+    );
+});
+
 app.MapControllers();
 
 app.MapOperatorHub<NotificationsHub>(

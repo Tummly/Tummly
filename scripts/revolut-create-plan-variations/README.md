@@ -40,6 +40,8 @@ Mount the printed `Revolut__PlanVariations__*` lines into the deploy env
 (or the gitignored local file). Live Production UUIDs stay out of git
 (ticket 27 / 10). Full ACA/Key Vault HITL checklist:
 [`infra/qa/REVOLUT-GO-LIVE.md`](../../infra/qa/REVOLUT-GO-LIVE.md);
+**QA Sandbox / test cards first:**
+[`infra/qa/REVOLUT-QA-SANDBOX.md`](../../infra/qa/REVOLUT-QA-SANDBOX.md);
 empty ACA placeholders:
 [`infra/qa/secrets.revolut.env.example`](../../infra/qa/secrets.revolut.env.example).
 

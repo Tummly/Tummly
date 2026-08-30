@@ -15,6 +15,8 @@ namespace TummlyBackend.Services
 
         public const string RevolutNotReady = "revolut_not_ready";
 
+        public const string RevolutSandboxRequired = "revolut_sandbox_required";
+
         public const string PlanVariationMissing = "plan_variation_missing";
 
         private readonly TummlySellerVatSettings _vat;
@@ -39,6 +41,11 @@ namespace TummlyBackend.Services
             if (!_revolut.HasMerchantApiConfig)
             {
                 return RevolutNotReady;
+            }
+
+            if (_revolut.RequireSandboxHost && !_revolut.IsSandboxHost)
+            {
+                return RevolutSandboxRequired;
             }
 
             if (string.IsNullOrWhiteSpace(planVariationLookupKey))

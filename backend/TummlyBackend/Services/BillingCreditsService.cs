@@ -1426,6 +1426,7 @@ namespace TummlyBackend.Services
                 ex.Message
                     is RevolutMerchantCreateGate.VatNotReady
                         or RevolutMerchantCreateGate.RevolutNotReady
+                        or RevolutMerchantCreateGate.RevolutSandboxRequired
                         or RevolutMerchantCreateGate.PlanVariationMissing
             )
             {
