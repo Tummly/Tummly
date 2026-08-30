@@ -204,6 +204,14 @@ export function ShopPage({
           locations={locations}
           onSelectLocation={onSelectLocation}
           onBackToShop={handleBackToShop}
+          onContinueCheckoutDraft={(draft) => {
+            setIsCartOpen(true)
+            toast.info(`Resuming checkout for ${draft.draftNumber}`)
+          }}
+          onReorder={(order) => {
+            setIsCartOpen(true)
+            toast.success(`Items from ${order.orderNumber} added to cart for review`)
+          }}
         />
       ) : currentView === "product" && selectedProduct ? (
         <ShopProductScreen

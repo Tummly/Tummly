@@ -40,7 +40,7 @@ function dateChipLabel(
     return axisLabel != null ? `${axisLabel} · ${range}` : range
   }
 
-  const presetLabel = field.presetLabels[value.preset]
+  const presetLabel = field.presetLabels[value.preset] ?? value.preset
   return axisLabel != null ? `${axisLabel} · ${presetLabel}` : presetLabel
 }
 
