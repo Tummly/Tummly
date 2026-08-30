@@ -327,6 +327,19 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // Lock 05 / ticket 22: settle accepted units, then release unused hold
+            // (same close order as CampaignBillingClose). Provider already accepted
+            // and settle already committed — Release fail must not withhold the
+            // guest-response fact; leftover hold stays for the TTL sweeper.
+            await _smsBilling.ReleaseAsync(
+                new RecoverySmsBillingReleaseRequest
+                {
+                    FeedbackId = feedback.Id,
+                    ReservationRef = reservationRef,
+                },
+                cancellationToken
+            );
+
             var row = FeedbackGuestResponseComposer.Build(
                 feedback,
                 FeedbackGuestResponseChannel.Sms,
