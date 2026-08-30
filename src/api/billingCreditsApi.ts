@@ -220,6 +220,11 @@ export async function submitBillingPlanChange(
     {
       targetPlan: request.targetPlan,
       targetCadence: request.targetCadence,
+    },
+    {
+      headers: {
+        "Idempotency-Key": crypto.randomUUID(),
+      },
     }
   )
   return {
@@ -270,6 +275,11 @@ export async function payBillingCreditTopUp(
     {
       channel: request.channel,
       quantity: request.quantity,
+    },
+    {
+      headers: {
+        "Idempotency-Key": crypto.randomUUID(),
+      },
     }
   )
   return { redirectUrl: data.redirectUrl }

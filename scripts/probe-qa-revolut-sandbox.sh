@@ -26,7 +26,7 @@ def out(k, v):
     if v is None:
         print(f"{k}=")
     elif isinstance(v, bool):
-        print(f"{k}={'true' if v else 'false'}")
+        print(f"{k}=" + ("true" if v else "false"))
     else:
         print(f"{k}={v}")
 out("status", d.get("status"))
