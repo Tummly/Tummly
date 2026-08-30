@@ -5,6 +5,7 @@ on:
     branches: [qa]
     paths:
       - "backend/TummlyBackend/**"
+      - "docs/product/billing-pack-v3.0/**"
       - ".github/workflows/qa-backend.yml"
   workflow_dispatch:
 
@@ -58,11 +59,16 @@ jobs:
         run: az acr login --name "${{ env.ACR_NAME }}"
 
       - name: Build and push image
-        working-directory: backend/TummlyBackend
         run: |
           IMAGE="${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
           IMAGE_LATEST="${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:qa"
-          docker build -t "$IMAGE" -t "$IMAGE_LATEST" .
+          # Repo-root context so csproj Content links to
+          # docs/product/billing-pack-v3.0 resolve during publish.
+          docker build \
+            -f backend/TummlyBackend/Dockerfile \
+            -t "$IMAGE" \
+            -t "$IMAGE_LATEST" \
+            .
           docker push "$IMAGE"
           docker push "$IMAGE_LATEST"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
