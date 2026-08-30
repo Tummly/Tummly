@@ -1026,6 +1026,13 @@ namespace TummlyBackend.Tests.Integration
                 TummlyVatInvoice.PaymentStatusPaid,
                 tcn.PaymentStatus
             );
+            var account = await db.BillingAccounts.AsNoTracking().SingleAsync(row =>
+                row.RestaurantId == seeded.RestaurantId
+            );
+            Assert.False(
+                account.ChargebackRestricted,
+                "Unused top-up drain (consumed=0, held=0) auto-clears overlay on LOST."
+            );
 
             var replay = await SendSignedAsync(
                 client,

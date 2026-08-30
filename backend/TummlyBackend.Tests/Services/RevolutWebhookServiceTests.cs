@@ -194,15 +194,6 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(1, merchant.GetDisputeCallCount);
         }
 
-        [Fact]
-        public void ChallengeReason_UsesRefundAlreadyIssued_WhenPaymentRefundDrainExists()
-        {
-            Assert.Equal(
-                RevolutDisputeChallengeReasons.RefundAlreadyIssued,
-                RevolutDisputeChallengeReasons.ForSupportRefundAlreadyCompleted()
-            );
-        }
-
         private static RevolutWebhookService CreateService(
             ApplicationDbContext context,
             IRevolutMerchantClient merchant,

@@ -469,21 +469,20 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            var snapshot = await _ledger.DrainUnusedTopupAsync(
-                new CreditLedgerDrainTopupRequest
-                {
-                    RestaurantId = restaurantId,
-                    SourcePaymentRef = paymentOrderId,
-                    CorrectionSource = CorrectionSources.Dispute,
-                },
-                cancellationToken
+            // Use current ledger totals for the payment ref (same held/consumed
+            // as the ACTION_REQUIRED drain report). Do not drain again.
+            var entries = await _context.CreditLedgerEntries
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurantId)
+                .ToListAsync(cancellationToken);
+            var channels = CreditLedgerCalculator.SummarizePaymentRef(
+                entries,
+                paymentOrderId,
+                _clock.GetUtcNow().UtcDateTime
             );
             if (
-                snapshot.Succeeded
-                && snapshot.Channels.Count > 0
-                && snapshot.Channels.All(row =>
-                    row.Consumed == 0 && row.Held == 0
-                )
+                channels.Count > 0
+                && channels.All(row => row.Consumed == 0 && row.Held == 0)
             )
             {
                 await _lifecycle.SetChargebackRestrictionAsync(

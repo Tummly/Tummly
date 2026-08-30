@@ -201,15 +201,12 @@ namespace TummlyBackend.Interfaces
 
     public static class RevolutDisputeChallengeReasons
     {
-        public const string RefundAlreadyIssued = "refund_already_issued";
-
         /// <summary>
         /// Challenge reason when Support already completed a
         /// <c>payment_refund</c> for the disputed order. Dispute accept is not
         /// the refund endpoint.
         /// </summary>
-        public static string ForSupportRefundAlreadyCompleted() =>
-            RefundAlreadyIssued;
+        public const string RefundAlreadyIssued = "refund_already_issued";
     }
 
     public sealed class RevolutMerchantNotReadyException : Exception
