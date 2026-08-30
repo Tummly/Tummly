@@ -1,10 +1,18 @@
 import { useState, type ReactNode } from "react"
+import { Link, useLocation } from "react-router-dom"
 
 import { AiAssistantDrawer } from "@/components/dashboard/operator/AiAssistantDrawer"
 import { DashboardNavbar } from "@/components/dashboard/operator/DashboardNavbar"
 import { DashboardSidebar } from "@/components/dashboard/operator/DashboardSidebar"
 import { MobileNavSheetHeader } from "@/components/dashboard/operator/MobileNavSheetHeader"
 import { NotificationsDrawer } from "@/components/dashboard/operator/NotificationsDrawer"
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import {
   Sheet,
   SheetContent,
@@ -103,6 +111,7 @@ type DashboardShellProps = {
     onDismissFromEscape: () => void
     onViewUsage: () => void
     onAddCredits: () => void
+    onFollowRestorationHelper: () => void
   }
   children?: ReactNode
 }
@@ -123,6 +132,7 @@ export function DashboardShell({
   aiAssistant,
   children,
 }: DashboardShellProps) {
+  const location = useLocation()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed)
   const [settingsExpanded, setSettingsExpanded] = useState(
@@ -251,6 +261,7 @@ export function DashboardShell({
           onDismissFromEscape={aiAssistant.onDismissFromEscape}
           onViewUsage={aiAssistant.onViewUsage}
           onAddCredits={aiAssistant.onAddCredits}
+          onFollowRestorationHelper={aiAssistant.onFollowRestorationHelper}
         />
       ) : null}
       <div className="flex min-h-0 flex-1">
@@ -331,9 +342,48 @@ export function DashboardShell({
               className={cn(
                 OPERATOR_SHELL_GUTTER_X,
                 OPERATOR_SHELL_GUTTER_Y,
-                "box-border flex min-h-full flex-col"
+                "box-border flex min-h-full flex-col gap-4"
               )}
             >
+              {presentation.lockAlert != null ? (
+                <Alert className="shrink-0">
+                  <AlertTitle>{presentation.lockAlert.title}</AlertTitle>
+                  <AlertDescription>
+                    <p>{presentation.lockAlert.body}</p>
+                  </AlertDescription>
+                  {presentation.lockAlert.buttonLabel != null
+                    && presentation.lockAlert.buttonHref != null ? (
+                    <AlertAction>
+                      <Button asChild variant="op-primary" className="h-8 px-3 text-sm">
+                        <Link
+                          to={presentation.lockAlert.buttonHref}
+                          onClick={(event) => {
+                            const href = presentation.lockAlert?.buttonHref
+                            if (href == null) {
+                              return
+                            }
+                            const target = new URL(href, window.location.origin)
+                            if (target.pathname !== location.pathname) {
+                              return
+                            }
+                            const hashId = target.hash.replace(/^#/, "")
+                            if (hashId === "") {
+                              return
+                            }
+                            // Already on landing surface — scroll instead of a no-op nav.
+                            event.preventDefault()
+                            document
+                              .getElementById(hashId)
+                              ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                          }}
+                        >
+                          {presentation.lockAlert.buttonLabel}
+                        </Link>
+                      </Button>
+                    </AlertAction>
+                  ) : null}
+                </Alert>
+              ) : null}
               {children}
             </div>
           </div>

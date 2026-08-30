@@ -41,7 +41,7 @@ namespace TummlyBackend.Interfaces
             int membershipId
         );
 
-        Task<string?> ReactivateAsync(
+        Task<TeamPermissionsWriteResult> ReactivateAsync(
             int actorUserId,
             int restaurantId,
             bool actorCanManage,
@@ -61,7 +61,7 @@ namespace TummlyBackend.Interfaces
             IReadOnlyList<AdminMatrixCellDto> adminCells
         );
 
-        Task<string?> SendInviteAsync(
+        Task<TeamPermissionsWriteResult> SendInviteAsync(
             int actorUserId,
             int restaurantId,
             bool actorCanManage,

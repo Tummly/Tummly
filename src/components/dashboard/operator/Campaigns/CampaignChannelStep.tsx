@@ -2,7 +2,10 @@ import type { LucideIcon } from "lucide-react"
 import { MailIcon, MessageSquareIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import type { CampaignChannelId } from "@/lib/operatorCampaigns/campaignChannelPresentation"
+import type {
+  CampaignChannelId,
+  CampaignChannelShortfall,
+} from "@/lib/operatorCampaigns/campaignChannelPresentation"
 import type {
   CampaignChannelOptionViewModel,
   CampaignChannelViewModel,
@@ -17,8 +20,8 @@ const CHANNEL_ICONS: Record<CampaignChannelId, LucideIcon> = {
 type CampaignChannelStepProps = {
   channel: CampaignChannelViewModel
   onSelectChannel: (channelId: CampaignChannelId) => void
-  /** Billing-owned Buy SMS destination when present; inert until then. */
-  onBuySmsCredits?: () => void
+  onBuyCredits?: () => void
+  onChangePlan?: () => void
   onRetryMessagingBalances?: () => void
 }
 
@@ -99,15 +102,67 @@ function EstimatedUsageSummary({
   )
 }
 
+/** Shortfall banner — Channel–Schedule + Review hard-stop CTAs (ticket 23). */
+export function CampaignChannelShortfallBanner({
+  shortfall,
+  onBuyCredits,
+  onChangePlan,
+}: {
+  shortfall: CampaignChannelShortfall
+  onBuyCredits?: () => void
+  onChangePlan?: () => void
+}) {
+  const showActions =
+    shortfall.buyCreditsLabel != null || shortfall.changePlanLabel != null
+
+  return (
+    <div className="flex w-full flex-col gap-[22px] rounded-[4px] bg-[var(--op-color-gray-995)] p-[18px]">
+      <div className="flex flex-col gap-1.5">
+        <p className="m-0 text-sm font-medium text-op-text-primary">
+          {shortfall.title}
+        </p>
+        <p className="m-0 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
+          {shortfall.body}
+        </p>
+      </div>
+      {showActions ? (
+        <div className="flex flex-wrap items-center gap-4">
+          {shortfall.buyCreditsLabel != null ? (
+            <Button
+              type="button"
+              variant="op-link"
+              className="h-auto min-h-0 w-fit p-0"
+              onClick={onBuyCredits}
+            >
+              {shortfall.buyCreditsLabel}
+            </Button>
+          ) : null}
+          {shortfall.changePlanLabel != null ? (
+            <Button
+              type="button"
+              variant="op-link"
+              className="h-auto min-h-0 w-fit p-0"
+              onClick={onChangePlan}
+            >
+              {shortfall.changePlanLabel}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 /**
  * Campaign wizard Channel step — Figma 4707:52097.
  * Email / SMS; usage from shared Billing balances (fixtures until cutover).
- * SMS shortfall allows Continue; Buy SMS is Billing-owned or inert.
+ * Shortfall allows Continue; Buy / Change plan are Billing-owned or inert.
  */
 export function CampaignChannelStep({
   channel,
   onSelectChannel,
-  onBuySmsCredits,
+  onBuyCredits,
+  onChangePlan,
   onRetryMessagingBalances,
 }: CampaignChannelStepProps) {
   return (
@@ -155,25 +210,12 @@ export function CampaignChannelStep({
           </div>
         ) : null}
 
-        {channel.smsShortfall != null ? (
-          <div className="flex w-full flex-col gap-[22px] rounded-[4px] bg-[var(--op-color-gray-995)] p-[18px]">
-            <div className="flex flex-col gap-1.5">
-              <p className="m-0 text-sm font-medium text-op-text-primary">
-                {channel.smsShortfall.title}
-              </p>
-              <p className="m-0 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
-                {channel.smsShortfall.body}
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="op-link"
-              className="h-auto min-h-0 w-fit p-0"
-              onClick={onBuySmsCredits}
-            >
-              {channel.smsShortfall.buyCreditsLabel}
-            </Button>
-          </div>
+        {channel.channelShortfall != null ? (
+          <CampaignChannelShortfallBanner
+            shortfall={channel.channelShortfall}
+            onBuyCredits={onBuyCredits}
+            onChangePlan={onChangePlan}
+          />
         ) : null}
       </div>
 

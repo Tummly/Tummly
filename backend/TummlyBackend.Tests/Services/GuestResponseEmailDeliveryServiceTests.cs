@@ -1,12 +1,16 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.DTOs.Feedback;
 using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Interfaces;
@@ -33,9 +37,16 @@ namespace TummlyBackend.Tests.Services
 
             var collection = new ServiceCollection();
             collection.AddDbContext<ApplicationDbContext>(options =>
-                options.UseInMemoryDatabase(_databaseName)
+                options
+                    .UseInMemoryDatabase(_databaseName)
+                    .ConfigureWarnings(w =>
+                        w.Ignore(InMemoryEventId.TransactionIgnoredWarning)
+                    )
             );
             collection.AddSingleton<IEmailService>(_emailService);
+            collection.AddSingleton<IConfiguration>(
+                new ConfigurationBuilder().Build()
+            );
             collection.AddSingleton<IOptions<GuestResponseEmailDeliverySettings>>(
                 Options.Create(
                     new GuestResponseEmailDeliverySettings
@@ -61,11 +72,25 @@ namespace TummlyBackend.Tests.Services
             _context = new ApplicationDbContext(
                 new DbContextOptionsBuilder<ApplicationDbContext>()
                     .UseInMemoryDatabase(_databaseName)
+                    .ConfigureWarnings(w =>
+                        w.Ignore(InMemoryEventId.TransactionIgnoredWarning)
+                    )
                     .Options
             );
             _guestResponses = new FeedbackGuestResponsesService(
                 _context,
-                _deliveryWork
+                _deliveryWork,
+                new LiveRecoverySmsBillingReserve(
+                    _context,
+                    new CreditLedgerService(
+                        _context,
+                        TimeProvider.System,
+                        new DeliveryTestPricebookCatalog()
+                    ),
+                    new CreditBalanceSnapshotService(_context, TimeProvider.System)
+                ),
+                new NoOpRecoveryGuestSmsDelivery(),
+                TimeProvider.System
             );
             _respondAndRecord = new FeedbackRespondAndRecordService(
                 _context,
@@ -230,6 +255,7 @@ namespace TummlyBackend.Tests.Services
                 GuestResponseEmailDeliveryStatus.NotApplicable,
                 row.EmailDeliveryStatus
             );
+            Assert.False(string.IsNullOrWhiteSpace(row.BillingReservationRef));
 
             await _deliveryWork.DrainAsync();
 
@@ -371,6 +397,14 @@ namespace TummlyBackend.Tests.Services
             _context.Restaurants.Add(restaurant);
             await _context.SaveChangesAsync();
 
+            _context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurant.Id,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                )
+            );
+            await _context.SaveChangesAsync();
+
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
@@ -444,6 +478,23 @@ namespace TummlyBackend.Tests.Services
             _context.Feedbacks.Add(feedback);
             await _context.SaveChangesAsync();
 
+            if (contactType == ContactType.Phone)
+            {
+                _context.CreditLedgerEntries.Add(
+                    new CreditLedgerEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        RestaurantId = restaurant.Id,
+                        Channel = CreditChannels.Sms,
+                        EntryType = CreditLedgerEntryTypes.PilotAllocation,
+                        Quantity = 20,
+                        PricebookVersion = "TUMMLY-UK-GBP-2026-08-V3",
+                        CreatedAtUtc = DateTime.UtcNow,
+                    }
+                );
+                await _context.SaveChangesAsync();
+            }
+
             return (feedback.Id, user.Id);
         }
 
@@ -506,6 +557,38 @@ namespace TummlyBackend.Tests.Services
 
             public IFileProvider ContentRootFileProvider { get; set; } =
                 new NullFileProvider();
+        }
+
+        private sealed class NoOpRecoveryGuestSmsDelivery : IRecoveryGuestSmsDelivery
+        {
+            public Task<RecoveryGuestSmsDeliveryResult> SendAsync(
+                string phoneNumber,
+                string body,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult<RecoveryGuestSmsDeliveryResult>(
+                    new RecoveryGuestSmsDeliveryResult.Accepted
+                    {
+                        AcceptedSegments = 1,
+                    }
+                );
+        }
+
+        private sealed class DeliveryTestPricebookCatalog : IPricebookCatalog
+        {
+            public string CurrentPricebookId => "TUMMLY-UK-GBP-2026-08-V3";
+
+            public PricebookSnapshot GetRequired(string pricebookId) =>
+                throw new NotImplementedException();
+
+            public string FormatPlanPriceNet(PricebookPlan plan, string? billingCycle) =>
+                throw new NotImplementedException();
+
+            public string FormatIncludedCreditsLabel(PricebookPlan plan, string channel) =>
+                throw new NotImplementedException();
+
+            public BillingCurrentCatalogDto BuildCurrentCatalog(bool sms5000Available) =>
+                throw new NotImplementedException();
         }
     }
 }

@@ -8,6 +8,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
@@ -142,6 +143,108 @@ namespace TummlyBackend.Tests.Integration
                 seeded.OwnerJwt,
                 $"{Guid.NewGuid():N}@example.com"
             );
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task SendInvite_Returns409_WhenTeamMemberCapReached()
+        {
+            var client = CreateClientWithEmail(new TrackingTeamInvitationEmailService());
+            var seeded = await SeedPilotOwnerAsync();
+            var first = await SendInviteAsync(
+                client,
+                seeded.OwnerJwt,
+                $"{Guid.NewGuid():N}@example.com"
+            );
+            Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);
+
+            var second = await SendInviteAsync(
+                client,
+                seeded.OwnerJwt,
+                $"{Guid.NewGuid():N}@example.com"
+            );
+            Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+            var body = await second.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("team_member_cap_reached", body.GetProperty("code").GetString());
+            Assert.Equal(2, body.GetProperty("cap").GetInt32());
+            Assert.Equal(2, body.GetProperty("current").GetInt32());
+        }
+
+        [Fact]
+        public async Task Accept_Succeeds_WhenPendingInviteAlreadyAtCap()
+        {
+            var tracking = new TrackingTeamInvitationEmailService();
+            var client = CreateClientWithEmail(tracking);
+            var seeded = await SeedPilotOwnerAsync();
+            var email = $"{Guid.NewGuid():N}@new.example";
+            var inviteResponse = await SendInviteAsync(client, seeded.OwnerJwt, email);
+            Assert.Equal(HttpStatusCode.NoContent, inviteResponse.StatusCode);
+
+            string opaque;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                opaque = (await context.TeamInvitations.SingleAsync(row =>
+                    row.Email == email
+                )).OpaqueReference;
+            }
+
+            var credentials = await client.PostAsJsonAsync(
+                "/api/team-invitations/credentials",
+                new { invite = opaque, fullName = "New Member", password = "Password1" }
+            );
+            Assert.Equal(HttpStatusCode.OK, credentials.StatusCode);
+
+            string otp;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                otp = (await context.OtpVerifications.SingleAsync(row =>
+                    row.Email == email
+                )).OtpCode;
+            }
+
+            var verify = await client.PostAsJsonAsync(
+                "/api/team-invitations/verify-otp",
+                new { invite = opaque, email, otpCode = otp }
+            );
+            Assert.Equal(HttpStatusCode.OK, verify.StatusCode);
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                Assert.True(
+                    await context.RestaurantMemberships.AnyAsync(row =>
+                        row.RestaurantId == seeded.RestaurantId
+                        && row.User.Email == email
+                        && row.Status == MembershipStatus.Active
+                    )
+                );
+            }
+        }
+
+        [Fact]
+        public async Task Resend_DoesNotReturn409_WhenAtTeamMemberCap()
+        {
+            var client = CreateClientWithEmail(new TrackingTeamInvitationEmailService());
+            var seeded = await SeedPilotOwnerAsync();
+            var email = $"{Guid.NewGuid():N}@example.com";
+            var send = await SendInviteAsync(client, seeded.OwnerJwt, email);
+            Assert.Equal(HttpStatusCode.NoContent, send.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var invite = await context.TeamInvitations.SingleAsync(row =>
+                row.Email == email
+            );
+
+            using var resend = AuthorizedJson(
+                HttpMethod.Post,
+                $"/api/team-permissions/invitations/{invite.Id}/resend",
+                seeded.OwnerJwt,
+                new { }
+            );
+            var response = await client.SendAsync(resend);
             Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         }
 
@@ -579,6 +682,64 @@ namespace TummlyBackend.Tests.Integration
             }).CreateClient();
         }
 
+        private async Task<PilotSeeded> SeedPilotOwnerAsync()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var owner = AddUser(context, "Pilot Owner", "Owner");
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Pilot Cap Venue",
+                AccountType = "Single",
+                OwnerUserId = owner.Id,
+                BillingContactUserId = owner.Id,
+                PrivacyContactUserId = owner.Id,
+                SupportContactUserId = owner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            context.RestaurantLocations.Add(
+                new RestaurantLocation
+                {
+                    RestaurantId = restaurant.Id,
+                    LocationName = "Camden",
+                    Address = "1 High Street",
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            context.RestaurantMemberships.Add(
+                new RestaurantMembership
+                {
+                    UserId = owner.Id,
+                    RestaurantId = restaurant.Id,
+                    PermissionRole = PermissionRoles.Owner,
+                    LocationScope = LocationScopeKind.AllLocations,
+                    NamedLocationIdsJson = "[]",
+                    Status = MembershipStatus.Active,
+                }
+            );
+            context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurant.Id,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                )
+            );
+            await context.SaveChangesAsync();
+
+            return new PilotSeeded(
+                jwtService.GenerateToken(owner.Id.ToString(), owner.Email, owner.Role),
+                restaurant.Id
+            );
+        }
+
         private async Task<Seeded> SeedWorkspaceAsync()
         {
             using var scope = _factory.Services.CreateScope();
@@ -651,6 +812,14 @@ namespace TummlyBackend.Tests.Integration
                 LocationScopeKind.NamedList,
                 MembershipLocationScope.SerializeNamedIds([locA.Id])
             );
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                "TUMMLY-UK-GBP-2026-08-V3"
+            );
+            billing.SubscriptionPlan = BillingSubscriptionPlans.Growth;
+            billing.BillingStatus = BillingStatuses.Active;
+            billing.BillingCycle = BillingCycles.Monthly;
+            context.BillingAccounts.Add(billing);
             await context.SaveChangesAsync();
 
             return new Seeded(
@@ -727,6 +896,8 @@ namespace TummlyBackend.Tests.Integration
             request.Content = JsonContent.Create(body);
             return request;
         }
+
+        private sealed record PilotSeeded(string OwnerJwt, int RestaurantId);
 
         private sealed record Seeded(
             string OwnerJwt,

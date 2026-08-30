@@ -36,6 +36,16 @@ import type {
 } from "@/lib/operatorFeedback/createRespondToGuestModule"
 import { isPrepareRecoveryDraftRewriteMode } from "@/lib/operatorFeedback/createRespondToGuestModule"
 import {
+  isRecoverySendBlocked,
+  resolveRecoveryAiActionChipChrome,
+  resolveRecoveryPaidWriteChrome,
+  resolveRecoverySmsShortfall,
+  type RecoveryAiActionChipChrome,
+  type RecoveryCreditChromeContext,
+  type RecoveryPaidWriteChrome,
+  type RecoverySmsShortfallChrome,
+} from "@/lib/operatorFeedback/recoveryCreditChromePresentation"
+import {
   RECOVERY_OFFER_DESCRIPTION_MAX,
   RECOVERY_OFFER_PURPOSE_ID,
   RECOVERY_OFFER_PURPOSE_LABEL,
@@ -234,6 +244,8 @@ export type RespondWithRecoveryOfferAdapters = {
     request: PrepareRecoveryOfferDraftRequest,
     signal?: AbortSignal
   ) => Promise<PrepareRecoveryDraftResult>
+  /** Billing usage + lock chrome for recovery burn gates (ticket 24). */
+  getCreditChrome?: () => Promise<RecoveryCreditChromeContext | null>
 }
 
 export type RespondWithRecoveryOfferSummary = {
@@ -316,6 +328,11 @@ export type RespondWithRecoveryOfferSnapshot = {
   workflowStatus: FeedbackWorkflowStatus | null
   issuedOffer: SendAndIssueRecoveryOfferResult["issuedOffer"] | null
   openedFromDraftAction: boolean
+  smsShortfall: RecoverySmsShortfallChrome
+  aiActionChip: RecoveryAiActionChipChrome
+  paidWrite: RecoveryPaidWriteChrome
+  /** Confirm/Send hard-stop for SMS shortfall or Soft lock / Dormant. */
+  sendBlocked: boolean
 }
 
 export type RespondWithRecoveryOfferBackResult = "return-to-shell" | "stayed"
@@ -451,6 +468,7 @@ type SessionState = {
   workflowStatus: FeedbackWorkflowStatus | null
   issuedOffer: SendAndIssueRecoveryOfferResult["issuedOffer"] | null
   openedFromDraftAction: boolean
+  creditChrome: RecoveryCreditChromeContext | null
 }
 
 function emptySession(): SessionState {
@@ -504,6 +522,7 @@ function emptySession(): SessionState {
     workflowStatus: null,
     issuedOffer: null,
     openedFromDraftAction: false,
+    creditChrome: null,
   }
 }
 
@@ -668,11 +687,35 @@ function buildExistingOfferPickerViewModel(
   }
 }
 
+function projectCreditChrome(state: SessionState): {
+  smsShortfall: RecoverySmsShortfallChrome
+  aiActionChip: RecoveryAiActionChipChrome
+  paidWrite: RecoveryPaidWriteChrome
+  sendBlocked: boolean
+} {
+  const context = state.creditChrome
+  const smsShortfall = resolveRecoverySmsShortfall({
+    channel: state.draft.channel,
+    messageBody: state.draft.message,
+    smsRemaining: context?.smsRemaining ?? null,
+    context,
+  })
+  const aiActionChip = resolveRecoveryAiActionChipChrome({ context })
+  const paidWrite = resolveRecoveryPaidWriteChrome({ context })
+  const sendBlocked = isRecoverySendBlocked({
+    channel: state.draft.channel,
+    messageBody: state.draft.message,
+    context,
+  })
+  return { smsShortfall, aiActionChip, paidWrite, sendBlocked }
+}
+
 function toSnapshot(state: SessionState): RespondWithRecoveryOfferSnapshot {
   const draft = state.draft
   const actionsLocked =
     state.aiDraftStatus === "running"
     || state.offerDescriptionAiStatus === "running"
+  const credit = projectCreditChrome(state)
   return {
     isOpen: state.isOpen,
     loadStatus: state.loadStatus,
@@ -754,6 +797,10 @@ function toSnapshot(state: SessionState): RespondWithRecoveryOfferSnapshot {
     workflowStatus: state.workflowStatus,
     issuedOffer: state.issuedOffer,
     openedFromDraftAction: state.openedFromDraftAction,
+    smsShortfall: credit.smsShortfall,
+    aiActionChip: credit.aiActionChip,
+    paidWrite: credit.paidWrite,
+    sendBlocked: credit.sendBlocked,
   }
 }
 
@@ -923,6 +970,10 @@ export function createRespondWithRecoveryOfferModule(
       || state.draft.tone == null
       || state.aiDraftStatus === "running"
     ) {
+      return
+    }
+
+    if (!resolveRecoveryAiActionChipChrome({ context: state.creditChrome }).prepareAllowed) {
       return
     }
 
@@ -1207,6 +1258,32 @@ export function createRespondWithRecoveryOfferModule(
         }
       }
 
+      const hydrateCreditChrome = async () => {
+        if (adapters.getCreditChrome == null) {
+          return
+        }
+        try {
+          const chrome = await adapters.getCreditChrome()
+          if (generation !== state.loadGeneration) {
+            return
+          }
+          state = {
+            ...state,
+            creditChrome: chrome,
+          }
+          publish()
+        } catch {
+          if (generation !== state.loadGeneration) {
+            return
+          }
+          state = {
+            ...state,
+            creditChrome: null,
+          }
+          publish()
+        }
+      }
+
       if (
         preloadedDetails != null
         && preloadedDetails.id === feedbackId
@@ -1222,6 +1299,7 @@ export function createRespondWithRecoveryOfferModule(
         applyLoaded(preloadedDetails)
         publish()
         await hydrateOfferAttach(feedbackId)
+        await hydrateCreditChrome()
         return
       }
 
@@ -1244,6 +1322,7 @@ export function createRespondWithRecoveryOfferModule(
         applyLoaded(response)
         publish()
         await hydrateOfferAttach(feedbackId)
+        await hydrateCreditChrome()
       } catch {
         if (generation !== state.loadGeneration) {
           return
@@ -2324,7 +2403,15 @@ export function createRespondWithRecoveryOfferModule(
       }
     },
     openSendConfirm() {
-      if (state.step !== "review" || state.aiDraftStatus === "running") {
+      if (
+        state.step !== "review"
+        || state.aiDraftStatus === "running"
+        || isRecoverySendBlocked({
+          channel: state.draft.channel,
+          messageBody: state.draft.message,
+          context: state.creditChrome,
+        })
+      ) {
         return
       }
       state = {
@@ -2352,6 +2439,11 @@ export function createRespondWithRecoveryOfferModule(
         || state.draft.tone == null
         || offer == null
         || (state.step !== "review" && !state.sendConfirmOpen)
+        || isRecoverySendBlocked({
+          channel: state.draft.channel,
+          messageBody: state.draft.message,
+          context: state.creditChrome,
+        })
       ) {
         return
       }

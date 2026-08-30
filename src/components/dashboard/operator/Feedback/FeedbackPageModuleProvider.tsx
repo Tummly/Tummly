@@ -37,6 +37,7 @@ import { parseOperatorProfile } from "@/lib/operatorHome/parseOperatorProfile"
 import { fetchCurrentUser } from "@/api/loginContextClient"
 import { labelForInternalActionCategory } from "@/lib/operatorFeedback/internalActionPresentation"
 import { prepareRecoveryDraft as prepareRecoveryDraftHttp } from "@/lib/operatorFeedback/prepareRecoveryDraft"
+import { loadRecoveryCreditChrome } from "@/lib/operatorFeedback/loadRecoveryCreditChrome"
 
 export function FeedbackPageModuleProvider({
   children,
@@ -55,6 +56,7 @@ export function FeedbackPageModuleProvider({
       getFeedbackPageDateRange: () =>
         dashboardUiStore.getState().feedbackPageDateRange,
       getFeedbackDetails,
+      loadCreditChrome: async (nav) => loadRecoveryCreditChrome(nav),
       getRecoveryOfferAttach: async (feedbackId) => {
         const result = await getFeedbackRecoveryOfferAttach(feedbackId)
         return result.offerId

@@ -6,6 +6,7 @@ import { CampaignsRecommendedNextStep } from "@/components/dashboard/operator/Ca
 import { CampaignsSummary } from "@/components/dashboard/operator/Campaigns/CampaignsSummary"
 import type { OperatorTabContentStatus } from "@/components/dashboard/operator/OperatorTableTabPanel"
 import { Button } from "@/components/ui/button"
+import type { CampaignsMessagingChromeAction } from "@/lib/operatorCampaigns/campaignsMessagingCreditChrome"
 import {
   CAMPAIGNS_PAGE_COPY,
   CAMPAIGNS_PAGE_META_CLASS,
@@ -65,6 +66,7 @@ type CampaignsBodyProps = {
   onDismissRecommendation?: () => void
   onRetryMessagingUsage?: () => void
   onViewMessagingUsage?: () => void
+  onMessagingChromeAction?: (action: CampaignsMessagingChromeAction) => void
 }
 
 /** Campaigns page body — header, summary, messaging usage, recommended, list (Figma stack). */
@@ -92,6 +94,7 @@ export function CampaignsBody({
   onDismissRecommendation,
   onRetryMessagingUsage,
   onViewMessagingUsage,
+  onMessagingChromeAction,
 }: CampaignsBodyProps) {
   const copy = CAMPAIGNS_PAGE_COPY
   const dateRangeLabel = labelForCampaignsOverviewDateRange(selectedDateRange)
@@ -145,6 +148,7 @@ export function CampaignsBody({
         id={viewModel.header.messagingUsageAnchorId}
         messagingUsage={viewModel.messagingUsage}
         onRetry={onRetryMessagingUsage}
+        onAction={onMessagingChromeAction}
       />
 
       <CampaignsRecommendedNextStep

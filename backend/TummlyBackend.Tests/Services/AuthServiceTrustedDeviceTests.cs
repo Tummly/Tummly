@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -24,6 +25,9 @@ namespace TummlyBackend.Tests.Services
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .ConfigureWarnings(w =>
+                    w.Ignore(InMemoryEventId.TransactionIgnoredWarning)
+                )
                 .Options;
 
             _context = new ApplicationDbContext(options);
@@ -64,7 +68,9 @@ namespace TummlyBackend.Tests.Services
                 NullLogger<AuthService>.Instance,
                 new MemoryCache(new MemoryCacheOptions()),
                 new ActivationGate(),
-                _notifications
+                _notifications,
+                new NoOpBillingAccountLifecycle(),
+                new NoOpCreditLedger()
             );
         }
 
@@ -487,31 +493,27 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task UniversalLoginAsync_RejectsExpiredOperator()
+        public async Task UniversalLoginAsync_AllowsExpiredOperator()
         {
             var user = await SeedUserAsync(hasCompletedFirstSignIn: true);
             user.ActivatedAt = DateTime.UtcNow.AddDays(-40);
             user.ActivationExpiresAt = DateTime.UtcNow.AddDays(-1);
             await _context.SaveChangesAsync();
 
-            var exception = await Assert.ThrowsAsync<ActivationExpiredException>(() =>
-                _service.UniversalLoginAsync(
-                    new UserLoginDto
-                    {
-                        Email = user.Email,
-                        Password = "password123",
-                    }
-                )
+            var result = await _service.UniversalLoginAsync(
+                new UserLoginDto
+                {
+                    Email = user.Email,
+                    Password = "password123",
+                }
             );
 
-            Assert.Equal(
-                ActivationGate.ActivationExpiredMessage,
-                exception.Message
-            );
+            var payload = ToPropertyDictionary(result);
+            Assert.Equal("USER", payload["loginType"]);
         }
 
         [Fact]
-        public async Task VerifyOtpAsync_RejectsExpiredOperator()
+        public async Task VerifyOtpAsync_AllowsExpiredOperator()
         {
             var user = await SeedUserAsync(hasCompletedFirstSignIn: false);
             user.ActivatedAt = DateTime.UtcNow.AddDays(-40);
@@ -519,21 +521,17 @@ namespace TummlyBackend.Tests.Services
             await _context.SaveChangesAsync();
             await SeedActiveOtpAsync(user.Email, "123456");
 
-            var exception = await Assert.ThrowsAsync<ActivationExpiredException>(() =>
-                _service.VerifyOtpAsync(
-                    new VerifyOtpDto
-                    {
-                        Email = user.Email,
-                        OtpCode = "123456",
-                        RememberDevice = false,
-                    }
-                )
+            var result = await _service.VerifyOtpAsync(
+                new VerifyOtpDto
+                {
+                    Email = user.Email,
+                    OtpCode = "123456",
+                    RememberDevice = false,
+                }
             );
 
-            Assert.Equal(
-                ActivationGate.ActivationExpiredMessage,
-                exception.Message
-            );
+            var payload = ToPropertyDictionary(result);
+            Assert.NotNull(payload["token"]);
         }
 
         public void Dispose()

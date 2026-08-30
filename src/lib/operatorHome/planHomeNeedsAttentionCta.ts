@@ -1,5 +1,10 @@
 /** Home Needs attention CTA destinations (ticket 03). */
 
+import type { CreditChannelId } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
+import {
+  operatorDashboardBillingCreditsManagePlanPath,
+  operatorDashboardBillingCreditsPath,
+} from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import type { AssistantFeedbackInboxIntent } from "@/lib/operatorAiAssistant/assistantActionNavigate"
 import type {
   HomeNeedsAttentionCtaKind,
@@ -27,6 +32,10 @@ export type HomeNeedsAttentionDuplicateDraftPlan = {
 export type HomeNeedsAttentionCtaPlan =
   | HomeNeedsAttentionNavigatePlan
   | HomeNeedsAttentionDuplicateDraftPlan
+
+function creditChannelOf(item: HomeNeedsAttentionItem): CreditChannelId | null {
+  return item.sourceKind === "credit" ? item.channel : null
+}
 
 function campaignIdOf(item: HomeNeedsAttentionItem): number | null {
   return item.sourceKind === "campaign" ? item.campaignId : null
@@ -59,6 +68,25 @@ export function planHomeNeedsAttentionCta(input: {
       return navigatePlan(
         operatorDashboardNavPath(mode, "feedback", locationId),
         { feedbackInbox: { tab: "needs-attention" } }
+      )
+    case "view-usage":
+      return navigatePlan(
+        operatorDashboardBillingCreditsPath(mode, locationId, {
+          tab: "credits-usage",
+        })
+      )
+    case "buy-channel-credits": {
+      const channel = creditChannelOf(input.item)
+      return navigatePlan(
+        operatorDashboardBillingCreditsManagePlanPath(mode, locationId, {
+          section: "credit-top-ups",
+          channel: channel ?? undefined,
+        })
+      )
+    }
+    case "change-plan":
+      return navigatePlan(
+        operatorDashboardBillingCreditsManagePlanPath(mode, locationId)
       )
     case "preview-campaign": {
       const campaignId = campaignIdOf(input.item)

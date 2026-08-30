@@ -173,5 +173,14 @@ namespace TummlyBackend.Interfaces
             string locationScope,
             string? invitationMessage
         );
+
+        Task SendBillingAccountNoticeEmailAsync(
+            string toEmail,
+            string firstName,
+            string title,
+            string body,
+            string? ctaLabel,
+            string? ctaHref
+        );
     }
 }

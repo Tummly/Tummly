@@ -32,7 +32,7 @@ namespace TummlyBackend.Controllers
         public async Task<IActionResult> GetLocations()
         {
             var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out _);
+                OperatorAuth.TryRequireUserId(User, out var userId);
 
             if (unauthorized != null)
             {
@@ -115,14 +115,45 @@ namespace TummlyBackend.Controllers
                     User
                 );
 
+            var billingCreditsAccess =
+                await OperatorChromeAccess.BillingCreditsAsync(
+                    _permissions,
+                    User
+                );
+
+            var actorMembership = await _context.RestaurantMemberships
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row =>
+                    row.UserId == userId
+                    && row.RestaurantId == restaurant.Id
+                    && row.Status == MembershipStatus.Active
+                );
+            var permissionRole =
+                actorMembership?.PermissionRole ?? PermissionRoles.Owner;
+
+            var owner = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
+
+            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
+                restaurant.Name,
+                owner?.ActivationExpiresAt
+            );
+            var subscriptionPlan = lifecycle.SubscriptionPlan;
+            var billingStatus = lifecycle.BillingStatus;
+
             return Ok(new
             {
                 success = true,
                 restaurantName = restaurant.Name,
                 brandLogoPublicUrl,
+                subscriptionPlan,
+                billingStatus,
+                permissionRole,
                 aiAssistantAccess =
                     assistant.Status == RestaurantPermissionStatus.Allowed,
                 teamPermissionsAccess,
+                billingCreditsAccess,
                 locations = locations.Select(row => new
                 {
                     row.Id,

@@ -5343,21 +5343,190 @@ describe("clarify vs grounded vs failure chrome", () => {
     expect(adapters.conversations).toEqual([])
   })
 
-  it("exposes stub AI credit chrome and stub actions do not send or change the snapshot", () => {
-    const adapters = createInMemoryOperatorAiAssistantAdapters()
+  it("exposes live AI credit chrome and closes the drawer before Billing navigate", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getCreditsChrome: async () => ({
+        remaining: 7,
+        allowance: 20,
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        billingStatus: "Active",
+        isPilot: false,
+        mode: "multi",
+        locationId: 1,
+      }),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot()).toMatchObject({
+      creditsRemainingLine: "7 of 20 monthly AI credits remaining",
+      viewUsageLabel: "View usage",
+      addCreditsLabel: "Add credits",
+      showViewUsage: true,
+      showAddCredits: true,
+      sendBlocked: false,
+    })
+
+    module.viewUsage()
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(adapters.billingHrefs).toEqual([
+      "/multi-dashboard/settings/billing-credits?location=1&tab=credits-usage",
+    ])
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    await Promise.resolve()
+    await Promise.resolve()
+    module.addCredits()
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(adapters.billingHrefs.at(-1)).toBe(
+      "/multi-dashboard/settings/billing-credits/manage-plan?location=1&section=credit-top-ups&channel=ai"
+    )
+  })
+
+  it("disables Send and mic-confirm at 0 remaining and keeps the remaining line", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getCreditsChrome: async () => ({
+        remaining: 0,
+        allowance: 20,
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        billingStatus: "Active",
+        isPilot: false,
+        mode: "multi",
+        locationId: 1,
+      }),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().creditsRemainingLine).toBe(
+      "0 of 20 monthly AI credits remaining"
+    )
+    expect(module.getSnapshot().sendBlocked).toBe(true)
+
+    module.setComposerDraft("Hello")
+    module.send()
+    expect(adapters.conversations).toEqual([])
+
+    await module.startMic()
+    await module.confirmMic()
+    expect(module.getSnapshot().composerDraft).toBe("Hello")
+    expect(adapters.conversations).toEqual([])
+  })
+
+  it("keeps View usage and Add credits visible from sync Billing access before chrome load", () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getBillingCreditsAccess: () => "manage",
+      getCreditsChrome: () => new Promise(() => {}),
+    })
     const module = createOperatorAiAssistantModule(adapters)
     module.openDrawer({ operatorFirstName: "Mohamed" })
 
-    expect(module.getSnapshot()).toMatchObject({
-      creditsRemainingLine: "20 of 20 monthly AI actions remaining",
-      viewUsageLabel: "View usage",
-      addCreditsLabel: "Add credits",
+    expect(module.getSnapshot().showViewUsage).toBe(true)
+    expect(module.getSnapshot().showAddCredits).toBe(true)
+  })
+
+  it("keeps last known credits chrome when Billing fetch fails", async () => {
+    let fail = false
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getCreditsChrome: async () => {
+        if (fail) {
+          throw new Error("usage failed")
+        }
+        return {
+          remaining: 3,
+          allowance: 20,
+          accessLevel: "manage",
+          permissionRole: "Owner",
+          billingStatus: "Active",
+          isPilot: false,
+          mode: "multi",
+          locationId: 1,
+        }
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(module.getSnapshot().creditsRemainingLine).toBe(
+      "3 of 20 monthly AI credits remaining"
+    )
+
+    fail = true
+    module.closeDrawer()
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(module.getSnapshot().creditsRemainingLine).toBe(
+      "3 of 20 monthly AI credits remaining"
+    )
+    expect(module.getSnapshot().sendBlocked).toBe(false)
+  })
+
+  it("disables Send during Soft lock and exposes a Choose a plan helper for Owner", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getCreditsChrome: async () => ({
+        remaining: 12,
+        allowance: 20,
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        billingStatus: "Soft lock",
+        isPilot: true,
+        mode: "multi",
+        locationId: 1,
+      }),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().sendBlocked).toBe(true)
+    expect(module.getSnapshot().restorationHelper).toEqual({
+      label: "Choose a plan",
+      href: "/multi-dashboard/settings/billing-credits/manage-plan?location=1",
     })
 
-    const before = module.getSnapshot()
-    module.viewUsage()
-    module.addCredits()
-    expect(module.getSnapshot()).toEqual(before)
+    module.setComposerDraft("Hello")
+    module.send()
     expect(adapters.conversations).toEqual([])
+
+    module.followRestorationHelper()
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(adapters.billingHrefs.at(-1)).toBe(
+      "/multi-dashboard/settings/billing-credits/manage-plan?location=1"
+    )
+  })
+
+  it("hides Add credits for View and does not land on a write URL", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getCreditsChrome: async () => ({
+        remaining: 5,
+        allowance: 20,
+        accessLevel: "view",
+        permissionRole: "Admin",
+        billingStatus: "Active",
+        isPilot: false,
+        mode: "single",
+        locationId: 42,
+      }),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().showViewUsage).toBe(true)
+    expect(module.getSnapshot().showAddCredits).toBe(false)
+
+    module.addCredits()
+    expect(adapters.billingHrefs).toEqual([])
+    expect(module.getSnapshot().drawerOpen).toBe(true)
   })
 })

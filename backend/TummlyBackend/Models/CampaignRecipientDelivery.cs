@@ -31,6 +31,9 @@ namespace TummlyBackend.Models
 
         public DateTime? AcceptedAtUtc { get; set; }
 
+        /// <summary>Billable units on provider accept (Email = 1, SMS = segments).</summary>
+        public int? AcceptedUnits { get; set; }
+
         public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
     }
 }

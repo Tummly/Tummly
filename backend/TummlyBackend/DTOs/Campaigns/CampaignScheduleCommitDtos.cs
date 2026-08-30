@@ -90,5 +90,28 @@ namespace TummlyBackend.DTOs.Campaigns
         {
             public required string Message { get; init; }
         }
+
+        public sealed class ChannelHardStopped : CampaignScheduleCommitResult
+        {
+            public required string Channel { get; init; }
+
+            public int Remaining { get; init; }
+
+            public int Requested { get; init; }
+        }
+
+        public sealed class InsufficientCredits : CampaignScheduleCommitResult
+        {
+            public required string Channel { get; init; }
+
+            public int Remaining { get; init; }
+
+            public int Requested { get; init; }
+        }
+
+        public sealed class OperatorBillingLocked : CampaignScheduleCommitResult
+        {
+            public required string Code { get; init; }
+        }
     }
 }

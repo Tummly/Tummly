@@ -12,6 +12,12 @@ export interface ActivationPeriodBadgeCopy {
   tone: ActivationPeriodBadgeTone
 }
 
+/** Home hero badge — copy plus optional Choose a plan link. */
+export interface ActivationPeriodBadgePresentation extends ActivationPeriodBadgeCopy {
+  /** Same-shell manage-plan href; null hides the underlined CTA. */
+  choosePlanHref: string | null
+}
+
 /**
  * Days remaining in the Activation period for the Activation period badge.
  * Returns null when expiry is missing or the period has ended (hide badge).
@@ -99,5 +105,38 @@ export function formatActivationPeriodBadge(
     remaining: `${daysRemaining} ${dayWord} left`,
     endsOn,
     tone: activationPeriodBadgeTone(daysRemaining),
+  }
+}
+
+/**
+ * Activation period badge for Home — Pilot only while the period has time.
+ * Returns null when the live plan is paid or the period has ended.
+ */
+export function resolveActivationPeriodBadgePresentation(options: {
+  subscriptionPlan: string
+  activationExpiresAt: string | null | undefined
+  choosePlanHref: string | null
+  now?: Date
+}): ActivationPeriodBadgePresentation | null {
+  if (options.subscriptionPlan !== "Pilot") {
+    return null
+  }
+
+  const daysRemaining = computeActivationDaysRemaining(
+    options.activationExpiresAt,
+    options.now
+  )
+  const copy = formatActivationPeriodBadge(
+    daysRemaining,
+    options.activationExpiresAt
+  )
+
+  if (copy == null) {
+    return null
+  }
+
+  return {
+    ...copy,
+    choosePlanHref: options.choosePlanHref,
   }
 }

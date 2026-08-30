@@ -3,6 +3,7 @@ import { format } from "date-fns"
 import type { LucideIcon } from "lucide-react"
 import { CalendarIcon, SendIcon } from "lucide-react"
 
+import { CampaignChannelShortfallBanner } from "@/components/dashboard/operator/Campaigns/CampaignChannelStep"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { FieldError } from "@/components/ui/field"
@@ -52,6 +53,8 @@ type CampaignScheduleStepProps = {
   onSelectMode: (modeId: CampaignScheduleModeId) => void
   onScheduleDateChange: (value: string) => void
   onScheduleTimeChange: (value: string) => void
+  onBuyCredits?: () => void
+  onChangePlan?: () => void
 }
 
 function ScheduleModeCard({
@@ -282,6 +285,8 @@ export function CampaignScheduleStep({
   onSelectMode,
   onScheduleDateChange,
   onScheduleTimeChange,
+  onBuyCredits,
+  onChangePlan,
 }: CampaignScheduleStepProps) {
   return (
     <div className="flex w-full flex-col items-start justify-between gap-8 lg:flex-row lg:gap-[42px]">
@@ -325,6 +330,14 @@ export function CampaignScheduleStep({
               onScheduleTimeChange={onScheduleTimeChange}
             />
           </div>
+        ) : null}
+
+        {schedule.channelShortfall != null ? (
+          <CampaignChannelShortfallBanner
+            shortfall={schedule.channelShortfall}
+            onBuyCredits={onBuyCredits}
+            onChangePlan={onChangePlan}
+          />
         ) : null}
       </div>
 

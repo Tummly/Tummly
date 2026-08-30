@@ -1,5 +1,6 @@
 import { toast } from "sonner"
 import { useEffect } from "react"
+import { Link } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -34,6 +35,7 @@ import {
 } from "@/lib/operatorFeedback/internalActionPresentation"
 import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
 import { recoverySuccessChromeForRespondAndRecord } from "@/lib/operatorFeedback/recoverySuccessPresentation"
+import { RECOVERY_SMS_SHORTFALL_BODY } from "@/lib/operatorFeedback/recoveryCreditChromePresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
   FEEDBACK_FIELD_LABEL_CLASS,
@@ -274,14 +276,28 @@ export function RespondAndRecordInternalActionWizard({
               </Button>
             ) : null}
             {snapshot.step === "review" ? (
-              <Button
-                type="button"
-                variant="op-primary"
-                disabled={locked}
-                onClick={onOpenSendConfirm}
-              >
-                Send response and record action
-              </Button>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  variant="op-primary"
+                  disabled={locked || snapshot.sendBlocked}
+                  onClick={onOpenSendConfirm}
+                >
+                  Send response and record action
+                </Button>
+                {snapshot.paidWrite.helperCta != null ? (
+                  <Button
+                    type="button"
+                    variant="op-link"
+                    className="h-auto min-h-0 w-fit p-0"
+                    asChild
+                  >
+                    <Link to={snapshot.paidWrite.helperCta.href}>
+                      {snapshot.paidWrite.helperCta.label}
+                    </Link>
+                  </Button>
+                ) : null}
+              </div>
             ) : null}
           </>
         ) : (
@@ -382,6 +398,7 @@ export function RespondAndRecordInternalActionWizard({
                 availableChannels={snapshot.availableChannels}
                 channel={snapshot.channel}
                 maskedDestination={snapshot.maskedDestination}
+                messageBody={snapshot.message}
                 onChannelChange={onChannelChange}
                 purpose={snapshot.purpose}
                 onPurposeChange={onPurposeChange}
@@ -438,6 +455,12 @@ export function RespondAndRecordInternalActionWizard({
                     && snapshot.writeEntry === "chooser"
                   }
                   aiDraftRetryable={snapshot.aiDraftRetryable}
+                  aiActionChip={snapshot.aiActionChip}
+                  lockHelperCta={
+                    snapshot.paidWrite.burnDisabled
+                      ? snapshot.paidWrite.helperCta
+                      : null
+                  }
                   onPrepareDraft={onPrepareDraft}
                   onWriteManually={onWriteManually}
                   onRetryAiDraft={onRetryAiDraft}
@@ -451,6 +474,7 @@ export function RespondAndRecordInternalActionWizard({
                       subject={snapshot.subject}
                       message={snapshot.message}
                       disabled={locked}
+                      rewriteDisabled={!snapshot.aiActionChip.prepareAllowed}
                       aiDraftStatus={snapshot.aiDraftStatus}
                       aiDraftMode={snapshot.aiDraftMode}
                       aiDraftRetryable={snapshot.aiDraftRetryable}
@@ -467,6 +491,40 @@ export function RespondAndRecordInternalActionWizard({
                   </>
                 ) : null}
               </>
+            ) : null}
+
+            {snapshot.step === "review" && snapshot.smsShortfall.blocked ? (
+              <div className="flex w-full flex-col gap-3 rounded-[4px] bg-[var(--op-color-gray-995)] p-[18px]">
+                <p className="m-0 text-sm font-medium text-op-text-primary">
+                  {RECOVERY_SMS_SHORTFALL_BODY}
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  {snapshot.smsShortfall.buyCta != null ? (
+                    <Button
+                      type="button"
+                      variant="op-link"
+                      className="h-auto min-h-0 w-fit p-0"
+                      asChild
+                    >
+                      <Link to={snapshot.smsShortfall.buyCta.href}>
+                        {snapshot.smsShortfall.buyCta.label}
+                      </Link>
+                    </Button>
+                  ) : null}
+                  {snapshot.smsShortfall.changePlanCta != null ? (
+                    <Button
+                      type="button"
+                      variant="op-link"
+                      className="h-auto min-h-0 w-fit p-0"
+                      asChild
+                    >
+                      <Link to={snapshot.smsShortfall.changePlanCta.href}>
+                        {snapshot.smsShortfall.changePlanCta.label}
+                      </Link>
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
             ) : null}
 
             {snapshot.step === "review" ? (

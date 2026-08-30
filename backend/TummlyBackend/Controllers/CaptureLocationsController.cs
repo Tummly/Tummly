@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TummlyBackend.Billing;
 using TummlyBackend.DTOs.Capture;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -277,6 +278,17 @@ namespace TummlyBackend.Controllers
                         success = false,
                         message = invalid.Message,
                     }),
+                CaptureThankYouOfferSetResult.CapReached cap => Conflict(new
+                {
+                    success = false,
+                    code = ActiveOfferCapGate.CapReachedCode,
+                    cap = cap.Cap,
+                    current = cap.Current,
+                }),
+                CaptureThankYouOfferSetResult.FailClosed => Conflict(new
+                {
+                    success = false,
+                }),
                 _ => StatusCode(500, new
                 {
                     success = false,

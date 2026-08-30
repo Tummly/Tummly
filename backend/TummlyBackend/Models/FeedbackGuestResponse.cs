@@ -76,5 +76,11 @@ namespace TummlyBackend.Models
 
         /// <summary>UTC when Resend accepted the mail (Accepted only).</summary>
         public DateTime? EmailDeliveredAt { get; set; }
+
+        /// <summary>
+        /// Ledger hold identity for Recovery SMS (ticket 22). Empty for Email.
+        /// </summary>
+        [MaxLength(128)]
+        public string? BillingReservationRef { get; set; }
     }
 }

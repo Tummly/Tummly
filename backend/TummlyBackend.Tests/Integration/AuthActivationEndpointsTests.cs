@@ -24,9 +24,9 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task UniversalLogin_ReturnsTrialOverMessage_ForExpiredOperator()
+        public async Task UniversalLogin_AllowsSignIn_WhenActivationExpired()
         {
-            await SeedExpiredOperatorAsync();
+            var seeded = await SeedExpiredOperatorAsync();
 
             var response = await _client.PostAsJsonAsync(
                 "/api/auth/universal-login",
@@ -34,15 +34,19 @@ namespace TummlyBackend.Tests.Integration
                 {
                     email = "expired@example.com",
                     password = "password123",
+                    deviceToken = seeded.DeviceToken,
                 }
             );
 
-            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
             var body = await ReadJsonAsync(response);
-            Assert.Equal(
+            Assert.Equal("USER", body.GetProperty("loginType").GetString());
+            Assert.NotEqual(
                 ActivationGate.ActivationExpiredMessage,
-                body.GetProperty("message").GetString()
+                body.TryGetProperty("message", out var message)
+                    ? message.GetString()
+                    : null
             );
         }
 
@@ -71,9 +75,10 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task ProtectedOperatorRoute_Returns403_WhenActivationExpiredMidSession()
+        public async Task ProtectedOperatorRoute_Allows_WhenActivationExpiredMidSession()
         {
-            var jwt = await SeedExpiredOperatorAsync();
+            var seeded = await SeedExpiredOperatorAsync();
+            var jwt = seeded.Jwt;
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
@@ -84,13 +89,11 @@ namespace TummlyBackend.Tests.Integration
 
             var response = await _client.SendAsync(request);
 
-            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var body = await ReadJsonAsync(response);
-            Assert.True(body.GetProperty("activationExpired").GetBoolean());
-            Assert.Equal(
-                ActivationGate.ActivationExpiredMessage,
-                body.GetProperty("message").GetString()
+            Assert.False(
+                body.TryGetProperty("activationExpired", out var expired)
+                && expired.GetBoolean()
             );
         }
 
@@ -261,6 +264,13 @@ namespace TummlyBackend.Tests.Integration
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
 
+            context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurant.Id,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                )
+            );
+
             context.RestaurantLocations.Add(
                 new RestaurantLocation
                 {
@@ -280,7 +290,7 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
-        private async Task<string> SeedExpiredOperatorAsync()
+        private async Task<ExpiredSeed> SeedExpiredOperatorAsync()
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -310,11 +320,33 @@ namespace TummlyBackend.Tests.Integration
                 Name = "Expired Cafe",
                 AccountType = "Single",
                 OwnerUserId = user.Id,
+                BillingContactUserId = user.Id,
+                PrivacyContactUserId = user.Id,
+                SupportContactUserId = user.Id,
                 CreatedAt = DateTime.UtcNow,
             };
 
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
+
+            user.SelectedRestaurantId = restaurant.Id;
+            context.RestaurantMemberships.Add(
+                new RestaurantMembership
+                {
+                    UserId = user.Id,
+                    RestaurantId = restaurant.Id,
+                    PermissionRole = PermissionRoles.Owner,
+                    LocationScope = LocationScopeKind.AllLocations,
+                    NamedLocationIdsJson = "[]",
+                    Status = MembershipStatus.Active,
+                }
+            );
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                "TUMMLY-UK-GBP-2026-08-V3"
+            );
+            billing.PilotPeriodEnd = user.ActivationExpiresAt;
+            context.BillingAccounts.Add(billing);
 
             context.RestaurantLocations.Add(
                 new RestaurantLocation
@@ -326,14 +358,24 @@ namespace TummlyBackend.Tests.Integration
                 }
             );
 
+            var deviceToken = await TrustedDeviceHelper.IssueTrustedDeviceAsync(
+                context,
+                user.Id
+            );
+
             await context.SaveChangesAsync();
 
-            return jwtService.GenerateToken(
-                user.Id.ToString(),
-                user.Email,
-                user.Role
+            return new ExpiredSeed(
+                jwtService.GenerateToken(
+                    user.Id.ToString(),
+                    user.Email,
+                    user.Role
+                ),
+                deviceToken!
             );
         }
+
+        private sealed record ExpiredSeed(string Jwt, string DeviceToken);
 
         private static async Task<JsonElement> ReadJsonAsync(
             HttpResponseMessage response

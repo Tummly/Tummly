@@ -89,7 +89,10 @@ namespace TummlyBackend.Services
                     brandLogoUrl: brandLogoUrl,
                     offer: request.Offer
                 );
-                return new CampaignOutboundSendResult.Accepted();
+                return new CampaignOutboundSendResult.Accepted
+                {
+                    AcceptedUnits = 1,
+                };
             }
             catch (Exception ex)
             {

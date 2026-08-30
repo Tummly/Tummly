@@ -41,6 +41,8 @@ type ResponseSetupFieldsProps = {
   includeNotes: string
   onIncludeNotesChange: (value: string) => void
   disabled?: boolean
+  /** Current guest-response body — SMS estimate after body (lock 09). */
+  messageBody?: string
 }
 
 /** Shared Response setup form chrome for guest-messaging recovery intents. */
@@ -58,11 +60,13 @@ export function ResponseSetupFields({
   includeNotes,
   onIncludeNotesChange,
   disabled = false,
+  messageBody = "",
 }: ResponseSetupFieldsProps) {
   const channelCards = buildResponseSetupChannelCards({
     availableChannels,
     selectedChannel: channel,
     maskedDestination,
+    messageBody,
   })
   const includeNotesId = `${idPrefix}-include-notes`
 

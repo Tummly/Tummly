@@ -34,6 +34,7 @@ import {
   CAMPAIGN_MESSAGING_BALANCES_LOAD_ERROR,
   resolveCampaignMessagingUsage,
   type CampaignBillingBalancesPayload,
+  type CampaignMessagingChromeAccess,
 } from "@/lib/operatorCampaigns/campaignMessagingBalances"
 import {
   messagingUsageViewModelFromFixture,
@@ -126,10 +127,17 @@ export type OperatorCampaignsPageAdapters = {
   }) => Promise<CampaignRecommendationResponse>
   getCampaignsOverviewDateRange: () => CampaignsOverviewDateRange
   /**
-   * Billing balances (+ plan) for Messaging usage (ticket 25).
+   * Billing balances (+ plan) for Messaging usage (ticket 23 / 25).
    * Omitted → fixtures until Billing cutover.
    */
   loadMessagingBalances?: () => Promise<CampaignBillingBalancesPayload>
+  /**
+   * Billing chrome access for overview CTAs (ticket 23).
+   * Omit: treat as Owner + manage so Account-owner chrome stays visible until
+   * Billing page / `/auth/me` fields are live. Explicit view/none still hides writes.
+   * Live balances `chromeAccess` overrides this when present.
+   */
+  messagingChromeAccess?: CampaignMessagingChromeAccess
   /** Test seam — defaults to a short debounce. */
   debounceMs?: number
   /** Test seam — relative Updated labels on list rows. */
@@ -574,10 +582,14 @@ function assembleViewModel(
 async function resolveMessagingUsageSection(
   loadMessagingBalances:
     | (() => Promise<CampaignBillingBalancesPayload>)
-    | undefined
+    | undefined,
+  access?: CampaignMessagingChromeAccess
 ): Promise<OperatorCampaignsMessagingUsageSection> {
   if (loadMessagingBalances == null) {
-    const resolved = resolveCampaignMessagingUsage({ cutover: "fixtures" })
+    const resolved = resolveCampaignMessagingUsage({
+      cutover: "fixtures",
+      access,
+    })
     if (resolved.status !== "ready") {
       return {
         status: "load-failed",
@@ -597,6 +609,7 @@ async function resolveMessagingUsageSection(
     const resolved = resolveCampaignMessagingUsage({
       cutover: "live",
       balances,
+      access,
     })
     if (resolved.status !== "ready") {
       return {
@@ -935,7 +948,10 @@ export function createOperatorCampaignsPageModule(
             locationId: selectedLocationId,
             overviewDateRange,
           }),
-          resolveMessagingUsageSection(adapters.loadMessagingBalances),
+          resolveMessagingUsageSection(
+            adapters.loadMessagingBalances,
+            adapters.messagingChromeAccess
+          ),
         ])
       if (
         generation !== state.loadGeneration
@@ -1094,7 +1110,10 @@ export function createOperatorCampaignsPageModule(
         state.viewModel?.messagingUsage
         ?? {
           status: "ready" as const,
-          viewModel: messagingUsageViewModelFromFixture(),
+          viewModel: messagingUsageViewModelFromFixture(
+            undefined,
+            adapters.messagingChromeAccess
+          ),
           errorMessage: null,
         }
 
@@ -1305,7 +1324,8 @@ export function createOperatorCampaignsPageModule(
         return
       }
       const messagingUsage = await resolveMessagingUsageSection(
-        adapters.loadMessagingBalances
+        adapters.loadMessagingBalances,
+        adapters.messagingChromeAccess
       )
       state = {
         ...state,

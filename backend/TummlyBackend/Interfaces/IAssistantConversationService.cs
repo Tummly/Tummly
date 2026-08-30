@@ -8,6 +8,7 @@ namespace TummlyBackend.Interfaces
         Task<AssistantTurnOutcome> SendTurnAsync(
             int ownerUserId,
             SendAssistantTurnRequest request,
+            string? idempotencyKey = null,
             CancellationToken cancellationToken = default
         );
 
@@ -27,6 +28,7 @@ namespace TummlyBackend.Interfaces
         Task<AssistantTurnOutcome> RetryTurnAsync(
             int ownerUserId,
             int conversationId,
+            string? idempotencyKey = null,
             CancellationToken cancellationToken = default
         );
 
@@ -91,5 +93,12 @@ namespace TummlyBackend.Interfaces
 
         public sealed record LocationDenied(OwnedLocationResult Location)
             : AssistantTurnOutcome;
+
+        public sealed record CreditSpendDenied(
+            string Code,
+            string Channel,
+            int Remaining,
+            int Requested
+        ) : AssistantTurnOutcome;
     }
 }

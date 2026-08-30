@@ -5,7 +5,7 @@
 **Related:** [channel-credits-questionnaire.md](./channel-credits-questionnaire.md), `CONTEXT.md`  
 **Last cost check:** 2026-08-06 (public vendor pages; verify before contracts)
 
-This document states **Tummly’s vendor cost of goods (COGS)** for guest-facing channels. It does **not** set burn rates, plan allowances, margins, or sell prices — those are product decisions in the questionnaire.
+This document states **Tummly’s vendor cost of goods (COGS)** for guest-facing channels. It does **not** set burn rates, plan allowances, margins, or sell prices — those live in [billing pack v3.0](./billing-pack-v3.0/).
 
 ---
 
@@ -15,7 +15,7 @@ Before Campaign Section work:
 
 1. Show what each send / AI call costs Tummly today.
 2. Give volume scenarios so product can set credit math.
-3. Point open commercial questions to the questionnaire.
+3. Point commercial questions to [billing pack v3.0](./billing-pack-v3.0/).
 
 ---
 
@@ -197,9 +197,9 @@ Product must set included SMS credits **below** a safe fraction of these numbers
 
 ---
 
-## 7. Product fill-in (leave blank until questionnaire returns)
+## 7. Product fill-in (pack v3.0 is the source)
 
-Do **not** invent numbers here. Copy answers from [channel-credits-questionnaire.md](./channel-credits-questionnaire.md) when signed off.
+Do **not** invent numbers here. Do not copy pack tables into this file. Commercial burn rates, allowances, and sell prices live in [billing pack v3.0](./billing-pack-v3.0/). Start at the [completed questionnaire](./billing-pack-v3.0/Tummly_Channel_Credits_Questionnaire_COMPLETED_v3.0.md) and [tummly_uk_billing_config_v3.0.json](./billing-pack-v3.0/tummly_uk_billing_config_v3.0.json). The [channel-credits-questionnaire.md](./channel-credits-questionnaire.md) file is a pointer only.
 
 ### 7.1 Burn rates (product)
 

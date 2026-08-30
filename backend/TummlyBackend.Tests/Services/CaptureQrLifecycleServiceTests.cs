@@ -1,11 +1,13 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
 using TummlyBackend.Helpers;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -34,8 +36,12 @@ namespace TummlyBackend.Tests.Services
                 )
                 .Build();
 
-            _smartGuestLink = new SmartGuestLinkService(_context, configuration);
-            _service = new CaptureQrLifecycleService(_context, _smartGuestLink);
+            _smartGuestLink = new SmartGuestLinkService(_context, configuration, new NoOpBillingAccountLifecycle());
+            _service = new CaptureQrLifecycleService(
+                _context,
+                _smartGuestLink,
+                PricebookCatalog.LoadFromDirectory(PackDirectory())
+            );
 
             SeedWorkspace();
         }
@@ -567,6 +573,55 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ActivateLocationCapture_WhenRestoreSetWouldExceedCap_IsAllOrNothing()
+        {
+            var restoreIds = new List<int>();
+            for (var i = 0; i < 6; i++)
+            {
+                var qr = await SeedQrAsync(
+                    (QrType)i,
+                    QrCodeStatus.Active
+                );
+                restoreIds.Add(qr.Id);
+            }
+
+            var pause = await _service.PauseLocationCaptureAsync(
+                LocationCommand()
+            );
+            Assert.Equal(QrLifecycleResultKind.Ok, pause.Kind);
+
+            var result = await _service.ActivateLocationCaptureAsync(
+                LocationCommand()
+            );
+
+            Assert.Equal(QrLifecycleResultKind.Conflict, result.Kind);
+            Assert.Equal("active_qr_cap_reached", result.Code);
+            Assert.Equal(5, result.Cap);
+            Assert.Equal(0, result.Current);
+
+            var location = await _context.RestaurantLocations.FirstAsync(
+                l => l.Id == _locationId
+            );
+            Assert.Equal(
+                CaptureLocationStatus.Paused,
+                location.CaptureLocationStatus
+            );
+            Assert.False(
+                string.IsNullOrEmpty(
+                    location.CaptureLocationPauseRestoreQrCodeIdsJson
+                )
+            );
+
+            foreach (var id in restoreIds)
+            {
+                Assert.Equal(
+                    QrCodeStatus.Paused,
+                    (await ReloadAsync(id)).Status
+                );
+            }
+        }
+
+        [Fact]
         public async Task CreateDigitalGuestLink_LinkNameTooLong_Validation()
         {
             var result = await _service.CreateDigitalGuestLinkAsync(
@@ -662,6 +717,10 @@ namespace TummlyBackend.Tests.Services
                 AccountType = "Single",
                 OwnerUserId = _userId,
                 CreatedAt = DateTime.UtcNow,
+                BillingAccount = BillingCreditsService.CreateDefaultBillingAccount(
+                    0,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                ),
             };
             _context.Restaurants.Add(restaurant);
             _context.SaveChanges();
@@ -760,6 +819,40 @@ namespace TummlyBackend.Tests.Services
             await _context.QrCodes
                 .AsNoTracking()
                 .FirstAsync(q => q.Id == qrCodeId);
+
+        private static string PackDirectory()
+        {
+            var dir = Path.GetFullPath(
+                Path.Combine(
+                    AppContext.BaseDirectory,
+                    "..",
+                    "..",
+                    "..",
+                    "..",
+                    "..",
+                    "docs",
+                    "product",
+                    "billing-pack-v3.0"
+                )
+            );
+            if (!Directory.Exists(dir))
+            {
+                dir = Path.GetFullPath(
+                    Path.Combine(
+                        AppContext.BaseDirectory,
+                        "..",
+                        "..",
+                        "..",
+                        "..",
+                        "docs",
+                        "product",
+                        "billing-pack-v3.0"
+                    )
+                );
+            }
+
+            return dir;
+        }
 
         private static void AssertPayload(
             QrLifecycleResult result,

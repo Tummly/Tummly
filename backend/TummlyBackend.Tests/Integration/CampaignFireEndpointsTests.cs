@@ -86,6 +86,68 @@ namespace TummlyBackend.Tests.Integration
             Assert.Single(reserve.ReleaseCalls);
         }
 
+        [Fact]
+        public async Task Fire_SettleFail_KeepsBillingReservationRef()
+        {
+            var reserve = new LiveBillingReserve { FailNextSettle = true };
+            var outbound = new AcceptingOutboundSender();
+            var client = CreateClient(reserve, outbound);
+            var seeded = await SeedSendingCampaignAsync("fire-settle-fail");
+
+            using var request = Authorized(
+                HttpMethod.Post,
+                $"/api/campaigns/{seeded.CampaignId}/fire",
+                seeded.Jwt
+            );
+            var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "res-fire-api-1",
+                body.GetProperty("campaign")
+                    .GetProperty("billingReservationRef")
+                    .GetString()
+            );
+            Assert.Single(reserve.SettleCalls);
+            Assert.Empty(reserve.ReleaseCalls);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var campaign = await context.Campaigns.SingleAsync(
+                c => c.Id == seeded.CampaignId
+            );
+            Assert.Equal("res-fire-api-1", campaign.BillingReservationRef);
+        }
+
+        [Fact]
+        public async Task Fire_ReleaseFail_KeepsBillingReservationRef()
+        {
+            var reserve = new LiveBillingReserve { FailNextRelease = true };
+            var outbound = new AcceptingOutboundSender();
+            var client = CreateClient(reserve, outbound);
+            var seeded = await SeedSendingCampaignAsync("fire-release-fail");
+
+            using var request = Authorized(
+                HttpMethod.Post,
+                $"/api/campaigns/{seeded.CampaignId}/fire",
+                seeded.Jwt
+            );
+            var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "res-fire-api-1",
+                body.GetProperty("campaign")
+                    .GetProperty("billingReservationRef")
+                    .GetString()
+            );
+            Assert.Single(reserve.SettleCalls);
+            Assert.Single(reserve.ReleaseCalls);
+        }
+
         private HttpClient CreateClient(
             LiveBillingReserve reserve,
             AcceptingOutboundSender outbound
@@ -265,6 +327,10 @@ namespace TummlyBackend.Tests.Integration
         {
             public bool IsLive => true;
 
+            public bool FailNextSettle { get; set; }
+
+            public bool FailNextRelease { get; set; }
+
             public List<CampaignBillingSettleRequest> SettleCalls { get; } = [];
 
             public List<CampaignBillingReleaseRequest> ReleaseCalls { get; } = [];
@@ -288,6 +354,16 @@ namespace TummlyBackend.Tests.Integration
             )
             {
                 SettleCalls.Add(request);
+                if (FailNextSettle)
+                {
+                    return Task.FromResult<CampaignBillingSettleResult>(
+                        new CampaignBillingSettleResult.Failed
+                        {
+                            Message = "settle_failed",
+                        }
+                    );
+                }
+
                 return Task.FromResult<CampaignBillingSettleResult>(
                     new CampaignBillingSettleResult.Ok()
                 );
@@ -299,6 +375,16 @@ namespace TummlyBackend.Tests.Integration
             )
             {
                 ReleaseCalls.Add(request);
+                if (FailNextRelease)
+                {
+                    return Task.FromResult<CampaignBillingReleaseResult>(
+                        new CampaignBillingReleaseResult.Failed
+                        {
+                            Message = "release_failed",
+                        }
+                    );
+                }
+
                 return Task.FromResult<CampaignBillingReleaseResult>(
                     new CampaignBillingReleaseResult.Ok()
                 );

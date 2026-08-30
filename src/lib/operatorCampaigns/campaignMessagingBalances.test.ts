@@ -14,25 +14,25 @@ import { MESSAGING_USAGE_FIXTURE } from "@/lib/operatorCampaigns/messagingUsageF
 
 const SAMPLE_LIVE_BALANCES: CampaignBillingBalancesPayload = {
   email: {
-    used: 100,
-    allowance: 500,
-    remaining: 400,
-    refreshLabel: "1 September",
+    combinedRemaining: 400,
+    usedThisCycle: 100,
+    includedThisPeriod: 500,
+    purchasedRemaining: 0,
+    purchasedExpiryLabel: null,
   },
   sms: {
-    total: 50,
-    reserved: 10,
-    available: 40,
-  },
-  plan: {
-    name: "Starter",
-    locationCount: 1,
-    billingLine: "Billed monthly · Next refresh 1 September",
+    combinedRemaining: 40,
+    usedThisCycle: 10,
+    includedThisPeriod: 50,
+    purchasedRemaining: 0,
+    purchasedExpiryLabel: null,
   },
   ai: {
     available: 12,
   },
+  isPilot: false,
   softLocked: false,
+  lockCause: null,
 }
 
 describe("resolveCampaignMessagingUsage", () => {
@@ -44,13 +44,23 @@ describe("resolveCampaignMessagingUsage", () => {
       source: "fixtures",
       fixture: MESSAGING_USAGE_FIXTURE,
       viewModel: expect.objectContaining({
-        plan: expect.objectContaining({ name: "Growth" }),
-        email: expect.objectContaining({ remaining: 6760 }),
-        sms: expect.objectContaining({ available: 300 }),
+        email: expect.objectContaining({
+          title: "Email credits",
+          headline: "6,760 remaining",
+        }),
+        sms: expect.objectContaining({
+          title: "SMS credits",
+          headline: "300 remaining",
+        }),
       }),
       aiAvailable: null,
       softLocked: false,
+      lockCause: null,
+      isPilot: false,
     })
+    if (resolved.status === "ready") {
+      expect(resolved.viewModel).not.toHaveProperty("plan")
+    }
   })
 
   it("maps the same live Billing balances payload for overview and Channel", () => {
@@ -67,11 +77,12 @@ describe("resolveCampaignMessagingUsage", () => {
     expect(resolved.fixture).toEqual(
       mapBillingBalancesToMessagingFixture(SAMPLE_LIVE_BALANCES)
     )
-    expect(resolved.viewModel.email.remaining).toBe(400)
-    expect(resolved.viewModel.sms.available).toBe(40)
-    expect(resolved.viewModel.plan.name).toBe("Starter")
+    expect(resolved.viewModel.email.headline).toBe("400 remaining")
+    expect(resolved.viewModel.sms.headline).toBe("40 remaining")
     expect(resolved.aiAvailable).toBe(12)
     expect(resolved.softLocked).toBe(false)
+    expect(resolved.lockCause).toBeNull()
+    expect(resolved.isPilot).toBe(false)
   })
 
   it("after live cutover, balances failure does not fall back to fixtures", () => {

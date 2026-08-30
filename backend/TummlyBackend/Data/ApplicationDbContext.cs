@@ -50,6 +50,47 @@ namespace TummlyBackend.Data
         public DbSet<RestaurantBusinessDetails> RestaurantBusinessDetails
         { get; set; }
 
+        public DbSet<BillingAccount> BillingAccounts { get; set; }
+
+        public DbSet<CreditLedgerEntry> CreditLedgerEntries { get; set; }
+
+        public DbSet<CreditWarningState> CreditWarningStates { get; set; }
+
+        public DbSet<RestaurantBillingActivity> RestaurantBillingActivities
+        { get; set; }
+
+        public DbSet<AssistantAiActionOutcome> AssistantAiActionOutcomes { get; set; }
+
+        public DbSet<AiActionIdempotencyRecord> AiActionIdempotencyRecords
+        {
+            get;
+            set;
+        }
+
+        public DbSet<RevolutWebhookEventClaim> RevolutWebhookEventClaims
+        {
+            get;
+            set;
+        }
+
+        public DbSet<TummlyDocumentSequence> TummlyDocumentSequences { get; set; }
+
+        public DbSet<TummlyVatInvoice> TummlyVatInvoices { get; set; }
+
+        public DbSet<RevolutPendingPaySession> RevolutPendingPaySessions
+        {
+            get;
+            set;
+        }
+
+        public DbSet<RevolutOrderIntent> RevolutOrderIntents { get; set; }
+
+        public DbSet<AdminPaymentRefundIntent> AdminPaymentRefundIntents
+        {
+            get;
+            set;
+        }
+
         public DbSet<RestaurantLocation> RestaurantLocations { get; set; }
 
         public DbSet<QrCode> QrCodes { get; set; }
@@ -89,6 +130,8 @@ namespace TummlyBackend.Data
         public DbSet<FeedbackCloseOut> FeedbackCloseOuts { get; set; }
 
         public DbSet<FeedbackGuestResponse> FeedbackGuestResponses { get; set; }
+
+        public DbSet<RecoverySmsSendIdempotency> RecoverySmsSendIdempotencies { get; set; }
 
         public DbSet<FeedbackInternalAction> FeedbackInternalActions { get; set; }
 
@@ -334,6 +377,19 @@ namespace TummlyBackend.Data
                 .Property(row => row.Kind)
                 .HasMaxLength(40);
 
+            modelBuilder.Entity<RestaurantBillingActivity>()
+                .HasOne(row => row.Restaurant)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RestaurantBillingActivity>()
+                .Property(row => row.Kind)
+                .HasMaxLength(40);
+
+            modelBuilder.Entity<RestaurantBillingActivity>()
+                .HasIndex(row => new { row.RestaurantId, row.OccurredAtUtc, row.Id });
+
             modelBuilder.Entity<RestaurantAdminPermissionCell>()
                 .HasOne(row => row.Restaurant)
                 .WithMany()
@@ -465,6 +521,510 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<RestaurantBusinessDetails>()
                 .Property(d => d.Country)
                 .HasMaxLength(100);
+
+            /*
+             =========================================
+             RESTAURANT -> BILLING ACCOUNT (1:1)
+             =========================================
+            */
+
+            modelBuilder.Entity<BillingAccount>()
+                .HasOne(b => b.Restaurant)
+                .WithOne(r => r.BillingAccount)
+                .HasForeignKey<BillingAccount>(b => b.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.BillingEmail)
+                .HasMaxLength(320);
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.RevolutCustomerId)
+                .HasMaxLength(128);
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.SubscriptionPlan)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.BillingCycle)
+                .HasMaxLength(16);
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.BillingStatus)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.ContractedPricebookId)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.StarterKitState)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<BillingAccount>()
+                .HasIndex(b => b.RevolutCustomerId)
+                .IsUnique()
+                .HasFilter(
+                    "[RevolutCustomerId] IS NOT NULL AND [RevolutCustomerId] <> ''"
+                );
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.PaidExtraLocationCount)
+                .HasDefaultValue(0);
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.ScheduledTargetSubscriptionPlan)
+                .HasMaxLength(32);
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.ScheduledTargetBillingCycle)
+                .HasMaxLength(16);
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.DunningFiredSteps)
+                .HasMaxLength(32);
+
+            modelBuilder.Entity<BillingAccount>()
+                .Property(b => b.DunningOutstandingOrderId)
+                .HasMaxLength(128);
+
+            /*
+             =========================================
+             BILLING ACCOUNT -> CREDIT LEDGER ENTRIES
+             =========================================
+             */
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .ToTable(t => t.HasCheckConstraint(
+                    "CK_CreditLedgerEntries_QuantityPositive",
+                    "[Quantity] > 0"
+                ));
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasOne(e => e.BillingAccount)
+                .WithMany()
+                .HasForeignKey(e => e.RestaurantId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Restrict / NoAction: ledger LocationId must not add a second
+            // cascade path onto Restaurant (SQL Server error 1785).
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasOne(e => e.Location)
+                .WithMany()
+                .HasForeignKey(e => e.LocationId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasOne(e => e.Allocation)
+                .WithMany()
+                .HasForeignKey(e => e.AllocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasOne(e => e.ReversedEntry)
+                .WithMany()
+                .HasForeignKey(e => e.ReversedEntryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasIndex(e => new { e.RestaurantId, e.Channel });
+
+            // SQL Server also has filtered unique
+            // IX_CreditLedgerEntries_PilotAllocation_RestaurantId_Channel
+            // (pilot_allocation only). EF cannot map two indexes on the same
+            // columns, so that index lives only in the migration SQL.
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasIndex(e => new { e.ReservationRef, e.AllocationId })
+                .IsUnique()
+                .HasFilter(
+                    "[EntryType] = N'reservation' AND [ReservationRef] IS NOT NULL"
+                );
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasIndex(e => e.ReversedEntryId)
+                .IsUnique()
+                .HasFilter("[ReversedEntryId] IS NOT NULL");
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .Property(e => e.Channel)
+                .HasMaxLength(16)
+                .IsRequired();
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .Property(e => e.EntryType)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .Property(e => e.ReservationRef)
+                .HasMaxLength(128);
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .Property(e => e.PricebookVersion)
+                .HasMaxLength(64);
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .Property(e => e.Reason)
+                .HasMaxLength(500);
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .Property(e => e.SourcePaymentRef)
+                .HasMaxLength(128);
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .Property(e => e.CorrectionSource)
+                .HasMaxLength(32);
+
+            modelBuilder.Entity<CreditLedgerEntry>()
+                .HasIndex(e => new { e.RestaurantId, e.SourcePaymentRef })
+                .HasFilter("[SourcePaymentRef] IS NOT NULL");
+
+            /*
+             =========================================
+             BILLING ACCOUNT -> ASSISTANT AI OUTCOMES
+             =========================================
+             */
+
+            modelBuilder.Entity<AssistantAiActionOutcome>()
+                .HasOne(row => row.BillingAccount)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<AssistantAiActionOutcome>()
+                .Property(row => row.IdempotencyKey)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<AssistantAiActionOutcome>()
+                .HasIndex(row => new { row.RestaurantId, row.IdempotencyKey });
+
+            /*
+             =========================================
+             BILLING ACCOUNT -> AI ACTION IDEMPOTENCY
+             =========================================
+             */
+
+            modelBuilder.Entity<AiActionIdempotencyRecord>()
+                .HasOne(row => row.BillingAccount)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<AiActionIdempotencyRecord>()
+                .HasIndex(row => new { row.RestaurantId, row.IdempotencyKey })
+                .IsUnique();
+
+            modelBuilder.Entity<AiActionIdempotencyRecord>()
+                .Property(row => row.IdempotencyKey)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<AiActionIdempotencyRecord>()
+                .Property(row => row.PackKey)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            modelBuilder.Entity<AiActionIdempotencyRecord>()
+                .Property(row => row.Channel)
+                .HasMaxLength(16)
+                .IsRequired();
+
+            modelBuilder.Entity<AiActionIdempotencyRecord>()
+                .Property(row => row.Subject)
+                .HasMaxLength(512);
+
+            modelBuilder.Entity<AiActionIdempotencyRecord>()
+                .Property(row => row.Body)
+                .IsRequired();
+
+            /*
+             =========================================
+             REVOLUT WEBHOOK EVENT CLAIMS
+             =========================================
+             */
+
+            modelBuilder.Entity<RevolutWebhookEventClaim>()
+                .HasIndex(row => new { row.Event, row.ObjectId })
+                .IsUnique();
+
+            modelBuilder.Entity<RevolutWebhookEventClaim>()
+                .Property(row => row.Event)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutWebhookEventClaim>()
+                .Property(row => row.ObjectId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutWebhookEventClaim>()
+                .Property(row => row.Disposition)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            /*
+             =========================================
+             REVOLUT PENDING PAY SESSIONS (ticket 14)
+             =========================================
+             */
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .HasOne(row => row.BillingAccount)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .Property(row => row.TargetPlan)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .Property(row => row.TargetCadence)
+                .HasMaxLength(16)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .Property(row => row.RevolutSubscriptionId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .Property(row => row.SetupOrderId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .Property(row => row.CheckoutUrl)
+                .HasMaxLength(2048)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .Property(row => row.IdempotencyKey)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .HasIndex(row => new { row.RestaurantId, row.IdempotencyKey });
+
+            modelBuilder.Entity<RevolutPendingPaySession>()
+                .HasIndex(row => new { row.RestaurantId, row.IsOpen });
+
+            /*
+             =========================================
+             REVOLUT ORDER INTENTS (ticket 20)
+             =========================================
+             */
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .HasOne(row => row.BillingAccount)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.OrderId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.Purpose)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.TargetPlan)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.TargetCadence)
+                .HasMaxLength(16)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.RevolutSubscriptionId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.CheckoutUrl)
+                .HasMaxLength(2048)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.IdempotencyKey)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .HasIndex(row => row.OrderId)
+                .IsUnique();
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .HasIndex(row => new { row.RestaurantId, row.IdempotencyKey });
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .HasIndex(row => new { row.RestaurantId, row.IsOpen });
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.Channel)
+                .HasMaxLength(16);
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .Property(row => row.PackLookupKey)
+                .HasMaxLength(128);
+
+            /*
+             =========================================
+             TUMMLY VAT INVOICES / DOCUMENT SEQUENCES (ticket 17)
+             =========================================
+             */
+
+            modelBuilder.Entity<TummlyDocumentSequence>()
+                .HasKey(row => new { row.DocumentPrefix, row.Year });
+
+            modelBuilder.Entity<TummlyDocumentSequence>()
+                .Property(row => row.DocumentPrefix)
+                .HasMaxLength(8)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .HasOne(row => row.BillingAccount)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .HasIndex(row => row.DocumentNumber)
+                .IsUnique();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .HasIndex(row => row.RevolutOrderId)
+                .IsUnique();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.DocumentNumber)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.DocumentPrefix)
+                .HasMaxLength(8)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.RevolutOrderId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.RelatedRevolutOrderId)
+                .HasMaxLength(128);
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.RevolutSubscriptionId)
+                .HasMaxLength(128);
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.LineDescription)
+                .HasMaxLength(256)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.Currency)
+                .HasMaxLength(8)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.PaymentStatus)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.CustomerBusinessName)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.CustomerAddress)
+                .HasMaxLength(1000)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.SellerLegalName)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.SellerRegisteredAddress)
+                .HasMaxLength(1000)
+                .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.SellerVatRegistrationNumber)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            /*
+             =========================================
+             ADMIN PAYMENT REFUND INTENTS (ticket 25)
+             =========================================
+             */
+
+            modelBuilder.Entity<AdminPaymentRefundIntent>()
+                .HasOne(row => row.BillingAccount)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<AdminPaymentRefundIntent>()
+                .HasIndex(row => row.IdempotencyKey)
+                .IsUnique();
+
+            modelBuilder.Entity<AdminPaymentRefundIntent>()
+                .HasIndex(row => row.RefundOrderId);
+
+            modelBuilder.Entity<AdminPaymentRefundIntent>()
+                .Property(row => row.IdempotencyKey)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<AdminPaymentRefundIntent>()
+                .Property(row => row.SourcePaymentOrderId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<AdminPaymentRefundIntent>()
+                .Property(row => row.RefundOrderId)
+                .HasMaxLength(128);
+
+            /*
+             =========================================
+             BILLING ACCOUNT -> CREDIT WARNING STATES
+             =========================================
+             */
+
+            modelBuilder.Entity<CreditWarningState>()
+                .HasKey(row => new { row.RestaurantId, row.Channel });
+
+            modelBuilder.Entity<CreditWarningState>()
+                .HasOne(row => row.BillingAccount)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<CreditWarningState>()
+                .Property(row => row.Channel)
+                .HasMaxLength(16)
+                .IsRequired();
 
             /*
              =========================================
@@ -893,6 +1453,40 @@ namespace TummlyBackend.Data
                 {
                     r.EmailDeliveryStatus,
                     r.EmailDeliveryRetryAfter,
+                });
+
+            modelBuilder.Entity<RecoverySmsSendIdempotency>()
+                .HasOne(row => row.Restaurant)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RecoverySmsSendIdempotency>()
+                .HasOne(row => row.Feedback)
+                .WithMany()
+                .HasForeignKey(row => row.FeedbackId)
+                // NoAction: SQL Server rejects Feedback CASCADE alongside
+                // Restaurant CASCADE (error 1785, multiple cascade paths).
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<RecoverySmsSendIdempotency>()
+                .HasOne(row => row.CompletedGuestResponse)
+                .WithMany()
+                .HasForeignKey(row => row.CompletedGuestResponseId)
+                // NoAction: SQL Server rejects guest-response CASCADE alongside
+                // Restaurant CASCADE (error 1785, multiple cascade paths).
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<RecoverySmsSendIdempotency>()
+                .HasIndex(row => new { row.RestaurantId, row.IdempotencyKey })
+                .IsUnique();
+
+            modelBuilder.Entity<RecoverySmsSendIdempotency>()
+                .HasIndex(row => new
+                {
+                    row.CompletedGuestResponseId,
+                    row.HoldExpiresAtUtc,
                 });
 
             /*

@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.SmartGuestLink;
 using TummlyBackend.Exceptions;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -27,7 +29,11 @@ namespace TummlyBackend.Tests.Services
                 })
                 .Build();
 
-            _service = new SmartGuestLinkService(_context, configuration);
+            _service = new SmartGuestLinkService(
+                _context,
+                configuration,
+                new NoOpBillingAccountLifecycle()
+            );
         }
 
         [Fact]
@@ -108,11 +114,11 @@ namespace TummlyBackend.Tests.Services
                 "guest-token-123456789012345678"
             );
 
-            Assert.NotNull(result);
-            Assert.Equal("The Golden Fork", result!.RestaurantName);
-            Assert.Equal("Main", result.LocationName);
-            Assert.Equal(QrType.SmartGuest, result.QrType);
-            Assert.True(result.QrCodeId > 0);
+            var live = Assert.IsType<GuestQrResolveResult.Live>(result);
+            Assert.Equal("The Golden Fork", live.Location.RestaurantName);
+            Assert.Equal("Main", live.Location.LocationName);
+            Assert.Equal(QrType.SmartGuest, live.Location.QrType);
+            Assert.True(live.Location.QrCodeId > 0);
         }
 
         [Fact]
@@ -124,21 +130,21 @@ namespace TummlyBackend.Tests.Services
                 "  trim-token-12345678901234567890  "
             );
 
-            Assert.NotNull(result);
+            Assert.IsType<GuestQrResolveResult.Live>(result);
         }
 
         [Fact]
-        public async Task ResolveForGuestAsync_ReturnsNull_ForUnknownToken()
+        public async Task ResolveForGuestAsync_ReturnsNotFound_ForUnknownToken()
         {
             var result = await _service.ResolveForGuestAsync("missing-token");
 
-            Assert.Null(result);
+            Assert.IsType<GuestQrResolveResult.NotFound>(result);
         }
 
         [Theory]
         [InlineData(QrCodeStatus.Paused)]
         [InlineData(QrCodeStatus.Archived)]
-        public async Task ResolveForGuestAsync_ReturnsNull_ForInactiveQrCode(
+        public async Task ResolveForGuestAsync_ReturnsNotFound_ForInactiveQrCode(
             QrCodeStatus status
         )
         {
@@ -148,7 +154,7 @@ namespace TummlyBackend.Tests.Services
                 "inactive-token-1234567890123456"
             );
 
-            Assert.Null(result);
+            Assert.IsType<GuestQrResolveResult.NotFound>(result);
         }
 
         [Fact]
@@ -189,7 +195,7 @@ namespace TummlyBackend.Tests.Services
             await _context.SaveChangesAsync();
 
             var blocked = await _service.ResolveForGuestAsync(token);
-            Assert.Null(blocked);
+            Assert.IsType<GuestQrResolveResult.NotFound>(blocked);
 
             var qr = await _context.QrCodes.SingleAsync(q => q.Token == token);
             Assert.Equal(QrCodeStatus.Active, qr.Status);
@@ -198,7 +204,7 @@ namespace TummlyBackend.Tests.Services
             await _context.SaveChangesAsync();
 
             var allowed = await _service.ResolveForGuestAsync(token);
-            Assert.NotNull(allowed);
+            Assert.IsType<GuestQrResolveResult.Live>(allowed);
             Assert.Equal(QrCodeStatus.Active, qr.Status);
         }
 
@@ -287,7 +293,11 @@ namespace TummlyBackend.Tests.Services
         public void BuildGuestUrl_ThrowsWhenConfigMissing()
         {
             var configuration = new ConfigurationBuilder().Build();
-            var service = new SmartGuestLinkService(_context, configuration);
+            var service = new SmartGuestLinkService(
+                _context,
+                configuration,
+                new NoOpBillingAccountLifecycle()
+            );
 
             Assert.Throws<InvalidOperationException>(() =>
                 service.BuildGuestUrl("abc123")
@@ -371,7 +381,7 @@ namespace TummlyBackend.Tests.Services
                 ApplicationDbContext context,
                 IConfiguration configuration,
                 string fixedToken
-            ) : base(context, configuration)
+            ) : base(context, configuration, new NoOpBillingAccountLifecycle())
             {
                 _fixedToken = fixedToken;
             }

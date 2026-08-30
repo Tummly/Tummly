@@ -47,6 +47,10 @@ namespace TummlyBackend.Helpers
                         success = false,
                         message = result.Message,
                     }),
+                QrLifecycleResultKind.OperatorBillingLocked =>
+                    OperatorBillingLockGate.Forbidden(
+                        result.Code ?? result.Message ?? "soft_lock"
+                    ),
                 _ => controller.StatusCode(500, new
                 {
                     success = false,
@@ -60,6 +64,18 @@ namespace TummlyBackend.Helpers
             QrLifecycleResult result
         )
         {
+            if (result.Code != null)
+            {
+                return controller.Conflict(new
+                {
+                    success = false,
+                    code = result.Code,
+                    message = result.Message,
+                    cap = result.Cap,
+                    current = result.Current,
+                });
+            }
+
             if (result.Field != null)
             {
                 return controller.Conflict(new

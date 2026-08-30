@@ -25,9 +25,10 @@ import {
   CAMPAIGN_CHANNEL_OPTIONS,
   buildCampaignChannelUsageSummary,
   defaultCampaignChannelId,
-  resolveCampaignChannelSmsShortfall,
+  resolveCampaignChannelShortfall,
+  type CampaignChannelEstimateMode,
   type CampaignChannelId,
-  type CampaignChannelSmsShortfall,
+  type CampaignChannelShortfall,
   type CampaignChannelUsageRow,
 } from "@/lib/operatorCampaigns/campaignChannelPresentation"
 import {
@@ -121,14 +122,27 @@ import {
   maybeConsumeDirectAiOnUsableDraft,
   resolveCampaignAiPrepareGate,
   resolveCampaignMessagingUsage,
+  CAMPAIGN_AI_PREPARE_BLOCKED_NO_CREDITS,
   type CampaignBillingBalancesPayload,
+  type CampaignMessagingChromeAccess,
   type CampaignMessagingUsageCutover,
   type ConsumeDirectAiInput,
 } from "@/lib/operatorCampaigns/campaignMessagingBalances"
+import { billingCreditsChannelCardActions } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
+import {
+  resolveBillingReserveUnavailableCopy,
+  resolveCampaignsMessagingLockHelper,
+  type CampaignsMessagingBalancesFixture,
+  type CampaignsMessagingChromeAction,
+  type CampaignsMessagingLockCause,
+} from "@/lib/operatorCampaigns/campaignsMessagingCreditChrome"
 import {
   MESSAGING_USAGE_FIXTURE,
   type MessagingUsageFixture,
 } from "@/lib/operatorCampaigns/messagingUsageFixtures"
+
+/** @deprecated Prefer CampaignsMessagingBalancesFixture — re-exported alias. */
+export type { MessagingUsageFixture }
 import type { RecoverySuccessChrome } from "@/lib/operatorFeedback/recoverySuccessPresentation"
 import type {
   CampaignDraftDetail,
@@ -263,6 +277,18 @@ export type CampaignWizardAdapters = {
     campaignId: number
     body: CommitCampaignScheduleRequest
   }) => Promise<CampaignScheduleCommitDetail>
+  /**
+   * True when Billing Reserve adapter IsLive is true.
+   * Controls stub vs live unexpected-503 copy (ticket 23). Default false.
+   */
+  billingReserveLive?: boolean
+  /**
+   * Billing chrome access for Soft-lock helper + overview / shortfall CTAs (ticket 23).
+   * Omit: treat as Owner + manage so Account-owner chrome stays visible until
+   * Billing page / `/auth/me` fields are live. Explicit view/none still hides writes.
+   * Live balances `chromeAccess` overrides this when present.
+   */
+  messagingChromeAccess?: CampaignMessagingChromeAccess
 }
 
 export type CampaignWizardGoalCardViewModel = CampaignGoalOption & {
@@ -310,10 +336,10 @@ export type CampaignChannelViewModel = {
    * Shared overview / Channel balances source when ready.
    * null after live cutover load-failed (no fixture fallback).
    */
-  messagingFixture: MessagingUsageFixture | null
+  messagingFixture: CampaignsMessagingBalancesFixture | null
   messagingBalancesStatus: "ready" | "load-failed"
   messagingBalancesError: string | null
-  smsShortfall: CampaignChannelSmsShortfall | null
+  channelShortfall: CampaignChannelShortfall | null
 }
 
 export type CampaignOfferOptionViewModel = {
@@ -374,7 +400,8 @@ export type CampaignOfferViewModel = {
     rows: CampaignChannelUsageRow[]
   }
   /** Same shared overview fixture as Channel (ticket 19 / 24). */
-  messagingFixture: MessagingUsageFixture | null
+  messagingFixture: CampaignsMessagingBalancesFixture | null
+  channelShortfall: CampaignChannelShortfall | null
 }
 
 export type CampaignMessageViewModel = {
@@ -388,6 +415,10 @@ export type CampaignMessageViewModel = {
   /** Soft-lock / AI=0 / balances-failed gate after live cutover (ticket 25). */
   aiPrepareAllowed: boolean
   aiPrepareBlockReason: string | null
+  /** Ticket 24 shared chip — Buy AI / Change plan when AI pool is empty. */
+  showBuyAiCredits: boolean
+  showChangePlan: boolean
+  lockHelperLabel: string | null
   guestPreviewOpen: boolean
   /** Email channel only — SMS Send test stays unavailable. */
   sendTestAvailable: boolean
@@ -407,7 +438,8 @@ export type CampaignMessageViewModel = {
     audienceLine: string
     rows: CampaignChannelUsageRow[]
   }
-  messagingFixture: MessagingUsageFixture | null
+  messagingFixture: CampaignsMessagingBalancesFixture | null
+  channelShortfall: CampaignChannelShortfall | null
 }
 
 export type CampaignScheduleOptionViewModel = {
@@ -433,7 +465,8 @@ export type CampaignScheduleViewModel = {
     audienceLine: string
     rows: CampaignChannelUsageRow[]
   }
-  messagingFixture: MessagingUsageFixture
+  messagingFixture: CampaignsMessagingBalancesFixture | null
+  channelShortfall: CampaignChannelShortfall | null
 }
 
 export type CampaignReviewSectionRow = {
@@ -489,6 +522,11 @@ export type CampaignReviewViewModel = {
   sendAvailable: boolean
   /** Honest reason when `sendAvailable` is false; null when send is allowed. */
   sendBlockedReason: string | null
+  /**
+   * Shortfall / hard-stop chrome — Buy + Change plan when channel credits are short.
+   * Null when unlocked or Soft-lock is the blocking reason.
+   */
+  channelShortfall: CampaignChannelShortfall | null
   sections: CampaignReviewSectionViewModel[]
   guestPreview: CampaignReviewGuestPreviewViewModel
 }
@@ -531,6 +569,11 @@ export type CampaignWizardSnapshot = {
   commitConfirm: CampaignCommitConfirmViewModel | null
   /** Recovery-pattern success chrome after commit; null mid-flow. */
   success: RecoverySuccessChrome | null
+  /**
+   * Soft lock / Dormant restoration helper next to disabled Schedule/Send.
+   * Null when unlocked or the actor cannot restore.
+   */
+  lockHelper: CampaignsMessagingChromeAction | null
   footerLayout: "wizard" | "end"
 }
 
@@ -687,9 +730,12 @@ type WizardState = {
   messagingCutover: CampaignMessagingUsageCutover
   messagingBalancesStatus: "ready" | "load-failed"
   messagingBalancesError: string | null
-  messagingFixture: MessagingUsageFixture
+  messagingFixture: CampaignsMessagingBalancesFixture
   aiAvailable: number | null
   softLocked: boolean
+  isPilot: boolean
+  lockCause: CampaignsMessagingLockCause | null
+  messagingChromeAccess: CampaignMessagingChromeAccess
 }
 
 const NUMBERED_STEP_ORDER: readonly CampaignWizardStepId[] =
@@ -700,7 +746,12 @@ const DEFAULT_AUDIENCE_ID: CampaignAudienceId = "all-eligible-guests"
 const CAMPAIGN_DRAFT_SAVE_ERROR_MESSAGE =
   "Could not save this campaign draft. Try again."
 
-function emptyState(): WizardState {
+function emptyState(
+  messagingChromeAccess: CampaignMessagingChromeAccess = {
+    accessLevel: "manage",
+    permissionRole: "Owner",
+  }
+): WizardState {
   return {
     isOpen: false,
     locationId: null,
@@ -768,6 +819,9 @@ function emptyState(): WizardState {
     messagingFixture: MESSAGING_USAGE_FIXTURE,
     aiAvailable: null,
     softLocked: false,
+    isPilot: MESSAGING_USAGE_FIXTURE.isPilot,
+    lockCause: null,
+    messagingChromeAccess,
   }
 }
 
@@ -924,12 +978,50 @@ function channelUsageEligibility(
   )
 }
 
+function channelEstimateMode(state: WizardState): CampaignChannelEstimateMode {
+  if (state.stepId === "channel" || state.stepId === "offer") {
+    return "floor"
+  }
+  if (
+    (state.stepId === "message"
+      || state.stepId === "schedule"
+      || state.stepId === "review")
+    && state.channelId === "sms"
+    && state.messageBody.trim().length > 0
+  ) {
+    return "exact"
+  }
+  return "floor"
+}
+
 function buildChannelUsageSummary(state: WizardState) {
   return buildCampaignChannelUsageSummary({
     channelId: state.channelId,
     locationName: state.locationName ?? "",
     eligibility: channelUsageEligibility(state),
     fixture: state.messagingFixture,
+    estimateMode: channelEstimateMode(state),
+  })
+}
+
+function resolveChannelShortfallForState(
+  state: WizardState
+): CampaignChannelShortfall | null {
+  if (state.messagingBalancesStatus !== "ready") {
+    return null
+  }
+  const eligibility = channelUsageEligibility(state)
+  const channelEligible =
+    state.channelId === "email"
+      ? eligibility.emailEligible
+      : eligibility.smsEligible
+  return resolveCampaignChannelShortfall({
+    channelId: state.channelId,
+    channelEligible,
+    fixture: state.messagingFixture,
+    estimateMode: channelEstimateMode(state),
+    accessLevel: state.messagingChromeAccess.accessLevel,
+    permissionRole: state.messagingChromeAccess.permissionRole,
   })
 }
 
@@ -948,7 +1040,6 @@ function buildChannelViewModel(
         audienceLine: state.messagingBalancesError ?? "",
         rows: [] as CampaignChannelUsageRow[],
       }
-  const eligibility = channelUsageEligibility(state)
 
   return {
     selectedChannelId: state.channelId,
@@ -966,13 +1057,7 @@ function buildChannelViewModel(
     messagingFixture: fixture,
     messagingBalancesStatus: state.messagingBalancesStatus,
     messagingBalancesError: state.messagingBalancesError,
-    smsShortfall: balancesReady
-      ? resolveCampaignChannelSmsShortfall({
-          channelId: state.channelId,
-          smsEligible: eligibility.smsEligible,
-          fixture: state.messagingFixture,
-        })
-      : null,
+    channelShortfall: resolveChannelShortfallForState(state),
   }
 }
 
@@ -1100,6 +1185,7 @@ function buildOfferViewModel(
       rows: usage.rows,
     },
     messagingFixture: balancesReady ? state.messagingFixture : null,
+    channelShortfall: resolveChannelShortfallForState(state),
   }
 }
 
@@ -1125,6 +1211,19 @@ function buildMessageViewModel(
     aiAvailable: state.aiAvailable,
     balancesStatus: state.messagingBalancesStatus,
   })
+  const aiCardActions = billingCreditsChannelCardActions({
+    accessLevel: state.messagingChromeAccess.accessLevel,
+    permissionRole: state.messagingChromeAccess.permissionRole,
+    isPilot: state.isPilot,
+    isDepleted:
+      state.aiAvailable != null && state.aiAvailable <= 0,
+  })
+  const lockHelper = resolveCampaignsMessagingLockHelper({
+    softLocked: state.softLocked,
+    lockCause: state.lockCause,
+    accessLevel: state.messagingChromeAccess.accessLevel,
+    permissionRole: state.messagingChromeAccess.permissionRole,
+  })
 
   return {
     writeEntry: state.messageWriteEntry,
@@ -1135,6 +1234,13 @@ function buildMessageViewModel(
     prepareAiLive,
     aiPrepareAllowed: prepareGate.allowed,
     aiPrepareBlockReason: prepareGate.blockReason,
+    showBuyAiCredits:
+      prepareGate.blockReason === CAMPAIGN_AI_PREPARE_BLOCKED_NO_CREDITS
+      && aiCardActions.showBuy,
+    showChangePlan:
+      prepareGate.blockReason === CAMPAIGN_AI_PREPARE_BLOCKED_NO_CREDITS
+      && aiCardActions.showChangePlan,
+    lockHelperLabel: lockHelper?.label ?? null,
     guestPreviewOpen: state.guestPreviewOpen,
     sendTestAvailable,
     aiDraftStatus: state.aiDraftStatus,
@@ -1153,6 +1259,7 @@ function buildMessageViewModel(
       rows: usage.rows,
     },
     messagingFixture: balancesReady ? state.messagingFixture : null,
+    channelShortfall: resolveChannelShortfallForState(state),
   }
 }
 
@@ -1198,6 +1305,7 @@ function buildScheduleViewModel(
       rows: usage.rows,
     },
     messagingFixture: balancesReady ? state.messagingFixture : null,
+    channelShortfall: resolveChannelShortfallForState(state),
   }
 }
 
@@ -1262,13 +1370,14 @@ function buildReviewGuestPreviewOfferCoupon(
 function sendBlockedReason(
   state: WizardState,
   commitCampaignWired: boolean,
+  billingReserveLive: boolean,
   now: Date
 ): string | null {
   if (canCommitCampaign(state, commitCampaignWired, now)) {
     return null
   }
   if (!commitCampaignWired) {
-    return CAMPAIGN_COMMIT_COPY.billingReserveUnavailable
+    return resolveBillingReserveUnavailableCopy({ billingReserveLive })
   }
   if (state.softLocked) {
     return CAMPAIGN_COMMIT_COPY.softLocked
@@ -1373,6 +1482,10 @@ function buildReviewViewModel(
     stepDescription: CAMPAIGN_REVIEW_COPY.stepDescription,
     sendAvailable,
     sendBlockedReason,
+    channelShortfall:
+      !state.softLocked && isChannelHardStopped(state)
+        ? resolveChannelShortfallForState(state)
+        : null,
     sections: CAMPAIGN_REVIEW_SECTIONS.map((section) => ({
       id: section.id,
       title: section.title,
@@ -1406,13 +1519,16 @@ function isChannelHardStopped(state: WizardState): boolean {
   if (state.messagingCutover !== "live") {
     return false
   }
+  if (state.messagingBalancesStatus !== "ready") {
+    return false
+  }
   const eligible = selectedChannelEligibleCount(state)
   if (state.channelId === "email") {
-    const remaining = state.messagingFixture.email.remaining
+    const remaining = state.messagingFixture.email.combinedRemaining
     return remaining === 0 || remaining < eligible
   }
-  const available = state.messagingFixture.sms.available
-  return available === 0 || available < eligible
+  const remaining = state.messagingFixture.sms.combinedRemaining
+  return remaining === 0 || remaining < eligible
 }
 
 function canCommitCampaign(
@@ -1529,7 +1645,8 @@ function toSnapshot(
   getNow: () => Date,
   prepareAiLive: boolean,
   sendTestAvailable: boolean,
-  commitCampaignWired: boolean
+  commitCampaignWired: boolean,
+  billingReserveLive: boolean
 ): CampaignWizardSnapshot {
   const now = getNow()
   const openedAt = state.openedAt ?? now
@@ -1549,7 +1666,18 @@ function toSnapshot(
   const isSchedule = state.stepId === "schedule"
   const isReview = state.stepId === "review"
   const canCommit = canCommitCampaign(state, commitCampaignWired, now)
-  const blockedReason = sendBlockedReason(state, commitCampaignWired, now)
+  const blockedReason = sendBlockedReason(
+    state,
+    commitCampaignWired,
+    billingReserveLive,
+    now
+  )
+  const lockHelper = resolveCampaignsMessagingLockHelper({
+    softLocked: state.softLocked,
+    lockCause: state.lockCause,
+    accessLevel: state.messagingChromeAccess.accessLevel,
+    permissionRole: state.messagingChromeAccess.permissionRole,
+  })
 
   let canContinue = false
   if (isGoal) {
@@ -1636,6 +1764,7 @@ function toSnapshot(
     sendTest: buildSendTestViewModel(state, sendTestAvailable),
     commitConfirm: buildCommitConfirmViewModel(state),
     success,
+    lockHelper,
     footerLayout: isSuccess ? "end" : "wizard",
   }
 }
@@ -1659,13 +1788,18 @@ export function createCampaignWizardModule(
   const prepareAiLive = adapters.prepareMessageDraft != null
   const sendCampaignTestWired = adapters.sendCampaignTest != null
   const commitCampaignWired = adapters.commitCampaign != null
-  let state = emptyState()
+  const billingReserveLive = adapters.billingReserveLive === true
+  const defaultChromeAccess: CampaignMessagingChromeAccess =
+    adapters.messagingChromeAccess
+    ?? { accessLevel: "manage", permissionRole: "Owner" }
+  let state = emptyState(defaultChromeAccess)
   let snapshot = toSnapshot(
     state,
     getNow,
     prepareAiLive,
     isSendTestAvailable(state, sendCampaignTestWired),
-    commitCampaignWired
+    commitCampaignWired,
+    billingReserveLive
   )
   const listeners = new Set<() => void>()
   let audienceLoadGeneration = 0
@@ -1679,7 +1813,8 @@ export function createCampaignWizardModule(
       getNow,
       prepareAiLive,
       isSendTestAvailable(state, sendCampaignTestWired),
-      commitCampaignWired
+      commitCampaignWired,
+      billingReserveLive
     )
     for (const listener of listeners) {
       listener()
@@ -1783,7 +1918,10 @@ export function createCampaignWizardModule(
   }
 
   const applyFixturesMessaging = () => {
-    const resolved = resolveCampaignMessagingUsage({ cutover: "fixtures" })
+    const resolved = resolveCampaignMessagingUsage({
+      cutover: "fixtures",
+      access: state.messagingChromeAccess,
+    })
     if (resolved.status !== "ready") {
       return
     }
@@ -1795,6 +1933,8 @@ export function createCampaignWizardModule(
       messagingFixture: resolved.fixture,
       aiAvailable: resolved.aiAvailable,
       softLocked: resolved.softLocked,
+      isPilot: resolved.isPilot,
+      lockCause: resolved.lockCause,
     }
   }
 
@@ -1834,6 +1974,7 @@ export function createCampaignWizardModule(
       const resolved = resolveCampaignMessagingUsage({
         cutover: "live",
         balances,
+        access: state.messagingChromeAccess,
       })
       if (resolved.status !== "ready") {
         return
@@ -1846,6 +1987,10 @@ export function createCampaignWizardModule(
         messagingFixture: resolved.fixture,
         aiAvailable: resolved.aiAvailable,
         softLocked: resolved.softLocked,
+        isPilot: resolved.isPilot,
+        lockCause: resolved.lockCause,
+        messagingChromeAccess:
+          balances.chromeAccess ?? state.messagingChromeAccess,
       }
       publish()
     } catch {
@@ -1865,9 +2010,11 @@ export function createCampaignWizardModule(
         messagingBalancesStatus: "load-failed",
         messagingBalancesError: resolved.errorMessage,
         // No silent fixture fallback after live cutover failure.
-        messagingFixture: null,
+        messagingFixture: MESSAGING_USAGE_FIXTURE,
         aiAvailable: null,
         softLocked: false,
+        isPilot: false,
+        lockCause: null,
       }
       publish()
     }
@@ -1880,7 +2027,7 @@ export function createCampaignWizardModule(
       aiAbortController.abort()
       aiAbortController = null
     }
-    state = emptyState()
+    state = emptyState(defaultChromeAccess)
     publish()
   }
 
@@ -2369,7 +2516,9 @@ export function createCampaignWizardModule(
     } catch (error) {
       let commitError: string = CAMPAIGN_COMMIT_COPY.reserveFailedDefault
       if (isCampaignBillingReserveUnavailableError(error)) {
-        commitError = CAMPAIGN_COMMIT_COPY.billingReserveUnavailable
+        commitError = resolveBillingReserveUnavailableCopy({
+          billingReserveLive,
+        })
       } else if (error instanceof Error && error.message.trim().length > 0) {
         commitError = error.message.trim()
       }
@@ -2452,7 +2601,7 @@ export function createCampaignWizardModule(
     openBlankCreate(input) {
       audienceLoadGeneration += 1
       state = {
-        ...emptyState(),
+        ...emptyState(defaultChromeAccess),
         isOpen: true,
         locationId: input.locationId,
         locationName: input.locationName,
@@ -2470,7 +2619,7 @@ export function createCampaignWizardModule(
         input.template.suggestions
       )
       state = {
-        ...emptyState(),
+        ...emptyState(defaultChromeAccess),
         isOpen: true,
         locationId: input.locationId,
         locationName: input.locationName,
@@ -2530,7 +2679,7 @@ export function createCampaignWizardModule(
       const attachedOfferId = forceNoOfferLand ? null : draft.offerId
 
       state = {
-        ...emptyState(),
+        ...emptyState(defaultChromeAccess),
         isOpen: true,
         locationId: draft.locationId,
         locationName: input.locationName,
@@ -2592,7 +2741,7 @@ export function createCampaignWizardModule(
       const draftName = prefill.campaignName.trim()
 
       state = {
-        ...emptyState(),
+        ...emptyState(defaultChromeAccess),
         isOpen: true,
         locationId: input.locationId,
         locationName: input.locationName,

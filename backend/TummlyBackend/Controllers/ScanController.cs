@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Scan;
+using TummlyBackend.DTOs.SmartGuestLink;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -65,37 +66,58 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var location = await _smartGuestLink.ResolveForGuestAsync(normalizedToken);
-
-            if (location == null)
-            {
-                return NotFound(new
-                {
-                    success = false,
-                    message = "Link not found."
-                });
-            }
-
-            // First-party scan event for Performance overview QR scans KPI
-            // (QR, shared Smart Guest Link, and operator Preview form).
-            _context.QrScanEvents.Add(
-                new QrScanEvent
-                {
-                    RestaurantLocationId = location.LocationId,
-                    QrCodeId = location.QrCodeId,
-                    CreatedAt = DateTime.UtcNow
-                }
+            var resolution = await _smartGuestLink.ResolveForGuestAsync(
+                normalizedToken
             );
-            await _context.SaveChangesAsync();
 
-            return Ok(new
+            switch (resolution)
             {
-                success = true,
-                restaurantName = location.RestaurantName,
-                locationName = location.LocationName,
-                address = location.Address,
-                brandLogoPublicUrl = location.BrandLogoPublicUrl
-            });
+                case GuestQrResolveResult.NotFound:
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Link not found."
+                    });
+
+                case GuestQrResolveResult.Dormant dormant:
+                    return Ok(new
+                    {
+                        status = "dormant",
+                        restaurantName = dormant.RestaurantName,
+                        brandLogoPublicUrl = dormant.BrandLogoPublicUrl
+                    });
+
+                case GuestQrResolveResult.Live live:
+                {
+                    var location = live.Location;
+
+                    // First-party scan event for Performance overview QR scans KPI
+                    // (QR, shared Smart Guest Link, and operator Preview form).
+                    _context.QrScanEvents.Add(
+                        new QrScanEvent
+                        {
+                            RestaurantLocationId = location.LocationId,
+                            QrCodeId = location.QrCodeId,
+                            CreatedAt = DateTime.UtcNow
+                        }
+                    );
+                    await _context.SaveChangesAsync();
+
+                    return Ok(new
+                    {
+                        success = true,
+                        restaurantName = location.RestaurantName,
+                        locationName = location.LocationName,
+                        address = location.Address,
+                        brandLogoPublicUrl = location.BrandLogoPublicUrl
+                    });
+                }
+
+                default:
+                    throw new InvalidOperationException(
+                        $"Unexpected guest QR resolve result: {resolution.GetType().Name}."
+                    );
+            }
         }
 
         /*

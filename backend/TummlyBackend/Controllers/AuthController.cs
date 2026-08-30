@@ -304,6 +304,12 @@ namespace TummlyBackend.Controllers
                     User
                 );
 
+            var billingCreditsAccess =
+                await OperatorChromeAccess.BillingCreditsAsync(
+                    _permissions,
+                    User
+                );
+
             return Ok(new
             {
                 success = true,
@@ -317,6 +323,7 @@ namespace TummlyBackend.Controllers
                     user.AccountType,
                     selfRole,
                     teamPermissionsAccess,
+                    billingCreditsAccess,
                     workspaceSetupRequired =
                         routing.WorkspaceSetupRequired,
                     selectedLocationId = routing.SelectedLocationId,

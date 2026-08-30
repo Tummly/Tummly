@@ -70,6 +70,9 @@ namespace TummlyBackend.Models
         /// <summary>Full credit estimate reserved at commit.</summary>
         public int? ReservedEstimate { get; set; }
 
+        /// <summary>Settled credits on the open Billing reservation.</summary>
+        public int SettledUnits { get; set; }
+
         /// <summary>SQL Server rowversion concurrency token (DB-managed).</summary>
         [Timestamp]
         public byte[] RowVersion { get; set; } = [];

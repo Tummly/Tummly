@@ -16,6 +16,7 @@ using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -34,12 +35,20 @@ namespace TummlyBackend.Tests.Services
         private readonly FakeFeedbackRecoveryDraftProvider _recoveryDrafts;
         private readonly ControllableHomeRecommendation _homeRecommendation;
         private readonly ControllableWeeklyBriefGenerate _weeklyBriefGenerate;
+        private readonly CreditLedgerService _creditLedger;
+        private readonly CreditBalanceSnapshotService _creditSnapshot;
+        private readonly AssistantAiBillingService _aiBilling;
         private readonly AssistantConversationService _service;
+        private readonly DateTime _now = new(2026, 8, 28, 12, 0, 0, DateTimeKind.Utc);
+        private readonly ManualTimeProvider _clock;
 
         public AssistantConversationServiceTests()
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .ConfigureWarnings(w =>
+                    w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning)
+                )
                 .Options;
 
             _context = new ApplicationDbContext(options);
@@ -74,6 +83,19 @@ namespace TummlyBackend.Tests.Services
             _recoveryDrafts = new FakeFeedbackRecoveryDraftProvider();
             _homeRecommendation = new ControllableHomeRecommendation();
             _weeklyBriefGenerate = new ControllableWeeklyBriefGenerate();
+            _clock = new ManualTimeProvider(_now);
+            _creditLedger = new CreditLedgerService(
+                _context,
+                _clock,
+                TestPricebookPaths.LoadV3()
+            );
+            _creditSnapshot = new CreditBalanceSnapshotService(_context, _clock);
+            _aiBilling = new AssistantAiBillingService(
+                _context,
+                _creditLedger,
+                _creditSnapshot,
+                _clock
+            );
             _service = CreateConversationService();
         }
 
@@ -83,7 +105,8 @@ namespace TummlyBackend.Tests.Services
             IOffersCatalogService? offersCatalog = null,
             ICaptureThankYouOfferService? thankYouOffers = null,
             TimeProvider? timeProvider = null,
-            IOptions<FeedbackClassificationSettings>? liveAnswerOptions = null
+            IOptions<FeedbackClassificationSettings>? liveAnswerOptions = null,
+            IAssistantAiBilling? aiBilling = null
         )
         {
             var catalog = offersCatalog ?? new OffersCatalogService(_context);
@@ -119,7 +142,8 @@ namespace TummlyBackend.Tests.Services
                 ),
                 thankYouOffers ?? new CaptureThankYouOfferService(_context, catalog),
                 new RestaurantPermissionHelper(_context),
-                timeProvider,
+                aiBilling ?? _aiBilling,
+                timeProvider ?? _clock,
                 liveAnswerOptions
             );
         }
@@ -1100,7 +1124,7 @@ namespace TummlyBackend.Tests.Services
             var send = _service.SendTurnAsync(
                 ownerUserId: 7,
                 FirstSendRequest(locationId, "Summarise recent feedback"),
-                cts.Token
+                cancellationToken: cts.Token
             );
             await Task.Delay(30);
             cts.Cancel();
@@ -8394,7 +8418,8 @@ namespace TummlyBackend.Tests.Services
                 ),
                 configuration,
                 NullLogger<AdminService>.Instance,
-                _service
+                _service,
+                new NoOpBillingAccountLifecycle()
             );
         }
 
@@ -8517,18 +8542,22 @@ namespace TummlyBackend.Tests.Services
             )
                 => Task.FromResult(false);
 
-            public Task SyncInFlightStoredStatusAsync(
+            public Task<CatalogOfferInFlightSyncResult> SyncInFlightStoredStatusAsync(
                 int offerId,
                 CancellationToken cancellationToken = default
             )
-                => Task.CompletedTask;
+                => Task.FromResult<CatalogOfferInFlightSyncResult>(
+                    new CatalogOfferInFlightSyncResult.Ok()
+                );
 
-            public Task SyncInFlightStoredStatusForAttachChangeAsync(
+            public Task<CatalogOfferInFlightSyncResult> SyncInFlightStoredStatusForAttachChangeAsync(
                 int? previousOfferId,
                 int? nextOfferId,
                 CancellationToken cancellationToken = default
             )
-                => Task.CompletedTask;
+                => Task.FromResult<CatalogOfferInFlightSyncResult>(
+                    new CatalogOfferInFlightSyncResult.Ok()
+                );
 
             public Task<CatalogOffersListResponse> ListAsync(
                 CatalogOffersListQuery query,
@@ -9087,17 +9116,9 @@ namespace TummlyBackend.Tests.Services
             var conversationCtor = typeof(AssistantConversationService)
                 .GetConstructors()
                 .Single();
-            Assert.DoesNotContain(
+            Assert.Contains(
                 conversationCtor.GetParameters(),
-                parameter =>
-                    parameter.ParameterType.Name.Contains(
-                        "Billing",
-                        StringComparison.Ordinal
-                    )
-                    || parameter.ParameterType.Name.Contains(
-                        "Credit",
-                        StringComparison.Ordinal
-                    )
+                parameter => parameter.ParameterType == typeof(IAssistantAiBilling)
             );
         }
 
@@ -9687,8 +9708,44 @@ namespace TummlyBackend.Tests.Services
             };
             _context.RestaurantLocations.Add(location);
             await _context.SaveChangesAsync();
+
+            _context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurant.Id,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                )
+            );
+            await SeedAiGrantAsync(restaurant.Id, quantity: 100);
             return location.Id;
         }
+
+        private async Task SeedAiGrantAsync(
+            int restaurantId,
+            int quantity,
+            DateTime? createdAtUtc = null
+        )
+        {
+            var createdAt = createdAtUtc ?? _now;
+            _context.CreditLedgerEntries.Add(
+                new CreditLedgerEntry
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = restaurantId,
+                    Channel = CreditChannels.Ai,
+                    EntryType = CreditLedgerEntryTypes.PilotAllocation,
+                    Quantity = quantity,
+                    PricebookVersion = "TUMMLY-UK-GBP-2026-08-V3",
+                    CreatedAtUtc = createdAt,
+                }
+            );
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task<int> RestaurantIdForLocationAsync(int locationId)
+            => await _context.RestaurantLocations
+                .Where(location => location.Id == locationId)
+                .Select(location => location.RestaurantId)
+                .SingleAsync();
 
         private async Task<int> SeedSecondLocationAsync(
             int ownerUserId,

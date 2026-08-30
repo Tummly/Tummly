@@ -18,6 +18,11 @@ namespace TummlyBackend.Configurations
         public string VerifyServiceSid { get; set; } = string.Empty;
 
         /// <summary>
+        /// Outbound Recovery SMS sender (E.164 or Twilio sender id).
+        /// </summary>
+        public string RecoveryFromNumber { get; set; } = string.Empty;
+
+        /// <summary>
         /// ISO 3166-1 alpha-2 region used when parsing numbers without a + prefix.
         /// Defaults to GB (United Kingdom).
         /// </summary>
@@ -43,5 +48,10 @@ namespace TummlyBackend.Configurations
             !string.IsNullOrWhiteSpace(AccountSid) &&
             !string.IsNullOrWhiteSpace(AuthToken) &&
             !string.IsNullOrWhiteSpace(VerifyServiceSid);
+
+        public bool IsRecoverySmsConfigured =>
+            !string.IsNullOrWhiteSpace(AccountSid) &&
+            !string.IsNullOrWhiteSpace(AuthToken) &&
+            !string.IsNullOrWhiteSpace(RecoveryFromNumber);
     }
 }

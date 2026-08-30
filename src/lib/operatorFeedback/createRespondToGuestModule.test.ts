@@ -131,6 +131,7 @@ function createAdapters(
         ) => Promise<PrepareRecoveryDraftResult>
       >
     >,
+    getCreditChrome: overrides.getCreditChrome,
   }
 }
 
@@ -730,5 +731,121 @@ describe("createRespondToGuestModule", () => {
     module.writeManually()
     await preparePromise
     expect(module.getSnapshot().aiActionCount).toBe(0)
+  })
+
+  it("Email never credit-blocked when SMS and AI are empty", async () => {
+    const adapters = createAdapters({
+      getCreditChrome: async () => ({
+        smsRemaining: 0,
+        aiRemaining: 0,
+        isPilot: false,
+        paidActionsLocked: false,
+        restorationCause: null,
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        mode: "single",
+        locationId: 42,
+      }),
+    })
+    const module = createRespondToGuestModule(adapters)
+    await openAtReview(module)
+    expect(module.getSnapshot().sendBlocked).toBe(false)
+    expect(module.getSnapshot().smsShortfall.blocked).toBe(false)
+    module.openSendConfirm()
+    expect(module.getSnapshot().sendConfirmOpen).toBe(true)
+  })
+
+  it("SMS shortfall blocks Confirm/Send", async () => {
+    const adapters = createAdapters({
+      getFeedbackDetails: async () => ({
+        ...sampleDetails,
+        contactType: "Phone",
+        guestContact: "+447700900123",
+      }),
+      getCreditChrome: async () => ({
+        smsRemaining: 1,
+        aiRemaining: 5,
+        isPilot: false,
+        paidActionsLocked: false,
+        restorationCause: null,
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        mode: "single",
+        locationId: 42,
+      }),
+    })
+    const module = createRespondToGuestModule(adapters)
+    await module.open(2418)
+    module.setPurpose("acknowledge_feedback")
+    module.setTone("direct_and_practical")
+    module.continueSetup()
+    module.writeManually()
+    module.setMessage("x".repeat(161))
+    module.continueWrite()
+
+    expect(module.getSnapshot().smsShortfall.blocked).toBe(true)
+    expect(module.getSnapshot().sendBlocked).toBe(true)
+    expect(module.getSnapshot().smsShortfall.buyCta?.label).toBe(
+      "Buy SMS credits"
+    )
+    module.openSendConfirm()
+    expect(module.getSnapshot().sendConfirmOpen).toBe(false)
+    expect(adapters.sendGuestResponse).not.toHaveBeenCalled()
+  })
+
+  it("AI chip at 0 keeps Write manually and blocks Prepare", async () => {
+    const adapters = createAdapters({
+      getCreditChrome: async () => ({
+        smsRemaining: 10,
+        aiRemaining: 0,
+        isPilot: false,
+        paidActionsLocked: false,
+        restorationCause: null,
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        mode: "single",
+        locationId: 42,
+      }),
+    })
+    const module = createRespondToGuestModule(adapters)
+    await openAtWrite(module)
+
+    expect(module.getSnapshot().aiActionChip.prepareAllowed).toBe(false)
+    expect(module.getSnapshot().aiActionChip.writeManuallyAllowed).toBe(true)
+    expect(module.getSnapshot().aiActionChip.depletedMessage).toBe(
+      "No AI credits remaining"
+    )
+    await module.prepareDraft()
+    expect(adapters.prepareRecoveryDraft).not.toHaveBeenCalled()
+
+    module.writeManually()
+    expect(module.getSnapshot().writeEntry).toBe("editor")
+  })
+
+  it("Soft lock disables burn control and exposes Choose a plan helper", async () => {
+    const adapters = createAdapters({
+      getCreditChrome: async () => ({
+        smsRemaining: 10,
+        aiRemaining: 10,
+        isPilot: true,
+        paidActionsLocked: true,
+        restorationCause: "unpaid-pilot",
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        mode: "single",
+        locationId: 42,
+      }),
+    })
+    const module = createRespondToGuestModule(adapters)
+    await openAtReview(module)
+
+    expect(module.getSnapshot().paidWrite.burnDisabled).toBe(true)
+    expect(module.getSnapshot().paidWrite.helperCta?.label).toBe(
+      "Choose a plan"
+    )
+    expect(module.getSnapshot().sendBlocked).toBe(true)
+    expect(module.getSnapshot().aiActionChip.prepareAllowed).toBe(false)
+    module.openSendConfirm()
+    expect(module.getSnapshot().sendConfirmOpen).toBe(false)
   })
 })

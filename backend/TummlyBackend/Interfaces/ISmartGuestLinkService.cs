@@ -9,14 +9,16 @@ namespace TummlyBackend.Interfaces
         Task<string> GenerateTokenAsync();
 
         /// <summary>
-        /// Read-only resolve for guest feedback form metadata. Only resolves
-        /// Active QR codes — Paused/Archived/unknown tokens return null.
+        /// Read-only resolve for guest feedback form metadata. Calls Tick, then
+        /// returns Dormant branded payload, Pause/invalid as NotFound, or Live.
+        /// Only Active QR codes resolve.
         /// </summary>
-        Task<GuestLinkLocationInfo?> ResolveForGuestAsync(string token);
+        Task<GuestQrResolveResult> ResolveForGuestAsync(string token);
 
         /// <summary>
-        /// Tracked resolve for feedback/STT persistence. Only resolves
-        /// Active QR codes — Paused/Archived/unknown tokens return null.
+        /// Tracked resolve for feedback/STT persistence. Calls Tick, then denies
+        /// Dormant and Pause (null). Soft lock and live allow write.
+        /// Only Active QR codes resolve.
         /// </summary>
         Task<QrLinkWriteResolution?> ResolveLocationForWriteAsync(string token);
 

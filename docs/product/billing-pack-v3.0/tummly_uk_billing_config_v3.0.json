@@ -1,0 +1,423 @@
+{
+  "schema_version": "3.0",
+  "pricebook": {
+    "id": "TUMMLY-UK-GBP-2026-08-V3",
+    "status": "approved_for_development",
+    "signed_off_by": "Amin Ordikhani",
+    "signed_off_at": "2026-08-06",
+    "market": "GB",
+    "currency": "GBP",
+    "effective_from_mode": "first_live_paid_transaction",
+    "immutable_after_activation": true,
+    "grandfather_existing_subscriptions": true
+  },
+  "money": {
+    "storage_unit": "pence",
+    "rounding": "half_up_to_nearest_penny",
+    "currency": "GBP"
+  },
+  "market": {
+    "customer_countries": [
+      "GB"
+    ],
+    "location_countries": [
+      "GB"
+    ],
+    "delivery_countries": [
+      "GB"
+    ],
+    "international_ui_enabled": false
+  },
+  "vat": {
+    "enabled": true,
+    "jurisdiction": "GB",
+    "rate": 0.2,
+    "tax_behavior": "exclusive",
+    "calculate_per_invoice_line": true,
+    "registration_number_env": "TUMMLY_VAT_REGISTRATION_NUMBER",
+    "effective_date_env": "TUMMLY_VAT_EFFECTIVE_DATE",
+    "legal_name_env": "TUMMLY_LEGAL_NAME",
+    "registered_address_env": "TUMMLY_REGISTERED_ADDRESS",
+    "fail_live_paid_checkout_if_missing": true,
+    "invoice_prefix": "TM",
+    "credit_note_prefix": "TCN"
+  },
+  "plans": {
+    "pilot": {
+      "price_pence": 0,
+      "duration_days": 30,
+      "starts_on": "activation_code_redeemed_or_admin_activation",
+      "payment_method_required": false,
+      "auto_convert": false,
+      "locations": 1,
+      "users": 2,
+      "published_guest_forms_per_location": 1,
+      "draft_guest_forms_per_location": 1,
+      "active_qr_placements_per_location": 5,
+      "active_offers_account": 1,
+      "credits_one_time": {
+        "ai": 20,
+        "email": 500,
+        "sms": 20
+      },
+      "topups_allowed": false
+    },
+    "starter": {
+      "lookup_keys": {
+        "monthly": "tummly_starter_monthly_gbp_v3",
+        "annual": "tummly_starter_annual_gbp_v3"
+      },
+      "monthly_price_pence": 3900,
+      "annual_price_pence": 39800,
+      "locations": 1,
+      "users": 3,
+      "published_guest_forms_per_location": 1,
+      "draft_guest_forms_per_location": 1,
+      "active_qr_placements_per_location": 10,
+      "active_offers_account": 3,
+      "credits_monthly": {
+        "ai": 100,
+        "email": 2500,
+        "sms": 100
+      }
+    },
+    "growth": {
+      "lookup_keys": {
+        "monthly": "tummly_growth_monthly_gbp_v3",
+        "annual": "tummly_growth_annual_gbp_v3"
+      },
+      "monthly_price_pence": 9900,
+      "annual_price_pence": 101000,
+      "locations": 3,
+      "users": 10,
+      "published_guest_forms_per_location": 1,
+      "draft_guest_forms_per_location": 1,
+      "active_qr_placements_per_location": 25,
+      "active_offers_account": 10,
+      "credits_monthly": {
+        "ai": 500,
+        "email": 10000,
+        "sms": 350
+      }
+    },
+    "group": {
+      "lookup_keys": {
+        "monthly": "tummly_group_monthly_gbp_v3",
+        "annual": "tummly_group_annual_gbp_v3"
+      },
+      "monthly_price_pence": 19900,
+      "annual_price_pence": 203000,
+      "locations": 5,
+      "users": 25,
+      "published_guest_forms_per_location": 1,
+      "draft_guest_forms_per_location": 1,
+      "active_qr_placements_per_location": 50,
+      "active_offers_account": 25,
+      "credits_monthly": {
+        "ai": 1500,
+        "email": 25000,
+        "sms": 700
+      },
+      "self_serve_max_locations": 30
+    },
+    "additional_group_location": {
+      "lookup_keys": {
+        "monthly": "tummly_group_location_monthly_gbp_v3",
+        "annual": "tummly_group_location_annual_gbp_v3"
+      },
+      "monthly_price_pence": 3900,
+      "annual_price_pence": 39800,
+      "locations_added": 1,
+      "users_added": 2,
+      "published_guest_forms": 1,
+      "draft_guest_forms": 1,
+      "active_qr_placements": 50,
+      "credits_monthly_added": {
+        "ai": 100,
+        "email": 5000,
+        "sms": 100
+      }
+    }
+  },
+  "starter_kit": {
+    "entitlement": "one_per_billing_account_lifetime",
+    "landed_cost_cap_pence": 2500,
+    "requires_verified_business": true,
+    "requires_verified_location": true,
+    "requires_published_form": true,
+    "requires_placement_intent": true,
+    "requires_approved_artwork": true,
+    "requires_valid_uk_delivery_address": true,
+    "duplicate_entitlement_blocked": true
+  },
+  "topups": {
+    "active_paid_plan_required": true,
+    "pilot_allowed": false,
+    "validity_months": 12,
+    "consume_after_included": true,
+    "purchase_order": "not_applicable",
+    "consumption_order": "earliest_expiry_first",
+    "transferable": false,
+    "cash_value": false,
+    "packs": {
+      "ai": [
+        {
+          "lookup_key": "tummly_ai_100_gbp_v3",
+          "quantity": 100,
+          "price_pence": 500
+        },
+        {
+          "lookup_key": "tummly_ai_500_gbp_v3",
+          "quantity": 500,
+          "price_pence": 1500
+        },
+        {
+          "lookup_key": "tummly_ai_2000_gbp_v3",
+          "quantity": 2000,
+          "price_pence": 3900
+        }
+      ],
+      "email": [
+        {
+          "lookup_key": "tummly_email_5000_gbp_v3",
+          "quantity": 5000,
+          "price_pence": 1000
+        },
+        {
+          "lookup_key": "tummly_email_20000_gbp_v3",
+          "quantity": 20000,
+          "price_pence": 3000
+        },
+        {
+          "lookup_key": "tummly_email_50000_gbp_v3",
+          "quantity": 50000,
+          "price_pence": 6000
+        }
+      ],
+      "sms": [
+        {
+          "lookup_key": "tummly_sms_100_gbp_v3",
+          "quantity": 100,
+          "price_pence": 1200
+        },
+        {
+          "lookup_key": "tummly_sms_500_gbp_v3",
+          "quantity": 500,
+          "price_pence": 5500
+        },
+        {
+          "lookup_key": "tummly_sms_1000_gbp_v3",
+          "quantity": 1000,
+          "price_pence": 10000
+        },
+        {
+          "lookup_key": "tummly_sms_5000_gbp_v3",
+          "quantity": 5000,
+          "price_pence": 45000,
+          "approval_required": true
+        }
+      ]
+    }
+  },
+  "burn_rates": {
+    "automatic_feedback_classification": {
+      "ai": 0,
+      "email": 0,
+      "sms": 0
+    },
+    "scheduled_standard_weekly_brief": {
+      "ai": 0,
+      "email": 0,
+      "sms": 0
+    },
+    "ai_assistant_answer_completed": {
+      "ai": 1,
+      "email": 0,
+      "sms": 0
+    },
+    "recovery_ai_draft_completed": {
+      "ai": 1,
+      "email": 0,
+      "sms": 0
+    },
+    "campaign_ai_draft_completed": {
+      "ai": 1,
+      "email": 0,
+      "sms": 0
+    },
+    "operator_regeneration_completed": {
+      "ai": 1,
+      "email": 0,
+      "sms": 0
+    },
+    "recovery_email_provider_accepted": {
+      "ai": 0,
+      "email": 0,
+      "sms": 0
+    },
+    "campaign_email_recipient_provider_accepted": {
+      "ai": 0,
+      "email": 1,
+      "sms": 0
+    },
+    "recovery_sms_segment_provider_accepted": {
+      "ai": 0,
+      "email": 0,
+      "sms": 1
+    },
+    "campaign_sms_segment_provider_accepted": {
+      "ai": 0,
+      "email": 0,
+      "sms": 1
+    }
+  },
+  "email_provider": {
+    "transactional_provider": "resend_email_api",
+    "campaign_adapter": "tummly_campaign_email_provider",
+    "shared_resend_broadcast_contacts_enabled": false,
+    "provider_binding_env": "TUMMLY_CAMPAIGN_EMAIL_PROVIDER",
+    "campaign_email_feature_flag_default": false,
+    "go_live_conditions": [
+      "provider_permits_multi_tenant_marketing_use",
+      "tenant_scoped_unsubscribe_test_passed",
+      "tummly_suppression_is_authoritative",
+      "complaint_and_bounce_monitoring_active",
+      "sending_domain_verified"
+    ],
+    "complaint_rate_stop_threshold": 0.0008,
+    "bounce_rate_stop_threshold": 0.04
+  },
+  "sms": {
+    "provider": "twilio_uk",
+    "credit_unit": "provider_billable_segment",
+    "gsm7_single_chars": 160,
+    "gsm7_concatenated_chars": 153,
+    "ucs2_single_chars": 70,
+    "ucs2_concatenated_chars": 67
+  },
+  "credit_ledger": {
+    "included_reset": "subscription_anniversary",
+    "included_rollover": false,
+    "included_before_topup": true,
+    "topup_order": "earliest_expiry_first",
+    "shared_account_pool": true,
+    "location_attribution_required": true,
+    "negative_balance_allowed": false,
+    "atomic_reservation_required": true,
+    "allocation_reference_required": true,
+    "historical_entries_immutable": true,
+    "corrections_use_reversal_or_adjustment": true,
+    "entry_types": [
+      "included_allocation",
+      "pilot_allocation",
+      "topup_allocation",
+      "reservation",
+      "consumption",
+      "release",
+      "expiry",
+      "refund",
+      "manual_adjustment",
+      "reversal",
+      "plan_migration"
+    ]
+  },
+  "campaign_metering": {
+    "reserve_before_send": true,
+    "require_full_estimated_balance": true,
+    "revalidate_recipients_before_reservation": true,
+    "settle_on_provider_acceptance": true,
+    "release_unused_reservation": true,
+    "skipped_recipient_charge": 0,
+    "partial_send_status": "partially_sent",
+    "recipient_idempotency_required": true
+  },
+  "subscription_lifecycle": {
+    "monthly_paid_in_advance": true,
+    "annual_paid_in_advance": true,
+    "annual_credits_released_monthly": true,
+    "monthly_allocation_requires_successful_renewal_payment": true,
+    "billing_anchor_source": "stripe",
+    "upgrade": {
+      "same_cadence_effective": "immediate",
+      "charge": "prorated_difference_plus_vat",
+      "credit_allocation": "floor_positive_increment_times_remaining_period_ratio"
+    },
+    "downgrade": {
+      "effective": "next_renewal",
+      "entitlement_conflict_must_be_resolved": true
+    },
+    "billing_cadence_change": "next_renewal",
+    "additional_location_add": "immediate_prorated_after_payment",
+    "additional_location_remove": "next_renewal",
+    "cancellation": "period_end"
+  },
+  "payment_provider": {
+    "provider": "stripe",
+    "currency": "GBP",
+    "methods": [
+      "card",
+      "apple_pay",
+      "google_pay"
+    ],
+    "customer_service_fee_pence": 0,
+    "stripe_billing_enabled": true,
+    "customer_portal_scope": [
+      "payment_methods",
+      "invoices",
+      "cancellation"
+    ],
+    "plan_changes_controlled_by_tummly": true,
+    "webhook_signature_verification_required": true,
+    "idempotency_required": true,
+    "entitlement_activation_event": "invoice.paid",
+    "store_raw_card_data": false
+  },
+  "dunning": {
+    "day_0": [
+      "past_due",
+      "notify_billing_contacts",
+      "retry_1"
+    ],
+    "day_3": [
+      "retry_2",
+      "persistent_warning"
+    ],
+    "day_7": [
+      "retry_3",
+      "block_new_campaign_and_recovery_sends"
+    ],
+    "day_10": [
+      "soft_lock"
+    ],
+    "day_24": [
+      "dormant"
+    ]
+  },
+  "pilot_expiry": {
+    "day_30": "soft_lock",
+    "day_45": "dormant",
+    "dormant_retention_days": 90
+  },
+  "internal_cost_assumptions_gbp": {
+    "sms_segment": 0.06,
+    "ai_action": 0.003,
+    "email_recipient": 0.001,
+    "support_per_paid_account_month": 10.0,
+    "support_per_additional_location_month": 4.0,
+    "shared_platform_base_month": 500.0,
+    "pilot_onboarding": 15.0,
+    "starter_kit_cap": 25.0
+  },
+  "monitoring_triggers": {
+    "review_after_paid_accounts": [
+      10,
+      50
+    ],
+    "average_sms_segments_per_recipient": 1.25,
+    "accounts_exhausting_sms_rate": 0.25,
+    "campaign_email_provider_cost_to_email_revenue_rate": 0.2,
+    "pilot_to_paid_conversion_floor": 0.25,
+    "starter_kit_cost_cap_gbp": 25.0,
+    "base_case_contribution_after_support_floor": 0.5
+  }
+}

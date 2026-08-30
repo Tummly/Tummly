@@ -62,7 +62,9 @@ namespace TummlyBackend.Tests.Services
                 NullLogger<AuthService>.Instance,
                 new MemoryCache(new MemoryCacheOptions()),
                 new ActivationGate(),
-                _notifications
+                _notifications,
+                new NoOpBillingAccountLifecycle(),
+                new NoOpCreditLedger()
             );
         }
 

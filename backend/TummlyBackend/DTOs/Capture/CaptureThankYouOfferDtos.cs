@@ -30,5 +30,10 @@ namespace TummlyBackend.DTOs.Capture
 
         public sealed record InvalidOffer(string Message)
             : CaptureThankYouOfferSetResult;
+
+        public sealed record CapReached(int Cap, int Current)
+            : CaptureThankYouOfferSetResult;
+
+        public sealed record FailClosed : CaptureThankYouOfferSetResult;
     }
 }

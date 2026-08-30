@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -31,6 +32,7 @@ namespace TummlyBackend.Tests.Integration
             var seeded = await SeedReviewReadyDraftAsync(
                 "commit-hard-block"
             );
+            var client = CreateClientWithReserve(new UnavailableBillingReserve());
 
             using var request = AuthorizedJson(
                 HttpMethod.Post,
@@ -43,7 +45,7 @@ namespace TummlyBackend.Tests.Integration
                     scheduleTimeZone = "Europe/London",
                 }
             );
-            var response = await _client.SendAsync(request);
+            var response = await client.SendAsync(request);
             Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
 
             var body = await ReadJsonAsync(response);
@@ -124,7 +126,94 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("reserve_failed", body.GetProperty("code").GetString());
         }
 
-        private HttpClient CreateClientWithReserve(LiveBillingReserve reserve)
+        [Fact]
+        public async Task Commit_Returns422_WhenChannelHardStopped()
+        {
+            var client = CreateClientWithReserve(new LiveBillingReserve());
+            var seeded = await SeedReviewReadyDraftAsync(
+                "commit-hard-stop",
+                emailEligibleCount: 1,
+                emailCredits: 0
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                $"/api/campaigns/{seeded.CampaignId}/commit",
+                seeded.Jwt,
+                new
+                {
+                    rowVersion = Convert.ToBase64String(seeded.RowVersion),
+                    scheduleMode = "send-now",
+                    scheduleTimeZone = "Europe/London",
+                }
+            );
+            var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("channel_hard_stopped", body.GetProperty("code").GetString());
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var campaign = await context.Campaigns.SingleAsync(
+                c => c.Id == seeded.CampaignId
+            );
+            Assert.Equal("draft", campaign.Status);
+        }
+
+        [Fact]
+        public async Task Commit_Returns403_PastDueSendsBlocked_OnDay7()
+        {
+            var client = CreateClientWithReserve(new LiveBillingReserve());
+            var seeded = await SeedReviewReadyDraftAsync(
+                "commit-past-due-day7",
+                emailEligibleCount: 1
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var campaign = await context.Campaigns
+                    .Include(c => c.RestaurantLocation)
+                    .SingleAsync(c => c.Id == seeded.CampaignId);
+                var account = await context.BillingAccounts.SingleAsync(
+                    row => row.RestaurantId == campaign.RestaurantLocation!.RestaurantId
+                );
+                account.SubscriptionPlan = BillingSubscriptionPlans.Growth;
+                account.BillingCycle = BillingCycles.Monthly;
+                account.BillingStatus = BillingStatuses.PastDue;
+                account.DunningEpisodeStartedAt = DateTime.UtcNow.AddDays(-7);
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                $"/api/campaigns/{seeded.CampaignId}/commit",
+                seeded.Jwt,
+                new
+                {
+                    rowVersion = Convert.ToBase64String(seeded.RowVersion),
+                    scheduleMode = "send-now",
+                    scheduleTimeZone = "Europe/London",
+                }
+            );
+            var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "past_due_sends_blocked",
+                body.GetProperty("code").GetString()
+            );
+            Assert.Equal(
+                "past_due_sends_blocked",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        private HttpClient CreateClientWithReserve(ICampaignBillingReserve reserve)
         {
             return _factory.WithWebHostBuilder(builder =>
             {
@@ -150,7 +239,8 @@ namespace TummlyBackend.Tests.Integration
             byte[] RowVersion
         )> SeedReviewReadyDraftAsync(
             string emailLocalPart,
-            int emailEligibleCount = 1
+            int emailEligibleCount = 1,
+            int emailCredits = 100
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -183,6 +273,33 @@ namespace TummlyBackend.Tests.Integration
             };
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
+
+            context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurant.Id,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                )
+            );
+            await context.SaveChangesAsync();
+
+            if (emailCredits > 0)
+            {
+                context.CreditLedgerEntries.Add(
+                    new CreditLedgerEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        RestaurantId = restaurant.Id,
+                        Channel = CreditChannels.Email,
+                        EntryType = CreditLedgerEntryTypes.IncludedAllocation,
+                        Quantity = emailCredits,
+                        PricebookVersion = "TUMMLY-UK-GBP-2026-08-V3",
+                        ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+                        PeriodStartUtc = DateTime.UtcNow,
+                        CreatedAtUtc = DateTime.UtcNow,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
 
             var location = new RestaurantLocation
             {
@@ -264,6 +381,47 @@ namespace TummlyBackend.Tests.Integration
         {
             var json = await response.Content.ReadAsStringAsync();
             return JsonDocument.Parse(json).RootElement.Clone();
+        }
+
+        private sealed class UnavailableBillingReserve : ICampaignBillingReserve
+        {
+            public bool IsLive => false;
+
+            public Task<CampaignBillingReserveResult> ReserveAsync(
+                CampaignBillingReserveRequest request,
+                CancellationToken cancellationToken = default
+            )
+            {
+                return Task.FromResult<CampaignBillingReserveResult>(
+                    new CampaignBillingReserveResult.Failed
+                    {
+                        Message = "billing_reserve_unavailable",
+                    }
+                );
+            }
+
+            public Task<CampaignBillingSettleResult> SettleAsync(
+                CampaignBillingSettleRequest request,
+                CancellationToken cancellationToken = default
+            )
+            {
+                return Task.FromResult<CampaignBillingSettleResult>(
+                    new CampaignBillingSettleResult.Failed
+                    {
+                        Message = "billing_reserve_unavailable",
+                    }
+                );
+            }
+
+            public Task<CampaignBillingReleaseResult> ReleaseAsync(
+                CampaignBillingReleaseRequest request,
+                CancellationToken cancellationToken = default
+            )
+            {
+                return Task.FromResult<CampaignBillingReleaseResult>(
+                    new CampaignBillingReleaseResult.Ok()
+                );
+            }
         }
 
         private sealed class LiveBillingReserve : ICampaignBillingReserve

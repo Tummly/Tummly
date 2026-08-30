@@ -30,5 +30,30 @@ namespace TummlyBackend.Helpers
                 ? "manage"
                 : "view";
         }
+
+        public static async Task<string> BillingCreditsAsync(
+            IRestaurantPermissionHelper permissions,
+            ClaimsPrincipal user
+        )
+        {
+            var view = await permissions.AuthorizeAsync(
+                user,
+                OperatorAreaIds.BillingCredits,
+                PermissionLevel.View
+            );
+            if (view.Status != RestaurantPermissionStatus.Allowed)
+            {
+                return "none";
+            }
+
+            var manage = await permissions.AuthorizeAsync(
+                user,
+                OperatorAreaIds.BillingCredits,
+                PermissionLevel.Manage
+            );
+            return manage.Status == RestaurantPermissionStatus.Allowed
+                ? "manage"
+                : "view";
+        }
     }
 }

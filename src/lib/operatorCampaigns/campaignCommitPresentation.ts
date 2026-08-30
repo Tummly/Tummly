@@ -23,6 +23,7 @@ export const CAMPAIGN_COMMIT_COPY = {
   scheduleLaterConfirmLabel: "Schedule campaign",
   confirmCancelLabel: "Back to review",
   confirmBusyLabel: "Working…",
+  /** Stub Reserve default — prefer resolveBillingReserveUnavailableCopy when live. */
   billingReserveUnavailable:
     "Billing Reserve is not available yet. Schedule and send stay blocked. You can still Save draft and Send test.",
   reserveFailedDefault:

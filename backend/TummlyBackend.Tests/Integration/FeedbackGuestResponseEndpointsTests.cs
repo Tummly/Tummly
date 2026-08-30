@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -95,6 +96,17 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("Sorry about your visit", guestResponse.Subject);
             Assert.Equal("Thank you for telling us.", guestResponse.Body);
 
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            Assert.False(
+                await context.CreditLedgerEntries.AnyAsync(
+                    row => row.RestaurantId == restaurantId
+                )
+            );
+
             using var get = new HttpRequestMessage(
                 HttpMethod.Get,
                 $"/api/feedback/{seeded.FeedbackId}"
@@ -146,6 +158,36 @@ namespace TummlyBackend.Tests.Integration
                     .GetProperty("activityEvent")
                     .GetProperty("maskedDestination")
                     .GetString()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var guestResponse = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.False(string.IsNullOrWhiteSpace(guestResponse.BillingReservationRef));
+
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            Assert.Equal(
+                1,
+                await context.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == restaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.Consumption
+                    && row.Channel == CreditChannels.Sms
+                    && row.ReservationRef == guestResponse.BillingReservationRef
+                )
+            );
+            Assert.False(
+                await context.RecoverySmsSendIdempotencies.AnyAsync(row =>
+                    row.RestaurantId == restaurantId
+                    && row.ReservationRef == guestResponse.BillingReservationRef
+                    && row.CompletedGuestResponseId == null
+                )
             );
         }
 
@@ -274,6 +316,188 @@ namespace TummlyBackend.Tests.Integration
 
             var response = await _client.SendAsync(post);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task SendGuestResponse_Sms_Returns503_WhenBillingReserveNotLive()
+        {
+            var client = CreateClientWithUnavailableRecoveryBilling();
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-sms-unavailable-tok",
+                ContactType.Phone,
+                "+447700900555",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-unavailable-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "sms",
+                body = "Thanks for your message.",
+                intent = "respond_to_guest",
+            });
+
+            var response = await client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "billing_reserve_unavailable",
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task SendGuestResponse_Sms_Returns403_WhenRemainingZero()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-sms-hard-stop-tok",
+                ContactType.Phone,
+                "+447700900777",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-hard-stop-owner@example.com",
+                smsCredits: 0
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "sms",
+                body = "Thanks for your message.",
+                intent = "respond_to_guest",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("channel_hard_stopped", body.GetProperty("code").GetString());
+            Assert.Equal(CreditChannels.Sms, body.GetProperty("channel").GetString());
+        }
+
+        [Fact]
+        public async Task SendGuestResponse_Email_WritesNoLedgerRow()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-email-no-ledger-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "email-no-ledger-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Sorry about your visit",
+                body = "Thank you for telling us.",
+                intent = "respond_to_guest",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            Assert.False(
+                await context.CreditLedgerEntries.AnyAsync(
+                    row => row.RestaurantId == restaurantId
+                )
+            );
+        }
+
+        [Fact]
+        public async Task SendGuestResponse_Sms_SameIdempotencyKeyBeforeTtlDoesNotDoubleBurn()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-sms-idempotency-tok",
+                ContactType.Phone,
+                "+447700900888",
+                FeedbackWorkflowStatus.InProgress,
+                email: "sms-idempotency-owner@example.com",
+                smsCredits: 5
+            );
+            const string idempotencyKey = "11111111-2222-3333-4444-555555555555";
+
+            using var first = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            first.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            first.Headers.Add("Idempotency-Key", idempotencyKey);
+            first.Content = JsonContent.Create(new
+            {
+                channel = "sms",
+                body = "Thanks for your message.",
+                intent = "respond_to_guest",
+            });
+
+            var firstResponse = await _client.SendAsync(first);
+            Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+
+            using var second = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            second.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            second.Headers.Add("Idempotency-Key", idempotencyKey);
+            second.Content = JsonContent.Create(new
+            {
+                channel = "sms",
+                body = "Thanks for your message.",
+                intent = "respond_to_guest",
+            });
+
+            var secondResponse = await _client.SendAsync(second);
+            Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == seeded.LocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            Assert.Equal(
+                1,
+                await context.FeedbackGuestResponses.CountAsync(
+                    r => r.FeedbackId == seeded.FeedbackId
+                )
+            );
+            Assert.Equal(
+                1,
+                await context.CreditLedgerEntries.CountAsync(row =>
+                    row.RestaurantId == restaurantId
+                    && row.EntryType == CreditLedgerEntryTypes.Consumption
+                    && row.Channel == CreditChannels.Sms
+                )
+            );
         }
 
         [Fact]
@@ -417,7 +641,8 @@ namespace TummlyBackend.Tests.Integration
             ContactType contactType,
             string guestContact,
             FeedbackWorkflowStatus workflowStatus,
-            string email = "guest-response-owner@example.com"
+            string email = "guest-response-owner@example.com",
+            int smsCredits = 20
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -453,6 +678,14 @@ namespace TummlyBackend.Tests.Integration
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
 
+            context.BillingAccounts.Add(
+                BillingCreditsService.CreateDefaultBillingAccount(
+                    restaurant.Id,
+                    "TUMMLY-UK-GBP-2026-08-V3"
+                )
+            );
+            await context.SaveChangesAsync();
+
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
@@ -480,6 +713,23 @@ namespace TummlyBackend.Tests.Integration
 
             context.Feedbacks.Add(feedback);
             await context.SaveChangesAsync();
+
+            if (contactType == ContactType.Phone && smsCredits > 0)
+            {
+                context.CreditLedgerEntries.Add(
+                    new CreditLedgerEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        RestaurantId = restaurant.Id,
+                        Channel = CreditChannels.Sms,
+                        EntryType = CreditLedgerEntryTypes.PilotAllocation,
+                        Quantity = smsCredits,
+                        PricebookVersion = "TUMMLY-UK-GBP-2026-08-V3",
+                        CreatedAtUtc = DateTime.UtcNow,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
 
             var jwt = jwtService.GenerateToken(
                 user.Id.ToString(),
@@ -538,6 +788,28 @@ namespace TummlyBackend.Tests.Integration
         {
             var body = await response.Content.ReadFromJsonAsync<JsonElement>();
             return body;
+        }
+
+        private HttpClient CreateClientWithUnavailableRecoveryBilling()
+        {
+            return _factory.WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureServices(services =>
+                {
+                    var descriptor = services.SingleOrDefault(d =>
+                        d.ServiceType == typeof(IRecoverySmsBillingReserve)
+                    );
+                    if (descriptor != null)
+                    {
+                        services.Remove(descriptor);
+                    }
+
+                    services.AddScoped<
+                        IRecoverySmsBillingReserve,
+                        UnavailableRecoverySmsBillingReserve
+                    >();
+                });
+            }).CreateClient();
         }
     }
 }

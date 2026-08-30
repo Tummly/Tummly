@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore, useState } from "react"
-import { useOutletContext } from "react-router-dom"
+import { useNavigate, useOutletContext } from "react-router-dom"
 import { toast } from "sonner"
 
 import {
@@ -53,6 +53,8 @@ import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSch
 import type { CampaignRowActionId } from "@/lib/operatorCampaigns/campaignListPresentation"
 import { CAMPAIGNS_LIST_TABLE_COPY } from "@/lib/operatorCampaigns/campaignListPresentation"
 import { loadCampaignMessagingBalances } from "@/lib/operatorCampaigns/loadCampaignMessagingBalances"
+import { pathForCampaignsMessagingChromeAction } from "@/lib/operatorCampaigns/campaignsMessagingChromeNavigation"
+import type { CampaignsMessagingChromeAction } from "@/lib/operatorCampaigns/campaignsMessagingCreditChrome"
 import { prepareCampaignMessageDraft } from "@/lib/operatorCampaigns/prepareCampaignMessageDraft"
 import { CAMPAIGNS_LOAD_ERROR_MESSAGE } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
 import { catalogOfferWriteSuccessToast } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
@@ -142,6 +144,7 @@ async function loadAudienceEligibility(input: {
 export function CampaignsPage() {
   const campaigns = useCampaignsPageModule()
   const { snapshot, clearTabCache } = campaigns
+  const navigate = useNavigate()
   const { locations, mode } = useOutletContext<DashboardOutletContext>()
   const campaignsOverviewDateRange = useDashboardUiStore(
     (state) => state.campaignsOverviewDateRange
@@ -223,8 +226,11 @@ export function CampaignsPage() {
     createCampaignWizardModule({
       loadSmartGroupCounts: loadAudienceSmartGroupCounts,
       loadAudienceEligibility,
-      // Shared with overview Messaging usage — omit until Billing balances API exists.
+      // Shared with overview Messaging usage — live Credits & usage snapshot.
       loadMessagingBalances: loadCampaignMessagingBalances,
+      // Billing Reserve IsLive is still false (UnavailableCampaignBillingReserve).
+      // Flip to true when LiveBillingReserve ships so unexpected 503 uses live copy.
+      billingReserveLive: false,
       prepareMessageDraft: prepareCampaignMessageDraft,
       createDraft: async (body) => {
         const response = await createCampaignDraft(body)
@@ -286,6 +292,82 @@ export function CampaignsPage() {
     campaignWizard.getSnapshot,
     campaignWizard.getSnapshot
   )
+
+  const navigateMessagingChromeAction = (
+    action: CampaignsMessagingChromeAction
+  ) => {
+    const locationId = snapshot.viewModel?.locationId
+    if (locationId == null) {
+      return
+    }
+    navigate(pathForCampaignsMessagingChromeAction(action, mode, locationId))
+  }
+
+  const navigateWizardBuyCredits = () => {
+    const locationId =
+      campaignWizardSnapshot.locationId ?? snapshot.viewModel?.locationId
+    if (locationId == null) {
+      return
+    }
+    const shortfall =
+      campaignWizardSnapshot.channel?.channelShortfall
+      ?? campaignWizardSnapshot.offer?.channelShortfall
+      ?? campaignWizardSnapshot.message?.channelShortfall
+      ?? campaignWizardSnapshot.schedule?.channelShortfall
+      ?? campaignWizardSnapshot.review?.channelShortfall
+    const channelId = shortfall?.channelId ?? "sms"
+    navigate(
+      pathForCampaignsMessagingChromeAction(
+        {
+          kind:
+            channelId === "email" ? "buy-email-credits" : "buy-sms-credits",
+          label: "",
+        },
+        mode,
+        locationId
+      )
+    )
+  }
+
+  const navigateWizardBuyAiCredits = () => {
+    const locationId =
+      campaignWizardSnapshot.locationId ?? snapshot.viewModel?.locationId
+    if (locationId == null) {
+      return
+    }
+    navigate(
+      pathForCampaignsMessagingChromeAction(
+        { kind: "buy-ai-credits", label: "" },
+        mode,
+        locationId
+      )
+    )
+  }
+
+  const navigateWizardChangePlan = () => {
+    const locationId =
+      campaignWizardSnapshot.locationId ?? snapshot.viewModel?.locationId
+    if (locationId == null) {
+      return
+    }
+    navigate(
+      pathForCampaignsMessagingChromeAction(
+        { kind: "change-plan", label: "" },
+        mode,
+        locationId
+      )
+    )
+  }
+
+  const navigateWizardLockHelper = () => {
+    const helper = campaignWizardSnapshot.lockHelper
+    const locationId =
+      campaignWizardSnapshot.locationId ?? snapshot.viewModel?.locationId
+    if (helper == null || locationId == null) {
+      return
+    }
+    navigate(pathForCampaignsMessagingChromeAction(helper, mode, locationId))
+  }
 
   const selectedLocationAddress = (() => {
     const locationId = snapshot.viewModel?.locationId
@@ -661,6 +743,7 @@ export function CampaignsPage() {
             block: "start",
           })
         }}
+        onMessagingChromeAction={navigateMessagingChromeAction}
       />
       <OperatorFilterSheetDialog
         open={snapshot.viewModel.filtersSession != null}
@@ -802,6 +885,10 @@ export function CampaignsPage() {
         }}
         onDismissSuccess={handleDismissCommitSuccess}
         onBrowseTemplates={handleBrowseTemplatesFromWizard}
+        onBuyCredits={navigateWizardBuyCredits}
+        onChangePlan={navigateWizardChangePlan}
+        onBuyAiCredits={navigateWizardBuyAiCredits}
+        onLockHelper={navigateWizardLockHelper}
       />
       <OperatorDestructiveConfirmDialog
         open={deleteDraftTarget != null}

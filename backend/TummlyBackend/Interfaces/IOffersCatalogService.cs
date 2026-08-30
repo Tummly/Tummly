@@ -57,7 +57,7 @@ namespace TummlyBackend.Interfaces
         /// when the last attach is cleared. No-op for paused / archived /
         /// expired-effective rows.
         /// </summary>
-        Task SyncInFlightStoredStatusAsync(
+        Task<CatalogOfferInFlightSyncResult> SyncInFlightStoredStatusAsync(
             int offerId,
             CancellationToken cancellationToken = default
         );
@@ -66,7 +66,7 @@ namespace TummlyBackend.Interfaces
         /// After an attach FK change: sync <paramref name="nextOfferId"/> then
         /// <paramref name="previousOfferId"/> when they differ.
         /// </summary>
-        Task SyncInFlightStoredStatusForAttachChangeAsync(
+        Task<CatalogOfferInFlightSyncResult> SyncInFlightStoredStatusForAttachChangeAsync(
             int? previousOfferId,
             int? nextOfferId,
             CancellationToken cancellationToken = default

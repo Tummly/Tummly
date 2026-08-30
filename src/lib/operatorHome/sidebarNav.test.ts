@@ -220,7 +220,10 @@ describe("getOperatorSidebarNav", () => {
       to: undefined,
     })
     for (const child of nav.settings.children.filter(
-      (c) => c.id !== "account-workspace" && c.id !== "team-permissions"
+      (c) =>
+        c.id !== "account-workspace"
+        && c.id !== "team-permissions"
+        && c.id !== "billing-credits"
     )) {
       expect(child.navigable).toBe(false)
       expect(child.active).toBe(false)
@@ -243,7 +246,10 @@ describe("getOperatorSidebarNav", () => {
     })
     expect(nav.settings.forceExpanded).toBe(true)
     for (const child of nav.settings.children.filter(
-      (c) => c.id !== "account-workspace" && c.id !== "team-permissions"
+      (c) =>
+        c.id !== "account-workspace"
+        && c.id !== "team-permissions"
+        && c.id !== "billing-credits"
     )) {
       expect(child.navigable).toBe(false)
       expect(child.to).toBeUndefined()
@@ -275,6 +281,33 @@ describe("getOperatorSidebarNav", () => {
     expect(
       nav.settings.children.find((c) => c.id === "team-permissions")
     ).toBeUndefined()
+  })
+
+  it("hides Billing & credits when the actor has No access", () => {
+    const nav = getOperatorSidebarNav("home", {
+      mode: "single",
+      locationId: 10,
+    }, { hideBillingCredits: true })
+
+    expect(
+      nav.settings.children.find((c) => c.id === "billing-credits")
+    ).toBeUndefined()
+  })
+
+  it("makes Billing & credits navigable when nav targets are provided", () => {
+    const nav = getOperatorSidebarNav("billing-credits", {
+      mode: "single",
+      locationId: 10,
+    })
+
+    expect(
+      nav.settings.children.find((c) => c.id === "billing-credits")
+    ).toMatchObject({
+      label: "Billing & credits",
+      navigable: true,
+      active: true,
+      to: "/single-dashboard/settings/billing-credits?location=10",
+    })
   })
 
   it("models Tummly Shop as non-navigable footer chrome", () => {

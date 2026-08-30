@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using TummlyBackend.Data;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -26,7 +27,7 @@ namespace TummlyBackend.Tests.Services
                 })
                 .Build();
 
-            var smartGuestLink = new SmartGuestLinkService(_context, configuration);
+            var smartGuestLink = new SmartGuestLinkService(_context, configuration, new NoOpBillingAccountLifecycle());
             _service = new QrCodeProvisioningService(_context, smartGuestLink);
         }
 

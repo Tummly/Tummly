@@ -51,12 +51,11 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public void Decide_SignIn_Expired_Blocks()
+        public void Decide_SignIn_Expired_Allows()
         {
             var d = _gate.Decide(Expired(), ActivationIntent.SignIn);
-            Assert.Equal(ActivationOutcome.Block, d.Outcome);
+            Assert.Equal(ActivationOutcome.Allow, d.Outcome);
             Assert.Equal(ActivationReason.Expired, d.Reason);
-            Assert.Equal(ActivationGate.ActivationExpiredMessage, d.Message);
         }
 
         [Fact]
@@ -86,12 +85,11 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public void Decide_ApiAccess_Expired_Blocks()
+        public void Decide_ApiAccess_Expired_Allows()
         {
             var d = _gate.Decide(Expired(), ActivationIntent.ApiAccess);
-            Assert.Equal(ActivationOutcome.Block, d.Outcome);
+            Assert.Equal(ActivationOutcome.Allow, d.Outcome);
             Assert.Equal(ActivationReason.Expired, d.Reason);
-            Assert.Equal(ActivationGate.ActivationExpiredMessage, d.Message);
         }
 
         [Fact]

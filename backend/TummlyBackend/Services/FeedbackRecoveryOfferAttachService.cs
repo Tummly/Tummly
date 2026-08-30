@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Offers;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Services
@@ -84,11 +86,17 @@ namespace TummlyBackend.Services
             var replacedOfferId = feedback.RecoveryOfferId;
             feedback.RecoveryOfferId = offerId.Value;
             await _context.SaveChangesAsync(cancellationToken);
-            await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
+            var sync = await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
                 replacedOfferId,
                 offerId.Value,
                 cancellationToken
             );
+            if (sync is not CatalogOfferInFlightSyncResult.Ok)
+            {
+                feedback.RecoveryOfferId = replacedOfferId;
+                await _context.SaveChangesAsync(cancellationToken);
+                throw PlanEntitlementCapException.FromSync(sync);
+            }
         }
     }
 }

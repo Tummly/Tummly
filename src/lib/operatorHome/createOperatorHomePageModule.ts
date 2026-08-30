@@ -9,6 +9,7 @@ import {
   buildHomeNeedsAttention,
   type HomeNeedsAttentionProjection,
 } from "@/lib/operatorHome/buildHomeNeedsAttention"
+import { mapHomeNeedsAttentionCreditFacts } from "@/lib/operatorHome/homeNeedsAttentionCreditsPresentation"
 import {
   attachLiveCampaignOffer,
   buildLiveOffersSectionCards,
@@ -17,6 +18,8 @@ import {
 import { createFinishSettingUpAcksModule } from "@/lib/operatorHome/createFinishSettingUpAcksModule"
 import { buildOperatorHomeViewModel } from "@/lib/operatorHome/buildHomeViewModel"
 import { mapHomeNeedsAttentionSourceFacts } from "@/lib/operatorHome/mapHomeNeedsAttentionSourceFacts"
+import type { BillingCreditsAccess } from "@/lib/operatorHome/parseOperatorProfile"
+import type { CreditsUsageSnapshot } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 import {
   NEEDS_ATTENTION_DUPLICATE_DRAFT_ERROR,
   NEEDS_ATTENTION_LOAD_ERROR,
@@ -64,6 +67,18 @@ import type {
 export type OperatorHomeWorkspaceInput = {
   locations: LocationItem[]
   selectedLocationId: number | null
+  /**
+   * Area `billing-credits` access. Omit must not hide credit rows
+   * (CODING_STANDARDS Operator chrome access); only explicit `"none"` omits.
+   */
+  billingCreditsAccess?: BillingCreditsAccess
+  /** Restaurant / workspace display name for Account-wide credit row copy. */
+  workspaceName?: string | null
+}
+
+export type HomeNeedsAttentionCreditsSource = {
+  usage: CreditsUsageSnapshot
+  permissionRole: string
 }
 
 export type CopySmartGuestLinkResult = "copied" | "failed" | "noop"
@@ -211,6 +226,8 @@ export type OperatorHomePageAdapters = {
   listOpenVoidAttention: (
     locationId: number
   ) => Promise<OpenVoidAttentionOfferApi[]>
+  /** Billing credits usage for Home Needs attention rows. Omit when No access. */
+  getNeedsAttentionCredits?: () => Promise<HomeNeedsAttentionCreditsSource>
   pauseCampaign: (
     campaignId: number,
     body: CampaignLifecycleActionRequest
@@ -1222,11 +1239,20 @@ export function createOperatorHomePageModule(
     dispatch({ type: "needs_attention_load_started", generation })
 
     try {
-      const [feedback, campaigns, offers, openVoids] = await Promise.all([
+      // Omit → manage: chrome-access rollout must not hide owner rows.
+      const billingAccess = state.workspace?.billingCreditsAccess ?? "manage"
+      const creditsPromise =
+        billingAccess !== "none" && adapters.getNeedsAttentionCredits != null
+          ? adapters.getNeedsAttentionCredits()
+          : Promise.resolve(null)
+
+      const [feedback, campaigns, offers, openVoids, creditsSource] =
+        await Promise.all([
         adapters.getNeedsAttentionFeedback(selectedLocationId),
         adapters.listNeedsAttentionCampaigns(selectedLocationId),
         adapters.listNeedsAttentionOffers(selectedLocationId),
         adapters.listOpenVoidAttention(selectedLocationId),
+        creditsPromise,
       ])
 
       if (generation !== state.needsAttentionLoadGeneration) {
@@ -1239,9 +1265,20 @@ export function createOperatorHomePageModule(
         offers,
         openVoids,
       })
+      const creditFacts =
+        creditsSource == null
+          ? []
+          : mapHomeNeedsAttentionCreditFacts({
+              usage: creditsSource.usage,
+              accessLevel:
+                billingAccess === "manage" ? "manage" : "view",
+              permissionRole: creditsSource.permissionRole,
+              workspaceName: state.workspace?.workspaceName ?? "",
+            })
       const projection = buildHomeNeedsAttention({
         locationName,
         feedback: facts.feedback,
+        credits: creditFacts,
         campaigns: facts.campaigns,
         offers: facts.offers,
       })

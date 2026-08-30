@@ -128,6 +128,7 @@ function createAdapters(
         ) => Promise<PrepareRecoveryDraftResult>
       >
     >,
+    getCreditChrome: overrides.getCreditChrome,
   }
 }
 
@@ -502,5 +503,55 @@ describe("createRespondAndRecordInternalActionModule", () => {
     })
     await module.rewriteDraft("subject")
     expect(module.getSnapshot().aiActionCount).toBe(2)
+  })
+
+  it("AI chip at 0 keeps Write manually; Soft lock exposes Choose a plan", async () => {
+    const zeroAi = createAdapters({
+      getCreditChrome: async () => ({
+        smsRemaining: 10,
+        aiRemaining: 0,
+        isPilot: false,
+        paidActionsLocked: false,
+        restorationCause: null,
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        mode: "single",
+        locationId: 42,
+      }),
+    })
+    const zeroModule = createRespondAndRecordInternalActionModule(zeroAi)
+    await openAtWrite(zeroModule)
+    expect(zeroModule.getSnapshot().aiActionChip.prepareAllowed).toBe(false)
+    expect(zeroModule.getSnapshot().aiActionChip.writeManuallyAllowed).toBe(
+      true
+    )
+    expect(zeroModule.getSnapshot().aiActionChip.depletedMessage).toBe(
+      "No AI credits remaining"
+    )
+    await zeroModule.prepareDraft()
+    expect(zeroAi.prepareRecoveryDraft).not.toHaveBeenCalled()
+    zeroModule.writeManually()
+    expect(zeroModule.getSnapshot().writeEntry).toBe("editor")
+
+    const softLock = createAdapters({
+      getCreditChrome: async () => ({
+        smsRemaining: 10,
+        aiRemaining: 10,
+        isPilot: true,
+        paidActionsLocked: true,
+        restorationCause: "unpaid-pilot",
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        mode: "single",
+        locationId: 42,
+      }),
+    })
+    const lockModule = createRespondAndRecordInternalActionModule(softLock)
+    await openAtWrite(lockModule)
+    expect(lockModule.getSnapshot().paidWrite.burnDisabled).toBe(true)
+    expect(lockModule.getSnapshot().paidWrite.helperCta?.label).toBe(
+      "Choose a plan"
+    )
+    expect(lockModule.getSnapshot().aiActionChip.prepareAllowed).toBe(false)
   })
 })

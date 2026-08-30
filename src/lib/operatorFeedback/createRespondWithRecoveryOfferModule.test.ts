@@ -213,6 +213,7 @@ function createAdapters(
         ) => Promise<PrepareRecoveryDraftResult>
       >
     >,
+    getCreditChrome: overrides.getCreditChrome,
   }
 }
 
@@ -993,6 +994,100 @@ describe("createRespondWithRecoveryOfferModule", () => {
       attachedOfferStatus: "active",
       locationId: 7,
     })
+  })
+
+  it("AI chip at 0 keeps Write manually and blocks Prepare", async () => {
+    const adapters = createAdapters({
+      getCreditChrome: async () => ({
+        smsRemaining: 10,
+        aiRemaining: 0,
+        isPilot: false,
+        paidActionsLocked: false,
+        restorationCause: null,
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        mode: "single",
+        locationId: 42,
+      }),
+    })
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await openAtWrite(module)
+
+    expect(module.getSnapshot().aiActionChip.prepareAllowed).toBe(false)
+    expect(module.getSnapshot().aiActionChip.writeManuallyAllowed).toBe(true)
+    expect(module.getSnapshot().aiActionChip.depletedMessage).toBe(
+      "No AI credits remaining"
+    )
+    await module.prepareDraft()
+    expect(adapters.prepareRecoveryDraft).not.toHaveBeenCalled()
+    module.writeManually()
+    expect(module.getSnapshot().writeEntry).toBe("editor")
+  })
+
+  it("SMS shortfall blocks Confirm/Send", async () => {
+    const adapters = createAdapters({
+      getFeedbackDetails: async () => ({
+        ...sampleDetails,
+        contactType: "Phone",
+        guestContact: "+447700900123",
+      }),
+      getCreditChrome: async () => ({
+        smsRemaining: 1,
+        aiRemaining: 5,
+        isPilot: false,
+        paidActionsLocked: false,
+        restorationCause: null,
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        mode: "single",
+        locationId: 42,
+      }),
+    })
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await module.open(2418)
+    module.setTone("warm_and_apologetic")
+    module.continueSetup()
+    await fillValidOffer(module)
+    module.continueOffer()
+    module.writeManually()
+    module.setMessage("x".repeat(161))
+    module.continueWrite()
+
+    expect(module.getSnapshot().smsShortfall.blocked).toBe(true)
+    expect(module.getSnapshot().sendBlocked).toBe(true)
+    expect(module.getSnapshot().smsShortfall.buyCta?.label).toBe(
+      "Buy SMS credits"
+    )
+    module.openSendConfirm()
+    expect(module.getSnapshot().sendConfirmOpen).toBe(false)
+    expect(adapters.sendAndIssueRecoveryOffer).not.toHaveBeenCalled()
+  })
+
+  it("Soft lock disables burn control and exposes Choose a plan helper", async () => {
+    const adapters = createAdapters({
+      getCreditChrome: async () => ({
+        smsRemaining: 10,
+        aiRemaining: 10,
+        isPilot: true,
+        paidActionsLocked: true,
+        restorationCause: "unpaid-pilot",
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        mode: "single",
+        locationId: 42,
+      }),
+    })
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await openAtWrite(module)
+
+    expect(module.getSnapshot().paidWrite.burnDisabled).toBe(true)
+    expect(module.getSnapshot().paidWrite.helperCta?.label).toBe(
+      "Choose a plan"
+    )
+    expect(module.getSnapshot().sendBlocked).toBe(true)
+    expect(module.getSnapshot().aiActionChip.prepareAllowed).toBe(false)
+    module.openSendConfirm()
+    expect(module.getSnapshot().sendConfirmOpen).toBe(false)
   })
 
 })

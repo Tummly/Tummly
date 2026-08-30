@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
+using TummlyBackend.DTOs.Offers;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -71,6 +72,12 @@ namespace TummlyBackend.Services
             CampaignProductAllowLists.EnsureOptionalChannel(channel);
             CampaignProductAllowLists.EnsureOptionalOfferStance(offerStance);
 
+            await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+                _context,
+                request.LocationId,
+                cancellationToken
+            );
+
             var offerId = await ResolveOfferIdAsync(
                 request.LocationId,
                 offerStance,
@@ -104,11 +111,17 @@ namespace TummlyBackend.Services
             await _context.SaveChangesAsync(cancellationToken);
             if (offerId is int attachedOfferId)
             {
-                await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
+                var sync = await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
                     previousOfferId: null,
                     attachedOfferId,
                     cancellationToken
                 );
+                if (sync is not CatalogOfferInFlightSyncResult.Ok)
+                {
+                    _context.Campaigns.Remove(entity);
+                    await _context.SaveChangesAsync(cancellationToken);
+                    throw PlanEntitlementCapException.FromSync(sync);
+                }
             }
             return ToDto(entity);
         }
@@ -172,6 +185,12 @@ namespace TummlyBackend.Services
                 return new CampaignDraftWriteResult.Conflict();
             }
 
+            await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+                _context,
+                entity.RestaurantLocationId,
+                cancellationToken
+            );
+
             var previousOfferId = entity.OfferId;
 
             ApplyPatch(entity, request);
@@ -188,11 +207,17 @@ namespace TummlyBackend.Services
                 return new CampaignDraftWriteResult.Conflict();
             }
 
-            await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
+            var sync = await _offers.SyncInFlightStoredStatusForAttachChangeAsync(
                 previousOfferId,
                 entity.OfferId,
                 cancellationToken
             );
+            if (sync is not CatalogOfferInFlightSyncResult.Ok)
+            {
+                entity.OfferId = previousOfferId;
+                await _context.SaveChangesAsync(cancellationToken);
+                throw PlanEntitlementCapException.FromSync(sync);
+            }
 
             return new CampaignDraftWriteResult.Ok { Campaign = ToDto(entity) };
         }

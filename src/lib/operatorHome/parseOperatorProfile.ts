@@ -6,6 +6,8 @@ import {
 
 export type TeamPermissionsAccess = "none" | "view" | "manage"
 
+export type BillingCreditsAccess = TeamPermissionsAccess
+
 export function parseTeamPermissionsAccess(
   raw: string | null | undefined
 ): TeamPermissionsAccess | null {
@@ -15,6 +17,8 @@ export function parseTeamPermissionsAccess(
   return null
 }
 
+export const parseBillingCreditsAccess = parseTeamPermissionsAccess
+
 export interface OperatorProfile {
   fullName: string
   /** Nominated account email from `/auth/me` — used to prefill Send test. */
@@ -23,6 +27,7 @@ export interface OperatorProfile {
   /** Self role from linked Trial Request; distinct from permission role. */
   selfRole: string | null
   teamPermissionsAccess: TeamPermissionsAccess
+  billingCreditsAccess: BillingCreditsAccess
 }
 
 /** Profile fields from `/auth/me` for Operator Dashboard shell chrome. */
@@ -53,11 +58,19 @@ export function parseOperatorProfile(result: unknown): OperatorProfile | null {
   const teamPermissionsAccess: TeamPermissionsAccess =
     parseTeamPermissionsAccess(accessRaw) ?? "manage"
 
+  const billingAccessRaw = readOptionalNullableString(
+    data,
+    "billingCreditsAccess"
+  )
+  const billingCreditsAccess: BillingCreditsAccess =
+    parseBillingCreditsAccess(billingAccessRaw) ?? "manage"
+
   return {
     fullName,
     email,
     activationExpiresAt,
     selfRole,
     teamPermissionsAccess,
+    billingCreditsAccess,
   }
 }

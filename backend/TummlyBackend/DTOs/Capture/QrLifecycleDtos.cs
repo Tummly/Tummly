@@ -12,6 +12,7 @@ namespace TummlyBackend.DTOs.Capture
         Conflict,
         InvalidTransition,
         LocationLocked,
+        OperatorBillingLocked,
     }
 
     public sealed class QrLifecycleResult
@@ -23,6 +24,12 @@ namespace TummlyBackend.DTOs.Capture
         public string? Field { get; init; }
 
         public string? Reason { get; init; }
+
+        public string? Code { get; init; }
+
+        public int? Cap { get; init; }
+
+        public int? Current { get; init; }
 
         public object? Payload { get; init; }
 
@@ -62,6 +69,18 @@ namespace TummlyBackend.DTOs.Capture
             Reason = reason,
         };
 
+        public static QrLifecycleResult ActiveQrCapReached(
+            int cap,
+            int current
+        ) => new()
+        {
+            Kind = QrLifecycleResultKind.Conflict,
+            Message = "Active QR cap reached.",
+            Code = "active_qr_cap_reached",
+            Cap = cap,
+            Current = current,
+        };
+
         public static QrLifecycleResult InvalidTransition(string message) =>
             new()
             {
@@ -77,6 +96,14 @@ namespace TummlyBackend.DTOs.Capture
             Kind = QrLifecycleResultKind.LocationLocked,
             Message = message,
         };
+
+        public static QrLifecycleResult OperatorBillingLocked(string code) =>
+            new()
+            {
+                Kind = QrLifecycleResultKind.OperatorBillingLocked,
+                Code = code,
+                Message = code,
+            };
     }
 
     public sealed class CreateDigitalGuestLinkCommand

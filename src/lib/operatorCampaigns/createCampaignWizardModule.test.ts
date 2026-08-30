@@ -11,7 +11,13 @@ import type {
 import {
   unavailableCampaignAudienceEligibilityBreakdown,
 } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
-import { resolveCampaignChannelSmsShortfall } from "@/lib/operatorCampaigns/campaignChannelPresentation"
+import {
+  resolveCampaignChannelShortfall,
+  resolveCampaignChannelSmsShortfall,
+} from "@/lib/operatorCampaigns/campaignChannelPresentation"
+import {
+  resolveBillingReserveUnavailableCopy,
+} from "@/lib/operatorCampaigns/campaignsMessagingCreditChrome"
 import { CAMPAIGN_COMMIT_COPY } from "@/lib/operatorCampaigns/campaignCommitPresentation"
 import { CAMPAIGN_SCHEDULE_COPY } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import {
@@ -1286,22 +1292,20 @@ describe("createCampaignWizardModule", () => {
     )
     expect(channel!.usageSummary.rows).toEqual([
       { label: "Eligible recipients", value: "7" },
+      { label: "Skipped", value: "3" },
       { label: "Estimated email messages", value: "7" },
-      { label: "Allowance remaining", value: "6,760" },
+      { label: "Email credits remaining", value: "6,760" },
       { label: "Estimated remaining after send", value: "6,753" },
     ])
-    expect(channel!.smsShortfall).toBeNull()
+    expect(channel!.channelShortfall).toBeNull()
 
     // Ticket 24/25: Channel meters must equal overview Messaging usage source.
     expect(channel!.messagingFixture).toEqual(MESSAGING_USAGE_FIXTURE)
-    expect(channel!.messagingFixture!.email.remaining).toBe(
-      MESSAGING_USAGE_FIXTURE.email.remaining
+    expect(channel!.messagingFixture!.email.combinedRemaining).toBe(
+      MESSAGING_USAGE_FIXTURE.email.combinedRemaining
     )
-    expect(channel!.messagingFixture!.sms.available).toBe(
-      MESSAGING_USAGE_FIXTURE.sms.available
-    )
-    expect(channel!.messagingFixture!.sms.reserved).toBe(
-      MESSAGING_USAGE_FIXTURE.sms.reserved
+    expect(channel!.messagingFixture!.sms.combinedRemaining).toBe(
+      MESSAGING_USAGE_FIXTURE.sms.combinedRemaining
     )
   })
 
@@ -1335,33 +1339,37 @@ describe("createCampaignWizardModule", () => {
     )
     expect(channel!.usageSummary.rows).toEqual([
       { label: "Eligible recipients", value: "5" },
+      { label: "Skipped", value: "5" },
       { label: "Estimated SMS parts", value: "At least 1 per recipient" },
       { label: "Estimated credits", value: "At least 5" },
-      { label: "Available credits", value: "300" },
-      { label: "Reserved credits", value: "120" },
-      { label: "Estimated balance after send", value: "295" },
+      { label: "SMS credits remaining", value: "300" },
+      { label: "Estimated remaining after send", value: "295" },
     ])
     expect(channel!.messagingFixture).toEqual(MESSAGING_USAGE_FIXTURE)
     // Shared fixtures have enough SMS credits — no shortfall banner.
-    expect(channel!.smsShortfall).toBeNull()
+    expect(channel!.channelShortfall).toBeNull()
   })
 
   it("uses live Billing balances for Channel allowance rows after cutover", async () => {
     const loadMessagingBalances = vi.fn(async () => ({
       email: {
-        used: 100,
-        allowance: 500,
-        remaining: 400,
-        refreshLabel: "1 September",
+        combinedRemaining: 400,
+        usedThisCycle: 100,
+        includedThisPeriod: 500,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
       },
-      sms: { total: 50, reserved: 10, available: 40 },
-      plan: {
-        name: "Starter",
-        locationCount: 1,
-        billingLine: "Billed monthly · Next refresh 1 September",
+      sms: {
+        combinedRemaining: 40,
+        usedThisCycle: 10,
+        includedThisPeriod: 50,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
       },
       ai: { available: 5 },
+      isPilot: false,
       softLocked: false,
+      lockCause: null,
     }))
 
     const wizard = createCampaignWizardModule({
@@ -1392,8 +1400,9 @@ describe("createCampaignWizardModule", () => {
     )
     expect(channel!.usageSummary.rows).toEqual([
       { label: "Eligible recipients", value: "12" },
+      { label: "Skipped", value: "0" },
       { label: "Estimated email messages", value: "12" },
-      { label: "Allowance remaining", value: "400" },
+      { label: "Email credits remaining", value: "400" },
       { label: "Estimated remaining after send", value: "388" },
     ])
   })
@@ -1403,21 +1412,25 @@ describe("createCampaignWizardModule", () => {
       .fn()
       .mockRejectedValueOnce(new Error("billing down"))
       .mockResolvedValueOnce({
-        email: {
-          used: 100,
-          allowance: 500,
-          remaining: 400,
-          refreshLabel: "1 September",
-        },
-        sms: { total: 50, reserved: 10, available: 40 },
-        plan: {
-          name: "Starter",
-          locationCount: 1,
-          billingLine: "Billed monthly · Next refresh 1 September",
-        },
-        ai: { available: 5 },
-        softLocked: false,
-      })
+      email: {
+        combinedRemaining: 400,
+        usedThisCycle: 100,
+        includedThisPeriod: 500,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
+      },
+      sms: {
+        combinedRemaining: 40,
+        usedThisCycle: 10,
+        includedThisPeriod: 50,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
+      },
+      ai: { available: 5 },
+      isPilot: false,
+      softLocked: false,
+      lockCause: null,
+    })
 
     const wizard = createCampaignWizardModule({
       ...defaultAudienceAdapters({
@@ -1455,8 +1468,9 @@ describe("createCampaignWizardModule", () => {
     expect(channel!.messagingBalancesStatus).toBe("ready")
     expect(channel!.usageSummary.rows).toEqual([
       { label: "Eligible recipients", value: "12" },
+      { label: "Skipped", value: "0" },
       { label: "Estimated email messages", value: "12" },
-      { label: "Allowance remaining", value: "400" },
+      { label: "Email credits remaining", value: "400" },
       { label: "Estimated remaining after send", value: "388" },
     ])
   })
@@ -2253,8 +2267,9 @@ describe("createCampaignWizardModule", () => {
     )
     expect(offer!.usageSummary.rows).toEqual([
       { label: "Eligible recipients", value: "7" },
+      { label: "Skipped", value: "3" },
       { label: "Estimated email messages", value: "7" },
-      { label: "Allowance remaining", value: "6,760" },
+      { label: "Email credits remaining", value: "6,760" },
       { label: "Estimated remaining after send", value: "6,753" },
     ])
     expect(offer!.messagingFixture).toEqual(MESSAGING_USAGE_FIXTURE)
@@ -2973,8 +2988,9 @@ describe("createCampaignWizardModule", () => {
     )
     expect(snapshot.schedule!.usageSummary.rows).toEqual([
       { label: "Eligible recipients", value: "7" },
+      { label: "Skipped", value: "3" },
       { label: "Estimated email messages", value: "7" },
-      { label: "Allowance remaining", value: "6,760" },
+      { label: "Email credits remaining", value: "6,760" },
       { label: "Estimated remaining after send", value: "6,753" },
     ])
 
@@ -3233,19 +3249,23 @@ describe("createCampaignWizardModule", () => {
     const sendCampaignTest = vi.fn(async () => {})
     const loadMessagingBalances = vi.fn(async () => ({
       email: {
-        used: 100,
-        allowance: 500,
-        remaining: 400,
-        refreshLabel: "1 September",
+        combinedRemaining: 400,
+        usedThisCycle: 100,
+        includedThisPeriod: 500,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
       },
-      sms: { total: 50, reserved: 10, available: 40 },
-      plan: {
-        name: "Starter",
-        locationCount: 1,
-        billingLine: "Billed monthly · Next refresh 1 September",
+      sms: {
+        combinedRemaining: 40,
+        usedThisCycle: 10,
+        includedThisPeriod: 50,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
       },
       ai: { available: 5 },
+      isPilot: false,
       softLocked: true,
+      lockCause: "dunning",
     }))
     const wizard = createCampaignWizardModule({
       ...defaultAudienceAdapters(),
@@ -3254,6 +3274,10 @@ describe("createCampaignWizardModule", () => {
       sendCampaignTest,
       commitCampaign: vi.fn(),
       loadMessagingBalances,
+      messagingChromeAccess: {
+        accessLevel: "manage",
+        permissionRole: "Owner",
+      },
     })
 
     await walkToReview(wizard)
@@ -3266,27 +3290,116 @@ describe("createCampaignWizardModule", () => {
     const snapshot = wizard.getSnapshot()
     expect(snapshot.review!.sendAvailable).toBe(false)
     expect(snapshot.review!.guestPreview.sendTestAvailable).toBe(true)
+    expect(snapshot.lockHelper).toEqual({
+      kind: "update-payment-method",
+      label: "Update payment method",
+    })
+    expect(snapshot.canContinue).toBe(false)
 
     await wizard.save()
     expect(createDraft).toHaveBeenCalled()
   })
 
+  it("exposes Choose a plan lockHelper for unpaid-pilot Soft lock", async () => {
+    const loadMessagingBalances = vi.fn(async () => ({
+      email: {
+        combinedRemaining: 400,
+        usedThisCycle: 100,
+        includedThisPeriod: 500,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
+      },
+      sms: {
+        combinedRemaining: 40,
+        usedThisCycle: 10,
+        includedThisPeriod: 50,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
+      },
+      ai: { available: 5 },
+      isPilot: true,
+      softLocked: true,
+      lockCause: "unpaid-pilot",
+    }))
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createDraft: vi.fn(async () => sampleDraftDetail()),
+      commitCampaign: vi.fn(),
+      loadMessagingBalances,
+      messagingChromeAccess: {
+        accessLevel: "manage",
+        permissionRole: "Owner",
+      },
+    })
+
+    await walkToReview(wizard)
+    await vi.waitFor(() => {
+      expect(wizard.getSnapshot().lockHelper).toEqual({
+        kind: "choose-a-plan",
+        label: "Choose a plan",
+      })
+    })
+    expect(wizard.getSnapshot().review!.sendAvailable).toBe(false)
+  })
+
+  it("uses stub Reserve copy when commit adapter is omitted", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createDraft: vi.fn(async () => sampleDraftDetail()),
+      billingReserveLive: false,
+    })
+
+    await walkToReview(wizard)
+
+    expect(wizard.getSnapshot().review!.sendBlockedReason).toBe(
+      resolveBillingReserveUnavailableCopy({ billingReserveLive: false })
+    )
+  })
+
+  it("uses live unexpected-503 copy when billingReserveLive and Reserve unavailable", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00.000Z"),
+      createDraft: vi.fn(async () => sampleDraftDetail()),
+      billingReserveLive: true,
+      commitCampaign: vi.fn(async () => {
+        throw new CampaignBillingReserveUnavailableError(
+          "Billing Reserve is not available."
+        )
+      }),
+    })
+
+    await walkToReview(wizard)
+    wizard.openCommitConfirm()
+    await wizard.confirmCommit()
+
+    expect(wizard.getSnapshot().commitConfirm?.error).toBe(
+      resolveBillingReserveUnavailableCopy({ billingReserveLive: true })
+    )
+  })
+
   it("surfaces channel shortfall blocked reason on Review", async () => {
     const loadMessagingBalances = vi.fn(async () => ({
       email: {
-        used: 497,
-        allowance: 500,
-        remaining: 3,
-        refreshLabel: "1 September",
+        combinedRemaining: 3,
+        usedThisCycle: 497,
+        includedThisPeriod: 500,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
       },
-      sms: { total: 50, reserved: 10, available: 40 },
-      plan: {
-        name: "Starter",
-        locationCount: 1,
-        billingLine: "Billed monthly · Next refresh 1 September",
+      sms: {
+        combinedRemaining: 40,
+        usedThisCycle: 10,
+        includedThisPeriod: 50,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
       },
       ai: { available: 5 },
+      isPilot: false,
       softLocked: false,
+      lockCause: null,
     }))
     const wizard = createCampaignWizardModule({
       ...defaultAudienceAdapters(),
@@ -3304,6 +3417,13 @@ describe("createCampaignWizardModule", () => {
     })
 
     expect(wizard.getSnapshot().review!.sendAvailable).toBe(false)
+    expect(wizard.getSnapshot().review!.channelShortfall).toEqual(
+      expect.objectContaining({
+        channelId: "email",
+        buyCreditsLabel: "Buy Email credits",
+        changePlanLabel: "Change plan",
+      })
+    )
   })
 
   it("surfaces zero-eligible blocked reason on Review", async () => {
@@ -3737,7 +3857,13 @@ describe("resolveCampaignChannelSmsShortfall", () => {
         smsEligible: 121,
         fixture: {
           ...MESSAGING_USAGE_FIXTURE,
-          sms: { total: 100, reserved: 20, available: 80 },
+          sms: {
+            combinedRemaining: 80,
+            usedThisCycle: 20,
+            includedThisPeriod: 100,
+            purchasedRemaining: 0,
+            purchasedExpiryLabel: null,
+          },
         },
       })
     ).toBeNull()
@@ -3748,7 +3874,13 @@ describe("resolveCampaignChannelSmsShortfall", () => {
         smsEligible: null,
         fixture: {
           ...MESSAGING_USAGE_FIXTURE,
-          sms: { total: 100, reserved: 20, available: 80 },
+          sms: {
+            combinedRemaining: 80,
+            usedThisCycle: 20,
+            includedThisPeriod: 100,
+            purchasedRemaining: 0,
+            purchasedExpiryLabel: null,
+          },
         },
       })
     ).toBeNull()
@@ -3758,13 +3890,46 @@ describe("resolveCampaignChannelSmsShortfall", () => {
       smsEligible: 121,
       fixture: {
         ...MESSAGING_USAGE_FIXTURE,
-        sms: { total: 100, reserved: 20, available: 80 },
+        sms: {
+          combinedRemaining: 80,
+          usedThisCycle: 20,
+          includedThisPeriod: 100,
+          purchasedRemaining: 0,
+          purchasedExpiryLabel: null,
+        },
       },
     })
     expect(shortfall).toEqual({
-      title: "More SMS credits are required",
-      body: "This campaign requires at least 121 SMS credits. Your account currently has 80 available.",
+      channelId: "sms",
+      title: "More SMS credits are required.",
+      body: "This campaign requires at least 121 credits. Your account currently has 80 remaining.",
       buyCreditsLabel: "Buy SMS credits",
+      changePlanLabel: "Change plan",
+    })
+  })
+
+  it("email shortfall uses resolveCampaignChannelShortfall with Buy Email credits", () => {
+    const shortfall = resolveCampaignChannelShortfall({
+      channelId: "email",
+      channelEligible: 50,
+      fixture: {
+        ...MESSAGING_USAGE_FIXTURE,
+        email: {
+          combinedRemaining: 10,
+          usedThisCycle: 9990,
+          includedThisPeriod: 10000,
+          purchasedRemaining: 0,
+          purchasedExpiryLabel: null,
+        },
+      },
+      estimateMode: "floor",
+    })
+    expect(shortfall).toEqual({
+      channelId: "email",
+      title: "More Email credits are required.",
+      body: "This campaign requires at least 50 credits. Your account currently has 10 remaining.",
+      buyCreditsLabel: "Buy Email credits",
+      changePlanLabel: "Change plan",
     })
   })
 
@@ -3780,19 +3945,23 @@ describe("resolveCampaignChannelSmsShortfall", () => {
     const consumeDirectAi = vi.fn(async () => {})
     const loadMessagingBalances = vi.fn(async () => ({
       email: {
-        used: 100,
-        allowance: 500,
-        remaining: 400,
-        refreshLabel: "1 September",
+        combinedRemaining: 400,
+        usedThisCycle: 100,
+        includedThisPeriod: 500,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
       },
-      sms: { total: 50, reserved: 10, available: 40 },
-      plan: {
-        name: "Starter",
-        locationCount: 1,
-        billingLine: "Billed monthly · Next refresh 1 September",
+      sms: {
+        combinedRemaining: 40,
+        usedThisCycle: 10,
+        includedThisPeriod: 50,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
       },
       ai: { available: 5 },
+      isPilot: false,
       softLocked: false,
+      lockCause: null,
     }))
 
     const wizard = createCampaignWizardModule({
@@ -3838,19 +4007,23 @@ describe("resolveCampaignChannelSmsShortfall", () => {
     const consumeDirectAi = vi.fn(async () => {})
     const loadMessagingBalances = vi.fn(async () => ({
       email: {
-        used: 100,
-        allowance: 500,
-        remaining: 400,
-        refreshLabel: "1 September",
+        combinedRemaining: 400,
+        usedThisCycle: 100,
+        includedThisPeriod: 500,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
       },
-      sms: { total: 50, reserved: 10, available: 40 },
-      plan: {
-        name: "Starter",
-        locationCount: 1,
-        billingLine: "Billed monthly · Next refresh 1 September",
+      sms: {
+        combinedRemaining: 40,
+        usedThisCycle: 10,
+        includedThisPeriod: 50,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
       },
       ai: { available: 5 },
+      isPilot: false,
       softLocked: true,
+      lockCause: null,
     }))
 
     const wizard = createCampaignWizardModule({
@@ -3888,19 +4061,23 @@ describe("resolveCampaignChannelSmsShortfall", () => {
   it("Channel SMS shortfall still allows Continue", async () => {
     const loadMessagingBalances = vi.fn(async () => ({
       email: {
-        used: 100,
-        allowance: 500,
-        remaining: 400,
-        refreshLabel: "1 September",
+        combinedRemaining: 400,
+        usedThisCycle: 100,
+        includedThisPeriod: 500,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
       },
-      sms: { total: 50, reserved: 40, available: 10 },
-      plan: {
-        name: "Starter",
-        locationCount: 1,
-        billingLine: "Billed monthly · Next refresh 1 September",
+      sms: {
+        combinedRemaining: 10,
+        usedThisCycle: 40,
+        includedThisPeriod: 50,
+        purchasedRemaining: 0,
+        purchasedExpiryLabel: null,
       },
       ai: { available: 5 },
+      isPilot: false,
       softLocked: false,
+      lockCause: null,
     }))
 
     const wizard = createCampaignWizardModule({
@@ -3925,7 +4102,7 @@ describe("resolveCampaignChannelSmsShortfall", () => {
     wizard.setChannelId("sms")
 
     const channel = wizard.getSnapshot().channel
-    expect(channel?.smsShortfall).not.toBeNull()
+    expect(channel?.channelShortfall).not.toBeNull()
     expect(wizard.getSnapshot().canContinue).toBe(true)
   })
 })

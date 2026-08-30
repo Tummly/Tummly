@@ -5,7 +5,9 @@ using TummlyBackend.Data;
 using TummlyBackend.DTOs.Trial;
 using TummlyBackend.Exceptions;
 using TummlyBackend.Models;
+using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -35,7 +37,8 @@ namespace TummlyBackend.Tests.Services
 
             var smartGuestLink = new SmartGuestLinkService(
                 _context,
-                configuration
+                configuration,
+                new NoOpBillingAccountLifecycle()
             );
 
             var qrCodeProvisioning = new QrCodeProvisioningService(
@@ -43,10 +46,40 @@ namespace TummlyBackend.Tests.Services
                 smartGuestLink
             );
 
+            var packDir = Path.GetFullPath(
+                Path.Combine(
+                    AppContext.BaseDirectory,
+                    "..",
+                    "..",
+                    "..",
+                    "..",
+                    "..",
+                    "docs",
+                    "product",
+                    "billing-pack-v3.0"
+                )
+            );
+            if (!Directory.Exists(packDir))
+            {
+                packDir = Path.GetFullPath(
+                    Path.Combine(
+                        AppContext.BaseDirectory,
+                        "..",
+                        "..",
+                        "..",
+                        "..",
+                        "docs",
+                        "product",
+                        "billing-pack-v3.0"
+                    )
+                );
+            }
+
             _service = new GuestLoopProvisioningService(
                 _context,
                 qrCodeProvisioning,
-                configuration
+                configuration,
+                PricebookCatalog.LoadFromDirectory(packDir)
             );
         }
 
@@ -167,6 +200,15 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(LocationScopeKind.AllLocations, membership.LocationScope);
             Assert.Equal(MembershipStatus.Active, membership.Status);
             Assert.Equal("[]", membership.NamedLocationIdsJson);
+
+            var billingAccount = await _context.BillingAccounts.SingleAsync();
+            Assert.Equal(restaurant.Id, billingAccount.RestaurantId);
+            Assert.Equal(BillingSubscriptionPlans.Pilot, billingAccount.SubscriptionPlan);
+            Assert.Equal(BillingStatuses.Pilot, billingAccount.BillingStatus);
+            Assert.Null(billingAccount.BillingCycle);
+            Assert.Null(billingAccount.RevolutCustomerId);
+            Assert.Equal(StarterKitStates.Unused, billingAccount.StarterKitState);
+            Assert.Equal("TUMMLY-UK-GBP-2026-08-V3", billingAccount.ContractedPricebookId);
         }
 
         [Fact]

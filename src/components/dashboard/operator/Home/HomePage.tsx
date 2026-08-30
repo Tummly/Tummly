@@ -4,7 +4,7 @@ import {
 } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
-import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod"
+import type { ActivationPeriodBadgePresentation } from "@/lib/operatorHome/activationPeriod"
 import { homeCampaignRecommendationDraftPrefill } from "@/lib/operatorHome/homeCampaignRecommendationDraftPrefill"
 import { isHomeRecommendationCampaignType } from "@/lib/operatorHome/homeRecommendationPresentation"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
@@ -23,7 +23,7 @@ import { useNavigate, useOutletContext } from "react-router-dom"
 import { toast } from "sonner"
 
 type HomePageProps = {
-  activationPeriodBadge: ActivationPeriodBadgeCopy | null
+  activationPeriodBadge: ActivationPeriodBadgePresentation | null
 }
 
 function openInNewTab(path: string): void {

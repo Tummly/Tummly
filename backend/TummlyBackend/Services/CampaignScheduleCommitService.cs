@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -22,6 +23,7 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly ICampaignEligibilityService _eligibility;
         private readonly ICampaignBillingReserve _billingReserve;
+        private readonly ICreditBalanceSnapshot _creditBalance;
         private readonly ICampaignFireWork _fireWork;
         private readonly ICampaignProductAnalytics _analytics;
         private readonly Func<DateTime> _utcNow;
@@ -30,6 +32,7 @@ namespace TummlyBackend.Services
             ApplicationDbContext context,
             ICampaignEligibilityService eligibility,
             ICampaignBillingReserve billingReserve,
+            ICreditBalanceSnapshot creditBalance,
             ICampaignFireWork fireWork,
             ICampaignProductAnalytics? analytics = null,
             Func<DateTime>? utcNow = null
@@ -38,6 +41,7 @@ namespace TummlyBackend.Services
             _context = context;
             _eligibility = eligibility;
             _billingReserve = billingReserve;
+            _creditBalance = creditBalance;
             _fireWork = fireWork;
             _analytics = analytics ?? NoOpCampaignProductAnalytics.Instance;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
@@ -168,6 +172,66 @@ namespace TummlyBackend.Services
                 return new CampaignScheduleCommitResult.ZeroEligible();
             }
 
+            var estimatedUnits = CampaignCreditEstimate.EstimateUnits(
+                channel,
+                entity.MessageBody,
+                eligibleIds.Count
+            );
+
+            var restaurantId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == entity.RestaurantLocationId)
+                .Select(row => row.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (restaurantId == 0)
+            {
+                return new CampaignScheduleCommitResult.NotReviewReady
+                {
+                    Message = "Campaign location was not found.",
+                };
+            }
+
+            var lockDeny = await EvaluateOperatorBillingLockAsync(
+                restaurantId,
+                cancellationToken
+            );
+            if (lockDeny != null)
+            {
+                return new CampaignScheduleCommitResult.OperatorBillingLocked
+                {
+                    Code = lockDeny,
+                };
+            }
+
+            var snapshot = await _creditBalance.GetAccountAsync(
+                restaurantId,
+                cancellationToken
+            );
+            var gateRefusal = CampaignCreditGate.EvaluateNewReserve(
+                snapshot,
+                channel,
+                estimatedUnits
+            );
+            if (gateRefusal != null)
+            {
+                return gateRefusal.Code switch
+                {
+                    "channel_hard_stopped" =>
+                        new CampaignScheduleCommitResult.ChannelHardStopped
+                        {
+                            Channel = gateRefusal.Channel,
+                            Remaining = gateRefusal.Remaining,
+                            Requested = gateRefusal.Requested,
+                        },
+                    _ => new CampaignScheduleCommitResult.InsufficientCredits
+                    {
+                        Channel = gateRefusal.Channel,
+                        Remaining = gateRefusal.Remaining,
+                        Requested = gateRefusal.Requested,
+                    },
+                };
+            }
+
             await using var transaction =
                 _context.Database.IsRelational()
                     ? await _context.Database.BeginTransactionAsync(
@@ -197,7 +261,8 @@ namespace TummlyBackend.Services
                 entity.ScheduleMode = mode;
                 entity.ScheduledAtUtc = scheduledAtUtc;
                 entity.ScheduleTimeZone = timeZone;
-                entity.ReservedEstimate = eligibleIds.Count;
+                entity.ReservedEstimate = estimatedUnits;
+                entity.SettledUnits = 0;
                 entity.Status =
                     mode == SendNowMode ? SendingStatus : ScheduledStatus;
                 entity.UpdatedAt = now;
@@ -210,7 +275,7 @@ namespace TummlyBackend.Services
                         CampaignId = entity.Id,
                         LocationId = entity.RestaurantLocationId,
                         Channel = channel,
-                        Units = eligibleIds.Count,
+                        Units = estimatedUnits,
                     },
                     cancellationToken
                 );
@@ -226,10 +291,7 @@ namespace TummlyBackend.Services
                         _context.ChangeTracker.Clear();
                     }
 
-                    return new CampaignScheduleCommitResult.ReserveFailed
-                    {
-                        Message = failed.Message,
-                    };
+                    return MapReserveFailure(failed.Message, channel, snapshot, estimatedUnits);
                 }
 
                 if (reserveResult is not CampaignBillingReserveResult.Ok reserved)
@@ -333,6 +395,67 @@ namespace TummlyBackend.Services
             }
 
             return null;
+        }
+
+        private static CampaignScheduleCommitResult MapReserveFailure(
+            string code,
+            string channel,
+            CreditBalanceAccountSnapshot? snapshot,
+            int requestedUnits
+        )
+        {
+            if (code == "channel_hard_stopped")
+            {
+                var remaining = snapshot?.Channels
+                    .FirstOrDefault(row => row.Channel == channel)
+                    ?.Remaining ?? 0;
+                return new CampaignScheduleCommitResult.ChannelHardStopped
+                {
+                    Channel = channel,
+                    Remaining = remaining,
+                    Requested = requestedUnits,
+                };
+            }
+
+            if (code == "insufficient_credits")
+            {
+                var remaining = snapshot?.Channels
+                    .FirstOrDefault(row => row.Channel == channel)
+                    ?.Remaining ?? 0;
+                return new CampaignScheduleCommitResult.InsufficientCredits
+                {
+                    Channel = channel,
+                    Remaining = remaining,
+                    Requested = requestedUnits,
+                };
+            }
+
+            return new CampaignScheduleCommitResult.ReserveFailed
+            {
+                Message = code,
+            };
+        }
+
+        private async Task<string?> EvaluateOperatorBillingLockAsync(
+            int restaurantId,
+            CancellationToken cancellationToken
+        )
+        {
+            var account = await _context.BillingAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.RestaurantId == restaurantId,
+                    cancellationToken
+                );
+            if (account == null)
+            {
+                return null;
+            }
+
+            return OperatorBillingLockEvaluator.EvaluateSendOrReserveDeny(
+                OperatorBillingLockEvaluator.FromBillingAccount(account),
+                _utcNow()
+            );
         }
 
         private static CampaignScheduleCommitDto ToDto(

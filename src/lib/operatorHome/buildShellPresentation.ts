@@ -1,8 +1,14 @@
 import {
-  computeActivationDaysRemaining,
-  formatActivationPeriodBadge,
+  resolveActivationPeriodBadgePresentation,
 } from "@/lib/operatorHome/activationPeriod"
+import {
+  billingCreditsHeaderActions,
+  operatorDashboardBillingCreditsManagePlanPath,
+} from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import type { BillingCreditsAccessLevel } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
 import { formatSelfRoleSubtitle } from "@/lib/operatorHome/formatSelfRoleSubtitle"
+import { resolveLockAlertPresentation } from "@/lib/operatorHome/lockAlertPresentation"
 import {
   getOperatorFirstName,
   getOperatorInitials,
@@ -21,7 +27,14 @@ const OMITTED_NAVBAR_CONTROLS = ["search", "help"] as const
 export type BuildOperatorShellPresentationInput = {
   operatorDisplayName: string
   activationExpiresAt: string | null
+  subscriptionPlan: string
+  /** Soft lock / Dormant drives Lock Alert; omit or Active hides it. */
+  billingStatus?: string | null
   selfRole?: string | null
+  /** Restaurant Permission role; gates Choose a plan with Billing & credits access. */
+  permissionRole?: string | null
+  /** Omit defaults to manage so Account-owner chrome stays visible during rollout. */
+  billingCreditsAccess?: BillingCreditsAccessLevel
   locations: OperatorHomeLocationOption[]
   selectedLocationId: number
   locationSwitcherInteractive: boolean
@@ -29,6 +42,7 @@ export type BuildOperatorShellPresentationInput = {
   activeNavId?: OperatorSidebarActiveId
   navTargets?: OperatorSidebarNavTargets
   hideTeamPermissions?: boolean
+  hideBillingCredits?: boolean
 }
 
 /**
@@ -44,17 +58,35 @@ export function buildOperatorShellPresentation(
       (location) => location.id === input.selectedLocationId
     ) ?? input.locations[0]
 
-  const daysRemaining = computeActivationDaysRemaining(
-    input.activationExpiresAt,
-    now
-  )
   const activeNavId = input.activeNavId ?? "home"
+  const mode: OperatorDashboardMode =
+    input.navTargets?.mode ?? "multi"
+  const locationId = input.navTargets?.locationId ?? input.selectedLocationId
+  const accessLevel = input.billingCreditsAccess ?? "manage"
+  const permissionRole = input.permissionRole ?? ""
+  const showChoosePlanCta = billingCreditsHeaderActions({
+    accessLevel,
+    permissionRole,
+  }).showManagePlan
+  const choosePlanHref = showChoosePlanCta
+    ? operatorDashboardBillingCreditsManagePlanPath(mode, locationId)
+    : null
 
   return {
-    activationPeriodBadge: formatActivationPeriodBadge(
-      daysRemaining,
-      input.activationExpiresAt
-    ),
+    activationPeriodBadge: resolveActivationPeriodBadgePresentation({
+      subscriptionPlan: input.subscriptionPlan,
+      activationExpiresAt: input.activationExpiresAt,
+      choosePlanHref,
+      now,
+    }),
+    lockAlert: resolveLockAlertPresentation({
+      billingStatus: input.billingStatus ?? "",
+      subscriptionPlan: input.subscriptionPlan,
+      accessLevel,
+      permissionRole,
+      mode,
+      locationId,
+    }),
     profileDisplayName: input.operatorDisplayName,
     profileFirstName: getOperatorFirstName(input.operatorDisplayName),
     profileInitials: getOperatorInitials(input.operatorDisplayName),
@@ -62,6 +94,7 @@ export function buildOperatorShellPresentation(
     omittedNavbarControls: [...OMITTED_NAVBAR_CONTROLS],
     sidebarNav: getOperatorSidebarNav(activeNavId, input.navTargets, {
       hideTeamPermissions: input.hideTeamPermissions,
+      hideBillingCredits: input.hideBillingCredits,
     }),
     locationSwitcher: {
       interactive: input.locationSwitcherInteractive,

@@ -226,6 +226,11 @@ namespace TummlyBackend.Services
 
         public async Task<GuestsExportResult> ExportAsync(GuestsExportQuery query)
         {
+            await OperatorBillingLockGate.EnsurePaidWriteAllowedAsync(
+                _context,
+                query.RestaurantId
+            );
+
             var isSelected = query.GuestIds != null;
             if (isSelected && query.GuestIds!.Count == 0)
             {

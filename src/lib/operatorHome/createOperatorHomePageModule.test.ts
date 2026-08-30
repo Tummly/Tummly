@@ -110,11 +110,15 @@ function workspaceInput(
   overrides: Partial<{
     locations: LocationItem[]
     selectedLocationId: number | null
+    billingCreditsAccess: "none" | "view" | "manage"
+    workspaceName: string
   }> = {}
 ) {
   return {
     locations,
     selectedLocationId: 1 as number | null,
+    billingCreditsAccess: "manage" as const,
+    workspaceName: "Tummly Demo",
     ...overrides,
   }
 }
@@ -299,6 +303,7 @@ function createAdapters(overrides: {
   listNeedsAttentionCampaigns?: OperatorHomePageAdapters["listNeedsAttentionCampaigns"]
   listNeedsAttentionOffers?: OperatorHomePageAdapters["listNeedsAttentionOffers"]
   listOpenVoidAttention?: OperatorHomePageAdapters["listOpenVoidAttention"]
+  getNeedsAttentionCredits?: OperatorHomePageAdapters["getNeedsAttentionCredits"]
   pauseCampaign?: OperatorHomePageAdapters["pauseCampaign"]
   duplicateCampaign?: OperatorHomePageAdapters["duplicateCampaign"]
   getCampaignDraftById?: OperatorHomePageAdapters["getCampaignDraftById"]
@@ -475,6 +480,7 @@ function createAdapters(overrides: {
     listNeedsAttentionOffers:
       overrides.listNeedsAttentionOffers ?? (async () => []),
     listOpenVoidAttention: overrides.listOpenVoidAttention ?? (async () => []),
+    getNeedsAttentionCredits: overrides.getNeedsAttentionCredits,
     pauseCampaign:
       overrides.pauseCampaign
       ?? (async () => {
@@ -2770,6 +2776,249 @@ describe("createOperatorHomePageModule", () => {
     expect(result).toEqual({
       ok: false,
       error: "This campaign was updated elsewhere. Reload and try again.",
+    })
+  })
+
+  it("orders Needs attention as Feedback, credits, Campaigns when all qualify", async () => {
+    const getNeedsAttentionFeedback = vi.fn(async () => ({
+      count: 1,
+      newestSubmittedAt: "2026-08-21T11:48:00.000Z",
+    }))
+    const getNeedsAttentionCredits = vi.fn(async () => ({
+      permissionRole: "Owner",
+      usage: {
+        periodLabel: "Aug 2026",
+        starterKitState: "unused",
+        isPilot: false,
+        channels: [
+          {
+            channel: "ai" as const,
+            combinedRemaining: 20,
+            usedThisCycle: 80,
+            includedThisPeriod: 100,
+            purchasedRemaining: 0,
+            purchasedExpiryLabel: null,
+          },
+        ],
+      },
+    }))
+    const listNeedsAttentionCampaigns = vi.fn(async () => [
+      {
+        id: 41,
+        name: "Weekend SMS blast",
+        status: "failed" as const,
+        goalId: null,
+        locationId: 1,
+        locationName: "First Venue",
+        channel: "sms",
+        audienceKey: null,
+        offerStance: null,
+        updatedAt: "2026-08-21T11:00:00.000Z",
+        rowVersion: "rv-41",
+        sendDate: null,
+        delivery: null,
+        engagement: null,
+        redemptions: null,
+      },
+    ])
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        getNeedsAttentionFeedback,
+        getNeedsAttentionCredits,
+        listNeedsAttentionCampaigns,
+      })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().needsAttentionLoadStatus).toBe("loaded")
+    })
+
+    expect(getNeedsAttentionCredits).toHaveBeenCalledTimes(1)
+    const rows = home.getSnapshot().needsAttention?.allRows ?? []
+    expect(rows.map((row) => row.sourceKind)).toEqual([
+      "feedback",
+      "credit",
+      "campaign",
+    ])
+    expect(rows[1]).toMatchObject({
+      channel: "ai",
+      band: 80,
+      metaLine: "Warning · Account-wide",
+      ctas: [{ kind: "view-usage", label: "View usage" }],
+    })
+  })
+
+  it("omits credit rows below 80% used share", async () => {
+    const getNeedsAttentionCredits = vi.fn(async () => ({
+      permissionRole: "Owner",
+      usage: {
+        periodLabel: "Aug 2026",
+        starterKitState: "unused",
+        isPilot: false,
+        channels: [
+          {
+            channel: "email" as const,
+            combinedRemaining: 30,
+            usedThisCycle: 70,
+            includedThisPeriod: 100,
+            purchasedRemaining: 0,
+            purchasedExpiryLabel: null,
+          },
+        ],
+      },
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ getNeedsAttentionCredits })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().needsAttentionLoadStatus).toBe("loaded")
+    })
+    expect(
+      home.getSnapshot().needsAttention?.allRows.some(
+        (row) => row.sourceKind === "credit"
+      )
+    ).toBe(false)
+  })
+
+  it("omits credit rows for No access even when used share is 80%", async () => {
+    const getNeedsAttentionCredits = vi.fn(async () => ({
+      permissionRole: "Owner",
+      usage: {
+        periodLabel: "Aug 2026",
+        starterKitState: "unused",
+        isPilot: false,
+        channels: [
+          {
+            channel: "email" as const,
+            combinedRemaining: 20,
+            usedThisCycle: 80,
+            includedThisPeriod: 100,
+            purchasedRemaining: 0,
+            purchasedExpiryLabel: null,
+          },
+        ],
+      },
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ getNeedsAttentionCredits })
+    )
+    await home.syncWorkspace(workspaceInput({ billingCreditsAccess: "none" }))
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().needsAttentionLoadStatus).toBe("loaded")
+    })
+    expect(getNeedsAttentionCredits).not.toHaveBeenCalled()
+    expect(
+      home.getSnapshot().needsAttention?.allRows.some(
+        (row) => row.sourceKind === "credit"
+      )
+    ).toBe(false)
+  })
+
+  it("loads credit rows when billingCreditsAccess is omitted", async () => {
+    const getNeedsAttentionCredits = vi.fn(async () => ({
+      permissionRole: "Owner",
+      usage: {
+        periodLabel: "Aug 2026",
+        starterKitState: "unused",
+        isPilot: false,
+        channels: [
+          {
+            channel: "sms" as const,
+            combinedRemaining: 20,
+            usedThisCycle: 80,
+            includedThisPeriod: 100,
+            purchasedRemaining: 0,
+            purchasedExpiryLabel: null,
+          },
+        ],
+      },
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ getNeedsAttentionCredits })
+    )
+    const { billingCreditsAccess: _omit, ...input } = workspaceInput()
+    await home.syncWorkspace(input)
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().needsAttentionLoadStatus).toBe("loaded")
+    })
+    expect(getNeedsAttentionCredits).toHaveBeenCalledTimes(1)
+    expect(
+      home.getSnapshot().needsAttention?.allRows.some(
+        (row) => row.sourceKind === "credit"
+      )
+    ).toBe(true)
+  })
+
+  it("resolves credit row CTA by View versus write permission", async () => {
+    const getNeedsAttentionCredits = vi.fn(async () => ({
+      permissionRole: "Marketing",
+      usage: {
+        periodLabel: "Aug 2026",
+        starterKitState: "unused",
+        isPilot: false,
+        channels: [
+          {
+            channel: "sms" as const,
+            combinedRemaining: 0,
+            usedThisCycle: 50,
+            includedThisPeriod: 50,
+            purchasedRemaining: 0,
+            purchasedExpiryLabel: null,
+          },
+        ],
+      },
+    }))
+    const viewHome = createOperatorHomePageModule(
+      createAdapters({ getNeedsAttentionCredits })
+    )
+    await viewHome.syncWorkspace(workspaceInput({ billingCreditsAccess: "view" }))
+    await vi.waitFor(() => {
+      expect(viewHome.getSnapshot().needsAttentionLoadStatus).toBe("loaded")
+    })
+    expect(
+      viewHome.getSnapshot().needsAttention?.allRows.find(
+        (row) => row.sourceKind === "credit"
+      )
+    ).toMatchObject({
+      ctas: [{ kind: "view-usage", label: "View usage" }],
+    })
+
+    getNeedsAttentionCredits.mockResolvedValueOnce({
+      permissionRole: "Owner",
+      usage: {
+        periodLabel: "Aug 2026",
+        starterKitState: "unused",
+        isPilot: false,
+        channels: [
+          {
+            channel: "sms" as const,
+            combinedRemaining: 0,
+            usedThisCycle: 50,
+            includedThisPeriod: 50,
+            purchasedRemaining: 0,
+            purchasedExpiryLabel: null,
+          },
+        ],
+      },
+    })
+    const manageHome = createOperatorHomePageModule(
+      createAdapters({ getNeedsAttentionCredits })
+    )
+    await manageHome.syncWorkspace(
+      workspaceInput({ billingCreditsAccess: "manage" })
+    )
+    await vi.waitFor(() => {
+      expect(manageHome.getSnapshot().needsAttentionLoadStatus).toBe("loaded")
+    })
+    expect(
+      manageHome.getSnapshot().needsAttention?.allRows.find(
+        (row) => row.sourceKind === "credit"
+      )
+    ).toMatchObject({
+      ctas: [{ kind: "buy-channel-credits", label: "Buy SMS credits" }],
     })
   })
 

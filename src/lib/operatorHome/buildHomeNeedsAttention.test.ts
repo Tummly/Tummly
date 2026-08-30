@@ -214,6 +214,64 @@ describe("buildHomeNeedsAttention", () => {
     expect(result.allRows[5]?.id).toBe("offer-1")
   })
 
+  it("keeps kind order Feedback then credits then Campaigns then Offers", () => {
+    const nowMs = Date.parse("2026-08-21T12:00:00.000Z")
+    const result = buildHomeNeedsAttention({
+      locationName: "Manchester",
+      nowMs,
+      feedback: {
+        count: 1,
+        newestSubmittedAt: "2026-08-20T12:00:00.000Z",
+      },
+      credits: [
+        {
+          channel: "email",
+          band: 80,
+          title: "Email credits at 80% used",
+          body: "Tummly Demo has used at least 80% of its Email credits this period.",
+          ctas: [{ kind: "view-usage", label: "View usage" }],
+        },
+      ],
+      campaigns: [
+        {
+          id: 7,
+          name: "Retry lunch",
+          status: "partially-sent",
+          updatedAt: "2026-08-21T10:00:00.000Z",
+          rowVersion: "rv-7",
+        },
+      ],
+      offers: [
+        {
+          id: 90,
+          title: "10% off next order",
+          lifetimeClaims: 23,
+          lifetimeRedeemed: 9,
+          attentionKind: "ai",
+          openVoid: null,
+          expiry: {
+            windowEnteredAt: "2026-08-21T11:50:00.000Z",
+            daysUntilExpiry: 2,
+          },
+        },
+      ],
+    })
+
+    expect(result.visibleRows.map((row) => row.sourceKind)).toEqual([
+      "feedback",
+      "credit",
+      "campaign",
+      "offer",
+    ])
+    expect(result.visibleRows[1]).toMatchObject({
+      sourceKind: "credit",
+      id: "credit-email",
+      channel: "email",
+      metaLine: "Warning · Account-wide",
+      ctas: [{ kind: "view-usage", label: "View usage" }],
+    })
+  })
+
   it("keeps kind order Feedback then Campaigns then Offers even when Offers are newer", () => {
     const nowMs = Date.parse("2026-08-21T12:00:00.000Z")
     const result = buildHomeNeedsAttention({

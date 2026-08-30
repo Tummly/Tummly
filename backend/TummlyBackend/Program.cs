@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Billing;
+using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -93,6 +95,27 @@ builder.Services.Configure<EmailSettings>(
 builder.Services.Configure<TwilioSettings>(
     builder.Configuration.GetSection("TwilioSettings")
 );
+
+builder.Services.Configure<RevolutSettings>(
+    builder.Configuration.GetSection(RevolutSettings.SectionName)
+);
+
+builder.Services.AddOptions<TummlySellerVatSettings>()
+    .Configure<IConfiguration>((options, configuration) =>
+    {
+        options.RegistrationNumber =
+            configuration[TummlySellerVatSettings.RegistrationNumberKey]
+            ?? string.Empty;
+        options.EffectiveDate =
+            configuration[TummlySellerVatSettings.EffectiveDateKey]
+            ?? string.Empty;
+        options.LegalName =
+            configuration[TummlySellerVatSettings.LegalNameKey]
+            ?? string.Empty;
+        options.RegisteredAddress =
+            configuration[TummlySellerVatSettings.RegisteredAddressKey]
+            ?? string.Empty;
+    });
 
 /*
  =========================================
@@ -352,6 +375,10 @@ builder.Services.AddScoped<
     CampaignDraftService
 >();
 builder.Services.AddScoped<
+    IActiveOfferCapGate,
+    ActiveOfferCapGate
+>();
+builder.Services.AddScoped<
     IOffersCatalogService,
     OffersCatalogService
 >();
@@ -409,7 +436,7 @@ builder.Services.AddScoped<
 >();
 builder.Services.AddScoped<
     ICampaignBillingReserve,
-    UnavailableCampaignBillingReserve
+    LiveCampaignBillingReserve
 >();
 builder.Services.AddSingleton<
     ICampaignProductAnalytics,
@@ -459,11 +486,97 @@ builder.Services.AddScoped<
 >();
 
 builder.Services.AddScoped<IOwnedLocationService, OwnedLocationService>();
+builder.Services.AddScoped<IOwnedLocationInsertService, OwnedLocationInsertService>();
 
 builder.Services.AddScoped<IAccountWorkspaceService, AccountWorkspaceService>();
 builder.Services.AddScoped<ITeamPermissionsService, TeamPermissionsService>();
+builder.Services.AddScoped<ITeamMemberCapGate, TeamMemberCapGate>();
+builder.Services.AddSingleton<IPricebookCatalog>(sp =>
+    PricebookCatalog.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
+);
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<ICreditLedger, CreditLedgerService>();
+builder.Services.AddScoped<ICreditThresholdEvaluator, CreditThresholdEvaluator>();
+builder.Services.AddScoped<ICreditBalanceSnapshot, CreditBalanceSnapshotService>();
+builder.Services.AddScoped<IIncludedPeriodMintService, IncludedPeriodMintService>();
+builder.Services.AddScoped<IIncludedPeriodJob, IncludedPeriodJob>();
+builder.Services.AddScoped<IAssistantAiBilling, AssistantAiBillingService>();
+builder.Services.AddScoped<IBilledAiActionCoordinator, BilledAiActionCoordinator>();
+builder.Services.AddScoped<
+    IRecoverySmsBillingReserve,
+    LiveRecoverySmsBillingReserve
+>();
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddScoped<
+        IRecoveryGuestSmsDelivery,
+        TestingRecoveryGuestSmsDelivery
+    >();
+}
+else
+{
+    builder.Services.AddScoped<IRecoveryGuestSmsDelivery, TwilioRecoveryGuestSmsDelivery>();
+}
+builder.Services.AddScoped<IPlanChangeService, PlanChangeService>();
+builder.Services.AddScoped<IRevolutMerchantCreateGate, RevolutMerchantCreateGate>();
+builder.Services.AddScoped<IRevolutMerchantClient, RevolutMerchantClient>();
+builder.Services.AddScoped<
+    IRevolutCancelAtPeriodEndAdapter,
+    RevolutCancelAtPeriodEndAdapter
+>();
+builder.Services.AddScoped<
+    IFirstPaidConversionPaySession,
+    FirstPaidConversionPaySessionService
+>();
+builder.Services.AddScoped<
+    ISameCadenceUpgradePaySession,
+    SameCadenceUpgradePaySessionService
+>();
+builder.Services.AddScoped<
+    IPaymentMethodUpdatePaySession,
+    PaymentMethodUpdatePaySessionService
+>();
+builder.Services.AddScoped<ICreditTopUpPaySession, CreditTopUpPaySessionService>();
+builder.Services.AddScoped<ICycleEndPlanChange, CycleEndPlanChangeService>();
+builder.Services.AddScoped<
+    IRevolutOrderCompletedApplier,
+    RevolutOrderCompletedApplier
+>();
+builder.Services.AddScoped<ITummlyVatInvoiceService, TummlyVatInvoiceService>();
+builder.Services.AddScoped<IAdminPaymentRefundService, AdminPaymentRefundService>();
+builder.Services.AddScoped<
+    IRevolutPaymentRefundCompletedHandler,
+    RevolutPaymentRefundCompletedHandler
+>();
+builder.Services.AddScoped<IRevolutWebhookService, RevolutWebhookService>();
+builder.Services.AddScoped<IRevolutDunningPayAdapter, RevolutDunningPayAdapter>();
+builder.Services.AddScoped<IBillingCreditsService, BillingCreditsService>();
+builder.Services.AddScoped<IExtraGroupLocationService, ExtraGroupLocationService>();
+builder.Services.AddScoped<IBillingAccountLifecycle, BillingAccountLifecycleService>();
+builder.Services.AddScoped<
+    IBillingAccountNoticeNotifier,
+    BillingAccountNoticeNotifier
+>();
 builder.Services.AddScoped<ITeamInvitationAcceptService, TeamInvitationAcceptService>();
 builder.Services.AddScoped<IGuestDataExportService, GuestDataExportService>();
+
+builder.Services.AddHttpClient(
+    RevolutMerchantClient.HttpClientName,
+    (sp, client) =>
+    {
+        var settings = sp.GetRequiredService<
+            Microsoft.Extensions.Options.IOptions<RevolutSettings>
+        >().Value;
+        if (!string.IsNullOrWhiteSpace(settings.ApiBaseUrl))
+        {
+            client.BaseAddress = new Uri(
+                settings.ApiBaseUrl.TrimEnd('/') + "/"
+            );
+        }
+
+        client.Timeout = TimeSpan.FromSeconds(30);
+    }
+);
 
 builder.Services.AddHttpClient(
     "Resend",
@@ -786,6 +899,7 @@ builder.Services.AddSingleton<
     GuestResponseEmailDeliveryWork
 >();
 builder.Services.AddHostedService<GuestResponseEmailDeliveryBackgroundService>();
+builder.Services.AddHostedService<CreditReservationSweeperBackgroundService>();
 
 builder.Services.AddHttpClient(
     SignInMetadataResolverHttpClient.Name,
@@ -850,6 +964,7 @@ builder.Services.AddHostedService<
 >();
 
 builder.Services.AddHostedService<ActivationNotificationBackgroundService>();
+builder.Services.AddHostedService<IncludedPeriodBackgroundService>();
 
 builder.Services.AddHostedService<WeeklyBriefMondayBackgroundService>();
 
@@ -955,6 +1070,43 @@ app.MapGet("/health/ready", async (
             statusCode: StatusCodes.Status503ServiceUnavailable
         );
     }
+});
+
+// Non-secret Revolut readiness for QA sandbox rehearsal. Does not gate deploy.
+app.MapGet("/health/revolut", (
+    Microsoft.Extensions.Options.IOptions<RevolutSettings> revolutOptions,
+    Microsoft.Extensions.Options.IOptions<TummlySellerVatSettings> vatOptions
+) =>
+{
+    var revolut = revolutOptions.Value;
+    var vat = vatOptions.Value;
+    var configuredVariations = 0;
+    foreach (var key in RevolutPlanVariationKeys.All)
+    {
+        if (revolut.TryGetPlanVariationId(key, out _))
+        {
+            configuredVariations++;
+        }
+    }
+
+    var gate = new RevolutMerchantCreateGate(vatOptions, revolutOptions);
+    var createBlocked = gate.Evaluate(RevolutPlanVariationKeys.StarterMonthly);
+
+    return Results.Ok(
+        new
+        {
+            status = createBlocked is null ? "ready" : "not_ready",
+            hostMode = revolut.HostMode,
+            requireSandboxHost = revolut.RequireSandboxHost,
+            merchantApiConfigured = revolut.HasMerchantApiConfig,
+            webhookSigningSecretConfigured =
+                !string.IsNullOrWhiteSpace(revolut.WebhookSigningSecret),
+            sellerVatComplete = vat.IsComplete,
+            planVariationsConfigured = configuredVariations,
+            planVariationsExpected = RevolutPlanVariationKeys.All.Count,
+            createBlockedCode = createBlocked,
+        }
+    );
 });
 
 app.MapControllers();

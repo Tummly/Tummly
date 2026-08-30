@@ -31,6 +31,10 @@ namespace TummlyBackend.Services
 
         private readonly IOperatorNotificationsService _notifications;
 
+        private readonly IBillingAccountLifecycle _lifecycle;
+
+        private readonly ICreditLedger _creditLedger;
+
         private const int MaxActivationVerifyAttempts = 5;
 
         private static readonly TimeSpan ActivationVerifyLockout =
@@ -46,7 +50,9 @@ namespace TummlyBackend.Services
     ILogger<AuthService> logger,
     IMemoryCache cache,
     IActivationGate activationGate,
-    IOperatorNotificationsService notifications
+    IOperatorNotificationsService notifications,
+    IBillingAccountLifecycle lifecycle,
+    ICreditLedger creditLedger
 )
         {
             _context = context;
@@ -59,6 +65,8 @@ namespace TummlyBackend.Services
             _cache = cache;
             _activationGate = activationGate;
             _notifications = notifications;
+            _lifecycle = lifecycle;
+            _creditLedger = creditLedger;
         }
 
         /*
@@ -812,6 +820,8 @@ namespace TummlyBackend.Services
 
             EnsureOperatorCanSignIn(user);
 
+            await TickSelectedRestaurantAsync(user);
+
             otpRecord.IsUsed = true;
 
             var isFirstSignIn = !user.HasCompletedFirstSignIn;
@@ -1118,9 +1128,53 @@ namespace TummlyBackend.Services
                     activatedAt
                 );
 
+            var restaurantIds = await _context.Restaurants
+                .Where(row => row.OwnerUserId == userId)
+                .Select(row => row.Id)
+                .ToListAsync();
+
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync();
+
+            foreach (var restaurantId in restaurantIds)
+            {
+                var mintResult = await _creditLedger.MintPilotAtActivationAsync(
+                    restaurantId
+                );
+                if (!mintResult.Succeeded)
+                {
+                    throw new Exception(
+                        "Unable to complete account activation."
+                    );
+                }
+            }
+
             await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            await TickSelectedRestaurantAsync(user);
 
             return await BuildSessionRoutingFieldsAsync(user);
+        }
+
+        private async Task TickSelectedRestaurantAsync(User user)
+        {
+            var restaurantId = user.SelectedRestaurantId;
+            if (restaurantId == null)
+            {
+                restaurantId = await _context.Restaurants
+                    .AsNoTracking()
+                    .Where(row => row.OwnerUserId == user.Id)
+                    .Select(row => (int?)row.Id)
+                    .FirstOrDefaultAsync();
+            }
+
+            if (restaurantId == null)
+            {
+                return;
+            }
+
+            await _lifecycle.TickAsync(restaurantId.Value, DateTime.UtcNow);
         }
 
         private void EnsureOperatorCanSignIn(User user)
@@ -1214,6 +1268,8 @@ namespace TummlyBackend.Services
             }
 
             EnsureOperatorCanSignIn(user);
+
+            await TickSelectedRestaurantAsync(user);
 
             return user;
         }

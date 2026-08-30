@@ -96,6 +96,54 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task FireAsync_SoftLockBillingAccount_WithOpenRef_IsCannotStartNotChannelHardStopped()
+        {
+            var seeded = await SeedScheduledCampaignAsync(
+                frozenEligibleCount: 2,
+                scheduledAtUtc: _now.AddMinutes(-5)
+            );
+
+            var campaign = await _context.Campaigns
+                .Include(c => c.RestaurantLocation)
+                .SingleAsync(c => c.Id == seeded.CampaignId);
+            var restaurantId = campaign.RestaurantLocation!.RestaurantId;
+            _context.BillingAccounts.Add(
+                new BillingAccount
+                {
+                    RestaurantId = restaurantId,
+                    SubscriptionPlan = BillingSubscriptionPlans.Growth,
+                    BillingCycle = BillingCycles.Monthly,
+                    BillingStatus = BillingStatuses.SoftLock,
+                    ContractedPricebookId = "TUMMLY-UK-GBP-2026-08-V3",
+                    StarterKitState = StarterKitStates.Unused,
+                    SoftLockEnteredAt = _now.AddDays(-1),
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var liveGate = new ClearCampaignSendStartGate(_context, () => _now);
+            var fire = new CampaignFireService(
+                _context,
+                _eligibility,
+                _reserve,
+                _outbound,
+                liveGate,
+                utcNow: () => _now
+            );
+
+            var result = await fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.CannotStart>(result);
+            Assert.IsNotType<CampaignFireResult.Ok>(result);
+            Assert.Single(_reserve.ReleaseCalls);
+            Assert.Empty(_outbound.Calls);
+            Assert.Equal(
+                CampaignFireService.FailedStatus,
+                (await _context.Campaigns.SingleAsync(c => c.Id == seeded.CampaignId)).Status
+            );
+        }
+
+        [Fact]
         public async Task FireAsync_WorkspacePaused_SetsFailedAndReleases_WithoutSending()
         {
             var seeded = await SeedScheduledCampaignAsync(
@@ -203,8 +251,9 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Single(_reserve.SettleCalls);
             Assert.Equal(ok.Campaign.AcceptedCount, _reserve.SettleCalls[0].AcceptedUnits);
-            // Remaining reservation held for retry / lifecycle release — not full release.
-            Assert.Empty(_reserve.ReleaseCalls);
+            // Mid-send stop closes the hold (Settle then Release) per lock 04.
+            Assert.Single(_reserve.ReleaseCalls);
+            Assert.Null(ok.Campaign.BillingReservationRef);
         }
 
         [Fact]
@@ -222,6 +271,7 @@ namespace TummlyBackend.Tests.Services
             campaign.Status = CampaignFireService.SendingStatus;
             campaign.BillingReservationRef = "res-fire-1";
             campaign.ReservedEstimate = 2;
+            campaign.SettledUnits = 2;
             await _context.SaveChangesAsync();
 
             _outbound.Calls.Clear();
@@ -247,6 +297,35 @@ namespace TummlyBackend.Tests.Services
             Assert.IsType<CampaignFireResult.NotDue>(result);
             Assert.Empty(_outbound.Calls);
             Assert.Empty(_reserve.ReleaseCalls);
+        }
+
+        [Fact]
+        public async Task FireAsync_SettleFail_KeepsBillingReservationRef()
+        {
+            var seeded = await SeedSendingCampaignAsync(frozenEligibleCount: 1);
+            _reserve.FailNextSettle = true;
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            var ok = Assert.IsType<CampaignFireResult.Ok>(result);
+            Assert.Equal("res-fire-1", ok.Campaign.BillingReservationRef);
+            Assert.Single(_reserve.SettleCalls);
+            Assert.Empty(_reserve.ReleaseCalls);
+        }
+
+        [Fact]
+        public async Task FireAsync_ReleaseFail_KeepsBillingReservationRef()
+        {
+            var seeded = await SeedSendingCampaignAsync(frozenEligibleCount: 1);
+            _reserve.FailNextRelease = true;
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            var ok = Assert.IsType<CampaignFireResult.Ok>(result);
+            Assert.Equal("res-fire-1", ok.Campaign.BillingReservationRef);
+            Assert.Equal(CampaignFireService.SendingStatus, ok.Campaign.Status);
+            Assert.Single(_reserve.SettleCalls);
+            Assert.Single(_reserve.ReleaseCalls);
         }
 
         [Fact]
@@ -532,6 +611,10 @@ namespace TummlyBackend.Tests.Services
         {
             public bool IsLive { get; set; }
 
+            public bool FailNextSettle { get; set; }
+
+            public bool FailNextRelease { get; set; }
+
             public List<CampaignBillingSettleRequest> SettleCalls { get; } = [];
 
             public List<CampaignBillingReleaseRequest> ReleaseCalls { get; } = [];
@@ -550,6 +633,16 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 SettleCalls.Add(request);
+                if (FailNextSettle)
+                {
+                    return Task.FromResult<CampaignBillingSettleResult>(
+                        new CampaignBillingSettleResult.Failed
+                        {
+                            Message = "settle_failed",
+                        }
+                    );
+                }
+
                 return Task.FromResult<CampaignBillingSettleResult>(
                     new CampaignBillingSettleResult.Ok()
                 );
@@ -561,6 +654,16 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 ReleaseCalls.Add(request);
+                if (FailNextRelease)
+                {
+                    return Task.FromResult<CampaignBillingReleaseResult>(
+                        new CampaignBillingReleaseResult.Failed
+                        {
+                            Message = "release_failed",
+                        }
+                    );
+                }
+
                 return Task.FromResult<CampaignBillingReleaseResult>(
                     new CampaignBillingReleaseResult.Ok()
                 );

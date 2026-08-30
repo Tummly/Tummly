@@ -9,9 +9,16 @@ type CampaignMessageChooserProps = {
   editorMode?: boolean
   /** True when the live message-draft adapter is wired. */
   prepareAiLive?: boolean
-  /** Soft-lock / AI credits / balances gate (ticket 25). */
+  /** Soft-lock / AI credits / balances gate (ticket 25 / 24 shared chip). */
   aiPrepareAllowed?: boolean
   aiPrepareBlockReason?: string | null
+  /** Show Buy AI credits when AI pool is empty (lock 09 / 11). */
+  showBuyAiCredits?: boolean
+  /** Show Change plan when Owner Manage (lock 11). */
+  showChangePlan?: boolean
+  /** Soft lock / Dormant restoration helper next to the disabled Prepare control. */
+  lockHelperLabel?: string | null
+  onLockHelper?: () => void
   /** Prepare failed while still on the chooser — show Try again. */
   aiDraftFailed?: boolean
   aiDraftRetryable?: boolean
@@ -19,23 +26,32 @@ type CampaignMessageChooserProps = {
   onPrepareDraft: () => void
   onWriteManually: () => void
   onRetryAiDraft: () => void
+  onBuyAiCredits?: () => void
+  onChangePlan?: () => void
 }
 
 /**
  * Campaign Message chooser — Prepare with AI / Write manually.
  * Same card pattern as GuestResponseChooser; Campaign-owned copy (tickets 26 + 33).
+ * Shared Uses 1 AI action chip rules: ticket 24 / lock 09.
  */
 export function CampaignMessageChooser({
   editorMode = false,
   prepareAiLive = false,
   aiPrepareAllowed = true,
   aiPrepareBlockReason = null,
+  showBuyAiCredits = false,
+  showChangePlan = false,
+  lockHelperLabel = null,
+  onLockHelper,
   aiDraftFailed = false,
   aiDraftRetryable = true,
   disabled = false,
   onPrepareDraft,
   onWriteManually,
   onRetryAiDraft,
+  onBuyAiCredits,
+  onChangePlan,
 }: CampaignMessageChooserProps) {
   const prepareDisabled = !prepareAiLive || !aiPrepareAllowed || disabled
   if (aiDraftFailed) {
@@ -88,11 +104,45 @@ export function CampaignMessageChooser({
             <CoinsIcon className="size-4 shrink-0" aria-hidden />
             {CAMPAIGN_MESSAGE_COPY.aiActionMeteringLabel}
           </span>
+          {lockHelperLabel != null && onLockHelper != null ? (
+            <Button
+              type="button"
+              variant="op-link"
+              className="h-auto min-h-0 w-fit p-0"
+              onClick={onLockHelper}
+            >
+              {lockHelperLabel}
+            </Button>
+          ) : null}
         </div>
         {aiPrepareBlockReason != null ? (
-          <p className="m-0 text-sm font-medium text-op-text-muted">
-            {aiPrepareBlockReason}
-          </p>
+          <div className="flex flex-col gap-2">
+            <p className="m-0 text-sm font-medium text-op-text-muted">
+              {aiPrepareBlockReason}
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              {showBuyAiCredits && onBuyAiCredits != null ? (
+                <Button
+                  type="button"
+                  variant="op-link"
+                  className="h-auto min-h-0 w-fit p-0"
+                  onClick={onBuyAiCredits}
+                >
+                  Buy AI credits
+                </Button>
+              ) : null}
+              {showChangePlan && onChangePlan != null ? (
+                <Button
+                  type="button"
+                  variant="op-link"
+                  className="h-auto min-h-0 w-fit p-0"
+                  onClick={onChangePlan}
+                >
+                  Change plan
+                </Button>
+              ) : null}
+            </div>
+          </div>
         ) : null}
       </div>
 

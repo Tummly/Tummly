@@ -510,6 +510,15 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .FirstAsync(u => u.Id == restaurant.OwnerUserId);
 
+            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
+                restaurant.Name,
+                owner.ActivationExpiresAt
+            );
+            var planSnapshot = (
+                SubscriptionPlan: lifecycle.SubscriptionPlan,
+                BillingStatus: lifecycle.BillingStatus
+            );
+
             var activeMembers = await _context.RestaurantMemberships
                 .AsNoTracking()
                 .Where(m =>
@@ -549,8 +558,8 @@ namespace TummlyBackend.Services
                 Status = new AccountWorkspaceStatusDto
                 {
                     WorkspaceStatus = workspaceStatus,
-                    PlanStatus = "Pilot",
-                    BillingStatus = "Active",
+                    PlanStatus = planSnapshot.SubscriptionPlan,
+                    BillingStatus = planSnapshot.BillingStatus,
                     AccountCreatedAt = restaurant.CreatedAt,
                     ActiveLocations = activeLocations,
                     TeamMembers = activeMembers.Count == 0 ? 1 : activeMembers.Count,

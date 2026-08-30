@@ -1,17 +1,34 @@
 /**
- * Stub AI credit chrome for the composer inbox (Figma 3454:56050).
- * Metering is not live. These numbers do not burn **AI credit**s.
+ * AI Assistant composer credits bar (Figma 3454:56050; lock 09 / ticket 25).
+ * Remaining and allowance come from Billing **Credits & usage** (AI channel).
  */
+import type { BillingCreditsAccessLevel } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import {
+  operatorDashboardBillingCreditsManagePlanPath,
+  operatorDashboardBillingCreditsPath,
+} from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import { formatCreditCount } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
+import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
+
 export const ASSISTANT_CREDITS_STUB_REMAINING = 20
 export const ASSISTANT_CREDITS_STUB_ALLOWANCE = 20
 export const ASSISTANT_VIEW_USAGE_LABEL = "View usage"
 export const ASSISTANT_ADD_CREDITS_LABEL = "Add credits"
+export const ASSISTANT_CHOOSE_PLAN_LABEL = "Choose a plan"
+export const ASSISTANT_UPDATE_PAYMENT_LABEL = "Update payment method"
+
+export type AssistantAccountLockCause = "unpaid-pilot" | "dunning"
+
+export type AssistantCreditsRestorationHelper = {
+  label: string
+  href: string
+}
 
 export function assistantCreditsRemainingLine(
   remaining: number,
   allowance: number
 ): string {
-  return `${remaining} of ${allowance} monthly AI actions remaining`
+  return `${formatCreditCount(remaining)} of ${formatCreditCount(allowance)} monthly AI credits remaining`
 }
 
 export const ASSISTANT_CREDITS_STUB_REMAINING_LINE =
@@ -19,6 +36,108 @@ export const ASSISTANT_CREDITS_STUB_REMAINING_LINE =
     ASSISTANT_CREDITS_STUB_REMAINING,
     ASSISTANT_CREDITS_STUB_ALLOWANCE
   )
+
+export function assistantCreditsDepleted(remaining: number): boolean {
+  return remaining <= 0
+}
+
+export function isAssistantAccountLocked(billingStatus: string): boolean {
+  return billingStatus === "Soft lock" || billingStatus === "Dormant"
+}
+
+export function resolveAssistantAccountLockCause(options: {
+  billingStatus: string
+  isPilot: boolean
+}): AssistantAccountLockCause | null {
+  if (!isAssistantAccountLocked(options.billingStatus)) {
+    return null
+  }
+  return options.isPilot ? "unpaid-pilot" : "dunning"
+}
+
+export function assistantCreditsShowViewUsage(
+  accessLevel: BillingCreditsAccessLevel
+): boolean {
+  return accessLevel === "view" || accessLevel === "manage"
+}
+
+export function assistantCreditsShowAddCredits(options: {
+  accessLevel: BillingCreditsAccessLevel
+  permissionRole: string
+}): boolean {
+  if (options.accessLevel !== "manage") {
+    return false
+  }
+  // Omit role must not hide Manage writers (CODING_STANDARDS chrome access).
+  if (options.permissionRole.trim() === "") {
+    return true
+  }
+  return (
+    options.permissionRole === "Owner"
+    || options.permissionRole === "Billing Admin"
+    || options.permissionRole === "Admin"
+  )
+}
+
+export function assistantCreditsViewUsageHref(
+  mode: OperatorDashboardMode,
+  locationId: number
+): string {
+  return operatorDashboardBillingCreditsPath(mode, locationId, {
+    tab: "credits-usage",
+  })
+}
+
+export function assistantCreditsAddCreditsHref(
+  mode: OperatorDashboardMode,
+  locationId: number
+): string {
+  return operatorDashboardBillingCreditsManagePlanPath(mode, locationId, {
+    section: "credit-top-ups",
+    channel: "ai",
+  })
+}
+
+export function assistantCreditsRestorationHelper(options: {
+  lockCause: AssistantAccountLockCause | null
+  accessLevel: BillingCreditsAccessLevel
+  permissionRole: string
+  mode: OperatorDashboardMode
+  locationId: number
+}): AssistantCreditsRestorationHelper | null {
+  if (options.lockCause == null || options.accessLevel !== "manage") {
+    return null
+  }
+
+  const isOwner = options.permissionRole === "Owner"
+  const isBillingAdminWriter =
+    options.permissionRole === "Billing Admin"
+    || options.permissionRole === "Admin"
+
+  if (options.lockCause === "unpaid-pilot") {
+    if (!isOwner) {
+      return null
+    }
+    return {
+      label: ASSISTANT_CHOOSE_PLAN_LABEL,
+      href: operatorDashboardBillingCreditsManagePlanPath(
+        options.mode,
+        options.locationId
+      ),
+    }
+  }
+
+  if (!isOwner && !isBillingAdminWriter) {
+    return null
+  }
+
+  return {
+    label: ASSISTANT_UPDATE_PAYMENT_LABEL,
+    href: operatorDashboardBillingCreditsPath(options.mode, options.locationId, {
+      tab: "payment-invoices",
+    }),
+  }
+}
 
 /** Shared Mic / Send circle fill — Figma Main Bg/Colour, primary glyph. */
 const ASSISTANT_COMPOSER_CIRCLE_CHROME_CLASS = [

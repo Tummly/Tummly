@@ -1,5 +1,5 @@
 import { resolveInitialLocationId } from "@/lib/operatorHome/buildHomeViewModel"
-import { parseOperatorProfile, parseTeamPermissionsAccess, type TeamPermissionsAccess } from "@/lib/operatorHome/parseOperatorProfile"
+import { parseOperatorProfile, parseTeamPermissionsAccess, parseBillingCreditsAccess, type BillingCreditsAccess, type TeamPermissionsAccess } from "@/lib/operatorHome/parseOperatorProfile"
 import type { LocationItem, LocationsResponse } from "@/types/dashboard"
 
 export type OperatorWorkspaceMode = "single" | "multi"
@@ -15,6 +15,10 @@ export type OperatorWorkspaceSnapshot = {
   activationExpiresAt: string | null
   selfRole: string | null
   teamPermissionsAccess: TeamPermissionsAccess
+  billingCreditsAccess: BillingCreditsAccess
+  subscriptionPlan: string
+  billingStatus: string
+  permissionRole: string
   aiAssistantAccess: boolean
   locationSwitcherInteractive: boolean
 }
@@ -55,6 +59,10 @@ type WorkspaceAction =
       activationExpiresAt: string | null
       selfRole: string | null
       teamPermissionsAccess: TeamPermissionsAccess
+      billingCreditsAccess: BillingCreditsAccess
+      subscriptionPlan: string
+      billingStatus: string
+      permissionRole: string
       aiAssistantAccess: boolean
       queryLocationId: number | null
     }
@@ -96,6 +104,10 @@ function reduce(
         activationExpiresAt: action.activationExpiresAt,
         selfRole: action.selfRole,
         teamPermissionsAccess: action.teamPermissionsAccess,
+        billingCreditsAccess: action.billingCreditsAccess,
+        subscriptionPlan: action.subscriptionPlan,
+        billingStatus: action.billingStatus,
+        permissionRole: action.permissionRole,
         aiAssistantAccess: action.aiAssistantAccess,
         lastQueryLocationId: action.queryLocationId,
       }
@@ -131,6 +143,10 @@ export function createOperatorWorkspaceSession(
     activationExpiresAt: null,
     selfRole: null,
     teamPermissionsAccess: "none",
+    billingCreditsAccess: "none",
+    subscriptionPlan: "Pilot",
+    billingStatus: "Pilot",
+    permissionRole: "",
     aiAssistantAccess: true,
     locationSwitcherInteractive: config.mode === "multi",
     lastQueryLocationId: null,
@@ -147,6 +163,10 @@ export function createOperatorWorkspaceSession(
     activationExpiresAt: state.activationExpiresAt,
     selfRole: state.selfRole,
     teamPermissionsAccess: state.teamPermissionsAccess,
+    billingCreditsAccess: state.billingCreditsAccess,
+    subscriptionPlan: state.subscriptionPlan,
+    billingStatus: state.billingStatus,
+    permissionRole: state.permissionRole,
     aiAssistantAccess: state.aiAssistantAccess,
     locationSwitcherInteractive: state.locationSwitcherInteractive,
   }
@@ -171,6 +191,10 @@ export function createOperatorWorkspaceSession(
       activationExpiresAt: state.activationExpiresAt,
       selfRole: state.selfRole,
       teamPermissionsAccess: state.teamPermissionsAccess,
+      billingCreditsAccess: state.billingCreditsAccess,
+      subscriptionPlan: state.subscriptionPlan,
+      billingStatus: state.billingStatus,
+      permissionRole: state.permissionRole,
       aiAssistantAccess: state.aiAssistantAccess,
       locationSwitcherInteractive: state.locationSwitcherInteractive,
     }
@@ -227,6 +251,13 @@ export function createOperatorWorkspaceSession(
           parseTeamPermissionsAccess(locationsResult.teamPermissionsAccess)
           ?? profile?.teamPermissionsAccess
           ?? "manage",
+        billingCreditsAccess:
+          parseBillingCreditsAccess(locationsResult.billingCreditsAccess)
+          ?? profile?.billingCreditsAccess
+          ?? "manage",
+        subscriptionPlan: locationsResult.subscriptionPlan ?? "Pilot",
+        billingStatus: locationsResult.billingStatus ?? "Pilot",
+        permissionRole: locationsResult.permissionRole?.trim() ?? "",
         aiAssistantAccess: locationsResult.aiAssistantAccess !== false,
         queryLocationId,
       })

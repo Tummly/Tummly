@@ -16,14 +16,17 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
+        private readonly IBillingAccountLifecycle _lifecycle;
 
         public SmartGuestLinkService(
             ApplicationDbContext context,
-            IConfiguration configuration
+            IConfiguration configuration,
+            IBillingAccountLifecycle lifecycle
         )
         {
             _context = context;
             _configuration = configuration;
+            _lifecycle = lifecycle;
         }
 
         public async Task<string> GenerateTokenAsync()
@@ -47,13 +50,13 @@ namespace TummlyBackend.Services
             throw new LinkTokenGenerationException();
         }
 
-        public async Task<GuestLinkLocationInfo?> ResolveForGuestAsync(string token)
+        public async Task<GuestQrResolveResult> ResolveForGuestAsync(string token)
         {
             var normalizedToken = NormalizeToken(token);
 
             if (normalizedToken == null)
             {
-                return null;
+                return new GuestQrResolveResult.NotFound();
             }
 
             var qrCode = await _context.QrCodes
@@ -67,32 +70,41 @@ namespace TummlyBackend.Services
 
             var location = qrCode?.RestaurantLocation;
 
-            if (qrCode == null || location == null)
+            if (qrCode == null || location == null || location.Restaurant == null)
             {
-                return null;
+                return new GuestQrResolveResult.NotFound();
             }
 
-            if (location.Restaurant?.WorkspaceStatus == WorkspaceStatus.Paused)
+            var restaurant = location.Restaurant;
+            var access = await EvaluateGuestAccessAfterTickAsync(restaurant);
+
+            if (access == GuestQrAccessKind.Dormant)
             {
-                return null;
+                return new GuestQrResolveResult.Dormant(
+                    restaurant.Name ?? "",
+                    BuildBrandLogoPublicUrl(restaurant.BrandLogoObjectKey)
+                );
             }
 
-            var brandLogoObjectKey = location.Restaurant?.BrandLogoObjectKey;
-            var brandLogoPublicUrl =
-                string.IsNullOrWhiteSpace(brandLogoObjectKey)
-                    ? null
-                    : BrandLogoRules.BuildPublicUrl(brandLogoObjectKey);
-
-            return new GuestLinkLocationInfo
+            if (access == GuestQrAccessKind.Denied)
             {
-                LocationId = location.Id,
-                RestaurantName = location.Restaurant?.Name ?? "",
-                LocationName = location.LocationName,
-                Address = location.Address ?? "",
-                BrandLogoPublicUrl = brandLogoPublicUrl,
-                QrCodeId = qrCode.Id,
-                QrType = qrCode.QrType
-            };
+                return new GuestQrResolveResult.NotFound();
+            }
+
+            return new GuestQrResolveResult.Live(
+                new GuestLinkLocationInfo
+                {
+                    LocationId = location.Id,
+                    RestaurantName = restaurant.Name ?? "",
+                    LocationName = location.LocationName,
+                    Address = location.Address ?? "",
+                    BrandLogoPublicUrl = BuildBrandLogoPublicUrl(
+                        restaurant.BrandLogoObjectKey
+                    ),
+                    QrCodeId = qrCode.Id,
+                    QrType = qrCode.QrType
+                }
+            );
         }
 
         public async Task<QrLinkWriteResolution?> ResolveLocationForWriteAsync(
@@ -114,15 +126,14 @@ namespace TummlyBackend.Services
                     && q.Status == QrCodeStatus.Active
                 );
 
-            if (qrCode?.RestaurantLocation == null)
+            if (qrCode?.RestaurantLocation?.Restaurant == null)
             {
                 return null;
             }
 
-            if (
-                qrCode.RestaurantLocation.Restaurant?.WorkspaceStatus
-                == WorkspaceStatus.Paused
-            )
+            var restaurant = qrCode.RestaurantLocation.Restaurant;
+            var access = await EvaluateGuestAccessAfterTickAsync(restaurant);
+            if (access != GuestQrAccessKind.Allowed)
             {
                 return null;
             }
@@ -155,6 +166,49 @@ namespace TummlyBackend.Services
                 )
                 .Select(q => q.Token)
                 .FirstOrDefaultAsync();
+        }
+
+        private async Task<GuestQrAccessKind> EvaluateGuestAccessAfterTickAsync(
+            Restaurant restaurant
+        )
+        {
+            await _lifecycle.TickAsync(restaurant.Id, DateTime.UtcNow);
+
+            var billingStatus = await LoadBillingStatusAsync(restaurant.Id);
+            if (billingStatus == BillingStatuses.Dormant)
+            {
+                return GuestQrAccessKind.Dormant;
+            }
+
+            if (restaurant.WorkspaceStatus == WorkspaceStatus.Paused)
+            {
+                return GuestQrAccessKind.Denied;
+            }
+
+            return GuestQrAccessKind.Allowed;
+        }
+
+        private async Task<string?> LoadBillingStatusAsync(int restaurantId)
+        {
+            return await _context.BillingAccounts
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == restaurantId)
+                .Select(row => row.BillingStatus)
+                .FirstOrDefaultAsync();
+        }
+
+        private static string? BuildBrandLogoPublicUrl(string? brandLogoObjectKey)
+        {
+            return string.IsNullOrWhiteSpace(brandLogoObjectKey)
+                ? null
+                : BrandLogoRules.BuildPublicUrl(brandLogoObjectKey);
+        }
+
+        private enum GuestQrAccessKind
+        {
+            Allowed,
+            Denied,
+            Dormant,
         }
 
         private static string? NormalizeToken(string? token)

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useOutletContext, useSearchParams } from "react-router-dom"
 
 import brandLogoPlaceholder from "@/assets/images/brand-logo-placeholder.png"
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
 import { GuestDataExportDialog } from "@/components/dashboard/operator/AccountWorkspace/GuestDataExportDialog"
 import { useAccountWorkspacePageModuleApi } from "@/components/dashboard/operator/AccountWorkspace/utils/accountWorkspacePageModuleContext"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { AddressPostcodeFields } from "@/components/form/AddressPostcodeFields"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -32,8 +33,11 @@ import {
   accountRequestConfirmLabels,
   formatAccountWorkspaceLastSaved,
   isUnitedKingdomCountry,
+  resolveAccountWorkspacePlanStatusPresentation,
+  type AccountWorkspacePlanStatusPresentation,
 } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 import type { AccountWorkspaceTabId } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
+import { operatorDashboardBillingCreditsPath } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import { resolveBrandLogoSrc } from "@/lib/brandLogo/resolveBrandLogoSrc"
 import {
   BROWSER_BACK_HREF,
@@ -67,6 +71,33 @@ function StatusRow({ label, value }: { label: string; value: string }) {
     <div className={GUESTS_DETAIL_FIELD_CLASS}>
       <p className={GUESTS_DETAIL_FIELD_LABEL_CLASS}>{label}</p>
       <p className={GUESTS_DETAIL_FIELD_VALUE_CLASS}>{value}</p>
+    </div>
+  )
+}
+
+function PlanStatusRow({
+  label,
+  presentation,
+}: {
+  label: string
+  presentation: AccountWorkspacePlanStatusPresentation
+}) {
+  return (
+    <div className={GUESTS_DETAIL_FIELD_CLASS}>
+      <p className={GUESTS_DETAIL_FIELD_LABEL_CLASS}>{label}</p>
+      {presentation.kind === "link" ? (
+        <Link
+          to={presentation.href}
+          className={cn(
+            GUESTS_DETAIL_FIELD_VALUE_CLASS,
+            "underline decoration-solid underline-offset-2"
+          )}
+        >
+          {presentation.label}
+        </Link>
+      ) : (
+        <p className={GUESTS_DETAIL_FIELD_VALUE_CLASS}>{presentation.label}</p>
+      )}
     </div>
   )
 }
@@ -149,6 +180,8 @@ function formatDateOnly(iso: string): string {
 
 export function AccountWorkspacePage() {
   const pageModule = useAccountWorkspacePageModuleApi()
+  const { billingCreditsAccess, selectedLocationId, mode } =
+    useOutletContext<DashboardOutletContext>()
   const snap = useSyncExternalStore(
     pageModule.subscribe,
     pageModule.getSnapshot,
@@ -220,6 +253,17 @@ export function AccountWorkspacePage() {
   }, [snap.isDirty, pageModule])
 
   const status = snap.accountDetails.status
+  const planStatusPresentation =
+    status != null
+      ? resolveAccountWorkspacePlanStatusPresentation({
+          planStatus: status.planStatus,
+          billingCreditsAccess,
+          planSubscriptionHref: operatorDashboardBillingCreditsPath(
+            mode,
+            selectedLocationId
+          ),
+        })
+      : null
   const workspaceNameError = snap.accountDetails.workspaceNameError
   const business = snap.businessDetails
   const keyContacts = snap.keyContacts
@@ -422,7 +466,10 @@ export function AccountWorkspacePage() {
                     label="Workspace status"
                     value={status.workspaceStatus}
                   />
-                  <StatusRow label="Plan status" value={status.planStatus} />
+                  <PlanStatusRow
+                    label="Plan status"
+                    presentation={planStatusPresentation!}
+                  />
                   <StatusRow
                     label="Billing status"
                     value={status.billingStatus}
@@ -1003,7 +1050,10 @@ export function AccountWorkspacePage() {
                     label="Workspace status"
                     value={status.workspaceStatus}
                   />
-                  <StatusRow label="Plan status" value={status.planStatus} />
+                  <PlanStatusRow
+                    label="Plan status"
+                    presentation={planStatusPresentation!}
+                  />
                   <StatusRow
                     label="Billing status"
                     value={status.billingStatus}

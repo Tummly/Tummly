@@ -20,6 +20,7 @@ namespace TummlyBackend.Controllers
         private readonly ICampaignDraftService _campaignDrafts;
         private readonly ICampaignRecommendationService _campaignRecommendation;
         private readonly ICampaignMessageDraftService _campaignMessageDraft;
+        private readonly IBilledAiActionCoordinator _billedAi;
         private readonly ICampaignSendTestService _campaignSendTest;
         private readonly ICampaignEligibilityService _campaignEligibility;
         private readonly ICampaignScheduleCommitService _campaignScheduleCommit;
@@ -34,6 +35,7 @@ namespace TummlyBackend.Controllers
             ICampaignDraftService campaignDrafts,
             ICampaignRecommendationService campaignRecommendation,
             ICampaignMessageDraftService campaignMessageDraft,
+            IBilledAiActionCoordinator billedAi,
             ICampaignSendTestService campaignSendTest,
             ICampaignEligibilityService campaignEligibility,
             ICampaignScheduleCommitService campaignScheduleCommit,
@@ -48,6 +50,7 @@ namespace TummlyBackend.Controllers
             _campaignDrafts = campaignDrafts;
             _campaignRecommendation = campaignRecommendation;
             _campaignMessageDraft = campaignMessageDraft;
+            _billedAi = billedAi;
             _campaignSendTest = campaignSendTest;
             _campaignEligibility = campaignEligibility;
             _campaignScheduleCommit = campaignScheduleCommit;
@@ -368,7 +371,8 @@ namespace TummlyBackend.Controllers
 
         [HttpPost("message-draft")]
         public async Task<IActionResult> PrepareMessageDraft(
-            [FromBody] PrepareCampaignMessageDraftRequest request
+            [FromBody] PrepareCampaignMessageDraftRequest request,
+            CancellationToken cancellationToken
         )
         {
             var unauthorized =
@@ -390,39 +394,50 @@ namespace TummlyBackend.Controllers
 
             try
             {
-                var result = await _campaignMessageDraft.PrepareAsync(
-                    ownedLocation.Location!.LocationName,
-                    request
+                var packKey = BilledAiPackKeys.ForCampaign(request.Mode);
+                var locationName = ownedLocation.Location!.LocationName;
+                var billingResult = await _billedAi.ExecuteAsync(
+                    new BilledAiActionRequest
+                    {
+                        RestaurantId = ownedLocation.RestaurantId,
+                        LocationId = request.LocationId,
+                        IdempotencyKey = Request.Headers["Idempotency-Key"]
+                            .FirstOrDefault(),
+                        PackKey = packKey,
+                    },
+                    async ct =>
+                    {
+                        var result = await _campaignMessageDraft.PrepareAsync(
+                            locationName,
+                            request,
+                            ct
+                        );
+                        return result switch
+                        {
+                            CampaignMessageDraftServiceResult.Ok ok =>
+                                new BilledAiGenerationResult.Ok(
+                                    new BilledAiDraftPayload
+                                    {
+                                        Body = ok.Body,
+                                        Subject = ok.Subject,
+                                        Channel = ok.Channel,
+                                    }
+                                ),
+                            CampaignMessageDraftServiceResult.Failed failed =>
+                                new BilledAiGenerationResult.Failed(
+                                    failed.Message,
+                                    failed.Retryable
+                                ),
+                            _ => new BilledAiGenerationResult.Failed(
+                                "We could not prepare a draft.",
+                                Retryable: true
+                            ),
+                        };
+                    },
+                    cancellationToken
                 );
 
-                return result switch
-                {
-                    CampaignMessageDraftServiceResult.Ok ok => Ok(new
-                    {
-                        success = true,
-                        body = ok.Body,
-                        subject = ok.Subject,
-                        channel = ok.Channel,
-                    }),
-                    CampaignMessageDraftServiceResult.Failed failed => StatusCode(
-                        StatusCodes.Status502BadGateway,
-                        new
-                        {
-                            success = false,
-                            message = failed.Message,
-                            retryable = failed.Retryable,
-                        }
-                    ),
-                    _ => StatusCode(
-                        StatusCodes.Status500InternalServerError,
-                        new
-                        {
-                            success = false,
-                            message = "Unexpected campaign message draft result.",
-                            retryable = true,
-                        }
-                    ),
-                };
+                return billingResult.ToActionResult();
             }
             catch (ArgumentException ex)
             {
@@ -474,6 +489,14 @@ namespace TummlyBackend.Controllers
                     success = true,
                     campaign,
                 });
+            }
+            catch (OperatorBillingLockedException ex)
+            {
+                return OperatorBillingLockGate.Forbidden(ex.Code);
+            }
+            catch (PlanEntitlementCapException ex)
+            {
+                return PlanEntitlementHttp.ToConflict(this, ex);
             }
             catch (ArgumentException ex)
             {
@@ -595,6 +618,14 @@ namespace TummlyBackend.Controllers
                     ),
                 };
             }
+            catch (OperatorBillingLockedException ex)
+            {
+                return OperatorBillingLockGate.Forbidden(ex.Code);
+            }
+            catch (PlanEntitlementCapException ex)
+            {
+                return PlanEntitlementHttp.ToConflict(this, ex);
+            }
             catch (ArgumentException ex)
             {
                 return BadRequest(new
@@ -691,6 +722,38 @@ namespace TummlyBackend.Controllers
                             success = false,
                             code = "reserve_failed",
                             message = failed.Message,
+                        }),
+                    CampaignScheduleCommitResult.ChannelHardStopped hardStopped =>
+                        UnprocessableEntity(new
+                        {
+                            success = false,
+                            code = "channel_hard_stopped",
+                            channel = hardStopped.Channel,
+                            remaining = hardStopped.Remaining,
+                            requested = hardStopped.Requested,
+                            message =
+                                "This channel has no remaining credits. Schedule and send stay blocked on this channel.",
+                        }),
+                    CampaignScheduleCommitResult.OperatorBillingLocked locked =>
+                        StatusCode(
+                            StatusCodes.Status403Forbidden,
+                            new
+                            {
+                                success = false,
+                                code = locked.Code,
+                                message = locked.Code,
+                            }
+                        ),
+                    CampaignScheduleCommitResult.InsufficientCredits insufficient =>
+                        UnprocessableEntity(new
+                        {
+                            success = false,
+                            code = "insufficient_credits",
+                            channel = insufficient.Channel,
+                            remaining = insufficient.Remaining,
+                            requested = insufficient.Requested,
+                            message =
+                                "Not enough credits remain on this channel for the full estimate.",
                         }),
                     CampaignScheduleCommitResult.ZeroEligible =>
                         UnprocessableEntity(new
@@ -909,6 +972,38 @@ namespace TummlyBackend.Controllers
                         success = false,
                         code = "reserve_failed",
                         message = failed.Message,
+                    }),
+                CampaignLifecycleResult.ChannelHardStopped hardStopped =>
+                    UnprocessableEntity(new
+                    {
+                        success = false,
+                        code = "channel_hard_stopped",
+                        channel = hardStopped.Channel,
+                        remaining = hardStopped.Remaining,
+                        requested = hardStopped.Requested,
+                        message =
+                            "This channel has no remaining credits. Resume and retry stay blocked on this channel.",
+                    }),
+                CampaignLifecycleResult.OperatorBillingLocked locked =>
+                    StatusCode(
+                        StatusCodes.Status403Forbidden,
+                        new
+                        {
+                            success = false,
+                            code = locked.Code,
+                            message = locked.Code,
+                        }
+                    ),
+                CampaignLifecycleResult.InsufficientCredits insufficient =>
+                    UnprocessableEntity(new
+                    {
+                        success = false,
+                        code = "insufficient_credits",
+                        channel = insufficient.Channel,
+                        remaining = insufficient.Remaining,
+                        requested = insufficient.Requested,
+                        message =
+                            "Not enough credits remain on this channel for the full estimate.",
                     }),
                 CampaignLifecycleResult.ReleaseFailed releaseFailed =>
                     UnprocessableEntity(new

@@ -8,7 +8,7 @@ import { parseRecoveryDraftActionRouterState } from "@/lib/operatorFeedback/reco
 import { toast } from "sonner"
 
 export function FeedbackRoute() {
-  const { selectedLocationId, locations } =
+  const { selectedLocationId, locations, mode, billingCreditsAccess } =
     useOutletContext<DashboardOutletContext>()
   const feedbackPageModule = useFeedbackPageModuleApi()
   const syncFeedbackRef = useRef(feedbackPageModule.syncWorkspace)
@@ -23,6 +23,12 @@ export function FeedbackRoute() {
       return
     }
 
+    feedbackPageModule.setRecoveryCreditChromeNav({
+      mode,
+      locationId: selectedLocationId,
+      accessLevel: billingCreditsAccess,
+    })
+
     void syncFeedbackRef.current({
       selectedLocationId,
       locations: locations.map((locationRow) => ({
@@ -30,7 +36,13 @@ export function FeedbackRoute() {
         locationName: locationRow.locationName,
       })),
     })
-  }, [selectedLocationId, locations])
+  }, [
+    selectedLocationId,
+    locations,
+    mode,
+    billingCreditsAccess,
+    feedbackPageModule,
+  ])
 
   useEffect(() => {
     const payload = parseRecoveryDraftActionRouterState(location.state)
