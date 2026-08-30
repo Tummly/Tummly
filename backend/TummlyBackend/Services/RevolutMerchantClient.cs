@@ -160,7 +160,7 @@ namespace TummlyBackend.Services
             }
 
             return await PostCreateAsync(
-                "api/1.0/subscriptions",
+                "api/subscriptions",
                 new
                 {
                     customer_id = request.CustomerId,
@@ -247,7 +247,7 @@ namespace TummlyBackend.Services
             }
 
             return await PostCreateAsync(
-                $"api/1.0/subscriptions/{Uri.EscapeDataString(subscriptionId.Trim())}/change-plan",
+                $"api/subscriptions/{Uri.EscapeDataString(subscriptionId.Trim())}/change-plan",
                 new
                 {
                     plan_variation_id = variationId,
@@ -277,7 +277,7 @@ namespace TummlyBackend.Services
             var client = _httpClientFactory.CreateClient(HttpClientName);
             using var message = new HttpRequestMessage(
                 HttpMethod.Post,
-                $"api/1.0/subscriptions/{Uri.EscapeDataString(subscriptionId.Trim())}/cancel"
+                $"api/subscriptions/{Uri.EscapeDataString(subscriptionId.Trim())}/cancel"
             );
             ApplyAuthHeaders(message);
 
@@ -599,7 +599,7 @@ namespace TummlyBackend.Services
             var client = _httpClientFactory.CreateClient(HttpClientName);
             using var message = new HttpRequestMessage(
                 HttpMethod.Get,
-                $"api/1.0/subscriptions/{Uri.EscapeDataString(subscriptionId.Trim())}"
+                $"api/subscriptions/{Uri.EscapeDataString(subscriptionId.Trim())}"
             );
             ApplyAuthHeaders(message);
 
@@ -666,7 +666,7 @@ namespace TummlyBackend.Services
             var client = _httpClientFactory.CreateClient(HttpClientName);
             using var message = new HttpRequestMessage(
                 HttpMethod.Get,
-                $"api/1.0/subscriptions/{Uri.EscapeDataString(subscriptionId.Trim())}/cycles/{Uri.EscapeDataString(cycleId.Trim())}"
+                $"api/subscriptions/{Uri.EscapeDataString(subscriptionId.Trim())}/cycles/{Uri.EscapeDataString(cycleId.Trim())}"
             );
             ApplyAuthHeaders(message);
 
@@ -985,6 +985,19 @@ namespace TummlyBackend.Services
                 )
                 {
                     checkoutUrl = checkoutElement.GetString();
+                }
+
+                // Subscription create returns setup_order_checkout_url, not checkout_url.
+                if (
+                    string.IsNullOrWhiteSpace(checkoutUrl)
+                    && root.TryGetProperty(
+                        "setup_order_checkout_url",
+                        out var setupCheckoutElement
+                    )
+                    && setupCheckoutElement.ValueKind == JsonValueKind.String
+                )
+                {
+                    checkoutUrl = setupCheckoutElement.GetString();
                 }
             }
 

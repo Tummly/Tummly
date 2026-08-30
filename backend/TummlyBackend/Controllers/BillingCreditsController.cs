@@ -366,6 +366,20 @@ namespace TummlyBackend.Controllers
             {
                 return RevolutMerchantNotReady(ex.Message);
             }
+            catch (InvalidOperationException ex) when (
+                ex.Message == "revolut_http_error"
+            )
+            {
+                return StatusCode(
+                    StatusCodes.Status502BadGateway,
+                    new
+                    {
+                        success = false,
+                        code = "revolut_http_error",
+                        message = "Revolut Merchant request failed.",
+                    }
+                );
+            }
         }
 
         [HttpDelete("scheduled-change")]

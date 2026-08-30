@@ -177,18 +177,25 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var order = await _merchant.GetOrderAsync(
-                created.SetupOrderId,
-                cancellationToken
-            );
-            if (
-                !order.Succeeded
-                || string.IsNullOrWhiteSpace(order.CheckoutUrl)
-            )
+            // Prefer setup_order_checkout_url from create; fall back to order retrieve.
+            var checkoutUrl = created.CheckoutUrl;
+            if (string.IsNullOrWhiteSpace(checkoutUrl))
             {
-                throw new InvalidOperationException(
-                    order.ErrorCode ?? "revolut_http_error"
+                var order = await _merchant.GetOrderAsync(
+                    created.SetupOrderId,
+                    cancellationToken
                 );
+                if (
+                    !order.Succeeded
+                    || string.IsNullOrWhiteSpace(order.CheckoutUrl)
+                )
+                {
+                    throw new InvalidOperationException(
+                        order.ErrorCode ?? "revolut_http_error"
+                    );
+                }
+
+                checkoutUrl = order.CheckoutUrl;
             }
 
             var session = new RevolutPendingPaySession
@@ -199,7 +206,7 @@ namespace TummlyBackend.Services
                 TargetCadence = targetCadenceApi,
                 RevolutSubscriptionId = created.Id,
                 SetupOrderId = created.SetupOrderId,
-                CheckoutUrl = order.CheckoutUrl,
+                CheckoutUrl = checkoutUrl,
                 IdempotencyKey = idempotencyKey,
                 IsOpen = true,
                 CreatedAtUtc = DateTime.UtcNow,
@@ -207,7 +214,7 @@ namespace TummlyBackend.Services
             _context.RevolutPendingPaySessions.Add(session);
             await _context.SaveChangesAsync(cancellationToken);
 
-            return PayResult(order.CheckoutUrl);
+            return PayResult(checkoutUrl);
         }
 
         private async Task CancelPendingAsync(

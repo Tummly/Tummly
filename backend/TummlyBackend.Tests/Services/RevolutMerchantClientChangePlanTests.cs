@@ -31,7 +31,7 @@ namespace TummlyBackend.Tests.Services
             Assert.NotNull(handler.LastRequest);
             Assert.Equal(HttpMethod.Post, handler.LastRequest!.Method);
             Assert.EndsWith(
-                "/api/1.0/subscriptions/sub_live_1/change-plan",
+                "/api/subscriptions/sub_live_1/change-plan",
                 handler.LastRequest.RequestUri!.AbsolutePath
             );
 
