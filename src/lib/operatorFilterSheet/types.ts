@@ -14,6 +14,8 @@ export type DatePresetId =
   | "today"
   | "last-7"
   | "last-30"
+  | "last-90"
+  | "this-year"
   | "this-month"
   | "previous-month"
   | "custom"
@@ -84,7 +86,7 @@ export type DateFieldSchema = {
   label: string
   hasAxis: boolean
   axisLabels?: Partial<Record<DateAxisId, string>>
-  presetLabels: Record<Exclude<DatePresetId, "any-time" | "custom">, string>
+  presetLabels: Partial<Record<Exclude<DatePresetId, "any-time" | "custom">, string>>
 }
 
 export type LocationScopeFieldSchema = {
