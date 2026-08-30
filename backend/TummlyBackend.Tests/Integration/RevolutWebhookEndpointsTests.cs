@@ -1023,7 +1023,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(disputeId, tcn.RevolutOrderId);
             Assert.StartsWith("TCN-", tcn.DocumentNumber);
             Assert.Equal(
-                TummlyVatInvoice.PaymentStatusCreditNote,
+                TummlyVatInvoice.PaymentStatusPaid,
                 tcn.PaymentStatus
             );
 
