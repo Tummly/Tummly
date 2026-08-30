@@ -135,10 +135,11 @@ if any A/B config is empty or the target recurring SKU has no C map entry.
 | Any VAT A key missing | `vat_not_ready` / **503** | No redirect to HPP; no Merchant create |
 | `Revolut__SecretKey` / `ApiBaseUrl` / `ApiVersion` missing | `revolut_not_ready` / **503** | No Merchant call |
 | Target recurring `plan_variation_id` missing from C | `plan_variation_missing` / **503** | No subscription create / change onto that SKU |
-| Empty or wrong `Revolut__WebhookSigningSecret` | Bad signature → **401** | No event row; do not enable live paid conversion in an env that cannot verify webhooks |
+| Empty or wrong `Revolut__WebhookSigningSecret` | Bad signature → **401/400** | No event row; do not enable live paid conversion in an env that cannot verify webhooks |
 
 Gate: `RevolutMerchantCreateGate`. Webhook: `POST /api/webhooks/revolut`
-(`RevolutWebhooksController` → Unauthorized on bad signature).
+(bad signature → **401/400**, no event row; current controller returns
+Unauthorized / **401**).
 
 Sandbox may use separate sandbox keys and a sandbox map. Live fail-closed
 does **not** apply to pure Pilot / unpaid paths that never call Revolut.
@@ -152,8 +153,8 @@ does **not** apply to pure Pilot / unpaid paths that never call Revolut.
 2. Update **only** ACA / Key Vault (edit gitignored `secrets*.env`, then
    `apply-aca-secrets.ps1` or Prod twin).
 3. Never paste rotated values into the repo, tickets, or pack JSON.
-4. After webhook secret rotate, confirm a test delivery verifies (no **401**)
-   before treating the env as go-live ready.
+4. After webhook secret rotate, confirm a test delivery verifies (no
+   **401/400**) before treating the env as go-live ready.
 
 ---
 
