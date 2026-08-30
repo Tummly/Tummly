@@ -1648,6 +1648,8 @@ namespace TummlyBackend.Services
                 return null;
             }
 
+            await BackfillPaidOrderActivityIfMissingAsync(restaurantId);
+
             var safeSkip = skip < 0 ? 0 : skip;
             var safeTake = take < 1 ? 10 : take > 20 ? 20 : take;
 
@@ -1675,6 +1677,118 @@ namespace TummlyBackend.Services
                     .ToList(),
                 TotalCount = totalCount,
             };
+        }
+
+        /// <summary>
+        /// Paid Revolut apply used to mint TM invoices without writing activity.
+        /// Fill missing invoice_paid / subscription_created rows from invoices.
+        /// </summary>
+        private async Task BackfillPaidOrderActivityIfMissingAsync(int restaurantId)
+        {
+            var invoices = await _context.TummlyVatInvoices
+                .AsNoTracking()
+                .Where(row =>
+                    row.RestaurantId == restaurantId
+                    && row.DocumentPrefix == TummlyDocumentSequence.PrefixTm
+                )
+                .OrderBy(row => row.InvoiceDateUtc)
+                .ThenBy(row => row.DocumentNumber)
+                .ToListAsync();
+            if (invoices.Count == 0)
+            {
+                return;
+            }
+
+            var existingInvoiceNos = await _context.RestaurantBillingActivities
+                .AsNoTracking()
+                .Where(row =>
+                    row.RestaurantId == restaurantId
+                    && row.Kind == BillingActivityKinds.InvoicePaid
+                    && row.InvoiceNo != null
+                )
+                .Select(row => row.InvoiceNo!)
+                .ToListAsync();
+            var invoiceNos = new HashSet<string>(
+                existingInvoiceNos,
+                StringComparer.Ordinal
+            );
+
+            var wrote = false;
+            foreach (var invoice in invoices)
+            {
+                if (invoiceNos.Contains(invoice.DocumentNumber))
+                {
+                    continue;
+                }
+
+                BillingActivityWriter.TryAppend(
+                    _context,
+                    new BillingActivityAppendRequest
+                    {
+                        RestaurantId = restaurantId,
+                        Kind = BillingActivityKinds.InvoicePaid,
+                        OccurredAtUtc = invoice.InvoiceDateUtc,
+                        InvoiceNo = invoice.DocumentNumber,
+                    }
+                );
+                invoiceNos.Add(invoice.DocumentNumber);
+                wrote = true;
+            }
+
+            var hasSubscriptionCreated = await _context.RestaurantBillingActivities
+                .AsNoTracking()
+                .AnyAsync(row =>
+                    row.RestaurantId == restaurantId
+                    && row.Kind == BillingActivityKinds.SubscriptionCreated
+                );
+            if (!hasSubscriptionCreated)
+            {
+                var account = await _context.BillingAccounts
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(row => row.RestaurantId == restaurantId);
+                if (
+                    account != null
+                    && string.Equals(
+                        account.BillingStatus,
+                        BillingStatuses.Active,
+                        StringComparison.Ordinal
+                    )
+                    && !string.Equals(
+                        account.SubscriptionPlan,
+                        BillingSubscriptionPlans.Pilot,
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    var actorName = await _context.Restaurants
+                        .AsNoTracking()
+                        .Where(row => row.Id == restaurantId)
+                        .Select(row => row.OwnerUser.FullName)
+                        .FirstOrDefaultAsync();
+                    var firstPaidAt = invoices[0].InvoiceDateUtc;
+                    BillingActivityWriter.TryAppend(
+                        _context,
+                        new BillingActivityAppendRequest
+                        {
+                            RestaurantId = restaurantId,
+                            Kind = BillingActivityKinds.SubscriptionCreated,
+                            OccurredAtUtc = firstPaidAt,
+                            ActorDisplayName = string.IsNullOrWhiteSpace(actorName)
+                                ? null
+                                : actorName.Trim(),
+                            Plan = account.SubscriptionPlan,
+                            Cadence = account.BillingCycle
+                                ?? BillingCycles.Monthly,
+                        }
+                    );
+                    wrote = true;
+                }
+            }
+
+            if (wrote)
+            {
+                await _context.SaveChangesAsync();
+            }
         }
     }
 }

@@ -261,6 +261,29 @@ namespace TummlyBackend.Tests.Services
                     await context.RevolutPendingPaySessions.SingleAsync()
                 ).IsOpen
             );
+
+            var activityKinds = await context.RestaurantBillingActivities
+                .OrderBy(row => row.OccurredAtUtc)
+                .ThenBy(row => row.Id)
+                .Select(row => row.Kind)
+                .ToListAsync();
+            Assert.Equal(
+                [
+                    BillingActivityKinds.SubscriptionCreated,
+                    BillingActivityKinds.InvoicePaid,
+                ],
+                activityKinds
+            );
+            var created = await context.RestaurantBillingActivities.SingleAsync(
+                row => row.Kind == BillingActivityKinds.SubscriptionCreated
+            );
+            Assert.Equal("Apply Owner", created.ActorDisplayName);
+            Assert.Equal(BillingSubscriptionPlans.Starter, created.Plan);
+            Assert.Equal(BillingCycles.Monthly, created.Cadence);
+            var invoicePaid = await context.RestaurantBillingActivities.SingleAsync(
+                row => row.Kind == BillingActivityKinds.InvoicePaid
+            );
+            Assert.False(string.IsNullOrWhiteSpace(invoicePaid.InvoiceNo));
         }
 
         [Fact]

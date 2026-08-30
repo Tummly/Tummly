@@ -57,6 +57,80 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public void Render_TaxInvoice_ContainsLayoutMarkersAndSignOffFields()
+        {
+            var invoice = new TummlyVatInvoice
+            {
+                DocumentNumber = "TM-2026-000001",
+                DocumentPrefix = TummlyVatInvoice.PrefixTm,
+                InvoiceDateUtc = _now,
+                TaxPointUtc = _now,
+                LineDescription = "Starter plan (Monthly)",
+                Quantity = 1,
+                NetPence = 3900,
+                VatRateBps = 2000,
+                VatPence = 780,
+                GrossPence = 4680,
+                Currency = TummlyVatInvoice.CurrencyGbp,
+                PaymentStatus = TummlyVatInvoice.PaymentStatusPaid,
+                CustomerBusinessName = "VAT Venue Ltd",
+                CustomerAddress = "10 High Street, London",
+                SellerLegalName = "Tummly Ltd",
+                SellerRegisteredAddress = "1 Example Road",
+                SellerVatRegistrationNumber = "GB999",
+            };
+
+            var pdf = System.Text.Encoding.ASCII.GetString(
+                TummlyVatInvoicePdfWriter.Render(invoice)
+            );
+
+            Assert.StartsWith("%PDF", pdf);
+            Assert.Contains("TAX INVOICE", pdf, StringComparison.Ordinal);
+            Assert.Contains("TM-2026-000001", pdf, StringComparison.Ordinal);
+            Assert.Contains("Tummly Ltd", pdf, StringComparison.Ordinal);
+            Assert.Contains("GB999", pdf, StringComparison.Ordinal);
+            Assert.Contains("VAT Venue Ltd", pdf, StringComparison.Ordinal);
+            Assert.Contains("Starter plan", pdf, StringComparison.Ordinal);
+            Assert.Contains("\\(Monthly\\)", pdf, StringComparison.Ordinal);
+            Assert.Contains("GBP 39", pdf, StringComparison.Ordinal);
+            Assert.Contains("GBP 46.80", pdf, StringComparison.Ordinal);
+            Assert.Contains("Payment status: Paid", pdf, StringComparison.Ordinal);
+            Assert.Contains("/Helvetica-Bold", pdf, StringComparison.Ordinal);
+            Assert.DoesNotContain("CREDIT NOTE", pdf, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Render_CreditNote_UsesCreditNoteTitle()
+        {
+            var invoice = new TummlyVatInvoice
+            {
+                DocumentNumber = "TCN-2026-000001",
+                DocumentPrefix = TummlyVatInvoice.PrefixTcn,
+                InvoiceDateUtc = _now,
+                TaxPointUtc = _now,
+                LineDescription = "Credit note for TM-2026-000001",
+                Quantity = 1,
+                NetPence = 3900,
+                VatRateBps = 2000,
+                VatPence = 780,
+                GrossPence = 4680,
+                Currency = TummlyVatInvoice.CurrencyGbp,
+                PaymentStatus = TummlyVatInvoice.PaymentStatusPaid,
+                CustomerBusinessName = "VAT Venue Ltd",
+                SellerLegalName = "Tummly Ltd",
+                SellerVatRegistrationNumber = "GB999",
+            };
+
+            var pdf = System.Text.Encoding.ASCII.GetString(
+                TummlyVatInvoicePdfWriter.Render(invoice)
+            );
+
+            Assert.Contains("CREDIT NOTE", pdf, StringComparison.Ordinal);
+            Assert.Contains("TCN-2026-000001", pdf, StringComparison.Ordinal);
+            Assert.DoesNotContain("TAX INVOICE", pdf, StringComparison.Ordinal);
+        }
+
+        [Fact]
         public async Task Mint_AllocatesDistinctNumbers_ForDistinctOrders()
         {
             await using var context = CreateContext();
