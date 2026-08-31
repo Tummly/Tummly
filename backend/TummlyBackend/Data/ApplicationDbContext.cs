@@ -117,6 +117,12 @@ namespace TummlyBackend.Data
             set;
         }
 
+        public DbSet<LocationSettingsActivityEvent> LocationSettingsActivityEvents
+        {
+            get;
+            set;
+        }
+
         public DbSet<QrScanEvent> QrScanEvents { get; set; }
 
         public DbSet<LocationGuestNote> LocationGuestNotes { get; set; }
@@ -399,6 +405,30 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<LocationActivity>()
                 .HasIndex(row => new { row.RestaurantId, row.OccurredAt, row.Id });
+
+            modelBuilder.Entity<LocationSettingsActivityEvent>()
+                .HasOne(row => row.Restaurant)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<LocationSettingsActivityEvent>()
+                .HasOne(row => row.Location)
+                .WithMany()
+                .HasForeignKey(row => row.LocationId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<LocationSettingsActivityEvent>()
+                .Property(row => row.Kind)
+                .HasMaxLength(64);
+
+            modelBuilder.Entity<LocationSettingsActivityEvent>()
+                .HasIndex(row => new
+                {
+                    row.RestaurantId,
+                    row.OccurredAt,
+                    row.Id,
+                });
 
             modelBuilder.Entity<RestaurantBillingActivity>()
                 .HasOne(row => row.Restaurant)

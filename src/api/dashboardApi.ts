@@ -161,6 +161,18 @@ export const getLocationsList = async (
   return response.data
 }
 
+/** POST /api/locations/:id/(pause|resume|archive|restore) — Settings lifecycle. */
+export const mutateLocationLifecycle = async (
+  locationId: number,
+  action: "pause" | "resume" | "archive" | "restore"
+): Promise<{ success: boolean; lifecycleStatus?: string }> => {
+  const response = await axiosInstance.post<{
+    success: boolean
+    lifecycleStatus?: string
+  }>(`/locations/${locationId}/${action}`)
+  return response.data
+}
+
 export const getFeedback = async (
   locationId: number
 ): Promise<FeedbackResponse> => {

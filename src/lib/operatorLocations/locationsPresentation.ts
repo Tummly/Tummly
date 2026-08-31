@@ -231,7 +231,6 @@ export function locationRowActionsForLifecycle(
         "view-feedback",
         "view-reports",
         "pause-location",
-        "archive-location",
       ])
     case "draft":
       return actions([

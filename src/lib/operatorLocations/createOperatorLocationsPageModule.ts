@@ -92,6 +92,10 @@ export type OperatorLocationsPageAdapters = {
     locationId: string,
     managerUserId: number | null
   ) => Promise<void>
+  mutateLifecycle?: (
+    locationId: number,
+    action: "pause" | "resume" | "archive" | "restore"
+  ) => Promise<void>
   debounceMs?: number
   getNow?: () => Date
 }
@@ -124,7 +128,7 @@ export type OperatorLocationsPageModule = {
     locationId: string,
     managerUserId: number | null
   ) => Promise<void>
-  onRowAction: (locationId: string, actionId: LocationRowActionId) => void
+  onRowAction: (locationId: string, actionId: LocationRowActionId) => void | Promise<void>
   onReviewSetupAttention: (itemId: LocationsSetupAttentionItemId) => void
 }
 
@@ -491,8 +495,42 @@ export function createOperatorLocationsPageModule(
       await adapters.setManager(locationId, managerUserId)
       await fetchList()
     },
-    onRowAction: () => {
-      // Page chrome handles confirm dialogs then calls mutation methods.
+    onRowAction: (locationId, actionId) => {
+      const mutate = adapters.mutateLifecycle
+      if (mutate == null) {
+        return
+      }
+
+      const lifecycleAction =
+        actionId === "pause-location"
+          ? "pause"
+          : actionId === "resume-location"
+            ? "resume"
+            : actionId === "archive-location"
+              ? "archive"
+              : actionId === "restore-location"
+                ? "restore"
+                : null
+
+      if (lifecycleAction == null) {
+        // Activate / delete / manager use dedicated methods + confirm chrome.
+        return
+      }
+
+      const id = Number.parseInt(locationId, 10)
+      if (!Number.isFinite(id)) {
+        return
+      }
+
+      void (async () => {
+        try {
+          await mutate(id, lifecycleAction)
+          await fetchList()
+        } catch {
+          loadStatus = "error"
+          emit()
+        }
+      })()
     },
     onReviewSetupAttention: () => {
       // Wire review navigation when Setup attention API lands.

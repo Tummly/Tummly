@@ -55,6 +55,16 @@ namespace TummlyBackend.Services
                 return null;
             }
 
+            if (
+                await IsGuestLocationNotActiveAsync(
+                    locationGuestId,
+                    cancellationToken
+                )
+            )
+            {
+                return null;
+            }
+
             var catalog = await LoadActiveCatalogOfferAsync(
                 catalogOfferId,
                 cancellationToken
@@ -86,6 +96,13 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            if (
+                await IsLocationNotActiveAsync(locationId, cancellationToken)
+            )
+            {
+                return null;
+            }
+
             var catalogOfferId = await ResolveLiveThankYouCatalogOfferIdAsync(
                 locationId,
                 cancellationToken
@@ -170,6 +187,16 @@ namespace TummlyBackend.Services
         )
         {
             if (await IsOptedOutAsync(locationGuestId, cancellationToken))
+            {
+                return null;
+            }
+
+            if (
+                await IsGuestLocationNotActiveAsync(
+                    locationGuestId,
+                    cancellationToken
+                )
+            )
             {
                 return null;
             }
@@ -488,6 +515,35 @@ namespace TummlyBackend.Services
                     != LocationGuestMarketingPreference.Allowed
                 )
                 .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        private async Task<bool> IsGuestLocationNotActiveAsync(
+            int locationGuestId,
+            CancellationToken cancellationToken
+        )
+        {
+            var lifecycle = await _context.LocationGuests
+                .AsNoTracking()
+                .Where(g => g.Id == locationGuestId)
+                .Select(g => (LocationLifecycleStatus?)g.RestaurantLocation!
+                    .LifecycleStatus)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return lifecycle != LocationLifecycleStatus.Active;
+        }
+
+        private async Task<bool> IsLocationNotActiveAsync(
+            int locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            var lifecycle = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(l => l.Id == locationId)
+                .Select(l => (LocationLifecycleStatus?)l.LifecycleStatus)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return lifecycle != LocationLifecycleStatus.Active;
         }
 
         private async Task<CatalogOffer?> LoadActiveCatalogOfferAsync(

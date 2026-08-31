@@ -281,13 +281,16 @@ function DashboardContent({ mode }: DashboardProps) {
     selfRole: workspace.snapshot.selfRole,
     permissionRole: workspace.snapshot.permissionRole,
     billingCreditsAccess: workspace.snapshot.billingCreditsAccess,
-    locations: workspace.snapshot.locations.map((location) => ({
-      id: location.id,
-      name: location.locationName,
-      address: location.address,
-      // Deactivation is not shipped yet — every Owned location is Active.
-      isActive: true,
-    })),
+    locations: workspace.snapshot.locations.map((location) => {
+      const paused = location.lifecycleStatus === "paused"
+      return {
+        id: location.id,
+        name: location.locationName,
+        address: location.address,
+        isActive: !paused,
+        showPausedBadge: paused,
+      }
+    }),
     selectedLocationId,
     locationSwitcherInteractive:
       workspace.snapshot.locationSwitcherInteractive,

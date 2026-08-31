@@ -6,7 +6,7 @@ import {
 } from "react"
 import { useSearchParams } from "react-router-dom"
 
-import { getLocationsList } from "@/api/dashboardApi"
+import { getLocationsList, mutateLocationLifecycle } from "@/api/dashboardApi"
 import {
   activateOwnedLocation,
   createOwnedLocation,
@@ -42,6 +42,7 @@ export function LocationsPageModuleProvider({
             managerUserId
           )
         },
+        mutateLifecycle: mutateLocationLifecycle,
       },
       { initialTabId }
     )

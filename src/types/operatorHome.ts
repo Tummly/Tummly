@@ -36,10 +36,12 @@ export interface OperatorHomeLocationOption {
   /** Freeform address for the Owned location; empty when unset. */
   address: string;
   /**
-   * Location switcher status line (`Active` / later `Inactive`).
-   * All Owned locations are active until deactivation ships.
+   * True when Settings lifecycle is Active.
+   * Paused locations stay in the switcher with `showPausedBadge`.
    */
   isActive: boolean;
+  /** Settings Paused lifecycle — badge before the location name. */
+  showPausedBadge?: boolean;
 }
 
 export type OperatorHomeSetupStepId =
