@@ -71,6 +71,7 @@ type AccountWorkspaceApiWorkspaceDefaults = {
 type AccountWorkspaceApiDetails = {
   success: boolean
   workspaceName: string
+  guestFacingBusinessName?: string | null
   accountStructure: string
   businessCategory: string | null
   businessCategoryLabel: string | null
@@ -152,6 +153,7 @@ function mapDetails(
 ): AccountWorkspaceDetails {
   return {
     workspaceName: data.workspaceName,
+    guestFacingBusinessName: data.guestFacingBusinessName ?? "",
     accountStructure: data.accountStructure,
     businessCategory: data.businessCategory,
     businessCategoryLabel: data.businessCategoryLabel,
@@ -187,7 +189,22 @@ export async function updateAccountWorkspaceDetails(params: {
 
   const response = await axiosInstance.put<AccountWorkspaceApiDetails>(
     "/account-workspace/account-details",
-    form
+    form,
+    {
+      // Let the browser set multipart boundary; the axios default is application/json.
+      transformRequest: [
+        (data, headers) => {
+          if (data instanceof FormData) {
+            if (typeof headers.delete === "function") {
+              headers.delete("Content-Type")
+            } else {
+              delete headers["Content-Type"]
+            }
+          }
+          return data
+        },
+      ],
+    }
   )
   return mapDetails(response.data)
 }

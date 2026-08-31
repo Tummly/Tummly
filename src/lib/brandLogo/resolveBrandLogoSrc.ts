@@ -12,7 +12,7 @@ export function resolveBrandLogoSrc(
   }
 
   const trimmed = publicUrl.trim()
-  if (/^https?:\/\//i.test(trimmed)) {
+  if (/^(https?:\/\/|blob:)/i.test(trimmed)) {
     return trimmed
   }
 

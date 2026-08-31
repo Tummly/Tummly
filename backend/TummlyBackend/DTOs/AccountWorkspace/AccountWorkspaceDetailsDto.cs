@@ -6,6 +6,11 @@ namespace TummlyBackend.DTOs.AccountWorkspace
 
         public string WorkspaceName { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Guest-facing default name — first Owned location <c>LocationName</c>.
+        /// </summary>
+        public string GuestFacingBusinessName { get; set; } = string.Empty;
+
         public string AccountStructure { get; set; } = string.Empty;
 
         public string? BusinessCategory { get; set; }

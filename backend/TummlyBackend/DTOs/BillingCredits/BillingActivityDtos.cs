@@ -11,6 +11,8 @@ namespace TummlyBackend.DTOs.BillingCredits
 
     public sealed class BillingActivityItemDto
     {
+        public long Id { get; set; }
+
         public string Kind { get; set; } = string.Empty;
 
         public DateTime OccurredAtUtc { get; set; }

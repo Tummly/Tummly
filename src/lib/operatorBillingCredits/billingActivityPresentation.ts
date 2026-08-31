@@ -133,6 +133,9 @@ export function formatBillingActivityOccurredAt(
   now: Date
 ): string {
   const occurred = new Date(iso)
+  if (Number.isNaN(occurred.getTime())) {
+    return "—"
+  }
   const time = londonTime(occurred)
   const occurredDay = londonYmd(occurred)
   const today = londonYmd(now)

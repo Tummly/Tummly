@@ -107,6 +107,8 @@ export type BillingActivityItem = {
   id: number
   kind: string
   occurredAt: string
+  /** Prefabricated copy from the API when present. */
+  sentence?: string | null
   actorDisplayName?: string | null
   channel?: string | null
   qty?: number | null
@@ -781,13 +783,20 @@ export function createOperatorBillingCreditsPageModule(
           manualAdjustDirection: item.manualAdjustDirection,
           consumeSource: item.consumeSource,
         }
-        const sentence = formatBillingActivityCopy(snapshotFields)
+        const prefab = item.sentence?.trim() ?? ""
+        const sentence =
+          prefab !== "" ? prefab : formatBillingActivityCopy(snapshotFields)
         if (sentence === "") {
           return null
         }
+        const occurredAt =
+          typeof item.occurredAt === "string" ? item.occurredAt.trim() : ""
         return {
           id: item.id,
-          occurredAtLabel: formatBillingActivityOccurredAt(item.occurredAt, now),
+          occurredAtLabel:
+            occurredAt === ""
+              ? "—"
+              : formatBillingActivityOccurredAt(occurredAt, now),
           sentence,
         }
       })

@@ -1670,6 +1670,7 @@ namespace TummlyBackend.Services
                 Items = rows
                     .Select(row => new BillingActivityItemDto
                     {
+                        Id = row.Id,
                         Kind = row.Kind,
                         OccurredAtUtc = row.OccurredAtUtc,
                         Sentence = BillingActivityCopyFormatter.FormatSentence(row),
