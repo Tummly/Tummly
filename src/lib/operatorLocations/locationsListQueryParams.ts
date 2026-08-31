@@ -57,6 +57,20 @@ export type LocationsListResponse = {
   cityFacets: LocationsListCityFacet[]
 }
 
+/** GET /api/locations/activity feed row. */
+export type LocationsActivityApiItem = {
+  id: number
+  locationId: number | null
+  kind: string
+  description: string | null
+  occurredAt: string
+}
+
+export type LocationsActivityResponse = {
+  success: boolean
+  items: LocationsActivityApiItem[]
+}
+
 export function buildLocationsListQueryParams(input: {
   searchQuery: string
   sortId: LocationsSortId

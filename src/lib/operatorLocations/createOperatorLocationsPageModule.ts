@@ -11,6 +11,7 @@ import {
 import { locationsFilterSheetSchema } from "@/lib/operatorLocations/locationsFilterSheetSchema"
 import {
   buildLocationsListQueryParams,
+  type LocationsActivityApiItem,
   type LocationsListApiRow,
   type LocationsListResponse,
 } from "@/lib/operatorLocations/locationsListQueryParams"
@@ -80,15 +81,7 @@ export type LocationsSnapshot = {
 
 export type OperatorLocationsPageAdapters = {
   getList: (params: ReturnType<typeof buildLocationsListQueryParams>) => Promise<LocationsListResponse>
-  getActivity: () => Promise<{
-    items: Array<{
-      id: number
-      locationId: number | null
-      kind: string
-      description: string | null
-      occurredAt: string
-    }>
-  }>
+  getActivity: () => Promise<{ items: LocationsActivityApiItem[] }>
   createDraft?: (input: {
     locationName: string
     address: string
@@ -200,11 +193,7 @@ function mapApiRowToTableRow(
 }
 
 function mapActivityFeedItem(
-  item: {
-    id: number
-    description: string | null
-    occurredAt: string
-  },
+  item: LocationsActivityApiItem,
   now: Date
 ): LocationsActivityItem {
   return {
@@ -536,7 +525,7 @@ export function createOperatorLocationsPageModule(
       }
       const result = await adapters.importDrafts(rows)
       page = 1
-      await fetchList()
+      await fetchListAndActivity()
       return result
     },
     activateDraft: async (locationId) => {
@@ -590,7 +579,7 @@ export function createOperatorLocationsPageModule(
       void (async () => {
         try {
           await mutate(id, lifecycleAction)
-          await fetchList()
+          await fetchListAndActivity()
         } catch {
           loadStatus = "error"
           emit()

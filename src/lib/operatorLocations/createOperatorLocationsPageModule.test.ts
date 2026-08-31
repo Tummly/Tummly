@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createOperatorLocationsPageModule } from "@/lib/operatorLocations/createOperatorLocationsPageModule"
-import type { LocationsListResponse } from "@/lib/operatorLocations/locationsListQueryParams"
+import type {
+  LocationsActivityApiItem,
+  LocationsListResponse,
+} from "@/lib/operatorLocations/locationsListQueryParams"
 import { formatLocationsLastActivityAt } from "@/lib/operatorLocations/locationsPresentation"
 
 function apiResponse(
@@ -55,13 +58,7 @@ function apiResponse(
 }
 
 function emptyActivity() {
-  return { items: [] as Array<{
-    id: number
-    locationId: number | null
-    kind: string
-    description: string | null
-    occurredAt: string
-  }> }
+  return { items: [] as LocationsActivityApiItem[] }
 }
 
 describe("createOperatorLocationsPageModule", () => {
@@ -289,19 +286,22 @@ describe("createOperatorLocationsPageModule", () => {
     expect(getActivity).toHaveBeenCalledTimes(1)
   })
 
-  it("refreshes the list after importDrafts succeeds", async () => {
+  it("refreshes list and activity after importDrafts succeeds", async () => {
     const getList = vi.fn(async () => apiResponse())
+    const getActivity = vi.fn(async () => emptyActivity())
     const importDrafts = vi.fn(async () => ({
       createdCount: 2,
       errors: [] as Array<{ rowIndex: number; message: string }>,
     }))
     const module = createOperatorLocationsPageModule({
       getList,
+      getActivity,
       importDrafts,
       debounceMs: 0,
     })
     await module.load()
     getList.mockClear()
+    getActivity.mockClear()
 
     const result = await module.importDrafts([
       {
@@ -320,6 +320,7 @@ describe("createOperatorLocationsPageModule", () => {
 
     expect(importDrafts).toHaveBeenCalledTimes(1)
     expect(getList).toHaveBeenCalledTimes(1)
+    expect(getActivity).toHaveBeenCalledTimes(1)
     expect(result.createdCount).toBe(2)
   })
 
@@ -377,7 +378,7 @@ describe("createOperatorLocationsPageModule", () => {
     ["archive-location", "archive", "archived"] as const,
     ["restore-location", "restore", "paused"] as const,
   ])(
-    "%s mutates lifecycle then refreshes the snapshot",
+    "%s mutates lifecycle then refreshes list and activity",
     async (actionId, apiAction, nextStatus) => {
       const getList = vi
         .fn()
@@ -407,20 +408,25 @@ describe("createOperatorLocationsPageModule", () => {
             },
           })
         )
+      const getActivity = vi.fn(async () => emptyActivity())
       const mutateLifecycle = vi.fn(async () => undefined)
       const module = createOperatorLocationsPageModule({
         getList,
+        getActivity,
         mutateLifecycle,
         debounceMs: 0,
       })
       await module.load()
+      getList.mockClear()
+      getActivity.mockClear()
 
       await module.onRowAction("10", actionId)
       await Promise.resolve()
       await Promise.resolve()
 
       expect(mutateLifecycle).toHaveBeenCalledWith(10, apiAction)
-      expect(getList).toHaveBeenCalledTimes(2)
+      expect(getList).toHaveBeenCalledTimes(1)
+      expect(getActivity).toHaveBeenCalledTimes(1)
       expect(module.getSnapshot().rows[0]?.lifecycleStatus).toBe(nextStatus)
     }
   )
