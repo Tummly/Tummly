@@ -15,16 +15,19 @@ namespace TummlyBackend.Controllers
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IOwnedLocationInsertService _insert;
         private readonly ILocationsListService _list;
+        private readonly ILocationsLifecycleWriteService _lifecycle;
 
         public LocationsController(
             IRestaurantPermissionHelper permissions,
             IOwnedLocationInsertService insert,
-            ILocationsListService list
+            ILocationsListService list,
+            ILocationsLifecycleWriteService lifecycle
         )
         {
             _permissions = permissions;
             _insert = insert;
             _list = list;
+            _lifecycle = lifecycle;
         }
 
         [HttpGet]
@@ -88,7 +91,7 @@ namespace TummlyBackend.Controllers
             [FromBody] AddOwnedLocationRequest request
         )
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out _);
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
             if (unauthorized != null)
             {
                 return unauthorized;
@@ -107,6 +110,7 @@ namespace TummlyBackend.Controllers
 
             var result = await _insert.AddAsync(
                 decision.RestaurantId,
+                userId,
                 request
             );
 
@@ -116,6 +120,11 @@ namespace TummlyBackend.Controllers
                 {
                     success = true,
                     locationId = created.LocationId,
+                }),
+                AddOwnedLocationResult.InvalidRequest invalid => BadRequest(new
+                {
+                    success = false,
+                    message = invalid.Message,
                 }),
                 AddOwnedLocationResult.CapReached cap => Conflict(new
                 {
@@ -134,6 +143,110 @@ namespace TummlyBackend.Controllers
                     {
                         success = false,
                         message = "Unexpected add-location result.",
+                    }
+                ),
+            };
+        }
+
+        [HttpPost("{locationId:int}/activate")]
+        public async Task<IActionResult> ActivateDraft(int locationId)
+        {
+            return await RunLifecycleWriteAsync(
+                locationId,
+                (restaurantId, userId) =>
+                    _lifecycle.ActivateDraftAsync(restaurantId, locationId, userId)
+            );
+        }
+
+        [HttpDelete("{locationId:int}")]
+        public async Task<IActionResult> DeleteDraft(int locationId)
+        {
+            return await RunLifecycleWriteAsync(
+                locationId,
+                (restaurantId, userId) =>
+                    _lifecycle.DeleteDraftAsync(restaurantId, locationId, userId)
+            );
+        }
+
+        [HttpPut("{locationId:int}/manager")]
+        public async Task<IActionResult> SetManager(
+            int locationId,
+            [FromBody] SetLocationManagerRequest request
+        )
+        {
+            return await RunLifecycleWriteAsync(
+                locationId,
+                (restaurantId, userId) =>
+                    _lifecycle.SetManagerAsync(
+                        restaurantId,
+                        locationId,
+                        userId,
+                        request.ManagerUserId
+                    )
+            );
+        }
+
+        private async Task<IActionResult> RunLifecycleWriteAsync(
+            int locationId,
+            Func<int, int, Task<LocationLifecycleWriteResult>> action
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeLocationSetAsync(
+                User,
+                OperatorAreaIds.Locations,
+                PermissionLevel.Manage
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            if (!decision.LocationIds.Contains(locationId))
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        message = "You do not have access to this location.",
+                    }
+                );
+            }
+
+            var result = await action(decision.RestaurantId, userId);
+            return result switch
+            {
+                LocationLifecycleWriteResult.Ok => Ok(new { success = true }),
+                LocationLifecycleWriteResult.NotFound => NotFound(new
+                {
+                    success = false,
+                    message = "Location not found.",
+                }),
+                LocationLifecycleWriteResult.InvalidRequest invalid => BadRequest(
+                    new
+                    {
+                        success = false,
+                        message = invalid.Message,
+                    }
+                ),
+                LocationLifecycleWriteResult.Conflict conflict => Conflict(new
+                {
+                    success = false,
+                    message = conflict.Message,
+                }),
+                _ => StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "Unexpected location write result.",
                     }
                 ),
             };

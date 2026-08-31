@@ -42,6 +42,8 @@ namespace TummlyBackend.Data
         public DbSet<RestaurantAccessActivity> RestaurantAccessActivities
         { get; set; }
 
+        public DbSet<LocationActivity> LocationActivities { get; set; }
+
         public DbSet<RestaurantAdminPermissionCell> RestaurantAdminPermissionCells
         { get; set; }
 
@@ -376,6 +378,25 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<RestaurantAccessActivity>()
                 .Property(row => row.Kind)
                 .HasMaxLength(40);
+
+            modelBuilder.Entity<LocationActivity>()
+                .HasOne(row => row.Restaurant)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<LocationActivity>()
+                .HasOne(row => row.Location)
+                .WithMany()
+                .HasForeignKey(row => row.LocationId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<LocationActivity>()
+                .Property(row => row.Kind)
+                .HasMaxLength(40);
+
+            modelBuilder.Entity<LocationActivity>()
+                .HasIndex(row => new { row.RestaurantId, row.OccurredAt, row.Id });
 
             modelBuilder.Entity<RestaurantBillingActivity>()
                 .HasOne(row => row.Restaurant)

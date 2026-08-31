@@ -26,6 +26,7 @@ export type LocationsListApiRow = {
   lifecycleStatus: LocationLifecycleStatus
   setupStatus: LocationSetupStatus
   managerName: string | null
+  managerUserId?: number | null
   city: string | null
   postcode: string | null
   cityId: string

@@ -103,10 +103,13 @@ namespace TummlyBackend.Tests.Services
 
             var result = await _insert.AddAsync(
                 _restaurantId,
+                _userId,
                 new AddOwnedLocationRequest
                 {
                     LocationName = "Second",
                     Address = "2 High Street",
+                    City = "Leeds",
+                    Postcode = "LS1 2AA",
                 }
             );
 

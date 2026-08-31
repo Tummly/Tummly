@@ -41,6 +41,7 @@ export type LocationsTableRow = {
   lifecycleStatus: LocationsListApiRow["lifecycleStatus"]
   setupStatus: LocationsListApiRow["setupStatus"]
   managerName: string
+  managerUserId: number | null
   cityPostcode: string
   cityId: string
   lastActivityLabel: string
@@ -79,6 +80,18 @@ export type LocationsSnapshot = {
 
 export type OperatorLocationsPageAdapters = {
   getList: (params: ReturnType<typeof buildLocationsListQueryParams>) => Promise<LocationsListResponse>
+  createDraft?: (input: {
+    locationName: string
+    address: string
+    city: string
+    postcode: string
+  }) => Promise<void>
+  activateDraft?: (locationId: string) => Promise<void>
+  deleteDraft?: (locationId: string) => Promise<void>
+  setManager?: (
+    locationId: string,
+    managerUserId: number | null
+  ) => Promise<void>
   debounceMs?: number
   getNow?: () => Date
 }
@@ -99,6 +112,18 @@ export type OperatorLocationsPageModule = {
   clearSearchAndFilters: () => void
   goToPreviousPage: () => void
   goToNextPage: () => void
+  createDraft: (input: {
+    locationName: string
+    address: string
+    city: string
+    postcode: string
+  }) => Promise<void>
+  activateDraft: (locationId: string) => Promise<void>
+  deleteDraft: (locationId: string) => Promise<void>
+  setManager: (
+    locationId: string,
+    managerUserId: number | null
+  ) => Promise<void>
   onRowAction: (locationId: string, actionId: LocationRowActionId) => void
   onReviewSetupAttention: (itemId: LocationsSetupAttentionItemId) => void
 }
@@ -171,6 +196,7 @@ function mapApiRowToTableRow(
     lifecycleStatus: row.lifecycleStatus,
     setupStatus: row.setupStatus,
     managerName: row.managerName?.trim() ? row.managerName : "—",
+    managerUserId: row.managerUserId ?? null,
     cityPostcode: row.cityPostcode || "—",
     cityId: row.cityId ?? "",
     lastActivityLabel: formatLocationsLastActivityAt(row.lastActivityAt, now),
@@ -436,8 +462,37 @@ export function createOperatorLocationsPageModule(
       emit()
       void fetchList()
     },
+    createDraft: async (input) => {
+      if (adapters.createDraft == null) {
+        throw new Error("Create draft is not configured.")
+      }
+      await adapters.createDraft(input)
+      page = 1
+      await fetchList()
+    },
+    activateDraft: async (locationId) => {
+      if (adapters.activateDraft == null) {
+        throw new Error("Activate draft is not configured.")
+      }
+      await adapters.activateDraft(locationId)
+      await fetchList()
+    },
+    deleteDraft: async (locationId) => {
+      if (adapters.deleteDraft == null) {
+        throw new Error("Delete draft is not configured.")
+      }
+      await adapters.deleteDraft(locationId)
+      await fetchList()
+    },
+    setManager: async (locationId, managerUserId) => {
+      if (adapters.setManager == null) {
+        throw new Error("Set manager is not configured.")
+      }
+      await adapters.setManager(locationId, managerUserId)
+      await fetchList()
+    },
     onRowAction: () => {
-      // Wire mutations when Locations write APIs land.
+      // Page chrome handles confirm dialogs then calls mutation methods.
     },
     onReviewSetupAttention: () => {
       // Wire review navigation when Setup attention API lands.
