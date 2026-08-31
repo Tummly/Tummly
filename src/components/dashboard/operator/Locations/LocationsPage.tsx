@@ -290,13 +290,8 @@ export function LocationsPage() {
               toast.success(
                 `Imported ${result.createdCount}; ${result.errors.length} row(s) need attention.`
               )
-              toast.error(
-                result.errors
-                  .slice(0, 3)
-                  .map((row) => `Row ${row.rowIndex + 1}: ${row.message}`)
-                  .join(" ")
-              )
-            } else if (result.errors.length > 0) {
+            }
+            if (result.errors.length > 0) {
               toast.error(
                 result.errors
                   .slice(0, 3)

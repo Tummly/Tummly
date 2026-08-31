@@ -225,6 +225,59 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(1, createdActivities);
         }
 
+        [Fact]
+        public async Task Import_MissingPricebook_FailsClosed_WholeRequest()
+        {
+            var seeded = await SeedWithRoomAsync(
+                restaurantName: "Import Fail Closed Venue",
+                subscriptionPlan: BillingSubscriptionPlans.Group
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var billingAccount = await context.BillingAccounts
+                    .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+                billingAccount.ContractedPricebookId = "missing-pricebook";
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedPost(
+                "/api/locations/import",
+                seeded.OwnerJwt,
+                new
+                {
+                    rows = new object[]
+                    {
+                        new
+                        {
+                            locationName = "Blocked",
+                            address = "1 High Street",
+                            city = "Leeds",
+                            postcode = "LS1 1AA",
+                        },
+                    },
+                }
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.False(
+                body.TryGetProperty("code", out var code)
+                && code.GetString() == LocationCap.CapReachedCode
+            );
+
+            using var verify = _factory.Services.CreateScope();
+            var verifyContext = verify.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var count = await verifyContext.RestaurantLocations
+                .CountAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal(0, count);
+        }
+
         private async Task<Seeded> SeedWithRoomAsync(
             string restaurantName,
             string subscriptionPlan

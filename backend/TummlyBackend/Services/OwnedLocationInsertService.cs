@@ -87,22 +87,14 @@ namespace TummlyBackend.Services
 
             var created = new List<ImportCreatedRow>();
             var errors = new List<ImportErrorRow>();
-            var capHit = false;
-            int? cap = null;
-            int? current = null;
+            ImportErrorRow? remainingRowTemplate = null;
 
             for (var index = 0; index < rows.Count; index++)
             {
-                if (capHit)
+                if (remainingRowTemplate != null)
                 {
                     errors.Add(
-                        new ImportErrorRow(
-                            index,
-                            $"Location cap reached ({current} of {cap}).",
-                            LocationCap.CapReachedCode,
-                            cap,
-                            current
-                        )
+                        remainingRowTemplate with { RowIndex = index }
                     );
                     continue;
                 }
@@ -124,18 +116,14 @@ namespace TummlyBackend.Services
                         );
                         break;
                     case AddOwnedLocationResult.CapReached reached:
-                        capHit = true;
-                        cap = reached.Cap;
-                        current = reached.Current;
-                        errors.Add(
-                            new ImportErrorRow(
-                                index,
-                                $"Location cap reached ({reached.Current} of {reached.Cap}).",
-                                LocationCap.CapReachedCode,
-                                reached.Cap,
-                                reached.Current
-                            )
+                        remainingRowTemplate = new ImportErrorRow(
+                            index,
+                            $"Location cap reached ({reached.Current} of {reached.Cap}).",
+                            LocationCap.CapReachedCode,
+                            reached.Cap,
+                            reached.Current
                         );
+                        errors.Add(remainingRowTemplate);
                         break;
                     case AddOwnedLocationResult.FailClosed:
                         if (created.Count == 0)
@@ -143,13 +131,11 @@ namespace TummlyBackend.Services
                             return new ImportOwnedLocationsResult.FailClosed();
                         }
 
-                        errors.Add(
-                            new ImportErrorRow(
-                                index,
-                                "Could not create location."
-                            )
+                        remainingRowTemplate = new ImportErrorRow(
+                            index,
+                            "Could not create location."
                         );
-                        capHit = true;
+                        errors.Add(remainingRowTemplate);
                         break;
                     default:
                         errors.Add(
