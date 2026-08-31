@@ -389,7 +389,9 @@ namespace TummlyBackend.Data
                 .HasOne(row => row.Location)
                 .WithMany()
                 .HasForeignKey(row => row.LocationId)
-                .OnDelete(DeleteBehavior.SetNull);
+                // NoAction: Restaurant→Location Cascade + LocationActivity→Restaurant
+                // Cascade would otherwise make a second path into LocationActivities (1785).
+                .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<LocationActivity>()
                 .Property(row => row.Kind)

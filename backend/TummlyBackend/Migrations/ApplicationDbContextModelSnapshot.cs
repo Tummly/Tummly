@@ -4240,7 +4240,7 @@ namespace TummlyBackend.Migrations
                     b.HasOne("TummlyBackend.Models.RestaurantLocation", "Location")
                         .WithMany()
                         .HasForeignKey("LocationId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
                         .WithMany()

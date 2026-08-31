@@ -91,6 +91,14 @@ namespace TummlyBackend.Services
             }
 
             var name = location.LocationName;
+            var linkedActivities = await _context.LocationActivities
+                .Where(row => row.LocationId == locationId)
+                .ToListAsync();
+            foreach (var row in linkedActivities)
+            {
+                row.LocationId = null;
+            }
+
             _context.RestaurantLocations.Remove(location);
             await EmitLifecycleAsync(
                 restaurantId,

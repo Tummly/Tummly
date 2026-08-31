@@ -35,7 +35,8 @@ namespace TummlyBackend.Migrations
                         column: x => x.LocationId,
                         principalTable: "RestaurantLocations",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        // NoAction avoids a second cascade path from Restaurants (1785).
+                        onDelete: ReferentialAction.NoAction);
                     table.ForeignKey(
                         name: "FK_LocationActivities_Restaurants_RestaurantId",
                         column: x => x.RestaurantId,

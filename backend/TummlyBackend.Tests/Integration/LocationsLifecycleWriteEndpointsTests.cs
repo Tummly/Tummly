@@ -319,6 +319,122 @@ namespace TummlyBackend.Tests.Integration
             Assert.Null(cleared.ManagerUserId);
         }
 
+        [Fact]
+        public async Task SetManager_StaffRole_Returns400()
+        {
+            var seeded = await SeedPilotWithRoomAsync(
+                restaurantName: "Manager Bad Role Venue"
+            );
+            var locationId = await SeedDraftLocationAsync(
+                seeded.RestaurantId,
+                city: "London"
+            );
+
+            int staffUserId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var staff = new User
+                {
+                    FullName = "Staff Member",
+                    Email = $"{Guid.NewGuid():N}@example.com",
+                    PasswordHash = "hash",
+                    PhoneNumber = "07700900333",
+                    Role = "User",
+                    AccountType = "Multi",
+                    IsEmailVerified = true,
+                    IsApprovedByAdmin = true,
+                    CreatedAt = DateTime.UtcNow,
+                    ActivatedAt = DateTime.UtcNow,
+                    ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+                };
+                context.Users.Add(staff);
+                await context.SaveChangesAsync();
+                staffUserId = staff.Id;
+                context.RestaurantMemberships.Add(
+                    new RestaurantMembership
+                    {
+                        UserId = staff.Id,
+                        RestaurantId = seeded.RestaurantId,
+                        PermissionRole = PermissionRoles.Staff,
+                        LocationScope = LocationScopeKind.AllLocations,
+                        NamedLocationIdsJson = "[]",
+                        Status = MembershipStatus.Active,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedPut(
+                $"/api/locations/{locationId}/manager",
+                seeded.OwnerJwt,
+                new { managerUserId = staffUserId }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task SetManager_NamedListMissingLocation_Returns400()
+        {
+            var seeded = await SeedPilotWithRoomAsync(
+                restaurantName: "Manager Scope Venue"
+            );
+            var locationId = await SeedDraftLocationAsync(
+                seeded.RestaurantId,
+                city: "London"
+            );
+            var otherLocationId = await SeedDraftLocationAsync(
+                seeded.RestaurantId,
+                city: "Manchester"
+            );
+
+            int managerUserId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var manager = new User
+                {
+                    FullName = "Scoped Manager",
+                    Email = $"{Guid.NewGuid():N}@example.com",
+                    PasswordHash = "hash",
+                    PhoneNumber = "07700900444",
+                    Role = "User",
+                    AccountType = "Multi",
+                    IsEmailVerified = true,
+                    IsApprovedByAdmin = true,
+                    CreatedAt = DateTime.UtcNow,
+                    ActivatedAt = DateTime.UtcNow,
+                    ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+                };
+                context.Users.Add(manager);
+                await context.SaveChangesAsync();
+                managerUserId = manager.Id;
+                context.RestaurantMemberships.Add(
+                    new RestaurantMembership
+                    {
+                        UserId = manager.Id,
+                        RestaurantId = seeded.RestaurantId,
+                        PermissionRole = PermissionRoles.LocationManager,
+                        LocationScope = LocationScopeKind.NamedList,
+                        NamedLocationIdsJson = $"[{otherLocationId}]",
+                        Status = MembershipStatus.Active,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedPut(
+                $"/api/locations/{locationId}/manager",
+                seeded.OwnerJwt,
+                new { managerUserId }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
         private async Task<int> SeedDraftLocationAsync(
             int restaurantId,
             string? city
