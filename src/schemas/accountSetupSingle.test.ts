@@ -21,6 +21,7 @@ const validAccountSetup = {
   restaurantName: "The Golden Fork",
   locationName: "Main Street",
   address: "1 High Street",
+  city: "London",
   postcode: "SW1A 1AA",
   phone: "07911123456",
   businessLink: "https://example.com",
@@ -79,11 +80,30 @@ describe("accountSetupSingleSchema", () => {
     }
   })
 
+  it("rejects missing City on step 2", () => {
+    const result = accountSetupSingleStep2Schema.safeParse({
+      restaurantName: "The Golden Fork",
+      locationName: "Main Street",
+      address: "1 High Street",
+      city: "",
+      postcode: "SW1A 1AA",
+      phone: "07911123456",
+      businessLink: "",
+      businessCategory: "takeaway",
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find((entry) => entry.path[0] === "city")
+      expect(issue?.message).toBe(validationMessages.accountSetup.city.required)
+    }
+  })
+
   it("rejects an invalid UK postcode on step 2", () => {
     const result = accountSetupSingleStep2Schema.safeParse({
       restaurantName: "The Golden Fork",
       locationName: "Main Street",
       address: "1 High Street",
+      city: "London",
       postcode: "not-a-postcode",
       phone: "07911123456",
       businessLink: "",
@@ -133,6 +153,7 @@ describe("account setup step field slices", () => {
   it("defines step 2 restaurant fields", () => {
     expect(accountSetupSingleStep2Fields).toContain("restaurantName")
     expect(accountSetupSingleStep2Fields).toContain("businessCategory")
+    expect(accountSetupSingleStep2Fields).toContain("city")
     expect(accountSetupSingleStep2Fields).toContain("phone")
   })
 })
@@ -154,6 +175,7 @@ describe("toSingleLocationSetupPayload", () => {
         {
           locationName: "Main Street",
           address: "1 High Street",
+          city: "London",
           postcode: "SW1A 1AA",
           locationPhone: "+447911123456",
           localContact: "Alex Operator",

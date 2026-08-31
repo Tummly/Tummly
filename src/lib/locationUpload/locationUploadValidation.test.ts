@@ -27,6 +27,7 @@ describe("getUploadedLocationStatus", () => {
       getUploadedLocationStatus({
         locationName: "Bistro",
         address: "125 High Street",
+        city: "Manchester",
         postcode: "M1 4AB",
         addressOverridden: false,
         locationPhone: "",
@@ -40,6 +41,21 @@ describe("getUploadedLocationStatus", () => {
       getUploadedLocationStatus({
         locationName: "",
         address: "125 High Street",
+        city: "Manchester",
+        postcode: "M1 4AB",
+        addressOverridden: false,
+        locationPhone: "",
+        localContact: "",
+      })
+    ).toBe("missing_required")
+  })
+
+  it("marks missing City as missing required", () => {
+    expect(
+      getUploadedLocationStatus({
+        locationName: "Bistro",
+        address: "125 High Street",
+        city: "",
         postcode: "M1 4AB",
         addressOverridden: false,
         locationPhone: "",
@@ -53,6 +69,7 @@ describe("getUploadedLocationStatus", () => {
       getUploadedLocationStatus({
         locationName: "Bistro",
         address: "125 High Street",
+        city: "Manchester",
         postcode: "not-valid",
         addressOverridden: false,
         locationPhone: "",
@@ -66,6 +83,7 @@ describe("getUploadedLocationStatus", () => {
       getUploadedLocationStatus({
         locationName: "Bistro",
         address: "125 High Street",
+        city: "Manchester",
         postcode: "M1 4AB",
         addressOverridden: false,
         locationPhone: "123",

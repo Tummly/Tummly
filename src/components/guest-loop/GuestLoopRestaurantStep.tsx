@@ -85,6 +85,13 @@ export function GuestLoopRestaurantStep({
 
         <FormFloatingInput
           control={form.control}
+          name="city"
+          label="City"
+          required
+        />
+
+        <FormFloatingInput
+          control={form.control}
           name="phone"
           label="Restaurant phone number"
           type="tel"

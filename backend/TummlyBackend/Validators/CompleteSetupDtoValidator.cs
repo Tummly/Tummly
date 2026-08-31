@@ -49,6 +49,10 @@ namespace TummlyBackend.Validators
                     .NotEmpty()
                     .WithMessage("Address is required.");
 
+                location.RuleFor(item => item.City)
+                    .NotEmpty()
+                    .WithMessage("City is required.");
+
                 location.RuleFor(item => item.Postcode)
                     .NotEmpty()
                     .WithMessage("Postcode is required.")

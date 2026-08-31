@@ -6,6 +6,7 @@ export const ukPostcodeRegex = /^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$/i
 export type UploadedLocationDraft = {
   locationName: string
   address: string
+  city: string
   postcode: string
   addressOverridden: boolean
   locationPhone: string
@@ -34,9 +35,10 @@ export function getUploadedLocationStatus(
 ): UploadedLocationStatus {
   const locationName = location.locationName.trim()
   const address = location.address.trim()
+  const city = location.city.trim()
   const postcode = location.postcode.trim()
 
-  if (!locationName || !address || !postcode) {
+  if (!locationName || !address || !city || !postcode) {
     return "missing_required"
   }
 

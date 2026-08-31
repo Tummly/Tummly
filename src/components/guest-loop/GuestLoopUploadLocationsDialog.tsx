@@ -48,6 +48,7 @@ function toLocationFormItems(locations: UploadedLocationDraft[]): LocationFormIt
     ...emptyLocationItem,
     locationName: location.locationName.trim(),
     address: location.address.trim(),
+    city: location.city.trim(),
     postcode: location.postcode.trim(),
     addressOverridden: location.addressOverridden,
     locationPhone: location.locationPhone.trim(),
@@ -98,6 +99,13 @@ function UploadedLocationReviewFields({
         onAddressOverriddenChange={(value) =>
           updateField("addressOverridden", value)
         }
+      />
+
+      <FloatingLabelInput
+        label="City"
+        value={location.city}
+        onChange={(event) => updateField("city", event.target.value)}
+        required
       />
 
       <FloatingLabelInput

@@ -37,6 +37,7 @@ namespace TummlyBackend.DTOs.Trial
         {
             public string LocationName { get; set; } = "";
             public string Address { get; set; } = "";
+            public string? City { get; set; }
             public string? Postcode { get; set; }
             public string? LocationPhone { get; set; }
             public string? LocalContact { get; set; }

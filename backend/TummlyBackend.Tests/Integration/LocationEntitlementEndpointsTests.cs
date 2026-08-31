@@ -79,12 +79,14 @@ namespace TummlyBackend.Tests.Integration
                         {
                             locationName = "Site A",
                             address = "1 High Street",
+                            city = "Leeds",
                             postcode = "LS1 1AA",
                         },
                         new
                         {
                             locationName = "Site B",
                             address = "2 High Street",
+                            city = "Leeds",
                             postcode = "LS1 2AA",
                         },
                     },

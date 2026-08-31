@@ -149,9 +149,13 @@ namespace TummlyBackend.Services
                         RestaurantId = restaurant.Id,
                         LocationName = item.LocationName ?? "",
                         Address = item.Address ?? "",
+                        City = string.IsNullOrWhiteSpace(item.City)
+                            ? null
+                            : item.City.Trim(),
                         Postcode = string.IsNullOrWhiteSpace(item.Postcode)
                             ? null
                             : UkPostcode.FormatForDisplay(item.Postcode),
+                        LifecycleStatus = LocationLifecycleStatus.Active,
                         LocationPhone = PhoneNumberHelper.NormalizeOptional(
                             item.LocationPhone
                         ),

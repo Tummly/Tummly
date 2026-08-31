@@ -162,7 +162,9 @@ namespace TummlyBackend.Tests.Services
                     new CompleteSetupDto.LocationItem
                     {
                         LocationName = "Main",
-                        Address = "1 High Street"
+                        Address = "1 High Street",
+                        City = "Leeds",
+                        Postcode = "LS1 1AA"
                     }
                 ]
             });
@@ -182,6 +184,9 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("The Golden Fork", restaurant.Name);
             Assert.Equal(restaurant.Id, guestLoop.RestaurantId);
             Assert.True(trialRequest.IsAccountCreated);
+            Assert.Equal("Leeds", location.City);
+            Assert.Equal("LS1 1AA", location.Postcode);
+            Assert.Equal(LocationLifecycleStatus.Active, location.LifecycleStatus);
 
             Assert.Equal(5, qrCodes.Count);
             Assert.All(qrCodes, q => Assert.Equal(32, q.Token.Length));
@@ -230,7 +235,9 @@ namespace TummlyBackend.Tests.Services
                     new CompleteSetupDto.LocationItem
                     {
                         LocationName = "Main",
-                        Address = "1 High Street"
+                        Address = "1 High Street",
+                        City = "Leeds",
+                        Postcode = "LS1 1AA"
                     }
                 ]
             });
@@ -264,7 +271,9 @@ namespace TummlyBackend.Tests.Services
                     new CompleteSetupDto.LocationItem
                     {
                         LocationName = "Main",
-                        Address = "1 High Street"
+                        Address = "1 High Street",
+                        City = "Leeds",
+                        Postcode = "LS1 1AA"
                     }
                 ]
             });
@@ -299,12 +308,16 @@ namespace TummlyBackend.Tests.Services
                     new CompleteSetupDto.LocationItem
                     {
                         LocationName = "Site A",
-                        Address = "1 High Street"
+                        Address = "1 High Street",
+                        City = "Leeds",
+                        Postcode = "LS1 1AA"
                     },
                     new CompleteSetupDto.LocationItem
                     {
                         LocationName = "Site B",
-                        Address = "2 High Street"
+                        Address = "2 High Street",
+                        City = "Leeds",
+                        Postcode = "LS1 1AA"
                     }
                 ]
             });
@@ -341,7 +354,8 @@ namespace TummlyBackend.Tests.Services
                     {
                         LocationName = "Main",
                         Address = "1 High Street",
-                        Postcode = "M1 4AB",
+                        City = "Leeds",
+                        Postcode = "LS1 1AA",
                     }
                 ]
             });

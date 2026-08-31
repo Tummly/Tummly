@@ -87,6 +87,13 @@ export function GuestLoopLocationCard({
 
           <FormFloatingInput
             control={form.control}
+            name={`locations.${index}.city`}
+            label="City"
+            required
+          />
+
+          <FormFloatingInput
+            control={form.control}
             name={`locations.${index}.locationPhone`}
             label="Location phone"
             type="tel"

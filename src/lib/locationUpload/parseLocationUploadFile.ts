@@ -18,6 +18,9 @@ function normalizeHeader(value: string) {
 const HEADER_ALIASES: Record<string, keyof UploadedLocationDraft | "localContactName" | "localContactEmail"> = {
   "location name": "locationName",
   address: "address",
+  city: "city",
+  "town/city": "city",
+  "town city": "city",
   postcode: "postcode",
   "location phone": "locationPhone",
   "local contact": "localContact",
@@ -46,6 +49,7 @@ function mapSheetRow(
   const values = {
     locationName: "",
     address: "",
+    city: "",
     postcode: "",
     locationPhone: "",
     localContactName: "",
@@ -70,6 +74,7 @@ function mapSheetRow(
     if (
       field === "locationName" ||
       field === "address" ||
+      field === "city" ||
       field === "postcode" ||
       field === "locationPhone"
     ) {
@@ -85,6 +90,7 @@ function mapSheetRow(
   return {
     locationName: values.locationName,
     address: values.address,
+    city: values.city,
     postcode: values.postcode,
     addressOverridden: false,
     locationPhone: values.locationPhone,

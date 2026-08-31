@@ -24,6 +24,7 @@ export const accountSetupSingleStep2Fields = [
   "restaurantName",
   "locationName",
   "address",
+  "city",
   "postcode",
   "phone",
   "businessLink",
@@ -61,6 +62,10 @@ const accountSetupSingleBaseSchema = z.object({
     .string()
     .trim()
     .min(1, validationMessages.accountSetup.address.required),
+  city: z
+    .string()
+    .trim()
+    .min(1, validationMessages.accountSetup.city.required),
   postcode: z
     .string()
     .trim()
@@ -92,6 +97,7 @@ export const accountSetupSingleStep2Schema = accountSetupSingleBaseSchema.pick({
   restaurantName: true,
   locationName: true,
   address: true,
+  city: true,
   postcode: true,
   phone: true,
   businessLink: true,
@@ -118,6 +124,7 @@ export const accountSetupSingleDefaultValues: AccountSetupSingleFormValues = {
   restaurantName: "",
   locationName: "",
   address: "",
+  city: "",
   postcode: "",
   addressOverridden: false,
   phone: "",
@@ -143,6 +150,7 @@ export function toSingleLocationSetupPayload(
       {
         locationName: parsed.locationName,
         address: parsed.address,
+        city: parsed.city.trim() || undefined,
         postcode: parsed.postcode.trim() || undefined,
         locationPhone: parsed.phone || undefined,
         localContact: parsed.fullName,

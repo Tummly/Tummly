@@ -100,6 +100,9 @@ export const validationMessages = {
       required: "Postcode is required.",
       invalid: "Please enter a valid UK postcode",
     },
+    city: {
+      required: "City is required.",
+    },
     offerTitle: {
       required: "Offer title required",
     },
