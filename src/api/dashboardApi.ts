@@ -173,6 +173,29 @@ export const mutateLocationLifecycle = async (
   return response.data
 }
 
+export type LocationsActivityApiItem = {
+  id: number
+  locationId: number | null
+  kind: string
+  description: string | null
+  occurredAt: string
+}
+
+export type LocationsActivityResponse = {
+  success: boolean
+  items: LocationsActivityApiItem[]
+}
+
+/** GET /api/locations/activity — Settings Locations Activity tab feed. */
+export const getLocationsActivity = async (): Promise<{
+  items: LocationsActivityApiItem[]
+}> => {
+  const response = await axiosInstance.get<LocationsActivityResponse>(
+    "/locations/activity"
+  )
+  return { items: response.data.items }
+}
+
 export const getFeedback = async (
   locationId: number
 ): Promise<FeedbackResponse> => {

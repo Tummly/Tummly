@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createOperatorLocationsPageModule } from "@/lib/operatorLocations/createOperatorLocationsPageModule"
 import type { LocationsListResponse } from "@/lib/operatorLocations/locationsListQueryParams"
+import { formatLocationsLastActivityAt } from "@/lib/operatorLocations/locationsPresentation"
 
 function apiResponse(
   overrides: Partial<LocationsListResponse> = {}
@@ -53,6 +54,16 @@ function apiResponse(
   }
 }
 
+function emptyActivity() {
+  return { items: [] as Array<{
+    id: number
+    locationId: number | null
+    kind: string
+    description: string | null
+    occurredAt: string
+  }> }
+}
+
 describe("createOperatorLocationsPageModule", () => {
   afterEach(() => {
     vi.useRealTimers()
@@ -60,9 +71,11 @@ describe("createOperatorLocationsPageModule", () => {
 
   it("maps API rows and KPIs into the snapshot without demo names", async () => {
     const getList = vi.fn(async () => apiResponse())
+    const getActivity = vi.fn(async () => emptyActivity())
     const module = createOperatorLocationsPageModule(
       {
         getList,
+        getActivity,
         debounceMs: 0,
         getNow: () => new Date("2026-08-31T15:00:00.000Z"),
       },
@@ -91,16 +104,97 @@ describe("createOperatorLocationsPageModule", () => {
       { id: "soho", label: "Soho" },
     ])
     expect(snap.totalFilteredCount).toBe(2)
-    // Setup/Activity remain UI seeds until tickets 02 / 06.
+    // Setup attention remains UI seed until ticket 02.
     expect(snap.setupAttentionItems.length).toBeGreaterThan(0)
-    expect(snap.activityItems.length).toBeGreaterThan(0)
+    expect(snap.activityItems).toEqual([])
     expect(getList).toHaveBeenCalledTimes(1)
+    expect(getActivity).toHaveBeenCalledTimes(1)
+  })
+
+  it("maps activity feed items into the Activity tab snapshot", async () => {
+    const now = new Date("2026-08-31T15:00:00.000Z")
+    const occurredAt = "2026-08-31T12:42:00.000Z"
+    const getList = vi.fn(async () => apiResponse())
+    const getActivity = vi.fn(async () => ({
+      items: [
+        {
+          id: 42,
+          locationId: 10,
+          kind: "lifecycle-changed",
+          description: "Activated draft location.",
+          occurredAt,
+        },
+        {
+          id: 41,
+          locationId: null,
+          kind: "consent-copy-changed",
+          description: null,
+          occurredAt: "2026-08-30T15:05:00.000Z",
+        },
+      ],
+    }))
+    const module = createOperatorLocationsPageModule(
+      {
+        getList,
+        getActivity,
+        debounceMs: 0,
+        getNow: () => now,
+      },
+      {}
+    )
+
+    await module.load()
+
+    expect(module.getSnapshot().activityItems).toEqual([
+      {
+        id: "42",
+        timeLabel: formatLocationsLastActivityAt(occurredAt, now),
+        description: "Activated draft location.",
+      },
+      {
+        id: "41",
+        timeLabel: formatLocationsLastActivityAt(
+          "2026-08-30T15:05:00.000Z",
+          now
+        ),
+        description: "—",
+      },
+    ])
+  })
+
+  it("keeps honest empty activityItems when the feed has no rows", async () => {
+    const getList = vi.fn(async () => apiResponse())
+    const getActivity = vi.fn(async () => emptyActivity())
+    const module = createOperatorLocationsPageModule({
+      getList,
+      getActivity,
+      debounceMs: 0,
+    })
+    await module.load()
+    expect(module.getSnapshot().activityItems).toEqual([])
+  })
+
+  it("sets error loadStatus when getActivity fails on load", async () => {
+    const getList = vi.fn(async () => apiResponse())
+    const getActivity = vi.fn(async () => {
+      throw new Error("activity network")
+    })
+    const module = createOperatorLocationsPageModule({
+      getList,
+      getActivity,
+      debounceMs: 0,
+    })
+    await module.load()
+    expect(module.getSnapshot().loadStatus).toBe("error")
+    expect(module.getSnapshot().activityItems).toEqual([])
   })
 
   it("keeps getSnapshot identity until emit", async () => {
     const getList = vi.fn(async () => apiResponse())
+    const getActivity = vi.fn(async () => emptyActivity())
     const module = createOperatorLocationsPageModule({
       getList,
+      getActivity,
       debounceMs: 0,
     })
     const before = module.getSnapshot()
@@ -114,12 +208,15 @@ describe("createOperatorLocationsPageModule", () => {
   it("refetches with query params when search changes", async () => {
     vi.useFakeTimers()
     const getList = vi.fn(async () => apiResponse({ totalCount: 0, rows: [] }))
+    const getActivity = vi.fn(async () => emptyActivity())
     const module = createOperatorLocationsPageModule({
       getList,
+      getActivity,
       debounceMs: 50,
     })
     await module.load()
     getList.mockClear()
+    getActivity.mockClear()
 
     module.setSearchQuery("Soho")
     await vi.advanceTimersByTimeAsync(50)
@@ -128,12 +225,16 @@ describe("createOperatorLocationsPageModule", () => {
     expect(getList).toHaveBeenCalledWith(
       expect.objectContaining({ q: "Soho", page: 1 })
     )
+    // Search refetch does not re-pull activity.
+    expect(getActivity).not.toHaveBeenCalled()
   })
 
   it("refetches when sort changes", async () => {
     const getList = vi.fn(async () => apiResponse())
+    const getActivity = vi.fn(async () => emptyActivity())
     const module = createOperatorLocationsPageModule({
       getList,
+      getActivity,
       debounceMs: 0,
     })
     await module.load()
@@ -151,8 +252,10 @@ describe("createOperatorLocationsPageModule", () => {
     const getList = vi.fn(async () => {
       throw new Error("network")
     })
+    const getActivity = vi.fn(async () => emptyActivity())
     const module = createOperatorLocationsPageModule({
       getList,
+      getActivity,
       debounceMs: 0,
     })
     await module.load()
@@ -162,14 +265,17 @@ describe("createOperatorLocationsPageModule", () => {
 
   it("refreshes the list after createDraft succeeds", async () => {
     const getList = vi.fn(async () => apiResponse())
+    const getActivity = vi.fn(async () => emptyActivity())
     const createDraft = vi.fn(async () => undefined)
     const module = createOperatorLocationsPageModule({
       getList,
+      getActivity,
       createDraft,
       debounceMs: 0,
     })
     await module.load()
     getList.mockClear()
+    getActivity.mockClear()
 
     await module.createDraft({
       locationName: "New Draft",
@@ -180,6 +286,7 @@ describe("createOperatorLocationsPageModule", () => {
 
     expect(createDraft).toHaveBeenCalledTimes(1)
     expect(getList).toHaveBeenCalledTimes(1)
+    expect(getActivity).toHaveBeenCalledTimes(1)
   })
 
   it("refreshes the list after importDrafts succeeds", async () => {
@@ -218,16 +325,19 @@ describe("createOperatorLocationsPageModule", () => {
 
   it("refreshes the list after activateDraft and deleteDraft", async () => {
     const getList = vi.fn(async () => apiResponse())
+    const getActivity = vi.fn(async () => emptyActivity())
     const activateDraft = vi.fn(async () => undefined)
     const deleteDraft = vi.fn(async () => undefined)
     const module = createOperatorLocationsPageModule({
       getList,
+      getActivity,
       activateDraft,
       deleteDraft,
       debounceMs: 0,
     })
     await module.load()
     getList.mockClear()
+    getActivity.mockClear()
 
     await module.activateDraft("11")
     await module.deleteDraft("11")
@@ -235,18 +345,22 @@ describe("createOperatorLocationsPageModule", () => {
     expect(activateDraft).toHaveBeenCalledWith("11")
     expect(deleteDraft).toHaveBeenCalledWith("11")
     expect(getList).toHaveBeenCalledTimes(2)
+    expect(getActivity).toHaveBeenCalledTimes(2)
   })
 
   it("refreshes the list after setManager", async () => {
     const getList = vi.fn(async () => apiResponse())
+    const getActivity = vi.fn(async () => emptyActivity())
     const setManager = vi.fn(async () => undefined)
     const module = createOperatorLocationsPageModule({
       getList,
+      getActivity,
       setManager,
       debounceMs: 0,
     })
     await module.load()
     getList.mockClear()
+    getActivity.mockClear()
 
     await module.setManager("10", 42)
     await module.setManager("10", null)
@@ -254,6 +368,7 @@ describe("createOperatorLocationsPageModule", () => {
     expect(setManager).toHaveBeenNthCalledWith(1, "10", 42)
     expect(setManager).toHaveBeenNthCalledWith(2, "10", null)
     expect(getList).toHaveBeenCalledTimes(2)
+    expect(getActivity).toHaveBeenCalledTimes(2)
   })
 
   it.each([

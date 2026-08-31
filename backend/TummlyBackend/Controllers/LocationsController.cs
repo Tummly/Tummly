@@ -17,13 +17,15 @@ namespace TummlyBackend.Controllers
         private readonly ILocationsListService _list;
         private readonly ILocationsLifecycleWriteService _lifecycleWrite;
         private readonly ILocationLifecycleService _lifecycle;
+        private readonly ILocationsActivityService _activity;
 
         public LocationsController(
             IRestaurantPermissionHelper permissions,
             IOwnedLocationInsertService insert,
             ILocationsListService list,
             ILocationsLifecycleWriteService lifecycleWrite,
-            ILocationLifecycleService lifecycle
+            ILocationLifecycleService lifecycle,
+            ILocationsActivityService activity
         )
         {
             _permissions = permissions;
@@ -31,6 +33,37 @@ namespace TummlyBackend.Controllers
             _list = list;
             _lifecycleWrite = lifecycleWrite;
             _lifecycle = lifecycle;
+            _activity = activity;
+        }
+
+        [HttpGet("activity")]
+        public async Task<IActionResult> GetActivity()
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out _);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeLocationSetAsync(
+                User,
+                OperatorAreaIds.Locations,
+                PermissionLevel.View
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _activity.GetActivityAsync(
+                new LocationsActivityQuery
+                {
+                    RestaurantId = decision.RestaurantId,
+                    LocationIds = decision.LocationIds,
+                }
+            );
+            return Ok(result);
         }
 
         [HttpGet]

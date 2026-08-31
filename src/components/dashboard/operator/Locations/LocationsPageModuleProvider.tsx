@@ -6,7 +6,11 @@ import {
 } from "react"
 import { useSearchParams } from "react-router-dom"
 
-import { getLocationsList, mutateLocationLifecycle } from "@/api/dashboardApi"
+import {
+  getLocationsActivity,
+  getLocationsList,
+  mutateLocationLifecycle,
+} from "@/api/dashboardApi"
 import {
   activateOwnedLocation,
   createOwnedLocation,
@@ -28,6 +32,7 @@ export function LocationsPageModuleProvider({
     createOperatorLocationsPageModule(
       {
         getList: getLocationsList,
+        getActivity: getLocationsActivity,
         createDraft: async (input) => {
           await createOwnedLocation(input)
         },

@@ -80,6 +80,15 @@ export type LocationsSnapshot = {
 
 export type OperatorLocationsPageAdapters = {
   getList: (params: ReturnType<typeof buildLocationsListQueryParams>) => Promise<LocationsListResponse>
+  getActivity: () => Promise<{
+    items: Array<{
+      id: number
+      locationId: number | null
+      kind: string
+      description: string | null
+      occurredAt: string
+    }>
+  }>
   createDraft?: (input: {
     locationName: string
     address: string
@@ -172,50 +181,6 @@ const DEMO_SETUP_ATTENTION_ITEMS: LocationsSetupAttentionItem[] = [
   },
 ]
 
-/** UI seed — Figma Activity card until activity API lands (ticket 06). */
-const DEMO_ACTIVITY_ITEMS: LocationsActivityItem[] = [
-  {
-    id: "1",
-    timeLabel: "Today, 10:42",
-    description: "James updated SMS consent wording.",
-  },
-  {
-    id: "2",
-    timeLabel: "Yesterday, 16:05",
-    description: "A guest unsubscribed from email campaigns.",
-  },
-  {
-    id: "3",
-    timeLabel: "Today, 10:42",
-    description: "James updated SMS consent wording.",
-  },
-  {
-    id: "4",
-    timeLabel: "Yesterday, 16:05",
-    description: "A guest unsubscribed from email campaigns.",
-  },
-  {
-    id: "5",
-    timeLabel: "Today, 10:42",
-    description: "James updated SMS consent wording.",
-  },
-  {
-    id: "6",
-    timeLabel: "Yesterday, 16:05",
-    description: "A guest unsubscribed from email campaigns.",
-  },
-  {
-    id: "7",
-    timeLabel: "Today, 10:42",
-    description: "James updated SMS consent wording.",
-  },
-  {
-    id: "8",
-    timeLabel: "Yesterday, 16:05",
-    description: "A guest unsubscribed from email campaigns.",
-  },
-]
-
 function mapApiRowToTableRow(
   row: LocationsListApiRow,
   now: Date
@@ -231,6 +196,21 @@ function mapApiRowToTableRow(
     cityId: row.cityId ?? "",
     lastActivityLabel: formatLocationsLastActivityAt(row.lastActivityAt, now),
     searchText: (row.searchText ?? "").toLowerCase(),
+  }
+}
+
+function mapActivityFeedItem(
+  item: {
+    id: number
+    description: string | null
+    occurredAt: string
+  },
+  now: Date
+): LocationsActivityItem {
+  return {
+    id: String(item.id),
+    timeLabel: formatLocationsLastActivityAt(item.occurredAt, now),
+    description: item.description?.trim() ? item.description : "—",
   }
 }
 
@@ -263,9 +243,9 @@ export function createOperatorLocationsPageModule(
   let loadGeneration = 0
   let searchTimer: ReturnType<typeof setTimeout> | null = null
 
-  // Setup/Activity tabs stay on Figma seeds until tickets 02 / 06.
+  // Setup tab stays on Figma seeds until ticket 02.
   const setupAttentionItems = DEMO_SETUP_ATTENTION_ITEMS
-  const activityItems = DEMO_ACTIVITY_ITEMS
+  let activityItems: LocationsActivityItem[] = []
 
   const listeners = new Set<() => void>()
   let snapshot: LocationsSnapshot
@@ -340,6 +320,27 @@ export function createOperatorLocationsPageModule(
 
   snapshot = projectSnapshot()
 
+  const applyListResponse = (response: LocationsListResponse, now: Date) => {
+    rows = response.rows.map((row) => mapApiRowToTableRow(row, now))
+    totalFilteredCount = response.totalCount
+    page = response.page
+    cityFilterOptions = response.cityFacets.map((facet) => ({
+      id: facet.id,
+      label: facet.label,
+    }))
+    kpis = buildLocationsKpis(response.kpis)
+    setupNeedsAttentionCount = response.kpis.setupNeedsAttention
+  }
+
+  const applyActivityResponse = (
+    response: Awaited<ReturnType<OperatorLocationsPageAdapters["getActivity"]>>,
+    now: Date
+  ) => {
+    activityItems = response.items.map((item) =>
+      mapActivityFeedItem(item, now)
+    )
+  }
+
   const fetchList = async () => {
     const generation = ++loadGeneration
     if (loadStatus === "idle" || loadStatus === "error") {
@@ -362,16 +363,45 @@ export function createOperatorLocationsPageModule(
         return
       }
 
+      applyListResponse(response, getNow())
+      loadStatus = "loaded"
+      emit()
+    } catch {
+      if (generation !== loadGeneration) {
+        return
+      }
+      loadStatus = "error"
+      emit()
+    }
+  }
+
+  const fetchListAndActivity = async () => {
+    const generation = ++loadGeneration
+    if (loadStatus === "idle" || loadStatus === "error") {
+      loadStatus = "loading"
+      emit()
+    }
+
+    try {
+      const listParams = buildLocationsListQueryParams({
+        searchQuery,
+        sortId,
+        page,
+        pageSize: LOCATIONS_PAGE_SIZE,
+        applied: filtersSession?.applied ?? null,
+      })
+      const [listResponse, activityResponse] = await Promise.all([
+        adapters.getList(listParams),
+        adapters.getActivity(),
+      ])
+
+      if (generation !== loadGeneration) {
+        return
+      }
+
       const now = getNow()
-      rows = response.rows.map((row) => mapApiRowToTableRow(row, now))
-      totalFilteredCount = response.totalCount
-      page = response.page
-      cityFilterOptions = response.cityFacets.map((facet) => ({
-        id: facet.id,
-        label: facet.label,
-      }))
-      kpis = buildLocationsKpis(response.kpis)
-      setupNeedsAttentionCount = response.kpis.setupNeedsAttention
+      applyListResponse(listResponse, now)
+      applyActivityResponse(activityResponse, now)
       loadStatus = "loaded"
       emit()
     } catch {
@@ -402,7 +432,7 @@ export function createOperatorLocationsPageModule(
     },
     getSnapshot: () => snapshot,
     load: async () => {
-      await fetchList()
+      await fetchListAndActivity()
     },
     setActiveTabFromUrl: (raw) => {
       activeTabId = resolveLocationsTabId(raw)
@@ -498,7 +528,7 @@ export function createOperatorLocationsPageModule(
       }
       await adapters.createDraft(input)
       page = 1
-      await fetchList()
+      await fetchListAndActivity()
     },
     importDrafts: async (rows) => {
       if (adapters.importDrafts == null) {
@@ -514,21 +544,21 @@ export function createOperatorLocationsPageModule(
         throw new Error("Activate draft is not configured.")
       }
       await adapters.activateDraft(locationId)
-      await fetchList()
+      await fetchListAndActivity()
     },
     deleteDraft: async (locationId) => {
       if (adapters.deleteDraft == null) {
         throw new Error("Delete draft is not configured.")
       }
       await adapters.deleteDraft(locationId)
-      await fetchList()
+      await fetchListAndActivity()
     },
     setManager: async (locationId, managerUserId) => {
       if (adapters.setManager == null) {
         throw new Error("Set manager is not configured.")
       }
       await adapters.setManager(locationId, managerUserId)
-      await fetchList()
+      await fetchListAndActivity()
     },
     onRowAction: (locationId, actionId) => {
       const mutate = adapters.mutateLifecycle
