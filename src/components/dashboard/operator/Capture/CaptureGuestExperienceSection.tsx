@@ -64,7 +64,11 @@ export function CaptureGuestExperienceSection({
           <Separator className="bg-op-border-default" />
           <GuestExperienceRow
             label={copy.qrPlacementsLabel}
-            value={guestExperience.qrPlacementsText}
+            value={
+              guestExperience.activeQrPlanUsageText !== ""
+                ? guestExperience.activeQrPlanUsageText
+                : guestExperience.qrPlacementsText
+            }
           />
           <Separator className="bg-op-border-default" />
           <GuestExperienceRow

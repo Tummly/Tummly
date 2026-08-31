@@ -252,6 +252,11 @@ export function TeamPermissionsPage() {
               type="button"
               variant="op-primary"
               className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+              disabled={snap.inviteAtCap}
+              aria-disabled={snap.inviteAtCap}
+              title={
+                snap.inviteAtCap ? copy.inviteAtCapHelper : undefined
+              }
               onClick={() => pageModule.openInvite()}
             >
               {copy.invite}
@@ -701,6 +706,7 @@ function MembersBody({
         locationManagers={snap.stats.locationManagers}
         limitedAccessUsers={snap.stats.limitedAccessUsers}
         ownerCount={ownerCount}
+        teamMembersUsageLabel={snap.teamMembersUsageLabel}
       />
 
       <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
@@ -794,16 +800,29 @@ function MembersStatsCard({
   locationManagers,
   limitedAccessUsers,
   ownerCount,
+  teamMembersUsageLabel,
 }: {
   activeMembers: number
   pendingInvites: number
   locationManagers: number
   limitedAccessUsers: number
   ownerCount: number
+  teamMembersUsageLabel: string
 }) {
   return (
     <section className={TEAM_PERMISSIONS_STATS_CARD_CLASS}>
       <div className={TEAM_PERMISSIONS_STATS_STACK_CLASS}>
+        {teamMembersUsageLabel !== "" ? (
+          <>
+            <div className={TEAM_PERMISSIONS_STATS_OWNERS_ROW_CLASS}>
+              <MembersStatsPair
+                label={copy.teamPlanUsage}
+                value={teamMembersUsageLabel}
+              />
+            </div>
+            <hr className={TEAM_PERMISSIONS_STATS_DIVIDER_CLASS} />
+          </>
+        ) : null}
         <div className={TEAM_PERMISSIONS_STATS_ROW_CLASS}>
           <MembersStatsPair
             label={copy.teamMembers}
@@ -1068,6 +1087,11 @@ function InvitationsBody({
               type="button"
               variant="op-primary"
               className="w-auto shrink-0"
+              disabled={snap.inviteAtCap}
+              aria-disabled={snap.inviteAtCap}
+              title={
+                snap.inviteAtCap ? copy.inviteAtCapHelper : undefined
+              }
               onClick={() => pageModule.openInvite()}
             >
               {copy.invite}

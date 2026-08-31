@@ -1,3 +1,5 @@
+using TummlyBackend.DTOs.BillingCredits;
+
 namespace TummlyBackend.DTOs.Offers
 {
     /// <summary>
@@ -15,6 +17,8 @@ namespace TummlyBackend.DTOs.Offers
         public int Redemptions { get; init; }
 
         public double? ClaimToRedemptionRate { get; init; }
+
+        public PlanEntitlementsAccountSnapshotDto Entitlements { get; init; } = new();
     }
 
     /// <summary>

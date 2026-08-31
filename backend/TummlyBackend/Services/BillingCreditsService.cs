@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Billing;
 using TummlyBackend.Billing.PlanEntitlements;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
@@ -24,6 +25,7 @@ namespace TummlyBackend.Services
         private readonly ICreditTopUpPaySession _creditTopUpPaySession;
         private readonly ITummlyVatInvoiceService _vatInvoices;
         private readonly ICycleEndPlanChange _cycleEndPlanChange;
+        private readonly ICycleEndPlanCancel _cycleEndPlanCancel;
 
         public BillingCreditsService(
             ApplicationDbContext context,
@@ -37,7 +39,8 @@ namespace TummlyBackend.Services
             IPaymentMethodUpdatePaySession paymentMethodUpdatePaySession,
             ICreditTopUpPaySession creditTopUpPaySession,
             ITummlyVatInvoiceService vatInvoices,
-            ICycleEndPlanChange cycleEndPlanChange
+            ICycleEndPlanChange cycleEndPlanChange,
+            ICycleEndPlanCancel cycleEndPlanCancel
         )
         {
             _context = context;
@@ -52,6 +55,7 @@ namespace TummlyBackend.Services
             _creditTopUpPaySession = creditTopUpPaySession;
             _vatInvoices = vatInvoices;
             _cycleEndPlanChange = cycleEndPlanChange;
+            _cycleEndPlanCancel = cycleEndPlanCancel;
         }
 
         public async Task<BillingCreditsPageDto?> GetPageAsync(
@@ -811,9 +815,23 @@ namespace TummlyBackend.Services
 
         public async Task<CancelPlanResultDto?> CancelPlanAsync(
             int userId,
-            int restaurantId
+            int restaurantId,
+            CancelPlanRequestDto request
         )
         {
+            if (
+                string.IsNullOrWhiteSpace(request.Reason)
+                || !CancelPlanReasons.Allowed.Contains(request.Reason)
+            )
+            {
+                throw new InvalidOperationException("cancel_reason_required");
+            }
+
+            var additionalNotes = request.AdditionalNotes?.Trim();
+            if (additionalNotes?.Length > 500)
+            {
+                throw new InvalidOperationException("cancel_notes_too_long");
+            }
             var restaurant = await _context.Restaurants
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row => row.Id == restaurantId);
@@ -871,9 +889,37 @@ namespace TummlyBackend.Services
             billingAccount.ClearScheduledChangeSlot();
             billingAccount.HasScheduledChange = true;
             billingAccount.ScheduledCancelPlan = true;
-            await _context.SaveChangesAsync();
+            billingAccount.ScheduledCancelReason = request.Reason;
+            billingAccount.ScheduledCancelNotes =
+                string.IsNullOrWhiteSpace(additionalNotes) ? null : additionalNotes;
+
+            await _cycleEndPlanCancel.ApplyRevolutCancelAtCycleEndIfNeededAsync(
+                restaurantId
+            );
 
             var renewalLabel = UkDateLabels.Format(billingAccount.RenewalDateUtc!.Value);
+            var actorName = await _context.Users
+                .AsNoTracking()
+                .Where(row => row.Id == userId)
+                .Select(row => row.FullName)
+                .FirstOrDefaultAsync();
+            BillingActivityWriter.TryAppend(
+                _context,
+                new BillingActivityAppendRequest
+                {
+                    RestaurantId = restaurantId,
+                    Kind = BillingActivityKinds.SubscriptionCancelled,
+                    OccurredAtUtc = DateTime.UtcNow,
+                    ActorDisplayName = string.IsNullOrWhiteSpace(actorName)
+                        ? null
+                        : actorName.Trim(),
+                    ScheduledDateLabel = renewalLabel,
+                    Plan = billingAccount.SubscriptionPlan,
+                }
+            );
+
+            await _context.SaveChangesAsync();
+
             return new CancelPlanResultDto
             {
                 Outcome = "scheduled",

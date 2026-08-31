@@ -31,8 +31,8 @@ import {
   buildManagePlanCardViewModels,
   buildPlanChangeConfirmCopy,
   buildAdditionalGroupLocationViewModel,
-  buildCancelPlanConfirmCopy,
   buildExtraLocationRemoveConfirmCopy,
+  createInitialCancelPlanDialogState,
   defaultPreviewCadence,
   formatCurrentPlanSummary,
   isCancelScheduled,
@@ -41,6 +41,8 @@ import {
   ADDITIONAL_GROUP_LOCATION_COPY,
   type AdditionalGroupLocationViewModel,
   type BillingCadence,
+  type CancelPlanDialogState,
+  type CancelPlanReason,
   type ManagePlanActionConfirmDialog,
   type ManagePlanCardViewModel,
   type ManagePlanId,
@@ -176,6 +178,11 @@ export type CreditTopUpPayResult = {
 
 export type ExtraLocationChangeResult = PlanChangeResult
 
+export type CancelPlanRequest = {
+  reason: CancelPlanReason
+  additionalNotes: string | null
+}
+
 export type CancelPlanResult = {
   scheduledChangeLine: string
 }
@@ -207,7 +214,7 @@ export type BillingCreditsPageAdapters = {
   submitPlanChange: (request: PlanChangeRequest) => Promise<PlanChangeResult>
   addExtraGroupLocation?: () => Promise<ExtraLocationChangeResult>
   removeExtraGroupLocation?: () => Promise<ExtraLocationChangeResult>
-  cancelPlan?: () => Promise<CancelPlanResult>
+  cancelPlan?: (request: CancelPlanRequest) => Promise<CancelPlanResult>
   createPaymentMethodUpdateSession?: () => Promise<{ redirectUrl: string }>
   fetchInvoicePdf?: (invoiceNo: string) => Promise<Blob>
   openInvoicePdf?: (blob: Blob) => void
@@ -291,7 +298,7 @@ export type BillingCreditsSnapshot = {
   additionalGroupLocation: AdditionalGroupLocationViewModel | null
   showCancelPlan: boolean
   extraLocationConfirm: ManagePlanActionConfirmDialog | null
-  cancelPlanConfirm: ManagePlanActionConfirmDialog | null
+  cancelPlanConfirm: CancelPlanDialogState | null
   toast: { kind: "success" | "error"; message: string } | null
   billingActivityPreview: BillingActivityViewRow[]
   billingActivityEmpty: boolean
@@ -340,6 +347,9 @@ export type OperatorBillingCreditsPageModule = {
   confirmExtraLocationChange: () => Promise<void>
   requestCancelPlan: () => void
   cancelCancelPlan: () => void
+  setCancelPlanReason: (reason: CancelPlanReason | "") => void
+  setCancelPlanAdditionalNotes: (value: string) => void
+  setCancelPlanAcknowledged: (value: boolean) => void
   confirmCancelPlan: () => Promise<void>
   openUpdatePaymentMethodConfirm: () => void
   dismissUpdatePaymentMethodConfirm: () => void
@@ -476,7 +486,7 @@ export function createOperatorBillingCreditsPageModule(
   let topUpConfirm: CreditTopUpConfirmViewModel | null = null
   let extraLocationConfirm: ManagePlanActionConfirmDialog | null = null
   let extraLocationConfirmKind: "add" | "remove" | null = null
-  let cancelPlanConfirm: ManagePlanActionConfirmDialog | null = null
+  let cancelPlanConfirm: CancelPlanDialogState | null = null
   let pendingLeave: PendingLeave | null = null
   let leaveDirtyOpen = false
   let isSaving = false
@@ -1290,13 +1300,9 @@ export function createOperatorBillingCreditsPageModule(
         return
       }
 
-      const copy = buildCancelPlanConfirmCopy(plan.renewalDateLabel)
       cancelPlanConfirm = {
+        ...createInitialCancelPlanDialogState(),
         open: true,
-        title: copy.title,
-        body: copy.body,
-        primaryLabel: copy.primaryLabel,
-        busy: false,
       }
       refreshSnapshot()
     },
@@ -1304,8 +1310,45 @@ export function createOperatorBillingCreditsPageModule(
       cancelPlanConfirm = null
       refreshSnapshot()
     },
-    confirmCancelPlan: async () => {
+    setCancelPlanReason: (reason) => {
       if (cancelPlanConfirm == null) {
+        return
+      }
+
+      cancelPlanConfirm = {
+        ...cancelPlanConfirm,
+        reason,
+      }
+      refreshSnapshot()
+    },
+    setCancelPlanAdditionalNotes: (value) => {
+      if (cancelPlanConfirm == null) {
+        return
+      }
+
+      cancelPlanConfirm = {
+        ...cancelPlanConfirm,
+        additionalNotes: value,
+      }
+      refreshSnapshot()
+    },
+    setCancelPlanAcknowledged: (value) => {
+      if (cancelPlanConfirm == null) {
+        return
+      }
+
+      cancelPlanConfirm = {
+        ...cancelPlanConfirm,
+        acknowledged: value,
+      }
+      refreshSnapshot()
+    },
+    confirmCancelPlan: async () => {
+      if (
+        cancelPlanConfirm == null
+        || cancelPlanConfirm.reason === ""
+        || !cancelPlanConfirm.acknowledged
+      ) {
         return
       }
 
@@ -1315,8 +1358,13 @@ export function createOperatorBillingCreditsPageModule(
       }
       refreshSnapshot()
 
+      const trimmedNotes = cancelPlanConfirm.additionalNotes.trim()
+
       try {
-        const result = await adapters.cancelPlan?.()
+        const result = await adapters.cancelPlan?.({
+          reason: cancelPlanConfirm.reason,
+          additionalNotes: trimmedNotes === "" ? null : trimmedNotes,
+        })
         if (result == null) {
           throw new Error("missing-adapter")
         }

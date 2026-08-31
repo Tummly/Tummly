@@ -13,6 +13,7 @@ import { useBillingCreditsPageModuleApi } from "@/components/dashboard/operator/
 import { ManagePlanCardsSection } from "@/components/dashboard/operator/BillingCredits/ManagePlanCardsSection"
 import { ManagePlanFaqSection } from "@/components/dashboard/operator/BillingCredits/ManagePlanFaqSection"
 import { CreditTopUpsSection } from "@/components/dashboard/operator/BillingCredits/CreditTopUpsSection"
+import { CancelSubscriptionDialog } from "@/components/dashboard/operator/BillingCredits/CancelSubscriptionDialog"
 import {
   ManagePlanAdditionalGroupLocationSection,
 } from "@/components/dashboard/operator/BillingCredits/ManagePlanGroupActionsSection"
@@ -45,6 +46,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import {
   BILLING_CREDITS_PAGE_COPY as copy,
   BILLING_CREDITS_CTA_BUTTON_CLASS,
@@ -71,6 +73,8 @@ import {
   MANAGE_PLAN_COPY,
   MANAGE_PLAN_PAGE_STACK_CLASS,
   MANAGE_PLAN_SECTION_HEADING_CLASS,
+  buildPlanRenewalDateMetric,
+  isCancelScheduled,
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import {
   ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS,
@@ -186,7 +190,10 @@ function PlanSubscriptionBody({
     return null
   }
 
-  const renewalLabel = plan.renewalDateLabel ?? "—"
+  const planRenewalDateMetric = buildPlanRenewalDateMetric(plan, {
+    renewalDate: copy.renewalDate,
+    cancelDate: copy.cancelDate,
+  })
   const billingCycleLabel = plan.billingCycle ?? "—"
   const planPrice = plan.isPilot
     ? plan.planPriceNet
@@ -227,7 +234,10 @@ function PlanSubscriptionBody({
           </div>
           <hr className={BILLING_PLAN_METRIC_DIVIDER_CLASS} />
           <div className={BILLING_PLAN_METRIC_ROW_CLASS}>
-            <PlanMetricPair label={copy.renewalDate} value={renewalLabel} />
+            <PlanMetricPair
+              label={planRenewalDateMetric.label}
+              value={planRenewalDateMetric.value}
+            />
             <PlanMetricPair
               label={copy.qrPacks}
               value={formatQrPacksLabel(plan.starterKitState)}
@@ -235,7 +245,7 @@ function PlanSubscriptionBody({
           </div>
         </div>
 
-        {plan.scheduledChangeLine != null ? (
+        {plan.scheduledChangeLine != null && !isCancelScheduled(plan) ? (
           <p className={cn(ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS, "mt-5")}>
             {plan.scheduledChangeLine}
           </p>
@@ -305,7 +315,10 @@ function PlanSubscriptionBody({
               label={copy.activeLocations}
               value={String(plan.activeLocations)}
             />
-            <PlanMetricPair label={copy.renewalDate} value={renewalLabel} />
+            <PlanMetricPair
+              label={planRenewalDateMetric.label}
+              value={planRenewalDateMetric.value}
+            />
           </div>
         </div>
 
@@ -900,21 +913,22 @@ function BillingActivityBody({
             type="button"
             variant="op-tertiary"
             className={BILLING_CREDITS_CTA_BUTTON_CLASS}
+            disabled={!snap.showCancelPlan}
             onClick={() => {
-              pageModule.openManagePlan()
+              pageModule.requestCancelPlan()
             }}
           >
             {copy.cancelSubscription}
           </Button>
           <Button
             type="button"
-            variant="op-link"
+            variant="op-tertiary"
             className={BILLING_CREDITS_CTA_BUTTON_CLASS}
-            onClick={() => {
-              pageModule.openManagePlan()
-            }}
+            asChild
           >
-            {copy.contactBillingSupport}
+            <Link to={HELP_CENTRE_CONTACT_URL}>
+              {copy.contactBillingSupport}
+            </Link>
           </Button>
         </div>
       </section>
@@ -1431,6 +1445,11 @@ export function BillingCreditsPage() {
         onCancel={() => {
           pageModule.confirmLeaveDirtyCancel()
         }}
+      />
+
+      <CancelSubscriptionDialog
+        cancelPlanConfirm={snap.cancelPlanConfirm}
+        pageModule={pageModule}
       />
     </div>
   )

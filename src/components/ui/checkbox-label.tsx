@@ -42,7 +42,7 @@ function CheckboxLabel({
       data-invalid={error ? true : undefined}
       className={cn("gap-1.5", className)}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex w-full items-start gap-2">
         <Checkbox
           id={checkboxId}
           checked={checked}
@@ -52,6 +52,7 @@ function CheckboxLabel({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
           className={cn(
+            "mt-0.5 shrink-0",
             variant === "default"
             && "size-[18px] rounded-[2px] border-[rgba(74,74,76,0.3)] bg-white data-checked:border-[#14a247] data-checked:bg-[#14a247] dark:border-op-checkbox-border dark:bg-transparent dark:data-checked:border-[#14a247] dark:data-checked:bg-[#14a247]"
           )}
@@ -59,7 +60,7 @@ function CheckboxLabel({
         <Label
           htmlFor={checkboxId}
           className={cn(
-            "text-sm font-medium leading-[normal] text-[#141414] dark:text-op-text-primary",
+            "flex-1 text-sm font-medium leading-[normal] text-[#141414] dark:text-op-text-primary",
             labelClassName
           )}
         >

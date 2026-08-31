@@ -39,6 +39,7 @@ export const BILLING_CREDITS_PAGE_COPY = {
     "Review your Tummly plan, included locations and renewal details.",
   billingStatus: "Billing status",
   renewalDate: "Renewal date",
+  cancelDate: "Cancel date",
   emailCredits: "Email credits",
   smsCredits: "SMS credits",
   aiCredits: "AI credits",

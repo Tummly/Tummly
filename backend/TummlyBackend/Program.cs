@@ -491,6 +491,7 @@ builder.Services.AddScoped<IOwnedLocationInsertService, OwnedLocationInsertServi
 builder.Services.AddScoped<IAccountWorkspaceService, AccountWorkspaceService>();
 builder.Services.AddScoped<ITeamPermissionsService, TeamPermissionsService>();
 builder.Services.AddScoped<ITeamMemberCapGate, TeamMemberCapGate>();
+builder.Services.AddScoped<IPlanEntitlementsSnapshot, PlanEntitlementsSnapshotService>();
 builder.Services.AddSingleton<IPricebookCatalog>(sp =>
     PricebookCatalog.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
 );
@@ -538,6 +539,7 @@ builder.Services.AddScoped<
 >();
 builder.Services.AddScoped<ICreditTopUpPaySession, CreditTopUpPaySessionService>();
 builder.Services.AddScoped<ICycleEndPlanChange, CycleEndPlanChangeService>();
+builder.Services.AddScoped<ICycleEndPlanCancel, CycleEndPlanCancelService>();
 builder.Services.AddScoped<
     IRevolutOrderCompletedApplier,
     RevolutOrderCompletedApplier

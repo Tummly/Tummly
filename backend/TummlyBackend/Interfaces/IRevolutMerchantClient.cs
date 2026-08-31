@@ -63,8 +63,18 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
-        /// Cancels a Revolut subscription (abandon pending setup). Needs
-        /// Merchant API credentials; does not use the create gate variation map.
+        /// Schedules subscription cancel at the current cycle end via
+        /// <c>PATCH …/subscriptions/{id}</c> (<c>scheduled_action.type: cancel</c>).
+        /// Needs Merchant API credentials; does not use the create gate.
+        /// </summary>
+        Task<RevolutMerchantCreateResult> ScheduleSubscriptionCancelAtCycleEndAsync(
+            string subscriptionId,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
+        /// Cancels a Revolut subscription immediately. Needs Merchant API
+        /// credentials; does not use the create gate variation map.
         /// </summary>
         Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
             string subscriptionId,

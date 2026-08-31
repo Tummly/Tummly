@@ -385,6 +385,14 @@ export interface CaptureLocationSnapshotResponse {
   thankYouOfferId: number | null
   thankYouOfferTitle: string | null
   thankYouOfferLive: boolean
+  entitlements?: {
+    activeQrPlacements?: {
+      cap?: number
+      current?: number
+      atCap?: boolean
+      available?: boolean
+    }
+  }
 }
 
 /** POST /api/capture/locations/:locationId/(pause|activate). */

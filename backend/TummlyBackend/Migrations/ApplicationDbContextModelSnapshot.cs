@@ -449,6 +449,14 @@ namespace TummlyBackend.Migrations
                     b.Property<bool>("ScheduledCancelPlan")
                         .HasColumnType("bit");
 
+                    b.Property<string>("ScheduledCancelNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ScheduledCancelReason")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("ScheduledTargetBillingCycle")
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");

@@ -360,9 +360,20 @@ type CancelPlanResponse = {
   scheduledChangeLine: string
 }
 
-export async function cancelBillingPlan(): Promise<{ scheduledChangeLine: string }> {
+export type CancelPlanRequestPayload = {
+  reason: string
+  additionalNotes?: string | null
+}
+
+export async function cancelBillingPlan(
+  request: CancelPlanRequestPayload
+): Promise<{ scheduledChangeLine: string }> {
   const { data } = await axiosInstance.post<CancelPlanResponse>(
-    "/billing-credits/cancel-plan"
+    "/billing-credits/cancel-plan",
+    {
+      reason: request.reason,
+      additionalNotes: request.additionalNotes ?? null,
+    }
   )
   return { scheduledChangeLine: data.scheduledChangeLine }
 }

@@ -842,7 +842,8 @@ export function createOperatorCapturePageModule(
     placementsFacts: CaptureLocationSnapshotResponse["placements"] | null,
     lastJourneyUpdate: CaptureLocationSnapshotResponse["lastJourneyUpdate"] | undefined,
     captureLocationStatus: CaptureLocationStatus,
-    thankYouOffer: CaptureThankYouOfferFact = state.thankYouOffer
+    thankYouOffer: CaptureThankYouOfferFact = state.thankYouOffer,
+    activeQrCap: number | null = null
   ): OperatorCaptureViewModel => {
     const locationName = resolveLocationName(input, locationId)
     const locationAddress = resolveLocationAddress(input, locationId)
@@ -867,6 +868,7 @@ export function createOperatorCapturePageModule(
         locationName,
         locationAddress,
         thankYouOffer,
+        activeQrCap,
       }),
     }
   }
@@ -931,6 +933,11 @@ export function createOperatorCapturePageModule(
       live: response.thankYouOfferLive ?? false,
     }
 
+    const activeQrCap =
+      response.entitlements?.activeQrPlacements?.available === false
+        ? null
+        : (response.entitlements?.activeQrPlacements?.cap ?? null)
+
     const openDetail = detailModule.getOpenContext()
     const selectedId = openDetail.qrCodeId
     const detailStillPresent =
@@ -950,7 +957,8 @@ export function createOperatorCapturePageModule(
         placementsFacts,
         lastJourneyUpdate,
         captureLocationStatus,
-        thankYouOffer
+        thankYouOffer,
+        activeQrCap
       ),
       placementsFacts,
       captureLocationStatus,

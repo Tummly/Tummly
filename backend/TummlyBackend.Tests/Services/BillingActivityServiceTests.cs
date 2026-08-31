@@ -129,7 +129,8 @@ namespace TummlyBackend.Tests.Services
                 new ThrowingPaymentMethodUpdatePaySession(),
                 new ThrowingCreditTopUpPaySession(),
                 new EmptyTummlyVatInvoiceService(),
-                new NoOpCycleEndPlanChange()
+                new NoOpCycleEndPlanChange(),
+                new NoOpCycleEndPlanCancel()
             );
             return new Harness(context, service, restaurant.Id);
         }
@@ -170,6 +171,14 @@ namespace TummlyBackend.Tests.Services
                 int restaurantId,
                 string targetPlan,
                 string targetCadenceApi,
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
+        }
+
+        private sealed class NoOpCycleEndPlanCancel : ICycleEndPlanCancel
+        {
+            public Task ApplyRevolutCancelAtCycleEndIfNeededAsync(
+                int restaurantId,
                 CancellationToken cancellationToken = default
             ) => Task.CompletedTask;
         }

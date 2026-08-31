@@ -1169,6 +1169,11 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             ) => throw new NotImplementedException();
 
+            public Task<RevolutMerchantCreateResult> ScheduleSubscriptionCancelAtCycleEndAsync(
+                string subscriptionId,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
             public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
                 string subscriptionId,
                 CancellationToken cancellationToken = default
@@ -1237,6 +1242,11 @@ namespace TummlyBackend.Tests.Services
             public Task<RevolutMerchantCreateResult> ChangeSubscriptionPlanAsync(
                 string subscriptionId,
                 string planVariationLookupKey,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+            public Task<RevolutMerchantCreateResult> ScheduleSubscriptionCancelAtCycleEndAsync(
+                string subscriptionId,
                 CancellationToken cancellationToken = default
             ) => throw new NotImplementedException();
 
@@ -1321,6 +1331,12 @@ namespace TummlyBackend.Tests.Services
                     )
                 );
             }
+
+
+            public Task<RevolutMerchantCreateResult> ScheduleSubscriptionCancelAtCycleEndAsync(
+                string subscriptionId,
+                CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
 
             public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
                 string subscriptionId,

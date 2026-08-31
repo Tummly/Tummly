@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.DTOs.Offers;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -12,10 +13,15 @@ namespace TummlyBackend.Services
     public sealed class OffersMetricsService : IOffersMetricsService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IPlanEntitlementsSnapshot? _entitlements;
 
-        public OffersMetricsService(ApplicationDbContext context)
+        public OffersMetricsService(
+            ApplicationDbContext context,
+            IPlanEntitlementsSnapshot? entitlements = null
+        )
         {
             _context = context;
+            _entitlements = entitlements;
         }
 
         public async Task<OffersPerformanceDto> GetPerformanceAsync(
@@ -63,6 +69,11 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
+            var entitlements = await ResolveAccountEntitlementsAsync(
+                locationId,
+                cancellationToken
+            );
+
             return new OffersPerformanceDto
             {
                 ActiveOffers = activeOffers,
@@ -70,7 +81,46 @@ namespace TummlyBackend.Services
                 Claims = claims,
                 Redemptions = redemptions,
                 ClaimToRedemptionRate = RateOrNull(redemptions, claims),
+                Entitlements = entitlements,
             };
+        }
+
+        private async Task<PlanEntitlementsAccountSnapshotDto> ResolveAccountEntitlementsAsync(
+            int locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            if (_entitlements == null)
+            {
+                return new PlanEntitlementsAccountSnapshotDto
+                {
+                    Locations = UnavailableEntitlement(),
+                    TeamMembers = UnavailableEntitlement(),
+                    ActiveOffers = UnavailableEntitlement(),
+                };
+            }
+
+            var restaurantId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == locationId)
+                .Select(row => row.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (restaurantId < 1)
+            {
+                return new PlanEntitlementsAccountSnapshotDto
+                {
+                    Locations = UnavailableEntitlement(),
+                    TeamMembers = UnavailableEntitlement(),
+                    ActiveOffers = UnavailableEntitlement(),
+                };
+            }
+
+            return await _entitlements.GetAccountAsync(restaurantId, cancellationToken);
+        }
+
+        private static PlanEntitlementLimitDto UnavailableEntitlement()
+        {
+            return new PlanEntitlementLimitDto { Available = false };
         }
 
         public async Task<OfferMetricsDto?> GetOfferMetricsAsync(

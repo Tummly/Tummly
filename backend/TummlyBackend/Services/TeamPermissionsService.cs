@@ -14,6 +14,7 @@ namespace TummlyBackend.Services
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IEmailService _email;
         private readonly ITeamMemberCapGate _teamMemberCap;
+        private readonly IPlanEntitlementsSnapshot _entitlements;
         private readonly IConfiguration _configuration;
         private readonly ILogger<TeamPermissionsService> _logger;
 
@@ -22,6 +23,7 @@ namespace TummlyBackend.Services
             IRestaurantPermissionHelper permissions,
             IEmailService email,
             ITeamMemberCapGate teamMemberCap,
+            IPlanEntitlementsSnapshot entitlements,
             IConfiguration configuration,
             ILogger<TeamPermissionsService> logger
         )
@@ -30,6 +32,7 @@ namespace TummlyBackend.Services
             _permissions = permissions;
             _email = email;
             _teamMemberCap = teamMemberCap;
+            _entitlements = entitlements;
             _configuration = configuration;
             _logger = logger;
         }
@@ -129,6 +132,10 @@ namespace TummlyBackend.Services
                 .Where(row => row.Status == MembershipStatus.Active)
                 .ToList();
 
+            var accountEntitlements = await _entitlements.GetAccountAsync(
+                restaurantId
+            );
+
             return new TeamPermissionsPageDto
             {
                 ActorCanManage = actorCanManage,
@@ -157,6 +164,7 @@ namespace TummlyBackend.Services
                 Members = members,
                 Matrix = BuildMatrix(adminOverrides),
                 Invitations = invitationRows,
+                Entitlements = accountEntitlements,
             };
         }
 

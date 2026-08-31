@@ -12,6 +12,11 @@ import {
 import { teamPermissionsFilterSheetSchema } from "@/lib/operatorTeamPermissions/teamPermissionsFilterSheetSchema"
 import { assignableRolesForActor } from "@/lib/operatorTeamPermissions/permissionRoles"
 import { isTeamPermissionsMatrixEditEnabled } from "@/lib/env"
+import type { PlanEntitlementsAccountSnapshot } from "@/lib/planEntitlements/planEntitlementsPresentation"
+import {
+  normalizePlanEntitlementsAccount,
+  teamMemberCapReachedMessage,
+} from "@/lib/planEntitlements/planEntitlementsPresentation"
 import {
   legalAdminLevels,
   resolveTeamPermissionsTabId,
@@ -118,6 +123,7 @@ export type TeamPermissionsPageData = {
   members: TeamMemberRow[]
   matrix: PermissionMatrixArea[]
   invitations: TeamInvitationRow[]
+  entitlements: PlanEntitlementsAccountSnapshot
 }
 
 export type TeamPermissionsPageAdapters = {
@@ -194,6 +200,9 @@ export type TeamPermissionsSnapshot = {
   auditLogTotalCount: number
   auditLogHasNext: boolean
   auditLogHasPrevious: boolean
+  entitlements: PlanEntitlementsAccountSnapshot
+  inviteAtCap: boolean
+  teamMembersUsageLabel: string
 }
 
 export type OperatorTeamPermissionsPageModule = {
@@ -532,8 +541,22 @@ export function createOperatorTeamPermissionsPageModule(
       auditLogTotalCount,
       auditLogHasNext: auditLogPage * auditLogPageSize < auditLogTotalCount,
       auditLogHasPrevious: auditLogPage > 1,
+      entitlements: data?.entitlements ?? normalizePlanEntitlementsAccount(null),
+      inviteAtCap: data?.entitlements.teamMembers.atCap ?? false,
+      teamMembersUsageLabel: formatTeamMembersUsageLabel(
+        data?.entitlements.teamMembers
+      ),
     }
   }
+
+function formatTeamMembersUsageLabel(
+  limit: PlanEntitlementsAccountSnapshot["teamMembers"] | undefined
+): string {
+  if (limit == null || !limit.available || limit.cap < 1) {
+    return ""
+  }
+  return `${limit.current} of ${limit.cap} team users`
+}
 
   snapshot = projectSnapshot()
 
@@ -580,6 +603,9 @@ export function createOperatorTeamPermissionsPageModule(
         ...data,
         matrix: data.matrix ?? [],
         invitations: data.invitations ?? [],
+        entitlements: normalizePlanEntitlementsAccount(
+          data.entitlements as Record<string, unknown> | undefined
+        ),
       }
       privacyConsentHasAccess = data.privacyConsentHasAccess
       activeTabId = resolveTeamPermissionsTabId(
@@ -711,6 +737,14 @@ export function createOperatorTeamPermissionsPageModule(
     },
     openInvite: () => {
       if (!(data?.actorCanManage ?? false)) {
+        return
+      }
+      if (data.entitlements.teamMembers.atCap) {
+        inviteEmailError = teamMemberCapReachedMessage(
+          data.entitlements.teamMembers
+        )
+        dialog = { kind: "invite" }
+        emit()
         return
       }
       inviteDraft = emptyInviteDraft(data?.actorPermissionRole ?? "")

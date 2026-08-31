@@ -1146,11 +1146,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task PostCancelPlan_Returns403_ForAdminView()
         {
             var seeded = await SeedPaidWorkspaceAsync();
-            using var request = Authorized(
-                HttpMethod.Post,
-                "/api/billing-credits/cancel-plan",
-                seeded.AdminJwt
-            );
+            using var request = AuthorizedCancelPlan(seeded.AdminJwt);
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
@@ -1159,11 +1155,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task PostCancelPlan_Returns403_ForBillingAdminManage()
         {
             var seeded = await SeedPaidWorkspaceAsync();
-            using var request = Authorized(
-                HttpMethod.Post,
-                "/api/billing-credits/cancel-plan",
-                seeded.BillingAdminJwt
-            );
+            using var request = AuthorizedCancelPlan(seeded.BillingAdminJwt);
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
@@ -1172,11 +1164,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task PostCancelPlan_RejectsPilot_ForOwner()
         {
             var seeded = await SeedWorkspaceAsync();
-            using var request = Authorized(
-                HttpMethod.Post,
-                "/api/billing-credits/cancel-plan",
-                seeded.OwnerJwt
-            );
+            using var request = AuthorizedCancelPlan(seeded.OwnerJwt);
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
 
@@ -1188,10 +1176,10 @@ namespace TummlyBackend.Tests.Integration
         public async Task PostCancelPlan_ReturnsScheduled_ForOwnerPaid()
         {
             var seeded = await SeedPaidWorkspaceAsync();
-            using var request = Authorized(
-                HttpMethod.Post,
-                "/api/billing-credits/cancel-plan",
-                seeded.OwnerJwt
+            using var request = AuthorizedCancelPlan(
+                seeded.OwnerJwt,
+                "too_expensive",
+                "Need to reduce costs this quarter."
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -1211,26 +1199,61 @@ namespace TummlyBackend.Tests.Integration
                 .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
             Assert.True(account.ScheduledCancelPlan);
             Assert.True(account.HasScheduledChange);
+            Assert.Equal("too_expensive", account.ScheduledCancelReason);
+            Assert.Equal(
+                "Need to reduce costs this quarter.",
+                account.ScheduledCancelNotes
+            );
+
+            var activity = await context.RestaurantBillingActivities
+                .AsNoTracking()
+                .SingleAsync(row =>
+                    row.RestaurantId == seeded.RestaurantId
+                    && row.Kind == BillingActivityKinds.SubscriptionCancelled
+                );
+            Assert.Equal("Owner Paid", activity.ActorDisplayName);
+            Assert.NotNull(activity.ScheduledDateLabel);
+            Assert.Equal("Growth", activity.Plan);
+            Assert.Contains(
+                activity.ScheduledDateLabel,
+                body.GetProperty("scheduledChangeLine").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PostCancelPlan_SchedulesRevolutCancelAtCycleEnd_WhenSubscriptionCorrelated()
+        {
+            var seeded = await SeedPaidWorkspaceWithSubscriptionAsync("sub_cancel_confirm");
+            var scheduleBefore = _factory.Merchant.ScheduleSubscriptionCancelCallCount;
+            var cancelBefore = _factory.Merchant.CancelSubscriptionCallCount;
+            using var request = AuthorizedCancelPlan(seeded.OwnerJwt);
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            Assert.Equal(scheduleBefore + 1, _factory.Merchant.ScheduleSubscriptionCancelCallCount);
+            Assert.Equal("sub_cancel_confirm", _factory.Merchant.LastScheduledCancelSubscriptionId);
+            Assert.Equal(cancelBefore, _factory.Merchant.CancelSubscriptionCallCount);
         }
 
         [Fact]
         public async Task PostCancelPlan_DoesNotRedirectToHpp_ForCancel()
         {
             var seeded = await SeedPaidWorkspaceAsync();
+            var scheduleBefore = _factory.Merchant.ScheduleSubscriptionCancelCallCount;
             var cancelBefore = _factory.Merchant.CancelSubscriptionCallCount;
             var orderBefore = _factory.Merchant.CreateOrderCallCount;
             var subscriptionBefore = _factory.Merchant.CreateSubscriptionCallCount;
-            using var request = Authorized(
-                HttpMethod.Post,
-                "/api/billing-credits/cancel-plan",
-                seeded.OwnerJwt
-            );
+            using var request = AuthorizedCancelPlan(seeded.OwnerJwt);
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
             var body = await ReadJsonAsync(response);
             Assert.Equal("scheduled", body.GetProperty("outcome").GetString());
             Assert.False(body.TryGetProperty("redirectUrl", out _));
+            Assert.Equal(
+                scheduleBefore,
+                _factory.Merchant.ScheduleSubscriptionCancelCallCount
+            );
             Assert.Equal(
                 cancelBefore,
                 _factory.Merchant.CancelSubscriptionCallCount
@@ -1246,19 +1269,11 @@ namespace TummlyBackend.Tests.Integration
         public async Task PostCancelPlan_SecondPost_ReturnsCancelNotAvailable()
         {
             var seeded = await SeedPaidWorkspaceAsync();
-            using var first = Authorized(
-                HttpMethod.Post,
-                "/api/billing-credits/cancel-plan",
-                seeded.OwnerJwt
-            );
+            using var first = AuthorizedCancelPlan(seeded.OwnerJwt);
             var firstResponse = await _client.SendAsync(first);
             Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
 
-            using var second = Authorized(
-                HttpMethod.Post,
-                "/api/billing-credits/cancel-plan",
-                seeded.OwnerJwt
-            );
+            using var second = AuthorizedCancelPlan(seeded.OwnerJwt);
             var secondResponse = await _client.SendAsync(second);
             Assert.Equal(HttpStatusCode.BadRequest, secondResponse.StatusCode);
 
@@ -2731,6 +2746,33 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        private async Task<PaidSeeded> SeedPaidWorkspaceWithSubscriptionAsync(
+            string subscriptionId
+        )
+        {
+            var seeded = await SeedPaidWorkspaceAsync();
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            context.RevolutPendingPaySessions.Add(
+                new RevolutPendingPaySession
+                {
+                    Id = Guid.NewGuid(),
+                    RestaurantId = seeded.RestaurantId,
+                    TargetPlan = "Growth",
+                    TargetCadence = "monthly",
+                    RevolutSubscriptionId = subscriptionId,
+                    SetupOrderId = "ord_setup_cancel",
+                    CheckoutUrl = "https://checkout.example/cancel",
+                    IdempotencyKey = $"idem-cancel-{subscriptionId}",
+                    IsOpen = false,
+                    CreatedAtUtc = DateTime.UtcNow.AddDays(-5),
+                }
+            );
+            await context.SaveChangesAsync();
+            return seeded;
+        }
+
         private async Task<PendingActivationSeeded> SeedPendingActivationWorkspaceAsync()
         {
             using var scope = _factory.Services.CreateScope();
@@ -2850,6 +2892,25 @@ namespace TummlyBackend.Tests.Integration
             };
             context.RestaurantMemberships.Add(row);
             return row;
+        }
+
+        private static HttpRequestMessage AuthorizedCancelPlan(
+            string jwt,
+            string reason = "too_expensive",
+            string? additionalNotes = null
+        )
+        {
+            var request = Authorized(
+                HttpMethod.Post,
+                "/api/billing-credits/cancel-plan",
+                jwt
+            );
+            request.Content = JsonContent.Create(new
+            {
+                reason,
+                additionalNotes,
+            });
+            return request;
         }
 
         private static HttpRequestMessage Authorized(

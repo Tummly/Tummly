@@ -841,6 +841,71 @@ export type AdditionalGroupLocationViewModel = {
   canRemove: boolean
 }
 
+export type CancelPlanReason =
+  | "too_expensive"
+  | "not_enough_scans"
+  | "not_using_campaigns"
+  | "missing_feature"
+  | "switched_provider"
+  | "business_closed"
+  | "other"
+
+export const CANCEL_PLAN_REASON_OPTIONS: ReadonlyArray<{
+  value: CancelPlanReason
+  label: string
+}> = [
+  { value: "too_expensive", label: "Too expensive" },
+  {
+    value: "not_enough_scans",
+    label: "Not enough scans or guest signups",
+  },
+  { value: "not_using_campaigns", label: "Not using campaigns" },
+  { value: "missing_feature", label: "Missing feature" },
+  { value: "switched_provider", label: "Switched provider" },
+  { value: "business_closed", label: "Business closed" },
+  { value: "other", label: "Other" },
+]
+
+export type CancelPlanDialogState = {
+  open: boolean
+  busy: boolean
+  reason: CancelPlanReason | ""
+  additionalNotes: string
+  acknowledged: boolean
+}
+
+export const CANCEL_SUBSCRIPTION_DIALOG_COPY = {
+  title: "Cancel subscription?",
+  bodyPrimary:
+    "Cancelling your subscription may affect access to campaigns, credits, QR materials, weekly briefs and account features after your billing period ends.",
+  bodySecondary:
+    "Your guest data, consent records, invoices and audit history may need to be retained according to your account and legal requirements.",
+  reasonLabel: "Reason for cancellation",
+  reasonPlaceholder: "Select a reason",
+  notesLabel: "Additional notes",
+  notesPlaceholder:
+    "Tell us anything else that would help us understand your decision.",
+  acknowledgment:
+    "I understand that cancelling may affect campaigns, credits, QR materials, weekly briefs and account access after my billing period ends.",
+  keepSubscription: "Keep subscription",
+  continueCancellation: "Continue cancellation",
+  contactSupport: "Contact support",
+} as const
+
+export function createInitialCancelPlanDialogState(): CancelPlanDialogState {
+  return {
+    open: false,
+    busy: false,
+    reason: "",
+    additionalNotes: "",
+    acknowledged: false,
+  }
+}
+
+export function isCancelPlanDialogReady(state: CancelPlanDialogState): boolean {
+  return state.reason !== "" && state.acknowledged
+}
+
 export type ManagePlanActionConfirmDialog = {
   open: boolean
   title: string
@@ -874,6 +939,23 @@ export const ADDITIONAL_GROUP_LOCATION_COPY = {
 
 export function isCancelScheduled(plan: PlanSubscriptionSnapshot): boolean {
   return plan.scheduledChangeLine?.startsWith("Cancels on") ?? false
+}
+
+export function buildPlanRenewalDateMetric(
+  plan: PlanSubscriptionSnapshot,
+  labels: { renewalDate: string; cancelDate: string }
+): { label: string; value: string } {
+  if (isCancelScheduled(plan)) {
+    return {
+      label: labels.cancelDate,
+      value: plan.scheduledChangeLine ?? plan.renewalDateLabel ?? "—",
+    }
+  }
+
+  return {
+    label: labels.renewalDate,
+    value: plan.renewalDateLabel ?? "—",
+  }
 }
 
 export function canRemoveExtraGroupLocation(

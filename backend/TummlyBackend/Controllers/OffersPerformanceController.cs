@@ -97,6 +97,7 @@ namespace TummlyBackend.Controllers
                 claims = dto.Claims,
                 redemptions = dto.Redemptions,
                 claimToRedemptionRate = dto.ClaimToRedemptionRate,
+                entitlements = dto.Entitlements,
             });
         }
 

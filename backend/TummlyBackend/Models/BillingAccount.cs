@@ -103,6 +103,14 @@ namespace TummlyBackend.Models
         /// </summary>
         public bool ScheduledCancelPlan { get; set; }
 
+        /// <summary>Operator-selected reason when cancel is scheduled.</summary>
+        [MaxLength(64)]
+        public string? ScheduledCancelReason { get; set; }
+
+        /// <summary>Optional operator notes when cancel is scheduled.</summary>
+        [MaxLength(500)]
+        public string? ScheduledCancelNotes { get; set; }
+
         /// <summary>
         /// Unpaid Pilot clock. Copied from Activation period at Account activation
         /// and on Extend activation. Cleared on <c>ActivatePaidPlan</c>.
@@ -144,6 +152,8 @@ namespace TummlyBackend.Models
             ScheduledTargetBillingCycle = null;
             ScheduledTargetExtraLocationCount = null;
             ScheduledCancelPlan = false;
+            ScheduledCancelReason = null;
+            ScheduledCancelNotes = null;
         }
     }
 

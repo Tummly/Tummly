@@ -32,6 +32,8 @@ export type CaptureGuestExperienceFacts = {
   locationAddress: string
   /** Guest form thank-you catalog attach from Capture snapshot. */
   thankYouOffer?: CaptureThankYouOfferFact | null
+  /** Active QR plan cap from snapshot entitlements. */
+  activeQrCap?: number | null
 }
 
 export type CaptureGuestExperiencePreviewEntry =
@@ -47,6 +49,8 @@ export type OperatorCaptureGuestExperienceView = {
   guestFormsText: string
   /** Live `{N} of {M} placements active`, or "—" when unavailable. */
   qrPlacementsText: string
+  /** Plan limit line for active QR placements when entitlements are available. */
+  activeQrPlanUsageText: string
   connectedOffersText: string
   /** Live Needs attention copy from Paused non-archived count, or "—" when unavailable. */
   needsAttentionText: string
@@ -114,6 +118,7 @@ export function buildCaptureGuestExperience(
     return {
       guestFormsText: "—",
       qrPlacementsText: "—",
+      activeQrPlanUsageText: "",
       connectedOffersText,
       needsAttentionText: "—",
       lastJourneyUpdateText: formatLastJourneyUpdateText(facts.lastJourneyUpdate),
@@ -159,6 +164,10 @@ export function buildCaptureGuestExperience(
   return {
     guestFormsText: `1 published form · Used by ${activeCount} of ${activeCount} active placements`,
     qrPlacementsText: `${activeCount} of ${totalCount} placements active`,
+    activeQrPlanUsageText:
+      facts.activeQrCap != null && facts.activeQrCap > 0
+        ? `${activeCount} of ${facts.activeQrCap} active QR placements (plan limit)`
+        : "",
     connectedOffersText,
     needsAttentionText:
       pausedCount === 0

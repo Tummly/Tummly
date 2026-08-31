@@ -1562,6 +1562,14 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        public Task<RevolutMerchantCreateResult> ScheduleSubscriptionCancelAtCycleEndAsync(
+            string subscriptionId,
+            CancellationToken cancellationToken = default
+        ) =>
+            Task.FromResult(
+                new RevolutMerchantCreateResult(Succeeded: true, Id: subscriptionId)
+            );
+
         public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
             string subscriptionId,
             CancellationToken cancellationToken = default

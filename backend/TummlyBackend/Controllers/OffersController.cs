@@ -105,6 +105,7 @@ namespace TummlyBackend.Controllers
                         inFlight = response.TabCounts.InFlight,
                         sent = response.TabCounts.Sent,
                     },
+                    entitlements = response.Entitlements,
                 });
             }
             catch (ArgumentException ex)
