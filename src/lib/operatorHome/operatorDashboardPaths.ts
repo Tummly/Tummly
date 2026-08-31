@@ -16,6 +16,7 @@ const NAVIGABLE_PRIMARY_NAV_IDS = new Set<OperatorSidebarPrimaryNavId>([
 
 const NAVIGABLE_SETTINGS_CHILD_IDS = new Set<OperatorSidebarSettingsChildId>([
   "account-workspace",
+  "locations",
   "team-permissions",
   "billing-credits",
 ])
@@ -27,7 +28,7 @@ export type NavigableOperatorSidebarPrimaryNavId = Extract<
 
 export type NavigableOperatorSidebarSettingsChildId = Extract<
   OperatorSidebarSettingsChildId,
-  "account-workspace" | "team-permissions" | "billing-credits"
+  "account-workspace" | "locations" | "team-permissions" | "billing-credits"
 >
 
 export type NavigableOperatorSidebarNavId =
@@ -94,11 +95,13 @@ export function operatorDashboardNavPath(
       ? root
       : navId === "account-workspace"
         ? `${root}/settings/account-workspace`
-        : navId === "team-permissions"
-          ? `${root}/settings/team-permissions`
-          : navId === "billing-credits"
-            ? `${root}/settings/billing-credits`
-          : `${root}/${navId}`
+        : navId === "locations"
+          ? `${root}/settings/locations`
+          : navId === "team-permissions"
+            ? `${root}/settings/team-permissions`
+            : navId === "billing-credits"
+              ? `${root}/settings/billing-credits`
+              : `${root}/${navId}`
   return `${path}?location=${locationId}`
 }
 
@@ -242,6 +245,12 @@ export function resolveOperatorSidebarActiveId(
   const segments = pathname.split("/").filter(Boolean)
   if (segments.includes("account-workspace")) {
     return "account-workspace"
+  }
+  if (
+    segments.includes("settings") &&
+    segments[segments.indexOf("settings") + 1] === "locations"
+  ) {
+    return "locations"
   }
   if (segments.includes("team-permissions")) {
     return "team-permissions"

@@ -161,6 +161,15 @@ describe("operatorDashboardNavPath", () => {
     ).toBe("/multi-dashboard/settings/account-workspace?location=7")
   })
 
+  it("builds Locations settings path with location query", () => {
+    expect(operatorDashboardNavPath("single", "locations", 42)).toBe(
+      "/single-dashboard/settings/locations?location=42"
+    )
+    expect(operatorDashboardNavPath("multi", "locations", 7)).toBe(
+      "/multi-dashboard/settings/locations?location=7"
+    )
+  })
+
   it("builds Team & permissions settings path with location query", () => {
     expect(
       operatorDashboardNavPath("single", "team-permissions", 42)
@@ -366,6 +375,20 @@ describe("resolveOperatorSidebarActiveId", () => {
         "/multi-dashboard/settings/account-workspace"
       )
     ).toBe("account-workspace")
+  })
+
+  it("marks Locations active on settings locations and not Capture nested", () => {
+    expect(
+      resolveOperatorSidebarActiveId("/single-dashboard/settings/locations")
+    ).toBe("locations")
+    expect(
+      resolveOperatorSidebarActiveId("/multi-dashboard/settings/locations")
+    ).toBe("locations")
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/multi-dashboard/capture/locations/42"
+      )
+    ).toBe("capture")
   })
 
   it("marks Team & permissions active on settings child routes", () => {

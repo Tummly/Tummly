@@ -223,6 +223,7 @@ describe("getOperatorSidebarNav", () => {
     for (const child of nav.settings.children.filter(
       (c) =>
         c.id !== "account-workspace"
+        && c.id !== "locations"
         && c.id !== "team-permissions"
         && c.id !== "billing-credits"
     )) {
@@ -249,12 +250,29 @@ describe("getOperatorSidebarNav", () => {
     for (const child of nav.settings.children.filter(
       (c) =>
         c.id !== "account-workspace"
+        && c.id !== "locations"
         && c.id !== "team-permissions"
         && c.id !== "billing-credits"
     )) {
       expect(child.navigable).toBe(false)
       expect(child.to).toBeUndefined()
     }
+  })
+
+  it("makes Locations navigable when nav targets are provided", () => {
+    const nav = getOperatorSidebarNav("locations", {
+      mode: "single",
+      locationId: 10,
+    })
+
+    expect(
+      nav.settings.children.find((c) => c.id === "locations")
+    ).toMatchObject({
+      label: "Locations",
+      navigable: true,
+      active: true,
+      to: "/single-dashboard/settings/locations?location=10",
+    })
   })
 
   it("makes Team & permissions navigable when nav targets are provided", () => {
@@ -325,13 +343,17 @@ describe("getOperatorSidebarNav", () => {
   })
 
   it("forces Settings disclosure open when a Settings child is active", () => {
-    const nav = getOperatorSidebarNav("locations")
+    const nav = getOperatorSidebarNav("locations", {
+      mode: "single",
+      locationId: 10,
+    })
 
     expect(nav.settings.forceExpanded).toBe(true)
     expect(nav.settings.children.find((c) => c.id === "locations")).toMatchObject(
       {
         active: true,
-        navigable: false,
+        navigable: true,
+        to: "/single-dashboard/settings/locations?location=10",
       }
     )
     expect(nav.primary.every((item) => item.active === false)).toBe(true)

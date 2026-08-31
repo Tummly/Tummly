@@ -47,6 +47,8 @@ import { GuestProfileRoute } from "@/components/dashboard/operator/GuestProfile/
 import { HomeRoute } from "@/components/dashboard/operator/Home/HomeRoute";
 import { AccountWorkspacePageModuleProvider } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspacePageModuleProvider";
 import { AccountWorkspaceRoute } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceRoute";
+import { LocationsPageModuleProvider } from "@/components/dashboard/operator/Locations/LocationsPageModuleProvider";
+import { LocationsRoute } from "@/components/dashboard/operator/Locations/LocationsRoute";
 import { TeamPermissionsPageModuleProvider } from "@/components/dashboard/operator/TeamPermissions/TeamPermissionsPageModuleProvider";
 import { TeamPermissionsRoute } from "@/components/dashboard/operator/TeamPermissions/TeamPermissionsRoute";
 import { BillingCreditsRoute } from "@/components/dashboard/operator/BillingCredits/BillingCreditsRoute";
@@ -206,6 +208,14 @@ function AppRoutes() {
                   }
                 />
                 <Route
+                  path="settings/locations"
+                  element={
+                    <LocationsPageModuleProvider>
+                      <LocationsRoute />
+                    </LocationsPageModuleProvider>
+                  }
+                />
+                <Route
                   path="settings/team-permissions"
                   element={
                     <TeamPermissionsPageModuleProvider>
@@ -288,6 +298,14 @@ function AppRoutes() {
                     <AccountWorkspacePageModuleProvider>
                       <AccountWorkspaceRoute />
                     </AccountWorkspacePageModuleProvider>
+                  }
+                />
+                <Route
+                  path="settings/locations"
+                  element={
+                    <LocationsPageModuleProvider>
+                      <LocationsRoute />
+                    </LocationsPageModuleProvider>
                   }
                 />
                 <Route
