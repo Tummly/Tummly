@@ -91,8 +91,9 @@ describe("createOperatorLocationsPageModule", () => {
       { id: "soho", label: "Soho" },
     ])
     expect(snap.totalFilteredCount).toBe(2)
-    expect(snap.setupAttentionItems).toEqual([])
-    expect(snap.activityItems).toEqual([])
+    // Setup/Activity remain UI seeds until tickets 02 / 06.
+    expect(snap.setupAttentionItems.length).toBeGreaterThan(0)
+    expect(snap.activityItems.length).toBeGreaterThan(0)
     expect(getList).toHaveBeenCalledTimes(1)
   })
 

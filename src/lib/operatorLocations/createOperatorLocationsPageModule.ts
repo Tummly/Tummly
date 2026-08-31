@@ -105,6 +105,62 @@ export type OperatorLocationsPageModule = {
 
 const DEFAULT_SEARCH_DEBOUNCE_MS = 300
 
+/** UI seed — Figma Needs attention card until readiness API lands (ticket 02). */
+const DEMO_SETUP_ATTENTION_ITEMS: LocationsSetupAttentionItem[] = [
+  {
+    id: "privacy-review",
+    message: "1 location needs a privacy review",
+  },
+  {
+    id: "no-active-qr",
+    message: "1 location has no active QR placement",
+  },
+]
+
+/** UI seed — Figma Activity card until activity API lands (ticket 06). */
+const DEMO_ACTIVITY_ITEMS: LocationsActivityItem[] = [
+  {
+    id: "1",
+    timeLabel: "Today, 10:42",
+    description: "James updated SMS consent wording.",
+  },
+  {
+    id: "2",
+    timeLabel: "Yesterday, 16:05",
+    description: "A guest unsubscribed from email campaigns.",
+  },
+  {
+    id: "3",
+    timeLabel: "Today, 10:42",
+    description: "James updated SMS consent wording.",
+  },
+  {
+    id: "4",
+    timeLabel: "Yesterday, 16:05",
+    description: "A guest unsubscribed from email campaigns.",
+  },
+  {
+    id: "5",
+    timeLabel: "Today, 10:42",
+    description: "James updated SMS consent wording.",
+  },
+  {
+    id: "6",
+    timeLabel: "Yesterday, 16:05",
+    description: "A guest unsubscribed from email campaigns.",
+  },
+  {
+    id: "7",
+    timeLabel: "Today, 10:42",
+    description: "James updated SMS consent wording.",
+  },
+  {
+    id: "8",
+    timeLabel: "Yesterday, 16:05",
+    description: "A guest unsubscribed from email campaigns.",
+  },
+]
+
 function mapApiRowToTableRow(
   row: LocationsListApiRow,
   now: Date
@@ -151,8 +207,9 @@ export function createOperatorLocationsPageModule(
   let loadGeneration = 0
   let searchTimer: ReturnType<typeof setTimeout> | null = null
 
-  const setupAttentionItems: LocationsSetupAttentionItem[] = []
-  const activityItems: LocationsActivityItem[] = []
+  // Setup/Activity tabs stay on Figma seeds until tickets 02 / 06.
+  const setupAttentionItems = DEMO_SETUP_ATTENTION_ITEMS
+  const activityItems = DEMO_ACTIVITY_ITEMS
 
   const listeners = new Set<() => void>()
   let snapshot: LocationsSnapshot

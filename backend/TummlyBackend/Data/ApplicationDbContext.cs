@@ -1895,8 +1895,8 @@ namespace TummlyBackend.Data
             /*
              =========================================
              LOCATION MANAGER (nomination → User)
-             Restrict/NoAction: never SetNull/Cascade onto Users
-             (SQL Server multiple-cascade / CODING_STANDARDS).
+             Restrict: never SetNull/Cascade onto Users — SQL Server
+             error 1785 (multiple cascade paths).
              =========================================
             */
 
