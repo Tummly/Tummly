@@ -11,7 +11,7 @@ import {
 } from "@/lib/operatorLocations/locationsPresentation"
 
 describe("locationRowActionsForLifecycle", () => {
-  it("returns Active location actions from Figma", () => {
+  it("returns Active location actions (Archive only from Paused)", () => {
     expect(
       locationRowActionsForLifecycle("active").map((action) => action.id)
     ).toEqual([
@@ -22,7 +22,6 @@ describe("locationRowActionsForLifecycle", () => {
       "view-feedback",
       "view-reports",
       "pause-location",
-      "archive-location",
     ])
   })
 

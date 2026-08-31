@@ -37,6 +37,7 @@ namespace TummlyBackend.Services
                 {
                     WorkspaceStatus = (WorkspaceStatus?)l.Restaurant!.WorkspaceStatus,
                     RestaurantId = l.RestaurantId,
+                    LifecycleStatus = l.LifecycleStatus,
                 })
                 .FirstOrDefaultAsync(cancellationToken);
 
@@ -53,6 +54,14 @@ namespace TummlyBackend.Services
                 return new CampaignSendStartGateResult.Blocked
                 {
                     Message = "Workspace is paused.",
+                };
+            }
+
+            if (row.LifecycleStatus != LocationLifecycleStatus.Active)
+            {
+                return new CampaignSendStartGateResult.Blocked
+                {
+                    Message = "Location is not active.",
                 };
             }
 

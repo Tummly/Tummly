@@ -18,6 +18,8 @@ export interface LocationItem {
   locationPhone?: string | null;
   localContact?: string | null;
   createdAt: string;
+  /** Settings lifecycle for switcher — Active / Paused only from API. */
+  lifecycleStatus?: "active" | "paused";
 }
 
 export interface LocationsResponse {

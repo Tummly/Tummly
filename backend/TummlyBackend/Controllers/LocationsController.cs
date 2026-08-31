@@ -15,18 +15,21 @@ namespace TummlyBackend.Controllers
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IOwnedLocationInsertService _insert;
         private readonly ILocationsListService _list;
-        private readonly ILocationsLifecycleWriteService _lifecycle;
+        private readonly ILocationsLifecycleWriteService _lifecycleWrite;
+        private readonly ILocationLifecycleService _lifecycle;
 
         public LocationsController(
             IRestaurantPermissionHelper permissions,
             IOwnedLocationInsertService insert,
             ILocationsListService list,
-            ILocationsLifecycleWriteService lifecycle
+            ILocationsLifecycleWriteService lifecycleWrite,
+            ILocationLifecycleService lifecycle
         )
         {
             _permissions = permissions;
             _insert = insert;
             _list = list;
+            _lifecycleWrite = lifecycleWrite;
             _lifecycle = lifecycle;
         }
 
@@ -154,7 +157,7 @@ namespace TummlyBackend.Controllers
             return await RunLifecycleWriteAsync(
                 locationId,
                 (restaurantId, userId) =>
-                    _lifecycle.ActivateDraftAsync(restaurantId, locationId, userId)
+                    _lifecycleWrite.ActivateDraftAsync(restaurantId, locationId, userId)
             );
         }
 
@@ -164,7 +167,7 @@ namespace TummlyBackend.Controllers
             return await RunLifecycleWriteAsync(
                 locationId,
                 (restaurantId, userId) =>
-                    _lifecycle.DeleteDraftAsync(restaurantId, locationId, userId)
+                    _lifecycleWrite.DeleteDraftAsync(restaurantId, locationId, userId)
             );
         }
 
@@ -177,7 +180,7 @@ namespace TummlyBackend.Controllers
             return await RunLifecycleWriteAsync(
                 locationId,
                 (restaurantId, userId) =>
-                    _lifecycle.SetManagerAsync(
+                    _lifecycleWrite.SetManagerAsync(
                         restaurantId,
                         locationId,
                         userId,
@@ -185,6 +188,22 @@ namespace TummlyBackend.Controllers
                     )
             );
         }
+
+        [HttpPost("{locationId:int}/pause")]
+        public Task<IActionResult> PauseLocation(int locationId) =>
+            MutateLifecycleAsync(locationId, _lifecycle.PauseAsync);
+
+        [HttpPost("{locationId:int}/resume")]
+        public Task<IActionResult> ResumeLocation(int locationId) =>
+            MutateLifecycleAsync(locationId, _lifecycle.ResumeAsync);
+
+        [HttpPost("{locationId:int}/archive")]
+        public Task<IActionResult> ArchiveLocation(int locationId) =>
+            MutateLifecycleAsync(locationId, _lifecycle.ArchiveAsync);
+
+        [HttpPost("{locationId:int}/restore")]
+        public Task<IActionResult> RestoreLocation(int locationId) =>
+            MutateLifecycleAsync(locationId, _lifecycle.RestoreAsync);
 
         private async Task<IActionResult> RunLifecycleWriteAsync(
             int locationId,
@@ -247,6 +266,69 @@ namespace TummlyBackend.Controllers
                     {
                         success = false,
                         message = "Unexpected location write result.",
+                    }
+                ),
+            };
+        }
+
+        private async Task<IActionResult> MutateLifecycleAsync(
+            int locationId,
+            Func<LocationLifecycleCommand, Task<LocationLifecycleResult>> action
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(
+                User,
+                out var userId
+            );
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeLocationAsync(
+                User,
+                OperatorAreaIds.Locations,
+                PermissionLevel.Manage,
+                locationId
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await action(
+                new LocationLifecycleCommand
+                {
+                    UserId = userId,
+                    RestaurantId = decision.RestaurantId,
+                    LocationId = locationId,
+                }
+            );
+
+            return result.Kind switch
+            {
+                LocationLifecycleResultKind.Ok => Ok(new
+                {
+                    success = true,
+                    lifecycleStatus = result.LifecycleStatus,
+                }),
+                LocationLifecycleResultKind.NotFound => NotFound(new
+                {
+                    success = false,
+                    message = result.Message,
+                }),
+                LocationLifecycleResultKind.InvalidTransition => Conflict(new
+                {
+                    success = false,
+                    message = result.Message,
+                }),
+                _ => StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "Unexpected location lifecycle result.",
                     }
                 ),
             };

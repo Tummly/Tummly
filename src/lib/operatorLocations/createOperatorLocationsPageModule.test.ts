@@ -221,4 +221,50 @@ describe("createOperatorLocationsPageModule", () => {
     expect(setManager).toHaveBeenNthCalledWith(2, "10", null)
     expect(getList).toHaveBeenCalledTimes(2)
   })
+
+  it("pause row action mutates lifecycle then refreshes the snapshot", async () => {
+    const getList = vi
+      .fn()
+      .mockResolvedValueOnce(apiResponse())
+      .mockResolvedValueOnce(
+        apiResponse({
+          rows: [
+            {
+              id: 10,
+              name: "Alpha Venue",
+              lifecycleStatus: "paused",
+              setupStatus: "ready",
+              managerName: "Aisha Khan",
+              city: "Camden",
+              postcode: "NW1 1AA",
+              cityId: "camden",
+              cityPostcode: "Camden, NW1 1AA",
+              lastActivityAt: "2026-08-31T12:42:00.000Z",
+              searchText: "alpha venue camden nw1 1aa",
+            },
+          ],
+          kpis: {
+            active: 0,
+            draft: 1,
+            paused: 1,
+            setupNeedsAttention: 0,
+          },
+        })
+      )
+    const mutateLifecycle = vi.fn(async () => undefined)
+    const module = createOperatorLocationsPageModule({
+      getList,
+      mutateLifecycle,
+      debounceMs: 0,
+    })
+    await module.load()
+
+    await module.onRowAction("10", "pause-location")
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(mutateLifecycle).toHaveBeenCalledWith(10, "pause")
+    expect(getList).toHaveBeenCalledTimes(2)
+    expect(module.getSnapshot().rows[0]?.lifecycleStatus).toBe("paused")
+  })
 })
