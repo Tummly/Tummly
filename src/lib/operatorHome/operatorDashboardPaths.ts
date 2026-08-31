@@ -19,6 +19,7 @@ const NAVIGABLE_SETTINGS_CHILD_IDS = new Set<OperatorSidebarSettingsChildId>([
   "locations",
   "team-permissions",
   "billing-credits",
+  "privacy-consent",
 ])
 
 export type NavigableOperatorSidebarPrimaryNavId = Extract<
@@ -28,7 +29,11 @@ export type NavigableOperatorSidebarPrimaryNavId = Extract<
 
 export type NavigableOperatorSidebarSettingsChildId = Extract<
   OperatorSidebarSettingsChildId,
-  "account-workspace" | "locations" | "team-permissions" | "billing-credits"
+  | "account-workspace"
+  | "locations"
+  | "team-permissions"
+  | "billing-credits"
+  | "privacy-consent"
 >
 
 export type NavigableOperatorSidebarNavId =
@@ -101,7 +106,9 @@ export function operatorDashboardNavPath(
             ? `${root}/settings/team-permissions`
             : navId === "billing-credits"
               ? `${root}/settings/billing-credits`
-              : `${root}/${navId}`
+              : navId === "privacy-consent"
+                ? `${root}/settings/privacy-consent`
+                : `${root}/${navId}`
   return `${path}?location=${locationId}`
 }
 
@@ -257,6 +264,9 @@ export function resolveOperatorSidebarActiveId(
   }
   if (segments.includes("billing-credits")) {
     return "billing-credits"
+  }
+  if (segments.includes("privacy-consent")) {
+    return "privacy-consent"
   }
   if (segments.includes("guests")) {
     return "guests"
