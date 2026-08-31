@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
@@ -13,9 +12,6 @@ namespace TummlyBackend.Services
     /// </summary>
     public sealed class LocationLifecycleService : ILocationLifecycleService
     {
-        private static readonly JsonSerializerOptions ParamsJsonOptions =
-            new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-
         private readonly ApplicationDbContext _context;
         private readonly ICaptureQrLifecycleService _captureLifecycle;
 
@@ -228,23 +224,17 @@ namespace TummlyBackend.Services
                 .Select(u => u.FullName)
                 .FirstOrDefaultAsync();
 
-            _context.LocationSettingsActivityEvents.Add(
-                new LocationSettingsActivityEvent
+            _context.LocationActivities.Add(
+                new LocationActivity
                 {
                     RestaurantId = command.RestaurantId,
                     LocationId = location.Id,
                     ActorUserId = command.UserId,
                     ActorDisplayName = actorDisplayName,
-                    Kind = LocationSettingsActivityKinds.LifecycleChanged,
+                    Kind = LocationActivityKinds.LifecycleChanged,
                     Description = description,
-                    ParamsJson = JsonSerializer.Serialize(
-                        new
-                        {
-                            from = ToWire(from),
-                            to = ToWire(to),
-                        },
-                        ParamsJsonOptions
-                    ),
+                    FromValue = ToWire(from),
+                    ToValue = ToWire(to),
                     OccurredAt = DateTime.UtcNow,
                 }
             );

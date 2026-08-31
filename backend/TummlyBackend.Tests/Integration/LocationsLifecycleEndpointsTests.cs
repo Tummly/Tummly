@@ -68,14 +68,14 @@ namespace TummlyBackend.Tests.Integration
                 .FirstAsync(q => q.Id == seeded.ActiveQrId);
             Assert.Equal(QrCodeStatus.Paused, qr.Status);
 
-            var activity = await context.LocationSettingsActivityEvents
+            var activity = await context.LocationActivities
                 .AsNoTracking()
                 .SingleAsync(e =>
                     e.LocationId == seeded.ActiveLocationId
-                    && e.Kind
-                        == LocationSettingsActivityKinds.LifecycleChanged
+                    && e.Kind == LocationActivityKinds.LifecycleChanged
                 );
             Assert.Contains("paused", activity.Description ?? string.Empty);
+            Assert.Equal("paused", activity.ToValue);
         }
 
         [Fact]

@@ -1921,52 +1921,6 @@ namespace TummlyBackend.Migrations
                     b.ToTable("LocationGuestTags");
                 });
 
-            modelBuilder.Entity("TummlyBackend.Models.LocationSettingsActivityEvent", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ActorDisplayName")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<int>("ActorUserId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<int?>("LocationId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("OccurredAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ParamsJson")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<int>("RestaurantId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LocationId");
-
-                    b.HasIndex("RestaurantId", "OccurredAt", "Id");
-
-                    b.ToTable("LocationSettingsActivityEvents");
-                });
-
             modelBuilder.Entity("TummlyBackend.Models.MasterGuest", b =>
                 {
                     b.Property<int>("Id")
@@ -4384,24 +4338,6 @@ namespace TummlyBackend.Migrations
                     b.Navigation("GuestTag");
 
                     b.Navigation("LocationGuest");
-                });
-
-            modelBuilder.Entity("TummlyBackend.Models.LocationSettingsActivityEvent", b =>
-                {
-                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "Location")
-                        .WithMany()
-                        .HasForeignKey("LocationId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
-                        .WithMany()
-                        .HasForeignKey("RestaurantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Location");
-
-                    b.Navigation("Restaurant");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.MasterGuest", b =>
