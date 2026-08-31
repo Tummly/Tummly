@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 
-import { createOperatorLocationsPageModule } from "@/lib/operatorLocations/createOperatorLocationsPageModule"
 import {
   buildLocationsKpis,
+  formatLocationsLastActivityAt,
   formatLocationsPageRange,
   formatNeedsAttentionSubtitle,
   locationLifecycleBadgeVariant,
@@ -124,93 +124,16 @@ describe("formatNeedsAttentionSubtitle", () => {
   })
 })
 
-describe("createOperatorLocationsPageModule", () => {
-  it("sorts by location name A–Z by default", () => {
-    const module = createOperatorLocationsPageModule({
-      rows: [
-        {
-          id: "b",
-          name: "Beta",
-          lifecycleStatus: "active",
-          setupStatus: "ready",
-          managerName: "A",
-          cityPostcode: "Camden, London",
-          cityId: "camden",
-          lastActivityLabel: "Today",
-          searchText: "beta camden",
-        },
-        {
-          id: "a",
-          name: "Alpha",
-          lifecycleStatus: "draft",
-          setupStatus: "ready",
-          managerName: "A",
-          cityPostcode: "Soho, London",
-          cityId: "soho",
-          lastActivityLabel: "Today",
-          searchText: "alpha soho",
-        },
-      ],
-      setupNeedsAttentionCount: 0,
-    })
+describe("formatLocationsLastActivityAt", () => {
+  const now = new Date("2026-08-31T15:00:00.000Z")
 
-    expect(module.getSnapshot().rows.map((row) => row.name)).toEqual([
-      "Alpha",
-      "Beta",
-    ])
-
-    module.setSortId("name-desc")
-    expect(module.getSnapshot().rows.map((row) => row.name)).toEqual([
-      "Beta",
-      "Alpha",
-    ])
-  })
-
-  it("filters by search and lifecycle chip selection", () => {
-    const module = createOperatorLocationsPageModule({
-      setupNeedsAttentionCount: 2,
-    })
-
-    module.setSearchQuery("Soho")
-    expect(module.getSnapshot().rows).toHaveLength(1)
-    expect(module.getSnapshot().rows[0]?.name).toContain("Soho")
-
-    module.clearSearchAndFilters()
-    module.openFilters()
-    const session = module.getSnapshot().filtersSession
-    expect(session).not.toBeNull()
-    if (session == null) {
-      return
-    }
-    module.setFiltersSession({
-      ...session,
-      pending: {
-        ...session.pending,
-        lifecycle: { kind: "multi-select", ids: ["paused"] },
-      },
-    })
-    module.applyFilters()
-    expect(module.getSnapshot().rows).toHaveLength(1)
-    expect(module.getSnapshot().rows[0]?.lifecycleStatus).toBe("paused")
-    expect(module.getSnapshot().filterChipCount).toBe(1)
-  })
-
-  it("exposes Setup & readiness tab count", () => {
-    const module = createOperatorLocationsPageModule({
-      setupNeedsAttentionCount: 2,
-    })
-    const setupTab = module
-      .getSnapshot()
-      .tabs.find((tab) => tab.id === "setup-readiness")
-    expect(setupTab?.count).toBe(2)
-  })
-
-  it("exposes Needs attention and Activity seed rows", () => {
-    const module = createOperatorLocationsPageModule()
-    const snap = module.getSnapshot()
-    expect(snap.setupAttentionItems).toHaveLength(2)
-    expect(snap.setupAttentionItems[0]?.message).toContain("privacy review")
-    expect(snap.activityItems.length).toBeGreaterThan(0)
-    expect(snap.activityItems[0]?.timeLabel).toBe("Today, 10:42")
+  it("formats Today and Yesterday and empty as em dash", () => {
+    expect(formatLocationsLastActivityAt(null, now)).toBe("—")
+    expect(
+      formatLocationsLastActivityAt("2026-08-31T12:42:00.000Z", now)
+    ).toMatch(/^Today,/)
+    expect(
+      formatLocationsLastActivityAt("2026-08-30T15:05:00.000Z", now)
+    ).toMatch(/^Yesterday,/)
   })
 })

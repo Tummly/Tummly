@@ -325,3 +325,58 @@ export function formatLocationsPageRange(options: {
   const end = Math.min(options.page * options.pageSize, options.totalCount)
   return `Showing ${start}–${end} of ${options.totalCount} locations`
 }
+
+function londonYmd(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date)
+}
+
+function previousYmd(ymd: string): string {
+  const [year, month, day] = ymd.split("-").map(Number)
+  return new Date(Date.UTC(year, month - 1, day - 1))
+    .toISOString()
+    .slice(0, 10)
+}
+
+function londonTime(date: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date)
+}
+
+/** Formats Locations table last-activity ISO as Today / Yesterday / date. */
+export function formatLocationsLastActivityAt(
+  iso: string | null | undefined,
+  now: Date
+): string {
+  if (iso == null || iso.trim() === "") {
+    return "—"
+  }
+  const occurred = new Date(iso)
+  if (Number.isNaN(occurred.getTime())) {
+    return "—"
+  }
+  const time = londonTime(occurred)
+  const occurredDay = londonYmd(occurred)
+  const today = londonYmd(now)
+  if (occurredDay === today) {
+    return `Today, ${time}`
+  }
+  if (occurredDay === previousYmd(today)) {
+    return `Yesterday, ${time}`
+  }
+  const datePart = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(occurred)
+  return `${datePart}, ${time}`
+}

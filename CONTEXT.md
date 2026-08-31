@@ -552,8 +552,8 @@ The Account details summary label derived from **Workspace status**: **Live** wh
 _Avoid_: Form live, QR status (when meaning this account row)
 
 **Pause workspace**:
-The operator action that sets **Workspace status** to **Paused**. While Paused, guest forms and outbound product work for that Restaurant stop (Campaigns, Offers); **Billing status** and billing clocks do not change. The operator may still open the **Operator dashboard** and return to **Account & workspace** to **Resume workspace**. Distinct from **Pause location capture**.
-_Avoid_: Pause location, Pause campaign, Soft lock, Activation expired
+The operator action that sets **Workspace status** to **Paused**. While Paused, guest forms and outbound product work for that Restaurant stop (Campaigns, Offers); **Billing status** and billing clocks do not change. The operator may still open the **Operator dashboard** and return to **Account & workspace** to **Resume workspace**. Distinct from **Pause location capture** and from Settings **Pause location**.
+_Avoid_: Pause location, Pause location capture, Pause campaign, Soft lock, Activation expired
 Product lock: `.scratch/credit-ledger-backend/issues/10-soft-lock-and-dormant-account-lifecycle.md`.
 
 **Resume workspace**:
@@ -697,8 +697,28 @@ The multi-location Capture root table of **Owned location** rows with per-locati
 _Avoid_: Locations Capture table, multi placements table
 
 **Capture location status**:
-Persisted Active / Paused flag for Capture on an **Owned location** as a whole. Distinct from an individual **QR code**’s Active / Paused / Archived status. **Pause location capture** sets the location to Paused and pauses then-Active codes (placements, Smart Guest, Digital guest links), remembering that restore set; **Activate location capture** sets the location to Active and restores only that set. While the location is Paused, per-code Pause/Activate is locked; guest resolve stays per-code only. **Capture location snapshot**, **Capture overview**, and **Location performance** expose the persisted Capture location status (and restore-set size on locations).
-_Avoid_: Location Active (ambiguous with operational location), venue pause
+Persisted Active / Paused flag for Capture on an **Owned location** as a whole. Distinct from an individual **QR code**’s Active / Paused / Archived status, and from Settings **Location lifecycle status**. **Pause location capture** sets the location to Paused and pauses then-Active codes (placements, Smart Guest, Digital guest links), remembering that restore set; **Activate location capture** sets the location to Active and restores only that set. While the location is Paused, per-code Pause/Activate is locked; guest resolve stays per-code only. **Capture location snapshot**, **Capture overview**, and **Location performance** expose the persisted Capture location status (and restore-set size on locations).
+_Avoid_: Location Active (ambiguous with operational location), venue pause, Location lifecycle status (Settings)
+
+**Location lifecycle status**:
+Settings lifecycle on an **Owned location**: **Draft**, **Active**, **Paused**, or **Archived**. Controls Settings Locations list, switcher visibility, and Pause cascade. Distinct from **Capture location status** (Capture-only Active / Paused). Migration sets existing rows to Settings **Active**; Capture Paused is not copied into Settings on migrate.
+_Avoid_: Capture location status (when meaning Settings lifecycle); venue status (ambiguous)
+
+**Pause location** (Settings):
+Operator action that sets Settings **Location lifecycle status** to **Paused** and runs the Pause cascade (Capture pause restore-set, block new guest intake / Campaign send / Offer issue at that venue). Distinct from **Pause location capture** (Capture-only) and from **Pause workspace** (Restaurant-wide).
+_Avoid_: Pause location capture (when meaning Settings Pause); Pause workspace
+
+**Location manager** (nomination):
+Optional `ManagerUserId` FK on an **Owned location** — who the Settings Locations table shows as manager (display name, or — when null). Distinct from permission role **Location Manager** and from free-text **Local contact**.
+_Avoid_: Location Manager (role); Local contact; primary manager (from NamedList invent)
+
+**Local contact**:
+Free-text setup field on an **Owned location** (`LocalContact`). Not used for the Settings Locations manager column.
+_Avoid_: Location manager (nomination); Location Manager (role)
+
+**Privacy consent ready**:
+Restaurant fact `PrivacyConsentReadyAt` (nullable UTC). Null means privacy incomplete; Active / Paused owned locations then derive Setup **Needs attention** for privacy review. Migration sets UtcNow for existing restaurants; new restaurants stay null until an operator with Manage on `privacy-consent` saves consent wording / completes review. Distinct from Privacy contact (Key contacts).
+_Avoid_: Privacy contact; consent wording (the copy fields, not the ready timestamp)
 
 **QR placement (UI)**:
 Operator-facing label on Capture for a row that represents one **QR code** of a catalog **QR type**. Not a separate domain entity from **QR code** / **QR type**.

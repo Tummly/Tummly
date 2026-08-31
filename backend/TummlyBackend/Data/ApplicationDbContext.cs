@@ -1894,6 +1894,23 @@ namespace TummlyBackend.Data
 
             /*
              =========================================
+             LOCATION MANAGER (nomination → User)
+             Restrict/NoAction: never SetNull/Cascade onto Users
+             (SQL Server multiple-cascade / CODING_STANDARDS).
+             =========================================
+            */
+
+            modelBuilder.Entity<RestaurantLocation>()
+                .HasOne(l => l.ManagerUser)
+                .WithMany()
+                .HasForeignKey(l => l.ManagerUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<RestaurantLocation>()
+                .HasIndex(l => l.ManagerUserId);
+
+            /*
+             =========================================
              OFFER ISSUES (catalog pass + claim code)
              =========================================
             */

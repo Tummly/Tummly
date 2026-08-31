@@ -7,11 +7,16 @@ import {
   removeAppliedChip,
   type FilterChip,
   type FilterSheetSession,
-  type OperatorFilterSelection,
 } from "@/lib/operatorFilterSheet"
 import { locationsFilterSheetSchema } from "@/lib/operatorLocations/locationsFilterSheetSchema"
 import {
+  buildLocationsListQueryParams,
+  type LocationsListApiRow,
+  type LocationsListResponse,
+} from "@/lib/operatorLocations/locationsListQueryParams"
+import {
   buildLocationsKpis,
+  formatLocationsLastActivityAt,
   formatLocationsPageRange,
   locationRowActionsForLifecycle,
   LOCATIONS_DEFAULT_SORT_ID,
@@ -20,10 +25,8 @@ import {
   LOCATIONS_TAB_IDS,
   LOCATIONS_TAB_LABELS,
   resolveLocationsTabId,
-  type LocationLifecycleStatus,
   type LocationRowAction,
   type LocationRowActionId,
-  type LocationSetupStatus,
   type LocationsActivityItem,
   type LocationsKpi,
   type LocationsSetupAttentionItem,
@@ -35,8 +38,8 @@ import {
 export type LocationsTableRow = {
   id: string
   name: string
-  lifecycleStatus: LocationLifecycleStatus
-  setupStatus: LocationSetupStatus
+  lifecycleStatus: LocationsListApiRow["lifecycleStatus"]
+  setupStatus: LocationsListApiRow["setupStatus"]
   managerName: string
   cityPostcode: string
   cityId: string
@@ -71,11 +74,19 @@ export type LocationsSnapshot = {
   canGoPrevious: boolean
   canGoNext: boolean
   empty: boolean
+  loadStatus: "idle" | "loading" | "loaded" | "error"
+}
+
+export type OperatorLocationsPageAdapters = {
+  getList: (params: ReturnType<typeof buildLocationsListQueryParams>) => Promise<LocationsListResponse>
+  debounceMs?: number
+  getNow?: () => Date
 }
 
 export type OperatorLocationsPageModule = {
   getSnapshot: () => LocationsSnapshot
   subscribe: (listener: () => void) => () => void
+  load: () => Promise<void>
   setActiveTabFromUrl: (raw: string | null | undefined) => void
   requestTabChange: (tabId: LocationsTabId) => void
   setSearchQuery: (query: string) => void
@@ -92,203 +103,33 @@ export type OperatorLocationsPageModule = {
   onReviewSetupAttention: (itemId: LocationsSetupAttentionItemId) => void
 }
 
-/** UI seed rows — Figma Locations table until the list API lands. */
-const DEMO_ROWS: LocationsTableRow[] = [
-  {
-    id: "1",
-    name: "Mehmet’s Grill — Camden",
-    lifecycleStatus: "active",
-    setupStatus: "ready",
-    managerName: "Aisha Khan",
-    cityPostcode: "Camden, London",
-    cityId: "camden",
-    lastActivityLabel: "Today, 13:42",
-    searchText: "mehmet's grill camden london nw1",
-  },
-  {
-    id: "2",
-    name: "Mehmet’s Grill — Soho",
-    lifecycleStatus: "draft",
-    setupStatus: "ready",
-    managerName: "Aisha Khan",
-    cityPostcode: "Camden, London",
-    cityId: "camden",
-    lastActivityLabel: "Today, 13:42",
-    searchText: "mehmet's grill soho camden london",
-  },
-  {
-    id: "3",
-    name: "Mehmet’s Grill — King’s Cross",
-    lifecycleStatus: "paused",
-    setupStatus: "ready",
-    managerName: "Aisha Khan",
-    cityPostcode: "Camden, London",
-    cityId: "camden",
-    lastActivityLabel: "Today, 13:42",
-    searchText: "mehmet's grill king's cross camden london",
-  },
-  {
-    id: "4",
-    name: "Mehmet’s Grill — Greenwich",
-    lifecycleStatus: "archived",
-    setupStatus: "ready",
-    managerName: "Aisha Khan",
-    cityPostcode: "Camden, London",
-    cityId: "camden",
-    lastActivityLabel: "Today, 13:42",
-    searchText: "mehmet's grill greenwich camden london",
-  },
-  {
-    id: "5",
-    name: "Mehmet’s Grill — Shoreditch",
-    lifecycleStatus: "active",
-    setupStatus: "ready",
-    managerName: "Aisha Khan",
-    cityPostcode: "Camden, London",
-    cityId: "camden",
-    lastActivityLabel: "Today, 13:42",
-    searchText: "mehmet's grill shoreditch camden london",
-  },
-]
+const DEFAULT_SEARCH_DEBOUNCE_MS = 300
 
-/** UI seed — Figma Needs attention card until readiness API lands. */
-const DEMO_SETUP_ATTENTION_ITEMS: LocationsSetupAttentionItem[] = [
-  {
-    id: "privacy-review",
-    message: "1 location needs a privacy review",
-  },
-  {
-    id: "no-active-qr",
-    message: "1 location has no active QR placement",
-  },
-]
-
-/** UI seed — Figma Activity card until activity API lands. */
-const DEMO_ACTIVITY_ITEMS: LocationsActivityItem[] = [
-  {
-    id: "1",
-    timeLabel: "Today, 10:42",
-    description: "James updated SMS consent wording.",
-  },
-  {
-    id: "2",
-    timeLabel: "Yesterday, 16:05",
-    description: "A guest unsubscribed from email campaigns.",
-  },
-  {
-    id: "3",
-    timeLabel: "Today, 10:42",
-    description: "James updated SMS consent wording.",
-  },
-  {
-    id: "4",
-    timeLabel: "Yesterday, 16:05",
-    description: "A guest unsubscribed from email campaigns.",
-  },
-  {
-    id: "5",
-    timeLabel: "Today, 10:42",
-    description: "James updated SMS consent wording.",
-  },
-  {
-    id: "6",
-    timeLabel: "Yesterday, 16:05",
-    description: "A guest unsubscribed from email campaigns.",
-  },
-  {
-    id: "7",
-    timeLabel: "Today, 10:42",
-    description: "James updated SMS consent wording.",
-  },
-  {
-    id: "8",
-    timeLabel: "Yesterday, 16:05",
-    description: "A guest unsubscribed from email campaigns.",
-  },
-]
-
-function multiSelectIds(
-  selection: OperatorFilterSelection | undefined,
-  fieldId: string
-): string[] {
-  const value = selection?.[fieldId]
-  if (value == null || value.kind !== "multi-select") {
-    return []
+function mapApiRowToTableRow(
+  row: LocationsListApiRow,
+  now: Date
+): LocationsTableRow {
+  return {
+    id: String(row.id),
+    name: row.name,
+    lifecycleStatus: row.lifecycleStatus,
+    setupStatus: row.setupStatus,
+    managerName: row.managerName?.trim() ? row.managerName : "—",
+    cityPostcode: row.cityPostcode || "—",
+    cityId: row.cityId ?? "",
+    lastActivityLabel: formatLocationsLastActivityAt(row.lastActivityAt, now),
+    searchText: (row.searchText ?? "").toLowerCase(),
   }
-  return value.ids
 }
 
-function rowMatchesFilters(
-  row: LocationsTableRow,
-  selection: OperatorFilterSelection | undefined
-): boolean {
-  if (selection == null) {
-    return true
-  }
-
-  const lifecycleIds = multiSelectIds(selection, "lifecycle")
-  if (
-    lifecycleIds.length > 0 &&
-    !lifecycleIds.includes(row.lifecycleStatus)
-  ) {
-    return false
-  }
-
-  const setupIds = multiSelectIds(selection, "setup")
-  if (setupIds.length > 0 && !setupIds.includes(row.setupStatus)) {
-    return false
-  }
-
-  const cityIds = multiSelectIds(selection, "city")
-  if (cityIds.length > 0 && !cityIds.includes(row.cityId)) {
-    return false
-  }
-
-  return true
-}
-
-function sortRows(
-  rows: LocationsTableRow[],
-  sortId: LocationsSortId
-): LocationsTableRow[] {
-  const next = [...rows]
-  next.sort((a, b) => {
-    const cmp = a.name.localeCompare(b.name, undefined, {
-      sensitivity: "base",
-    })
-    return sortId === "name-asc" ? cmp : -cmp
-  })
-  return next
-}
-
-function cityOptionsFromRows(rows: LocationsTableRow[]) {
-  const seen = new Map<string, string>()
-  for (const row of rows) {
-    if (!seen.has(row.cityId)) {
-      const cityLabel = row.cityPostcode.split(",")[0]?.trim() || row.cityId
-      seen.set(row.cityId, cityLabel)
-    }
-  }
-  return [...seen.entries()].map(([id, label]) => ({ id, label }))
-}
-
-export function createOperatorLocationsPageModule(options: {
-  initialTabId?: string | null
-  rows?: LocationsTableRow[]
-  /** Setup & readiness tab badge until readiness API lands. */
-  setupNeedsAttentionCount?: number
-  setupAttentionItems?: LocationsSetupAttentionItem[]
-  activityItems?: LocationsActivityItem[]
-} = {}): OperatorLocationsPageModule {
-  const allRows = options.rows ?? DEMO_ROWS
-  const setupAttentionItems =
-    options.setupAttentionItems ?? DEMO_SETUP_ATTENTION_ITEMS
-  const activityItems = options.activityItems ?? DEMO_ACTIVITY_ITEMS
-  const setupNeedsAttentionCount =
-    options.setupNeedsAttentionCount ??
-    (setupAttentionItems.length > 0
-      ? setupAttentionItems.length
-      : allRows.filter((row) => row.setupStatus === "needs-attention").length)
+export function createOperatorLocationsPageModule(
+  adapters: OperatorLocationsPageAdapters,
+  options: {
+    initialTabId?: string | null
+  } = {}
+): OperatorLocationsPageModule {
+  const debounceMs = adapters.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS
+  const getNow = adapters.getNow ?? (() => new Date())
 
   let activeTabId = resolveLocationsTabId(options.initialTabId)
   let searchQuery = ""
@@ -296,12 +137,29 @@ export function createOperatorLocationsPageModule(options: {
   let filtersSession: FilterSheetSession | null = null
   let filtersOpen = false
   let page = 1
+  let rows: LocationsTableRow[] = []
+  let totalFilteredCount = 0
+  let cityFilterOptions: Array<{ id: string; label: string }> = []
+  let kpis = buildLocationsKpis({
+    active: 0,
+    draft: 0,
+    paused: 0,
+    setupNeedsAttention: 0,
+  })
+  let setupNeedsAttentionCount = 0
+  let loadStatus: LocationsSnapshot["loadStatus"] = "idle"
+  let loadGeneration = 0
+  let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+  const setupAttentionItems: LocationsSetupAttentionItem[] = []
+  const activityItems: LocationsActivityItem[] = []
+
   const listeners = new Set<() => void>()
   let snapshot: LocationsSnapshot
 
   const schema = () =>
     locationsFilterSheetSchema({
-      cities: cityOptionsFromRows(allRows),
+      cities: cityFilterOptions,
     })
 
   const emit = () => {
@@ -312,31 +170,9 @@ export function createOperatorLocationsPageModule(options: {
   }
 
   const projectSnapshot = (): LocationsSnapshot => {
-    const applied = filtersSession?.applied
-    const query = searchQuery.trim().toLowerCase()
-    const filtered = sortRows(
-      allRows.filter((row) => {
-        if (!rowMatchesFilters(row, applied)) {
-          return false
-        }
-        if (query === "") {
-          return true
-        }
-        return (
-          row.name.toLowerCase().includes(query) ||
-          row.cityPostcode.toLowerCase().includes(query) ||
-          row.searchText.includes(query)
-        )
-      }),
-      sortId
-    )
-
-    const totalFilteredCount = filtered.length
     const pageSize = LOCATIONS_PAGE_SIZE
     const maxPage = Math.max(1, Math.ceil(totalFilteredCount / pageSize))
     const safePage = Math.min(page, maxPage)
-    const start = (safePage - 1) * pageSize
-    const rows = filtered.slice(start, start + pageSize)
 
     const rowActionsById: Record<string, LocationRowAction[]> = {}
     for (const row of rows) {
@@ -344,16 +180,6 @@ export function createOperatorLocationsPageModule(options: {
         row.lifecycleStatus
       )
     }
-
-    const activeCount = allRows.filter(
-      (row) => row.lifecycleStatus === "active"
-    ).length
-    const draftCount = allRows.filter(
-      (row) => row.lifecycleStatus === "draft"
-    ).length
-    const pausedCount = allRows.filter(
-      (row) => row.lifecycleStatus === "paused"
-    ).length
 
     return {
       activeTabId,
@@ -365,12 +191,7 @@ export function createOperatorLocationsPageModule(options: {
             ? setupNeedsAttentionCount
             : null,
       })),
-      kpis: buildLocationsKpis({
-        active: activeCount,
-        draft: draftCount,
-        paused: pausedCount,
-        setupNeedsAttention: setupNeedsAttentionCount,
-      }),
+      kpis,
       searchQuery,
       sortId,
       sortLabel: LOCATIONS_SORT_LABELS[sortId],
@@ -384,7 +205,7 @@ export function createOperatorLocationsPageModule(options: {
           : chipCount(schema(), filtersSession.applied),
       filtersOpen,
       filtersSession,
-      cityFilterOptions: cityOptionsFromRows(allRows),
+      cityFilterOptions,
       rows,
       rowActionsById,
       setupAttentionItems,
@@ -399,11 +220,65 @@ export function createOperatorLocationsPageModule(options: {
       }),
       canGoPrevious: safePage > 1,
       canGoNext: safePage * pageSize < totalFilteredCount,
-      empty: totalFilteredCount === 0,
+      empty: totalFilteredCount === 0 && loadStatus !== "loading",
+      loadStatus,
     }
   }
 
   snapshot = projectSnapshot()
+
+  const fetchList = async () => {
+    const generation = ++loadGeneration
+    if (loadStatus === "idle" || loadStatus === "error") {
+      loadStatus = "loading"
+      emit()
+    }
+
+    try {
+      const response = await adapters.getList(
+        buildLocationsListQueryParams({
+          searchQuery,
+          sortId,
+          page,
+          pageSize: LOCATIONS_PAGE_SIZE,
+          applied: filtersSession?.applied ?? null,
+        })
+      )
+
+      if (generation !== loadGeneration) {
+        return
+      }
+
+      const now = getNow()
+      rows = response.rows.map((row) => mapApiRowToTableRow(row, now))
+      totalFilteredCount = response.totalCount
+      page = response.page
+      cityFilterOptions = response.cityFacets.map((facet) => ({
+        id: facet.id,
+        label: facet.label,
+      }))
+      kpis = buildLocationsKpis(response.kpis)
+      setupNeedsAttentionCount = response.kpis.setupNeedsAttention
+      loadStatus = "loaded"
+      emit()
+    } catch {
+      if (generation !== loadGeneration) {
+        return
+      }
+      loadStatus = "error"
+      emit()
+    }
+  }
+
+  const scheduleSearchFetch = () => {
+    if (searchTimer != null) {
+      clearTimeout(searchTimer)
+    }
+    searchTimer = setTimeout(() => {
+      searchTimer = null
+      void fetchList()
+    }, debounceMs)
+  }
 
   return {
     subscribe: (listener) => {
@@ -413,6 +288,9 @@ export function createOperatorLocationsPageModule(options: {
       }
     },
     getSnapshot: () => snapshot,
+    load: async () => {
+      await fetchList()
+    },
     setActiveTabFromUrl: (raw) => {
       activeTabId = resolveLocationsTabId(raw)
       emit()
@@ -428,11 +306,13 @@ export function createOperatorLocationsPageModule(options: {
       searchQuery = query
       page = 1
       emit()
+      scheduleSearchFetch()
     },
     setSortId: (next) => {
       sortId = next
       page = 1
       emit()
+      void fetchList()
     },
     setFiltersSession: (session) => {
       filtersSession = session
@@ -462,6 +342,7 @@ export function createOperatorLocationsPageModule(options: {
       filtersOpen = false
       page = 1
       emit()
+      void fetchList()
     },
     removeFilterChip: (chip) => {
       if (filtersSession == null) {
@@ -472,12 +353,14 @@ export function createOperatorLocationsPageModule(options: {
       )
       page = 1
       emit()
+      void fetchList()
     },
     clearSearchAndFilters: () => {
       searchQuery = ""
       filtersSession = null
       page = 1
       emit()
+      void fetchList()
     },
     goToPreviousPage: () => {
       if (page <= 1) {
@@ -485,6 +368,7 @@ export function createOperatorLocationsPageModule(options: {
       }
       page -= 1
       emit()
+      void fetchList()
     },
     goToNextPage: () => {
       const current = projectSnapshot()
@@ -493,12 +377,13 @@ export function createOperatorLocationsPageModule(options: {
       }
       page += 1
       emit()
+      void fetchList()
     },
-      onRowAction: () => {
-        // Wire mutations when Locations API lands.
-      },
-      onReviewSetupAttention: () => {
-        // Wire review navigation when Locations API lands.
-      },
-    }
+    onRowAction: () => {
+      // Wire mutations when Locations write APIs land.
+    },
+    onReviewSetupAttention: () => {
+      // Wire review navigation when Setup attention API lands.
+    },
   }
+}

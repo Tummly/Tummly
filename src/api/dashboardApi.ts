@@ -6,6 +6,10 @@ import type {
   GuestsExportQueryParams,
   GuestsListQueryParams,
 } from "@/lib/operatorGuests/guestsListQueryParams"
+import type {
+  LocationsListQueryParams,
+  LocationsListResponse,
+} from "@/lib/operatorLocations/locationsListQueryParams"
 import {
   mapCreatedGuestTagApiToGuestTag,
   mapGuestTagApiRowToGuestTag,
@@ -139,6 +143,20 @@ import type {
 export const getLocations = async (): Promise<LocationsResponse> => {
   const response = await axiosInstance.get<LocationsResponse>(
     "/restaurant/locations"
+  )
+  return response.data
+}
+
+/** GET /api/locations — Settings Locations list + KPIs. */
+export const getLocationsList = async (
+  params: LocationsListQueryParams
+): Promise<LocationsListResponse> => {
+  const response = await axiosInstance.get<LocationsListResponse>(
+    "/locations",
+    {
+      params,
+      paramsSerializer: serializeRepeatedParams,
+    }
   )
   return response.data
 }

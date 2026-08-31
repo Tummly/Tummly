@@ -6,6 +6,7 @@ import {
 } from "react"
 import { useSearchParams } from "react-router-dom"
 
+import { getLocationsList } from "@/api/dashboardApi"
 import { locationsPageModuleContext } from "@/components/dashboard/operator/Locations/utils/locationsPageModuleContext"
 import { createOperatorLocationsPageModule } from "@/lib/operatorLocations/createOperatorLocationsPageModule"
 
@@ -17,12 +18,17 @@ export function LocationsPageModuleProvider({
   const [searchParams] = useSearchParams()
   const initialTabId = searchParams.get("tab")
   const [pageModule] = useState(() =>
-    createOperatorLocationsPageModule({
-      initialTabId,
-      // Figma header shows Setup & readiness badge "2".
-      setupNeedsAttentionCount: 2,
-    })
+    createOperatorLocationsPageModule(
+      {
+        getList: getLocationsList,
+      },
+      { initialTabId }
+    )
   )
+
+  useEffect(() => {
+    void pageModule.load()
+  }, [pageModule])
 
   useEffect(() => {
     pageModule.setActiveTabFromUrl(searchParams.get("tab"))

@@ -131,6 +131,17 @@ namespace TummlyBackend.Models
         [MaxLength(200)]
         public string? DefaultCampaignSenderName { get; set; }
 
+        /*
+         =========================================
+         PRIVACY CONSENT READY
+         Null = privacy incomplete (setup attention).
+         Migration sets UtcNow for existing restaurants;
+         new restaurants stay null until saved.
+         =========================================
+        */
+
+        public DateTime? PrivacyConsentReadyAt { get; set; }
+
     }
 
 

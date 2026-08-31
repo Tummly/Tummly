@@ -34,7 +34,41 @@ namespace TummlyBackend.Models
         */
 
         public string? Postcode { get; set; }
-         
+
+        /*
+         =========================================
+         CITY (Settings Locations)
+         =========================================
+        */
+
+        [MaxLength(100)]
+        public string? City { get; set; }
+
+        /*
+         =========================================
+         LOCATION LIFECYCLE (Settings)
+         Distinct from CaptureLocationStatus.
+         =========================================
+        */
+
+        /// <summary>
+        /// Settings lifecycle: Draft / Active / Paused / Archived.
+        /// Default Active for app code; migration backfills existing rows.
+        /// </summary>
+        public LocationLifecycleStatus LifecycleStatus { get; set; }
+            = LocationLifecycleStatus.Active;
+
+        /*
+         =========================================
+         LOCATION MANAGER (nomination FK)
+         Distinct from PermissionRoles.LocationManager and LocalContact.
+         =========================================
+        */
+
+        public int? ManagerUserId { get; set; }
+
+        public User? ManagerUser { get; set; }
+
         /*
          =========================================
          RESTAURANT RELATION
