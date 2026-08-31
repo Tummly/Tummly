@@ -103,6 +103,35 @@ namespace TummlyBackend.Services
                     actor.FullName,
                     DateTime.UtcNow
                 );
+
+                if (next == LocationGuestMarketingPreference.OptedOut)
+                {
+                    var restaurantId = await _context.RestaurantLocations
+                        .AsNoTracking()
+                        .Where(row => row.Id == locationId)
+                        .Select(row => row.RestaurantId)
+                        .FirstAsync(cancellationToken);
+
+                    _context.LocationActivities.Add(
+                        new LocationActivity
+                        {
+                            RestaurantId = restaurantId,
+                            LocationId = locationId,
+                            ActorUserId = actorUserId,
+                            ActorDisplayName = string.IsNullOrWhiteSpace(
+                                actor.FullName
+                            )
+                                ? null
+                                : actor.FullName.Trim(),
+                            Kind =
+                                LocationActivityKinds.GuestMarketingUnsubscribed,
+                            Description =
+                                "A guest unsubscribed from marketing at this location.",
+                            OccurredAt = DateTime.UtcNow,
+                        }
+                    );
+                }
+
                 await _context.SaveChangesAsync(cancellationToken);
             }
 

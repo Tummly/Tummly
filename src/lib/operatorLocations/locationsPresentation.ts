@@ -78,6 +78,7 @@ export type LocationsSetupAttentionItemId =
 export type LocationsSetupAttentionItem = {
   id: LocationsSetupAttentionItemId
   message: string
+  locationIds?: number[]
 }
 
 export type LocationsActivityItem = {

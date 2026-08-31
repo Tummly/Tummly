@@ -47,6 +47,12 @@ export type LocationsListCityFacet = {
   label: string
 }
 
+export type LocationsListAttentionItem = {
+  id: "privacy-review" | "no-active-qr"
+  message: string
+  locationIds: number[]
+}
+
 export type LocationsListResponse = {
   success: boolean
   rows: LocationsListApiRow[]
@@ -55,6 +61,7 @@ export type LocationsListResponse = {
   pageSize: number
   kpis: LocationsListKpis
   cityFacets: LocationsListCityFacet[]
+  attentionItems?: LocationsListAttentionItem[]
 }
 
 /** GET /api/locations/activity feed row. */

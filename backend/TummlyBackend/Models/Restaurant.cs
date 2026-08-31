@@ -142,6 +142,12 @@ namespace TummlyBackend.Models
 
         public DateTime? PrivacyConsentReadyAt { get; set; }
 
+        [MaxLength(2000)]
+        public string? SmsConsentWording { get; set; }
+
+        [MaxLength(2000)]
+        public string? EmailConsentWording { get; set; }
+
     }
 
 

@@ -162,18 +162,6 @@ export type OperatorLocationsPageModule = {
 
 const DEFAULT_SEARCH_DEBOUNCE_MS = 300
 
-/** UI seed — Figma Needs attention card until readiness API lands (ticket 02). */
-const DEMO_SETUP_ATTENTION_ITEMS: LocationsSetupAttentionItem[] = [
-  {
-    id: "privacy-review",
-    message: "1 location needs a privacy review",
-  },
-  {
-    id: "no-active-qr",
-    message: "1 location has no active QR placement",
-  },
-]
-
 function mapApiRowToTableRow(
   row: LocationsListApiRow,
   now: Date
@@ -232,8 +220,7 @@ export function createOperatorLocationsPageModule(
   let loadGeneration = 0
   let searchTimer: ReturnType<typeof setTimeout> | null = null
 
-  // Setup tab stays on Figma seeds until ticket 02.
-  const setupAttentionItems = DEMO_SETUP_ATTENTION_ITEMS
+  let setupAttentionItems: LocationsSetupAttentionItem[] = []
   let activityItems: LocationsActivityItem[] = []
 
   const listeners = new Set<() => void>()
@@ -319,6 +306,11 @@ export function createOperatorLocationsPageModule(
     }))
     kpis = buildLocationsKpis(response.kpis)
     setupNeedsAttentionCount = response.kpis.setupNeedsAttention
+    setupAttentionItems = (response.attentionItems ?? []).map((item) => ({
+      id: item.id,
+      message: item.message,
+      locationIds: item.locationIds,
+    }))
   }
 
   const applyActivityResponse = (

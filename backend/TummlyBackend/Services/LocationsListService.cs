@@ -147,6 +147,12 @@ namespace TummlyBackend.Services
                 ),
             };
 
+            var attentionItems = BuildAttentionItems(
+                locations,
+                activeQrSet,
+                privacyReady
+            );
+
             var cityFacets = projected
                 .Where(r => !string.IsNullOrEmpty(r.CityId))
                 .GroupBy(r => r.CityId)
@@ -246,8 +252,70 @@ namespace TummlyBackend.Services
                 pageSize,
                 kpis,
                 cityFacets,
+                attentionItems,
             };
         }
+
+        internal static List<LocationsAttentionItemDto> BuildAttentionItems(
+            IReadOnlyList<LocationRowSource> locations,
+            HashSet<int> activeQrSet,
+            bool privacyReady
+        )
+        {
+            var live = locations
+                .Where(l =>
+                    l.LifecycleStatus
+                        is LocationLifecycleStatus.Active
+                            or LocationLifecycleStatus.Paused
+                )
+                .ToList();
+
+            var items = new List<LocationsAttentionItemDto>();
+
+            if (!privacyReady)
+            {
+                var privacyIds = live.Select(l => l.Id).ToList();
+                if (privacyIds.Count > 0)
+                {
+                    items.Add(
+                        new LocationsAttentionItemDto
+                        {
+                            Id = "privacy-review",
+                            Message = PrivacyReviewMessage(privacyIds.Count),
+                            LocationIds = privacyIds,
+                        }
+                    );
+                }
+            }
+
+            var noQrIds = live
+                .Where(l => !activeQrSet.Contains(l.Id))
+                .Select(l => l.Id)
+                .ToList();
+            if (noQrIds.Count > 0)
+            {
+                items.Add(
+                    new LocationsAttentionItemDto
+                    {
+                        Id = "no-active-qr",
+                        Message = NoActiveQrMessage(noQrIds.Count),
+                        LocationIds = noQrIds,
+                    }
+                );
+            }
+
+            return items;
+        }
+
+        private static string PrivacyReviewMessage(int count) =>
+            count == 1
+                ? "1 location needs a privacy review"
+                : $"{count} locations need a privacy review";
+
+        private static string NoActiveQrMessage(int count) =>
+            count == 1
+                ? "1 location has no active QR placement"
+                : $"{count} locations have no active QR placement";
 
         private static void ValidateQuery(LocationsListQuery query)
         {
@@ -386,7 +454,7 @@ namespace TummlyBackend.Services
                 .ToLowerInvariant();
         }
 
-        private sealed record LocationRowSource(
+        internal sealed record LocationRowSource(
             int Id,
             string LocationName,
             LocationLifecycleStatus LifecycleStatus,

@@ -2694,6 +2694,14 @@ namespace TummlyBackend.Migrations
                     b.Property<string>("PublicPhoneNumber")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("SmsConsentWording")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("EmailConsentWording")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<int>("SupportContactUserId")
                         .HasColumnType("int");
 
