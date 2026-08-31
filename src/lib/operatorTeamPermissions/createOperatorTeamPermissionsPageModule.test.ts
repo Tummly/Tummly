@@ -25,6 +25,7 @@ function member(
     locationAccessLabel: "All locations",
     status: "active",
     isAccountOwner: true,
+    lastActiveAt: null,
     actions: [],
     ...overrides,
   }
@@ -74,9 +75,7 @@ function adapters(
 ): TeamPermissionsPageAdapters {
   return {
     getPage: vi.fn(async () => page()),
-    updateRole: vi.fn(async () => undefined),
-    updateLocationScope: vi.fn(async () => undefined),
-    deactivate: vi.fn(async () => undefined),
+    updateMemberProfile: vi.fn(async () => undefined),
     reactivate: vi.fn(async () => undefined),
     remove: vi.fn(async () => undefined),
     saveMatrix: vi.fn(async () => undefined),
@@ -92,6 +91,8 @@ function adapters(
     ...overrides,
   }
 }
+
+const matrixEditModuleOptions = { matrixEditEnabled: true as const }
 
 describe("resolveTeamPermissionsTabId", () => {
   it("defaults unknown values to members", () => {
@@ -198,7 +199,7 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     })
     const module = createOperatorTeamPermissionsPageModule(api)
     await module.load()
-    module.openDeactivate(1)
+    module.openSuspend(1)
     expect(module.getSnapshot().dialog.kind).toBe("none")
   })
 
@@ -218,7 +219,7 @@ describe("createOperatorTeamPermissionsPageModule", () => {
       email: "sam@example.com",
       permissionRole: "Staff",
       isAccountOwner: false,
-      actions: ["deactivate"],
+      actions: ["suspend"],
     })
     const api = adapters({
       getPage: vi.fn(async () =>
@@ -244,12 +245,19 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     module.setFiltersSession(openSession(applied))
     expect(module.getSnapshot().visibleMembers).toHaveLength(1)
     expect(module.getSnapshot().stats.activeMembers).toBe(2)
+
+    const chip = module.getSnapshot().filterChips[0]
+    expect(chip).toBeDefined()
+    module.removeFilterChip(chip!)
+    expect(module.getSnapshot().filterChips).toHaveLength(0)
+    expect(module.getSnapshot().visibleMembers).toHaveLength(2)
   })
 
   it("Owner dirty matrix opens leave-dirty Save then continues", async () => {
     const api = adapters()
     const module = createOperatorTeamPermissionsPageModule(api, {
       initialTabId: "roles-permissions",
+      ...matrixEditModuleOptions,
     })
     await module.load()
     module.setAdminCell("billing-credits", "Manage")
@@ -273,6 +281,7 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     const api = adapters()
     const module = createOperatorTeamPermissionsPageModule(api, {
       initialTabId: "roles-permissions",
+      ...matrixEditModuleOptions,
     })
     await module.load()
     module.setAdminCell("locations", "View")
@@ -292,6 +301,7 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     const api = adapters()
     const module = createOperatorTeamPermissionsPageModule(api, {
       initialTabId: "roles-permissions",
+      ...matrixEditModuleOptions,
     })
     await module.load()
     module.setAdminCell("locations", "View")
@@ -307,6 +317,20 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     ).toBe("View")
   })
 
+  it("Owner cannot edit the Admin column when matrix edit is disabled", async () => {
+    const api = adapters()
+    const module = createOperatorTeamPermissionsPageModule(api, {
+      initialTabId: "roles-permissions",
+      matrixEditEnabled: false,
+    })
+    await module.load()
+    module.setAdminCell("billing-credits", "Manage")
+    expect(module.getSnapshot().canEditAdminColumn).toBe(false)
+    expect(module.getSnapshot().isDirty).toBe(false)
+    expect(module.getSnapshot().saveEnabled).toBe(false)
+    expect(api.saveMatrix).not.toHaveBeenCalled()
+  })
+
   it("Admin cannot edit the Admin column", async () => {
     const api = adapters({
       getPage: vi.fn(async () =>
@@ -315,6 +339,7 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     })
     const module = createOperatorTeamPermissionsPageModule(api, {
       initialTabId: "roles-permissions",
+      ...matrixEditModuleOptions,
     })
     await module.load()
     module.setAdminCell("billing-credits", "Manage")
@@ -327,6 +352,7 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     const api = adapters()
     const module = createOperatorTeamPermissionsPageModule(api, {
       initialTabId: "roles-permissions",
+      ...matrixEditModuleOptions,
     })
     await module.load()
     module.setAdminCell("billing-credits", "Manage")
@@ -354,6 +380,7 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     const api = adapters()
     const module = createOperatorTeamPermissionsPageModule(api, {
       initialTabId: "roles-permissions",
+      ...matrixEditModuleOptions,
     })
     await module.load()
     module.setAdminCell("locations", "View")
@@ -371,6 +398,7 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     const api = adapters()
     const module = createOperatorTeamPermissionsPageModule(api, {
       initialTabId: "roles-permissions",
+      ...matrixEditModuleOptions,
     })
     await module.load()
     module.setAdminCell("locations", "View")

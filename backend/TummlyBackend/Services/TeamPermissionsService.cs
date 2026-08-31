@@ -74,6 +74,23 @@ namespace TummlyBackend.Services
 
             var namesById = locations.ToDictionary(row => row.Id, row => row.Name);
 
+            var memberUserIds = memberships
+                .Select(row => row.UserId)
+                .Distinct()
+                .ToList();
+            var lastActiveByUserId = memberUserIds.Count == 0
+                ? new Dictionary<int, DateTime>()
+                : await _context.RefreshTokens
+                    .AsNoTracking()
+                    .Where(row => memberUserIds.Contains(row.UserId))
+                    .GroupBy(row => row.UserId)
+                    .Select(group => new
+                    {
+                        UserId = group.Key,
+                        LastActiveAt = group.Max(row => row.CreatedAt),
+                    })
+                    .ToDictionaryAsync(row => row.UserId, row => row.LastActiveAt);
+
             var adminOverrides = await LoadAdminOverridesAsync(restaurantId);
 
             var members = memberships
@@ -83,7 +100,8 @@ namespace TummlyBackend.Services
                     actorRole,
                     actorCanManage,
                     actorUserId,
-                    namesById
+                    namesById,
+                    lastActiveByUserId
                 ))
                 .OrderBy(row => row.Status == "active" ? 0 : 1)
                 .ThenBy(row => row.FullName, StringComparer.OrdinalIgnoreCase)
@@ -454,6 +472,11 @@ namespace TummlyBackend.Services
             IReadOnlyList<AdminMatrixCellDto> adminCells
         )
         {
+            if (!_configuration.GetValue<bool>("TeamPermissions:AllowMatrixEdit"))
+            {
+                return "matrix-edit-disabled";
+            }
+
             var restaurant = await _context.Restaurants
                 .FirstOrDefaultAsync(row => row.Id == restaurantId);
             if (restaurant == null)
@@ -1095,12 +1118,18 @@ namespace TummlyBackend.Services
             string actorRole,
             bool actorCanManage,
             int actorUserId,
-            IReadOnlyDictionary<int, string> namesById
+            IReadOnlyDictionary<int, string> namesById,
+            IReadOnlyDictionary<int, DateTime> lastActiveByUserId
         )
         {
             var named = MembershipLocationScope.ParseNamedIds(
                 row.NamedLocationIdsJson
             );
+            DateTime? lastActiveAt = null;
+            if (lastActiveByUserId.TryGetValue(row.UserId, out var activeAt))
+            {
+                lastActiveAt = activeAt;
+            }
             return new TeamMemberRowDto
             {
                 MembershipId = row.Id,
@@ -1123,6 +1152,7 @@ namespace TummlyBackend.Services
                         ? "active"
                         : "deactivated",
                 IsAccountOwner = row.UserId == ownerUserId,
+                LastActiveAt = lastActiveAt,
                 Actions = TeamPermissionsActor.ActionsFor(
                     actorRole,
                     actorCanManage,

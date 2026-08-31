@@ -35,19 +35,24 @@ export const BILLING_CREDITS_PAGE_COPY = {
   breadcrumbManagePlan: "Manage plan",
   planSubscriptionTitle: "Plan & subscription",
   currentPlan: "Current plan",
+  currentPlanSubtitle:
+    "Review your Tummly plan, included locations and renewal details.",
   billingStatus: "Billing status",
   renewalDate: "Renewal date",
   emailCredits: "Email credits",
   smsCredits: "SMS credits",
   aiCredits: "AI credits",
+  qrPacks: "QR packs",
   planName: "Plan name",
   billingCycle: "Billing cycle",
   planPrice: "Plan price",
   includedLocations: "Included locations",
   activeLocations: "Active locations",
-  includedEmailCredits: "Included Email credits",
+  includedEmailCredits: "Included email sends",
   includedSmsCredits: "Included SMS credits",
   includedAiCredits: "Included AI credits",
+  qrStarterKit: "QR starter kit",
+  qrStarterKitIncluded: "Included once",
   starterKit: "Starter kit",
   pricebook: "Pricebook",
   pilotNotice:
@@ -59,13 +64,28 @@ export const BILLING_CREDITS_PAGE_COPY = {
   plusVat: "+ VAT",
   creditsUsageTitle: "Usage & credits",
   creditsUsageSubtitle:
-    "Track the credits and usage connected to campaigns, messages, and AI briefs.",
+    "Track the credits and usage connected to campaigns, messages, AI briefs and QR packs.",
+  creditsUsageTableUsageType: "Usage type",
+  creditsUsageTableThisCycle: "This cycle",
+  creditsUsageTableIncluded: "Included",
+  creditsUsageTableExtraUsed: "Extra used",
+  creditsUsageTableEstimatedCharge: "Estimated charge",
+  /** @deprecated Prefer creditsUsageTable* Figma columns. */
   creditsUsageTableTitle: "Usage this period",
   creditsUsageTableChannel: "Channel",
   creditsUsageTableUsed: "Used this cycle",
-  creditsUsageTableIncluded: "Included this period",
   creditsUsageTablePurchased: "Purchased remaining",
   starterKitCardTitle: "Starter kit",
+  qrPrintPacksTitle: "QR print packs",
+  viewUsage: "View usage",
+  reorderPrintPack: "Reorder print pack",
+  creditTopUpsTitle: "Credit top-ups",
+  creditTopUpsSubtitle:
+    "Add credits when you need to send more messages, generate more AI help or reorder QR materials.",
+  creditTopUpsCurrentBalance: "Current balance",
+  qrPrintPacksShop: "Shop",
+  qrPrintPacksDetail:
+    "Reorder counter cards, table tents, window stickers and other print-ready QR materials.",
   paymentMethodTitle: "Payment method",
   paymentMethodSubtitle:
     "Manage the payment method used for your Tummly subscription, credits and add-ons.",
@@ -109,6 +129,12 @@ export const BILLING_CREDITS_PAGE_COPY = {
   billingActivityEmpty: "No billing activity yet.",
   viewFullBillingHistory: "View full billing history",
   billingActivitySheetTitle: "Billing activity",
+  subscriptionChangesTitle: "Subscription changes",
+  subscriptionChangesSubtitle:
+    "Need to change your subscription? You can downgrade, cancel or contact support before making changes that affect your account.",
+  downgradePlan: "Downgrade plan",
+  cancelSubscription: "Cancel subscription",
+  contactBillingSupport: "Contact billing support",
 } as const
 
 export function resolveBillingCreditsTabId(
@@ -205,6 +231,74 @@ export function formatStarterKitState(state: string): string {
       return state
   }
 }
+
+/** Plan overview QR packs value — Figma 3762:24014. */
+export function formatQrPacksLabel(state: string): string {
+  switch (state) {
+    case "unused":
+      return "Starter kit unused"
+    case "used":
+      return "Starter kit used"
+    case "pending dispatch":
+      return "Starter kit pending dispatch"
+    default:
+      return state
+  }
+}
+
+/** Plan overview card — Figma 3762:24022. */
+export const BILLING_PLAN_OVERVIEW_CARD_CLASS =
+  "overflow-clip rounded-op-lg border border-op-card-border bg-op-surface-primary p-6 dark:bg-op-color-gray-992 dark:shadow-none"
+
+/** 20px vertical rhythm between metric rows and dividers. */
+export const BILLING_PLAN_METRIC_STACK_CLASS = "flex w-full flex-col gap-5"
+
+/** Two metric pairs per row — 40px column gutter at sm+. */
+export const BILLING_PLAN_METRIC_ROW_CLASS =
+  "flex w-full flex-col gap-5 sm:flex-row sm:items-center sm:gap-10"
+
+export const BILLING_PLAN_METRIC_PAIR_CLASS =
+  "flex min-w-0 flex-1 items-center justify-between gap-4"
+
+export const BILLING_PLAN_METRIC_LABEL_CLASS =
+  "m-0 shrink-0 text-base font-semibold leading-normal text-[var(--op-color-gray-550)]"
+
+export const BILLING_PLAN_METRIC_VALUE_CLASS =
+  "m-0 text-right text-base font-medium leading-normal text-foreground"
+
+export const BILLING_PLAN_METRIC_DIVIDER_CLASS =
+  "m-0 h-px w-full shrink-0 border-0 bg-op-card-border"
+
+/** Plan & subscription tab stack — 20px between cards (Figma 3762:24014). */
+export const BILLING_PLAN_TAB_STACK_CLASS = "flex flex-col gap-5"
+
+/** Credits & usage outer card — Figma 5746:96542. */
+export const BILLING_CREDITS_USAGE_CARD_CLASS =
+  "overflow-clip rounded-op-lg border border-op-card-border bg-op-surface-primary dark:bg-op-color-gray-992 dark:shadow-none"
+
+export const BILLING_CREDITS_USAGE_CARD_HEADER_CLASS =
+  "flex flex-col gap-2 p-6"
+
+export const BILLING_CREDITS_USAGE_GRID_CLASS =
+  "grid grid-cols-1 sm:grid-cols-2"
+
+export const BILLING_CREDITS_USAGE_CELL_CLASS =
+  "flex min-h-0 flex-col items-start justify-between gap-10 border-b border-op-card-border p-6 sm:odd:border-r"
+
+export const BILLING_CREDITS_USAGE_TABLE_WRAP_CLASS = "p-6"
+
+/** Credit top-ups embedded cards — Figma 5746:96612. */
+export const BILLING_CREDIT_TOP_UP_CARD_CLASS =
+  "flex flex-col items-start justify-between gap-8 rounded-op-md bg-[var(--op-color-gray-990)] p-6 dark:bg-[#202020]"
+
+export const BILLING_CREDITS_CTA_BUTTON_CLASS =
+  "w-auto shrink-0 self-start"
+
+export const BILLING_CREDIT_TOP_UP_BALANCE_VALUE_CLASS =
+  "m-0 text-lg font-medium leading-normal text-op-card-title-color"
+
+export const BILLING_CREDIT_TOP_UP_BALANCE_CAPTION_CLASS =
+  "m-0 text-xs font-normal leading-normal text-[var(--op-color-gray-550)]"
 
 export function resolveManagePlanSection(
   raw: string | null | undefined

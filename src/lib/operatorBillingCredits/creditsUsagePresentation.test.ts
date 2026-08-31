@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest"
 import {
   billingCreditsChannelCardActions,
   buildCreditChannelCardViewModel,
+  buildCreditsUsageTableRows,
+  creditChannelCardHeadline,
   creditChannelFillRatio,
   creditChannelHeadline,
   creditChannelPurchasedLine,
@@ -25,8 +27,9 @@ function channelRecord(
 }
 
 describe("creditChannelFillRatio", () => {
-  it("derives bar width from remaining over remaining plus used", () => {
-    expect(creditChannelFillRatio(428, 72)).toBeCloseTo(428 / 500)
+  it("fills by used share so full remaining leaves the bar empty", () => {
+    expect(creditChannelFillRatio(100, 0)).toBe(0)
+    expect(creditChannelFillRatio(428, 72)).toBeCloseTo(72 / 500)
     expect(creditChannelFillRatio(0, 500)).toBe(1)
   })
 })
@@ -40,6 +43,27 @@ describe("creditChannelHeadline", () => {
     expect(creditChannelHeadline(0, "email")).toBe(
       "No Email credits remaining."
     )
+  })
+})
+
+describe("creditChannelCardHeadline", () => {
+  it("shows remaining of included for SMS and AI", () => {
+    expect(creditChannelCardHeadline(channelRecord())).toBe(
+      "428 of 500 remaining"
+    )
+  })
+
+  it("shows used of included for email", () => {
+    expect(
+      creditChannelCardHeadline(
+        channelRecord({
+          channel: "email",
+          combinedRemaining: 1880,
+          usedThisCycle: 3120,
+          includedThisPeriod: 5000,
+        })
+      )
+    ).toBe("3,120 of 5,000 used")
   })
 })
 
@@ -62,15 +86,16 @@ describe("creditChannelPurchasedLine", () => {
 })
 
 describe("billingCreditsChannelCardActions", () => {
-  it("hides write CTAs for View", () => {
+  it("hides write CTAs for View but keeps email View usage", () => {
     expect(
       billingCreditsChannelCardActions({
         accessLevel: "view",
         permissionRole: "Marketing",
         isPilot: false,
         isDepleted: false,
+        channel: "email",
       })
-    ).toEqual({ showBuy: false, showChangePlan: false })
+    ).toEqual({ showBuy: false, showChangePlan: false, showViewUsage: true })
   })
 
   it("hides Buy on Pilot while keeping Change plan at 100% for Owner", () => {
@@ -80,8 +105,9 @@ describe("billingCreditsChannelCardActions", () => {
         permissionRole: "Owner",
         isPilot: true,
         isDepleted: true,
+        channel: "sms",
       })
-    ).toEqual({ showBuy: false, showChangePlan: true })
+    ).toEqual({ showBuy: false, showChangePlan: true, showViewUsage: false })
   })
 
   it("keeps Buy for Billing Admin but hides Change plan at 100%", () => {
@@ -91,8 +117,21 @@ describe("billingCreditsChannelCardActions", () => {
         permissionRole: "Billing Admin",
         isPilot: false,
         isDepleted: true,
+        channel: "sms",
       })
-    ).toEqual({ showBuy: true, showChangePlan: false })
+    ).toEqual({ showBuy: true, showChangePlan: false, showViewUsage: false })
+  })
+
+  it("uses View usage for email instead of Buy", () => {
+    expect(
+      billingCreditsChannelCardActions({
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        isPilot: false,
+        isDepleted: false,
+        channel: "email",
+      })
+    ).toEqual({ showBuy: false, showChangePlan: false, showViewUsage: true })
   })
 })
 
@@ -104,12 +143,13 @@ describe("buildCreditChannelCardViewModel", () => {
       isPilot: false,
     })
 
-    expect(card.headline).toBe("428 remaining")
+    expect(card.headline).toBe("428 of 500 remaining")
     expect(card.subline).toBe("72 of 500 included used")
-    expect(card.fillRatio).toBeCloseTo(428 / 500)
+    expect(card.fillRatio).toBeCloseTo(72 / 500)
     expect(card.meterMaxLabel).toBe("500")
     expect(card.showBuy).toBe(true)
     expect(card.buyLabel).toBe("Buy SMS credits")
+    expect(card.primaryActionLabel).toBe("Buy SMS credits")
   })
 
   it("shows 100% copy and Change plan for depleted paid Owner", () => {
@@ -126,5 +166,35 @@ describe("buildCreditChannelCardViewModel", () => {
     expect(card.fillRatio).toBe(1)
     expect(card.showBuy).toBe(true)
     expect(card.showChangePlan).toBe(true)
+  })
+})
+
+describe("buildCreditsUsageTableRows", () => {
+  it("maps Extra used from purchased remaining top-up credits", () => {
+    expect(
+      buildCreditsUsageTableRows([
+        channelRecord({ purchasedRemaining: 120 }),
+      ])
+    ).toEqual([
+      {
+        channelLabel: "SMS sent",
+        usedThisCycle: "72",
+        includedThisPeriod: "500",
+        extraUsed: "120",
+        estimatedCharge: "—",
+      },
+    ])
+  })
+
+  it("shows zero Extra used when no purchased credits remain", () => {
+    expect(buildCreditsUsageTableRows([channelRecord()])).toEqual([
+      {
+        channelLabel: "SMS sent",
+        usedThisCycle: "72",
+        includedThisPeriod: "500",
+        extraUsed: "0",
+        estimatedCharge: "—",
+      },
+    ])
   })
 })

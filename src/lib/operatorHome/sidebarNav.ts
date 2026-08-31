@@ -112,6 +112,15 @@ export function resolveSettingsDisclosureOpen(
   return forceOpen || persistedOpen;
 }
 
+/**
+ * Settings row chrome (bg + rail + icon tint) when a Settings child is the
+ * current page — collapsed gear and expanded disclosure. Settings stays
+ * non-navigable (no aria-current); children still carry page active.
+ */
+export function resolveSettingsChromeActive(forceExpanded: boolean): boolean {
+  return forceExpanded;
+}
+
 export type OperatorSidebarNavTargets = {
   mode: OperatorDashboardMode;
   locationId: number;

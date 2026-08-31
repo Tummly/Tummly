@@ -18,6 +18,14 @@ export type OperatorCampaignsPageModuleApi = {
   closeRecommendationAudience: OperatorCampaignsPageModule["closeRecommendationAudience"]
   setListView: OperatorCampaignsPageModule["setListView"]
   setSearchQuery: OperatorCampaignsPageModule["setSearchQuery"]
+  setSortId: OperatorCampaignsPageModule["setSortId"]
+  goToPreviousPage: OperatorCampaignsPageModule["goToPreviousPage"]
+  goToNextPage: OperatorCampaignsPageModule["goToNextPage"]
+  openFilters: OperatorCampaignsPageModule["openFilters"]
+  closeFilters: OperatorCampaignsPageModule["closeFilters"]
+  setFiltersSession: OperatorCampaignsPageModule["setFiltersSession"]
+  applyFilters: OperatorCampaignsPageModule["applyFilters"]
+  removeFilterChip: OperatorCampaignsPageModule["removeFilterChip"]
   clearSearchAndFilters: OperatorCampaignsPageModule["clearSearchAndFilters"]
   viewAllCampaigns: OperatorCampaignsPageModule["viewAllCampaigns"]
 }
@@ -42,6 +50,14 @@ export function useCampaignsPageModule(): OperatorCampaignsPageModuleApi {
     closeRecommendationAudience: pageModule.closeRecommendationAudience,
     setListView: pageModule.setListView,
     setSearchQuery: pageModule.setSearchQuery,
+    setSortId: pageModule.setSortId,
+    goToPreviousPage: pageModule.goToPreviousPage,
+    goToNextPage: pageModule.goToNextPage,
+    openFilters: pageModule.openFilters,
+    closeFilters: pageModule.closeFilters,
+    setFiltersSession: pageModule.setFiltersSession,
+    applyFilters: pageModule.applyFilters,
+    removeFilterChip: pageModule.removeFilterChip,
     clearSearchAndFilters: pageModule.clearSearchAndFilters,
     viewAllCampaigns: pageModule.viewAllCampaigns,
   }

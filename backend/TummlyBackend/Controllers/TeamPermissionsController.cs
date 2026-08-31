@@ -431,6 +431,18 @@ namespace TummlyBackend.Controllers
                 };
             }
 
+            if (error == "matrix-edit-disabled")
+            {
+                return new ObjectResult(new
+                {
+                    success = false,
+                    message = "Permission matrix editing is disabled.",
+                })
+                {
+                    StatusCode = StatusCodes.Status403Forbidden,
+                };
+            }
+
             if (error is "Restaurant not found." or "Member not found." or "Invitation not found.")
             {
                 return NotFound(new

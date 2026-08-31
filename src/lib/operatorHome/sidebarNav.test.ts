@@ -6,6 +6,7 @@ import {
   OPERATOR_SIDEBAR_SHOP,
   getOperatorSidebarNav,
   isSettingsChildId,
+  resolveSettingsChromeActive,
   resolveSettingsDisclosureOpen,
 } from "./sidebarNav"
 
@@ -351,5 +352,12 @@ describe("resolveSettingsDisclosureOpen", () => {
     expect(resolveSettingsDisclosureOpen(false, false)).toBe(false)
     expect(resolveSettingsDisclosureOpen(false, true)).toBe(true)
     expect(resolveSettingsDisclosureOpen(true, true)).toBe(true)
+  })
+})
+
+describe("resolveSettingsChromeActive", () => {
+  it("shows Settings row active chrome when a Settings child is current", () => {
+    expect(resolveSettingsChromeActive(true)).toBe(true)
+    expect(resolveSettingsChromeActive(false)).toBe(false)
   })
 })

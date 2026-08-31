@@ -56,7 +56,10 @@ namespace TummlyBackend.Interfaces
             int userId
         );
 
-        Task<int> SelectWorkspaceAsync(int userId, int restaurantId);
+        Task<SelectWorkspaceResult> SelectWorkspaceAsync(
+            int userId,
+            int restaurantId
+        );
 
         Task<SessionRoutingFields> GetCurrentUserRoutingAsync(int userId);
 

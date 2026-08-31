@@ -10,18 +10,17 @@ import {
 } from "@/components/ui/table"
 import type { InvoiceRowSnapshot } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import {
-  CAPTURE_PLACEMENTS_ACTIONS_CELL_CLASS,
-  CAPTURE_PLACEMENTS_BODY_CELL_CLASS,
-  CAPTURE_PLACEMENTS_BODY_ROW_CLASS,
-  CAPTURE_PLACEMENTS_HEAD_ACTIONS_CELL_CLASS,
-  CAPTURE_PLACEMENTS_HEAD_CELL_CLASS,
-  CAPTURE_PLACEMENTS_HEAD_ROW_CLASS,
-  CAPTURE_PLACEMENTS_NAME_CELL_CLASS,
-  CAPTURE_PLACEMENTS_TABLE_CLASS,
-  CAPTURE_PLACEMENTS_TABLE_FRAME_CLASS,
-} from "@/lib/operatorCapture/capturePresentation"
-import { BILLING_CREDITS_PAGE_COPY as copy } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
-import { GUESTS_PAGE_SECONDARY_BUTTON_CLASS } from "@/lib/operatorGuests/guestsPresentation"
+  BILLING_CREDITS_CTA_BUTTON_CLASS,
+  BILLING_CREDITS_PAGE_COPY as copy,
+} from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import {
+  GUESTS_TABLE_BODY_CELL_CLASS,
+  GUESTS_TABLE_BODY_ROW_CLASS,
+  GUESTS_TABLE_CLASS,
+  GUESTS_TABLE_FRAME_CLASS,
+  GUESTS_TABLE_HEAD_CELL_CLASS,
+  GUESTS_TABLE_HEAD_ROW_CLASS,
+} from "@/lib/operatorGuests/guestsPresentation"
 
 type PaymentInvoicesTableProps = {
   rows: readonly InvoiceRowSnapshot[]
@@ -35,26 +34,26 @@ export function PaymentInvoicesTable({
   onDownload,
 }: PaymentInvoicesTableProps) {
   return (
-    <div className={CAPTURE_PLACEMENTS_TABLE_FRAME_CLASS}>
-      <Table className={CAPTURE_PLACEMENTS_TABLE_CLASS}>
-        <TableHeader>
-          <TableRow className={CAPTURE_PLACEMENTS_HEAD_ROW_CLASS}>
-            <TableHead className={CAPTURE_PLACEMENTS_HEAD_CELL_CLASS}>
+    <div className={GUESTS_TABLE_FRAME_CLASS}>
+      <Table className={GUESTS_TABLE_CLASS}>
+        <TableHeader className="[&_tr]:border-0">
+          <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
               {copy.invoiceDate}
             </TableHead>
-            <TableHead className={CAPTURE_PLACEMENTS_HEAD_CELL_CLASS}>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
               {copy.invoiceNo}
             </TableHead>
-            <TableHead className={CAPTURE_PLACEMENTS_HEAD_CELL_CLASS}>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
               {copy.description}
             </TableHead>
-            <TableHead className={CAPTURE_PLACEMENTS_HEAD_CELL_CLASS}>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
               {copy.amount}
             </TableHead>
-            <TableHead className={CAPTURE_PLACEMENTS_HEAD_CELL_CLASS}>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
               {copy.status}
             </TableHead>
-            <TableHead className={CAPTURE_PLACEMENTS_HEAD_ACTIONS_CELL_CLASS}>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
               {copy.actions}
             </TableHead>
           </TableRow>
@@ -63,30 +62,40 @@ export function PaymentInvoicesTable({
           {rows.map((row) => (
             <TableRow
               key={row.invoiceNo}
-              className={CAPTURE_PLACEMENTS_BODY_ROW_CLASS}
+              className={GUESTS_TABLE_BODY_ROW_CLASS}
             >
-              <TableCell className={CAPTURE_PLACEMENTS_BODY_CELL_CLASS}>
-                {row.invoiceDateLabel}
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className="text-sm font-semibold leading-[19px] text-foreground">
+                  {row.invoiceDateLabel}
+                </span>
               </TableCell>
-              <TableCell className={CAPTURE_PLACEMENTS_NAME_CELL_CLASS}>
-                {row.invoiceNo}
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className="text-sm font-normal leading-[19px] text-foreground">
+                  {row.invoiceNo}
+                </span>
               </TableCell>
-              <TableCell className={CAPTURE_PLACEMENTS_BODY_CELL_CLASS}>
-                {row.description}
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className="text-sm font-normal leading-[19px] text-foreground">
+                  {row.description}
+                </span>
               </TableCell>
-              <TableCell className={CAPTURE_PLACEMENTS_BODY_CELL_CLASS}>
-                {row.amountLabel}
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className="text-sm font-normal leading-[19px] text-foreground">
+                  {row.amountLabel}
+                </span>
               </TableCell>
-              <TableCell className={CAPTURE_PLACEMENTS_BODY_CELL_CLASS}>
-                <Badge variant="secondary">{row.status}</Badge>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <Badge variant="soft" className="px-2 py-1.5">
+                  {row.status}
+                </Badge>
               </TableCell>
-              <TableCell className={CAPTURE_PLACEMENTS_ACTIONS_CELL_CLASS}>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                 {row.showActions ? (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2.5">
                     <Button
                       type="button"
-                      variant="op-secondary"
-                      className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+                      variant="op-tertiary"
+                      className={BILLING_CREDITS_CTA_BUTTON_CLASS}
                       onClick={() => {
                         onView(row.invoiceNo)
                       }}
@@ -95,8 +104,8 @@ export function PaymentInvoicesTable({
                     </Button>
                     <Button
                       type="button"
-                      variant="op-secondary"
-                      className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+                      variant="op-tertiary"
+                      className={BILLING_CREDITS_CTA_BUTTON_CLASS}
                       onClick={() => {
                         onDownload(row.invoiceNo)
                       }}

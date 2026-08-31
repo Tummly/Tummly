@@ -393,9 +393,9 @@ describe("createOperatorBillingCreditsPageModule", () => {
     const module = createTestModule()
     await module.load()
     const sms = module.getSnapshot().channelCards.find((card) => card.channel === "sms")
-    expect(sms?.headline).toBe("428 remaining")
+    expect(sms?.headline).toBe("428 of 500 remaining")
     expect(sms?.subline).toBe("72 of 500 included used")
-    expect(sms?.fillRatio).toBeCloseTo(428 / 500)
+    expect(sms?.fillRatio).toBeCloseTo(72 / 500)
   })
 
   it("shows 100% copy on depleted channels", async () => {

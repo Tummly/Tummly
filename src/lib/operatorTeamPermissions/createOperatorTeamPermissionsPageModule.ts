@@ -4,12 +4,14 @@ import {
   getMultiSelectIds,
   openSession,
   projectChips,
+  removeAppliedChip,
   type FilterChip,
   type FilterSheetSession,
   type OperatorFilterSelection,
 } from "@/lib/operatorFilterSheet"
 import { teamPermissionsFilterSheetSchema } from "@/lib/operatorTeamPermissions/teamPermissionsFilterSheetSchema"
 import { assignableRolesForActor } from "@/lib/operatorTeamPermissions/permissionRoles"
+import { isTeamPermissionsMatrixEditEnabled } from "@/lib/env"
 import {
   legalAdminLevels,
   resolveTeamPermissionsTabId,
@@ -33,7 +35,16 @@ export type TeamMemberRow = {
   locationAccessLabel: string
   status: "active" | "deactivated"
   isAccountOwner: boolean
+  lastActiveAt: string | null
   actions: string[]
+}
+
+export type TeamMemberFormDraft = {
+  email: string
+  fullName: string
+  permissionRole: string
+  locationScope: "all" | "named"
+  namedLocationIds: number[]
 }
 
 export type PermissionMatrixArea = {
@@ -111,12 +122,16 @@ export type TeamPermissionsPageData = {
 
 export type TeamPermissionsPageAdapters = {
   getPage: () => Promise<TeamPermissionsPageData>
-  updateRole: (membershipId: number, permissionRole: string) => Promise<void>
-  updateLocationScope: (
+  updateMemberProfile: (
     membershipId: number,
-    payload: { locationScope: "all" | "named"; namedLocationIds: number[] }
+    payload: {
+      permissionRole?: string
+      locationScope?: {
+        locationScope: "all" | "named"
+        namedLocationIds: number[]
+      }
+    }
   ) => Promise<void>
-  deactivate: (membershipId: number) => Promise<void>
   reactivate: (membershipId: number) => Promise<void>
   remove: (membershipId: number) => Promise<void>
   saveMatrix: (cells: AdminMatrixCell[]) => Promise<void>
@@ -133,15 +148,13 @@ export type TeamPermissionsDialog =
   | { kind: "none" }
   | { kind: "notes" }
   | { kind: "invite" }
-  | { kind: "change-role"; membershipId: number; draftRole: string }
   | {
-      kind: "change-location"
+      kind: "edit-member"
       membershipId: number
-      draftScope: "all" | "named"
-      draftNamedIds: number[]
+      mode: "view" | "edit"
+      draft: TeamMemberFormDraft
     }
-  | { kind: "deactivate"; membershipId: number }
-  | { kind: "remove"; membershipId: number }
+  | { kind: "suspend"; membershipId: number }
   | { kind: "revoke"; invitationId: number }
 
 export type TeamPermissionsSnapshot = {
@@ -195,21 +208,17 @@ export type OperatorTeamPermissionsPageModule = {
   openFilters: () => void
   applyFilters: () => void
   clearFiltersAndSearch: () => void
+  removeFilterChip: (chip: FilterChip) => void
   openNotes: () => void
   openInvite: () => void
-  openChangeRole: (membershipId: number) => void
-  openChangeLocation: (membershipId: number) => void
-  openDeactivate: (membershipId: number) => void
-  openRemove: (membershipId: number) => void
+  openViewMember: (membershipId: number) => void
+  openEditMember: (membershipId: number) => void
+  openSuspend: (membershipId: number) => void
   openRevoke: (invitationId: number) => void
   resendInvite: (invitationId: number) => Promise<void>
   closeDialog: () => void
-  setChangeRoleDraft: (role: string) => void
   setInviteDraft: (draft: TeamInviteDraft) => void
-  setChangeLocationDraft: (
-    scope: "all" | "named",
-    namedIds: number[]
-  ) => void
+  setEditMemberDraft: (draft: TeamMemberFormDraft) => void
   confirmReactivate: (membershipId: number) => Promise<void>
   confirmDialogPrimary: () => Promise<void>
   setAdminCell: (areaId: string, level: string) => void
@@ -255,6 +264,32 @@ function emptyInviteDraft(actorRole: string): TeamInviteDraft {
 
 function needsNamedLocations(role: string): boolean {
   return role === "Area Manager" || role === "Location Manager"
+}
+
+function applyMemberFormDraft(draft: TeamMemberFormDraft): TeamMemberFormDraft {
+  if (!needsNamedLocations(draft.permissionRole)) {
+    return draft
+  }
+  return { ...draft, locationScope: "named" }
+}
+
+function memberFormDraftFromRow(row: TeamMemberRow): TeamMemberFormDraft {
+  return {
+    email: row.email,
+    fullName: row.fullName,
+    permissionRole: row.permissionRole,
+    locationScope: row.locationScope,
+    namedLocationIds: [...row.namedLocationIds],
+  }
+}
+
+function sameLocationIds(left: number[], right: number[]): boolean {
+  if (left.length !== right.length) {
+    return false
+  }
+  const sortedLeft = [...left].sort((a, b) => a - b)
+  const sortedRight = [...right].sort((a, b) => a - b)
+  return sortedLeft.every((id, index) => id === sortedRight[index])
 }
 
 function applyInviteDraft(draft: TeamInviteDraft): TeamInviteDraft {
@@ -307,8 +342,12 @@ export function createOperatorTeamPermissionsPageModule(
   options: {
     initialTabId?: string | null
     getNow?: () => Date
+    /** When false, the Admin permission matrix is read-only (production default). */
+    matrixEditEnabled?: boolean
   } = {}
 ): OperatorTeamPermissionsPageModule {
+  const matrixEditEnabled =
+    options.matrixEditEnabled ?? isTeamPermissionsMatrixEditEnabled()
   let privacyConsentHasAccess = true
   let data: TeamPermissionsPageData | null = null
   let loadStatus: TeamPermissionsSnapshot["loadStatus"] = "idle"
@@ -348,7 +387,8 @@ export function createOperatorTeamPermissionsPageModule(
     }
   }
 
-  const canEditAdminColumn = () => data?.actorPermissionRole === "Owner"
+  const canEditAdminColumn = () =>
+    matrixEditEnabled && data?.actorPermissionRole === "Owner"
 
   const projectedMatrix = (): PermissionMatrixArea[] => {
     return (data?.matrix ?? []).map((area) => ({
@@ -652,6 +692,19 @@ export function createOperatorTeamPermissionsPageModule(
       filtersSession = null
       emit()
     },
+    removeFilterChip: (chip) => {
+      if (filtersSession == null) {
+        return
+      }
+      const schema = teamPermissionsFilterSheetSchema({
+        isSingleLocation: data?.isSingleLocation ?? true,
+        locations: data?.locations ?? [],
+      })
+      filtersSession = openSession(
+        removeAppliedChip(schema, filtersSession.applied, chip)
+      )
+      emit()
+    },
     openNotes: () => {
       dialog = { kind: "notes" }
       emit()
@@ -665,45 +718,42 @@ export function createOperatorTeamPermissionsPageModule(
       dialog = { kind: "invite" }
       emit()
     },
-    openChangeRole: (membershipId) => {
+    openViewMember: (membershipId) => {
       const row = findMember(membershipId)
-      if (row == null || !row.actions.includes("change-role")) {
+      if (row == null || !row.actions.includes("view")) {
         return
       }
       dialog = {
-        kind: "change-role",
+        kind: "edit-member",
         membershipId,
-        draftRole: row.permissionRole,
+        mode: "view",
+        draft: memberFormDraftFromRow(row),
       }
       emit()
     },
-    openChangeLocation: (membershipId) => {
+    openEditMember: (membershipId) => {
       const row = findMember(membershipId)
-      if (row == null || !row.actions.includes("change-location")) {
+      if (
+        row == null
+        || (!row.actions.includes("edit-role")
+          && !row.actions.includes("edit-access"))
+      ) {
         return
       }
       dialog = {
-        kind: "change-location",
+        kind: "edit-member",
         membershipId,
-        draftScope: row.locationScope,
-        draftNamedIds: [...row.namedLocationIds],
+        mode: "edit",
+        draft: memberFormDraftFromRow(row),
       }
       emit()
     },
-    openDeactivate: (membershipId) => {
+    openSuspend: (membershipId) => {
       const row = findMember(membershipId)
-      if (row == null || !row.actions.includes("deactivate")) {
+      if (row == null || !row.actions.includes("suspend")) {
         return
       }
-      dialog = { kind: "deactivate", membershipId }
-      emit()
-    },
-    openRemove: (membershipId) => {
-      const row = findMember(membershipId)
-      if (row == null || !row.actions.includes("remove")) {
-        return
-      }
-      dialog = { kind: "remove", membershipId }
+      dialog = { kind: "suspend", membershipId }
       emit()
     },
     openRevoke: (invitationId) => {
@@ -731,13 +781,6 @@ export function createOperatorTeamPermissionsPageModule(
       inviteEmailError = null
       emit()
     },
-    setChangeRoleDraft: (role) => {
-      if (dialog.kind !== "change-role") {
-        return
-      }
-      dialog = { ...dialog, draftRole: role }
-      emit()
-    },
     setInviteDraft: (draft) => {
       if (dialog.kind !== "invite") {
         return
@@ -746,11 +789,14 @@ export function createOperatorTeamPermissionsPageModule(
       inviteEmailError = null
       emit()
     },
-    setChangeLocationDraft: (scope, namedIds) => {
-      if (dialog.kind !== "change-location") {
+    setEditMemberDraft: (draft) => {
+      if (dialog.kind !== "edit-member") {
         return
       }
-      dialog = { ...dialog, draftScope: scope, draftNamedIds: namedIds }
+      dialog = {
+        ...dialog,
+        draft: applyMemberFormDraft(draft),
+      }
       emit()
     },
     confirmReactivate: async (membershipId) => {
@@ -799,36 +845,39 @@ export function createOperatorTeamPermissionsPageModule(
         emit()
         return
       }
-      if (dialog.kind === "change-role") {
+      if (dialog.kind === "edit-member") {
+        if (dialog.mode === "view") {
+          return
+        }
         const row = findMember(dialog.membershipId)
-        const needsNamed =
-          dialog.draftRole === "Area Manager"
-          || dialog.draftRole === "Location Manager"
+        if (row == null) {
+          return
+        }
+        const draft = applyMemberFormDraft(dialog.draft)
+        const roleChanged = draft.permissionRole !== row.permissionRole
+        const scopeChanged =
+          draft.locationScope !== row.locationScope
+          || !sameLocationIds(draft.namedLocationIds, row.namedLocationIds)
         if (
-          needsNamed
-          && (row == null || row.locationScope !== "named" || row.namedLocationIds.length === 0)
+          needsNamedLocations(draft.permissionRole)
+          && (draft.locationScope !== "named"
+            || draft.namedLocationIds.length === 0)
         ) {
           return
         }
         busy = true
         emit()
         try {
-          await adapters.updateRole(dialog.membershipId, dialog.draftRole)
-          await reload()
-          dialog = { kind: "none" }
-        } finally {
-          busy = false
-          emit()
-        }
-        return
-      }
-      if (dialog.kind === "change-location") {
-        busy = true
-        emit()
-        try {
-          await adapters.updateLocationScope(dialog.membershipId, {
-            locationScope: dialog.draftScope,
-            namedLocationIds: dialog.draftNamedIds,
+          await adapters.updateMemberProfile(dialog.membershipId, {
+            ...(roleChanged ? { permissionRole: draft.permissionRole } : {}),
+            ...(scopeChanged && !row.isAccountOwner
+              ? {
+                  locationScope: {
+                    locationScope: draft.locationScope,
+                    namedLocationIds: draft.namedLocationIds,
+                  },
+                }
+              : {}),
           })
           await reload()
           dialog = { kind: "none" }
@@ -838,20 +887,7 @@ export function createOperatorTeamPermissionsPageModule(
         }
         return
       }
-      if (dialog.kind === "deactivate") {
-        busy = true
-        emit()
-        try {
-          await adapters.deactivate(dialog.membershipId)
-          await reload()
-          dialog = { kind: "none" }
-        } finally {
-          busy = false
-          emit()
-        }
-        return
-      }
-      if (dialog.kind === "remove") {
+      if (dialog.kind === "suspend") {
         const membershipId = dialog.membershipId
         await runWrite(async () => {
           await adapters.remove(membershipId)

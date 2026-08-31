@@ -82,6 +82,8 @@ namespace TummlyBackend.DTOs.TeamPermissions
 
         public bool IsAccountOwner { get; set; }
 
+        public DateTime? LastActiveAt { get; set; }
+
         public List<string> Actions { get; set; } = [];
     }
 

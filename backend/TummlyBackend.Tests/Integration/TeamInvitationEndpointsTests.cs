@@ -448,6 +448,7 @@ namespace TummlyBackend.Tests.Integration
             {
                 var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 var other = AddUser(context, "Other Venue Owner", "Owner");
+                other.AccountType = "Single";
                 other.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
                 await context.SaveChangesAsync();
                 email = other.Email;
@@ -506,6 +507,15 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, verify.StatusCode);
             var body = await verify.Content.ReadFromJsonAsync<JsonElement>();
             Assert.True(body.GetProperty("workspaceCount").GetInt32() >= 2);
+            Assert.Equal("Multi", body.GetProperty("accountType").GetString());
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var user = await context.Users.SingleAsync(row => row.Email == email);
+                Assert.Equal("Multi", user.AccountType);
+                Assert.Equal(seeded.RestaurantId, user.SelectedRestaurantId);
+            }
         }
 
         [Fact]

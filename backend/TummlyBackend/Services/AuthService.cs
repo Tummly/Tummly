@@ -958,7 +958,10 @@ namespace TummlyBackend.Services
                 .ToList();
         }
 
-        public async Task<int> SelectWorkspaceAsync(int userId, int restaurantId)
+        public async Task<SelectWorkspaceResult> SelectWorkspaceAsync(
+            int userId,
+            int restaurantId
+        )
         {
             var membership = await _context.RestaurantMemberships
                 .FirstOrDefaultAsync(m =>
@@ -974,10 +977,31 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstAsync(row => row.Id == restaurantId);
+
+            var firstLocationId = await _context.RestaurantLocations
+                .Where(row => row.RestaurantId == restaurantId)
+                .OrderBy(row => row.Id)
+                .Select(row => (int?)row.Id)
+                .FirstOrDefaultAsync();
+
             var user = await _context.Users.FirstAsync(u => u.Id == userId);
             user.SelectedRestaurantId = restaurantId;
+            user.AccountType = restaurant.AccountType;
+            if (firstLocationId != null)
+            {
+                user.SelectedLocationId = firstLocationId;
+            }
+
             await _context.SaveChangesAsync();
-            return restaurantId;
+            return new SelectWorkspaceResult
+            {
+                RestaurantId = restaurantId,
+                LocationId = firstLocationId ?? restaurantId,
+                AccountType = restaurant.AccountType,
+            };
         }
 
         private async Task<object> BuildUserSessionPayloadAsync(
@@ -993,13 +1017,15 @@ namespace TummlyBackend.Services
             var activationRequired =
                 ActivationState.RequiresActivation(ActivationSubject.FromUser(user));
 
+            var accountType = await ResolveRoutingAccountTypeAsync(user);
+
             if (deviceToken == null)
             {
                 return new
                 {
                     token,
                     refreshToken,
-                    accountType = user.AccountType,
+                    accountType,
                     workspaceSetupRequired,
                     selectedLocationId = user.SelectedLocationId,
                     activationRequired,
@@ -1011,7 +1037,7 @@ namespace TummlyBackend.Services
             {
                 token,
                 refreshToken,
-                accountType = user.AccountType,
+                accountType,
                 workspaceSetupRequired,
                 selectedLocationId = user.SelectedLocationId,
                 activationRequired,
@@ -1026,7 +1052,7 @@ namespace TummlyBackend.Services
         {
             return new SessionRoutingFields
             {
-                AccountType = user.AccountType,
+                AccountType = await ResolveRoutingAccountTypeAsync(user),
                 WorkspaceSetupRequired =
                     await RequiresWorkspaceSetupAsync(user),
                 SelectedLocationId = user.SelectedLocationId,
@@ -1034,6 +1060,24 @@ namespace TummlyBackend.Services
                     ActivationState.RequiresActivation(ActivationSubject.FromUser(user)),
                 ActivationExpiresAt = user.ActivationExpiresAt,
             };
+        }
+
+        private async Task<string> ResolveRoutingAccountTypeAsync(User user)
+        {
+            if (user.SelectedRestaurantId is int restaurantId)
+            {
+                var accountType = await _context.Restaurants
+                    .AsNoTracking()
+                    .Where(row => row.Id == restaurantId)
+                    .Select(row => row.AccountType)
+                    .FirstOrDefaultAsync();
+                if (!string.IsNullOrWhiteSpace(accountType))
+                {
+                    return accountType;
+                }
+            }
+
+            return user.AccountType;
         }
 
         public async Task<SessionRoutingFields> GetCurrentUserRoutingAsync(

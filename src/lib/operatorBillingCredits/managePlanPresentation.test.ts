@@ -95,18 +95,22 @@ describe("buildManagePlanCardViewModels", () => {
       "Group",
     ])
     expect(cards[1]?.priceHeadline).toBe("£39 / month + VAT")
-    expect(cards[1]?.emailCreditsLabel).toBe("2,500 / month")
-    expect(cards[2]?.annualSaveLabel).toBeNull()
+    expect(cards[1]?.emailCreditsLabel).toBe("2,500/month")
+    expect(cards[1]?.annualSaveLabel).toBe("Save £70 per year")
+    expect(cards[2]?.isMostPopular).toBe(true)
+    expect(cards[2]?.coreFeatures.length).toBeGreaterThan(0)
+    expect(cards[0]?.priceSubline).toBe("No payment card required")
   })
 
-  it("shows annual save when preview cadence is annual", () => {
+  it("hides annual save when preview cadence is annual", () => {
     const cards = buildManagePlanCardViewModels({
       plan: paidPlan(),
       previewCadence: "annual",
     })
 
     expect(cards[1]?.priceHeadline).toBe("£398 / year + VAT")
-    expect(cards[1]?.annualSaveLabel).toBe("Save £70 per year")
+    expect(cards[1]?.annualSaveLabel).toBeNull()
+    expect(cards[1]?.priceSubline).toBeNull()
   })
 })
 

@@ -341,7 +341,18 @@ namespace TummlyBackend.Services
             }
 
             invitee.SelectedRestaurantId = restaurant.Id;
+            invitee.AccountType = restaurant.AccountType;
             invitee.HasCompletedFirstSignIn = true;
+            var firstLocationId = await _context.RestaurantLocations
+                .Where(row => row.RestaurantId == restaurant.Id)
+                .OrderBy(row => row.Id)
+                .Select(row => (int?)row.Id)
+                .FirstOrDefaultAsync();
+            if (firstLocationId != null)
+            {
+                invitee.SelectedLocationId = firstLocationId;
+            }
+
             if (invitee.ActivatedAt == null)
             {
                 invitee.ActivatedAt = DateTime.UtcNow;
@@ -390,11 +401,25 @@ namespace TummlyBackend.Services
                 user.Email,
                 user.Role
             );
+            var accountType = user.AccountType;
+            if (user.SelectedRestaurantId is int restaurantId)
+            {
+                var restaurantAccountType = await _context.Restaurants
+                    .AsNoTracking()
+                    .Where(row => row.Id == restaurantId)
+                    .Select(row => row.AccountType)
+                    .FirstOrDefaultAsync();
+                if (!string.IsNullOrWhiteSpace(restaurantAccountType))
+                {
+                    accountType = restaurantAccountType;
+                }
+            }
+
             return new
             {
                 token,
                 refreshToken = refresh,
-                accountType = user.AccountType,
+                accountType,
                 workspaceCount,
                 restaurantId = user.SelectedRestaurantId,
                 selectedLocationId = user.SelectedLocationId,
