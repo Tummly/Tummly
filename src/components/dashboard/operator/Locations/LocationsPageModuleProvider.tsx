@@ -11,6 +11,7 @@ import {
   activateOwnedLocation,
   createOwnedLocation,
   deleteOwnedLocationDraft,
+  importOwnedLocations,
   setOwnedLocationManager,
 } from "@/api/locationsWriteApi"
 import { locationsPageModuleContext } from "@/components/dashboard/operator/Locations/utils/locationsPageModuleContext"
@@ -29,6 +30,16 @@ export function LocationsPageModuleProvider({
         getList: getLocationsList,
         createDraft: async (input) => {
           await createOwnedLocation(input)
+        },
+        importDrafts: async (rows) => {
+          const result = await importOwnedLocations(rows)
+          return {
+            createdCount: result.created.length,
+            errors: result.errors.map((row) => ({
+              rowIndex: row.rowIndex,
+              message: row.message,
+            })),
+          }
         },
         activateDraft: async (locationId) => {
           await activateOwnedLocation(Number.parseInt(locationId, 10))

@@ -86,6 +86,19 @@ export type OperatorLocationsPageAdapters = {
     city: string
     postcode: string
   }) => Promise<void>
+  importDrafts?: (
+    rows: Array<{
+      locationName: string
+      address: string
+      city: string
+      postcode: string
+      locationPhone?: string
+      localContact?: string
+    }>
+  ) => Promise<{
+    createdCount: number
+    errors: Array<{ rowIndex: number; message: string }>
+  }>
   activateDraft?: (locationId: string) => Promise<void>
   deleteDraft?: (locationId: string) => Promise<void>
   setManager?: (
@@ -122,6 +135,19 @@ export type OperatorLocationsPageModule = {
     city: string
     postcode: string
   }) => Promise<void>
+  importDrafts: (
+    rows: Array<{
+      locationName: string
+      address: string
+      city: string
+      postcode: string
+      locationPhone?: string
+      localContact?: string
+    }>
+  ) => Promise<{
+    createdCount: number
+    errors: Array<{ rowIndex: number; message: string }>
+  }>
   activateDraft: (locationId: string) => Promise<void>
   deleteDraft: (locationId: string) => Promise<void>
   setManager: (
@@ -473,6 +499,15 @@ export function createOperatorLocationsPageModule(
       await adapters.createDraft(input)
       page = 1
       await fetchList()
+    },
+    importDrafts: async (rows) => {
+      if (adapters.importDrafts == null) {
+        throw new Error("Import drafts is not configured.")
+      }
+      const result = await adapters.importDrafts(rows)
+      page = 1
+      await fetchList()
+      return result
     },
     activateDraft: async (locationId) => {
       if (adapters.activateDraft == null) {

@@ -182,6 +182,40 @@ describe("createOperatorLocationsPageModule", () => {
     expect(getList).toHaveBeenCalledTimes(1)
   })
 
+  it("refreshes the list after importDrafts succeeds", async () => {
+    const getList = vi.fn(async () => apiResponse())
+    const importDrafts = vi.fn(async () => ({
+      createdCount: 2,
+      errors: [] as Array<{ rowIndex: number; message: string }>,
+    }))
+    const module = createOperatorLocationsPageModule({
+      getList,
+      importDrafts,
+      debounceMs: 0,
+    })
+    await module.load()
+    getList.mockClear()
+
+    const result = await module.importDrafts([
+      {
+        locationName: "Soho",
+        address: "10 Wardour Street",
+        city: "London",
+        postcode: "W1D 6QF",
+      },
+      {
+        locationName: "Shoreditch",
+        address: "1 Curtain Road",
+        city: "London",
+        postcode: "EC2A 3NZ",
+      },
+    ])
+
+    expect(importDrafts).toHaveBeenCalledTimes(1)
+    expect(getList).toHaveBeenCalledTimes(1)
+    expect(result.createdCount).toBe(2)
+  })
+
   it("refreshes the list after activateDraft and deleteDraft", async () => {
     const getList = vi.fn(async () => apiResponse())
     const activateDraft = vi.fn(async () => undefined)

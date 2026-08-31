@@ -9,6 +9,7 @@ import { LocationsSetManagerDialog } from "@/components/dashboard/operator/Locat
 import { LocationsSetupReadinessSection } from "@/components/dashboard/operator/Locations/LocationsSetupReadinessSection"
 import { LocationsTableSection } from "@/components/dashboard/operator/Locations/LocationsTableSection"
 import { useLocationsPageModuleApi } from "@/components/dashboard/operator/Locations/utils/locationsPageModuleContext"
+import { GuestLoopUploadLocationsDialog } from "@/components/guest-loop/GuestLoopUploadLocationsDialog"
 import { OperatorDestructiveConfirmDialog } from "@/components/dashboard/operator/OperatorDestructiveConfirmDialog"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { Button } from "@/components/ui/button"
@@ -54,6 +55,9 @@ export function LocationsPage() {
   const [addOpen, setAddOpen] = useState(false)
   const [addBusy, setAddBusy] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+
+  const [importOpen, setImportOpen] = useState(false)
+  const [importBusy, setImportBusy] = useState(false)
 
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string
@@ -140,6 +144,7 @@ export function LocationsPage() {
             type="button"
             variant="op-secondary"
             className={LOCATIONS_PAGE_SECONDARY_BUTTON_CLASS}
+            onClick={() => setImportOpen(true)}
           >
             {copy.importLocations}
           </Button>
@@ -253,6 +258,62 @@ export function LocationsPage() {
             throw error
           } finally {
             setAddBusy(false)
+          }
+        }}
+      />
+
+      <GuestLoopUploadLocationsDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        isSubmitting={importBusy}
+        confirmLabel="Import locations"
+        onConfirm={async (locations) => {
+          setImportBusy(true)
+          try {
+            const result = await pageModule.importDrafts(
+              locations.map((location) => ({
+                locationName: location.locationName,
+                address: location.address,
+                city: location.city,
+                postcode: location.postcode,
+                locationPhone: location.locationPhone || undefined,
+                localContact: location.localContact || undefined,
+              }))
+            )
+            if (result.createdCount > 0 && result.errors.length === 0) {
+              toast.success(
+                result.createdCount === 1
+                  ? "1 draft location imported."
+                  : `${result.createdCount} draft locations imported.`
+              )
+            } else if (result.createdCount > 0) {
+              toast.success(
+                `Imported ${result.createdCount}; ${result.errors.length} row(s) need attention.`
+              )
+              toast.error(
+                result.errors
+                  .slice(0, 3)
+                  .map((row) => `Row ${row.rowIndex + 1}: ${row.message}`)
+                  .join(" ")
+              )
+            } else if (result.errors.length > 0) {
+              toast.error(
+                result.errors
+                  .slice(0, 3)
+                  .map((row) => `Row ${row.rowIndex + 1}: ${row.message}`)
+                  .join(" ")
+              )
+            }
+            setImportOpen(false)
+          } catch (error) {
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Could not import locations."
+            )
+            throw error
+          } finally {
+            setImportBusy(false)
           }
         }}
       />

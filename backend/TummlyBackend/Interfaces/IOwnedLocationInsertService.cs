@@ -9,5 +9,11 @@ namespace TummlyBackend.Interfaces
             int actorUserId,
             AddOwnedLocationRequest request
         );
+
+        Task<ImportOwnedLocationsResult> ImportAsync(
+            int restaurantId,
+            int actorUserId,
+            ImportOwnedLocationsRequest request
+        );
     }
 }

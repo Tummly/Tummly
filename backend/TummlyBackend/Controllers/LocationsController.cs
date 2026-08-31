@@ -151,6 +151,81 @@ namespace TummlyBackend.Controllers
             };
         }
 
+        /// <summary>
+        /// Bulk import Draft Owned locations (partial-success). Valid rows
+        /// insert until the location cap; invalid and overflow rows return
+        /// per-row errors. Fail-closed billing rejects the whole request when
+        /// nothing was created.
+        /// </summary>
+        [HttpPost("import")]
+        public async Task<IActionResult> ImportOwnedLocations(
+            [FromBody] ImportOwnedLocationsRequest request
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.Locations,
+                PermissionLevel.Manage
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _insert.ImportAsync(
+                decision.RestaurantId,
+                userId,
+                request
+            );
+
+            return result switch
+            {
+                ImportOwnedLocationsResult.Completed completed => Ok(new
+                {
+                    success = true,
+                    created = completed.Created.Select(row => new
+                    {
+                        rowIndex = row.RowIndex,
+                        locationId = row.LocationId,
+                    }),
+                    errors = completed.Errors.Select(row => new
+                    {
+                        rowIndex = row.RowIndex,
+                        message = row.Message,
+                        code = row.Code,
+                        cap = row.Cap,
+                        current = row.Current,
+                    }),
+                }),
+                ImportOwnedLocationsResult.InvalidRequest invalid => BadRequest(
+                    new
+                    {
+                        success = false,
+                        message = invalid.Message,
+                    }
+                ),
+                ImportOwnedLocationsResult.FailClosed => Conflict(new
+                {
+                    success = false,
+                }),
+                _ => StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "Unexpected import-locations result.",
+                    }
+                ),
+            };
+        }
+
         [HttpPost("{locationId:int}/activate")]
         public async Task<IActionResult> ActivateDraft(int locationId)
         {

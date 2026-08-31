@@ -26,6 +26,8 @@ namespace TummlyBackend.Services
             _pricebookCatalog = pricebookCatalog;
         }
 
+        public const int ImportMaxRows = 100;
+
         public async Task<AddOwnedLocationResult> AddAsync(
             int restaurantId,
             int actorUserId,
@@ -60,6 +62,107 @@ namespace TummlyBackend.Services
             }
 
             return await AddLockedAsync(restaurantId, actorUserId, request);
+        }
+
+        public async Task<ImportOwnedLocationsResult> ImportAsync(
+            int restaurantId,
+            int actorUserId,
+            ImportOwnedLocationsRequest request
+        )
+        {
+            var rows = request.Rows ?? [];
+            if (rows.Count == 0)
+            {
+                return new ImportOwnedLocationsResult.InvalidRequest(
+                    "Add at least one location row."
+                );
+            }
+
+            if (rows.Count > ImportMaxRows)
+            {
+                return new ImportOwnedLocationsResult.InvalidRequest(
+                    $"Import up to {ImportMaxRows} locations at a time."
+                );
+            }
+
+            var created = new List<ImportCreatedRow>();
+            var errors = new List<ImportErrorRow>();
+            var capHit = false;
+            int? cap = null;
+            int? current = null;
+
+            for (var index = 0; index < rows.Count; index++)
+            {
+                if (capHit)
+                {
+                    errors.Add(
+                        new ImportErrorRow(
+                            index,
+                            $"Location cap reached ({current} of {cap}).",
+                            LocationCap.CapReachedCode,
+                            cap,
+                            current
+                        )
+                    );
+                    continue;
+                }
+
+                var result = await AddAsync(
+                    restaurantId,
+                    actorUserId,
+                    rows[index]
+                );
+
+                switch (result)
+                {
+                    case AddOwnedLocationResult.Created ok:
+                        created.Add(new ImportCreatedRow(index, ok.LocationId));
+                        break;
+                    case AddOwnedLocationResult.InvalidRequest invalid:
+                        errors.Add(
+                            new ImportErrorRow(index, invalid.Message)
+                        );
+                        break;
+                    case AddOwnedLocationResult.CapReached reached:
+                        capHit = true;
+                        cap = reached.Cap;
+                        current = reached.Current;
+                        errors.Add(
+                            new ImportErrorRow(
+                                index,
+                                $"Location cap reached ({reached.Current} of {reached.Cap}).",
+                                LocationCap.CapReachedCode,
+                                reached.Cap,
+                                reached.Current
+                            )
+                        );
+                        break;
+                    case AddOwnedLocationResult.FailClosed:
+                        if (created.Count == 0)
+                        {
+                            return new ImportOwnedLocationsResult.FailClosed();
+                        }
+
+                        errors.Add(
+                            new ImportErrorRow(
+                                index,
+                                "Could not create location."
+                            )
+                        );
+                        capHit = true;
+                        break;
+                    default:
+                        errors.Add(
+                            new ImportErrorRow(
+                                index,
+                                "Could not create location."
+                            )
+                        );
+                        break;
+                }
+            }
+
+            return new ImportOwnedLocationsResult.Completed(created, errors);
         }
 
         private async Task<AddOwnedLocationResult> AddLockedAsync(

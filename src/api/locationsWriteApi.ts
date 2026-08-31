@@ -90,3 +90,44 @@ export async function setOwnedLocationManager(
     throw new Error(readApiError(error, "Could not update manager."))
   }
 }
+
+export type ImportOwnedLocationRowInput = {
+  locationName: string
+  address: string
+  city: string
+  postcode: string
+  locationPhone?: string
+  localContact?: string
+}
+
+export type ImportOwnedLocationsResult = {
+  created: Array<{ rowIndex: number; locationId: number }>
+  errors: Array<{
+    rowIndex: number
+    message: string
+    code?: string | null
+    cap?: number | null
+    current?: number | null
+  }>
+}
+
+export async function importOwnedLocations(
+  rows: ImportOwnedLocationRowInput[]
+): Promise<ImportOwnedLocationsResult> {
+  try {
+    const response = await axiosInstance.post<{
+      success?: boolean
+      created?: ImportOwnedLocationsResult["created"]
+      errors?: ImportOwnedLocationsResult["errors"]
+      message?: string
+    }>("/locations/import", { rows })
+    return {
+      created: Array.isArray(response.data.created)
+        ? response.data.created
+        : [],
+      errors: Array.isArray(response.data.errors) ? response.data.errors : [],
+    }
+  } catch (error) {
+    throw new Error(readApiError(error, "Could not import locations."))
+  }
+}
