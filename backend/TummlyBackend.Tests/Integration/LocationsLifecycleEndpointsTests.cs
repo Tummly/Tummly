@@ -113,6 +113,16 @@ namespace TummlyBackend.Tests.Integration
                 .AsNoTracking()
                 .FirstAsync(q => q.Id == seeded.ActiveQrId);
             Assert.Equal(QrCodeStatus.Active, qr.Status);
+
+            var activity = await context.LocationActivities
+                .AsNoTracking()
+                .Where(e =>
+                    e.LocationId == seeded.ActiveLocationId
+                    && e.Kind == LocationActivityKinds.LifecycleChanged
+                )
+                .OrderByDescending(e => e.Id)
+                .FirstAsync();
+            Assert.Equal("active", activity.ToValue);
         }
 
         [Fact]
@@ -243,6 +253,132 @@ namespace TummlyBackend.Tests.Integration
                     l.GetProperty("id").GetInt32() == seeded.PausedLocationId
                     && l.GetProperty("lifecycleStatus").GetString() == "paused"
             );
+        }
+
+        [Fact]
+        public async Task Pause_BlocksGuestIntake_CampaignSend_AndOfferIssue()
+        {
+            var seeded = await SeedLifecycleScenarioAsync();
+            string qrToken;
+            int locationGuestId;
+            int catalogOfferId;
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+
+                var qr = await context.QrCodes
+                    .FirstAsync(q => q.Id == seeded.ActiveQrId);
+                qrToken = qr.Token;
+
+                var master = new MasterGuest
+                {
+                    RestaurantId = (
+                        await context.RestaurantLocations
+                            .AsNoTracking()
+                            .FirstAsync(l => l.Id == seeded.ActiveLocationId)
+                    ).RestaurantId,
+                    Email = $"life-guest-{Guid.NewGuid():N}@example.com",
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.MasterGuests.Add(master);
+                await context.SaveChangesAsync();
+
+                var guest = new LocationGuest
+                {
+                    RestaurantLocationId = seeded.ActiveLocationId,
+                    MasterGuestId = master.Id,
+                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.LocationGuests.Add(guest);
+
+                var offer = new CatalogOffer
+                {
+                    RestaurantLocationId = seeded.ActiveLocationId,
+                    Status = "active",
+                    OfferType = CatalogOfferType.PercentageDiscount,
+                    Title = "10% off next visit",
+                    Description = "Come back soon",
+                    Validity = CatalogOfferValidity.Days14AfterIssue,
+                    DiscountPercentage = 10m,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                };
+                context.CatalogOffers.Add(offer);
+                await context.SaveChangesAsync();
+
+                var location = await context.RestaurantLocations
+                    .FirstAsync(l => l.Id == seeded.ActiveLocationId);
+                location.ThankYouCatalogOfferId = offer.Id;
+                await context.SaveChangesAsync();
+
+                locationGuestId = guest.Id;
+                catalogOfferId = offer.Id;
+            }
+
+            var pauseResponse = await PostLifecycleAsync(
+                seeded.OwnerJwt,
+                seeded.ActiveLocationId,
+                "pause"
+            );
+            Assert.Equal(HttpStatusCode.OK, pauseResponse.StatusCode);
+
+            // Capture pause: Active QR is no longer resolvable.
+            var scanAfterCapturePause = await _client.GetAsync(
+                $"/api/scan/{qrToken}"
+            );
+            Assert.NotEqual(HttpStatusCode.OK, scanAfterCapturePause.StatusCode);
+
+            // Settings lifecycle gate: even with QR forced Active, guest intake stays denied.
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var qr = await context.QrCodes
+                    .FirstAsync(q => q.Id == seeded.ActiveQrId);
+                qr.Status = QrCodeStatus.Active;
+                await context.SaveChangesAsync();
+            }
+
+            var scanAfterLifecycleOnly = await _client.GetAsync(
+                $"/api/scan/{qrToken}"
+            );
+            Assert.NotEqual(HttpStatusCode.OK, scanAfterLifecycleOnly.StatusCode);
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var sendGate = scope.ServiceProvider
+                    .GetRequiredService<ICampaignSendStartGate>();
+                var sendResult = await sendGate.EvaluateAsync(
+                    campaignId: 1,
+                    locationId: seeded.ActiveLocationId
+                );
+                var blocked = Assert.IsType<CampaignSendStartGateResult.Blocked>(
+                    sendResult
+                );
+                Assert.Equal("Location is not active.", blocked.Message);
+
+                var offerIssue = scope.ServiceProvider
+                    .GetRequiredService<IOfferIssueService>();
+                var thankYou = await offerIssue.IssueOnThankYouSubmitAsync(
+                    seeded.ActiveLocationId,
+                    locationGuestId,
+                    feedbackId: 1,
+                    DateTime.UtcNow
+                );
+                Assert.Null(thankYou);
+
+                var campaignIssue = await offerIssue.IssueOnCampaignAcceptedAsync(
+                    campaignId: 99,
+                    locationGuestId,
+                    catalogOfferId,
+                    channel: "email",
+                    DateTime.UtcNow
+                );
+                Assert.Null(campaignIssue);
+            }
         }
 
         [Fact]
