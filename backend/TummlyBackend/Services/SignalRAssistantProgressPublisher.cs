@@ -12,15 +12,15 @@ namespace TummlyBackend.Services
         public const string TurnProgressEvent = "TurnProgress";
 
         private readonly IHubContext<AssistantHub> _hub;
-        private readonly IRestaurantPermissionHelper _permissions;
+        private readonly IServiceScopeFactory _scopeFactory;
 
         public SignalRAssistantProgressPublisher(
             IHubContext<AssistantHub> hub,
-            IRestaurantPermissionHelper permissions
+            IServiceScopeFactory scopeFactory
         )
         {
             _hub = hub;
-            _permissions = permissions;
+            _scopeFactory = scopeFactory;
         }
 
         public async Task PublishAsync(
@@ -30,7 +30,11 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var decision = await _permissions.AuthorizeUserAsync(
+            using var scope = _scopeFactory.CreateScope();
+            var permissions = scope.ServiceProvider
+                .GetRequiredService<IRestaurantPermissionHelper>();
+
+            var decision = await permissions.AuthorizeUserAsync(
                 userId,
                 OperatorAreaIds.AiAssistant,
                 PermissionLevel.View

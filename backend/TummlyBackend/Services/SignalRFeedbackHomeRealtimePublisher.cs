@@ -13,15 +13,15 @@ namespace TummlyBackend.Services
             "ClassificationTerminal";
 
         private readonly IHubContext<FeedbackHomeHub> _hub;
-        private readonly IRestaurantPermissionHelper _permissions;
+        private readonly IServiceScopeFactory _scopeFactory;
 
         public SignalRFeedbackHomeRealtimePublisher(
             IHubContext<FeedbackHomeHub> hub,
-            IRestaurantPermissionHelper permissions
+            IServiceScopeFactory scopeFactory
         )
         {
             _hub = hub;
-            _permissions = permissions;
+            _scopeFactory = scopeFactory;
         }
 
         public async Task PublishClassificationTerminalAsync(
@@ -30,7 +30,11 @@ namespace TummlyBackend.Services
             int locationId
         )
         {
-            var decision = await _permissions.AuthorizeLocationForUserAsync(
+            using var scope = _scopeFactory.CreateScope();
+            var permissions = scope.ServiceProvider
+                .GetRequiredService<IRestaurantPermissionHelper>();
+
+            var decision = await permissions.AuthorizeLocationForUserAsync(
                 userId,
                 OperatorAreaIds.Feedback,
                 PermissionLevel.View,

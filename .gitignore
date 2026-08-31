@@ -44,3 +44,6 @@ infra/qa/sql-admin-password.local.txt
 
 .scratch
 .worktrees/
+
+# Local DB dumps (*.local already covers .env.development.local)
+*.bacpac
