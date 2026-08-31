@@ -187,6 +187,15 @@ describe("operatorDashboardNavPath", () => {
       operatorDashboardNavPath("multi", "billing-credits", 7)
     ).toBe("/multi-dashboard/settings/billing-credits?location=7")
   })
+
+  it("builds Privacy & consent settings path with location query", () => {
+    expect(
+      operatorDashboardNavPath("single", "privacy-consent", 42)
+    ).toBe("/single-dashboard/settings/privacy-consent?location=42")
+    expect(
+      operatorDashboardNavPath("multi", "privacy-consent", 7)
+    ).toBe("/multi-dashboard/settings/privacy-consent?location=7")
+  })
 })
 
 describe("operatorDashboardOffersRedemptionLogPath", () => {
@@ -410,6 +419,19 @@ describe("resolveOperatorSidebarActiveId", () => {
         "/multi-dashboard/settings/billing-credits/manage-plan"
       )
     ).toBe("billing-credits")
+  })
+
+  it("marks Privacy & consent active on settings child routes", () => {
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/single-dashboard/settings/privacy-consent"
+      )
+    ).toBe("privacy-consent")
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/multi-dashboard/settings/privacy-consent"
+      )
+    ).toBe("privacy-consent")
   })
 })
 

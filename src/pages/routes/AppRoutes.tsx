@@ -49,6 +49,8 @@ import { AccountWorkspacePageModuleProvider } from "@/components/dashboard/opera
 import { AccountWorkspaceRoute } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceRoute";
 import { LocationsPageModuleProvider } from "@/components/dashboard/operator/Locations/LocationsPageModuleProvider";
 import { LocationsRoute } from "@/components/dashboard/operator/Locations/LocationsRoute";
+import { PrivacyConsentPageModuleProvider } from "@/components/dashboard/operator/PrivacyConsent/PrivacyConsentPageModuleProvider";
+import { PrivacyConsentRoute } from "@/components/dashboard/operator/PrivacyConsent/PrivacyConsentRoute";
 import { TeamPermissionsPageModuleProvider } from "@/components/dashboard/operator/TeamPermissions/TeamPermissionsPageModuleProvider";
 import { TeamPermissionsRoute } from "@/components/dashboard/operator/TeamPermissions/TeamPermissionsRoute";
 import { BillingCreditsRoute } from "@/components/dashboard/operator/BillingCredits/BillingCreditsRoute";
@@ -239,6 +241,14 @@ function AppRoutes() {
                     </BillingCreditsPageModuleProvider>
                   }
                 />
+                <Route
+                  path="settings/privacy-consent"
+                  element={
+                    <PrivacyConsentPageModuleProvider>
+                      <PrivacyConsentRoute />
+                    </PrivacyConsentPageModuleProvider>
+                  }
+                />
               </Route>
             </Route>
             <Route element={<OperatorDashboardRoute mode="multi" />}>
@@ -330,6 +340,14 @@ function AppRoutes() {
                     <BillingCreditsPageModuleProvider surface="manage-plan">
                       <ManagePlanRoute />
                     </BillingCreditsPageModuleProvider>
+                  }
+                />
+                <Route
+                  path="settings/privacy-consent"
+                  element={
+                    <PrivacyConsentPageModuleProvider>
+                      <PrivacyConsentRoute />
+                    </PrivacyConsentPageModuleProvider>
                   }
                 />
               </Route>

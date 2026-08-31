@@ -226,6 +226,7 @@ describe("getOperatorSidebarNav", () => {
         && c.id !== "locations"
         && c.id !== "team-permissions"
         && c.id !== "billing-credits"
+        && c.id !== "privacy-consent"
     )) {
       expect(child.navigable).toBe(false)
       expect(child.active).toBe(false)
@@ -253,6 +254,7 @@ describe("getOperatorSidebarNav", () => {
         && c.id !== "locations"
         && c.id !== "team-permissions"
         && c.id !== "billing-credits"
+        && c.id !== "privacy-consent"
     )) {
       expect(child.navigable).toBe(false)
       expect(child.to).toBeUndefined()
@@ -326,6 +328,22 @@ describe("getOperatorSidebarNav", () => {
       navigable: true,
       active: true,
       to: "/single-dashboard/settings/billing-credits?location=10",
+    })
+  })
+
+  it("makes Privacy & consent navigable when nav targets are provided", () => {
+    const nav = getOperatorSidebarNav("privacy-consent", {
+      mode: "single",
+      locationId: 10,
+    })
+
+    expect(
+      nav.settings.children.find((c) => c.id === "privacy-consent")
+    ).toMatchObject({
+      label: "Privacy & consent",
+      navigable: true,
+      active: true,
+      to: "/single-dashboard/settings/privacy-consent?location=10",
     })
   })
 
