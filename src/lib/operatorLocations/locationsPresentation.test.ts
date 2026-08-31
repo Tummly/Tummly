@@ -17,6 +17,7 @@ describe("locationRowActionsForLifecycle", () => {
     ).toEqual([
       "view-location",
       "edit-location",
+      "set-manager",
       "view-qr-placements",
       "view-feedback",
       "view-reports",
@@ -28,7 +29,12 @@ describe("locationRowActionsForLifecycle", () => {
   it("returns Draft location actions from Figma", () => {
     expect(
       locationRowActionsForLifecycle("draft").map((action) => action.id)
-    ).toEqual(["continue-setup", "edit-location", "delete-draft"])
+    ).toEqual([
+      "continue-setup",
+      "edit-location",
+      "set-manager",
+      "delete-draft",
+    ])
   })
 
   it("returns Paused location actions from Figma", () => {

@@ -159,4 +159,66 @@ describe("createOperatorLocationsPageModule", () => {
     expect(module.getSnapshot().loadStatus).toBe("error")
     expect(module.getSnapshot().rows).toEqual([])
   })
+
+  it("refreshes the list after createDraft succeeds", async () => {
+    const getList = vi.fn(async () => apiResponse())
+    const createDraft = vi.fn(async () => undefined)
+    const module = createOperatorLocationsPageModule({
+      getList,
+      createDraft,
+      debounceMs: 0,
+    })
+    await module.load()
+    getList.mockClear()
+
+    await module.createDraft({
+      locationName: "New Draft",
+      address: "1 High Street",
+      city: "Leeds",
+      postcode: "LS1 1AA",
+    })
+
+    expect(createDraft).toHaveBeenCalledTimes(1)
+    expect(getList).toHaveBeenCalledTimes(1)
+  })
+
+  it("refreshes the list after activateDraft and deleteDraft", async () => {
+    const getList = vi.fn(async () => apiResponse())
+    const activateDraft = vi.fn(async () => undefined)
+    const deleteDraft = vi.fn(async () => undefined)
+    const module = createOperatorLocationsPageModule({
+      getList,
+      activateDraft,
+      deleteDraft,
+      debounceMs: 0,
+    })
+    await module.load()
+    getList.mockClear()
+
+    await module.activateDraft("11")
+    await module.deleteDraft("11")
+
+    expect(activateDraft).toHaveBeenCalledWith("11")
+    expect(deleteDraft).toHaveBeenCalledWith("11")
+    expect(getList).toHaveBeenCalledTimes(2)
+  })
+
+  it("refreshes the list after setManager", async () => {
+    const getList = vi.fn(async () => apiResponse())
+    const setManager = vi.fn(async () => undefined)
+    const module = createOperatorLocationsPageModule({
+      getList,
+      setManager,
+      debounceMs: 0,
+    })
+    await module.load()
+    getList.mockClear()
+
+    await module.setManager("10", 42)
+    await module.setManager("10", null)
+
+    expect(setManager).toHaveBeenNthCalledWith(1, "10", 42)
+    expect(setManager).toHaveBeenNthCalledWith(2, "10", null)
+    expect(getList).toHaveBeenCalledTimes(2)
+  })
 })

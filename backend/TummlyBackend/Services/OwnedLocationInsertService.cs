@@ -28,9 +28,16 @@ namespace TummlyBackend.Services
 
         public async Task<AddOwnedLocationResult> AddAsync(
             int restaurantId,
+            int actorUserId,
             AddOwnedLocationRequest request
         )
         {
+            var invalid = ValidateDraftFields(request);
+            if (invalid != null)
+            {
+                return invalid;
+            }
+
             if (!_context.Database.IsSqlServer())
             {
                 var gate = AccountLocks.GetOrAdd(
@@ -40,7 +47,11 @@ namespace TummlyBackend.Services
                 await gate.WaitAsync();
                 try
                 {
-                    return await AddLockedAsync(restaurantId, request);
+                    return await AddLockedAsync(
+                        restaurantId,
+                        actorUserId,
+                        request
+                    );
                 }
                 finally
                 {
@@ -48,11 +59,12 @@ namespace TummlyBackend.Services
                 }
             }
 
-            return await AddLockedAsync(restaurantId, request);
+            return await AddLockedAsync(restaurantId, actorUserId, request);
         }
 
         private async Task<AddOwnedLocationResult> AddLockedAsync(
             int restaurantId,
+            int actorUserId,
             AddOwnedLocationRequest request
         )
         {
@@ -93,28 +105,86 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var actorDisplayName = await _context.Users
+                .AsNoTracking()
+                .Where(row => row.Id == actorUserId)
+                .Select(row => row.FullName)
+                .FirstOrDefaultAsync();
+
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurantId,
-                LocationName = request.LocationName?.Trim() ?? "",
-                Address = request.Address?.Trim() ?? "",
-                Postcode = string.IsNullOrWhiteSpace(request.Postcode)
-                    ? null
-                    : UkPostcode.FormatForDisplay(request.Postcode),
+                LocationName = request.LocationName.Trim(),
+                Address = request.Address.Trim(),
+                City = request.City.Trim(),
+                Postcode = UkPostcode.FormatForDisplay(request.Postcode!),
                 LocationPhone = PhoneNumberHelper.NormalizeOptional(
                     request.LocationPhone
                 ),
                 LocalContact = string.IsNullOrWhiteSpace(request.LocalContact)
                     ? null
                     : request.LocalContact.Trim(),
+                LifecycleStatus = LocationLifecycleStatus.Draft,
                 CreatedAt = DateTime.UtcNow,
             };
 
             _context.RestaurantLocations.Add(location);
             await _context.SaveChangesAsync();
+
+            _context.LocationActivities.Add(
+                new LocationActivity
+                {
+                    RestaurantId = restaurantId,
+                    LocationId = location.Id,
+                    ActorUserId = actorUserId,
+                    ActorDisplayName = string.IsNullOrWhiteSpace(actorDisplayName)
+                        ? null
+                        : actorDisplayName.Trim(),
+                    Kind = LocationActivityKinds.LocationCreated,
+                    Description = $"Created draft location “{location.LocationName}”.",
+                    ToValue = LocationLifecycleStatus.Draft.ToString(),
+                    OccurredAt = DateTime.UtcNow,
+                }
+            );
+            await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
             return new AddOwnedLocationResult.Created(location.Id);
+        }
+
+        private static AddOwnedLocationResult.InvalidRequest? ValidateDraftFields(
+            AddOwnedLocationRequest request
+        )
+        {
+            if (string.IsNullOrWhiteSpace(request.LocationName))
+            {
+                return new AddOwnedLocationResult.InvalidRequest(
+                    "Location name is required."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Address))
+            {
+                return new AddOwnedLocationResult.InvalidRequest(
+                    "Address is required."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(request.City))
+            {
+                return new AddOwnedLocationResult.InvalidRequest(
+                    "City is required."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Postcode))
+            {
+                return new AddOwnedLocationResult.InvalidRequest(
+                    "Postcode is required."
+                );
+            }
+
+            return null;
         }
 
         private bool TryResolveEntitled(

@@ -6,6 +6,7 @@ namespace TummlyBackend.Interfaces
     {
         Task<AddOwnedLocationResult> AddAsync(
             int restaurantId,
+            int actorUserId,
             AddOwnedLocationRequest request
         );
     }

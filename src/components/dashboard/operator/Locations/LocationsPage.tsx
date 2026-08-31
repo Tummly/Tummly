@@ -1,11 +1,15 @@
-import { useEffect, useSyncExternalStore } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
+import { toast } from "sonner"
 import { useSearchParams } from "react-router-dom"
 
 import { LocationsActivitySection } from "@/components/dashboard/operator/Locations/LocationsActivitySection"
+import { LocationsAddLocationDialog } from "@/components/dashboard/operator/Locations/LocationsAddLocationDialog"
 import { LocationsKpiStrip } from "@/components/dashboard/operator/Locations/LocationsKpiStrip"
+import { LocationsSetManagerDialog } from "@/components/dashboard/operator/Locations/LocationsSetManagerDialog"
 import { LocationsSetupReadinessSection } from "@/components/dashboard/operator/Locations/LocationsSetupReadinessSection"
 import { LocationsTableSection } from "@/components/dashboard/operator/Locations/LocationsTableSection"
 import { useLocationsPageModuleApi } from "@/components/dashboard/operator/Locations/utils/locationsPageModuleContext"
+import { OperatorDestructiveConfirmDialog } from "@/components/dashboard/operator/OperatorDestructiveConfirmDialog"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -32,6 +36,7 @@ import {
   LOCATIONS_PAGE_PRIMARY_BUTTON_CLASS,
   LOCATIONS_PAGE_SECONDARY_BUTTON_CLASS,
   LOCATIONS_TAB_COUNT_BADGE_CLASS,
+  type LocationRowActionId,
   type LocationsTabId,
 } from "@/lib/operatorLocations/locationsPresentation"
 import { cn } from "@/lib/utils"
@@ -45,6 +50,25 @@ export function LocationsPage() {
   )
   const [searchParams, setSearchParams] = useSearchParams()
   const copy = LOCATIONS_PAGE_COPY
+
+  const [addOpen, setAddOpen] = useState(false)
+  const [addBusy, setAddBusy] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
+
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string
+    name: string
+  } | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const [managerTarget, setManagerTarget] = useState<{
+    id: string
+    name: string
+    managerUserId: number | null
+  } | null>(null)
+  const [managerBusy, setManagerBusy] = useState(false)
+  const [managerError, setManagerError] = useState<string | null>(null)
 
   useEffect(() => {
     const current = searchParams.get("tab")
@@ -60,6 +84,37 @@ export function LocationsPage() {
     cities: snap.cityFilterOptions,
   })
 
+  const handleRowAction = (locationId: string, actionId: LocationRowActionId) => {
+    const row = snap.rows.find((item) => item.id === locationId)
+    if (actionId === "continue-setup") {
+      void pageModule
+        .activateDraft(locationId)
+        .then(() => toast.success("Location activated."))
+        .catch((error: unknown) => {
+          toast.error(
+            error instanceof Error ? error.message : "Could not activate."
+          )
+        })
+      return
+    }
+    if (actionId === "delete-draft") {
+      setDeleteError(null)
+      setDeleteTarget({
+        id: locationId,
+        name: row?.name ?? "this draft",
+      })
+      return
+    }
+    if (actionId === "set-manager") {
+      setManagerError(null)
+      setManagerTarget({
+        id: locationId,
+        name: row?.name ?? "Location",
+        managerUserId: row?.managerUserId ?? null,
+      })
+    }
+  }
+
   return (
     <div className={ACCOUNT_WORKSPACE_PAGE_STACK_CLASS}>
       <div className={GUESTS_PAGE_HEADER_ROW_CLASS}>
@@ -74,6 +129,10 @@ export function LocationsPage() {
             type="button"
             variant="op-primary"
             className={LOCATIONS_PAGE_PRIMARY_BUTTON_CLASS}
+            onClick={() => {
+              setAddError(null)
+              setAddOpen(true)
+            }}
           >
             {copy.addLocation}
           </Button>
@@ -147,7 +206,7 @@ export function LocationsPage() {
               onClearSearchAndFilters={pageModule.clearSearchAndFilters}
               onPreviousPage={pageModule.goToPreviousPage}
               onNextPage={pageModule.goToNextPage}
-              onRowAction={pageModule.onRowAction}
+              onRowAction={handleRowAction}
             />
           </TabsContent>
 
@@ -172,6 +231,106 @@ export function LocationsPage() {
         onSessionChange={pageModule.setFiltersSession}
         onOpenChange={(open) => pageModule.setFiltersOpen(open)}
         onApply={() => pageModule.applyFilters()}
+      />
+
+      <LocationsAddLocationDialog
+        open={addOpen}
+        busy={addBusy}
+        error={addError}
+        onOpenChange={setAddOpen}
+        onSubmit={async (input) => {
+          setAddBusy(true)
+          setAddError(null)
+          try {
+            await pageModule.createDraft(input)
+            toast.success("Draft location created.")
+          } catch (error) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : "Could not create location."
+            setAddError(message)
+            throw error
+          } finally {
+            setAddBusy(false)
+          }
+        }}
+      />
+
+      <OperatorDestructiveConfirmDialog
+        open={deleteTarget != null}
+        busy={deleteBusy}
+        error={deleteError}
+        title="Delete draft?"
+        description={
+          deleteTarget == null
+            ? ""
+            : `Hard-delete “${deleteTarget.name}”? This only works when the draft has no guest or history records.`
+        }
+        confirmLabel="Delete draft"
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null)
+            setDeleteError(null)
+          }
+        }}
+        onConfirm={async () => {
+          if (deleteTarget == null) {
+            return
+          }
+          setDeleteBusy(true)
+          setDeleteError(null)
+          try {
+            await pageModule.deleteDraft(deleteTarget.id)
+            toast.success("Draft deleted.")
+            setDeleteTarget(null)
+          } catch (error) {
+            setDeleteError(
+              error instanceof Error
+                ? error.message
+                : "Could not delete draft."
+            )
+          } finally {
+            setDeleteBusy(false)
+          }
+        }}
+      />
+
+      <LocationsSetManagerDialog
+        open={managerTarget != null}
+        locationId={managerTarget?.id ?? null}
+        locationName={managerTarget?.name ?? "Location"}
+        currentManagerUserId={managerTarget?.managerUserId ?? null}
+        busy={managerBusy}
+        error={managerError}
+        onOpenChange={(open) => {
+          if (!open) {
+            setManagerTarget(null)
+            setManagerError(null)
+          }
+        }}
+        onSubmit={async (managerUserId) => {
+          if (managerTarget == null) {
+            return
+          }
+          setManagerBusy(true)
+          setManagerError(null)
+          try {
+            await pageModule.setManager(managerTarget.id, managerUserId)
+            toast.success(
+              managerUserId == null ? "Manager cleared." : "Manager updated."
+            )
+          } catch (error) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : "Could not update manager."
+            setManagerError(message)
+            throw error
+          } finally {
+            setManagerBusy(false)
+          }
+        }}
       />
     </div>
   )

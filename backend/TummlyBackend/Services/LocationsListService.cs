@@ -120,6 +120,7 @@ namespace TummlyBackend.Services
                         string.IsNullOrWhiteSpace(l.ManagerName)
                             ? null
                             : l.ManagerName.Trim(),
+                        l.ManagerUserId,
                         city,
                         postcode,
                         cityId,
@@ -226,6 +227,7 @@ namespace TummlyBackend.Services
                     lifecycleStatus = r.LifecycleStatus,
                     setupStatus = r.SetupStatus,
                     managerName = r.ManagerName,
+                    managerUserId = r.ManagerUserId,
                     city = r.City,
                     postcode = r.Postcode,
                     cityId = r.CityId,
@@ -400,6 +402,7 @@ namespace TummlyBackend.Services
             string LifecycleStatus,
             string SetupStatus,
             string? ManagerName,
+            int? ManagerUserId,
             string? City,
             string? Postcode,
             string CityId,
