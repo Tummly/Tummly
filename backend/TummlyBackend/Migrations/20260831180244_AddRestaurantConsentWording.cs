@@ -1,13 +1,10 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
-using TummlyBackend.Data;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace TummlyBackend.Migrations
 {
-    [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260831220000_AddRestaurantConsentWording")]
+    /// <inheritdoc />
     public partial class AddRestaurantConsentWording : Migration
     {
         /// <inheritdoc />

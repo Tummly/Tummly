@@ -84,13 +84,13 @@ namespace TummlyBackend.Tests.Integration
                 .Single(item =>
                     item.GetProperty("id").GetString() == "privacy-review"
                 );
-            Assert.Contains(
-                seeded.ActiveLocationId,
-                privacyItem
-                    .GetProperty("locationIds")
-                    .EnumerateArray()
-                    .Select(x => x.GetInt32())
-            );
+            var privacyLocationIds = privacyItem
+                .GetProperty("locationIds")
+                .EnumerateArray()
+                .Select(x => x.GetInt32())
+                .ToHashSet();
+            Assert.Contains(seeded.ActiveLocationId, privacyLocationIds);
+            Assert.Contains(seeded.PausedLocationId, privacyLocationIds);
 
             using var saveRequest = AuthorizedPut(
                 "/api/privacy-consent",
@@ -263,7 +263,8 @@ namespace TummlyBackend.Tests.Integration
         private async Task<(
             string OwnerJwt,
             int RestaurantId,
-            int ActiveLocationId
+            int ActiveLocationId,
+            int PausedLocationId
         )> SeedOwnerWithIncompletePrivacyAsync()
         {
             using var scope = _factory.Services.CreateScope();
@@ -367,7 +368,8 @@ namespace TummlyBackend.Tests.Integration
                     owner.Role
                 ),
                 restaurant.Id,
-                active.Id
+                active.Id,
+                paused.Id
             );
         }
 

@@ -256,7 +256,7 @@ namespace TummlyBackend.Services
             };
         }
 
-        internal static List<LocationsAttentionItemDto> BuildAttentionItems(
+        private static List<LocationsAttentionItemDto> BuildAttentionItems(
             IReadOnlyList<LocationRowSource> locations,
             HashSet<int> activeQrSet,
             bool privacyReady
@@ -454,7 +454,7 @@ namespace TummlyBackend.Services
                 .ToLowerInvariant();
         }
 
-        internal sealed record LocationRowSource(
+        private sealed record LocationRowSource(
             int Id,
             string LocationName,
             LocationLifecycleStatus LifecycleStatus,

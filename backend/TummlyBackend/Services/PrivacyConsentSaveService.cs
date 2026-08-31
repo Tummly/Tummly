@@ -81,35 +81,25 @@ namespace TummlyBackend.Services
 
             if (wordingChanged)
             {
-                _context.LocationActivities.Add(
-                    new LocationActivity
-                    {
-                        RestaurantId = restaurantId,
-                        LocationId = null,
-                        ActorUserId = actorUserId,
-                        ActorDisplayName = actorLabel,
-                        Kind = LocationActivityKinds.ConsentCopyChanged,
-                        Description =
-                            $"{actorLabel} updated SMS/email consent wording.",
-                        OccurredAt = now,
-                    }
+                AppendRestaurantActivity(
+                    restaurantId,
+                    actorUserId,
+                    actorLabel,
+                    LocationActivityKinds.ConsentCopyChanged,
+                    $"{actorLabel} updated SMS/email consent wording.",
+                    now
                 );
             }
 
             if (becameReady)
             {
-                _context.LocationActivities.Add(
-                    new LocationActivity
-                    {
-                        RestaurantId = restaurantId,
-                        LocationId = null,
-                        ActorUserId = actorUserId,
-                        ActorDisplayName = actorLabel,
-                        Kind = LocationActivityKinds.PrivacyReviewCompleted,
-                        Description =
-                            $"{actorLabel} completed the privacy review.",
-                        OccurredAt = now,
-                    }
+                AppendRestaurantActivity(
+                    restaurantId,
+                    actorUserId,
+                    actorLabel,
+                    LocationActivityKinds.PrivacyReviewCompleted,
+                    $"{actorLabel} completed the privacy review.",
+                    now
                 );
             }
 
@@ -117,6 +107,29 @@ namespace TummlyBackend.Services
 
             return new PrivacyConsentSaveResult.Ok(
                 restaurant.PrivacyConsentReadyAt != null
+            );
+        }
+
+        private void AppendRestaurantActivity(
+            int restaurantId,
+            int actorUserId,
+            string actorDisplayName,
+            string kind,
+            string description,
+            DateTime occurredAt
+        )
+        {
+            _context.LocationActivities.Add(
+                new LocationActivity
+                {
+                    RestaurantId = restaurantId,
+                    LocationId = null,
+                    ActorUserId = actorUserId,
+                    ActorDisplayName = actorDisplayName,
+                    Kind = kind,
+                    Description = description,
+                    OccurredAt = occurredAt,
+                }
             );
         }
 
