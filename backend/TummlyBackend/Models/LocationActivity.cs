@@ -12,6 +12,8 @@ namespace TummlyBackend.Models
         public const string PrivacyReviewCompleted = "privacy-review-completed";
         public const string GuestMarketingUnsubscribed =
             "guest-marketing-unsubscribed";
+        public const string GuestPermissionToggleChanged =
+            "guest-permission-toggle-changed";
     }
 
     /// <summary>

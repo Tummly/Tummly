@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.PrivacyConsent;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -71,7 +72,11 @@ namespace TummlyBackend.Services
             restaurant.SmsConsentWording = sms.Length == 0 ? null : sms;
             restaurant.EmailConsentWording = email.Length == 0 ? null : email;
 
-            var becameReady = restaurant.PrivacyConsentReadyAt == null;
+            var becameReady =
+                restaurant.PrivacyConsentReadyAt == null
+                && PrivacyConsentSetupDerivation.IsGuestPermissionWordingConfigured(
+                    restaurant
+                );
             if (becameReady)
             {
                 restaurant.PrivacyConsentReadyAt = DateTime.UtcNow;
@@ -81,7 +86,8 @@ namespace TummlyBackend.Services
 
             if (wordingChanged)
             {
-                AppendRestaurantActivity(
+                LocationActivityAppend.AppendRestaurantActivity(
+                    _context,
                     restaurantId,
                     actorUserId,
                     actorLabel,
@@ -93,7 +99,8 @@ namespace TummlyBackend.Services
 
             if (becameReady)
             {
-                AppendRestaurantActivity(
+                LocationActivityAppend.AppendRestaurantActivity(
+                    _context,
                     restaurantId,
                     actorUserId,
                     actorLabel,
@@ -107,29 +114,6 @@ namespace TummlyBackend.Services
 
             return new PrivacyConsentSaveResult.Ok(
                 restaurant.PrivacyConsentReadyAt != null
-            );
-        }
-
-        private void AppendRestaurantActivity(
-            int restaurantId,
-            int actorUserId,
-            string actorDisplayName,
-            string kind,
-            string description,
-            DateTime occurredAt
-        )
-        {
-            _context.LocationActivities.Add(
-                new LocationActivity
-                {
-                    RestaurantId = restaurantId,
-                    LocationId = null,
-                    ActorUserId = actorUserId,
-                    ActorDisplayName = actorDisplayName,
-                    Kind = kind,
-                    Description = description,
-                    OccurredAt = occurredAt,
-                }
             );
         }
 

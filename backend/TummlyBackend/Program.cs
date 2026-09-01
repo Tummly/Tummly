@@ -496,6 +496,7 @@ builder.Services.AddScoped<ILocationsActivityService, LocationsActivityService>(
 builder.Services.AddScoped<ILocationsLifecycleWriteService, LocationsLifecycleWriteService>();
 builder.Services.AddScoped<ILocationLifecycleService, LocationLifecycleService>();
 builder.Services.AddScoped<IPrivacyConsentSaveService, PrivacyConsentSaveService>();
+builder.Services.AddScoped<IPrivacyConsentService, PrivacyConsentService>();
 
 builder.Services.AddScoped<IAccountWorkspaceService, AccountWorkspaceService>();
 builder.Services.AddScoped<ITeamPermissionsService, TeamPermissionsService>();
