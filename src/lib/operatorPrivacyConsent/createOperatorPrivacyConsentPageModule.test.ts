@@ -63,6 +63,7 @@ function adapters(overrides: Partial<Parameters<typeof createOperatorPrivacyCons
   return {
     getPage: vi.fn(async () => pageData()),
     patchToggles: vi.fn(async () => {}),
+    saveWording: vi.fn(async () => ({ privacyReady: true })),
     getPermissionRecords: vi.fn(async () => recordsResponse()),
     getActivity: vi.fn(async () => ({
       items: [
@@ -83,6 +84,13 @@ function adapters(overrides: Partial<Parameters<typeof createOperatorPrivacyCons
 describe("createOperatorPrivacyConsentPageModule", () => {
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it("returns a stable getSnapshot reference until state changes", () => {
+    const pageModule = createOperatorPrivacyConsentPageModule(adapters(), {
+      demo: {},
+    })
+    expect(pageModule.getSnapshot()).toBe(pageModule.getSnapshot())
   })
 
   it("starts on Privacy setup with Figma status rows in demo mode", () => {
@@ -133,6 +141,9 @@ describe("createOperatorPrivacyConsentPageModule", () => {
       },
     ])
     expect(snap.guestPermissions.find((card) => card.id === "sms-marketing")?.enabled).toBe(false)
+    expect(snap.emailConsentWording).toBe("We may email you.")
+    expect(snap.smsConsentWording).toBe("")
+    expect(snap.privacyReady).toBe(false)
     expect(snap.permissionRecordsRows).toEqual([
       expect.objectContaining({
         guestName: "Amira Khan",
@@ -222,14 +233,65 @@ describe("createOperatorPrivacyConsentPageModule", () => {
     await pageModule.load()
 
     pageModule.openPermissionRecordsFilters()
+    const session = pageModule.getSnapshot().permissionRecordsFiltersSession
+    if (session == null) {
+      throw new Error("Expected an open permission-records filter session.")
+    }
+    pageModule.setPermissionRecordsFiltersSession({
+      ...session,
+      pending: {
+        ...session.pending,
+        permission: { kind: "multi-select", ids: ["email-marketing"] },
+        currentState: { kind: "multi-select", ids: ["granted"] },
+        location: { kind: "multi-select", ids: ["3"] },
+      },
+    })
+    pageModule.applyPermissionRecordsFilters()
+    await Promise.resolve()
+
+    expect(api.getPermissionRecords).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        permission: ["email-marketing"],
+        currentState: ["granted"],
+        location: ["3"],
+        page: 1,
+      })
+    )
+
     pageModule.setPermissionRecordsSearchQuery("amira")
     vi.advanceTimersByTime(300)
-    await Promise.resolve()
     await Promise.resolve()
 
     expect(api.getPermissionRecords).toHaveBeenLastCalledWith(
       expect.objectContaining({ q: "amira", page: 1 })
     )
+  })
+
+  it("persists consent wording via PUT when actor can manage", async () => {
+    const getPage = vi
+      .fn()
+      .mockResolvedValueOnce(pageData())
+      .mockResolvedValueOnce(
+        pageData({
+          emailConsentWording: "Updated email copy.",
+          privacyReady: true,
+        })
+      )
+    const api = adapters({ getPage })
+    const pageModule = createOperatorPrivacyConsentPageModule(api)
+    await pageModule.load()
+
+    await pageModule.saveConsentWording({
+      emailConsentWording: "Updated email copy.",
+    })
+
+    expect(api.saveWording).toHaveBeenCalledWith({
+      emailConsentWording: "Updated email copy.",
+    })
+    expect(pageModule.getSnapshot().emailConsentWording).toBe(
+      "Updated email copy."
+    )
+    expect(pageModule.getSnapshot().privacyReady).toBe(true)
   })
 
   it("disables guest profile navigation without Guests View", async () => {

@@ -52,6 +52,9 @@ export type PrivacyConsentSnapshot = {
   canViewGuests: boolean
   privacySetupRows: PrivacySetupStatusRow[]
   guestPermissions: GuestPermissionCard[]
+  smsConsentWording: string
+  emailConsentWording: string
+  privacyReady: boolean
   permissionRecordsSearchQuery: string
   permissionRecordsFilterChips: FilterChip[]
   permissionRecordsFilterChipCount: number
@@ -93,6 +96,7 @@ export type OperatorPrivacyConsentPageModule = {
     id: GuestPermissionId,
     enabled: boolean
   ) => Promise<void>
+  saveConsentWording: (input: SavePrivacyConsentInput) => Promise<void>
   setPermissionRecordsSearchQuery: (query: string) => void
   setPermissionRecordsFiltersSession: (
     session: FilterSheetSession | null
@@ -200,6 +204,9 @@ export function createOperatorPrivacyConsentPageModule(
   ]
   let actorCanManage = false
   let canViewGuests = false
+  let smsConsentWording = ""
+  let emailConsentWording = ""
+  let privacyReady = false
   let loadStatus: PrivacyConsentSnapshot["loadStatus"] = isDemo
     ? "loaded"
     : "idle"
@@ -267,6 +274,9 @@ export function createOperatorPrivacyConsentPageModule(
       canViewGuests,
       privacySetupRows,
       guestPermissions: guestPermissions.map((card) => ({ ...card })),
+      smsConsentWording,
+      emailConsentWording,
+      privacyReady,
       permissionRecordsSearchQuery,
       permissionRecordsFilterChips: filterChips,
       permissionRecordsFilterChipCount:
@@ -288,6 +298,9 @@ export function createOperatorPrivacyConsentPageModule(
     guestPermissions = mapGuestPermissionCardsFromApi(data)
     actorCanManage = data.actorCanManage
     canViewGuests = data.canViewGuests
+    smsConsentWording = data.smsConsentWording
+    emailConsentWording = data.emailConsentWording
+    privacyReady = data.privacyReady
   }
 
   const applyRecordsResponse = (response: PermissionRecordsListResponse) => {
@@ -473,6 +486,29 @@ export function createOperatorPrivacyConsentPageModule(
       } catch {
         guestPermissions = previous
         emit()
+      }
+    },
+    saveConsentWording: async (input) => {
+      if (isDemo || !actorCanManage || adapters.saveWording == null) {
+        return
+      }
+
+      try {
+        const result = await adapters.saveWording(input)
+        privacyReady = result.privacyReady
+        smsConsentWording = input.smsConsentWording ?? smsConsentWording
+        emailConsentWording = input.emailConsentWording ?? emailConsentWording
+        emit()
+
+        const [pageData, activityResponse] = await Promise.all([
+          adapters.getPage(),
+          adapters.getActivity(),
+        ])
+        applyPageData(pageData)
+        applyActivityResponse(activityResponse)
+        emit()
+      } catch {
+        // Leave snapshot unchanged on failure.
       }
     },
     setPermissionRecordsSearchQuery: (query) => {
