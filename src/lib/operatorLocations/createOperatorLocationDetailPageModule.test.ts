@@ -117,10 +117,16 @@ function axios404(): AxiosError {
 
 describe("resolveLocationDetailTabId", () => {
   it("accepts known tabs and defaults to overview", () => {
+    expect(resolveLocationDetailTabId("overview")).toBe("overview")
     expect(resolveLocationDetailTabId("setup-details")).toBe("setup-details")
     expect(resolveLocationDetailTabId("guest-loop")).toBe("guest-loop")
+    expect(resolveLocationDetailTabId("team-access")).toBe("team-access")
+    expect(resolveLocationDetailTabId("location-controls")).toBe(
+      "location-controls"
+    )
     expect(resolveLocationDetailTabId("nope")).toBe("overview")
     expect(resolveLocationDetailTabId(null)).toBe("overview")
+    expect(resolveLocationDetailTabId("")).toBe("overview")
   })
 })
 
@@ -376,6 +382,22 @@ describe("createOperatorLocationDetailPageModule", () => {
     await pageModule.load()
 
     expect(pageModule.getSnapshot().loadStatus).toBe("error")
+  })
+
+  it("honours initial tab from the URL", () => {
+    const setupModule = createOperatorLocationDetailPageModule(
+      42,
+      { getDetail: vi.fn() },
+      { initialTabId: "setup-details" }
+    )
+    expect(setupModule.getSnapshot().activeTabId).toBe("setup-details")
+
+    const guestLoopModule = createOperatorLocationDetailPageModule(
+      42,
+      { getDetail: vi.fn() },
+      { initialTabId: "guest-loop" }
+    )
+    expect(guestLoopModule.getSnapshot().activeTabId).toBe("guest-loop")
   })
 
   it("changes tabs through requestTabChange", () => {
