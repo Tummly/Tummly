@@ -57,6 +57,8 @@ export type PrivacyConsentSnapshot = {
   smsConsentWording: string
   emailConsentWording: string
   privacyReady: boolean
+  emailMarketingEnabled: boolean
+  smsMarketingEnabled: boolean
   permissionRecordsSearchQuery: string
   permissionRecordsFilterChips: FilterChip[]
   permissionRecordsFilterChipCount: number
@@ -300,6 +302,12 @@ export function createOperatorPrivacyConsentPageModule(
       smsConsentWording,
       emailConsentWording,
       privacyReady,
+      emailMarketingEnabled:
+        guestPermissions.find((card) => card.id === "email-marketing")
+          ?.enabled === true,
+      smsMarketingEnabled:
+        guestPermissions.find((card) => card.id === "sms-marketing")
+          ?.enabled === true,
       permissionRecordsSearchQuery,
       permissionRecordsFilterChips: filterChips,
       permissionRecordsFilterChipCount:

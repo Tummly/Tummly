@@ -148,14 +148,8 @@ export function PrivacyConsentPage() {
             <ConsentWordingSection
               emailWording={snap.emailConsentWording}
               smsWording={snap.smsConsentWording}
-              emailEnabled={
-                snap.guestPermissions.find((card) => card.id === "email-marketing")
-                  ?.enabled === true
-              }
-              smsEnabled={
-                snap.guestPermissions.find((card) => card.id === "sms-marketing")
-                  ?.enabled === true
-              }
+              emailEnabled={snap.emailMarketingEnabled}
+              smsEnabled={snap.smsMarketingEnabled}
               readOnly={!snap.actorCanManage}
               onSave={pageModule.saveConsentWording}
             />

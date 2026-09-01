@@ -275,6 +275,13 @@ describe("createOperatorPrivacyConsentPageModule", () => {
         pageData({
           emailConsentWording: "Updated email copy.",
           privacyReady: true,
+          privacySetupRows: [
+            {
+              id: "guest-permission-wording",
+              requirement: "Guest permission wording",
+              status: "Configured",
+            },
+          ],
         })
       )
     const api = adapters({ getPage })
@@ -292,6 +299,13 @@ describe("createOperatorPrivacyConsentPageModule", () => {
       "Updated email copy."
     )
     expect(pageModule.getSnapshot().privacyReady).toBe(true)
+    expect(pageModule.getSnapshot().privacySetupRows).toEqual([
+      {
+        id: "guest-permission-wording",
+        requirement: "Guest permission wording",
+        status: "Configured",
+      },
+    ])
   })
 
   it("disables guest profile navigation without Guests View", async () => {
