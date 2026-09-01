@@ -104,6 +104,21 @@ namespace TummlyBackend.DTOs.Locations
         public int? LocationGuestId { get; init; }
     }
 
+    public sealed class LocationDetailTeamAccessRowDto
+    {
+        public int MembershipId { get; init; }
+
+        public int UserId { get; init; }
+
+        public string Name { get; init; } = string.Empty;
+
+        public string Role { get; init; } = string.Empty;
+
+        public string AccessLabel { get; init; } = string.Empty;
+
+        public DateTime? LastActiveAt { get; init; }
+    }
+
     public sealed class LocationDetailResponseDto
     {
         public bool Success { get; init; } = true;
@@ -133,5 +148,7 @@ namespace TummlyBackend.DTOs.Locations
             get;
             init;
         } = Array.Empty<LocationDetailLatestFeedbackRowDto>();
+
+        public List<LocationDetailTeamAccessRowDto> TeamAccessRows { get; init; } = [];
     }
 }

@@ -367,6 +367,56 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task GetLocationDetail_ReturnsScopedTeamAccessRows()
+        {
+            var seeded = await SeedTeamAccessScenarioAsync();
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/locations/{seeded.ActiveLocationId}/detail"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.OwnerJwt);
+
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            var rows = body.GetProperty("teamAccessRows");
+            Assert.Equal(3, rows.GetArrayLength());
+
+            var names = rows
+                .EnumerateArray()
+                .Select(row => row.GetProperty("name").GetString())
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToList();
+            Assert.Equal(
+                ["Active Camden Manager", "Admin User", "Locations Detail Owner"],
+                names
+            );
+
+            var manager = rows.EnumerateArray().Single(row =>
+                row.GetProperty("name").GetString() == "Active Camden Manager"
+            );
+            Assert.Equal("Location Manager", manager.GetProperty("role").GetString());
+            Assert.Equal(
+                "Active Camden only",
+                manager.GetProperty("accessLabel").GetString()
+            );
+
+            var admin = rows.EnumerateArray().Single(row =>
+                row.GetProperty("name").GetString() == "Admin User"
+            );
+            Assert.Equal("All locations", admin.GetProperty("accessLabel").GetString());
+
+            Assert.DoesNotContain(
+                rows.EnumerateArray(),
+                row => row.GetProperty("name").GetString() == "Other Location Only"
+            );
+            Assert.DoesNotContain(
+                rows.EnumerateArray(),
+                row => row.GetProperty("name").GetString() == "Marketing All"
+            );
+        }
+
         private static async Task<JsonElement> ReadJsonAsync(
             HttpResponseMessage response
         )
@@ -587,6 +637,159 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        private async Task<TeamAccessSeed> SeedTeamAccessScenarioAsync()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var owner = new User
+            {
+                FullName = "Locations Detail Owner",
+                Email = $"loc-detail-ta-owner-{Guid.NewGuid():N}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900301",
+                Role = "Owner",
+                AccountType = "Multi",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(owner);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Team Access Detail Venue",
+                AccountType = "Multi",
+                OwnerUserId = owner.Id,
+                PrivacyConsentReadyAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var active = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Active Camden",
+                Address = "1 High Street",
+                City = "Camden",
+                Postcode = "NW1 1AA",
+                LifecycleStatus = LocationLifecycleStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            var other = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Other Location",
+                Address = "2 High Street",
+                City = "Soho",
+                Postcode = "W1D 1AA",
+                LifecycleStatus = LocationLifecycleStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.AddRange(active, other);
+            await context.SaveChangesAsync();
+
+            async Task<User> AddMemberAsync(string fullName, string emailSuffix)
+            {
+                var user = new User
+                {
+                    FullName = fullName,
+                    Email = $"loc-detail-ta-{emailSuffix}-{Guid.NewGuid():N}@example.com",
+                    PasswordHash = "hash",
+                    PhoneNumber = "07700900302",
+                    Role = "Owner",
+                    AccountType = "Multi",
+                    IsEmailVerified = true,
+                    IsApprovedByAdmin = true,
+                    SelectedRestaurantId = restaurant.Id,
+                    CreatedAt = DateTime.UtcNow,
+                    ActivatedAt = DateTime.UtcNow,
+                    ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+                };
+                context.Users.Add(user);
+                await context.SaveChangesAsync();
+                return user;
+            }
+
+            var admin = await AddMemberAsync("Admin User", "admin");
+            var inScopeManager = await AddMemberAsync(
+                "Active Camden Manager",
+                "in-scope"
+            );
+            var outOfScopeManager = await AddMemberAsync(
+                "Other Location Only",
+                "out-scope"
+            );
+            var marketing = await AddMemberAsync("Marketing All", "marketing");
+
+            context.RestaurantMemberships.AddRange(
+                new RestaurantMembership
+                {
+                    UserId = owner.Id,
+                    RestaurantId = restaurant.Id,
+                    PermissionRole = PermissionRoles.Owner,
+                    LocationScope = LocationScopeKind.AllLocations,
+                    NamedLocationIdsJson = "[]",
+                    Status = MembershipStatus.Active,
+                },
+                new RestaurantMembership
+                {
+                    UserId = admin.Id,
+                    RestaurantId = restaurant.Id,
+                    PermissionRole = PermissionRoles.Admin,
+                    LocationScope = LocationScopeKind.AllLocations,
+                    NamedLocationIdsJson = "[]",
+                    Status = MembershipStatus.Active,
+                },
+                new RestaurantMembership
+                {
+                    UserId = inScopeManager.Id,
+                    RestaurantId = restaurant.Id,
+                    PermissionRole = PermissionRoles.LocationManager,
+                    LocationScope = LocationScopeKind.NamedList,
+                    NamedLocationIdsJson =
+                        MembershipLocationScope.SerializeNamedIds([active.Id]),
+                    Status = MembershipStatus.Active,
+                },
+                new RestaurantMembership
+                {
+                    UserId = outOfScopeManager.Id,
+                    RestaurantId = restaurant.Id,
+                    PermissionRole = PermissionRoles.LocationManager,
+                    LocationScope = LocationScopeKind.NamedList,
+                    NamedLocationIdsJson =
+                        MembershipLocationScope.SerializeNamedIds([other.Id]),
+                    Status = MembershipStatus.Active,
+                },
+                new RestaurantMembership
+                {
+                    UserId = marketing.Id,
+                    RestaurantId = restaurant.Id,
+                    PermissionRole = PermissionRoles.Marketing,
+                    LocationScope = LocationScopeKind.AllLocations,
+                    NamedLocationIdsJson = "[]",
+                    Status = MembershipStatus.Active,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            return new TeamAccessSeed(
+                OwnerJwt: jwtService.GenerateToken(
+                    owner.Id.ToString(),
+                    owner.Email,
+                    owner.Role
+                ),
+                ActiveLocationId: active.Id
+            );
+        }
+
         private async Task<(string MemberJwt, int ActiveLocationId)> SeedOwnerAndMemberAsync(
             string memberRole
         )
@@ -697,6 +900,11 @@ namespace TummlyBackend.Tests.Integration
             int OutOfScopeLocationId,
             int ManagerUserId,
             int ActiveQrCodeId
+        );
+
+        private sealed record TeamAccessSeed(
+            string OwnerJwt,
+            int ActiveLocationId
         );
     }
 }

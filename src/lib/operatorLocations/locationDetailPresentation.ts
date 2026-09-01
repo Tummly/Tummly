@@ -365,7 +365,7 @@ export type LocationDetailTeamAccessRow = {
   lastActiveLabel: string
 }
 
-/** Stub until location-scoped team access API lands — surfaces assigned manager when known. */
+/** Legacy manager-only stub — detail GET supplies teamAccessRows in production. */
 export function buildLocationTeamAccessRows(input: {
   managerName: string | null | undefined
   managerUserId: number | null | undefined

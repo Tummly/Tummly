@@ -12,6 +12,7 @@ import type {
   LocationDetailLatestFeedbackRow,
   LocationSetupChecklistItemId,
   LocationSetupChecklistStatusId,
+  LocationDetailTeamAccessRow,
 } from "@/lib/operatorLocations/locationDetailPresentation"
 import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
 import {
@@ -19,6 +20,16 @@ import {
   operatorDashboardCampaignPreviewPath,
   operatorDashboardOfferDetailsPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
+import { formatAccessActivityOccurredAt } from "@/lib/operatorTeamPermissions/teamPermissionsPresentation"
+
+export type LocationDetailApiTeamAccessRow = {
+  membershipId: number
+  userId: number
+  name: string
+  role: string
+  accessLabel: string
+  lastActiveAt: string | null
+}
 
 export type LocationDetailApiHeader = {
   id: number
@@ -88,6 +99,23 @@ export type LocationDetailApiResponse = {
   offerCards: LocationDetailApiOfferCard[]
   guestActivityChecklist: Record<string, LocationGuestActivityChecklistStatusId>
   latestFeedbackRows: LocationDetailApiLatestFeedbackRow[]
+  teamAccessRows: LocationDetailApiTeamAccessRow[]
+}
+
+export function mapLocationDetailTeamAccessRows(
+  rows: LocationDetailApiTeamAccessRow[] | undefined,
+  getNow: () => Date = () => new Date()
+): LocationDetailTeamAccessRow[] {
+  return (rows ?? []).map((row) => ({
+    id: String(row.membershipId),
+    name: row.name,
+    role: row.role,
+    accessLabel: row.accessLabel,
+    lastActiveLabel:
+      row.lastActiveAt != null
+        ? formatAccessActivityOccurredAt(row.lastActiveAt, getNow())
+        : "—",
+  }))
 }
 
 export function mapLocationDetailSetupChecklist(

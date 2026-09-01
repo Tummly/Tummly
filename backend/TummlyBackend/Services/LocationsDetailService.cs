@@ -159,6 +159,48 @@ namespace TummlyBackend.Services
                 hasOffer
             );
 
+            var locationNamesById = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.RestaurantId == query.RestaurantId)
+                .ToDictionaryAsync(row => row.Id, row => row.LocationName);
+
+            var memberships = await _context.RestaurantMemberships
+                .AsNoTracking()
+                .Include(row => row.User)
+                .Where(row => row.RestaurantId == query.RestaurantId)
+                .ToListAsync();
+
+            var scopedMemberUserIds = memberships
+                .Where(row =>
+                    LocationDetailTeamAccessBuilder.HasAccessToLocation(
+                        row,
+                        query.LocationId
+                    )
+                )
+                .Select(row => row.UserId)
+                .Distinct()
+                .ToList();
+
+            var lastActiveByUserId = scopedMemberUserIds.Count == 0
+                ? new Dictionary<int, DateTime>()
+                : await _context.RefreshTokens
+                    .AsNoTracking()
+                    .Where(row => scopedMemberUserIds.Contains(row.UserId))
+                    .GroupBy(row => row.UserId)
+                    .Select(group => new
+                    {
+                        UserId = group.Key,
+                        LastActiveAt = group.Max(row => row.CreatedAt),
+                    })
+                    .ToDictionaryAsync(row => row.UserId, row => row.LastActiveAt);
+
+            var teamAccessRows = LocationDetailTeamAccessBuilder.Build(
+                memberships,
+                query.LocationId,
+                locationNamesById,
+                lastActiveByUserId
+            );
+
             return new LocationDetailResponseDto
             {
                 Success = true,
@@ -188,6 +230,7 @@ namespace TummlyBackend.Services
                 OfferCards = offerCards,
                 GuestActivityChecklist = guestActivityChecklist,
                 LatestFeedbackRows = latestFeedbackRows,
+                TeamAccessRows = teamAccessRows,
             };
         }
 

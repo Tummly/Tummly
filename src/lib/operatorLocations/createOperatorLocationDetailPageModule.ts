@@ -6,11 +6,11 @@ import {
   mapLocationDetailOverviewMetrics,
   mapLocationDetailQrRows,
   mapLocationDetailSetupChecklist,
+  mapLocationDetailTeamAccessRows,
 } from "@/lib/operatorLocations/locationDetailApi"
 import {
   buildEmptyOverviewMetrics,
   buildLocationControlsStatus,
-  buildLocationTeamAccessRows,
   formatLocationDetailHeaderMeta,
   locationControlsDangerActions,
   LOCATION_DETAIL_TAB_IDS,
@@ -190,10 +190,7 @@ export function createOperatorLocationDetailPageModule(
     latestFeedbackRows = mapLocationDetailLatestFeedbackRows(
       response.latestFeedbackRows ?? []
     )
-    teamAccessRows = buildLocationTeamAccessRows({
-      managerName: header.managerName,
-      managerUserId: header.managerUserId,
-    })
+    teamAccessRows = mapLocationDetailTeamAccessRows(response.teamAccessRows)
     locationControlsStatus = buildLocationControlsStatus({
       lifecycleStatus: header.lifecycleStatus,
       setupStatus: header.setupStatus,
