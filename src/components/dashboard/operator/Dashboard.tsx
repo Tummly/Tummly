@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 
 import { DashboardShell } from "@/components/dashboard/operator/DashboardShell"
@@ -104,9 +104,6 @@ function DashboardContent({ mode }: DashboardProps) {
             campaignDraft,
             catalogOffer,
           })
-      if (plan.selectLocationId != null) {
-        workspace.selectLocation(plan.selectLocationId)
-      }
       if (plan.feedbackDateRange) {
         dashboardUiStore
           .getState()
@@ -159,6 +156,28 @@ function DashboardContent({ mode }: DashboardProps) {
   preferRef.current = workspace.preferLocationFromQuery
   syncHomeRef.current = home.syncWorkspace
 
+  /** Picker-only shell sync — navigation URLs own `?location=` via preferLocationFromQuery. */
+  const handleSelectLocation = useCallback(
+    (locationId: number) => {
+      workspace.selectLocation(locationId)
+      if (mode !== "multi") {
+        return
+      }
+      setSearchParams(
+        (current) => {
+          if (current.get("location") === String(locationId)) {
+            return current
+          }
+          const next = new URLSearchParams(current)
+          next.set("location", String(locationId))
+          return next
+        },
+        { replace: true }
+      )
+    },
+    [mode, setSearchParams, workspace.selectLocation]
+  )
+
   useEffect(() => {
     return bindExclusiveAssistantCloser(() => {
       aiAssistant.closeDrawer()
@@ -182,24 +201,6 @@ function DashboardContent({ mode }: DashboardProps) {
     }
     preferRef.current(queryLocationId)
   }, [queryLocationId, workspace.snapshot.status])
-
-  useEffect(() => {
-    const selectedLocationId = workspace.snapshot.selectedLocationId
-    if (selectedLocationId == null) {
-      return
-    }
-    if (searchParams.get("location") === String(selectedLocationId)) {
-      return
-    }
-    setSearchParams(
-      (current) => {
-        const next = new URLSearchParams(current)
-        next.set("location", String(selectedLocationId))
-        return next
-      },
-      { replace: true }
-    )
-  }, [workspace.snapshot.selectedLocationId, searchParams, setSearchParams])
 
   useEffect(() => {
     if (workspace.snapshot.status !== "loaded") {
@@ -281,13 +282,16 @@ function DashboardContent({ mode }: DashboardProps) {
     selfRole: workspace.snapshot.selfRole,
     permissionRole: workspace.snapshot.permissionRole,
     billingCreditsAccess: workspace.snapshot.billingCreditsAccess,
-    locations: workspace.snapshot.locations.map((location) => ({
-      id: location.id,
-      name: location.locationName,
-      address: location.address,
-      // Deactivation is not shipped yet — every Owned location is Active.
-      isActive: true,
-    })),
+    locations: workspace.snapshot.locations.map((location) => {
+      const paused = location.lifecycleStatus === "paused"
+      return {
+        id: location.id,
+        name: location.locationName,
+        address: location.address,
+        isActive: !paused,
+        showPausedBadge: paused,
+      }
+    }),
     selectedLocationId,
     locationSwitcherInteractive:
       workspace.snapshot.locationSwitcherInteractive,
@@ -306,7 +310,7 @@ function DashboardContent({ mode }: DashboardProps) {
   return (
     <DashboardShell
       presentation={presentation}
-      onSelectLocation={workspace.selectLocation}
+      onSelectLocation={handleSelectLocation}
       onSignOut={handleSignOut}
       notifications={{
         snapshot: notifications.snapshot,
@@ -412,7 +416,7 @@ function DashboardContent({ mode }: DashboardProps) {
           selectedLocationId,
           locations: workspace.snapshot.locations,
           mode,
-          selectLocation: workspace.selectLocation,
+          selectLocation: handleSelectLocation,
           applyRestaurantIdentity: workspace.applyRestaurantIdentity,
           summariseFeedbackWithAi: (reportingPeriod: HomePerformanceDateRange) => {
             aiAssistant.summariseFeedbackForPeriod({

@@ -1,12 +1,18 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react"
-import { Link, useNavigate, useOutletContext, useSearchParams } from "react-router-dom"
+import {
+  useEffect,
+  useRef,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react"
+import { Link, useNavigate, useOutletContext } from "react-router-dom"
 
-import brandLogoPlaceholder from "@/assets/images/brand-logo-placeholder.png"
+import { useWriteActiveTabToSearchParams } from "@/hooks/useWriteActiveTabToSearchParams"
+
+import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
 import { GuestDataExportDialog } from "@/components/dashboard/operator/AccountWorkspace/GuestDataExportDialog"
 import { useAccountWorkspacePageModuleApi } from "@/components/dashboard/operator/AccountWorkspace/utils/accountWorkspacePageModuleContext"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
-import { AddressPostcodeFields } from "@/components/form/AddressPostcodeFields"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckboxLabel } from "@/components/ui/checkbox-label"
@@ -25,81 +31,114 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 import {
+  ACCOUNT_STRUCTURE_OPTIONS,
+  ACCOUNT_WORKSPACE_FIELD_HELPER_CLASS,
+  ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS,
+  ACCOUNT_WORKSPACE_FULL_BLEED_BOTTOM,
+  ACCOUNT_WORKSPACE_FULL_BLEED_X,
+  ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS,
+  ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS,
+  ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS,
+  ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS,
   ACCOUNT_WORKSPACE_PAGE_COPY,
+  ACCOUNT_WORKSPACE_PAGE_STACK_CLASS,
+  ACCOUNT_WORKSPACE_PAGE_SUBTITLE_CLASS,
+  ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS,
   ACCOUNT_WORKSPACE_SELECT_MENU_CLASS,
+  ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS,
+  ACCOUNT_WORKSPACE_SHELL_PAD_BOTTOM,
+  ACCOUNT_WORKSPACE_SHELL_PAD_X,
+  ACCOUNT_WORKSPACE_TAB_BODY_CLASS,
+  ACCOUNT_WORKSPACE_TAB_LIST_CLASS,
+  ACCOUNT_WORKSPACE_TAB_TRIGGER_CLASS,
+  ACCOUNT_WORKSPACE_TABS_RULE_CLASS,
+  ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS,
   DEFAULT_REPORTING_PERIOD_OPTIONS,
   LEGAL_STRUCTURE_OPTIONS,
+  MAIN_OPERATING_COUNTRY_OPTIONS,
   WEEK_STARTS_ON_OPTIONS,
   accountRequestConfirmLabels,
   formatAccountWorkspaceLastSaved,
-  isUnitedKingdomCountry,
   resolveAccountWorkspacePlanStatusPresentation,
+  resolveCampaignSenderDisplayName,
   type AccountWorkspacePlanStatusPresentation,
 } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 import type { AccountWorkspaceTabId } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 import { operatorDashboardBillingCreditsPath } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
-import { resolveBrandLogoSrc } from "@/lib/brandLogo/resolveBrandLogoSrc"
+import { BUSINESS_CATEGORY_OPTIONS } from "@/components/home/hero-trial-options"
 import {
   BROWSER_BACK_HREF,
   registerLeaveDirtyGuard,
 } from "@/lib/operatorNavigation/leaveDirtyGuard"
 import {
-  GUESTS_DETAIL_FIELD_CLASS,
-  GUESTS_DETAIL_FIELD_LABEL_CLASS,
-  GUESTS_DETAIL_FIELD_VALUE_CLASS,
-  GUESTS_DETAIL_ROWS_STACK_CLASS,
   GUESTS_PAGE_HEADER_COPY_CLASS,
   GUESTS_PAGE_HEADER_ROW_CLASS,
   GUESTS_PAGE_PRIMARY_BUTTON_CLASS,
   GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
-  GUESTS_PAGE_STACK_CLASS,
-  GUESTS_PAGE_SUBTITLE_CLASS,
   GUESTS_PAGE_TITLE_CLASS,
-  GUESTS_SECTION_CLASS,
-  GUESTS_SECTION_SUBTITLE_CLASS,
-  GUESTS_SECTION_TITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import { cn } from "@/lib/utils"
 
-const FIELD_LABEL_CLASS = "text-sm font-medium text-foreground"
-const FIELD_HELPER_CLASS = "m-0 text-xs font-medium text-muted-foreground"
-const FIELD_STACK_CLASS = "flex flex-col gap-2"
-const FIELD_GRID_CLASS = "grid grid-cols-1 gap-6 lg:grid-cols-2"
+const ACCOUNT_CONTROLS_STACK_CLASS = "flex flex-col gap-5"
+const ACCOUNT_CONTROLS_ACTIONS_CLASS = "flex flex-wrap gap-3"
+const ACCOUNT_CONTROLS_BODY_CLASS =
+  "m-0 max-w-[818px] text-sm font-medium leading-normal text-[var(--op-color-gray-550)]"
+const ACCOUNT_STATUS_COLUMNS_CLASS =
+  "flex w-full flex-col gap-[18px] lg:flex-row"
+const ACCOUNT_STATUS_COLUMN_CLASS =
+  "flex min-w-0 flex-1 flex-col gap-[18px]"
+const ACCOUNT_STATUS_ROW_CLASS = "flex items-center gap-3"
+const ACCOUNT_STATUS_LABEL_CLASS =
+  "m-0 shrink-0 text-sm font-medium leading-normal text-[var(--op-color-gray-550)]"
+const ACCOUNT_STATUS_VALUE_CLASS =
+  "m-0 text-sm font-medium leading-normal text-op-text-primary"
 
-function StatusRow({ label, value }: { label: string; value: string }) {
+const FIELD_STACK_CLASS = "flex flex-col gap-2"
+const FIELD_GRID_CLASS = "grid grid-cols-1 gap-10 lg:grid-cols-2"
+
+function AccountStatusLabel({ children }: { children: string }) {
+  return <p className={ACCOUNT_STATUS_LABEL_CLASS}>{children}</p>
+}
+
+function AccountStatusTextValue({ value }: { value: string }) {
+  return <p className={ACCOUNT_STATUS_VALUE_CLASS}>{value}</p>
+}
+
+function AccountStatusMetricRow({
+  label,
+  children,
+}: {
+  label: string
+  children: ReactNode
+}) {
   return (
-    <div className={GUESTS_DETAIL_FIELD_CLASS}>
-      <p className={GUESTS_DETAIL_FIELD_LABEL_CLASS}>{label}</p>
-      <p className={GUESTS_DETAIL_FIELD_VALUE_CLASS}>{value}</p>
+    <div className={ACCOUNT_STATUS_ROW_CLASS}>
+      <AccountStatusLabel>{label}</AccountStatusLabel>
+      {children}
     </div>
   )
 }
 
-function PlanStatusRow({
-  label,
+function AccountStatusPlanValue({
   presentation,
 }: {
-  label: string
   presentation: AccountWorkspacePlanStatusPresentation
 }) {
-  return (
-    <div className={GUESTS_DETAIL_FIELD_CLASS}>
-      <p className={GUESTS_DETAIL_FIELD_LABEL_CLASS}>{label}</p>
-      {presentation.kind === "link" ? (
-        <Link
-          to={presentation.href}
-          className={cn(
-            GUESTS_DETAIL_FIELD_VALUE_CLASS,
-            "underline decoration-solid underline-offset-2"
-          )}
-        >
-          {presentation.label}
-        </Link>
-      ) : (
-        <p className={GUESTS_DETAIL_FIELD_VALUE_CLASS}>{presentation.label}</p>
-      )}
-    </div>
-  )
+  if (presentation.kind === "link") {
+    return (
+      <Link
+        to={presentation.href}
+        className={cn(
+          ACCOUNT_STATUS_VALUE_CLASS,
+          "underline decoration-solid underline-offset-2"
+        )}
+      >
+        {presentation.label}
+      </Link>
+    )
+  }
+
+  return <AccountStatusTextValue value={presentation.label} />
 }
 
 function ContactMemberSelect({
@@ -122,7 +161,7 @@ function ContactMemberSelect({
 
   return (
     <div className={FIELD_STACK_CLASS}>
-      <label htmlFor={id} className={FIELD_LABEL_CLASS}>
+      <label htmlFor={id} className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}>
         {label}
       </label>
       <Select
@@ -136,7 +175,10 @@ function ContactMemberSelect({
           onValueChange?.(parsed)
         }}
       >
-        <SelectTrigger id={id} className="h-8 w-full">
+        <SelectTrigger
+          id={id}
+          className={ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS}
+        >
           <SelectValue
             placeholder={ACCOUNT_WORKSPACE_PAGE_COPY.selectUserPlaceholder}
           >
@@ -150,10 +192,14 @@ function ContactMemberSelect({
           className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
         >
           {members.map((member) => (
-            <SelectItem key={member.userId} value={String(member.userId)}>
+            <SelectItem
+              className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS}
+              key={member.userId}
+              value={String(member.userId)}
+            >
               <span className="flex flex-col gap-0.5 text-left">
                 <span>{member.fullName}</span>
-                <span className="text-xs font-normal text-muted-foreground">
+                <span className="text-xs font-normal text-[var(--op-color-gray-550)]">
                   {member.email}
                 </span>
               </span>
@@ -180,7 +226,7 @@ function formatDateOnly(iso: string): string {
 
 export function AccountWorkspacePage() {
   const pageModule = useAccountWorkspacePageModuleApi()
-  const { billingCreditsAccess, selectedLocationId, mode } =
+  const { billingCreditsAccess, selectedLocationId, locations, mode } =
     useOutletContext<DashboardOutletContext>()
   const snap = useSyncExternalStore(
     pageModule.subscribe,
@@ -191,20 +237,21 @@ export function AccountWorkspacePage() {
     snap.accountRequestConfirm != null
       ? accountRequestConfirmLabels(snap.accountRequestConfirm)
       : null
-  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [addressOverridden, setAddressOverridden] = useState(false)
 
-  useEffect(() => {
-    const current = searchParams.get("tab")
-    if (current === snap.activeTabId) {
-      return
-    }
-    const next = new URLSearchParams(searchParams)
-    next.set("tab", snap.activeTabId)
-    setSearchParams(next, { replace: true })
-  }, [snap.activeTabId, searchParams, setSearchParams])
+  useWriteActiveTabToSearchParams(snap.activeTabId)
+
+  const selectedLocationName =
+    locations.find((location) => location.id === selectedLocationId)
+      ?.locationName
+      ?? null
+  const firstLocationName = locations[0]?.locationName ?? null
+  const guestFacingBusinessName =
+    snap.accountDetails.guestFacingBusinessName.trim()
+    || selectedLocationName?.trim()
+    || firstLocationName?.trim()
+    || ""
 
   useEffect(() => {
     if (snap.pendingNavigationHref == null) {
@@ -253,22 +300,29 @@ export function AccountWorkspacePage() {
   }, [snap.isDirty, pageModule])
 
   const status = snap.accountDetails.status
+  const billingCreditsHref = operatorDashboardBillingCreditsPath(
+    mode,
+    selectedLocationId
+  )
+  const billingActivityHref = operatorDashboardBillingCreditsPath(
+    mode,
+    selectedLocationId,
+    { tab: "activity" }
+  )
+  const canOpenBillingCredits =
+    billingCreditsAccess === "view" || billingCreditsAccess === "manage"
   const planStatusPresentation =
     status != null
       ? resolveAccountWorkspacePlanStatusPresentation({
           planStatus: status.planStatus,
           billingCreditsAccess,
-          planSubscriptionHref: operatorDashboardBillingCreditsPath(
-            mode,
-            selectedLocationId
-          ),
+          planSubscriptionHref: billingCreditsHref,
         })
       : null
   const workspaceNameError = snap.accountDetails.workspaceNameError
   const business = snap.businessDetails
   const keyContacts = snap.keyContacts
   const workspaceDefaults = snap.workspaceDefaults
-  const isUkAddress = isUnitedKingdomCountry(business.country)
   const eligibleMembers = keyContacts.eligibleMembers
   const ownerMember =
     keyContacts.accountOwner != null
@@ -276,18 +330,23 @@ export function AccountWorkspacePage() {
       : eligibleMembers
   const isPaused = status?.workspaceStatus.toLowerCase() === "paused"
   const dangerZoneDisabled = !snap.isAccountOwner || snap.isSaving
+  const campaignSenderDisplayName = resolveCampaignSenderDisplayName({
+    storedSenderName: workspaceDefaults.defaultCampaignSenderName,
+    workspaceName: snap.accountDetails.workspaceName,
+    locationName: selectedLocationName ?? firstLocationName,
+  })
 
   return (
-    <div className={GUESTS_PAGE_STACK_CLASS}>
+    <div className={ACCOUNT_WORKSPACE_PAGE_STACK_CLASS}>
       <div className={GUESTS_PAGE_HEADER_ROW_CLASS}>
         <div className={GUESTS_PAGE_HEADER_COPY_CLASS}>
           <h1 className={GUESTS_PAGE_TITLE_CLASS}>
             {ACCOUNT_WORKSPACE_PAGE_COPY.title}
           </h1>
-          <p className={GUESTS_PAGE_SUBTITLE_CLASS}>
+          <p className={ACCOUNT_WORKSPACE_PAGE_SUBTITLE_CLASS}>
             {ACCOUNT_WORKSPACE_PAGE_COPY.subtitle}
           </p>
-          <p className="m-0 text-sm font-medium text-muted-foreground">
+          <p className="m-0 text-sm font-medium text-[var(--op-color-gray-550)]">
             {formatAccountWorkspaceLastSaved(snap.lastSavedAt)}
           </p>
         </div>
@@ -319,224 +378,383 @@ export function AccountWorkspacePage() {
         onValueChange={(value) => {
           pageModule.requestTabChange(value as AccountWorkspaceTabId)
         }}
-        className="gap-6"
+        className="flex min-h-0 flex-1 flex-col gap-0"
       >
-        <TabsList
-          variant="line"
-          className="h-auto w-full justify-start overflow-x-auto"
+        <div
+          className={cn(
+            ACCOUNT_WORKSPACE_FULL_BLEED_X,
+            ACCOUNT_WORKSPACE_TABS_RULE_CLASS,
+            "shrink-0"
+          )}
         >
-          {snap.tabs.map((tab) => (
-            <TabsTrigger
-              key={tab.id}
-              value={tab.id}
-              className={cn(
-                "rounded-none px-3 py-2 text-sm font-medium text-op-button-date-text",
-                "data-active:font-semibold data-active:text-foreground",
-                "group-data-[variant=line]/tabs-list:data-active:after:bg-op-button-primary-background"
-              )}
+          <div className={ACCOUNT_WORKSPACE_SHELL_PAD_X}>
+            <TabsList
+              variant="line"
+              className={ACCOUNT_WORKSPACE_TAB_LIST_CLASS}
             >
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        <TabsContent value="account-details" className="mt-0">
-          <div className="flex flex-col gap-6">
-            <section className={GUESTS_SECTION_CLASS}>
-              <h2 className={GUESTS_SECTION_TITLE_CLASS}>Identity</h2>
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <div className="flex flex-col gap-2">
-                  <label
-                    htmlFor="workspace-name"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Workspace name
-                  </label>
-                  <Input
-                    id="workspace-name"
-                    value={snap.accountDetails.workspaceName}
-                    maxLength={200}
-                    aria-invalid={workspaceNameError != null}
-                    aria-describedby={
-                      workspaceNameError != null
-                        ? "workspace-name-error"
-                        : undefined
-                    }
-                    onChange={(event) => {
-                      pageModule.setWorkspaceName(event.target.value)
-                    }}
-                  />
-                  {workspaceNameError != null ? (
-                    <p
-                      id="workspace-name-error"
-                      className="m-0 text-sm text-destructive"
-                    >
-                      {workspaceNameError}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm font-medium text-foreground">
-                    Account structure
-                  </p>
-                  <Input
-                    value={snap.accountDetails.accountStructure}
-                    readOnly
-                    disabled
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm font-medium text-foreground">
-                    Business category
-                  </p>
-                  <Input
-                    value={
-                      snap.accountDetails.businessCategoryLabel
-                      ?? snap.accountDetails.businessCategory
-                      ?? ""
-                    }
-                    readOnly
-                    disabled
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm font-medium text-foreground">
-                    Main operating country
-                  </p>
-                  <Input
-                    value={snap.accountDetails.mainOperatingCountry}
-                    readOnly
-                    disabled
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <span className="relative size-16 shrink-0 overflow-hidden rounded-[2px]">
-                  <img
-                    src={
-                      snap.accountDetails.brandLogoPreviewUrl?.startsWith(
-                        "blob:"
-                      )
-                        ? snap.accountDetails.brandLogoPreviewUrl
-                        : resolveBrandLogoSrc(
-                            snap.accountDetails.brandLogoPreviewUrl
-                          ) ?? brandLogoPlaceholder
-                    }
-                    alt=""
-                    className="size-full object-cover"
-                  />
-                </span>
-                <div className="flex flex-wrap gap-3">
-                  <Button
-                    type="button"
-                    variant="op-secondary"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    {ACCOUNT_WORKSPACE_PAGE_COPY.uploadImage}
-                  </Button>
-                  <Button type="button" variant="op-tertiary" disabled>
-                    {ACCOUNT_WORKSPACE_PAGE_COPY.manageGuestFacingBrand}
-                  </Button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="hidden"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0] ?? null
-                      pageModule.stageBrandLogo(file)
-                      event.target.value = ""
-                    }}
-                  />
-                </div>
-              </div>
-            </section>
-
-            <section className={GUESTS_SECTION_CLASS}>
-              <div className="flex items-center justify-between gap-4">
-                <h2 className={GUESTS_SECTION_TITLE_CLASS}>Account status</h2>
-                {status != null ? (
-                  <Badge variant="soft">{status.workspaceStatus}</Badge>
-                ) : null}
-              </div>
-              {status != null ? (
-                <div className={GUESTS_DETAIL_ROWS_STACK_CLASS}>
-                  <StatusRow
-                    label="Workspace status"
-                    value={status.workspaceStatus}
-                  />
-                  <PlanStatusRow
-                    label="Plan status"
-                    presentation={planStatusPresentation!}
-                  />
-                  <StatusRow
-                    label="Billing status"
-                    value={status.billingStatus}
-                  />
-                  <StatusRow
-                    label="Account created"
-                    value={formatDateOnly(status.accountCreatedAt)}
-                  />
-                  <StatusRow
-                    label="Active locations"
-                    value={String(status.activeLocations)}
-                  />
-                  <StatusRow
-                    label="Team members"
-                    value={String(status.teamMembers)}
-                  />
-                  <StatusRow
-                    label="Guest profiles"
-                    value={String(status.guestProfiles)}
-                  />
-                  <StatusRow
-                    label="Guest form status"
-                    value={status.guestFormStatus}
-                  />
-                  <StatusRow
-                    label="Last account update"
-                    value={formatDateOnly(status.lastAccountUpdateAt)}
-                  />
-                </div>
-              ) : null}
-            </section>
+              {snap.tabs.map((tab) => (
+                <TabsTrigger
+                  key={tab.id}
+                  value={tab.id}
+                  className={ACCOUNT_WORKSPACE_TAB_TRIGGER_CLASS}
+                >
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
           </div>
+        </div>
+
+        <div
+          className={cn(
+            ACCOUNT_WORKSPACE_FULL_BLEED_X,
+            ACCOUNT_WORKSPACE_FULL_BLEED_BOTTOM,
+            ACCOUNT_WORKSPACE_SHELL_PAD_X,
+            ACCOUNT_WORKSPACE_SHELL_PAD_BOTTOM,
+            ACCOUNT_WORKSPACE_TAB_BODY_CLASS
+          )}
+        >
+        <TabsContent value="account-details" className="mt-0">
+          <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
+              <div className="flex flex-col gap-2">
+                <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.workspaceIdentityTitle}
+                </h2>
+                <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.workspaceIdentitySubtitle}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-[30px]">
+                <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+                  <div className="flex flex-col gap-2.5">
+                    <div className={FIELD_STACK_CLASS}>
+                      <label
+                        htmlFor="workspace-name"
+                        className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                      >
+                        {ACCOUNT_WORKSPACE_PAGE_COPY.workspaceName}
+                      </label>
+                      <Input
+                        id="workspace-name"
+                        value={snap.accountDetails.workspaceName}
+                        maxLength={200}
+                        aria-invalid={workspaceNameError != null}
+                        aria-describedby={
+                          workspaceNameError != null
+                            ? "workspace-name-error"
+                            : "workspace-name-helper"
+                        }
+                        onChange={(event) => {
+                          pageModule.setWorkspaceName(event.target.value)
+                        }}
+                        className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
+                      />
+                      {workspaceNameError != null ? (
+                        <p
+                          id="workspace-name-error"
+                          className="m-0 text-sm text-destructive"
+                        >
+                          {workspaceNameError}
+                        </p>
+                      ) : (
+                        <p
+                          id="workspace-name-helper"
+                          className={ACCOUNT_WORKSPACE_FIELD_HELPER_CLASS}
+                        >
+                          {ACCOUNT_WORKSPACE_PAGE_COPY.workspaceNameHelper}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2.5">
+                    <div className={FIELD_STACK_CLASS}>
+                      <label
+                        htmlFor="guest-facing-business-name"
+                        className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                      >
+                        {ACCOUNT_WORKSPACE_PAGE_COPY.guestFacingBusinessName}
+                      </label>
+                      <Input
+                        id="guest-facing-business-name"
+                        value={guestFacingBusinessName}
+                        readOnly
+                        disabled
+                        aria-describedby="guest-facing-business-name-helper"
+                        className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
+                      />
+                      <p
+                        id="guest-facing-business-name-helper"
+                        className={ACCOUNT_WORKSPACE_FIELD_HELPER_CLASS}
+                      >
+                        {
+                          ACCOUNT_WORKSPACE_PAGE_COPY.guestFacingBusinessNameHelper
+                        }
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
+
+                <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+                  <div className={FIELD_STACK_CLASS}>
+                    <label
+                      htmlFor="account-structure"
+                      className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                    >
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.accountStructure}
+                    </label>
+                    <Select
+                      value={
+                        snap.accountDetails.accountStructure === ""
+                          ? undefined
+                          : snap.accountDetails.accountStructure
+                      }
+                      disabled
+                    >
+                      <SelectTrigger
+                        id="account-structure"
+                        className={ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS}
+                      >
+                        <SelectValue
+                          placeholder={
+                            ACCOUNT_WORKSPACE_PAGE_COPY.legalStructurePlaceholder
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent
+                        position="popper"
+                        align="start"
+                        className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
+                      >
+                        {ACCOUNT_STRUCTURE_OPTIONS.map((option) => (
+                          <SelectItem
+                              className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS} key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                        {snap.accountDetails.accountStructure !== ""
+                        && !ACCOUNT_STRUCTURE_OPTIONS.some(
+                          (option) =>
+                            option.value
+                            === snap.accountDetails.accountStructure
+                        ) ? (
+                          <SelectItem
+                              className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS}
+                            value={snap.accountDetails.accountStructure}
+                          >
+                            {snap.accountDetails.accountStructure}
+                          </SelectItem>
+                        ) : null}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <div className={FIELD_STACK_CLASS}>
+                      <label
+                        htmlFor="business-category"
+                        className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                      >
+                        {ACCOUNT_WORKSPACE_PAGE_COPY.businessCategory}
+                      </label>
+                      <Select
+                        value={
+                          snap.accountDetails.businessCategory == null
+                          || snap.accountDetails.businessCategory === ""
+                            ? undefined
+                            : snap.accountDetails.businessCategory
+                        }
+                        disabled
+                      >
+                        <SelectTrigger
+                          id="business-category"
+                          className={ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS}
+                          aria-describedby="business-category-helper"
+                        >
+                          <SelectValue
+                            placeholder={
+                              ACCOUNT_WORKSPACE_PAGE_COPY.legalStructurePlaceholder
+                            }
+                          >
+                            {snap.accountDetails.businessCategoryLabel
+                              ?? snap.accountDetails.businessCategory
+                              ?? undefined}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent
+                          position="popper"
+                          align="start"
+                          className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
+                        >
+                          {BUSINESS_CATEGORY_OPTIONS.map((option) => (
+                            <SelectItem
+                              className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS}
+                              key={option.value}
+                              value={option.value}
+                            >
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                          {snap.accountDetails.businessCategory != null
+                          && snap.accountDetails.businessCategory !== ""
+                          && !BUSINESS_CATEGORY_OPTIONS.some(
+                            (option) =>
+                              option.value
+                              === snap.accountDetails.businessCategory
+                          ) ? (
+                            <SelectItem
+                              className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS}
+                              value={snap.accountDetails.businessCategory}
+                            >
+                              {snap.accountDetails.businessCategoryLabel
+                                ?? snap.accountDetails.businessCategory}
+                            </SelectItem>
+                          ) : null}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p
+                      id="business-category-helper"
+                      className={ACCOUNT_WORKSPACE_FIELD_HELPER_CLASS}
+                    >
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.businessCategoryHelper}
+                    </p>
+                  </div>
+                </div>
+
+                <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
+
+                <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+                  <div className={FIELD_STACK_CLASS}>
+                    <label
+                      htmlFor="main-operating-country"
+                      className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                    >
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.mainOperatingCountry}
+                    </label>
+                    <Select
+                      value={
+                        snap.accountDetails.mainOperatingCountry === ""
+                          ? undefined
+                          : snap.accountDetails.mainOperatingCountry
+                      }
+                      disabled
+                    >
+                      <SelectTrigger
+                        id="main-operating-country"
+                        className={ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS}
+                      >
+                        <SelectValue
+                          placeholder={
+                            ACCOUNT_WORKSPACE_PAGE_COPY.legalStructurePlaceholder
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent
+                        position="popper"
+                        align="start"
+                        className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
+                      >
+                        {MAIN_OPERATING_COUNTRY_OPTIONS.map((option) => (
+                          <SelectItem
+                              className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS} key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                        {snap.accountDetails.mainOperatingCountry !== ""
+                        && !MAIN_OPERATING_COUNTRY_OPTIONS.some(
+                          (option) =>
+                            option.value
+                            === snap.accountDetails.mainOperatingCountry
+                        ) ? (
+                          <SelectItem
+                              className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS}
+                            value={snap.accountDetails.mainOperatingCountry}
+                          >
+                            {snap.accountDetails.mainOperatingCountry}
+                          </SelectItem>
+                        ) : null}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-2">
+                      <p className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}>
+                        {ACCOUNT_WORKSPACE_PAGE_COPY.workspaceLogo}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="flex shrink-0 items-center rounded-op-md bg-input px-2.5 py-2">
+                          <BrandLogoMark
+                            brandLogoPublicUrl={
+                              snap.accountDetails.brandLogoPreviewUrl
+                            }
+                            className="size-[34px]"
+                          />
+                        </span>
+                        <Button
+                          type="button"
+                          variant="op-secondary"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          {ACCOUNT_WORKSPACE_PAGE_COPY.uploadImage}
+                        </Button>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0] ?? null
+                            pageModule.stageBrandLogo(file)
+                            event.target.value = ""
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <p className={ACCOUNT_WORKSPACE_FIELD_HELPER_CLASS}>
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.workspaceLogoHelper}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
         </TabsContent>
 
         <TabsContent value="business-details" className="mt-0">
-          <div className="flex flex-col gap-6">
-            <section className={GUESTS_SECTION_CLASS}>
+          <div className="flex flex-col gap-5">
+            <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
               <div className="flex flex-col gap-2">
-                <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+                <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
                   {ACCOUNT_WORKSPACE_PAGE_COPY.businessIdentityTitle}
                 </h2>
-                <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+                <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
                   {ACCOUNT_WORKSPACE_PAGE_COPY.businessIdentitySubtitle}
                 </p>
               </div>
 
-              <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-[30px]">
                 <div className={FIELD_STACK_CLASS}>
                   <label
                     htmlFor="legal-structure"
-                    className={FIELD_LABEL_CLASS}
+                    className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
                   >
                     {ACCOUNT_WORKSPACE_PAGE_COPY.legalStructure}
                   </label>
                   <Select
                     value={
                       business.legalStructure === ""
-                        ? "__clear__"
+                        ? undefined
                         : business.legalStructure
                     }
                     onValueChange={(value) => {
-                      pageModule.setLegalStructure(
-                        value === "__clear__" ? "" : value
-                      )
+                      pageModule.setLegalStructure(value)
                     }}
                   >
-                    <SelectTrigger id="legal-structure" className="h-8 w-full">
+                    <SelectTrigger
+                      id="legal-structure"
+                      className={ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS}
+                    >
                       <SelectValue
                         placeholder={
                           ACCOUNT_WORKSPACE_PAGE_COPY.legalStructurePlaceholder
@@ -548,35 +766,51 @@ export function AccountWorkspacePage() {
                       align="start"
                       className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
                     >
-                      <SelectItem value="__clear__">
-                        {ACCOUNT_WORKSPACE_PAGE_COPY.legalStructurePlaceholder}
-                      </SelectItem>
                       {LEGAL_STRUCTURE_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
+                        <SelectItem
+                              className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS} key={option.value} value={option.value}>
                           {option.label}
                         </SelectItem>
                       ))}
+                      {business.legalStructure !== ""
+                      && !LEGAL_STRUCTURE_OPTIONS.some(
+                        (option) => option.value === business.legalStructure
+                      ) ? (
+                        <SelectItem
+                              className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS} value={business.legalStructure}>
+                          {business.legalStructure}
+                        </SelectItem>
+                      ) : null}
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className={FIELD_GRID_CLASS}>
-                  <div className={FIELD_STACK_CLASS}>
-                    <label
-                      htmlFor="legal-business-name"
-                      className={FIELD_LABEL_CLASS}
+                <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
+
+                <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+                  <div className="flex flex-col gap-3">
+                    <div className={FIELD_STACK_CLASS}>
+                      <label
+                        htmlFor="legal-business-name"
+                        className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                      >
+                        {ACCOUNT_WORKSPACE_PAGE_COPY.legalBusinessName}
+                      </label>
+                      <Input
+                        id="legal-business-name"
+                        value={business.legalBusinessName}
+                        maxLength={200}
+                        aria-describedby="legal-business-name-helper"
+                        onChange={(event) => {
+                          pageModule.setLegalBusinessName(event.target.value)
+                        }}
+                        className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
+                      />
+                    </div>
+                    <p
+                      id="legal-business-name-helper"
+                      className={ACCOUNT_WORKSPACE_FIELD_HELPER_CLASS}
                     >
-                      {ACCOUNT_WORKSPACE_PAGE_COPY.legalBusinessName}
-                    </label>
-                    <Input
-                      id="legal-business-name"
-                      value={business.legalBusinessName}
-                      maxLength={200}
-                      onChange={(event) => {
-                        pageModule.setLegalBusinessName(event.target.value)
-                      }}
-                    />
-                    <p className={FIELD_HELPER_CLASS}>
                       {ACCOUNT_WORKSPACE_PAGE_COPY.legalBusinessNameHelper}
                     </p>
                   </div>
@@ -584,7 +818,7 @@ export function AccountWorkspacePage() {
                     <div className={FIELD_STACK_CLASS}>
                       <label
                         htmlFor="trading-name"
-                        className={FIELD_LABEL_CLASS}
+                        className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
                       >
                         {ACCOUNT_WORKSPACE_PAGE_COPY.tradingName}
                       </label>
@@ -593,14 +827,19 @@ export function AccountWorkspacePage() {
                         value={business.tradingName}
                         maxLength={200}
                         disabled={business.sameAsLegalBusinessName}
+                        aria-describedby="trading-name-helper"
                         onChange={(event) => {
                           pageModule.setTradingName(event.target.value)
                         }}
+                        className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
                       />
-                      <p className={FIELD_HELPER_CLASS}>
-                        {ACCOUNT_WORKSPACE_PAGE_COPY.tradingNameHelper}
-                      </p>
                     </div>
+                    <p
+                      id="trading-name-helper"
+                      className={ACCOUNT_WORKSPACE_FIELD_HELPER_CLASS}
+                    >
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.tradingNameHelper}
+                    </p>
                     <CheckboxLabel
                       id="same-as-legal-business-name"
                       checked={business.sameAsLegalBusinessName}
@@ -613,134 +852,127 @@ export function AccountWorkspacePage() {
                   </div>
                 </div>
 
-                <div className={FIELD_GRID_CLASS}>
-                  <div className={FIELD_STACK_CLASS}>
-                    <label
-                      htmlFor="company-number"
-                      className={FIELD_LABEL_CLASS}
+                <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
+
+                <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+                  <div className="flex flex-col gap-3">
+                    <div className={FIELD_STACK_CLASS}>
+                      <label
+                        htmlFor="company-number"
+                        className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                      >
+                        {ACCOUNT_WORKSPACE_PAGE_COPY.companyNumber}
+                      </label>
+                      <Input
+                        id="company-number"
+                        value={business.companyNumber}
+                        maxLength={50}
+                        aria-describedby="company-number-helper"
+                        onChange={(event) => {
+                          pageModule.setCompanyNumber(event.target.value)
+                        }}
+                        className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
+                      />
+                    </div>
+                    <p
+                      id="company-number-helper"
+                      className={ACCOUNT_WORKSPACE_FIELD_HELPER_CLASS}
                     >
-                      {ACCOUNT_WORKSPACE_PAGE_COPY.companyNumber}
-                    </label>
-                    <Input
-                      id="company-number"
-                      value={business.companyNumber}
-                      maxLength={50}
-                      onChange={(event) => {
-                        pageModule.setCompanyNumber(event.target.value)
-                      }}
-                    />
-                    <p className={FIELD_HELPER_CLASS}>
                       {ACCOUNT_WORKSPACE_PAGE_COPY.companyNumberHelper}
                     </p>
                   </div>
-                  <div className={FIELD_STACK_CLASS}>
-                    <label htmlFor="vat-number" className={FIELD_LABEL_CLASS}>
-                      {ACCOUNT_WORKSPACE_PAGE_COPY.vatNumber}
-                    </label>
-                    <Input
-                      id="vat-number"
-                      value={business.vatNumber}
-                      maxLength={50}
-                      onChange={(event) => {
-                        pageModule.setVatNumber(event.target.value)
-                      }}
-                    />
-                    <p className={FIELD_HELPER_CLASS}>
+                  <div className="flex flex-col gap-3">
+                    <div className={FIELD_STACK_CLASS}>
+                      <label
+                        htmlFor="vat-number"
+                        className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                      >
+                        {ACCOUNT_WORKSPACE_PAGE_COPY.vatNumber}
+                      </label>
+                      <Input
+                        id="vat-number"
+                        value={business.vatNumber}
+                        maxLength={50}
+                        aria-describedby="vat-number-helper"
+                        onChange={(event) => {
+                          pageModule.setVatNumber(event.target.value)
+                        }}
+                        className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
+                      />
+                    </div>
+                    <p
+                      id="vat-number-helper"
+                      className={ACCOUNT_WORKSPACE_FIELD_HELPER_CLASS}
+                    >
                       {ACCOUNT_WORKSPACE_PAGE_COPY.vatNumberHelper}
                     </p>
                   </div>
                 </div>
 
-                <div className={FIELD_STACK_CLASS}>
-                  <label
-                    htmlFor="country-of-registration"
-                    className={FIELD_LABEL_CLASS}
+                <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
+
+                <div className="flex flex-col gap-3">
+                  <div className={FIELD_STACK_CLASS}>
+                    <label
+                      htmlFor="country-of-registration"
+                      className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                    >
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.countryOfRegistration}
+                    </label>
+                    <Input
+                      id="country-of-registration"
+                      value={business.countryOfRegistration}
+                      maxLength={100}
+                      aria-describedby="country-of-registration-helper"
+                      onChange={(event) => {
+                        pageModule.setCountryOfRegistration(event.target.value)
+                      }}
+                      className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
+                    />
+                  </div>
+                  <p
+                    id="country-of-registration-helper"
+                    className={ACCOUNT_WORKSPACE_FIELD_HELPER_CLASS}
                   >
-                    {ACCOUNT_WORKSPACE_PAGE_COPY.countryOfRegistration}
-                  </label>
-                  <Input
-                    id="country-of-registration"
-                    value={business.countryOfRegistration}
-                    maxLength={100}
-                    onChange={(event) => {
-                      pageModule.setCountryOfRegistration(event.target.value)
-                    }}
-                  />
-                  <p className={FIELD_HELPER_CLASS}>
                     {ACCOUNT_WORKSPACE_PAGE_COPY.countryOfRegistrationHelper}
                   </p>
                 </div>
               </div>
             </section>
 
-            <section className={GUESTS_SECTION_CLASS}>
+            <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
               <div className="flex flex-col gap-2">
-                <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+                <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
                   {ACCOUNT_WORKSPACE_PAGE_COPY.businessAddressTitle}
                 </h2>
-                <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+                <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
                   {ACCOUNT_WORKSPACE_PAGE_COPY.businessAddressSubtitle}
                 </p>
               </div>
 
-              <div className="flex flex-col gap-6">
-                {isUkAddress ? (
-                  <AddressPostcodeFields
-                    address={business.addressLine1}
-                    postcode={business.postcode}
-                    addressOverridden={addressOverridden}
-                    onAddressChange={(value) => {
-                      pageModule.setAddressLine1(value)
-                    }}
-                    onPostcodeChange={(value) => {
-                      pageModule.setPostcode(value)
-                    }}
-                    onAddressOverriddenChange={setAddressOverridden}
-                    postcodeError={business.postcodeError ?? undefined}
-                    required={false}
-                  />
-                ) : (
-                  <div className={FIELD_GRID_CLASS}>
-                    <div className={FIELD_STACK_CLASS}>
-                      <label
-                        htmlFor="address-line-1"
-                        className={FIELD_LABEL_CLASS}
-                      >
-                        {ACCOUNT_WORKSPACE_PAGE_COPY.addressLine1}
-                      </label>
-                      <Input
-                        id="address-line-1"
-                        value={business.addressLine1}
-                        maxLength={500}
-                        onChange={(event) => {
-                          pageModule.setAddressLine1(event.target.value)
-                        }}
-                      />
-                    </div>
-                    <div className={FIELD_STACK_CLASS}>
-                      <label
-                        htmlFor="address-line-2-non-uk"
-                        className={FIELD_LABEL_CLASS}
-                      >
-                        {ACCOUNT_WORKSPACE_PAGE_COPY.addressLine2}
-                      </label>
-                      <Input
-                        id="address-line-2-non-uk"
-                        value={business.addressLine2}
-                        maxLength={500}
-                        onChange={(event) => {
-                          pageModule.setAddressLine2(event.target.value)
-                        }}
-                      />
-                    </div>
+              <div className="flex flex-col gap-[30px]">
+                <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+                  <div className={FIELD_STACK_CLASS}>
+                    <label
+                      htmlFor="address-line-1"
+                      className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                    >
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.addressLine1}
+                    </label>
+                    <Input
+                      id="address-line-1"
+                      value={business.addressLine1}
+                      maxLength={500}
+                      onChange={(event) => {
+                        pageModule.setAddressLine1(event.target.value)
+                      }}
+                      className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
+                    />
                   </div>
-                )}
-
-                {isUkAddress ? (
                   <div className={FIELD_STACK_CLASS}>
                     <label
                       htmlFor="address-line-2"
-                      className={FIELD_LABEL_CLASS}
+                      className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
                     >
                       {ACCOUNT_WORKSPACE_PAGE_COPY.addressLine2}
                     </label>
@@ -748,29 +980,43 @@ export function AccountWorkspacePage() {
                       id="address-line-2"
                       value={business.addressLine2}
                       maxLength={500}
+                      placeholder={
+                        ACCOUNT_WORKSPACE_PAGE_COPY.addressLine2Placeholder
+                      }
                       onChange={(event) => {
                         pageModule.setAddressLine2(event.target.value)
                       }}
+                      className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
                     />
                   </div>
-                ) : null}
+                </div>
 
-                <div className={FIELD_GRID_CLASS}>
+                <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
                   <div className={FIELD_STACK_CLASS}>
-                    <label htmlFor="town-city" className={FIELD_LABEL_CLASS}>
+                    <label
+                      htmlFor="town-city"
+                      className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                    >
                       {ACCOUNT_WORKSPACE_PAGE_COPY.townCity}
                     </label>
                     <Input
                       id="town-city"
                       value={business.townCity}
                       maxLength={150}
+                      placeholder={
+                        ACCOUNT_WORKSPACE_PAGE_COPY.townCityPlaceholder
+                      }
                       onChange={(event) => {
                         pageModule.setTownCity(event.target.value)
                       }}
+                      className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
                     />
                   </div>
                   <div className={FIELD_STACK_CLASS}>
-                    <label htmlFor="county" className={FIELD_LABEL_CLASS}>
+                    <label
+                      htmlFor="county"
+                      className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                    >
                       {ACCOUNT_WORKSPACE_PAGE_COPY.county}
                     </label>
                     <Input
@@ -780,15 +1026,50 @@ export function AccountWorkspacePage() {
                       onChange={(event) => {
                         pageModule.setCounty(event.target.value)
                       }}
+                      className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
                     />
                   </div>
                 </div>
 
-                {isUkAddress ? (
+                <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+                  <div className={FIELD_STACK_CLASS}>
+                    <label
+                      htmlFor="postcode"
+                      className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                    >
+                      {ACCOUNT_WORKSPACE_PAGE_COPY.postcode}
+                    </label>
+                    <Input
+                      id="postcode"
+                      value={business.postcode}
+                      maxLength={20}
+                      placeholder={
+                        ACCOUNT_WORKSPACE_PAGE_COPY.postcodePlaceholder
+                      }
+                      aria-invalid={business.postcodeError != null}
+                      aria-describedby={
+                        business.postcodeError != null
+                          ? "postcode-error"
+                          : undefined
+                      }
+                      onChange={(event) => {
+                        pageModule.setPostcode(event.target.value)
+                      }}
+                      className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
+                    />
+                    {business.postcodeError != null ? (
+                      <p
+                        id="postcode-error"
+                        className="m-0 text-sm text-destructive"
+                      >
+                        {business.postcodeError}
+                      </p>
+                    ) : null}
+                  </div>
                   <div className={FIELD_STACK_CLASS}>
                     <label
                       htmlFor="address-country"
-                      className={FIELD_LABEL_CLASS}
+                      className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
                     >
                       {ACCOUNT_WORKSPACE_PAGE_COPY.country}
                     </label>
@@ -799,74 +1080,26 @@ export function AccountWorkspacePage() {
                       onChange={(event) => {
                         pageModule.setCountry(event.target.value)
                       }}
+                      className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
                     />
                   </div>
-                ) : (
-                  <div className={FIELD_GRID_CLASS}>
-                    <div className={FIELD_STACK_CLASS}>
-                      <label
-                        htmlFor="postcode-non-uk"
-                        className={FIELD_LABEL_CLASS}
-                      >
-                        {ACCOUNT_WORKSPACE_PAGE_COPY.postcode}
-                      </label>
-                      <Input
-                        id="postcode-non-uk"
-                        value={business.postcode}
-                        maxLength={20}
-                        aria-invalid={business.postcodeError != null}
-                        aria-describedby={
-                          business.postcodeError != null
-                            ? "postcode-error"
-                            : undefined
-                        }
-                        onChange={(event) => {
-                          pageModule.setPostcode(event.target.value)
-                        }}
-                      />
-                      {business.postcodeError != null ? (
-                        <p
-                          id="postcode-error"
-                          className="m-0 text-sm text-destructive"
-                        >
-                          {business.postcodeError}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className={FIELD_STACK_CLASS}>
-                      <label
-                        htmlFor="address-country-non-uk"
-                        className={FIELD_LABEL_CLASS}
-                      >
-                        {ACCOUNT_WORKSPACE_PAGE_COPY.country}
-                      </label>
-                      <Input
-                        id="address-country-non-uk"
-                        value={business.country}
-                        maxLength={100}
-                        onChange={(event) => {
-                          pageModule.setCountry(event.target.value)
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
             </section>
           </div>
         </TabsContent>
         <TabsContent value="key-contacts" className="mt-0">
-          <section className={GUESTS_SECTION_CLASS}>
+          <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
             <div className="flex flex-col gap-2">
-              <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+              <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
                 {ACCOUNT_WORKSPACE_PAGE_COPY.primaryResponsibilitiesTitle}
               </h2>
-              <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+              <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
                 {ACCOUNT_WORKSPACE_PAGE_COPY.primaryResponsibilitiesSubtitle}
               </p>
             </div>
 
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-[30px]">
               <div className={FIELD_GRID_CLASS}>
                 <ContactMemberSelect
                   id="account-owner"
@@ -885,6 +1118,9 @@ export function AccountWorkspacePage() {
                   }}
                 />
               </div>
+
+              <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
+
               <div className={FIELD_GRID_CLASS}>
                 <ContactMemberSelect
                   id="privacy-contact"
@@ -905,29 +1141,157 @@ export function AccountWorkspacePage() {
                   }}
                 />
               </div>
-              <p className={FIELD_HELPER_CLASS}>
-                {ACCOUNT_WORKSPACE_PAGE_COPY.keyContactsTeamHelper}
-              </p>
             </div>
           </section>
         </TabsContent>
         <TabsContent value="workspace-defaults" className="mt-0">
-          <section className={GUESTS_SECTION_CLASS}>
+          <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
             <div className="flex flex-col gap-2">
-              <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+              <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
                 {ACCOUNT_WORKSPACE_PAGE_COPY.workspaceDefaultsTitle}
               </h2>
-              <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+              <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
                 {ACCOUNT_WORKSPACE_PAGE_COPY.workspaceDefaultsSubtitle}
               </p>
             </div>
 
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-[30px]">
+              <div className={FIELD_GRID_CLASS}>
+                <div className={FIELD_STACK_CLASS}>
+                  <label
+                    htmlFor="default-timezone"
+                    className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                  >
+                    {ACCOUNT_WORKSPACE_PAGE_COPY.defaultTimezone}
+                  </label>
+                  <Select
+                    value={workspaceDefaults.defaultTimezone}
+                    disabled
+                  >
+                    <SelectTrigger
+                      id="default-timezone"
+                      className={ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent
+                      position="popper"
+                      align="start"
+                      className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
+                    >
+                      <SelectItem
+                        className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS}
+                        value={workspaceDefaults.defaultTimezone}
+                      >
+                        {workspaceDefaults.defaultTimezone}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className={FIELD_STACK_CLASS}>
+                  <label
+                    htmlFor="default-currency"
+                    className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                  >
+                    {ACCOUNT_WORKSPACE_PAGE_COPY.defaultCurrency}
+                  </label>
+                  <Select
+                    value={workspaceDefaults.defaultCurrency}
+                    disabled
+                  >
+                    <SelectTrigger
+                      id="default-currency"
+                      className={ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent
+                      position="popper"
+                      align="start"
+                      className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
+                    >
+                      <SelectItem
+                        className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS}
+                        value={workspaceDefaults.defaultCurrency}
+                      >
+                        {workspaceDefaults.defaultCurrency}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
+
+              <div className={FIELD_GRID_CLASS}>
+                <div className={FIELD_STACK_CLASS}>
+                  <label
+                    htmlFor="default-language"
+                    className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                  >
+                    {ACCOUNT_WORKSPACE_PAGE_COPY.defaultLanguage}
+                  </label>
+                  <Select
+                    value={workspaceDefaults.defaultLanguage}
+                    disabled
+                  >
+                    <SelectTrigger
+                      id="default-language"
+                      className={ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent
+                      position="popper"
+                      align="start"
+                      className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
+                    >
+                      <SelectItem
+                        className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS}
+                        value={workspaceDefaults.defaultLanguage}
+                      >
+                        {workspaceDefaults.defaultLanguage}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className={FIELD_STACK_CLASS}>
+                  <label
+                    htmlFor="date-format"
+                    className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                  >
+                    {ACCOUNT_WORKSPACE_PAGE_COPY.dateFormat}
+                  </label>
+                  <Select value={workspaceDefaults.dateFormat} disabled>
+                    <SelectTrigger
+                      id="date-format"
+                      className={ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent
+                      position="popper"
+                      align="start"
+                      className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
+                    >
+                      <SelectItem
+                        className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS}
+                        value={workspaceDefaults.dateFormat}
+                      >
+                        {workspaceDefaults.dateFormat}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
+
               <div className={FIELD_GRID_CLASS}>
                 <div className={FIELD_STACK_CLASS}>
                   <label
                     htmlFor="week-starts-on"
-                    className={FIELD_LABEL_CLASS}
+                    className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
                   >
                     {ACCOUNT_WORKSPACE_PAGE_COPY.weekStartsOn}
                   </label>
@@ -939,14 +1303,27 @@ export function AccountWorkspacePage() {
                       )
                     }}
                   >
-                    <SelectTrigger id="week-starts-on" className="h-8 w-full">
-                      <SelectValue placeholder="Select" />
+                    <SelectTrigger
+                      id="week-starts-on"
+                      className={ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS}
+                    >
+                      <SelectValue
+                        placeholder={
+                          ACCOUNT_WORKSPACE_PAGE_COPY.legalStructurePlaceholder
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent
+                      position="popper"
+                      align="start"
                       className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
                     >
                       {WEEK_STARTS_ON_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
+                        <SelectItem
+                          className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS}
+                          key={option.value}
+                          value={option.value}
+                        >
                           {option.label}
                         </SelectItem>
                       ))}
@@ -956,7 +1333,7 @@ export function AccountWorkspacePage() {
                 <div className={FIELD_STACK_CLASS}>
                   <label
                     htmlFor="default-reporting-period"
-                    className={FIELD_LABEL_CLASS}
+                    className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
                   >
                     {ACCOUNT_WORKSPACE_PAGE_COPY.defaultReportingPeriod}
                   </label>
@@ -970,15 +1347,25 @@ export function AccountWorkspacePage() {
                   >
                     <SelectTrigger
                       id="default-reporting-period"
-                      className="h-8 w-full"
+                      className={ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS}
                     >
-                      <SelectValue placeholder="Select" />
+                      <SelectValue
+                        placeholder={
+                          ACCOUNT_WORKSPACE_PAGE_COPY.legalStructurePlaceholder
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent
+                      position="popper"
+                      align="start"
                       className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
                     >
                       {DEFAULT_REPORTING_PERIOD_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
+                        <SelectItem
+                          className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS}
+                          key={option.value}
+                          value={option.value}
+                        >
                           {option.label}
                         </SelectItem>
                       ))}
@@ -987,109 +1374,112 @@ export function AccountWorkspacePage() {
                 </div>
               </div>
 
-              <div className={FIELD_STACK_CLASS}>
-                <label
-                  htmlFor="default-campaign-sender-name"
-                  className={FIELD_LABEL_CLASS}
-                >
-                  {ACCOUNT_WORKSPACE_PAGE_COPY.defaultCampaignSenderName}
-                </label>
-                <Input
-                  id="default-campaign-sender-name"
-                  value={workspaceDefaults.defaultCampaignSenderName}
-                  maxLength={200}
-                  onChange={(event) => {
-                    pageModule.setDefaultCampaignSenderName(event.target.value)
-                  }}
-                />
-                <p className={FIELD_HELPER_CLASS}>
-                  {ACCOUNT_WORKSPACE_PAGE_COPY.defaultCampaignSenderNameHelper}
-                </p>
-              </div>
+              <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
 
               <div className={FIELD_GRID_CLASS}>
-                <StatusRow
-                  label={ACCOUNT_WORKSPACE_PAGE_COPY.defaultTimezone}
-                  value={workspaceDefaults.defaultTimezone}
-                />
-                <StatusRow
-                  label={ACCOUNT_WORKSPACE_PAGE_COPY.defaultCurrency}
-                  value={workspaceDefaults.defaultCurrency}
-                />
-                <StatusRow
-                  label={ACCOUNT_WORKSPACE_PAGE_COPY.defaultLanguage}
-                  value={workspaceDefaults.defaultLanguage}
-                />
-                <StatusRow
-                  label={ACCOUNT_WORKSPACE_PAGE_COPY.dateFormat}
-                  value={workspaceDefaults.dateFormat}
-                />
+                <div className={FIELD_STACK_CLASS}>
+                  <label
+                    htmlFor="default-campaign-sender-name"
+                    className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+                  >
+                    {ACCOUNT_WORKSPACE_PAGE_COPY.defaultCampaignSenderName}
+                  </label>
+                  <Input
+                    id="default-campaign-sender-name"
+                    value={campaignSenderDisplayName}
+                    maxLength={200}
+                    onChange={(event) => {
+                      pageModule.setDefaultCampaignSenderName(
+                        event.target.value
+                      )
+                    }}
+                    className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
+                  />
+                </div>
               </div>
             </div>
           </section>
         </TabsContent>
         <TabsContent value="account-controls" className="mt-0">
-          <div className="flex flex-col gap-6">
-            <section className={GUESTS_SECTION_CLASS}>
+          <div className={ACCOUNT_CONTROLS_STACK_CLASS}>
+            <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
               <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-4">
-                  <h2 className={GUESTS_SECTION_TITLE_CLASS}>
-                    {ACCOUNT_WORKSPACE_PAGE_COPY.accountControlsStatusTitle}
-                  </h2>
-                  {status != null ? (
-                    <Badge variant="soft">{status.workspaceStatus}</Badge>
-                  ) : null}
-                </div>
-                <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+                <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
+                  {ACCOUNT_WORKSPACE_PAGE_COPY.accountControlsStatusTitle}
+                </h2>
+                <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
                   {ACCOUNT_WORKSPACE_PAGE_COPY.accountControlsStatusSubtitle}
                 </p>
               </div>
+
               {status != null ? (
-                <div className={GUESTS_DETAIL_ROWS_STACK_CLASS}>
-                  <StatusRow
-                    label="Workspace status"
-                    value={status.workspaceStatus}
-                  />
-                  <PlanStatusRow
-                    label="Plan status"
-                    presentation={planStatusPresentation!}
-                  />
-                  <StatusRow
-                    label="Billing status"
-                    value={status.billingStatus}
-                  />
-                  <StatusRow
-                    label="Account created"
-                    value={formatDateOnly(status.accountCreatedAt)}
-                  />
-                  <StatusRow
-                    label="Active locations"
-                    value={String(status.activeLocations)}
-                  />
-                  <StatusRow
-                    label="Team members"
-                    value={String(status.teamMembers)}
-                  />
-                  <StatusRow
-                    label="Guest profiles"
-                    value={String(status.guestProfiles)}
-                  />
-                  <StatusRow
-                    label="Guest form status"
-                    value={status.guestFormStatus}
-                  />
-                  <StatusRow
-                    label="Last account update"
-                    value={formatDateOnly(status.lastAccountUpdateAt)}
-                  />
+                <div className={ACCOUNT_STATUS_COLUMNS_CLASS}>
+                  <div className={ACCOUNT_STATUS_COLUMN_CLASS}>
+                    <AccountStatusMetricRow label="Workspace status:">
+                      <Badge variant="soft">{status.workspaceStatus}</Badge>
+                    </AccountStatusMetricRow>
+                    <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
+                    <AccountStatusMetricRow label="Plan status:">
+                      <AccountStatusPlanValue
+                        presentation={planStatusPresentation!}
+                      />
+                    </AccountStatusMetricRow>
+                    <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
+                    <AccountStatusMetricRow label="Account created:">
+                      <AccountStatusTextValue
+                        value={formatDateOnly(status.accountCreatedAt)}
+                      />
+                    </AccountStatusMetricRow>
+                    <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
+                    <AccountStatusMetricRow label="Active locations:">
+                      <AccountStatusTextValue
+                        value={String(status.activeLocations)}
+                      />
+                    </AccountStatusMetricRow>
+                    <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
+                    <AccountStatusMetricRow label="Team members:">
+                      <AccountStatusTextValue
+                        value={String(status.teamMembers)}
+                      />
+                    </AccountStatusMetricRow>
+                  </div>
+
+                  <div className={ACCOUNT_STATUS_COLUMN_CLASS}>
+                    <AccountStatusMetricRow label="Guest profiles:">
+                      <AccountStatusTextValue
+                        value={String(status.guestProfiles)}
+                      />
+                    </AccountStatusMetricRow>
+                    <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
+                    <AccountStatusMetricRow label="Guest form status:">
+                      <Badge variant="soft">{status.guestFormStatus}</Badge>
+                    </AccountStatusMetricRow>
+                    <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
+                    <AccountStatusMetricRow label="Billing status:">
+                      <Badge variant="soft">{status.billingStatus}</Badge>
+                    </AccountStatusMetricRow>
+                    <hr className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
+                    <AccountStatusMetricRow label="Last account update:">
+                      <AccountStatusTextValue
+                        value={formatDateOnly(status.lastAccountUpdateAt)}
+                      />
+                    </AccountStatusMetricRow>
+                  </div>
                 </div>
               ) : null}
-              <div className="flex flex-wrap gap-3">
+
+              <div className={ACCOUNT_CONTROLS_ACTIONS_CLASS}>
                 <Button
                   type="button"
                   variant="op-secondary"
                   className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-                  disabled
+                  disabled={!canOpenBillingCredits}
+                  onClick={() => {
+                    if (!pageModule.requestNavigateAway(billingCreditsHref)) {
+                      return
+                    }
+                    navigate(billingCreditsHref)
+                  }}
                 >
                   {ACCOUNT_WORKSPACE_PAGE_COPY.viewBilling}
                 </Button>
@@ -1097,32 +1487,38 @@ export function AccountWorkspacePage() {
                   type="button"
                   variant="op-secondary"
                   className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-                  disabled
+                  disabled={!canOpenBillingCredits}
+                  onClick={() => {
+                    if (!pageModule.requestNavigateAway(billingActivityHref)) {
+                      return
+                    }
+                    navigate(billingActivityHref)
+                  }}
                 >
                   {ACCOUNT_WORKSPACE_PAGE_COPY.viewActivity}
                 </Button>
               </div>
             </section>
 
-            <section className={GUESTS_SECTION_CLASS}>
+            <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
               <div className="flex flex-col gap-2">
-                <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+                <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
                   {ACCOUNT_WORKSPACE_PAGE_COPY.dataOwnershipTitle}
                 </h2>
-                <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+                <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
                   {ACCOUNT_WORKSPACE_PAGE_COPY.dataOwnershipSubtitle}
                 </p>
               </div>
-              <p className="m-0 text-sm font-medium text-muted-foreground">
+              <p className={ACCOUNT_CONTROLS_BODY_CLASS}>
                 {ACCOUNT_WORKSPACE_PAGE_COPY.dataOwnershipBody}
               </p>
-              <div className="flex flex-wrap gap-3">
+              <div className={ACCOUNT_CONTROLS_ACTIONS_CLASS}>
                 <Button type="button" variant="op-secondary" disabled>
                   {ACCOUNT_WORKSPACE_PAGE_COPY.viewPrivacySettings}
                 </Button>
                 <Button
                   type="button"
-                  variant="op-tertiary"
+                  variant="op-secondary"
                   disabled={snap.isSaving}
                   onClick={() => {
                     pageModule.requestExportGuestData()
@@ -1133,24 +1529,24 @@ export function AccountWorkspacePage() {
               </div>
             </section>
 
-            <section className={GUESTS_SECTION_CLASS}>
+            <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
               <div className="flex flex-col gap-2">
-                <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+                <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
                   {ACCOUNT_WORKSPACE_PAGE_COPY.dangerZoneTitle}
                 </h2>
-                <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+                <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
                   {ACCOUNT_WORKSPACE_PAGE_COPY.dangerZoneSubtitle}
                 </p>
               </div>
-              <p className="m-0 text-sm font-medium text-muted-foreground">
+              <p className={ACCOUNT_CONTROLS_BODY_CLASS}>
                 {ACCOUNT_WORKSPACE_PAGE_COPY.dangerZoneBody}
               </p>
               {!snap.isAccountOwner ? (
-                <p className="m-0 text-sm font-medium text-[var(--op-color-gray-550)]">
+                <p className={ACCOUNT_CONTROLS_BODY_CLASS}>
                   {ACCOUNT_WORKSPACE_PAGE_COPY.dangerZoneOwnerOnlyHelper}
                 </p>
               ) : null}
-              <div className="flex flex-wrap gap-3">
+              <div className={ACCOUNT_CONTROLS_ACTIONS_CLASS}>
                 {isPaused ? (
                   <Button
                     type="button"
@@ -1208,6 +1604,7 @@ export function AccountWorkspacePage() {
             </section>
           </div>
         </TabsContent>
+        </div>
       </Tabs>
 
       <AccountWorkspaceConfirmDialog

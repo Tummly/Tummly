@@ -23,7 +23,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ProcessJob_AtRenewal_CallsRevolutCancel_WithSubscriptionId()
+        public async Task ProcessJob_AtRenewal_ClearsCancelSlot_WithoutImmediateRevolutCancel()
         {
             var renewal = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
             var merchant = new RecordingCancelMerchant();
@@ -52,8 +52,7 @@ namespace TummlyBackend.Tests.Services
             );
 
             Assert.True(result.Succeeded);
-            Assert.Equal(1, merchant.CancelCallCount);
-            Assert.Equal("sub_live_period_end", merchant.LastCancelledSubscriptionId);
+            Assert.Equal(0, merchant.CancelCallCount);
 
             await harness.Context.Entry(account).ReloadAsync();
             Assert.False(account.ScheduledCancelPlan);
@@ -366,6 +365,15 @@ namespace TummlyBackend.Tests.Services
                 string subscriptionId,
                 string planVariationLookupKey,
                 CancellationToken cancellationToken = default
+            ) => throw new NotImplementedException();
+
+
+public Task<RevolutMerchantCreateResult> ScheduleSubscriptionCancelAtCycleEndAsync(
+
+                string subscriptionId,
+
+                CancellationToken cancellationToken = default
+
             ) => throw new NotImplementedException();
 
             public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(

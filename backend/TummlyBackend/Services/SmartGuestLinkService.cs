@@ -76,7 +76,10 @@ namespace TummlyBackend.Services
             }
 
             var restaurant = location.Restaurant;
-            var access = await EvaluateGuestAccessAfterTickAsync(restaurant);
+            var access = await EvaluateGuestAccessAfterTickAsync(
+                restaurant,
+                location.LifecycleStatus
+            );
 
             if (access == GuestQrAccessKind.Dormant)
             {
@@ -132,7 +135,10 @@ namespace TummlyBackend.Services
             }
 
             var restaurant = qrCode.RestaurantLocation.Restaurant;
-            var access = await EvaluateGuestAccessAfterTickAsync(restaurant);
+            var access = await EvaluateGuestAccessAfterTickAsync(
+                restaurant,
+                qrCode.RestaurantLocation.LifecycleStatus
+            );
             if (access != GuestQrAccessKind.Allowed)
             {
                 return null;
@@ -169,7 +175,8 @@ namespace TummlyBackend.Services
         }
 
         private async Task<GuestQrAccessKind> EvaluateGuestAccessAfterTickAsync(
-            Restaurant restaurant
+            Restaurant restaurant,
+            LocationLifecycleStatus locationLifecycle
         )
         {
             await _lifecycle.TickAsync(restaurant.Id, DateTime.UtcNow);
@@ -181,6 +188,11 @@ namespace TummlyBackend.Services
             }
 
             if (restaurant.WorkspaceStatus == WorkspaceStatus.Paused)
+            {
+                return GuestQrAccessKind.Denied;
+            }
+
+            if (locationLifecycle != LocationLifecycleStatus.Active)
             {
                 return GuestQrAccessKind.Denied;
             }

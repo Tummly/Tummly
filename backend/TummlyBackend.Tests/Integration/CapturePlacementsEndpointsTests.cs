@@ -1999,6 +1999,7 @@ namespace TummlyBackend.Tests.Integration
                         {
                             locationName = "Main",
                             address = "1 High Street",
+                            city = "Leeds",
                             postcode = "LS1 1AA",
                         },
                     },

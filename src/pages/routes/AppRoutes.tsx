@@ -47,6 +47,12 @@ import { GuestProfileRoute } from "@/components/dashboard/operator/GuestProfile/
 import { HomeRoute } from "@/components/dashboard/operator/Home/HomeRoute";
 import { AccountWorkspacePageModuleProvider } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspacePageModuleProvider";
 import { AccountWorkspaceRoute } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceRoute";
+import { LocationsPageModuleProvider } from "@/components/dashboard/operator/Locations/LocationsPageModuleProvider";
+import { LocationsRoute } from "@/components/dashboard/operator/Locations/LocationsRoute";
+import { LocationDetailPageModuleProvider } from "@/components/dashboard/operator/Locations/LocationDetailPageModuleProvider";
+import { LocationDetailRoute } from "@/components/dashboard/operator/Locations/LocationDetailRoute";
+import { PrivacyConsentPageModuleProvider } from "@/components/dashboard/operator/PrivacyConsent/PrivacyConsentPageModuleProvider";
+import { PrivacyConsentRoute } from "@/components/dashboard/operator/PrivacyConsent/PrivacyConsentRoute";
 import { TeamPermissionsPageModuleProvider } from "@/components/dashboard/operator/TeamPermissions/TeamPermissionsPageModuleProvider";
 import { TeamPermissionsRoute } from "@/components/dashboard/operator/TeamPermissions/TeamPermissionsRoute";
 import { BillingCreditsRoute } from "@/components/dashboard/operator/BillingCredits/BillingCreditsRoute";
@@ -205,6 +211,24 @@ function AppRoutes() {
                     </AccountWorkspacePageModuleProvider>
                   }
                 />
+                <Route path="settings/locations">
+                  <Route
+                    index
+                    element={
+                      <LocationsPageModuleProvider>
+                        <LocationsRoute />
+                      </LocationsPageModuleProvider>
+                    }
+                  />
+                  <Route
+                    path=":locationId"
+                    element={
+                      <LocationDetailPageModuleProvider>
+                        <LocationDetailRoute />
+                      </LocationDetailPageModuleProvider>
+                    }
+                  />
+                </Route>
                 <Route
                   path="settings/team-permissions"
                   element={
@@ -227,6 +251,14 @@ function AppRoutes() {
                     <BillingCreditsPageModuleProvider surface="manage-plan">
                       <ManagePlanRoute />
                     </BillingCreditsPageModuleProvider>
+                  }
+                />
+                <Route
+                  path="settings/privacy-consent"
+                  element={
+                    <PrivacyConsentPageModuleProvider>
+                      <PrivacyConsentRoute />
+                    </PrivacyConsentPageModuleProvider>
                   }
                 />
               </Route>
@@ -290,6 +322,24 @@ function AppRoutes() {
                     </AccountWorkspacePageModuleProvider>
                   }
                 />
+                <Route path="settings/locations">
+                  <Route
+                    index
+                    element={
+                      <LocationsPageModuleProvider>
+                        <LocationsRoute />
+                      </LocationsPageModuleProvider>
+                    }
+                  />
+                  <Route
+                    path=":locationId"
+                    element={
+                      <LocationDetailPageModuleProvider>
+                        <LocationDetailRoute />
+                      </LocationDetailPageModuleProvider>
+                    }
+                  />
+                </Route>
                 <Route
                   path="settings/team-permissions"
                   element={
@@ -312,6 +362,14 @@ function AppRoutes() {
                     <BillingCreditsPageModuleProvider surface="manage-plan">
                       <ManagePlanRoute />
                     </BillingCreditsPageModuleProvider>
+                  }
+                />
+                <Route
+                  path="settings/privacy-consent"
+                  element={
+                    <PrivacyConsentPageModuleProvider>
+                      <PrivacyConsentRoute />
+                    </PrivacyConsentPageModuleProvider>
                   }
                 />
               </Route>

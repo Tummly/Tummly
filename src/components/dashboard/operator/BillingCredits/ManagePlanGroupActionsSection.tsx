@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
+import { CancelSubscriptionDialog } from "@/components/dashboard/operator/BillingCredits/CancelSubscriptionDialog"
 import { useBillingCreditsPageModuleApi } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
 import {
   ADDITIONAL_GROUP_LOCATION_COPY,
@@ -13,6 +13,7 @@ import {
   GUESTS_SECTION_CLASS,
   GUESTS_SECTION_TITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
+import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
 
 function CountRow({ label, value }: { label: string; value: string }) {
   return (
@@ -147,26 +148,10 @@ export function ManagePlanCancelPlanControl({
         </Button>
       </div>
 
-      {cancelPlanConfirm?.open ? (
-        <AccountWorkspaceConfirmDialog
-          open
-          title={cancelPlanConfirm.title}
-          body={cancelPlanConfirm.body}
-          primaryLabel={cancelPlanConfirm.primaryLabel}
-          busy={cancelPlanConfirm.busy}
-          onOpenChange={(open) => {
-            if (!open) {
-              pageModule.cancelCancelPlan()
-            }
-          }}
-          onPrimary={() => {
-            void pageModule.confirmCancelPlan()
-          }}
-          onCancel={() => {
-            pageModule.cancelCancelPlan()
-          }}
-        />
-      ) : null}
+      <CancelSubscriptionDialog
+        cancelPlanConfirm={cancelPlanConfirm}
+        pageModule={pageModule}
+      />
     </>
   )
 }

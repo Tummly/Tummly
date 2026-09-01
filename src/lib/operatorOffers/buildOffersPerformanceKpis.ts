@@ -1,6 +1,8 @@
 export type OffersPerformanceFacts = {
   /** Snapshot count of stored Active catalog offers — ignores date window. */
   activeOffers: number
+  /** Account-wide plan cap when entitlements are available. */
+  activeOffersCap?: number
   offersIssued: number
   claims: number
   redemptions: number
@@ -35,13 +37,20 @@ export function formatClaimToRedemptionRate(
 export function buildOffersPerformanceKpis(
   facts: OffersPerformanceFacts
 ): OperatorOffersKpi[] {
+  const activeOffersPrimary =
+    facts.activeOffersCap != null && facts.activeOffersCap > 0
+      ? `${facts.activeOffers} of ${facts.activeOffersCap}`
+      : String(facts.activeOffers)
+
   return [
     {
       id: "active-offers",
       label: "Active offers",
-      primaryText: String(facts.activeOffers),
+      primaryText: activeOffersPrimary,
       helperText:
-        "Offers currently available for valid issuance or redemption.",
+        facts.activeOffersCap != null && facts.activeOffersCap > 0
+          ? "Account-wide active offers compared with your plan limit."
+          : "Offers currently available for valid issuance or redemption.",
     },
     {
       id: "offers-issued",

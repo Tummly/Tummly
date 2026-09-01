@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Scan;
+using TummlyBackend.DTOs.Scan;
 using TummlyBackend.DTOs.SmartGuestLink;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -22,6 +23,7 @@ namespace TummlyBackend.Controllers
         private readonly IFeedbackClassificationWork _classificationWork;
         private readonly ISpeechToTextProvider _speechToText;
         private readonly IOfferIssueService _offerIssues;
+        private readonly IGuestFormPermissionApplyService _guestFormPermissions;
 
         public ScanController(
             ApplicationDbContext context,
@@ -31,7 +33,8 @@ namespace TummlyBackend.Controllers
             IMemoryCache cache,
             IFeedbackClassificationWork classificationWork,
             ISpeechToTextProvider speechToText,
-            IOfferIssueService offerIssues
+            IOfferIssueService offerIssues,
+            IGuestFormPermissionApplyService guestFormPermissions
         )
         {
             _context = context;
@@ -42,6 +45,7 @@ namespace TummlyBackend.Controllers
             _classificationWork = classificationWork;
             _speechToText = speechToText;
             _offerIssues = offerIssues;
+            _guestFormPermissions = guestFormPermissions;
         }
 
         /*
@@ -103,13 +107,19 @@ namespace TummlyBackend.Controllers
                     );
                     await _context.SaveChangesAsync();
 
+                    var restaurant = await LoadRestaurantForLocationAsync(
+                        location.LocationId
+                    );
+                    var guestFormConsent = BuildGuestFormConsentDto(restaurant);
+
                     return Ok(new
                     {
                         success = true,
                         restaurantName = location.RestaurantName,
                         locationName = location.LocationName,
                         address = location.Address,
-                        brandLogoPublicUrl = location.BrandLogoPublicUrl
+                        brandLogoPublicUrl = location.BrandLogoPublicUrl,
+                        guestFormConsent,
                     });
                 }
 
@@ -276,6 +286,18 @@ namespace TummlyBackend.Controllers
                         dto.OffersOptOut
                     );
 
+                    var restaurant = await _context.Restaurants
+                        .FirstAsync(r => r.Id == location.RestaurantId);
+
+                    var submitAt = DateTime.UtcNow;
+                    await _guestFormPermissions.ApplyOnSubmitAsync(
+                        locationGuest,
+                        restaurant,
+                        location.Id,
+                        !dto.OffersOptOut,
+                        submitAt
+                    );
+
                     feedback = new Feedback
                     {
                         RestaurantLocationId = location.Id,
@@ -287,7 +309,7 @@ namespace TummlyBackend.Controllers
                         Comment = dto.Comment.Trim(),
                         OffersOptOut = dto.OffersOptOut,
                         ClassificationStatus = ClassificationStatus.Pending,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = submitAt
                     };
 
                     _context.Feedbacks.Add(feedback);
@@ -507,6 +529,39 @@ namespace TummlyBackend.Controllers
             }
 
             return ContactType.Unknown;
+        }
+
+        private async Task<Restaurant> LoadRestaurantForLocationAsync(
+            int locationId
+        )
+        {
+            var restaurantId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == locationId)
+                .Select(row => row.RestaurantId)
+                .FirstAsync();
+
+            return await _context.Restaurants
+                .AsNoTracking()
+                .FirstAsync(r => r.Id == restaurantId);
+        }
+
+        private static GuestFormConsentDto BuildGuestFormConsentDto(
+            Restaurant restaurant
+        )
+        {
+            return new GuestFormConsentDto
+            {
+                EmailMarketingEnabled =
+                    restaurant.EmailMarketingPermissionEnabled,
+                SmsMarketingEnabled = restaurant.SmsMarketingPermissionEnabled,
+                FeedbackFollowUpEnabled =
+                    restaurant.FeedbackFollowUpPermissionEnabled,
+                EmailConsentWording = restaurant.EmailConsentWording,
+                SmsConsentWording = restaurant.SmsConsentWording,
+                FeedbackFollowUpWording =
+                    GuestFormConsentCopy.FeedbackFollowUpWording,
+            };
         }
     }
 }

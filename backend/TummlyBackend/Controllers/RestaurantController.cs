@@ -72,6 +72,10 @@ namespace TummlyBackend.Controllers
                 .Where(row =>
                     row.RestaurantId == restaurant.Id
                     && scopedIds.Contains(row.Id)
+                    && (
+                        row.LifecycleStatus == LocationLifecycleStatus.Active
+                        || row.LifecycleStatus == LocationLifecycleStatus.Paused
+                    )
                 )
                 .OrderBy(row => row.CreatedAt)
                 .Select(row => new
@@ -81,7 +85,8 @@ namespace TummlyBackend.Controllers
                     row.Address,
                     row.LocationPhone,
                     row.LocalContact,
-                    row.CreatedAt
+                    row.CreatedAt,
+                    LifecycleStatus = row.LifecycleStatus,
                 })
                 .ToListAsync();
 
@@ -165,7 +170,11 @@ namespace TummlyBackend.Controllers
                         : "",
                     row.LocationPhone,
                     row.LocalContact,
-                    row.CreatedAt
+                    row.CreatedAt,
+                    lifecycleStatus =
+                        row.LifecycleStatus == LocationLifecycleStatus.Paused
+                            ? "paused"
+                            : "active",
                 })
             });
         }

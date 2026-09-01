@@ -102,12 +102,18 @@ export async function fetchWorkspaceLocations() {
   }
 }
 
-export async function submitWorkspaceSelection(locationId: number) {
+export async function submitWorkspaceSelection(locationId: number): Promise<{
+  locationId: number
+  accountType: string | null
+}> {
   assertSignedIn()
 
   try {
     const result = await selectWorkspaceApi(locationId)
-    return readNumber(result, "locationId") ?? locationId
+    return {
+      locationId: readNumber(result, "locationId") ?? locationId,
+      accountType: readString(result, "accountType"),
+    }
   } catch (error) {
     rethrowAuthApiError(error, "Unable to save workspace selection.")
   }

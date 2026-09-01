@@ -9,7 +9,10 @@ import type {
   OperatorSidebarNavModel,
   OperatorSidebarPrimaryNavId,
 } from "@/lib/operatorHome/sidebarNav"
-import { resolveSettingsDisclosureOpen } from "@/lib/operatorHome/sidebarNav"
+import {
+  resolveSettingsChromeActive,
+  resolveSettingsDisclosureOpen,
+} from "@/lib/operatorHome/sidebarNav"
 import { tryLeaveDirtyNavigate } from "@/lib/operatorNavigation/leaveDirtyGuard"
 
 import chevronIcon from "@/assets/operator-home/sidenav/chevron.svg"
@@ -195,6 +198,9 @@ export function DashboardSidebar({
     sidebarNav.settings.forceExpanded
   )
   const showSettingsChildren = !collapsed && settingsOpen
+  const settingsChromeActive = resolveSettingsChromeActive(
+    sidebarNav.settings.forceExpanded
+  )
 
   return (
     <aside
@@ -300,16 +306,22 @@ export function DashboardSidebar({
                   title="Settings"
                   className={cn(
                     navItemClass({
-                      active: false,
+                      active: settingsChromeActive,
                       collapsed: true,
                       interactive: true,
                     }),
-                    "h-auto min-h-0 justify-center gap-0 rounded-none border-0 px-1.5 py-1 text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default"
+                    "h-auto min-h-0 justify-center gap-0 rounded-none border-0 px-1.5 py-1",
+                    !settingsChromeActive &&
+                      "text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default"
                   )}
                   onClick={onExpandSidebarAndOpenSettings}
                 >
                   <span className="flex size-[42px] shrink-0 items-center justify-center rounded-[4px] p-3">
-                    <SideNavIcon src={settingsIcon} enabled />
+                    <SideNavIcon
+                      src={settingsIcon}
+                      active={settingsChromeActive}
+                      enabled
+                    />
                   </span>
                 </Button>
               ) : (
@@ -320,11 +332,14 @@ export function DashboardSidebar({
                   aria-expanded={settingsOpen}
                   className={cn(
                     navItemClass({
-                      active: false,
+                      active: settingsChromeActive,
                       collapsed: false,
                       interactive: true,
                     }),
-                    "h-auto min-h-0 justify-between gap-0 rounded-none border-0 px-1.5 py-1 pr-[18px] text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default aria-expanded:bg-transparent aria-expanded:text-op-sidebar-item-default"
+                    "h-auto min-h-0 justify-between gap-0 rounded-none border-0 px-1.5 py-1 pr-[18px]",
+                    settingsChromeActive
+                      ? "hover:bg-op-sidebar-item-active-background hover:text-op-sidebar-item-active"
+                      : "text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default aria-expanded:bg-transparent aria-expanded:text-op-sidebar-item-default"
                   )}
                   onClick={onToggleSettingsExpanded}
                 >
@@ -332,10 +347,12 @@ export function DashboardSidebar({
                     label={sidebarNav.settings.label}
                     collapsed={false}
                     iconSrc={settingsIcon}
+                    active={settingsChromeActive}
                     enabled
                     trailing={
                       <SideNavIcon
                         src={chevronIcon}
+                        active={settingsChromeActive}
                         enabled
                         className={cn(
                           "transition-transform duration-200 ease-out motion-reduce:transition-none",

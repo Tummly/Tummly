@@ -393,9 +393,9 @@ describe("createOperatorBillingCreditsPageModule", () => {
     const module = createTestModule()
     await module.load()
     const sms = module.getSnapshot().channelCards.find((card) => card.channel === "sms")
-    expect(sms?.headline).toBe("428 remaining")
+    expect(sms?.headline).toBe("428 of 500 remaining")
     expect(sms?.subline).toBe("72 of 500 included used")
-    expect(sms?.fillRatio).toBeCloseTo(428 / 500)
+    expect(sms?.fillRatio).toBeCloseTo(72 / 500)
   })
 
   it("shows 100% copy on depleted channels", async () => {
@@ -856,9 +856,14 @@ describe("createOperatorBillingCreditsPageModule", () => {
     await module.load()
 
     module.requestCancelPlan()
+    module.setCancelPlanReason("too_expensive")
+    module.setCancelPlanAcknowledged(true)
     await module.confirmCancelPlan()
 
-    expect(cancelPlan).toHaveBeenCalledTimes(1)
+    expect(cancelPlan).toHaveBeenCalledWith({
+      reason: "too_expensive",
+      additionalNotes: null,
+    })
     expect(module.getSnapshot().planSubscription?.scheduledChangeLine).toBe(
       "Cancels on 15 September 2026"
     )

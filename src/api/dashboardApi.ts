@@ -6,6 +6,16 @@ import type {
   GuestsExportQueryParams,
   GuestsListQueryParams,
 } from "@/lib/operatorGuests/guestsListQueryParams"
+import type {
+  LocationsActivityApiItem,
+  LocationsActivityResponse,
+  LocationsListQueryParams,
+  LocationsListResponse,
+} from "@/lib/operatorLocations/locationsListQueryParams"
+import type {
+  LocationDetailApiResponse,
+  UpdateLocationDetailInput,
+} from "@/lib/operatorLocations/locationDetailApi"
 import {
   mapCreatedGuestTagApiToGuestTag,
   mapGuestTagApiRowToGuestTag,
@@ -141,6 +151,66 @@ export const getLocations = async (): Promise<LocationsResponse> => {
     "/restaurant/locations"
   )
   return response.data
+}
+
+/** GET /api/locations — Settings Locations list + KPIs. */
+export const getLocationsList = async (
+  params: LocationsListQueryParams
+): Promise<LocationsListResponse> => {
+  const response = await axiosInstance.get<LocationsListResponse>(
+    "/locations",
+    {
+      params,
+      paramsSerializer: serializeRepeatedParams,
+    }
+  )
+  return response.data
+}
+
+/** GET /api/locations/:locationId/detail — Settings Location detail header + checklist. */
+export const getLocationDetail = async (
+  locationId: number
+): Promise<LocationDetailApiResponse> => {
+  const response = await axiosInstance.get<LocationDetailApiResponse>(
+    `/locations/${locationId}/detail`
+  )
+  return response.data
+}
+
+/** PUT /api/locations/:locationId — Settings edit location details. */
+export const updateLocationDetail = async (
+  locationId: number,
+  input: UpdateLocationDetailInput
+): Promise<{ success: boolean }> => {
+  const response = await axiosInstance.put<{ success: boolean }>(
+    `/locations/${locationId}`,
+    input
+  )
+  return response.data
+}
+
+/** POST /api/locations/:id/(pause|resume|archive|restore) — Settings lifecycle. */
+export const mutateLocationLifecycle = async (
+  locationId: number,
+  action: "pause" | "resume" | "archive" | "restore"
+): Promise<{ success: boolean; lifecycleStatus?: string }> => {
+  const response = await axiosInstance.post<{
+    success: boolean
+    lifecycleStatus?: string
+  }>(`/locations/${locationId}/${action}`)
+  return response.data
+}
+
+export type { LocationsActivityApiItem, LocationsActivityResponse }
+
+/** GET /api/locations/activity — Settings Locations Activity tab feed. */
+export const getLocationsActivity = async (): Promise<{
+  items: LocationsActivityApiItem[]
+}> => {
+  const response = await axiosInstance.get<LocationsActivityResponse>(
+    "/locations/activity"
+  )
+  return { items: response.data.items }
 }
 
 export const getFeedback = async (

@@ -1,3 +1,5 @@
+using TummlyBackend.DTOs.BillingCredits;
+
 namespace TummlyBackend.DTOs.Offers
 {
     public sealed class CatalogOffersListItemDto
@@ -56,6 +58,8 @@ namespace TummlyBackend.DTOs.Offers
         public int PageSize { get; init; }
 
         public CatalogOffersTabCountsDto TabCounts { get; init; } = new();
+
+        public PlanEntitlementsAccountSnapshotDto Entitlements { get; init; } = new();
     }
 
     public sealed class CatalogOffersListQuery

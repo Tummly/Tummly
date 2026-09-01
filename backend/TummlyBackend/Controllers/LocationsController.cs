@@ -14,14 +14,164 @@ namespace TummlyBackend.Controllers
     {
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IOwnedLocationInsertService _insert;
+        private readonly ILocationsListService _list;
+        private readonly ILocationsDetailService _detail;
+        private readonly ILocationsLifecycleWriteService _lifecycleWrite;
+        private readonly ILocationLifecycleService _lifecycle;
+        private readonly ILocationsActivityService _activity;
 
         public LocationsController(
             IRestaurantPermissionHelper permissions,
-            IOwnedLocationInsertService insert
+            IOwnedLocationInsertService insert,
+            ILocationsListService list,
+            ILocationsDetailService detail,
+            ILocationsLifecycleWriteService lifecycleWrite,
+            ILocationLifecycleService lifecycle,
+            ILocationsActivityService activity
         )
         {
             _permissions = permissions;
             _insert = insert;
+            _list = list;
+            _detail = detail;
+            _lifecycleWrite = lifecycleWrite;
+            _lifecycle = lifecycle;
+            _activity = activity;
+        }
+
+        [HttpGet("activity")]
+        public async Task<IActionResult> GetActivity()
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out _);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeLocationSetAsync(
+                User,
+                OperatorAreaIds.Locations,
+                PermissionLevel.View
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _activity.GetActivityAsync(
+                new LocationsActivityQuery
+                {
+                    RestaurantId = decision.RestaurantId,
+                    LocationIds = decision.LocationIds,
+                }
+            );
+            return Ok(result);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetLocations(
+            [FromQuery] string? q = null,
+            [FromQuery] string[]? lifecycle = null,
+            [FromQuery] string[]? setup = null,
+            [FromQuery] string[]? city = null,
+            [FromQuery] string sort = "name-asc",
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out _);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeLocationSetAsync(
+                User,
+                OperatorAreaIds.Locations,
+                PermissionLevel.View
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _list.GetListAsync(
+                    new LocationsListQuery
+                    {
+                        RestaurantId = decision.RestaurantId,
+                        LocationIds = decision.LocationIds,
+                        Q = q,
+                        Lifecycle = lifecycle ?? [],
+                        Setup = setup ?? [],
+                        City = city ?? [],
+                        Sort = sort,
+                        Page = page,
+                        PageSize = pageSize,
+                    }
+                );
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpGet("{locationId:int}/detail")]
+        public async Task<IActionResult> GetLocationDetail(int locationId)
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out _);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeLocationSetAsync(
+                User,
+                OperatorAreaIds.Locations,
+                PermissionLevel.View
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            if (!decision.LocationIds.Contains(locationId))
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Location not found.",
+                });
+            }
+
+            var result = await _detail.GetDetailAsync(
+                new LocationDetailQuery
+                {
+                    RestaurantId = decision.RestaurantId,
+                    LocationId = locationId,
+                }
+            );
+
+            if (result == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Location not found.",
+                });
+            }
+
+            return Ok(result);
         }
 
         [HttpPost]
@@ -29,7 +179,7 @@ namespace TummlyBackend.Controllers
             [FromBody] AddOwnedLocationRequest request
         )
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out _);
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
             if (unauthorized != null)
             {
                 return unauthorized;
@@ -48,6 +198,7 @@ namespace TummlyBackend.Controllers
 
             var result = await _insert.AddAsync(
                 decision.RestaurantId,
+                userId,
                 request
             );
 
@@ -57,6 +208,11 @@ namespace TummlyBackend.Controllers
                 {
                     success = true,
                     locationId = created.LocationId,
+                }),
+                AddOwnedLocationResult.InvalidRequest invalid => BadRequest(new
+                {
+                    success = false,
+                    message = invalid.Message,
                 }),
                 AddOwnedLocationResult.CapReached cap => Conflict(new
                 {
@@ -75,6 +231,279 @@ namespace TummlyBackend.Controllers
                     {
                         success = false,
                         message = "Unexpected add-location result.",
+                    }
+                ),
+            };
+        }
+
+        /// <summary>
+        /// Bulk import Draft Owned locations (partial-success). Valid rows
+        /// insert until the location cap; invalid and overflow rows return
+        /// per-row errors. Fail-closed billing rejects the whole request when
+        /// nothing was created.
+        /// </summary>
+        [HttpPost("import")]
+        public async Task<IActionResult> ImportOwnedLocations(
+            [FromBody] ImportOwnedLocationsRequest request
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeAsync(
+                User,
+                OperatorAreaIds.Locations,
+                PermissionLevel.Manage
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _insert.ImportAsync(
+                decision.RestaurantId,
+                userId,
+                request
+            );
+
+            return result switch
+            {
+                ImportOwnedLocationsResult.Completed completed => Ok(new
+                {
+                    success = true,
+                    created = completed.Created.Select(row => new
+                    {
+                        rowIndex = row.RowIndex,
+                        locationId = row.LocationId,
+                    }),
+                    errors = completed.Errors.Select(row => new
+                    {
+                        rowIndex = row.RowIndex,
+                        message = row.Message,
+                        code = row.Code,
+                        cap = row.Cap,
+                        current = row.Current,
+                    }),
+                }),
+                ImportOwnedLocationsResult.InvalidRequest invalid => BadRequest(
+                    new
+                    {
+                        success = false,
+                        message = invalid.Message,
+                    }
+                ),
+                ImportOwnedLocationsResult.FailClosed => Conflict(new
+                {
+                    success = false,
+                }),
+                _ => StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "Unexpected import-locations result.",
+                    }
+                ),
+            };
+        }
+
+        [HttpPost("{locationId:int}/activate")]
+        public async Task<IActionResult> ActivateDraft(int locationId)
+        {
+            return await RunLifecycleWriteAsync(
+                locationId,
+                (restaurantId, userId) =>
+                    _lifecycleWrite.ActivateDraftAsync(restaurantId, locationId, userId)
+            );
+        }
+
+        [HttpDelete("{locationId:int}")]
+        public async Task<IActionResult> DeleteDraft(int locationId)
+        {
+            return await RunLifecycleWriteAsync(
+                locationId,
+                (restaurantId, userId) =>
+                    _lifecycleWrite.DeleteDraftAsync(restaurantId, locationId, userId)
+            );
+        }
+
+        [HttpPut("{locationId:int}/manager")]
+        public async Task<IActionResult> SetManager(
+            int locationId,
+            [FromBody] SetLocationManagerRequest request
+        )
+        {
+            return await RunLifecycleWriteAsync(
+                locationId,
+                (restaurantId, userId) =>
+                    _lifecycleWrite.SetManagerAsync(
+                        restaurantId,
+                        locationId,
+                        userId,
+                        request.ManagerUserId
+                    )
+            );
+        }
+
+        [HttpPut("{locationId:int}")]
+        public async Task<IActionResult> UpdateLocation(
+            int locationId,
+            [FromBody] AddOwnedLocationRequest request
+        )
+        {
+            return await RunLifecycleWriteAsync(
+                locationId,
+                (restaurantId, userId) =>
+                    _lifecycleWrite.EditDetailsAsync(
+                        restaurantId,
+                        locationId,
+                        userId,
+                        request
+                    )
+            );
+        }
+
+        [HttpPost("{locationId:int}/pause")]
+        public Task<IActionResult> PauseLocation(int locationId) =>
+            MutateLifecycleAsync(locationId, _lifecycle.PauseAsync);
+
+        [HttpPost("{locationId:int}/resume")]
+        public Task<IActionResult> ResumeLocation(int locationId) =>
+            MutateLifecycleAsync(locationId, _lifecycle.ResumeAsync);
+
+        [HttpPost("{locationId:int}/archive")]
+        public Task<IActionResult> ArchiveLocation(int locationId) =>
+            MutateLifecycleAsync(locationId, _lifecycle.ArchiveAsync);
+
+        [HttpPost("{locationId:int}/restore")]
+        public Task<IActionResult> RestoreLocation(int locationId) =>
+            MutateLifecycleAsync(locationId, _lifecycle.RestoreAsync);
+
+        private async Task<IActionResult> RunLifecycleWriteAsync(
+            int locationId,
+            Func<int, int, Task<LocationLifecycleWriteResult>> action
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeLocationSetAsync(
+                User,
+                OperatorAreaIds.Locations,
+                PermissionLevel.Manage
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            if (!decision.LocationIds.Contains(locationId))
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Location not found.",
+                });
+            }
+
+            var result = await action(decision.RestaurantId, userId);
+            return result switch
+            {
+                LocationLifecycleWriteResult.Ok => Ok(new { success = true }),
+                LocationLifecycleWriteResult.NotFound => NotFound(new
+                {
+                    success = false,
+                    message = "Location not found.",
+                }),
+                LocationLifecycleWriteResult.InvalidRequest invalid => BadRequest(
+                    new
+                    {
+                        success = false,
+                        message = invalid.Message,
+                    }
+                ),
+                LocationLifecycleWriteResult.Conflict conflict => Conflict(new
+                {
+                    success = false,
+                    message = conflict.Message,
+                }),
+                _ => StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "Unexpected location write result.",
+                    }
+                ),
+            };
+        }
+
+        private async Task<IActionResult> MutateLifecycleAsync(
+            int locationId,
+            Func<LocationLifecycleCommand, Task<LocationLifecycleResult>> action
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(
+                User,
+                out var userId
+            );
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeLocationAsync(
+                User,
+                OperatorAreaIds.Locations,
+                PermissionLevel.Manage,
+                locationId
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await action(
+                new LocationLifecycleCommand
+                {
+                    UserId = userId,
+                    RestaurantId = decision.RestaurantId,
+                    LocationId = locationId,
+                }
+            );
+
+            return result.Kind switch
+            {
+                LocationLifecycleResultKind.Ok => Ok(new
+                {
+                    success = true,
+                    lifecycleStatus = result.LifecycleStatus,
+                }),
+                LocationLifecycleResultKind.NotFound => NotFound(new
+                {
+                    success = false,
+                    message = result.Message,
+                }),
+                LocationLifecycleResultKind.InvalidTransition => Conflict(new
+                {
+                    success = false,
+                    message = result.Message,
+                }),
+                _ => StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "Unexpected location lifecycle result.",
                     }
                 ),
             };

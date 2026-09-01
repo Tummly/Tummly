@@ -585,6 +585,11 @@ export type CatalogOffersListResponse = {
   page: number
   pageSize: number
   tabCounts: CatalogOffersListTabCounts
+  entitlements?: {
+    locations?: Record<string, unknown>
+    teamMembers?: Record<string, unknown>
+    activeOffers?: Record<string, unknown>
+  }
 }
 
 export type OffersNeedsAttentionWarningType = "expiry" | "void"

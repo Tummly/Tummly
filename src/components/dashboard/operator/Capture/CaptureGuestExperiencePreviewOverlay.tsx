@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import { XIcon } from "lucide-react"
 
 import { GuestFeedbackForm } from "@/components/guest-feedback/GuestFeedbackForm"
+import { GUEST_FORM_CONSENT_DEMO } from "@/lib/guestFeedback/guestFormConsentPresentation"
 import { GuestFeedbackShell } from "@/components/guest-feedback/GuestFeedbackShell"
 import { GuestFeedbackSuccess } from "@/components/guest-feedback/GuestFeedbackSuccess"
 import { Button } from "@/components/ui/button"
@@ -228,6 +229,7 @@ export function CaptureGuestExperiencePreviewOverlay({
                 token=""
                 locationName={guestExperience.locationName}
                 address={guestExperience.locationAddress}
+                guestFormConsent={GUEST_FORM_CONSENT_DEMO}
                 isSubmitting={false}
                 submitError={null}
                 onSubmit={async () => {}}

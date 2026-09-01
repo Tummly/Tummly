@@ -131,6 +131,38 @@ namespace TummlyBackend.Models
         [MaxLength(200)]
         public string? DefaultCampaignSenderName { get; set; }
 
+        /*
+         =========================================
+         PRIVACY CONSENT READY
+         Null = privacy incomplete (setup attention).
+         Migration sets UtcNow for existing restaurants;
+         new restaurants stay null until saved.
+         =========================================
+        */
+
+        public DateTime? PrivacyConsentReadyAt { get; set; }
+
+        [MaxLength(2000)]
+        public string? SmsConsentWording { get; set; }
+
+        [MaxLength(2000)]
+        public string? EmailConsentWording { get; set; }
+
+        /*
+         =========================================
+         GUEST PERMISSION CHANNEL TOGGLES
+         Restaurant-wide. Off blocks sends on that
+         channel even when a guest previously granted.
+         New restaurants and migration default Enabled.
+         =========================================
+        */
+
+        public bool EmailMarketingPermissionEnabled { get; set; } = true;
+
+        public bool SmsMarketingPermissionEnabled { get; set; } = true;
+
+        public bool FeedbackFollowUpPermissionEnabled { get; set; } = true;
+
     }
 
 

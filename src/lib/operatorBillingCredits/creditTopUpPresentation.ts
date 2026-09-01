@@ -37,7 +37,7 @@ export type CreditTopUpCardViewModel = {
   channel: CreditChannelId
   title: string
   remainingHeadline: string
-  detailLine: string | null
+  detailLine: string
   packs: CreditTopUpPackChipViewModel[]
   selectedNetLabel: string | null
   buyLabel: string
@@ -139,18 +139,17 @@ export function buildCreditTopUpCards(options: {
         : undefined
 
     const chipsDisabled = options.isPilot || !options.canBuy
-    const buyDisabled =
-      chipsDisabled || selectedPack == null
+    const buyDisabled = chipsDisabled || selectedPack == null
+    const unit = channel === "email" ? "sends" : "credits"
 
     return {
       channel,
       title: creditChannelLabel(channel),
-      remainingHeadline: `${formatCreditCount(remaining)} remaining`,
-      detailLine:
-        channel === "ai" ? "Operator-triggered AI actions only." : null,
+      remainingHeadline: `${formatCreditCount(remaining)} ${unit}`,
+      detailLine: creditTopUpDetailLine(channel),
       packs: packs.map((pack) => ({
         quantity: pack.quantity,
-        label: `${formatCreditCount(pack.quantity)} credits`,
+        label: `${formatCreditCount(pack.quantity)} ${unit}`,
         selected: selectedQuantity === pack.quantity,
       })),
       selectedNetLabel:
@@ -163,6 +162,17 @@ export function buildCreditTopUpCards(options: {
       showPilotNotice: options.isPilot,
     }
   })
+}
+
+function creditTopUpDetailLine(channel: CreditChannelId): string {
+  switch (channel) {
+    case "sms":
+      return "Use SMS credits for eligible guest campaigns, reminders and offer messages."
+    case "ai":
+      return "Use AI credits for operator-triggered briefs, drafts and regenerations."
+    case "email":
+      return "Use email sends for eligible guest campaigns and recovery messages."
+  }
 }
 
 export function buildCreditTopUpConfirmCopy(options: {

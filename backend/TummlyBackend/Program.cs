@@ -477,6 +477,14 @@ builder.Services.AddScoped<
     GuestMarketingPreferenceUpdateService
 >();
 builder.Services.AddScoped<
+    ILocationGuestPermissionLedgerService,
+    LocationGuestPermissionLedgerService
+>();
+builder.Services.AddScoped<
+    IGuestFormPermissionApplyService,
+    GuestFormPermissionApplyService
+>();
+builder.Services.AddScoped<
     ILocationGuestDeleteService,
     LocationGuestDeleteService
 >();
@@ -487,10 +495,25 @@ builder.Services.AddScoped<
 
 builder.Services.AddScoped<IOwnedLocationService, OwnedLocationService>();
 builder.Services.AddScoped<IOwnedLocationInsertService, OwnedLocationInsertService>();
+builder.Services.AddScoped<ILocationsListService, LocationsListService>();
+builder.Services.AddScoped<LocationDetailOverviewComposer>();
+builder.Services.AddScoped<LocationDetailQrRowsComposer>();
+builder.Services.AddScoped<LocationDetailOfferCardsComposer>();
+builder.Services.AddScoped<ILocationsDetailService, LocationsDetailService>();
+builder.Services.AddScoped<ILocationsActivityService, LocationsActivityService>();
+builder.Services.AddScoped<ILocationsLifecycleWriteService, LocationsLifecycleWriteService>();
+builder.Services.AddScoped<ILocationLifecycleService, LocationLifecycleService>();
+builder.Services.AddScoped<IPrivacyConsentSaveService, PrivacyConsentSaveService>();
+builder.Services.AddScoped<IPrivacyConsentService, PrivacyConsentService>();
+builder.Services.AddScoped<
+    IPermissionRecordsListService,
+    PermissionRecordsListService
+>();
 
 builder.Services.AddScoped<IAccountWorkspaceService, AccountWorkspaceService>();
 builder.Services.AddScoped<ITeamPermissionsService, TeamPermissionsService>();
 builder.Services.AddScoped<ITeamMemberCapGate, TeamMemberCapGate>();
+builder.Services.AddScoped<IPlanEntitlementsSnapshot, PlanEntitlementsSnapshotService>();
 builder.Services.AddSingleton<IPricebookCatalog>(sp =>
     PricebookCatalog.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
 );
@@ -538,6 +561,7 @@ builder.Services.AddScoped<
 >();
 builder.Services.AddScoped<ICreditTopUpPaySession, CreditTopUpPaySessionService>();
 builder.Services.AddScoped<ICycleEndPlanChange, CycleEndPlanChangeService>();
+builder.Services.AddScoped<ICycleEndPlanCancel, CycleEndPlanCancelService>();
 builder.Services.AddScoped<
     IRevolutOrderCompletedApplier,
     RevolutOrderCompletedApplier

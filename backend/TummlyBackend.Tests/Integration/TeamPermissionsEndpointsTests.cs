@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -363,6 +364,44 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal($"{OperatorAreaIds.BillingCredits}:View", rows[1].FromValue);
             Assert.Equal($"{OperatorAreaIds.BillingCredits}:Manage", rows[1].ToValue);
             Assert.All(rows, row => Assert.Equal(seeded.OwnerUserId, row.ActorUserId));
+        }
+
+        [Fact]
+        public async Task PutMatrix_Returns403_WhenMatrixEditDisabled()
+        {
+            await using var factory = _factory.WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureAppConfiguration((_, config) =>
+                {
+                    config.AddInMemoryCollection(
+                        new Dictionary<string, string?>
+                        {
+                            ["TeamPermissions:AllowMatrixEdit"] = "false",
+                        }
+                    );
+                });
+            });
+            var client = factory.CreateClient();
+            var seeded = await SeedWorkspaceAsync();
+            using var request = AuthorizedJson(
+                HttpMethod.Put,
+                "/api/team-permissions/matrix",
+                seeded.OwnerJwt,
+                new
+                {
+                    adminCells = new[]
+                    {
+                        new { areaId = OperatorAreaIds.BillingCredits, level = "Manage" },
+                    },
+                }
+            );
+            var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "Permission matrix editing is disabled.",
+                body.GetProperty("message").GetString()
+            );
         }
 
         [Fact]

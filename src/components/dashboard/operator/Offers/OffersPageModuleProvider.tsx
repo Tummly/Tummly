@@ -52,8 +52,14 @@ export function OffersPageModuleProvider({
         voidAdapters.listOpenVoidAttention(locationId),
       getOffersPerformance: async (locationId, from, to) => {
         const response = await getOffersPerformance({ locationId, from, to })
+        const cap =
+          response.entitlements?.activeOffers &&
+          typeof response.entitlements.activeOffers === "object"
+            ? (response.entitlements.activeOffers as { cap?: number }).cap
+            : undefined
         return {
           activeOffers: response.activeOffers,
+          activeOffersCap: cap ?? null,
           offersIssued: response.offersIssued,
           claims: response.claims,
           redemptions: response.redemptions,

@@ -13,6 +13,7 @@ function createDetails(
 ): AccountWorkspaceDetails {
   return {
     workspaceName: "Camden Group",
+    guestFacingBusinessName: "Camden Kitchen",
     accountStructure: "Single location",
     businessCategory: "cafe",
     businessCategoryLabel: "Café / coffee shop",

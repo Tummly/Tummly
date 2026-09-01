@@ -9,6 +9,7 @@ import {
   buildOffersPerformanceKpis,
   type OperatorOffersKpi,
 } from "@/lib/operatorOffers/buildOffersPerformanceKpis"
+import { normalizePlanEntitlementsAccount } from "@/lib/planEntitlements/planEntitlementsPresentation"
 import {
   buildExpiringOffersWarningFact,
   buildOpenVoidWarningFacts,
@@ -215,6 +216,7 @@ export type OperatorOffersPageSnapshot = {
 export type OperatorOffersPerformanceFacts = {
   /** Snapshot count of stored Active catalog offers — ignores date window. */
   activeOffers: number
+  activeOffersCap?: number | null
   offersIssued: number
   claims: number
   redemptions: number
@@ -342,6 +344,8 @@ type OffersState = {
   performanceLoadGeneration: number
   /** Snapshot Active-offers count — independent of the date window. */
   activeOffersCount: number
+  /** Account-wide plan cap when entitlements are available. */
+  activeOffersCap: number | null
   /** Window event counts from getOffersPerformance for the selected range. */
   windowCounts: {
     offersIssued: number
@@ -503,18 +507,32 @@ function buildListViewModel(input: {
 function assemblePerformance(
   dateRange: HomePerformanceDateRange,
   activeOffersCount: number,
-  windowCounts: OffersState["windowCounts"]
+  windowCounts: OffersState["windowCounts"],
+  activeOffersCap: number | null
 ): OperatorOffersPerformanceView {
   return {
     selectedRange: dateRange,
     dateRangeLabel: labelForHomePerformanceDateRange(dateRange),
     kpis: buildOffersPerformanceKpis({
       activeOffers: activeOffersCount,
+      activeOffersCap: activeOffersCap ?? undefined,
       offersIssued: windowCounts.offersIssued,
       claims: windowCounts.claims,
       redemptions: windowCounts.redemptions,
     }),
   }
+}
+
+function readActiveOffersCap(
+  entitlements: CatalogOffersListResponse["entitlements"] | undefined
+): number | null {
+  const normalized = normalizePlanEntitlementsAccount(
+    entitlements as Record<string, unknown> | undefined
+  )
+  if (!normalized.activeOffers.available || normalized.activeOffers.cap < 1) {
+    return null
+  }
+  return normalized.activeOffers.cap
 }
 
 function assembleNeedsAttention(
@@ -573,6 +591,7 @@ function assembleViewModel(
   dateRange: HomePerformanceDateRange,
   activeOffersCount: number,
   windowCounts: OffersState["windowCounts"],
+  activeOffersCap: number | null,
   attentionListItems: readonly CatalogOffersListItem[],
   openVoidAttention: readonly OpenVoidAttentionOffer[],
   overviewClock: { nowMs: number; utcOffsetMinutes: number },
@@ -600,7 +619,8 @@ function assembleViewModel(
     performance: assemblePerformance(
       dateRange,
       activeOffersCount,
-      windowCounts
+      windowCounts,
+      activeOffersCap
     ),
     needsAttention: assembleNeedsAttention(
       location.locationName,
@@ -709,6 +729,7 @@ export function createOperatorOffersPageModule(
     performanceDateRange: DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
     performanceLoadGeneration: 0,
     activeOffersCount: 0,
+    activeOffersCap: null,
     windowCounts: {
       offersIssued: 0,
       claims: 0,
@@ -843,6 +864,8 @@ export function createOperatorOffersPageModule(
     state = {
       ...state,
       activeOffersCount: facts.activeOffers,
+      activeOffersCap:
+        facts.activeOffersCap ?? state.activeOffersCap,
       windowCounts,
       viewModel:
         state.viewModel == null
@@ -852,7 +875,8 @@ export function createOperatorOffersPageModule(
               performance: assemblePerformance(
                 state.performanceDateRange,
                 facts.activeOffers,
-                windowCounts
+                windowCounts,
+                facts.activeOffersCap ?? state.activeOffersCap
               ),
             },
     }
@@ -958,6 +982,7 @@ export function createOperatorOffersPageModule(
                 state.performanceDateRange,
                 state.activeOffersCount,
                 state.windowCounts,
+                state.activeOffersCap,
                 state.attentionListItems,
                 state.openVoidAttention,
                 readOverviewClock(),
@@ -1036,6 +1061,7 @@ export function createOperatorOffersPageModule(
           state.performanceDateRange,
           state.activeOffersCount,
           state.windowCounts,
+          state.activeOffersCap,
           attentionListItems,
           openVoidAttention,
           readOverviewClock(),
@@ -1118,6 +1144,7 @@ export function createOperatorOffersPageModule(
         attentionListItems: [],
         openVoidAttention: [],
         activeOffersCount: 0,
+        activeOffersCap: null,
         windowCounts: {
           offersIssued: 0,
           claims: 0,
@@ -1180,6 +1207,8 @@ export function createOperatorOffersPageModule(
 
       let activeOffersCount = state.activeOffersCount
       let windowCounts = state.windowCounts
+      let activeOffersCap =
+        readActiveOffersCap(listResponse.entitlements) ?? state.activeOffersCap
       if (
         performanceFacts != null
         && performanceGeneration === state.performanceLoadGeneration
@@ -1189,6 +1218,9 @@ export function createOperatorOffersPageModule(
           offersIssued: performanceFacts.offersIssued,
           claims: performanceFacts.claims,
           redemptions: performanceFacts.redemptions,
+        }
+        if (performanceFacts.activeOffersCap != null) {
+          activeOffersCap = performanceFacts.activeOffersCap
         }
       }
 
@@ -1201,6 +1233,7 @@ export function createOperatorOffersPageModule(
         attentionListItems,
         openVoidAttention,
         activeOffersCount,
+        activeOffersCap,
         windowCounts,
         viewModel: assembleViewModel(
           location,
@@ -1216,6 +1249,7 @@ export function createOperatorOffersPageModule(
           state.performanceDateRange,
           activeOffersCount,
           windowCounts,
+          activeOffersCap,
           attentionListItems,
           openVoidAttention,
           readOverviewClock(),
@@ -1452,7 +1486,8 @@ export function createOperatorOffersPageModule(
           performance: assemblePerformance(
             range,
             state.activeOffersCount,
-            state.windowCounts
+            state.windowCounts,
+            state.activeOffersCap
           ),
         },
       }

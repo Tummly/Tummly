@@ -142,19 +142,55 @@ export async function getBillingCreditsUsage(): Promise<CreditsUsageSnapshot> {
   return data
 }
 
+type BillingActivityApiItem = {
+  id?: number
+  kind: string
+  /** Legacy / client-shaped field. */
+  occurredAt?: string
+  /** Current API field from BillingActivityItemDto. */
+  occurredAtUtc?: string
+  sentence?: string | null
+  actorDisplayName?: string | null
+  channel?: string | null
+  qty?: number | null
+  campaignName?: string | null
+  invoiceNo?: string | null
+  creditNoteNo?: string | null
+  plan?: string | null
+  cadence?: string | null
+  scheduledDateLabel?: string | null
+  locationName?: string | null
+  manualAdjustDirection?: string | null
+  consumeSource?: string | null
+}
+
+type BillingActivityApiList = {
+  items?: BillingActivityApiItem[]
+  totalCount?: number
+  page?: number
+  pageSize?: number
+}
+
 export async function getBillingCreditsActivity(params: {
   page: number
   pageSize: number
 }): Promise<BillingActivityList> {
-  const { data } = await axiosInstance.get<BillingActivityList>(
+  const skip = Math.max(0, (params.page - 1) * params.pageSize)
+  const { data } = await axiosInstance.get<BillingActivityApiList>(
     "/billing-credits/activity",
-    { params }
+    {
+      params: {
+        skip,
+        take: params.pageSize,
+      },
+    }
   )
   return {
-    items: (data.items ?? []).map((item) => ({
-      id: item.id,
+    items: (data.items ?? []).map((item, index) => ({
+      id: item.id ?? index + 1,
       kind: item.kind,
-      occurredAt: item.occurredAt,
+      occurredAt: item.occurredAt ?? item.occurredAtUtc ?? "",
+      sentence: item.sentence ?? null,
       actorDisplayName: item.actorDisplayName,
       channel: item.channel,
       qty: item.qty,
@@ -168,9 +204,9 @@ export async function getBillingCreditsActivity(params: {
       manualAdjustDirection: item.manualAdjustDirection,
       consumeSource: item.consumeSource,
     })),
-    totalCount: data.totalCount,
-    page: data.page,
-    pageSize: data.pageSize,
+    totalCount: data.totalCount ?? 0,
+    page: data.page ?? params.page,
+    pageSize: data.pageSize ?? params.pageSize,
   }
 }
 
@@ -324,9 +360,20 @@ type CancelPlanResponse = {
   scheduledChangeLine: string
 }
 
-export async function cancelBillingPlan(): Promise<{ scheduledChangeLine: string }> {
+export type CancelPlanRequestPayload = {
+  reason: string
+  additionalNotes?: string | null
+}
+
+export async function cancelBillingPlan(
+  request: CancelPlanRequestPayload
+): Promise<{ scheduledChangeLine: string }> {
   const { data } = await axiosInstance.post<CancelPlanResponse>(
-    "/billing-credits/cancel-plan"
+    "/billing-credits/cancel-plan",
+    {
+      reason: request.reason,
+      additionalNotes: request.additionalNotes ?? null,
+    }
   )
   return { scheduledChangeLine: data.scheduledChangeLine }
 }

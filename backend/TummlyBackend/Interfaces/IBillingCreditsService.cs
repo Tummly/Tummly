@@ -62,7 +62,8 @@ namespace TummlyBackend.Interfaces
 
         Task<CancelPlanResultDto?> CancelPlanAsync(
             int userId,
-            int restaurantId
+            int restaurantId,
+            CancelPlanRequestDto request
         );
 
         Task<BillingActivityListDto?> GetActivityAsync(

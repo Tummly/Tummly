@@ -19,10 +19,16 @@ namespace TummlyBackend.Services
         public const string SingleUseLabel = "Single-use";
 
         private readonly ApplicationDbContext _context;
+        private readonly ILocationGuestPermissionLedgerService _permissions;
 
-        public OfferIssueService(ApplicationDbContext context)
+        public OfferIssueService(
+            ApplicationDbContext context,
+            ILocationGuestPermissionLedgerService? permissions = null
+        )
         {
             _context = context;
+            _permissions =
+                permissions ?? new LocationGuestPermissionLedgerService(context);
         }
 
         public async Task<OfferIssue?> IssueOnCampaignAcceptedAsync(
@@ -35,8 +41,6 @@ namespace TummlyBackend.Services
             string? preallocatedClaimCode = null
         )
         {
-            _ = channel;
-
             var alreadyIssued = await _context.OfferIssues
                 .AsNoTracking()
                 .AnyAsync(
@@ -50,7 +54,21 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            if (await IsOptedOutAsync(locationGuestId, cancellationToken))
+            if (await IsChannelSendBlockedAsync(
+                    locationGuestId,
+                    channel,
+                    cancellationToken
+                ))
+            {
+                return null;
+            }
+
+            if (
+                await IsGuestLocationNotActiveAsync(
+                    locationGuestId,
+                    cancellationToken
+                )
+            )
             {
                 return null;
             }
@@ -86,6 +104,13 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            if (
+                await IsLocationNotActiveAsync(locationId, cancellationToken)
+            )
+            {
+                return null;
+            }
+
             var catalogOfferId = await ResolveLiveThankYouCatalogOfferIdAsync(
                 locationId,
                 cancellationToken
@@ -95,7 +120,12 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            if (await IsOptedOutAsync(locationGuestId, cancellationToken))
+            if (
+                await IsMarketingOfferBlockedAsync(
+                    locationGuestId,
+                    cancellationToken
+                )
+            )
             {
                 return null;
             }
@@ -169,7 +199,22 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            if (await IsOptedOutAsync(locationGuestId, cancellationToken))
+            if (
+                await IsMarketingOfferBlockedAsync(
+                    locationGuestId,
+                    cancellationToken
+                )
+            )
+            {
+                return null;
+            }
+
+            if (
+                await IsGuestLocationNotActiveAsync(
+                    locationGuestId,
+                    cancellationToken
+                )
+            )
             {
                 return null;
             }
@@ -475,19 +520,115 @@ namespace TummlyBackend.Services
             return FeedbackRecoveryOfferMapping.GenerateRedemptionCode();
         }
 
-        private async Task<bool> IsOptedOutAsync(
+        private async Task<bool> IsMarketingOfferBlockedAsync(
             int locationGuestId,
             CancellationToken cancellationToken
         )
         {
-            return await _context.LocationGuests
+            var scope = await LoadGuestPermissionScopeAsync(
+                locationGuestId,
+                cancellationToken
+            );
+            if (scope == null)
+            {
+                return true;
+            }
+
+            return !LocationGuestChannelPermissionGate.IsMarketingOfferAllowed(
+                scope.Value.Restaurant,
+                scope.Value.States
+            );
+        }
+
+        private async Task<bool> IsChannelSendBlockedAsync(
+            int locationGuestId,
+            string channel,
+            CancellationToken cancellationToken
+        )
+        {
+            var scope = await LoadGuestPermissionScopeAsync(
+                locationGuestId,
+                cancellationToken
+            );
+            if (scope == null)
+            {
+                return true;
+            }
+
+            return !LocationGuestChannelPermissionGate.CanSendOnChannel(
+                scope.Value.Restaurant,
+                scope.Value.States,
+                channel
+            );
+        }
+
+        private async Task<(Restaurant Restaurant, IReadOnlyDictionary<
+            LocationGuestPermissionKind,
+            LocationGuestPermissionState
+        > States)?> LoadGuestPermissionScopeAsync(
+            int locationGuestId,
+            CancellationToken cancellationToken
+        )
+        {
+            var guestRow = await _context.LocationGuests
                 .AsNoTracking()
                 .Where(g => g.Id == locationGuestId)
-                .Select(g =>
-                    g.MarketingPreference
-                    != LocationGuestMarketingPreference.Allowed
-                )
+                .Select(g => new
+                {
+                    g.MarketingPreference,
+                    RestaurantId = g.RestaurantLocation!.RestaurantId,
+                })
                 .FirstOrDefaultAsync(cancellationToken);
+
+            if (guestRow == null || guestRow.RestaurantId == 0)
+            {
+                return null;
+            }
+
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstAsync(r => r.Id == guestRow.RestaurantId, cancellationToken);
+
+            var batch = await _permissions.GetCurrentStatesBatchAsync(
+                [locationGuestId],
+                cancellationToken
+            );
+
+            var states = LocationGuestChannelPermissionGate.ResolveEffectiveStates(
+                guestRow.MarketingPreference,
+                batch[locationGuestId]
+            );
+
+            return (restaurant, states);
+        }
+
+        private async Task<bool> IsGuestLocationNotActiveAsync(
+            int locationGuestId,
+            CancellationToken cancellationToken
+        )
+        {
+            var lifecycle = await _context.LocationGuests
+                .AsNoTracking()
+                .Where(g => g.Id == locationGuestId)
+                .Select(g => (LocationLifecycleStatus?)g.RestaurantLocation!
+                    .LifecycleStatus)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return lifecycle != LocationLifecycleStatus.Active;
+        }
+
+        private async Task<bool> IsLocationNotActiveAsync(
+            int locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            var lifecycle = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(l => l.Id == locationId)
+                .Select(l => (LocationLifecycleStatus?)l.LifecycleStatus)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return lifecycle != LocationLifecycleStatus.Active;
         }
 
         private async Task<CatalogOffer?> LoadActiveCatalogOfferAsync(

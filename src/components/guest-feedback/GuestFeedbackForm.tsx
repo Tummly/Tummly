@@ -39,6 +39,11 @@ import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import { createBrowserGuestMicAdapters } from "@/lib/guestFeedback/createBrowserGuestMicAdapters"
 import { createGuestMicSttModule } from "@/lib/guestFeedback/createGuestMicSttModule"
 import { guestFeedbackCommentPresentation } from "@/lib/guestFeedback/guestFeedbackCommentPresentation"
+import {
+  buildGuestFormConsentCheckboxLabel,
+  guestFormConsentHasAnyEnabled,
+  type GuestFormConsentConfig,
+} from "@/lib/guestFeedback/guestFormConsentPresentation"
 import { cn } from "@/lib/utils"
 import { defaultFormValidationOptions } from "@/lib/form"
 import {
@@ -87,6 +92,7 @@ type GuestFeedbackFormProps = {
   locationName: string
   address: string
   brandLogoPublicUrl?: string | null
+  guestFormConsent?: GuestFormConsentConfig | null
   isSubmitting: boolean
   submitError: string | null
   defaultValues?: GuestFeedbackFormValues
@@ -99,6 +105,7 @@ export function GuestFeedbackForm({
   locationName,
   address,
   brandLogoPublicUrl = null,
+  guestFormConsent = null,
   isSubmitting,
   submitError,
   defaultValues = guestFeedbackDefaultValues,
@@ -162,6 +169,13 @@ export function GuestFeedbackForm({
   const submitBusy = mic.submitLocked || isSubmitting
   const commentNotice = mic.truncateNotice
   const commentError = mic.error?.message
+  const showConsentCheckbox =
+    guestFormConsent != null
+    && guestFormConsentHasAnyEnabled(guestFormConsent)
+  const consentCheckboxLabel =
+    guestFormConsent == null
+      ? null
+      : buildGuestFormConsentCheckboxLabel(displayLocation, guestFormConsent)
 
   const handleSubmit = form.handleSubmit(async (values) => {
     await onSubmit(values)
@@ -370,20 +384,19 @@ export function GuestFeedbackForm({
                       </FormItem>
                     )}
                   />
-                  <FormCheckboxLabel
-                    control={form.control}
-                    name="acceptsOffers"
-                    id="accepts-offers"
-                    variant="ghost"
-                    disabled={isSubmitting}
-                    className="pt-1"
-                    labelClassName="cursor-pointer text-xs font-normal leading-relaxed text-guest-feedback-muted"
-                  >
-                    {displayLocation} may contact you about your feedback and
-                    may also send you offers using the contact details you
-                    provide. Untick here if you would prefer not to receive
-                    offers.
-                  </FormCheckboxLabel>
+                  {showConsentCheckbox && consentCheckboxLabel ? (
+                    <FormCheckboxLabel
+                      control={form.control}
+                      name="acceptsOffers"
+                      id="accepts-offers"
+                      variant="ghost"
+                      disabled={isSubmitting}
+                      className="pt-1"
+                      labelClassName="cursor-pointer text-xs font-normal leading-relaxed text-guest-feedback-muted"
+                    >
+                      {consentCheckboxLabel}
+                    </FormCheckboxLabel>
+                  ) : null}
                 </FieldGroup>
               </CardContent>
             </Card>

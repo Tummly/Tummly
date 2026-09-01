@@ -1,18 +1,37 @@
 import { useEffect, useSyncExternalStore } from "react"
 import { MoreVerticalIcon, XIcon } from "lucide-react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
+
+import { useWriteActiveTabToSearchParams } from "@/hooks/useWriteActiveTabToSearchParams"
 
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
+import { GuestsFilterChipRow } from "@/components/dashboard/operator/Guests/GuestsFilterChipRow"
+import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
+import { TeamMemberDialogForm } from "@/components/dashboard/operator/TeamPermissions/TeamMemberDialogForm"
 import { useTeamPermissionsPageModuleApi } from "@/components/dashboard/operator/TeamPermissions/utils/teamPermissionsPageModuleContext"
-import { ACCOUNT_WORKSPACE_PAGE_COPY } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
+import {
+  ACCOUNT_WORKSPACE_FULL_BLEED_BOTTOM,
+  ACCOUNT_WORKSPACE_FULL_BLEED_X,
+  ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS,
+  ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS,
+  ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS,
+  ACCOUNT_WORKSPACE_PAGE_COPY,
+  ACCOUNT_WORKSPACE_PAGE_STACK_CLASS,
+  ACCOUNT_WORKSPACE_PAGE_SUBTITLE_CLASS,
+  ACCOUNT_WORKSPACE_SHELL_PAD_BOTTOM,
+  ACCOUNT_WORKSPACE_SHELL_PAD_X,
+  ACCOUNT_WORKSPACE_TAB_BODY_CLASS,
+  ACCOUNT_WORKSPACE_TAB_LIST_CLASS,
+  ACCOUNT_WORKSPACE_TAB_TRIGGER_CLASS,
+  ACCOUNT_WORKSPACE_TABS_RULE_CLASS,
+} from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 import {
   BROWSER_BACK_HREF,
   registerLeaveDirtyGuard,
 } from "@/lib/operatorNavigation/leaveDirtyGuard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import {
   Dialog,
   DialogClose,
@@ -37,6 +56,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Sheet,
@@ -44,7 +71,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { Textarea } from "@/components/ui/textarea"
 import { teamPermissionsFilterSheetSchema } from "@/lib/operatorTeamPermissions/teamPermissionsFilterSheetSchema"
 import { assignableRolesForActor } from "@/lib/operatorTeamPermissions/permissionRoles"
 import type {
@@ -53,33 +79,51 @@ import type {
   TeamMemberRow,
 } from "@/lib/operatorTeamPermissions/createOperatorTeamPermissionsPageModule"
 import {
-  deactivateConfirmCopy,
   displayPermissionLabel,
+  formatAccessActivityOccurredAt,
+  formatTeamPermissionsOwnersStat,
   legalAdminLevels,
   PERMISSION_MATRIX_ROLES,
-  removeConfirmCopy,
   revokeConfirmCopy,
+  suspendConfirmCopy,
   TEAM_PERMISSIONS_PAGE_COPY as copy,
+  TEAM_PERMISSIONS_INVITE_BODY_STACK_CLASS,
+  TEAM_PERMISSIONS_INVITE_DIALOG_CONTENT_CLASS,
   TEAM_PERMISSIONS_SELECT_MENU_CLASS,
+  TEAM_PERMISSIONS_STATS_CARD_CLASS,
+  TEAM_PERMISSIONS_STATS_DIVIDER_CLASS,
+  TEAM_PERMISSIONS_STATS_LABEL_CLASS,
+  TEAM_PERMISSIONS_STATS_OWNERS_ROW_CLASS,
+  TEAM_PERMISSIONS_STATS_PAIR_CLASS,
+  TEAM_PERMISSIONS_STATS_ROW_CLASS,
+  TEAM_PERMISSIONS_STATS_STACK_CLASS,
+  TEAM_PERMISSIONS_STATS_VALUE_CLASS,
 } from "@/lib/operatorTeamPermissions/teamPermissionsPresentation"
 import {
-  GUESTS_KPI_CARD_CLASS,
+  GUESTS_MARKETING_STATUS_BADGE_CLASS,
   GUESTS_PAGE_HEADER_COPY_CLASS,
   GUESTS_PAGE_HEADER_ROW_CLASS,
-  GUESTS_PAGE_STACK_CLASS,
-  GUESTS_PAGE_SUBTITLE_CLASS,
+  GUESTS_PAGE_PRIMARY_BUTTON_CLASS,
+  GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
   GUESTS_PAGE_TITLE_CLASS,
   GUESTS_ROW_ACTIONS_ITEM_CLASS,
   GUESTS_ROW_ACTIONS_MENU_CLASS,
   GUESTS_ROW_ACTIONS_TRIGGER_CLASS,
-  GUESTS_SECTION_CLASS,
-  GUESTS_SECTION_SUBTITLE_CLASS,
-  GUESTS_SECTION_TITLE_CLASS,
+  GUESTS_SEARCH_FIELD_CLASS,
+  GUESTS_SEARCH_WRAP_CLASS,
+  GUESTS_TABLE_ACTIONS_CELL_CLASS,
   GUESTS_TABLE_BODY_CELL_CLASS,
   GUESTS_TABLE_BODY_ROW_CLASS,
   GUESTS_TABLE_CLASS,
+  GUESTS_TABLE_FRAME_CLASS,
+  GUESTS_TABLE_GUEST_NAME_CLASS,
+  GUESTS_TABLE_HEAD_ACTIONS_CELL_CLASS,
   GUESTS_TABLE_HEAD_CELL_CLASS,
   GUESTS_TABLE_HEAD_ROW_CLASS,
+  GUESTS_TABLE_LOCATION_CLASS,
+  GUESTS_TOOLBAR_ACTIONS_CLASS,
+  GUESTS_TOOLBAR_ROW_CLASS,
+  OPERATOR_GUEST_CONTACT_LINK_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import { cn } from "@/lib/utils"
 import {
@@ -89,16 +133,16 @@ import {
 
 function actionLabel(action: string): string {
   switch (action) {
-    case "change-role":
-      return copy.changeRole
-    case "change-location":
-      return copy.changeLocation
-    case "deactivate":
-      return copy.deactivate
+    case "view":
+      return copy.view
+    case "edit-role":
+      return copy.editRole
+    case "edit-access":
+      return copy.editAccess
+    case "suspend":
+      return copy.suspend
     case "reactivate":
       return copy.reactivate
-    case "remove":
-      return copy.remove
     case "resend":
       return copy.resend
     case "revoke":
@@ -115,19 +159,10 @@ export function TeamPermissionsPage() {
     pageModule.getSnapshot,
     pageModule.getSnapshot
   )
-  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const roleOptions = assignableRolesForActor(snap.actorPermissionRole)
 
-  useEffect(() => {
-    const current = searchParams.get("tab")
-    if (current === snap.activeTabId) {
-      return
-    }
-    const next = new URLSearchParams(searchParams)
-    next.set("tab", snap.activeTabId)
-    setSearchParams(next, { replace: true })
-  }, [snap.activeTabId, searchParams, setSearchParams])
+  useWriteActiveTabToSearchParams(snap.activeTabId)
 
   useEffect(() => {
     if (snap.pendingNavigationHref == null) {
@@ -179,9 +214,7 @@ export function TeamPermissionsPage() {
     locations: snap.locations,
   })
   const confirmMembershipId =
-    snap.dialog.kind === "deactivate" || snap.dialog.kind === "remove"
-      ? snap.dialog.membershipId
-      : null
+    snap.dialog.kind === "suspend" ? snap.dialog.membershipId : null
   const confirmMember =
     confirmMembershipId != null
       ? snap.members.find((row) => row.membershipId === confirmMembershipId)
@@ -193,26 +226,30 @@ export function TeamPermissionsPage() {
       ? snap.invitations.find((row) => row.invitationId === revokeInvitationId)
       : null
   const confirmCopy =
-    snap.dialog.kind === "deactivate" && confirmMember != null
-      ? deactivateConfirmCopy(confirmMember.fullName)
-      : snap.dialog.kind === "remove" && confirmMember != null
-        ? removeConfirmCopy(confirmMember.fullName)
-        : snap.dialog.kind === "revoke"
-          ? revokeConfirmCopy(revokeInvitation?.email ?? "")
-          : null
+    snap.dialog.kind === "suspend" && confirmMember != null
+      ? suspendConfirmCopy(confirmMember.fullName)
+      : snap.dialog.kind === "revoke"
+        ? revokeConfirmCopy(revokeInvitation?.email ?? "")
+        : null
 
   return (
-    <div className={GUESTS_PAGE_STACK_CLASS}>
+    <div className={ACCOUNT_WORKSPACE_PAGE_STACK_CLASS}>
       <div className={GUESTS_PAGE_HEADER_ROW_CLASS}>
         <div className={GUESTS_PAGE_HEADER_COPY_CLASS}>
           <h1 className={GUESTS_PAGE_TITLE_CLASS}>{copy.title}</h1>
-          <p className={GUESTS_PAGE_SUBTITLE_CLASS}>{copy.subtitle}</p>
+          <p className={ACCOUNT_WORKSPACE_PAGE_SUBTITLE_CLASS}>{copy.subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {snap.actorCanManage ? (
             <Button
               type="button"
               variant="op-primary"
+              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+              disabled={snap.inviteAtCap}
+              aria-disabled={snap.inviteAtCap}
+              title={
+                snap.inviteAtCap ? copy.inviteAtCapHelper : undefined
+              }
               onClick={() => pageModule.openInvite()}
             >
               {copy.invite}
@@ -221,6 +258,7 @@ export function TeamPermissionsPage() {
           <Button
             type="button"
             variant="op-secondary"
+            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
             onClick={() => pageModule.openNotes()}
           >
             {copy.viewNotes}
@@ -233,39 +271,55 @@ export function TeamPermissionsPage() {
         onValueChange={(value) => {
           pageModule.requestTabChange(value as typeof snap.activeTabId)
         }}
-        className="gap-6"
+        className="flex min-h-0 flex-1 flex-col gap-0"
       >
-        <TabsList
-          variant="line"
-          className="h-auto w-full justify-start overflow-x-auto"
+        <div
+          className={cn(
+            ACCOUNT_WORKSPACE_FULL_BLEED_X,
+            ACCOUNT_WORKSPACE_TABS_RULE_CLASS,
+            "shrink-0"
+          )}
         >
-          {snap.tabs.map((tab) => (
-            <TabsTrigger
-              key={tab.id}
-              value={tab.id}
-              className={cn(
-                "rounded-none px-3 py-2 text-sm font-medium text-op-button-date-text",
-                "data-active:font-semibold data-active:text-foreground",
-                "group-data-[variant=line]/tabs-list:data-active:after:bg-op-button-primary-background"
-              )}
+          <div className={ACCOUNT_WORKSPACE_SHELL_PAD_X}>
+            <TabsList
+              variant="line"
+              className={ACCOUNT_WORKSPACE_TAB_LIST_CLASS}
             >
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+              {snap.tabs.map((tab) => (
+                <TabsTrigger
+                  key={tab.id}
+                  value={tab.id}
+                  className={ACCOUNT_WORKSPACE_TAB_TRIGGER_CLASS}
+                >
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+        </div>
 
-        <TabsContent value="members" className="mt-0">
-          <MembersBody snap={snap} pageModule={pageModule} />
-        </TabsContent>
-        <TabsContent value="roles-permissions" className="mt-0">
-          <RolesPermissionsBody snap={snap} pageModule={pageModule} />
-        </TabsContent>
-        <TabsContent value="invitations" className="mt-0">
-          <InvitationsBody snap={snap} pageModule={pageModule} />
-        </TabsContent>
-        <TabsContent value="access-activity" className="mt-0">
-          <AccessActivityBody snap={snap} pageModule={pageModule} />
-        </TabsContent>
+        <div
+          className={cn(
+            ACCOUNT_WORKSPACE_FULL_BLEED_X,
+            ACCOUNT_WORKSPACE_FULL_BLEED_BOTTOM,
+            ACCOUNT_WORKSPACE_SHELL_PAD_X,
+            ACCOUNT_WORKSPACE_SHELL_PAD_BOTTOM,
+            ACCOUNT_WORKSPACE_TAB_BODY_CLASS
+          )}
+        >
+          <TabsContent value="members" className="mt-0">
+            <MembersBody snap={snap} pageModule={pageModule} />
+          </TabsContent>
+          <TabsContent value="roles-permissions" className="mt-0">
+            <RolesPermissionsBody snap={snap} pageModule={pageModule} />
+          </TabsContent>
+          <TabsContent value="invitations" className="mt-0">
+            <InvitationsBody snap={snap} pageModule={pageModule} />
+          </TabsContent>
+          <TabsContent value="access-activity" className="mt-0">
+            <AccessActivityBody snap={snap} pageModule={pageModule} />
+          </TabsContent>
+        </div>
       </Tabs>
 
       <OperatorFilterSheetDialog
@@ -333,158 +387,64 @@ export function TeamPermissionsPage() {
       >
         <DialogContent
           showCloseButton={false}
-          className="gap-8 rounded-op-md bg-op-surface-secondary p-8 sm:max-w-[633px]"
+          className={TEAM_PERMISSIONS_INVITE_DIALOG_CONTENT_CLASS}
         >
-          <div className={CAPTURE_DIALOG_HEADER_ROW_CLASS}>
-            <DialogHeader className="min-w-0 flex-1 gap-3">
-              <DialogTitle className="text-2xl font-bold">
-                {copy.inviteTitle}
-              </DialogTitle>
-              <DialogDescription>{copy.inviteSubtitle}</DialogDescription>
-            </DialogHeader>
-            <DialogClose asChild>
-              <Button
-                type="button"
-                variant="op-collapse"
-                disabled={snap.busy}
-                aria-label="Close"
-                className={CAPTURE_DIALOG_CLOSE_BUTTON_CLASS}
-                onClick={() => pageModule.closeDialog()}
-              >
-                <XIcon aria-hidden />
-              </Button>
-            </DialogClose>
-          </div>
-          <div className="flex flex-col gap-4">
-            <label className="text-sm font-medium">
-              {copy.email}
-              <Input
-                value={snap.inviteDraft.email}
-                disabled={snap.busy}
-                onChange={(event) =>
-                  pageModule.setInviteDraft({
-                    ...snap.inviteDraft,
-                    email: event.target.value,
-                  })
-                }
-              />
-              {snap.inviteEmailError != null ? (
-                <p className="mt-1 text-sm text-destructive" role="alert">
-                  {snap.inviteEmailError}
-                </p>
-              ) : null}
-            </label>
-            <label className="text-sm font-medium">
-              {copy.fullName}
-              <Input
-                value={snap.inviteDraft.fullName}
-                disabled={snap.busy}
-                onChange={(event) =>
-                  pageModule.setInviteDraft({
-                    ...snap.inviteDraft,
-                    fullName: event.target.value,
-                  })
-                }
-              />
-            </label>
-            <label className="text-sm font-medium">
-              {copy.role}
-              <Select
-                value={snap.inviteDraft.permissionRole}
-                onValueChange={(value) =>
-                  pageModule.setInviteDraft({
-                    ...snap.inviteDraft,
-                    permissionRole: value,
-                  })
-                }
-                disabled={snap.busy}
-              >
-                <SelectTrigger className="h-8 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  className={TEAM_PERMISSIONS_SELECT_MENU_CLASS}
-                >
-                  {roleOptions.map((role) => (
-                    <SelectItem key={role} value={role}>
-                      {role}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
-            {snap.isSingleLocation ? null : (
-              <div className="flex flex-col gap-2">
-                <p className="text-sm font-medium">{copy.locationAccess}</p>
-                <Select
-                  value={snap.inviteDraft.locationScope}
-                  onValueChange={(value) =>
-                    pageModule.setInviteDraft({
-                      ...snap.inviteDraft,
-                      locationScope: value as "all" | "named",
-                    })
-                  }
+          <div className={TEAM_PERMISSIONS_INVITE_BODY_STACK_CLASS}>
+            <div className={CAPTURE_DIALOG_HEADER_ROW_CLASS}>
+              <DialogHeader className="min-w-0 flex-1 gap-3">
+                <DialogTitle className="pr-0 text-2xl font-bold tracking-normal text-op-text-primary">
+                  {copy.inviteTitle}
+                </DialogTitle>
+                <DialogDescription className="max-w-none text-base font-medium leading-normal text-op-text-muted">
+                  {copy.inviteSubtitle}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogClose asChild>
+                <Button
+                  type="button"
+                  variant="op-collapse"
                   disabled={snap.busy}
+                  aria-label="Close"
+                  className={CAPTURE_DIALOG_CLOSE_BUTTON_CLASS}
+                  onClick={() => pageModule.closeDialog()}
                 >
-                  <SelectTrigger className="h-8 w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent
-                    position="popper"
-                    className={TEAM_PERMISSIONS_SELECT_MENU_CLASS}
-                  >
-                    <SelectItem value="all">{copy.allLocations}</SelectItem>
-                    <SelectItem value="named">
-                      {copy.selectedLocations}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                {snap.inviteDraft.locationScope === "all" ? (
-                  <p className="text-sm text-muted-foreground">
-                    {copy.allLocationsHelper}
-                  </p>
-                ) : (
-                  snap.locations.map((location) => (
-                    <CheckboxLabel
-                      key={location.id}
-                      id={`invite-loc-${location.id}`}
-                      checked={snap.inviteDraft.namedLocationIds.includes(
-                        location.id
-                      )}
-                      onCheckedChange={(checked) => {
-                        pageModule.setInviteDraft({
-                          ...snap.inviteDraft,
-                          namedLocationIds: checked
-                            ? [...snap.inviteDraft.namedLocationIds, location.id]
-                            : snap.inviteDraft.namedLocationIds.filter(
-                                (id) => id !== location.id
-                              ),
-                        })
-                      }}
-                    >
-                      {location.name}
-                    </CheckboxLabel>
-                  ))
-                )}
-              </div>
-            )}
-            <label className="text-sm font-medium">
-              {copy.message}
-              <Textarea
-                placeholder={copy.messagePlaceholder}
-                value={snap.inviteDraft.message}
-                disabled={snap.busy}
-                onChange={(event) =>
-                  pageModule.setInviteDraft({
-                    ...snap.inviteDraft,
-                    message: event.target.value,
-                  })
-                }
-              />
-            </label>
+                  <XIcon aria-hidden />
+                </Button>
+              </DialogClose>
+            </div>
+
+            <TeamMemberDialogForm
+              idPrefix="invite"
+              values={{
+                email: snap.inviteDraft.email,
+                fullName: snap.inviteDraft.fullName,
+                permissionRole: snap.inviteDraft.permissionRole,
+                locationScope: snap.inviteDraft.locationScope,
+                namedLocationIds: snap.inviteDraft.namedLocationIds,
+              }}
+              onChange={(values) =>
+                pageModule.setInviteDraft({
+                  ...snap.inviteDraft,
+                  ...values,
+                })
+              }
+              roleOptions={roleOptions}
+              locations={snap.locations}
+              isSingleLocation={snap.isSingleLocation}
+              busy={snap.busy}
+              showMessage
+              message={snap.inviteDraft.message}
+              onMessageChange={(message) =>
+                pageModule.setInviteDraft({
+                  ...snap.inviteDraft,
+                  message,
+                })
+              }
+              emailError={snap.inviteEmailError}
+            />
           </div>
-          <DialogFooter className="sm:justify-start">
+
+          <DialogFooter className="flex flex-row flex-wrap justify-start gap-3 sm:justify-start">
             <Button
               type="button"
               variant="op-primary"
@@ -507,8 +467,11 @@ export function TeamPermissionsPage() {
         </DialogContent>
       </Dialog>
 
-      <ChangeRoleDialog snap={snap} pageModule={pageModule} />
-      <ChangeLocationDialog snap={snap} pageModule={pageModule} />
+      <EditMemberDialog
+        snap={snap}
+        pageModule={pageModule}
+        roleOptions={roleOptions}
+      />
 
       {confirmCopy != null ? (
         <AccountWorkspaceConfirmDialog
@@ -570,8 +533,8 @@ function RolesPermissionsBody({
 
   if (snap.loadStatus === "error") {
     return (
-      <div className={GUESTS_SECTION_CLASS}>
-        <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.loadError}</h2>
+      <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
+        <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>{copy.loadError}</h2>
         <Button
           type="button"
           variant="op-secondary"
@@ -581,16 +544,22 @@ function RolesPermissionsBody({
         >
           {copy.retry}
         </Button>
-      </div>
+      </section>
     )
   }
 
   return (
-    <section className={GUESTS_SECTION_CLASS}>
+    <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col gap-2">
-          <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.matrixTitle}</h2>
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{copy.matrixSubtitle}</p>
+          <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
+            {copy.matrixTitle}
+          </h2>
+          <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
+            {snap.canEditAdminColumn
+              ? copy.matrixSubtitleEditable
+              : copy.matrixSubtitle}
+          </p>
         </div>
         {snap.saveEnabled ? (
           <Button
@@ -718,52 +687,66 @@ function MembersBody({
 
   const showLocationCard =
     !snap.isSingleLocation && snap.namedListMembers.length > 0
+  const ownerCount = snap.members.filter(
+    (row) => row.permissionRole === "Owner" && row.status === "active"
+  ).length
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <StatCard
-          label={copy.teamMembers}
-          value={`${snap.stats.activeMembers} ${copy.statActive}`}
-        />
-        <StatCard
-          label={copy.pendingInvites}
-          value={`${snap.stats.pendingInvites} ${copy.statPending}`}
-        />
-        <StatCard label={copy.owners} value={copy.statOwner} />
-        <StatCard
-          label={copy.locationManagers}
-          value={`${snap.stats.locationManagers} ${copy.statManagers}`}
-        />
-        <StatCard
-          label={copy.limitedAccessUsers}
-          value={`${snap.stats.limitedAccessUsers} ${copy.statRestricted}`}
-        />
-      </div>
+      <MembersStatsCard
+        activeMembers={snap.stats.activeMembers}
+        pendingInvites={snap.stats.pendingInvites}
+        locationManagers={snap.stats.locationManagers}
+        limitedAccessUsers={snap.stats.limitedAccessUsers}
+        ownerCount={ownerCount}
+        teamMembersUsageLabel={snap.teamMembersUsageLabel}
+      />
 
-      <section className={GUESTS_SECTION_CLASS}>
+      <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
         <div className="flex flex-col gap-2">
-          <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.membersTitle}</h2>
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{copy.membersSubtitle}</p>
+          <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
+            {copy.membersTitle}
+          </h2>
+          <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
+            {copy.membersSubtitle}
+          </p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <Input
-            value={snap.searchQuery}
-            placeholder={copy.searchPlaceholder}
-            onChange={(event) => pageModule.setSearchQuery(event.target.value)}
-            className="max-w-md"
+
+        <div className="flex flex-col gap-3">
+          <div className={GUESTS_TOOLBAR_ROW_CLASS}>
+            <div className={GUESTS_SEARCH_WRAP_CLASS}>
+              <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-icon-default" />
+              <Input
+                value={snap.searchQuery}
+                placeholder={copy.searchPlaceholder}
+                aria-label={copy.searchPlaceholder}
+                onChange={(event) =>
+                  pageModule.setSearchQuery(event.target.value)
+                }
+                className={GUESTS_SEARCH_FIELD_CLASS}
+              />
+            </div>
+            <div className={GUESTS_TOOLBAR_ACTIONS_CLASS}>
+              <Button
+                type="button"
+                variant="op-secondary"
+                className="rounded-[2px]"
+                onClick={() => pageModule.openFilters()}
+              >
+                {copy.filters}
+                {snap.filterChips.length > 0
+                  ? ` (${snap.filterChips.length})`
+                  : ""}
+              </Button>
+            </div>
+          </div>
+
+          <GuestsFilterChipRow
+            chips={snap.filterChips}
+            onRemoveChip={(chip) => pageModule.removeFilterChip(chip)}
           />
-          <Button
-            type="button"
-            variant="op-secondary"
-            onClick={() => pageModule.openFilters()}
-          >
-            {copy.filters}
-            {snap.filterChips.length > 0
-              ? ` (${snap.filterChips.length})`
-              : ""}
-          </Button>
         </div>
+
         {snap.visibleMembers.length === 0 ? (
           <div className="flex flex-col items-start gap-3">
             <p className="m-0 font-semibold">{copy.emptyTitle}</p>
@@ -785,50 +768,98 @@ function MembersBody({
       </section>
 
       {showLocationCard ? (
-        <section className={GUESTS_SECTION_CLASS}>
+        <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
           <div className="flex flex-col gap-2">
-            <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+            <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
               {copy.locationAccessCardTitle}
             </h2>
-            <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+            <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
               {copy.locationAccessCardSubtitle}
             </p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-op-border-default">
-                  <th className="py-2 font-semibold">User</th>
-                  <th className="py-2 font-semibold">Role</th>
-                  <th className="py-2 font-semibold">Access</th>
-                  <th className="py-2 font-semibold">Locations</th>
-                </tr>
-              </thead>
-              <tbody>
-                {snap.namedListMembers.map((row) => (
-                  <tr
-                    key={row.membershipId}
-                    className="border-b border-op-border-default"
-                  >
-                    <td className="py-3">{row.fullName}</td>
-                    <td>{row.permissionRole}</td>
-                    <td>Selected only</td>
-                    <td>
-                      {row.namedLocationIds
-                        .map(
-                          (id) =>
-                            snap.locations.find((location) => location.id === id)
-                              ?.name ?? `#${id}`
-                        )
-                        .join(", ")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <LocationAccessTable
+            rows={snap.namedListMembers}
+            locations={snap.locations}
+          />
         </section>
       ) : null}
+    </div>
+  )
+}
+
+function MembersStatsCard({
+  activeMembers,
+  pendingInvites,
+  locationManagers,
+  limitedAccessUsers,
+  ownerCount,
+  teamMembersUsageLabel,
+}: {
+  activeMembers: number
+  pendingInvites: number
+  locationManagers: number
+  limitedAccessUsers: number
+  ownerCount: number
+  teamMembersUsageLabel: string
+}) {
+  return (
+    <section className={TEAM_PERMISSIONS_STATS_CARD_CLASS}>
+      <div className={TEAM_PERMISSIONS_STATS_STACK_CLASS}>
+        {teamMembersUsageLabel !== "" ? (
+          <>
+            <div className={TEAM_PERMISSIONS_STATS_OWNERS_ROW_CLASS}>
+              <MembersStatsPair
+                label={copy.teamPlanUsage}
+                value={teamMembersUsageLabel}
+              />
+            </div>
+            <hr className={TEAM_PERMISSIONS_STATS_DIVIDER_CLASS} />
+          </>
+        ) : null}
+        <div className={TEAM_PERMISSIONS_STATS_ROW_CLASS}>
+          <MembersStatsPair
+            label={copy.teamMembers}
+            value={`${activeMembers} ${copy.statActive}`}
+          />
+          <MembersStatsPair
+            label={copy.locationManagers}
+            value={`${locationManagers} ${copy.statManagers}`}
+          />
+        </div>
+        <hr className={TEAM_PERMISSIONS_STATS_DIVIDER_CLASS} />
+        <div className={TEAM_PERMISSIONS_STATS_ROW_CLASS}>
+          <MembersStatsPair
+            label={copy.pendingInvites}
+            value={`${pendingInvites} ${copy.statPending}`}
+          />
+          <MembersStatsPair
+            label={copy.limitedAccessUsers}
+            value={`${limitedAccessUsers} ${copy.statRestricted}`}
+          />
+        </div>
+        <hr className={TEAM_PERMISSIONS_STATS_DIVIDER_CLASS} />
+        <div className={TEAM_PERMISSIONS_STATS_OWNERS_ROW_CLASS}>
+          <MembersStatsPair
+            label={copy.owners}
+            value={formatTeamPermissionsOwnersStat(ownerCount)}
+          />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function MembersStatsPair({
+  label,
+  value,
+}: {
+  label: string
+  value: string
+}) {
+  return (
+    <div className={TEAM_PERMISSIONS_STATS_PAIR_CLASS}>
+      <p className={TEAM_PERMISSIONS_STATS_LABEL_CLASS}>{label}</p>
+      <p className={TEAM_PERMISSIONS_STATS_VALUE_CLASS}>{value}</p>
     </div>
   )
 }
@@ -869,12 +900,12 @@ function AccessActivityBody({
 
   return (
     <>
-      <section className={GUESTS_SECTION_CLASS}>
+      <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
         <div className="flex flex-col gap-2">
-          <h2 className={GUESTS_SECTION_TITLE_CLASS}>
+          <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
             {copy.accessActivityTitle}
           </h2>
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+          <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
             {copy.accessActivitySubtitle}
           </p>
         </div>
@@ -1023,28 +1054,47 @@ function InvitationsBody({
     )
   }
 
-  if (snap.invitations.length === 0) {
-    return (
-      <div className="flex flex-col items-start gap-3 py-8">
-        <p className="m-0 font-semibold">{copy.invitationsEmptyTitle}</p>
-        <p className="m-0 text-muted-foreground">
-          {copy.invitationsEmptyHelper}
-        </p>
-        {snap.actorCanManage ? (
-          <Button
-            type="button"
-            variant="op-primary"
-            onClick={() => pageModule.openInvite()}
-          >
-            {copy.invite}
-          </Button>
-        ) : null}
-      </div>
-    )
-  }
-
   return (
-    <InvitationsTable rows={snap.invitations} pageModule={pageModule} />
+    <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
+      <div className="flex flex-col gap-2">
+        <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
+          {copy.invitationsTitle}
+        </h2>
+        <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
+          {copy.invitationsSubtitle}
+        </p>
+      </div>
+
+      {snap.invitations.length === 0 ? (
+        <div className="flex flex-col items-start gap-6">
+          <div className="flex flex-col gap-2">
+            <p className="m-0 text-base font-semibold leading-normal text-op-card-title-color">
+              {copy.invitationsEmptyTitle}
+            </p>
+            <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
+              {copy.invitationsEmptyHelper}
+            </p>
+          </div>
+          {snap.actorCanManage ? (
+            <Button
+              type="button"
+              variant="op-primary"
+              className="w-auto shrink-0"
+              disabled={snap.inviteAtCap}
+              aria-disabled={snap.inviteAtCap}
+              title={
+                snap.inviteAtCap ? copy.inviteAtCapHelper : undefined
+              }
+              onClick={() => pageModule.openInvite()}
+            >
+              {copy.invite}
+            </Button>
+          ) : null}
+        </div>
+      ) : (
+        <InvitationsTable rows={snap.invitations} pageModule={pageModule} />
+      )}
+    </section>
   )
 }
 
@@ -1056,88 +1106,183 @@ function InvitationsTable({
   pageModule: ReturnType<typeof useTeamPermissionsPageModuleApi>
 }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="border-b border-op-border-default">
-            <th className="py-2 font-semibold">{copy.email}</th>
-            <th className="py-2 font-semibold">{copy.role}</th>
-            <th className="py-2 font-semibold">{copy.locationAccess}</th>
-            <th className="py-2 font-semibold">Invited by</th>
-            <th className="py-2 font-semibold">Sent</th>
-            <th className="py-2 font-semibold">Expires</th>
-            <th className="py-2 font-semibold">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
+    <div className={GUESTS_TABLE_FRAME_CLASS}>
+      <Table className={GUESTS_TABLE_CLASS}>
+        <TableHeader className="[&_tr]:border-0">
+          <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnEmail}
+            </TableHead>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnRole}
+            </TableHead>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnLocationAccess}
+            </TableHead>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnInvitedBy}
+            </TableHead>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnSent}
+            </TableHead>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnExpires}
+            </TableHead>
+            <TableHead className={GUESTS_TABLE_HEAD_ACTIONS_CELL_CLASS}>
+              {copy.columnActions}
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((row) => (
-            <tr
+            <TableRow
               key={row.invitationId}
-              className="border-b border-op-border-default"
+              className={GUESTS_TABLE_BODY_ROW_CLASS}
             >
-              <td className="py-3">
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                 <span className="inline-flex items-center gap-2">
-                  {row.email}
+                  <a
+                    href={`mailto:${row.email}`}
+                    className={OPERATOR_GUEST_CONTACT_LINK_CLASS}
+                  >
+                    {row.email}
+                  </a>
                   {row.expired ? (
                     <Badge variant="soft">{copy.expired}</Badge>
                   ) : null}
                 </span>
-              </td>
-              <td>{row.permissionRole}</td>
-              <td>{row.locationAccessLabel}</td>
-              <td>{row.invitedBy}</td>
-              <td>{row.sentLabel}</td>
-              <td>{row.expiresLabel}</td>
-              <td>
+              </TableCell>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                  {row.permissionRole}
+                </span>
+              </TableCell>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className="text-sm font-normal leading-[19px] text-foreground">
+                  {row.locationAccessLabel}
+                </span>
+              </TableCell>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                  {row.invitedBy}
+                </span>
+              </TableCell>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                  {row.sentLabel}
+                </span>
+              </TableCell>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                  {row.expiresLabel}
+                </span>
+              </TableCell>
+              <TableCell className={GUESTS_TABLE_ACTIONS_CELL_CLASS}>
                 {row.actions.length === 0 ? null : (
-                  <DropdownMenu modal={false}>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Actions for ${row.email}`}
-                        className={GUESTS_ROW_ACTIONS_TRIGGER_CLASS}
-                      >
-                        <MoreVerticalIcon className="size-4" aria-hidden />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      className={GUESTS_ROW_ACTIONS_MENU_CLASS}
-                    >
-                      {row.actions.map((action) => (
-                        <DropdownMenuItem
-                          key={action}
-                          className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-                          onSelect={() => {
-                            if (action === "resend") {
-                              void pageModule.resendInvite(row.invitationId)
-                            } else if (action === "revoke") {
-                              pageModule.openRevoke(row.invitationId)
-                            }
-                          }}
+                  <div className="flex items-center justify-center">
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Actions for ${row.email}`}
+                          className={GUESTS_ROW_ACTIONS_TRIGGER_CLASS}
                         >
-                          {actionLabel(action)}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                          <MoreVerticalIcon className="size-4" aria-hidden />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        className={GUESTS_ROW_ACTIONS_MENU_CLASS}
+                      >
+                        {row.actions.map((action) => (
+                          <DropdownMenuItem
+                            key={action}
+                            className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+                            onSelect={() => {
+                              if (action === "resend") {
+                                void pageModule.resendInvite(row.invitationId)
+                              } else if (action === "revoke") {
+                                pageModule.openRevoke(row.invitationId)
+                              }
+                            }}
+                          >
+                            {actionLabel(action)}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 )}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   )
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function LocationAccessTable({
+  rows,
+  locations,
+}: {
+  rows: TeamMemberRow[]
+  locations: Array<{ id: number; name: string }>
+}) {
   return (
-    <div className={GUESTS_KPI_CARD_CLASS}>
-      <p className="m-0 text-sm text-muted-foreground">{label}</p>
-      <p className="m-0 text-lg font-semibold">{value}</p>
+    <div className={GUESTS_TABLE_FRAME_CLASS}>
+      <Table className={GUESTS_TABLE_CLASS}>
+        <TableHeader className="[&_tr]:border-0">
+          <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnUser}
+            </TableHead>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnRole}
+            </TableHead>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnAccess}
+            </TableHead>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnLocations}
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.membershipId} className={GUESTS_TABLE_BODY_ROW_CLASS}>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className={GUESTS_TABLE_GUEST_NAME_CLASS}>
+                  {row.fullName}
+                </span>
+              </TableCell>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                  {row.permissionRole}
+                </span>
+              </TableCell>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                  {copy.locationAccessSelectedOnly}
+                </span>
+              </TableCell>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                  {row.namedLocationIds
+                    .map(
+                      (id) =>
+                        locations.find((location) => location.id === id)
+                          ?.name ?? `#${id}`
+                    )
+                    .join(", ")}
+                </span>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   )
 }
@@ -1150,184 +1295,155 @@ function MembersTable({
   pageModule: ReturnType<typeof useTeamPermissionsPageModuleApi>
 }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="border-b border-op-border-default">
-            <th className="py-2 font-semibold">Name</th>
-            <th className="py-2 font-semibold">Email</th>
-            <th className="py-2 font-semibold">Role</th>
-            <th className="py-2 font-semibold">Location access</th>
-            <th className="py-2 font-semibold">Status</th>
-            <th className="py-2 font-semibold">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
+    <div className={GUESTS_TABLE_FRAME_CLASS}>
+      <Table className={GUESTS_TABLE_CLASS}>
+        <TableHeader className="[&_tr]:border-0">
+          <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnName}
+            </TableHead>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnEmail}
+            </TableHead>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnRole}
+            </TableHead>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnLocationAccess}
+            </TableHead>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnStatus}
+            </TableHead>
+            <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+              {copy.columnLastActive}
+            </TableHead>
+            <TableHead className={GUESTS_TABLE_HEAD_ACTIONS_CELL_CLASS}>
+              {copy.columnActions}
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((row) => (
-            <tr
-              key={row.membershipId}
-              className="border-b border-op-border-default"
-            >
-              <td className="py-3">{row.fullName}</td>
-              <td>{row.email}</td>
-              <td>{row.permissionRole}</td>
-              <td>{row.locationAccessLabel}</td>
-              <td>
-                <Badge variant={row.status === "active" ? "positive" : "soft"}>
-                  {row.status === "active" ? "Active" : "Deactivated"}
+            <TableRow key={row.membershipId} className={GUESTS_TABLE_BODY_ROW_CLASS}>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className={GUESTS_TABLE_GUEST_NAME_CLASS}>
+                  {row.fullName}
+                </span>
+              </TableCell>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <a
+                  href={`mailto:${row.email}`}
+                  className={OPERATOR_GUEST_CONTACT_LINK_CLASS}
+                >
+                  {row.email}
+                </a>
+              </TableCell>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                  {row.permissionRole}
+                </span>
+              </TableCell>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className="text-sm font-normal leading-[19px] text-foreground">
+                  {row.locationAccessLabel}
+                </span>
+              </TableCell>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <Badge
+                  variant="soft"
+                  className={GUESTS_MARKETING_STATUS_BADGE_CLASS}
+                >
+                  {row.status === "active"
+                    ? copy.statusActive
+                    : copy.statusInactive}
                 </Badge>
-              </td>
-              <td>
+              </TableCell>
+              <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                  {row.lastActiveAt != null
+                    ? formatAccessActivityOccurredAt(
+                        row.lastActiveAt,
+                        new Date()
+                      )
+                    : copy.lastActiveEmpty}
+                </span>
+              </TableCell>
+              <TableCell className={GUESTS_TABLE_ACTIONS_CELL_CLASS}>
                 {row.actions.length === 0 ? null : (
-                  <DropdownMenu modal={false}>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Actions for ${row.fullName}`}
-                        className={GUESTS_ROW_ACTIONS_TRIGGER_CLASS}
-                      >
-                        <MoreVerticalIcon className="size-4" aria-hidden />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      className={GUESTS_ROW_ACTIONS_MENU_CLASS}
-                    >
-                      {row.actions.map((action) => (
-                        <DropdownMenuItem
-                          key={action}
-                          className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-                          onSelect={() => {
-                            if (action === "change-role") {
-                              pageModule.openChangeRole(row.membershipId)
-                            } else if (action === "change-location") {
-                              pageModule.openChangeLocation(row.membershipId)
-                            } else if (action === "deactivate") {
-                              pageModule.openDeactivate(row.membershipId)
-                            } else if (action === "reactivate") {
-                              void pageModule.confirmReactivate(
-                                row.membershipId
-                              )
-                            } else if (action === "remove") {
-                              pageModule.openRemove(row.membershipId)
-                            }
-                          }}
+                  <div className="flex items-center justify-center">
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Actions for ${row.fullName}`}
+                          className={GUESTS_ROW_ACTIONS_TRIGGER_CLASS}
                         >
-                          {actionLabel(action)}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                          <MoreVerticalIcon className="size-4" aria-hidden />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        className={GUESTS_ROW_ACTIONS_MENU_CLASS}
+                      >
+                        {row.actions.map((action) => (
+                          <DropdownMenuItem
+                            key={action}
+                            className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+                            onSelect={() => {
+                              if (action === "view") {
+                                pageModule.openViewMember(row.membershipId)
+                              } else if (
+                                action === "edit-role"
+                                || action === "edit-access"
+                              ) {
+                                pageModule.openEditMember(row.membershipId)
+                              } else if (action === "suspend") {
+                                pageModule.openSuspend(row.membershipId)
+                              } else if (action === "reactivate") {
+                                void pageModule.confirmReactivate(
+                                  row.membershipId
+                                )
+                              }
+                            }}
+                          >
+                            {actionLabel(action)}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 )}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   )
 }
 
-function ChangeRoleDialog({
+function EditMemberDialog({
   snap,
   pageModule,
+  roleOptions,
 }: {
   snap: ReturnType<
     ReturnType<typeof useTeamPermissionsPageModuleApi>["getSnapshot"]
   >
   pageModule: ReturnType<typeof useTeamPermissionsPageModuleApi>
+  roleOptions: string[]
 }) {
-  if (snap.dialog.kind !== "change-role") {
+  if (snap.dialog.kind !== "edit-member") {
     return null
   }
-  return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !snap.busy) {
-          pageModule.closeDialog()
-        }
-      }}
-    >
-      <DialogContent
-        showCloseButton={false}
-        className="gap-8 rounded-op-md bg-op-surface-secondary p-8 sm:max-w-[480px]"
-      >
-        <div className={CAPTURE_DIALOG_HEADER_ROW_CLASS}>
-          <DialogHeader>
-            <DialogTitle>{copy.changeRole}</DialogTitle>
-          </DialogHeader>
-          <DialogClose asChild>
-            <Button
-              type="button"
-              variant="op-collapse"
-              disabled={snap.busy}
-              aria-label="Close"
-              className={CAPTURE_DIALOG_CLOSE_BUTTON_CLASS}
-              onClick={() => pageModule.closeDialog()}
-            >
-              <XIcon aria-hidden />
-            </Button>
-          </DialogClose>
-        </div>
-        <Select
-          value={snap.dialog.draftRole}
-          onValueChange={(value) => pageModule.setChangeRoleDraft(value)}
-          disabled={snap.busy}
-        >
-          <SelectTrigger className="h-8 w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent
-            position="popper"
-            className={TEAM_PERMISSIONS_SELECT_MENU_CLASS}
-          >
-            {assignableRolesForActor(snap.actorPermissionRole).map((role) => (
-              <SelectItem key={role} value={role}>
-                {role}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <DialogFooter className="sm:justify-start">
-          <Button
-            type="button"
-            variant="op-primary"
-            disabled={snap.busy}
-            onClick={() => {
-              void pageModule.confirmDialogPrimary()
-            }}
-          >
-            {copy.save}
-          </Button>
-          <Button
-            type="button"
-            variant="op-tertiary"
-            disabled={snap.busy}
-            onClick={() => pageModule.closeDialog()}
-          >
-            {copy.cancel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
 
-function ChangeLocationDialog({
-  snap,
-  pageModule,
-}: {
-  snap: ReturnType<
-    ReturnType<typeof useTeamPermissionsPageModuleApi>["getSnapshot"]
-  >
-  pageModule: ReturnType<typeof useTeamPermissionsPageModuleApi>
-}) {
-  if (snap.dialog.kind !== "change-location") {
-    return null
-  }
+  const isView = snap.dialog.mode === "view"
+  const member = snap.members.find(
+    (row) => row.membershipId === snap.dialog.membershipId
+  )
+
   return (
     <Dialog
       open
@@ -1339,86 +1455,60 @@ function ChangeLocationDialog({
     >
       <DialogContent
         showCloseButton={false}
-        className="gap-8 rounded-op-md bg-op-surface-secondary p-8 sm:max-w-[480px]"
+        className={TEAM_PERMISSIONS_INVITE_DIALOG_CONTENT_CLASS}
       >
-        <div className={CAPTURE_DIALOG_HEADER_ROW_CLASS}>
-          <DialogHeader>
-            <DialogTitle>{copy.changeLocation}</DialogTitle>
-          </DialogHeader>
-          <DialogClose asChild>
+        <div className={TEAM_PERMISSIONS_INVITE_BODY_STACK_CLASS}>
+          <div className={CAPTURE_DIALOG_HEADER_ROW_CLASS}>
+            <DialogHeader className="min-w-0 flex-1 gap-3">
+              <DialogTitle className="pr-0 text-2xl font-bold tracking-normal text-op-text-primary">
+                {isView ? copy.viewMemberTitle : copy.editMemberTitle}
+              </DialogTitle>
+              <DialogDescription className="max-w-none text-base font-medium leading-normal text-op-text-muted">
+                {isView ? copy.viewMemberSubtitle : copy.editMemberSubtitle}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogClose asChild>
+              <Button
+                type="button"
+                variant="op-collapse"
+                disabled={snap.busy}
+                aria-label="Close"
+                className={CAPTURE_DIALOG_CLOSE_BUTTON_CLASS}
+                onClick={() => pageModule.closeDialog()}
+              >
+                <XIcon aria-hidden />
+              </Button>
+            </DialogClose>
+          </div>
+
+          <TeamMemberDialogForm
+            idPrefix="edit-member"
+            values={snap.dialog.draft}
+            onChange={(values) => pageModule.setEditMemberDraft(values)}
+            roleOptions={roleOptions}
+            locations={snap.locations}
+            isSingleLocation={
+              snap.isSingleLocation || member?.isAccountOwner === true
+            }
+            busy={snap.busy}
+            readOnly={isView}
+            readOnlyIdentity
+          />
+        </div>
+
+        <DialogFooter className="flex flex-row flex-wrap justify-start gap-3 sm:justify-start">
+          {isView ? null : (
             <Button
               type="button"
-              variant="op-collapse"
+              variant="op-primary"
               disabled={snap.busy}
-              aria-label="Close"
-              className={CAPTURE_DIALOG_CLOSE_BUTTON_CLASS}
-              onClick={() => pageModule.closeDialog()}
+              onClick={() => {
+                void pageModule.confirmDialogPrimary()
+              }}
             >
-              <XIcon aria-hidden />
+              {copy.save}
             </Button>
-          </DialogClose>
-        </div>
-        <Select
-          value={snap.dialog.draftScope}
-          onValueChange={(value) =>
-            pageModule.setChangeLocationDraft(
-              value as "all" | "named",
-              snap.dialog.kind === "change-location"
-                ? snap.dialog.draftNamedIds
-                : []
-            )
-          }
-          disabled={snap.busy}
-        >
-          <SelectTrigger className="h-8 w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent
-            position="popper"
-            className={TEAM_PERMISSIONS_SELECT_MENU_CLASS}
-          >
-            <SelectItem value="all">{copy.allLocations}</SelectItem>
-            <SelectItem value="named">{copy.selectedLocations}</SelectItem>
-          </SelectContent>
-        </Select>
-        {snap.dialog.draftScope === "named"
-          ? snap.locations.map((location) => (
-              <CheckboxLabel
-                key={location.id}
-                id={`change-loc-${location.id}`}
-                checked={snap.dialog.kind === "change-location"
-                  && snap.dialog.draftNamedIds.includes(location.id)}
-                onCheckedChange={(checked) => {
-                  if (snap.dialog.kind !== "change-location") {
-                    return
-                  }
-                  const next = checked
-                    ? [...snap.dialog.draftNamedIds, location.id]
-                    : snap.dialog.draftNamedIds.filter(
-                        (id) => id !== location.id
-                      )
-                  pageModule.setChangeLocationDraft("named", next)
-                }}
-              >
-                {location.name}
-              </CheckboxLabel>
-            ))
-          : (
-            <p className="m-0 text-sm text-muted-foreground">
-              {copy.allLocationsHelper}
-            </p>
           )}
-        <DialogFooter className="sm:justify-start">
-          <Button
-            type="button"
-            variant="op-primary"
-            disabled={snap.busy}
-            onClick={() => {
-              void pageModule.confirmDialogPrimary()
-            }}
-          >
-            {copy.save}
-          </Button>
           <Button
             type="button"
             variant="op-tertiary"

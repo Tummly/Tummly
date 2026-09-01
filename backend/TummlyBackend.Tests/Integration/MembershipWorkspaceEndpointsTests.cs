@@ -25,6 +25,45 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SelectWorkspace_UpdatesAccountType_FromRestaurant()
+        {
+            var seeded = await SeedOwnerWithMixedAccountTypesAsync();
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/auth/select-workspace"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                restaurantId = seeded.MultiRestaurantId,
+            });
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("Multi", body.GetProperty("accountType").GetString());
+            Assert.Equal(
+                seeded.MultiRestaurantId,
+                body.GetProperty("restaurantId").GetInt32()
+            );
+            Assert.Equal(
+                seeded.MultiLocationId,
+                body.GetProperty("locationId").GetInt32()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var user = await context.Users.FirstAsync(row => row.Id == seeded.UserId);
+            Assert.Equal("Multi", user.AccountType);
+            Assert.Equal(seeded.MultiRestaurantId, user.SelectedRestaurantId);
+            Assert.Equal(seeded.MultiLocationId, user.SelectedLocationId);
+        }
+
+        [Fact]
         public async Task Workspaces_ListsActiveMemberships_AndOmitsDeactivated()
         {
             var seeded = await SeedOwnerWithSecondMembershipAsync(
@@ -229,6 +268,108 @@ namespace TummlyBackend.Tests.Integration
 
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        private async Task<(
+            string Jwt,
+            int UserId,
+            int MultiRestaurantId,
+            int MultiLocationId
+        )> SeedOwnerWithMixedAccountTypesAsync()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Mixed Owner",
+                Email = $"mixed-{Guid.NewGuid():N}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900111",
+                Role = "Owner",
+                AccountType = "Single",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var single = new Restaurant
+            {
+                Name = "Single Venue",
+                AccountType = "Single",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(single);
+            await context.SaveChangesAsync();
+            user.SelectedRestaurantId = single.Id;
+
+            context.RestaurantMemberships.Add(new RestaurantMembership
+            {
+                UserId = user.Id,
+                RestaurantId = single.Id,
+                PermissionRole = PermissionRoles.Owner,
+                LocationScope = LocationScopeKind.AllLocations,
+                NamedLocationIdsJson = "[]",
+                Status = MembershipStatus.Active,
+            });
+
+            var multiOwner = new User
+            {
+                FullName = "Multi Owner",
+                Email = $"multi-owner-{Guid.NewGuid():N}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900112",
+                Role = "Owner",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Users.Add(multiOwner);
+            await context.SaveChangesAsync();
+
+            var multi = new Restaurant
+            {
+                Name = "Multi Venue",
+                AccountType = "Multi",
+                OwnerUserId = multiOwner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(multi);
+            await context.SaveChangesAsync();
+
+            var multiLocation = new RestaurantLocation
+            {
+                RestaurantId = multi.Id,
+                LocationName = "Camden",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(multiLocation);
+            context.RestaurantMemberships.Add(new RestaurantMembership
+            {
+                UserId = user.Id,
+                RestaurantId = multi.Id,
+                PermissionRole = PermissionRoles.Staff,
+                LocationScope = LocationScopeKind.AllLocations,
+                NamedLocationIdsJson = "[]",
+                Status = MembershipStatus.Active,
+            });
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return (jwt, user.Id, multi.Id, multiLocation.Id);
         }
 
         private async Task<(

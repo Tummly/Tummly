@@ -22,6 +22,7 @@ export interface VerifyOtpPayload {
 export interface CompleteSetupLocation {
   locationName: string;
   address: string;
+  city?: string;
   postcode?: string;
   locationPhone?: string;
   localContact?: string;

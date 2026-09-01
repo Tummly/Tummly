@@ -1,6 +1,41 @@
 import { describe, expect, it } from "vitest"
 
-import { resolveAccountWorkspacePlanStatusPresentation } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
+import {
+  resolveAccountWorkspacePlanStatusPresentation,
+  resolveCampaignSenderDisplayName,
+} from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
+
+describe("resolveCampaignSenderDisplayName", () => {
+  it("prefers the stored sender name", () => {
+    expect(
+      resolveCampaignSenderDisplayName({
+        storedSenderName: " Harbour Kitchen ",
+        workspaceName: "Workspace",
+        locationName: "Location",
+      })
+    ).toBe("Harbour Kitchen")
+  })
+
+  it("falls back to workspace name when sender is unset", () => {
+    expect(
+      resolveCampaignSenderDisplayName({
+        storedSenderName: "",
+        workspaceName: " KFC Chicken ",
+        locationName: "Location",
+      })
+    ).toBe("KFC Chicken")
+  })
+
+  it("falls back to location name when workspace name is empty", () => {
+    expect(
+      resolveCampaignSenderDisplayName({
+        storedSenderName: null,
+        workspaceName: "   ",
+        locationName: " Soho ",
+      })
+    ).toBe("Soho")
+  })
+})
 
 describe("resolveAccountWorkspacePlanStatusPresentation", () => {
   const href =

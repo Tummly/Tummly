@@ -19,6 +19,19 @@ describe("formatClaimToRedemptionRate", () => {
 })
 
 describe("buildOffersPerformanceKpis", () => {
+  it("shows active offers against plan cap when provided", () => {
+    const kpis = buildOffersPerformanceKpis({
+      activeOffers: 2,
+      activeOffersCap: 3,
+      offersIssued: 0,
+      claims: 0,
+      redemptions: 0,
+    })
+
+    expect(kpis[0]?.primaryText).toBe("2 of 3")
+    expect(kpis[0]?.helperText).toContain("plan limit")
+  })
+
   it("builds five KPI cells with honest zeros and fixed helpers", () => {
     const kpis = buildOffersPerformanceKpis({
       activeOffers: 0,

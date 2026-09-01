@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest"
 import {
   guestProfileHeaderActionPaths,
   operatorDashboardCampaignsPathWithOffer,
+  operatorDashboardCaptureForLocationPath,
   operatorDashboardCaptureLocationPath,
   operatorDashboardGuestEditPath,
   operatorDashboardGuestProfilePath,
+  operatorDashboardLocationDetailPath,
   operatorDashboardModeForAccountType,
   operatorDashboardNavPath,
   operatorDashboardCampaignDetailsPath,
@@ -161,6 +163,33 @@ describe("operatorDashboardNavPath", () => {
     ).toBe("/multi-dashboard/settings/account-workspace?location=7")
   })
 
+  it("builds Locations settings path with location query", () => {
+    expect(operatorDashboardNavPath("single", "locations", 42)).toBe(
+      "/single-dashboard/settings/locations?location=42"
+    )
+    expect(operatorDashboardNavPath("multi", "locations", 7)).toBe(
+      "/multi-dashboard/settings/locations?location=7"
+    )
+  })
+
+  it("builds Location detail path with location query", () => {
+    expect(operatorDashboardLocationDetailPath("single", 42)).toBe(
+      "/single-dashboard/settings/locations/42?location=42"
+    )
+    expect(
+      operatorDashboardLocationDetailPath("multi", 7, { tab: "overview" })
+    ).toBe("/multi-dashboard/settings/locations/7?location=7&tab=overview")
+  })
+
+  it("builds Capture path for a location in single and multi", () => {
+    expect(operatorDashboardCaptureForLocationPath("single", 42)).toBe(
+      "/single-dashboard/capture?location=42"
+    )
+    expect(operatorDashboardCaptureForLocationPath("multi", 7)).toBe(
+      "/multi-dashboard/capture/locations/7?location=7"
+    )
+  })
+
   it("builds Team & permissions settings path with location query", () => {
     expect(
       operatorDashboardNavPath("single", "team-permissions", 42)
@@ -177,6 +206,15 @@ describe("operatorDashboardNavPath", () => {
     expect(
       operatorDashboardNavPath("multi", "billing-credits", 7)
     ).toBe("/multi-dashboard/settings/billing-credits?location=7")
+  })
+
+  it("builds Privacy & consent settings path with location query", () => {
+    expect(
+      operatorDashboardNavPath("single", "privacy-consent", 42)
+    ).toBe("/single-dashboard/settings/privacy-consent?location=42")
+    expect(
+      operatorDashboardNavPath("multi", "privacy-consent", 7)
+    ).toBe("/multi-dashboard/settings/privacy-consent?location=7")
   })
 })
 
@@ -368,6 +406,30 @@ describe("resolveOperatorSidebarActiveId", () => {
     ).toBe("account-workspace")
   })
 
+  it("marks Locations active on settings locations and not Capture nested", () => {
+    expect(
+      resolveOperatorSidebarActiveId("/single-dashboard/settings/locations")
+    ).toBe("locations")
+    expect(
+      resolveOperatorSidebarActiveId("/multi-dashboard/settings/locations")
+    ).toBe("locations")
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/multi-dashboard/settings/locations/7"
+      )
+    ).toBe("locations")
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/single-dashboard/settings/locations/42"
+      )
+    ).toBe("locations")
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/multi-dashboard/capture/locations/42"
+      )
+    ).toBe("capture")
+  })
+
   it("marks Team & permissions active on settings child routes", () => {
     expect(
       resolveOperatorSidebarActiveId(
@@ -387,6 +449,19 @@ describe("resolveOperatorSidebarActiveId", () => {
         "/multi-dashboard/settings/billing-credits/manage-plan"
       )
     ).toBe("billing-credits")
+  })
+
+  it("marks Privacy & consent active on settings child routes", () => {
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/single-dashboard/settings/privacy-consent"
+      )
+    ).toBe("privacy-consent")
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/multi-dashboard/settings/privacy-consent"
+      )
+    ).toBe("privacy-consent")
   })
 })
 

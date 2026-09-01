@@ -6,6 +6,7 @@ export const ukPostcodeRegex = /^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$/i
 export type UploadedLocationDraft = {
   locationName: string
   address: string
+  city: string
   postcode: string
   addressOverridden: boolean
   locationPhone: string
@@ -29,14 +30,33 @@ export function combineLocalContact(name: string, email: string) {
   return trimmedName || trimmedEmail
 }
 
+function cityFromDraft(location: UploadedLocationDraft) {
+  const stored = location.city.trim()
+  if (stored) {
+    return stored
+  }
+
+  const parts = location.address
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  if (parts.length < 2) {
+    return ""
+  }
+
+  return parts[parts.length - 1] ?? ""
+}
+
 export function getUploadedLocationStatus(
   location: UploadedLocationDraft
 ): UploadedLocationStatus {
   const locationName = location.locationName.trim()
   const address = location.address.trim()
+  const city = cityFromDraft(location)
   const postcode = location.postcode.trim()
 
-  if (!locationName || !address || !postcode) {
+  if (!locationName || !address || !city || !postcode) {
     return "missing_required"
   }
 

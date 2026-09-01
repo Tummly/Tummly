@@ -45,6 +45,10 @@ namespace TummlyBackend.Billing.Pricebook
         public PricebookChannelCredits? CreditsMonthly { get; init; }
 
         public int ActiveQrPlacementsPerLocation { get; init; }
+
+        public int PublishedGuestFormsPerLocation { get; init; }
+
+        public int DraftGuestFormsPerLocation { get; init; }
     }
 
     public sealed class PricebookChannelCredits

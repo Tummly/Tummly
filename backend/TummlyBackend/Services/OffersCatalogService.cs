@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.DTOs.Offers;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -80,16 +81,19 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly Func<DateTime> _utcNow;
         private readonly IActiveOfferCapGate? _activeOfferCap;
+        private readonly IPlanEntitlementsSnapshot? _entitlements;
 
         public OffersCatalogService(
             ApplicationDbContext context,
             Func<DateTime>? utcNow = null,
-            IActiveOfferCapGate? activeOfferCap = null
+            IActiveOfferCapGate? activeOfferCap = null,
+            IPlanEntitlementsSnapshot? entitlements = null
         )
         {
             _context = context;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
             _activeOfferCap = activeOfferCap;
+            _entitlements = entitlements;
         }
 
         /// <summary>
@@ -687,6 +691,11 @@ namespace TummlyBackend.Services
                 .Select(row => ToListItem(row))
                 .ToList();
 
+            var entitlements = await ResolveAccountEntitlementsAsync(
+                query.LocationId,
+                cancellationToken
+            );
+
             return new CatalogOffersListResponse
             {
                 Items = pageRows,
@@ -694,7 +703,46 @@ namespace TummlyBackend.Services
                 Page = query.Page,
                 PageSize = query.PageSize,
                 TabCounts = tabCounts,
+                Entitlements = entitlements,
             };
+        }
+
+        private async Task<PlanEntitlementsAccountSnapshotDto> ResolveAccountEntitlementsAsync(
+            int locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            if (_entitlements == null)
+            {
+                return new PlanEntitlementsAccountSnapshotDto
+                {
+                    Locations = UnavailableEntitlement(),
+                    TeamMembers = UnavailableEntitlement(),
+                    ActiveOffers = UnavailableEntitlement(),
+                };
+            }
+
+            var restaurantId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == locationId)
+                .Select(row => row.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (restaurantId < 1)
+            {
+                return new PlanEntitlementsAccountSnapshotDto
+                {
+                    Locations = UnavailableEntitlement(),
+                    TeamMembers = UnavailableEntitlement(),
+                    ActiveOffers = UnavailableEntitlement(),
+                };
+            }
+
+            return await _entitlements.GetAccountAsync(restaurantId, cancellationToken);
+        }
+
+        private static PlanEntitlementLimitDto UnavailableEntitlement()
+        {
+            return new PlanEntitlementLimitDto { Available = false };
         }
 
         public async Task<CatalogOfferLifecycleResult> PauseAsync(

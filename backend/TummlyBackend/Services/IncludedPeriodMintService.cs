@@ -67,6 +67,15 @@ namespace TummlyBackend.Services
                         );
                     }
 
+                    if (billingAccount.ScheduledCancelPlan)
+                    {
+                        return await AbortOwnedAsync(
+                            session,
+                            IncludedPeriodMintResult.Skipped("cancel_scheduled"),
+                            cancellationToken
+                        );
+                    }
+
                     var scheduleResult =
                         await _planChange.ApplyScheduledChangeOnRenewalAsync(
                             billingAccount,
@@ -144,12 +153,6 @@ namespace TummlyBackend.Services
                         && effectiveNow >= billingAccount.RenewalDateUtc.Value
                     )
                     {
-                        // Revolut native cancel only at period end (ticket 23).
-                        // Fail before clearing the slot so the job can retry.
-                        await _revolutCancel.CancelNativeSubscriptionAsync(
-                            billingAccount.RestaurantId,
-                            cancellationToken
-                        );
                         billingAccount.ClearScheduledChangeSlot();
                         return await FinishCancelApplyAsync(
                             expiryRowsWritten,

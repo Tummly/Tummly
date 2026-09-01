@@ -342,6 +342,22 @@ namespace TummlyBackend.Billing.Pricebook
             var activeQr = element
                 .GetProperty("active_qr_placements_per_location")
                 .GetInt32();
+            var publishedGuestForms = element.TryGetProperty(
+                    "published_guest_forms_per_location",
+                    out var publishedForms
+                )
+                ? publishedForms.GetInt32()
+                : element.TryGetProperty("published_guest_forms", out var publishedAlt)
+                    ? publishedAlt.GetInt32()
+                    : 1;
+            var draftGuestForms = element.TryGetProperty(
+                    "draft_guest_forms_per_location",
+                    out var draftForms
+                )
+                ? draftForms.GetInt32()
+                : element.TryGetProperty("draft_guest_forms", out var draftAlt)
+                    ? draftAlt.GetInt32()
+                    : 1;
 
             return new PricebookPlan
             {
@@ -355,6 +371,8 @@ namespace TummlyBackend.Billing.Pricebook
                 CreditsOneTime = oneTime,
                 CreditsMonthly = monthly,
                 ActiveQrPlacementsPerLocation = activeQr,
+                PublishedGuestFormsPerLocation = publishedGuestForms,
+                DraftGuestFormsPerLocation = draftGuestForms,
             };
         }
 

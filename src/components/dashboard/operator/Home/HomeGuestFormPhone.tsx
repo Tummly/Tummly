@@ -12,6 +12,7 @@ import {
   OPERATOR_HOME_HERO_PHONE_SCREEN_CLASS,
   OPERATOR_HOME_HERO_PHONE_SHELL_CLASS,
 } from "@/lib/operatorHome/heroPresentation"
+import { GUEST_FORM_CONSENT_DEMO } from "@/lib/guestFeedback/guestFormConsentPresentation"
 
 const LG_VIEWPORT_QUERY = "(min-width: 1024px)"
 
@@ -105,6 +106,7 @@ function FixedGuestFormCanvas({
           token=""
           locationName={locationName}
           address={address}
+          guestFormConsent={GUEST_FORM_CONSENT_DEMO}
           isSubmitting={false}
           submitError={null}
           onSubmit={async () => {}}

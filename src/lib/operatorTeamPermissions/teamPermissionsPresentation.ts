@@ -21,9 +21,13 @@ export const TEAM_PERMISSIONS_PAGE_COPY = {
   inviteSubtitle:
     "Add someone to your Tummly workspace and choose what they can access.",
   email: "Email address",
+  emailPlaceholder: "Enter",
   fullName: "Full name",
+  fullNamePlaceholder: "Enter",
   role: "Role",
+  rolePlaceholder: "Select",
   locationAccess: "Location access",
+  locationAccessPlaceholder: "Select",
   message: "Message",
   messagePlaceholder: "Optional note",
   sendInvite: "Send invite",
@@ -32,7 +36,8 @@ export const TEAM_PERMISSIONS_PAGE_COPY = {
   selectedLocations: "Selected locations",
   allLocationsHelper: "Includes locations you add later.",
   membersTitle: "Team members",
-  membersSubtitle: "People who can access this workspace.",
+  membersSubtitle:
+    "Manage who can access this workspace and what each person can do.",
   searchPlaceholder: "Search by name or email",
   filters: "Filters",
   emptyTitle: "No matching team members",
@@ -43,6 +48,7 @@ export const TEAM_PERMISSIONS_PAGE_COPY = {
   locationAccessCardTitle: "Location access",
   locationAccessCardSubtitle:
     "Control which locations each team member can view or manage.",
+  locationAccessSelectedOnly: "Selected only",
   changeRole: "Change role",
   changeLocation: "Change location access",
   deactivate: "Deactivate",
@@ -53,24 +59,57 @@ export const TEAM_PERMISSIONS_PAGE_COPY = {
   statPending: "pending",
   statManagers: "managers",
   statRestricted: "restricted",
-  statOwner: "1 owner",
   teamMembers: "Team members",
   pendingInvites: "Pending invites",
   locationManagers: "Location managers",
   limitedAccessUsers: "Limited access users",
   owners: "Owners",
+  teamPlanUsage: "Plan usage",
+  inviteAtCapHelper:
+    "Your team user limit is reached. Remove a member or cancel a pending invite to add someone new.",
+  columnName: "Name",
+  columnEmail: "Email",
+  columnRole: "Role",
+  columnLocationAccess: "Location access",
+  columnStatus: "Status",
+  columnLastActive: "Last active",
+  columnActions: "Actions",
+  lastActiveEmpty: "—",
+  view: "View",
+  editRole: "Edit role",
+  editAccess: "Edit access",
+  suspend: "Suspend",
+  editMemberTitle: "Edit team member",
+  editMemberSubtitle:
+    "Update this person's role and what locations they can access.",
+  viewMemberTitle: "View team member",
+  viewMemberSubtitle:
+    "Review this person's role and what locations they can access.",
+  columnUser: "User",
+  columnAccess: "Access",
+  columnLocations: "Locations",
+  statusActive: "Active",
+  statusInactive: "Inactive",
   matrixTitle: "Permission matrix",
   matrixSubtitle:
-    "Review what each role can view or manage. Owners always have full access.",
+    "Review what each role can view or manage across workspace roles.",
+  matrixSubtitleEditable:
+    "Review what each role can view or manage. Owners can adjust Admin access per product area.",
   saveChanges: "Save changes",
   productArea: "Product area",
   noAccessDisplay: "—",
+  invitationsTitle: "Pending invitations",
+  invitationsSubtitle:
+    "People who have been invited but have not accepted yet.",
   invitationsEmptyTitle: "No pending invitations",
   invitationsEmptyHelper:
     "Invite a team member to add someone to this workspace.",
+  columnInvitedBy: "Invited by",
+  columnSent: "Sent",
+  columnExpires: "Expires",
   expired: "Expired",
   resend: "Resend",
-  revoke: "Revoke",
+  revoke: "Cancel",
   accessActivityTitle: "Security & access activity",
   accessActivitySubtitle:
     "Review recent changes to team access and permissions.",
@@ -221,6 +260,66 @@ export function formatAccessActivityOccurredAt(
 
 export const TEAM_PERMISSIONS_SELECT_MENU_CLASS = "z-[130]"
 
+/** Invite dialog — Figma 3762:23806 (1019px frame, 32px padding). */
+export const TEAM_PERMISSIONS_INVITE_DIALOG_CONTENT_CLASS =
+  "gap-[60px] rounded-op-md bg-op-surface-primary p-8 text-op-text-primary sm:max-w-[1019px]"
+
+export const TEAM_PERMISSIONS_INVITE_BODY_STACK_CLASS =
+  "flex w-full flex-col gap-10"
+
+export const TEAM_PERMISSIONS_INVITE_FORM_STACK_CLASS =
+  "flex w-full flex-col gap-5"
+
+export const TEAM_PERMISSIONS_INVITE_FORM_ROW_CLASS =
+  "flex w-full flex-col gap-5 sm:flex-row sm:items-start sm:gap-5"
+
+export const TEAM_PERMISSIONS_INVITE_FIELD_STACK_CLASS =
+  "flex min-w-0 flex-1 flex-col gap-2"
+
+export const TEAM_PERMISSIONS_INVITE_DIVIDER_CLASS =
+  "m-0 h-px w-full shrink-0 border-0 bg-[rgba(74,74,76,0.4)]"
+
+export const TEAM_PERMISSIONS_INVITE_MESSAGE_SECTION_CLASS =
+  "flex h-[188px] w-full flex-col"
+
+export const TEAM_PERMISSIONS_INVITE_MESSAGE_FIELD_CLASS =
+  "flex min-h-0 flex-1 flex-col gap-2"
+
+export const TEAM_PERMISSIONS_INVITE_TEXTAREA_CLASS =
+  "field-sizing-fixed min-h-0 flex-1 resize-none rounded-[4px] border-op-input-border bg-transparent px-[15px] py-[15px] text-sm text-op-text-primary placeholder:text-op-input-placeholder dark:bg-transparent dark:disabled:bg-transparent"
+
+/** Members tab stats card — Figma 3762:22008. */
+export const TEAM_PERMISSIONS_STATS_CARD_CLASS =
+  "overflow-clip rounded-op-lg border border-op-card-border bg-op-surface-primary p-6 dark:bg-op-color-gray-992 dark:shadow-none"
+
+/** 20px vertical rhythm between stat rows and dividers. */
+export const TEAM_PERMISSIONS_STATS_STACK_CLASS =
+  "flex w-full flex-col gap-5"
+
+/** Two stat pairs per row — 40px column gutter at sm+. */
+export const TEAM_PERMISSIONS_STATS_ROW_CLASS =
+  "flex w-full flex-col gap-5 sm:flex-row sm:items-center sm:gap-10"
+
+/** Owners sits in the left column only (half width minus half the 40px gutter). */
+export const TEAM_PERMISSIONS_STATS_OWNERS_ROW_CLASS =
+  "flex w-full sm:w-[calc(50%-1.25rem)] sm:items-center"
+
+export const TEAM_PERMISSIONS_STATS_PAIR_CLASS =
+  "flex min-w-0 flex-1 items-center justify-between gap-4"
+
+export const TEAM_PERMISSIONS_STATS_LABEL_CLASS =
+  "m-0 shrink-0 text-base font-semibold leading-normal text-[var(--op-color-gray-550)]"
+
+export const TEAM_PERMISSIONS_STATS_VALUE_CLASS =
+  "m-0 text-right text-base font-medium leading-normal text-foreground"
+
+export const TEAM_PERMISSIONS_STATS_DIVIDER_CLASS =
+  "m-0 h-px w-full shrink-0 border-0 bg-op-card-border"
+
+export function formatTeamPermissionsOwnersStat(count: number): string {
+  return count === 1 ? "1 owner" : `${count} owners`
+}
+
 export const PERMISSION_MATRIX_ROLES = [
   "Owner",
   "Admin",
@@ -313,6 +412,18 @@ export function resolveTeamPermissionsTabId(
     return raw as TeamPermissionsTabId
   }
   return "members"
+}
+
+export function suspendConfirmCopy(name: string): {
+  title: string
+  body: string
+  primaryLabel: string
+} {
+  return {
+    title: `Suspend ${name}?`,
+    body: "They will be removed from this workspace. This cannot be undone. Writable Key contacts move to the Account owner.",
+    primaryLabel: "Suspend",
+  }
 }
 
 export function deactivateConfirmCopy(name: string): {

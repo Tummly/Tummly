@@ -31,12 +31,14 @@ const validAccountSetup = {
       ...emptyLocationItem,
       locationName: "Main Street",
       address: "1 High Street",
+      city: "Aberdeen",
       postcode: "AB1 2CD",
     },
     {
       ...emptyLocationItem,
       locationName: "Harbour Side",
       address: "2 Pier Road",
+      city: "Cardiff",
       postcode: "CD3 4EF",
     },
   ],
@@ -48,6 +50,28 @@ describe("accountSetupMultiSchema", () => {
     expect(result.success).toBe(true)
   })
 
+  it("rejects a location row missing City", () => {
+    const result = accountSetupMultiSchema.safeParse({
+      ...validAccountSetup,
+      locations: [
+        {
+          ...emptyLocationItem,
+          locationName: "Main Street",
+          address: "1 High Street",
+          city: "",
+          postcode: "AB1 2CD",
+        },
+      ],
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (entry) => entry.path.join(".") === "locations.0.city"
+      )
+      expect(issue?.message).toBe(validationMessages.accountSetup.city.required)
+    }
+  })
+
   it("rejects a location row missing required fields", () => {
     const result = accountSetupMultiSchema.safeParse({
       ...validAccountSetup,
@@ -56,6 +80,7 @@ describe("accountSetupMultiSchema", () => {
           ...emptyLocationItem,
           locationName: "",
           address: "1 High Street",
+          city: "Aberdeen",
           postcode: "AB1 2CD",
         },
       ],
@@ -104,10 +129,12 @@ describe("account setup multi step field slices", () => {
     expect(getAccountSetupMultiStep3FieldNames(2)).toEqual([
       "locations.0.locationName",
       "locations.0.address",
+      "locations.0.city",
       "locations.0.postcode",
       "locations.0.locationPhone",
       "locations.1.locationName",
       "locations.1.address",
+      "locations.1.city",
       "locations.1.postcode",
       "locations.1.locationPhone",
     ])
@@ -175,6 +202,7 @@ describe("toMultiLocationSetupPayload", () => {
         {
           locationName: "Main Street",
           address: "1 High Street",
+          city: "Aberdeen",
           postcode: "AB1 2CD",
           locationPhone: undefined,
           localContact: undefined,
@@ -182,6 +210,7 @@ describe("toMultiLocationSetupPayload", () => {
         {
           locationName: "Harbour Side",
           address: "2 Pier Road",
+          city: "Cardiff",
           postcode: "CD3 4EF",
           locationPhone: undefined,
           localContact: undefined,

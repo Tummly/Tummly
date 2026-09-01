@@ -8,7 +8,6 @@ import { toast } from "sonner"
 import { useSearchParams } from "react-router-dom"
 
 import {
-  deactivateTeamMember,
   getTeamPermissionsPage,
   getTeamAccessActivity,
   reactivateTeamMember,
@@ -37,17 +36,29 @@ export function TeamPermissionsPageModuleProvider({
     createOperatorTeamPermissionsPageModule(
       {
         getPage: getTeamPermissionsPage,
-        updateRole: async (membershipId, permissionRole) => {
-          await updateTeamMemberRole(membershipId, permissionRole)
-          toast.success("Role updated.")
-        },
-        updateLocationScope: async (membershipId, payload) => {
-          await updateTeamMemberLocationScope(membershipId, payload)
-          toast.success("Location scope updated.")
-        },
-        deactivate: async (membershipId) => {
-          await deactivateTeamMember(membershipId)
-          toast.success("Member deactivated.")
+        updateMemberProfile: async (membershipId, payload) => {
+          try {
+            // Location scope must land before role when both change — role
+            // validation reads the member's current scope (Area/Location Manager
+            // require a named list).
+            if (payload.locationScope != null) {
+              await updateTeamMemberLocationScope(
+                membershipId,
+                payload.locationScope
+              )
+            }
+            if (payload.permissionRole != null) {
+              await updateTeamMemberRole(membershipId, payload.permissionRole)
+            }
+            toast.success("Member updated.")
+          } catch (error) {
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Could not update member."
+            )
+            throw error
+          }
         },
         reactivate: async (membershipId) => {
           await reactivateTeamMember(membershipId)
@@ -55,7 +66,7 @@ export function TeamPermissionsPageModuleProvider({
         },
         remove: async (membershipId) => {
           await removeTeamMember(membershipId)
-          toast.success("Member removed.")
+          toast.success("Member suspended.")
         },
         saveMatrix: async (cells) => {
           await saveTeamPermissionsMatrix(cells)

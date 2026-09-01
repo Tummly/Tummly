@@ -1,3 +1,5 @@
+using TummlyBackend.DTOs.BillingCredits;
+
 namespace TummlyBackend.DTOs.TeamPermissions
 {
     public sealed class TeamPermissionsPageDto
@@ -19,6 +21,8 @@ namespace TummlyBackend.DTOs.TeamPermissions
         public List<PermissionMatrixAreaDto> Matrix { get; set; } = [];
 
         public List<TeamInvitationRowDto> Invitations { get; set; } = [];
+
+        public PlanEntitlementsAccountSnapshotDto Entitlements { get; set; } = new();
     }
 
     public sealed class PermissionMatrixAreaDto
@@ -81,6 +85,8 @@ namespace TummlyBackend.DTOs.TeamPermissions
         public string Status { get; set; } = "active";
 
         public bool IsAccountOwner { get; set; }
+
+        public DateTime? LastActiveAt { get; set; }
 
         public List<string> Actions { get; set; } = [];
     }

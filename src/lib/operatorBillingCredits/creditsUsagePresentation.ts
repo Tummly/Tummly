@@ -29,20 +29,36 @@ export type CreditChannelCardViewModel = {
   isDepleted: boolean
   showBuy: boolean
   showChangePlan: boolean
+  showViewUsage: boolean
   buyLabel: string
+  primaryActionLabel: string
 }
 
 export type CreditsUsageTableRowViewModel = {
   channelLabel: string
   usedThisCycle: string
   includedThisPeriod: string
-  purchasedRemaining: string
+  extraUsed: string
+  estimatedCharge: string
 }
 
 const CHANNEL_LABELS: Record<CreditChannelId, string> = {
   sms: "SMS credits",
   email: "Email credits",
   ai: "AI credits",
+}
+
+/** Billing usage card titles — Figma 5746:96470. */
+const BILLING_CARD_TITLES: Record<CreditChannelId, string> = {
+  sms: "SMS credits",
+  email: "Email sends",
+  ai: "AI credits",
+}
+
+const TABLE_CHANNEL_LABELS: Record<CreditChannelId, string> = {
+  sms: "SMS sent",
+  email: "Email sent",
+  ai: "AI credits used",
 }
 
 export function creditChannelLabel(channel: CreditChannelId): string {
@@ -64,7 +80,8 @@ export function creditChannelFillRatio(
   if (total <= 0) {
     return 0
   }
-  return combinedRemaining / total
+  // Fill tracks usage (matches backend UsedShare), not remaining.
+  return usedThisCycle / total
 }
 
 export function creditChannelHeadline(
@@ -75,6 +92,19 @@ export function creditChannelHeadline(
     return `No ${creditChannelLabel(channel)} remaining.`
   }
   return `${formatCreditCount(combinedRemaining)} remaining`
+}
+
+/** Figma 5746:96470 card status line under the channel title. */
+export function creditChannelCardHeadline(
+  record: CreditChannelUsageRecord
+): string {
+  if (record.combinedRemaining <= 0) {
+    return `No ${creditChannelLabel(record.channel)} remaining.`
+  }
+  if (record.channel === "email") {
+    return `${formatCreditCount(record.usedThisCycle)} of ${formatCreditCount(record.includedThisPeriod)} used`
+  }
+  return `${formatCreditCount(record.combinedRemaining)} of ${formatCreditCount(record.includedThisPeriod)} remaining`
 }
 
 export function creditChannelSubline(
@@ -100,9 +130,12 @@ export function billingCreditsChannelCardActions(options: {
   permissionRole: string
   isPilot: boolean
   isDepleted: boolean
-}): { showBuy: boolean; showChangePlan: boolean } {
+  channel: CreditChannelId
+}): { showBuy: boolean; showChangePlan: boolean; showViewUsage: boolean } {
+  const showViewUsage = options.channel === "email"
+
   if (options.accessLevel !== "manage") {
-    return { showBuy: false, showChangePlan: false }
+    return { showBuy: false, showChangePlan: false, showViewUsage }
   }
 
   const isOwner = options.permissionRole === "Owner"
@@ -111,16 +144,26 @@ export function billingCreditsChannelCardActions(options: {
     || options.permissionRole === "Billing Admin"
     || options.permissionRole === "Admin"
 
+  if (options.channel === "email") {
+    return {
+      showBuy: false,
+      showChangePlan: options.isDepleted && isOwner,
+      showViewUsage: true,
+    }
+  }
+
   if (options.isDepleted) {
     return {
       showBuy: canBuyTopUp && !options.isPilot,
       showChangePlan: isOwner,
+      showViewUsage: false,
     }
   }
 
   return {
     showBuy: canBuyTopUp && !options.isPilot,
     showChangePlan: false,
+    showViewUsage: false,
   }
 }
 
@@ -138,12 +181,21 @@ export function buildCreditChannelCardViewModel(
     permissionRole: options.permissionRole,
     isPilot: options.isPilot,
     isDepleted,
+    channel: record.channel,
   })
+  const title = BILLING_CARD_TITLES[record.channel]
+  const buyLabel =
+    record.channel === "email"
+      ? "Buy Email credits"
+      : `Buy ${title}`
+  const primaryActionLabel = actions.showViewUsage
+    ? "View usage"
+    : buyLabel
 
   return {
     channel: record.channel,
-    title: creditChannelLabel(record.channel),
-    headline: creditChannelHeadline(record.combinedRemaining, record.channel),
+    title,
+    headline: creditChannelCardHeadline(record),
     subline: creditChannelSubline(
       record.usedThisCycle,
       record.includedThisPeriod
@@ -157,12 +209,17 @@ export function buildCreditChannelCardViewModel(
       record.usedThisCycle
     ),
     meterMaxLabel: formatCreditCount(
-      record.combinedRemaining + record.usedThisCycle
+      Math.max(
+        record.includedThisPeriod,
+        record.combinedRemaining + record.usedThisCycle
+      )
     ),
     isDepleted,
     showBuy: actions.showBuy,
     showChangePlan: actions.showChangePlan,
-    buyLabel: `Buy ${creditChannelLabel(record.channel)}`,
+    showViewUsage: actions.showViewUsage,
+    buyLabel,
+    primaryActionLabel,
   }
 }
 
@@ -170,9 +227,12 @@ export function buildCreditsUsageTableRows(
   channels: CreditChannelUsageRecord[]
 ): CreditsUsageTableRowViewModel[] {
   return channels.map((record) => ({
-    channelLabel: creditChannelLabel(record.channel),
+    channelLabel: TABLE_CHANNEL_LABELS[record.channel],
     usedThisCycle: formatCreditCount(record.usedThisCycle),
     includedThisPeriod: formatCreditCount(record.includedThisPeriod),
-    purchasedRemaining: formatCreditCount(record.purchasedRemaining),
+    // Extra used = one-time purchased credits still applied (PurchasedRemaining).
+    extraUsed: formatCreditCount(record.purchasedRemaining),
+    // Backend has no estimated overage/top-up charge on the usage DTO yet.
+    estimatedCharge: "—",
   }))
 }

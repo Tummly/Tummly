@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react"
-import { useLocation, useNavigate, useOutletContext } from "react-router-dom"
+import { useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router-dom"
 
 import { FeedbackPage } from "@/components/dashboard/operator/Feedback/FeedbackPage"
 import { useFeedbackPageModuleApi } from "@/components/dashboard/operator/Feedback/utils/feedbackPageModuleContext"
@@ -14,7 +14,9 @@ export function FeedbackRoute() {
   const syncFeedbackRef = useRef(feedbackPageModule.syncWorkspace)
   const location = useLocation()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const consumedRecoveryDraftKeyRef = useRef<string | null>(null)
+  const consumedFeedbackIdRef = useRef<string | null>(null)
 
   syncFeedbackRef.current = feedbackPageModule.syncWorkspace
 
@@ -74,6 +76,48 @@ export function FeedbackRoute() {
     location.search,
     location.state,
     navigate,
+  ])
+
+  useEffect(() => {
+    const rawFeedbackId = searchParams.get("feedbackId")
+    if (rawFeedbackId == null || rawFeedbackId.trim() === "") {
+      return
+    }
+
+    const feedbackId = Number.parseInt(rawFeedbackId, 10)
+    if (!Number.isFinite(feedbackId) || feedbackId <= 0) {
+      return
+    }
+
+    const key = `${feedbackId}:${location.key}`
+    if (consumedFeedbackIdRef.current === key) {
+      return
+    }
+
+    void feedbackPageModule
+      .startInboxRecovery(feedbackId)
+      .then(() => {
+        consumedFeedbackIdRef.current = key
+        const nextParams = new URLSearchParams(searchParams)
+        nextParams.delete("feedbackId")
+        const nextSearch = nextParams.toString()
+        navigate(
+          nextSearch === ""
+            ? location.pathname
+            : `${location.pathname}?${nextSearch}`,
+          { replace: true, state: location.state }
+        )
+      })
+      .catch(() => {
+        toast.error("Could not open recovery. Please try again.")
+      })
+  }, [
+    feedbackPageModule,
+    location.key,
+    location.pathname,
+    location.state,
+    navigate,
+    searchParams,
   ])
 
   return <FeedbackPage />

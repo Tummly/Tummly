@@ -84,6 +84,23 @@ namespace TummlyBackend.Helpers
         }
 
         /// <summary>
+        /// Pending recovery: Succeeded Negative feedback that is not Resolved.
+        /// Used by Location detail guest activity checklist.
+        /// </summary>
+        public static IQueryable<LocationGuest> WherePendingRecovery(
+            IQueryable<LocationGuest> query
+        )
+        {
+            return query.Where(lg =>
+                lg.Feedbacks.Any(f =>
+                    f.ClassificationStatus == ClassificationStatus.Succeeded
+                    && f.Sentiment == FeedbackSentiment.Negative
+                    && f.WorkflowStatus != FeedbackWorkflowStatus.Resolved
+                )
+            );
+        }
+
+        /// <summary>
         /// Guest overview Needs recovery under a date window: distinct Location
         /// Guests with ≥1 currently Succeeded Negative Feedback submitted in
         /// <paramref name="fromUtc"/>..<paramref name="toUtc"/> (submission time).

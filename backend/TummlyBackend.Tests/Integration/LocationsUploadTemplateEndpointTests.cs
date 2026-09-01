@@ -36,7 +36,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.True(bytes.Length > 0);
 
             var content = System.Text.Encoding.UTF8.GetString(bytes);
-            Assert.StartsWith("Location name,", content);
+            Assert.StartsWith("Location name,Address,City,Postcode,", content);
         }
     }
 }

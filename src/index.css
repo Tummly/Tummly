@@ -2,12 +2,15 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/roboto-serif";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: "Inter Variable", sans-serif;
+  /* Free Season Mix stand-in — soft hybrid serif with a light serif whisper. */
+  --font-serif: "Roboto Serif Variable", "Roboto Serif", ui-serif, Georgia, serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -58,6 +61,7 @@
   --color-op-divider: var(--op-divider);
   --color-op-input-border: var(--op-input-border);
   --color-op-input-placeholder: var(--op-input-placeholder);
+  --color-op-input-disabled-background: var(--op-input-disabled-background);
   --color-op-checkbox-border: var(--op-checkbox-border);
   --color-op-text-primary: var(--op-text-primary);
   --color-op-text-secondary: var(--op-text-secondary);
@@ -104,7 +108,9 @@
     --op-needs-attention-row-background
   );
   --color-op-needs-attention-row-meta: var(--op-needs-attention-row-meta);
+  --color-op-color-gray-992: var(--op-color-gray-992);
   --color-op-color-gray-993: var(--op-color-gray-993);
+  --color-op-color-gray-996: var(--op-color-gray-996);
   --color-op-empty-title-color: var(--op-empty-title-color);
   --color-op-kpi-icon-color: var(--op-kpi-icon-color);
   --color-op-kpi-label-color: var(--op-kpi-label-color);
@@ -369,9 +375,13 @@ html.op {
   --op-color-gray-980: #262626;
   --op-color-gray-985: #212121;
   --op-color-gray-990: #202020;
+  /* Figma Account & workspace identity card fill (5735:78763) */
+  --op-color-gray-992: #1c1c1c;
   /* Figma Needs attention row fill (3344:39087) */
   --op-color-gray-993: #1d1d1d;
   --op-color-gray-995: #1b1b1b;
+  /* Figma Account & workspace tab body wash (settings chrome) */
+  --op-color-gray-996: #181818;
   --op-color-gray-1000: #171717;
   --op-color-green-500: #14a74a;
   /* Figma Recommended audience chip fill (4695:51830 / Tag) */
@@ -418,6 +428,8 @@ html.op {
   --op-input-border: #b2b2b3;
   /* Figma Container/Input placeholder (#7d7d7d) — 4574:38058 */
   --op-input-placeholder: #7d7d7d;
+  /* Disabled select / read-only field fill — light wash (matches FloatingLabel readOnly) */
+  --op-input-disabled-background: rgba(54, 54, 56, 0.07);
   --op-checkbox-border: var(--op-color-gray-375);
   --op-text-primary: var(--op-color-black);
   --op-text-secondary: var(--op-color-gray-500);
@@ -586,8 +598,10 @@ html.op.dark {
   --op-border-default: var(--op-color-gray-980);
   --op-divider: var(--op-color-gray-980);
   /* Same composite as former rgba(74,74,76,0.4) on dark surfaces */
-  --op-input-border: rgba(74, 74, 76, 0.4);
-  --op-checkbox-border: rgb(255 255 255 / 0.2);
+  --op-input-border: rgba(74, 74, 76, 0.8);
+  /* Disabled select fill — Figma dropdown Overlay+Border rgba(54,54,56,0.22) */
+  --op-input-disabled-background: rgba(54, 54, 56, 0.22);
+  --op-checkbox-border: rgba(74, 74, 76, 0.5);
   --op-text-primary: var(--op-color-white);
   --op-text-secondary: var(--op-color-gray-500);
   --op-text-muted: var(--op-color-gray-600);

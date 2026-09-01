@@ -646,7 +646,7 @@ namespace TummlyBackend.Controllers
 
             try
             {
-                var restaurantId = await _authService.SelectWorkspaceAsync(
+                var selected = await _authService.SelectWorkspaceAsync(
                     userId,
                     dto.ResolveRestaurantId()
                 );
@@ -654,8 +654,9 @@ namespace TummlyBackend.Controllers
                 return Ok(new
                 {
                     success = true,
-                    restaurantId,
-                    locationId = restaurantId,
+                    restaurantId = selected.RestaurantId,
+                    locationId = selected.LocationId,
+                    accountType = selected.AccountType,
                 });
             }
             catch (UnauthorizedAccessException ex)

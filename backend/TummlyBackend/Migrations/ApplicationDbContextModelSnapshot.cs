@@ -446,8 +446,16 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<string>("ScheduledCancelNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<bool>("ScheduledCancelPlan")
                         .HasColumnType("bit");
+
+                    b.Property<string>("ScheduledCancelReason")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<string>("ScheduledTargetBillingCycle")
                         .HasMaxLength(16)
@@ -1708,6 +1716,56 @@ namespace TummlyBackend.Migrations
                     b.ToTable("HelpCentreQueryMessages");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.LocationActivity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActorDisplayName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("ActorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<string>("FromValue")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int?>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ToValue")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("RestaurantId", "OccurredAt", "Id");
+
+                    b.ToTable("LocationActivities");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.LocationGuest", b =>
                 {
                     b.Property<int>("Id")
@@ -1843,6 +1901,55 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("LocationGuestId", "CreatedAt");
 
                     b.ToTable("LocationGuestNotes");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.LocationGuestPermissionLedgerEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("ActorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EventKind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int>("LocationGuestId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PermissionKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("RestaurantLocationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("RestaurantLocationId", "OccurredAt");
+
+                    b.HasIndex("LocationGuestId", "PermissionKind", "OccurredAt");
+
+                    b.ToTable("LocationGuestPermissionLedgerEntries");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.LocationGuestTag", b =>
@@ -2619,6 +2726,16 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
 
+                    b.Property<string>("EmailConsentWording")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("EmailMarketingPermissionEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("FeedbackFollowUpPermissionEnabled")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -2627,11 +2744,21 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("OwnerUserId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("PrivacyConsentReadyAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("PrivacyContactUserId")
                         .HasColumnType("int");
 
                     b.Property<string>("PublicPhoneNumber")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SmsConsentWording")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("SmsMarketingPermissionEnabled")
+                        .HasColumnType("bit");
 
                     b.Property<int>("SupportContactUserId")
                         .HasColumnType("int");
@@ -2912,6 +3039,10 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("CaptureLocationStatus")
                         .HasColumnType("int");
 
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -2920,6 +3051,9 @@ namespace TummlyBackend.Migrations
 
                     b.Property<bool>("IncludeInRollout")
                         .HasColumnType("bit");
+
+                    b.Property<int>("LifecycleStatus")
+                        .HasColumnType("int");
 
                     b.Property<string>("LocalContact")
                         .HasColumnType("nvarchar(max)");
@@ -2935,6 +3069,9 @@ namespace TummlyBackend.Migrations
                     b.Property<DateTime?>("LogoUploadedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("ManagerUserId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Postcode")
                         .HasColumnType("nvarchar(max)");
 
@@ -2948,6 +3085,8 @@ namespace TummlyBackend.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ManagerUserId");
 
                     b.HasIndex("RestaurantId");
 
@@ -4162,6 +4301,24 @@ namespace TummlyBackend.Migrations
                     b.Navigation("Query");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.LocationActivity", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Location");
+
+                    b.Navigation("Restaurant");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.LocationGuest", b =>
                 {
                     b.HasOne("TummlyBackend.Models.MasterGuest", "MasterGuest")
@@ -4228,6 +4385,32 @@ namespace TummlyBackend.Migrations
                     b.Navigation("LastEditedByUser");
 
                     b.Navigation("LocationGuest");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.LocationGuestPermissionLedgerEntry", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.User", "ActorUser")
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TummlyBackend.Models.LocationGuest", "LocationGuest")
+                        .WithMany()
+                        .HasForeignKey("LocationGuestId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "RestaurantLocation")
+                        .WithMany()
+                        .HasForeignKey("RestaurantLocationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("ActorUser");
+
+                    b.Navigation("LocationGuest");
+
+                    b.Navigation("RestaurantLocation");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.LocationGuestTag", b =>
@@ -4551,6 +4734,11 @@ namespace TummlyBackend.Migrations
 
             modelBuilder.Entity("TummlyBackend.Models.RestaurantLocation", b =>
                 {
+                    b.HasOne("TummlyBackend.Models.User", "ManagerUser")
+                        .WithMany()
+                        .HasForeignKey("ManagerUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
                         .WithMany("Locations")
                         .HasForeignKey("RestaurantId")
@@ -4561,6 +4749,8 @@ namespace TummlyBackend.Migrations
                         .WithMany()
                         .HasForeignKey("ThankYouCatalogOfferId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ManagerUser");
 
                     b.Navigation("Restaurant");
 

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
+using TummlyBackend.DTOs.BillingCredits;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -14,18 +15,21 @@ namespace TummlyBackend.Services
         private readonly CaptureWindowedEngagementAggregate _engagement;
         private readonly ISmartGuestLinkService _smartGuestLink;
         private readonly ICaptureThankYouOfferService _thankYouOffer;
+        private readonly IPlanEntitlementsSnapshot _entitlements;
 
         public CaptureLocationSnapshotService(
             ApplicationDbContext context,
             CaptureWindowedEngagementAggregate engagement,
             ISmartGuestLinkService smartGuestLink,
-            ICaptureThankYouOfferService thankYouOffer
+            ICaptureThankYouOfferService thankYouOffer,
+            IPlanEntitlementsSnapshot entitlements
         )
         {
             _context = context;
             _engagement = engagement;
             _smartGuestLink = smartGuestLink;
             _thankYouOffer = thankYouOffer;
+            _entitlements = entitlements;
         }
 
         public async Task<object> GetSnapshotAsync(
@@ -195,6 +199,10 @@ namespace TummlyBackend.Services
             });
 
             var thankYou = await _thankYouOffer.GetAsync(query.LocationId);
+            var locationEntitlements = await _entitlements.GetLocationAsync(
+                location.RestaurantId,
+                query.LocationId
+            );
 
             return new
             {
@@ -213,6 +221,7 @@ namespace TummlyBackend.Services
                 thankYouOfferId = thankYou.ThankYouOfferId,
                 thankYouOfferTitle = thankYou.ThankYouOfferTitle,
                 thankYouOfferLive = thankYou.ThankYouOfferLive,
+                entitlements = locationEntitlements,
             };
         }
     }

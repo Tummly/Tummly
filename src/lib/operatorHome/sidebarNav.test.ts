@@ -6,6 +6,7 @@ import {
   OPERATOR_SIDEBAR_SHOP,
   getOperatorSidebarNav,
   isSettingsChildId,
+  resolveSettingsChromeActive,
   resolveSettingsDisclosureOpen,
 } from "./sidebarNav"
 
@@ -222,8 +223,10 @@ describe("getOperatorSidebarNav", () => {
     for (const child of nav.settings.children.filter(
       (c) =>
         c.id !== "account-workspace"
+        && c.id !== "locations"
         && c.id !== "team-permissions"
         && c.id !== "billing-credits"
+        && c.id !== "privacy-consent"
     )) {
       expect(child.navigable).toBe(false)
       expect(child.active).toBe(false)
@@ -248,12 +251,30 @@ describe("getOperatorSidebarNav", () => {
     for (const child of nav.settings.children.filter(
       (c) =>
         c.id !== "account-workspace"
+        && c.id !== "locations"
         && c.id !== "team-permissions"
         && c.id !== "billing-credits"
+        && c.id !== "privacy-consent"
     )) {
       expect(child.navigable).toBe(false)
       expect(child.to).toBeUndefined()
     }
+  })
+
+  it("makes Locations navigable when nav targets are provided", () => {
+    const nav = getOperatorSidebarNav("locations", {
+      mode: "single",
+      locationId: 10,
+    })
+
+    expect(
+      nav.settings.children.find((c) => c.id === "locations")
+    ).toMatchObject({
+      label: "Locations",
+      navigable: true,
+      active: true,
+      to: "/single-dashboard/settings/locations?location=10",
+    })
   })
 
   it("makes Team & permissions navigable when nav targets are provided", () => {
@@ -310,6 +331,22 @@ describe("getOperatorSidebarNav", () => {
     })
   })
 
+  it("makes Privacy & consent navigable when nav targets are provided", () => {
+    const nav = getOperatorSidebarNav("privacy-consent", {
+      mode: "single",
+      locationId: 10,
+    })
+
+    expect(
+      nav.settings.children.find((c) => c.id === "privacy-consent")
+    ).toMatchObject({
+      label: "Privacy & consent",
+      navigable: true,
+      active: true,
+      to: "/single-dashboard/settings/privacy-consent?location=10",
+    })
+  })
+
   it("models Tummly Shop as non-navigable footer chrome", () => {
     const nav = getOperatorSidebarNav("home")
 
@@ -324,13 +361,17 @@ describe("getOperatorSidebarNav", () => {
   })
 
   it("forces Settings disclosure open when a Settings child is active", () => {
-    const nav = getOperatorSidebarNav("locations")
+    const nav = getOperatorSidebarNav("locations", {
+      mode: "single",
+      locationId: 10,
+    })
 
     expect(nav.settings.forceExpanded).toBe(true)
     expect(nav.settings.children.find((c) => c.id === "locations")).toMatchObject(
       {
         active: true,
-        navigable: false,
+        navigable: true,
+        to: "/single-dashboard/settings/locations?location=10",
       }
     )
     expect(nav.primary.every((item) => item.active === false)).toBe(true)
@@ -351,5 +392,12 @@ describe("resolveSettingsDisclosureOpen", () => {
     expect(resolveSettingsDisclosureOpen(false, false)).toBe(false)
     expect(resolveSettingsDisclosureOpen(false, true)).toBe(true)
     expect(resolveSettingsDisclosureOpen(true, true)).toBe(true)
+  })
+})
+
+describe("resolveSettingsChromeActive", () => {
+  it("shows Settings row active chrome when a Settings child is current", () => {
+    expect(resolveSettingsChromeActive(true)).toBe(true)
+    expect(resolveSettingsChromeActive(false)).toBe(false)
   })
 })

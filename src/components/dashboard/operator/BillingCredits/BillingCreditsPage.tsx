@@ -1,20 +1,23 @@
-import { useEffect, useSyncExternalStore } from "react"
+import { useEffect, useSyncExternalStore, type ReactNode } from "react"
 import {
-  BotIcon,
   ChevronRightIcon,
+  CoinsIcon,
   MailIcon,
   MessageSquareIcon,
   PackageIcon,
 } from "lucide-react"
-import { Link, useNavigate, useSearchParams } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
+
+import { useWriteActiveTabToSearchParams } from "@/hooks/useWriteActiveTabToSearchParams"
 
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
 import { useBillingCreditsPageModuleApi } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
 import { ManagePlanCardsSection } from "@/components/dashboard/operator/BillingCredits/ManagePlanCardsSection"
+import { ManagePlanFaqSection } from "@/components/dashboard/operator/BillingCredits/ManagePlanFaqSection"
 import { CreditTopUpsSection } from "@/components/dashboard/operator/BillingCredits/CreditTopUpsSection"
+import { CancelSubscriptionDialog } from "@/components/dashboard/operator/BillingCredits/CancelSubscriptionDialog"
 import {
   ManagePlanAdditionalGroupLocationSection,
-  ManagePlanCancelPlanControl,
 } from "@/components/dashboard/operator/BillingCredits/ManagePlanGroupActionsSection"
 import { PaymentInvoicesTable } from "@/components/dashboard/operator/BillingCredits/PaymentInvoicesTable"
 import { UpdatePaymentMethodConfirmDialog } from "@/components/dashboard/operator/BillingCredits/UpdatePaymentMethodConfirmDialog"
@@ -29,7 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
 import {
   Sheet,
   SheetContent,
@@ -46,22 +48,68 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import {
   BILLING_CREDITS_PAGE_COPY as copy,
-  BILLING_CREDITS_SELECT_MENU_CLASS,
+  BILLING_CREDITS_CTA_BUTTON_CLASS,
+  BILLING_CREDITS_USAGE_CARD_CLASS,
+  BILLING_CREDITS_USAGE_CARD_HEADER_CLASS,
+  BILLING_CREDITS_USAGE_CELL_CLASS,
+  BILLING_CREDITS_USAGE_GRID_CLASS,
+  BILLING_CREDITS_USAGE_TABLE_WRAP_CLASS,
+  BILLING_PLAN_METRIC_DIVIDER_CLASS,
+  BILLING_PLAN_METRIC_LABEL_CLASS,
+  BILLING_PLAN_METRIC_PAIR_CLASS,
+  BILLING_PLAN_METRIC_ROW_CLASS,
+  BILLING_PLAN_METRIC_STACK_CLASS,
+  BILLING_PLAN_METRIC_VALUE_CLASS,
+  BILLING_PLAN_OVERVIEW_CARD_CLASS,
+  BILLING_PLAN_TAB_STACK_CLASS,
   formatCreditsRemaining,
-  formatStarterKitState,
+  formatQrPacksLabel,
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 import type { BillingCreditsTabId } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
-import { ACCOUNT_WORKSPACE_PAGE_COPY } from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
+import {
+  MANAGE_PLAN_BREADCRUMB_CLASS,
+  MANAGE_PLAN_BREADCRUMB_CURRENT_CLASS,
+  MANAGE_PLAN_COPY,
+  MANAGE_PLAN_PAGE_STACK_CLASS,
+  MANAGE_PLAN_SECTION_HEADING_CLASS,
+  buildPlanRenewalDateMetric,
+  isCancelScheduled,
+} from "@/lib/operatorBillingCredits/managePlanPresentation"
+import {
+  ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS,
+  ACCOUNT_WORKSPACE_FULL_BLEED_BOTTOM,
+  ACCOUNT_WORKSPACE_FULL_BLEED_X,
+  ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS,
+  ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS,
+  ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS,
+  ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS,
+  ACCOUNT_WORKSPACE_PAGE_COPY,
+  ACCOUNT_WORKSPACE_PAGE_STACK_CLASS,
+  ACCOUNT_WORKSPACE_PAGE_SUBTITLE_CLASS,
+  ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS,
+  ACCOUNT_WORKSPACE_SELECT_MENU_CLASS,
+  ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS,
+  ACCOUNT_WORKSPACE_SHELL_PAD_BOTTOM,
+  ACCOUNT_WORKSPACE_SHELL_PAD_X,
+  ACCOUNT_WORKSPACE_TAB_BODY_CLASS,
+  ACCOUNT_WORKSPACE_TAB_LIST_CLASS,
+  ACCOUNT_WORKSPACE_TAB_TRIGGER_CLASS,
+  ACCOUNT_WORKSPACE_TABS_RULE_CLASS,
+  ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS,
+} from "@/lib/operatorAccountWorkspace/accountWorkspacePresentation"
 import type { BillingActivityViewRow } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
-import type { CreditChannelCardViewModel } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
+import type {
+  CreditChannelCardViewModel,
+  CreditChannelId,
+} from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 import {
   CAMPAIGNS_MESSAGING_USAGE_METER_FILL_CLASS,
   CAMPAIGNS_MESSAGING_USAGE_METER_ROW_CLASS,
   CAMPAIGNS_MESSAGING_USAGE_METER_TRACK_CLASS,
   CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS,
-  CAMPAIGNS_MESSAGING_USAGE_TILE_CLASS,
   CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS,
 } from "@/lib/operatorCampaigns/campaignsPresentation"
 import {
@@ -69,44 +117,38 @@ import {
   registerLeaveDirtyGuard,
 } from "@/lib/operatorNavigation/leaveDirtyGuard"
 import {
-  GUESTS_DETAIL_FIELD_CLASS,
-  GUESTS_DETAIL_FIELD_LABEL_CLASS,
-  GUESTS_DETAIL_FIELD_VALUE_CLASS,
-  GUESTS_DETAIL_ROWS_STACK_CLASS,
-  GUESTS_KPI_CARD_CLASS,
   GUESTS_PAGE_HEADER_COPY_CLASS,
   GUESTS_PAGE_HEADER_ROW_CLASS,
   GUESTS_PAGE_PRIMARY_BUTTON_CLASS,
   GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
-  GUESTS_PAGE_STACK_CLASS,
-  GUESTS_PAGE_SUBTITLE_CLASS,
   GUESTS_PAGE_TITLE_CLASS,
   GUESTS_SECTION_CLASS,
   GUESTS_SECTION_SUBTITLE_CLASS,
   GUESTS_SECTION_TITLE_CLASS,
+  GUESTS_TABLE_BODY_CELL_CLASS,
+  GUESTS_TABLE_BODY_ROW_CLASS,
+  GUESTS_TABLE_CLASS,
+  GUESTS_TABLE_FRAME_CLASS,
+  GUESTS_TABLE_HEAD_CELL_CLASS,
+  GUESTS_TABLE_HEAD_ROW_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import { cn } from "@/lib/utils"
 
-function SummaryMetric({
+function PlanMetricPair({
   label,
   value,
 }: {
   label: string
-  value: string
+  value: ReactNode
 }) {
   return (
-    <div className={GUESTS_KPI_CARD_CLASS}>
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="text-lg font-semibold text-foreground">{value}</p>
-    </div>
-  )
-}
-
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className={GUESTS_DETAIL_FIELD_CLASS}>
-      <p className={GUESTS_DETAIL_FIELD_LABEL_CLASS}>{label}</p>
-      <p className={GUESTS_DETAIL_FIELD_VALUE_CLASS}>{value}</p>
+    <div className={BILLING_PLAN_METRIC_PAIR_CLASS}>
+      <p className={BILLING_PLAN_METRIC_LABEL_CLASS}>{label}</p>
+      {typeof value === "string" ? (
+        <p className={BILLING_PLAN_METRIC_VALUE_CLASS}>{value}</p>
+      ) : (
+        value
+      )}
     </div>
   )
 }
@@ -150,107 +192,152 @@ function PlanSubscriptionBody({
     return null
   }
 
-  const renewalLabel =
-    plan.renewalDateLabel ?? "—"
+  const planRenewalDateMetric = buildPlanRenewalDateMetric(plan, {
+    renewalDate: copy.renewalDate,
+    cancelDate: copy.cancelDate,
+  })
   const billingCycleLabel = plan.billingCycle ?? "—"
-  const planPrice =
-    plan.isPilot
-      ? plan.planPriceNet
-      : `${plan.planPriceNet} ${copy.plusVat}`
+  const planPrice = plan.isPilot
+    ? plan.planPriceNet
+    : `${plan.planPriceNet} ${copy.plusVat}`
 
   return (
-    <div className="flex flex-col gap-6">
-      <section className={GUESTS_SECTION_CLASS}>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex flex-col gap-2">
-            <h2 className={GUESTS_SECTION_TITLE_CLASS}>
-              {copy.planSubscriptionTitle}
-            </h2>
+    <div className={BILLING_PLAN_TAB_STACK_CLASS}>
+      <section className={BILLING_PLAN_OVERVIEW_CARD_CLASS}>
+        <div className={BILLING_PLAN_METRIC_STACK_CLASS}>
+          <div className={BILLING_PLAN_METRIC_ROW_CLASS}>
+            <PlanMetricPair
+              label={copy.currentPlan}
+              value={plan.subscriptionPlan}
+            />
+            <PlanMetricPair
+              label={copy.smsCredits}
+              value={formatCreditsRemaining(
+                plan.smsCreditsRemaining,
+                "remaining"
+              )}
+            />
           </div>
-          {snap.showChangePlan ? (
+          <hr className={BILLING_PLAN_METRIC_DIVIDER_CLASS} />
+          <div className={BILLING_PLAN_METRIC_ROW_CLASS}>
+            <PlanMetricPair
+              label={copy.billingStatus}
+              value={
+                <Badge variant="soft">{plan.billingStatus}</Badge>
+              }
+            />
+            <PlanMetricPair
+              label={copy.aiCredits}
+              value={formatCreditsRemaining(
+                plan.aiCreditsRemaining,
+                "remaining"
+              )}
+            />
+          </div>
+          <hr className={BILLING_PLAN_METRIC_DIVIDER_CLASS} />
+          <div className={BILLING_PLAN_METRIC_ROW_CLASS}>
+            <PlanMetricPair
+              label={planRenewalDateMetric.label}
+              value={planRenewalDateMetric.value}
+            />
+            <PlanMetricPair
+              label={copy.qrPacks}
+              value={formatQrPacksLabel(plan.starterKitState)}
+            />
+          </div>
+        </div>
+
+        {plan.scheduledChangeLine != null && !isCancelScheduled(plan) ? (
+          <p className={cn(ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS, "mt-5")}>
+            {plan.scheduledChangeLine}
+          </p>
+        ) : null}
+
+        {plan.isPilot ? (
+          <p className={cn(ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS, "mt-5")}>
+            {copy.pilotNotice}
+          </p>
+        ) : null}
+      </section>
+
+      <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
+        <div className="flex flex-col gap-2">
+          <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
+            {copy.currentPlan}
+          </h2>
+          <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
+            {copy.currentPlanSubtitle}
+          </p>
+        </div>
+
+        <div className={BILLING_PLAN_METRIC_STACK_CLASS}>
+          <div className={BILLING_PLAN_METRIC_ROW_CLASS}>
+            <PlanMetricPair
+              label={copy.planName}
+              value={plan.subscriptionPlan}
+            />
+            <PlanMetricPair
+              label={copy.includedEmailCredits}
+              value={plan.includedEmailCreditsLabel}
+            />
+          </div>
+          <hr className={BILLING_PLAN_METRIC_DIVIDER_CLASS} />
+          <div className={BILLING_PLAN_METRIC_ROW_CLASS}>
+            <PlanMetricPair
+              label={copy.billingCycle}
+              value={billingCycleLabel}
+            />
+            <PlanMetricPair
+              label={copy.includedSmsCredits}
+              value={plan.includedSmsCreditsLabel}
+            />
+          </div>
+          <hr className={BILLING_PLAN_METRIC_DIVIDER_CLASS} />
+          <div className={BILLING_PLAN_METRIC_ROW_CLASS}>
+            <PlanMetricPair label={copy.planPrice} value={planPrice} />
+            <PlanMetricPair
+              label={copy.includedAiCredits}
+              value={plan.includedAiCreditsLabel}
+            />
+          </div>
+          <hr className={BILLING_PLAN_METRIC_DIVIDER_CLASS} />
+          <div className={BILLING_PLAN_METRIC_ROW_CLASS}>
+            <PlanMetricPair
+              label={copy.includedLocations}
+              value={String(plan.includedLocations)}
+            />
+            <PlanMetricPair
+              label={copy.qrStarterKit}
+              value={copy.qrStarterKitIncluded}
+            />
+          </div>
+          <hr className={BILLING_PLAN_METRIC_DIVIDER_CLASS} />
+          <div className={BILLING_PLAN_METRIC_ROW_CLASS}>
+            <PlanMetricPair
+              label={copy.activeLocations}
+              value={String(plan.activeLocations)}
+            />
+            <PlanMetricPair
+              label={planRenewalDateMetric.label}
+              value={planRenewalDateMetric.value}
+            />
+          </div>
+        </div>
+
+        {snap.showChangePlan ? (
+          <div>
             <Button
               type="button"
-              variant="op-secondary"
-              className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+              variant="op-primary"
+              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
               onClick={() => {
                 pageModule.openChangePlan()
               }}
             >
               {copy.changePlan}
             </Button>
-          ) : null}
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <SummaryMetric label={copy.currentPlan} value={plan.subscriptionPlan} />
-          <SummaryMetric label={copy.billingStatus} value={plan.billingStatus} />
-          <SummaryMetric label={copy.renewalDate} value={renewalLabel} />
-          <SummaryMetric
-            label={copy.emailCredits}
-            value={formatCreditsRemaining(
-              plan.emailCreditsRemaining,
-              "remaining"
-            )}
-          />
-          <SummaryMetric
-            label={copy.smsCredits}
-            value={formatCreditsRemaining(
-              plan.smsCreditsRemaining,
-              "remaining"
-            )}
-          />
-          <SummaryMetric
-            label={copy.aiCredits}
-            value={formatCreditsRemaining(
-              plan.aiCreditsRemaining,
-              "remaining"
-            )}
-          />
-        </div>
-
-        {plan.scheduledChangeLine != null ? (
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
-            {plan.scheduledChangeLine}
-          </p>
+          </div>
         ) : null}
-
-        {plan.isPilot ? (
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{copy.pilotNotice}</p>
-        ) : null}
-      </section>
-
-      <section className={GUESTS_SECTION_CLASS}>
-        <h3 className={GUESTS_SECTION_TITLE_CLASS}>{copy.currentPlan}</h3>
-        <div className={GUESTS_DETAIL_ROWS_STACK_CLASS}>
-          <DetailRow label={copy.planName} value={plan.subscriptionPlan} />
-          <DetailRow label={copy.billingCycle} value={billingCycleLabel} />
-          <DetailRow label={copy.planPrice} value={planPrice} />
-          <DetailRow
-            label={copy.includedLocations}
-            value={String(plan.includedLocations)}
-          />
-          <DetailRow
-            label={copy.activeLocations}
-            value={String(plan.activeLocations)}
-          />
-          <DetailRow
-            label={copy.includedEmailCredits}
-            value={plan.includedEmailCreditsLabel}
-          />
-          <DetailRow
-            label={copy.includedSmsCredits}
-            value={plan.includedSmsCreditsLabel}
-          />
-          <DetailRow
-            label={copy.includedAiCredits}
-            value={plan.includedAiCreditsLabel}
-          />
-          <DetailRow
-            label={copy.starterKit}
-            value={formatStarterKitState(plan.starterKitState)}
-          />
-          <DetailRow label={copy.renewalDate} value={renewalLabel} />
-        </div>
       </section>
     </div>
   )
@@ -291,7 +378,7 @@ function channelIcon(channel: CreditChannelCardViewModel["channel"]) {
     case "sms":
       return MessageSquareIcon
     case "ai":
-      return BotIcon
+      return CoinsIcon
   }
 }
 
@@ -299,41 +386,53 @@ function CreditChannelCard({
   card,
   onBuy,
   onChangePlan,
+  onViewUsage,
 }: {
   card: CreditChannelCardViewModel
   onBuy: () => void
   onChangePlan: () => void
+  onViewUsage: () => void
 }) {
   const Icon = channelIcon(card.channel)
 
   return (
-    <div className={CAMPAIGNS_MESSAGING_USAGE_TILE_CLASS}>
-      <div className="flex flex-col gap-3">
-        <Icon className="size-5 text-op-card-title-color" aria-hidden />
-        <div className="flex flex-col gap-1">
-          <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS}>
-            {card.title}
-          </p>
-          <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
-            {card.headline}
-          </p>
-          <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
-            {card.subline}
-          </p>
+    <div className={BILLING_CREDITS_USAGE_CELL_CLASS}>
+      <div className="flex w-full flex-col gap-3">
+        <div className="flex flex-col gap-[18px]">
+          <Icon className="size-5 text-op-card-title-color" aria-hidden />
+          <div className="flex flex-col gap-1">
+            <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS}>
+              {card.title}
+            </p>
+            <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
+              {card.headline}
+            </p>
+          </div>
         </div>
-        {card.purchasedLine != null ? (
-          <p className="m-0 text-xs font-normal leading-normal text-op-card-subtitle-color">
-            {card.purchasedLine}
-          </p>
-        ) : null}
+        <UsageMeter fillRatio={card.fillRatio} maxLabel={card.meterMaxLabel} />
       </div>
-      <UsageMeter fillRatio={card.fillRatio} maxLabel={card.meterMaxLabel} />
       <div className="flex flex-wrap items-center gap-2">
+        {card.showViewUsage ? (
+          <Button
+            type="button"
+            variant="op-secondary"
+            className={cn(
+              GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
+              BILLING_CREDITS_CTA_BUTTON_CLASS
+            )}
+            onClick={onViewUsage}
+          >
+            {copy.viewUsage}
+          </Button>
+        ) : null}
         {card.showBuy ? (
           <Button
             type="button"
             variant="op-secondary"
-            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            className={cn(
+              GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
+              BILLING_CREDITS_CTA_BUTTON_CLASS
+            )}
             onClick={onBuy}
           >
             {card.buyLabel}
@@ -350,6 +449,46 @@ function CreditChannelCard({
           </Button>
         ) : null}
       </div>
+    </div>
+  )
+}
+
+function QrPrintPacksUsageCell({
+  starterKitState,
+  onReorder,
+}: {
+  starterKitState: string
+  onReorder: () => void
+}) {
+  return (
+    <div className={BILLING_CREDITS_USAGE_CELL_CLASS}>
+      <div className="flex w-full flex-col gap-3">
+        <div className="flex flex-col gap-[18px]">
+          <PackageIcon
+            className="size-5 text-op-card-title-color"
+            aria-hidden
+          />
+          <div className="flex flex-col gap-1">
+            <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS}>
+              {copy.qrPrintPacksTitle}
+            </p>
+            <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
+              {formatQrPacksLabel(starterKitState)}
+            </p>
+          </div>
+        </div>
+      </div>
+      <Button
+        type="button"
+        variant="op-secondary"
+        className={cn(
+          GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
+          BILLING_CREDITS_CTA_BUTTON_CLASS
+        )}
+        onClick={onReorder}
+      >
+        {copy.reorderPrintPack}
+      </Button>
     </div>
   )
 }
@@ -393,77 +532,140 @@ function CreditsUsageBody({
     return null
   }
 
+  const orderedCards = (["sms", "email", "ai"] as const)
+    .map((channel) => snap.channelCards.find((card) => card.channel === channel))
+    .filter((card): card is CreditChannelCardViewModel => card != null)
+
+  const scrollToUsageTable = () => {
+    document
+      .getElementById("credits-usage-table")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
+
+  const scrollToCreditTopUps = (channel?: CreditChannelId) => {
+    if (channel != null) {
+      pageModule.setFocusedTopUpChannelFromUrl(channel)
+    }
+    const targetId =
+      channel != null ? `credit-top-up-${channel}` : "credit-top-ups"
+    document
+      .getElementById(targetId)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
+
   return (
-    <div className="flex flex-col gap-6">
-      <section className={GUESTS_SECTION_CLASS}>
-        <div className="flex flex-col gap-2">
-          <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.creditsUsageTitle}</h2>
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+    <div className={BILLING_PLAN_TAB_STACK_CLASS}>
+      <section className={BILLING_CREDITS_USAGE_CARD_CLASS}>
+        <div className={BILLING_CREDITS_USAGE_CARD_HEADER_CLASS}>
+          <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
+            {copy.creditsUsageTitle}
+          </h2>
+          <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
             {copy.creditsUsageSubtitle}
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-          {snap.channelCards.map((card) => (
+        <hr className={BILLING_PLAN_METRIC_DIVIDER_CLASS} />
+
+        <div className={BILLING_CREDITS_USAGE_GRID_CLASS}>
+          {orderedCards.map((card) => (
             <CreditChannelCard
               key={card.channel}
               card={card}
               onBuy={() => {
-                pageModule.openBuyChannelCredits(card.channel)
+                scrollToCreditTopUps(card.channel)
               }}
               onChangePlan={() => {
                 pageModule.openChangePlan()
               }}
+              onViewUsage={scrollToUsageTable}
             />
           ))}
+          <QrPrintPacksUsageCell
+            starterKitState={usage.starterKitState}
+            onReorder={() => {
+              scrollToCreditTopUps()
+            }}
+          />
+        </div>
 
-          <div className={CAMPAIGNS_MESSAGING_USAGE_TILE_CLASS}>
-            <div className="flex flex-col gap-3">
-              <PackageIcon
-                className="size-5 text-op-card-title-color"
-                aria-hidden
-              />
-              <div className="flex flex-col gap-1">
-                <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS}>
-                  {copy.starterKitCardTitle}
-                </p>
-                <p className={CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS}>
-                  {formatStarterKitState(usage.starterKitState)}
-                </p>
-              </div>
-            </div>
+        <div
+          id="credits-usage-table"
+          className={BILLING_CREDITS_USAGE_TABLE_WRAP_CLASS}
+        >
+          <div className={GUESTS_TABLE_FRAME_CLASS}>
+            <Table className={GUESTS_TABLE_CLASS}>
+              <TableHeader className="[&_tr]:border-0">
+                <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
+                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                    {copy.creditsUsageTableUsageType}
+                  </TableHead>
+                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                    {copy.creditsUsageTableThisCycle}
+                  </TableHead>
+                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                    {copy.creditsUsageTableIncluded}
+                  </TableHead>
+                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                    {copy.creditsUsageTableExtraUsed}
+                  </TableHead>
+                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                    {copy.creditsUsageTableEstimatedCharge}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {snap.usageTableRows.map((row) => (
+                  <TableRow
+                    key={row.channelLabel}
+                    className={GUESTS_TABLE_BODY_ROW_CLASS}
+                  >
+                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      <span className="text-sm font-semibold leading-[19px] text-foreground">
+                        {row.channelLabel}
+                      </span>
+                    </TableCell>
+                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      <span className="text-sm font-normal leading-[19px] text-foreground">
+                        {row.usedThisCycle}
+                      </span>
+                    </TableCell>
+                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      <span className="text-sm font-normal leading-[19px] text-foreground">
+                        {row.includedThisPeriod}
+                      </span>
+                    </TableCell>
+                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      <span className="text-sm font-normal leading-[19px] text-foreground">
+                        {row.extraUsed}
+                      </span>
+                    </TableCell>
+                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                      <span className="text-sm font-normal leading-[19px] text-foreground">
+                        {row.estimatedCharge}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </div>
       </section>
 
-      <section className={GUESTS_SECTION_CLASS}>
+      <section
+        id="credit-top-ups"
+        className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}
+      >
         <div className="flex flex-col gap-2">
-          <h3 className={GUESTS_SECTION_TITLE_CLASS}>
-            {copy.creditsUsageTableTitle}
-          </h3>
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{usage.periodLabel}</p>
+          <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
+            {copy.creditTopUpsTitle}
+          </h2>
+          <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
+            {copy.creditTopUpsSubtitle}
+          </p>
         </div>
-
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{copy.creditsUsageTableChannel}</TableHead>
-              <TableHead>{copy.creditsUsageTableUsed}</TableHead>
-              <TableHead>{copy.creditsUsageTableIncluded}</TableHead>
-              <TableHead>{copy.creditsUsageTablePurchased}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {snap.usageTableRows.map((row) => (
-              <TableRow key={row.channelLabel}>
-                <TableCell>{row.channelLabel}</TableCell>
-                <TableCell>{row.usedThisCycle}</TableCell>
-                <TableCell>{row.includedThisPeriod}</TableCell>
-                <TableCell>{row.purchasedRemaining}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <CreditTopUpsSection snap={snap} pageModule={pageModule} />
       </section>
     </div>
   )
@@ -504,30 +706,31 @@ function PaymentInvoicesBody({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <section id="update-payment-method" className={GUESTS_SECTION_CLASS}>
+    <div className={BILLING_PLAN_TAB_STACK_CLASS}>
+      <section
+        id="update-payment-method"
+        className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}
+      >
         <div className="flex flex-col gap-2">
-          <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.paymentMethodTitle}</h2>
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+          <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
+            {copy.paymentMethodTitle}
+          </h2>
+          <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
             {copy.paymentMethodSubtitle}
           </p>
         </div>
 
         {snap.showNoPaymentMethodOnFile ? (
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+          <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
             {copy.noPaymentMethodOnFile}
           </p>
-        ) : (
-          <p className={GUESTS_DETAIL_FIELD_VALUE_CLASS}>
-            {snap.paymentMethodLabel}
-          </p>
-        )}
+        ) : null}
 
         {snap.showUpdatePaymentMethod ? (
           <Button
             type="button"
-            variant="op-secondary"
-            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            variant="op-tertiary"
+            className={BILLING_CREDITS_CTA_BUTTON_CLASS}
             disabled={snap.updatePaymentMethodDisabled}
             onClick={() => {
               pageModule.openUpdatePaymentMethodConfirm()
@@ -538,16 +741,20 @@ function PaymentInvoicesBody({
         ) : null}
       </section>
 
-      <section className={GUESTS_SECTION_CLASS}>
+      <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
         <div className="flex flex-col gap-2">
-          <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.invoicesTitle}</h2>
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+          <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
+            {copy.invoicesTitle}
+          </h2>
+          <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
             {copy.invoicesSubtitle}
           </p>
         </div>
 
         {snap.showNoInvoicesYet ? (
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{copy.noInvoicesYet}</p>
+          <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
+            {copy.noInvoicesYet}
+          </p>
         ) : (
           <PaymentInvoicesTable
             rows={snap.invoices}
@@ -605,10 +812,10 @@ function BillingActivityRows({
               : "flex flex-col gap-2 border-t border-op-border-default pt-[22px]"
           }
         >
-          <p className="m-0 text-sm font-medium text-foreground">
+          <p className="m-0 text-sm font-medium leading-[19px] text-foreground">
             {row.occurredAtLabel}
           </p>
-          <p className="m-0 text-sm font-medium text-op-card-subtitle-color">
+          <p className="m-0 text-sm font-medium leading-[19px] text-op-card-subtitle-color">
             {row.sentence}
           </p>
         </li>
@@ -652,17 +859,19 @@ function BillingActivityBody({
   }
 
   return (
-    <>
-      <section className={GUESTS_SECTION_CLASS}>
+    <div className={BILLING_PLAN_TAB_STACK_CLASS}>
+      <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
         <div className="flex flex-col gap-2">
-          <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.billingActivityTitle}</h2>
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+          <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
+            {copy.billingActivityTitle}
+          </h2>
+          <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
             {copy.billingActivitySubtitle}
           </p>
         </div>
 
         {snap.billingActivityEmpty ? (
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+          <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
             {copy.billingActivityEmpty}
           </p>
         ) : (
@@ -671,7 +880,7 @@ function BillingActivityBody({
             <Button
               type="button"
               variant="op-secondary"
-              className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+              className={BILLING_CREDITS_CTA_BUTTON_CLASS}
               onClick={() => {
                 void pageModule.openBillingActivityHistory()
               }}
@@ -680,6 +889,50 @@ function BillingActivityBody({
             </Button>
           </>
         )}
+      </section>
+
+      <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
+        <div className="flex flex-col gap-2">
+          <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
+            {copy.subscriptionChangesTitle}
+          </h2>
+          <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
+            {copy.subscriptionChangesSubtitle}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3.5">
+          <Button
+            type="button"
+            variant="op-secondary"
+            className={BILLING_CREDITS_CTA_BUTTON_CLASS}
+            onClick={() => {
+              pageModule.openManagePlan()
+            }}
+          >
+            {copy.downgradePlan}
+          </Button>
+          <Button
+            type="button"
+            variant="op-tertiary"
+            className={BILLING_CREDITS_CTA_BUTTON_CLASS}
+            disabled={!snap.showCancelPlan}
+            onClick={() => {
+              pageModule.requestCancelPlan()
+            }}
+          >
+            {copy.cancelSubscription}
+          </Button>
+          <Button
+            type="button"
+            variant="op-tertiary"
+            className={BILLING_CREDITS_CTA_BUTTON_CLASS}
+            asChild
+          >
+            <Link to={HELP_CENTRE_CONTACT_URL}>
+              {copy.contactBillingSupport}
+            </Link>
+          </Button>
+        </div>
       </section>
 
       <Sheet
@@ -731,14 +984,13 @@ function BillingActivityBody({
           ) : null}
         </SheetContent>
       </Sheet>
-    </>
+    </div>
   )
 }
 
-const BILLING_FIELD_STACK_CLASS = "flex flex-col gap-2"
-const BILLING_FIELD_LABEL_CLASS =
-  "text-sm font-semibold leading-5 text-foreground"
-const BILLING_FORM_STACK_CLASS = "flex max-w-[510px] flex-col gap-7"
+const BILLING_FIELD_STACK_CLASS = "flex w-full max-w-[510px] flex-col gap-2"
+const BILLING_FORM_STACK_CLASS = "flex w-full max-w-[510px] flex-col gap-7"
+const BILLING_ALERT_STACK_CLASS = "flex flex-col gap-3.5"
 
 function BillingContactMemberSelect({
   id,
@@ -760,7 +1012,7 @@ function BillingContactMemberSelect({
 
   return (
     <div className={BILLING_FIELD_STACK_CLASS}>
-      <label htmlFor={id} className={BILLING_FIELD_LABEL_CLASS}>
+      <label htmlFor={id} className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}>
         {label}
       </label>
       <Select
@@ -774,7 +1026,10 @@ function BillingContactMemberSelect({
           onValueChange?.(parsed)
         }}
       >
-        <SelectTrigger id={id} className="h-auto min-h-8 w-full py-3">
+        <SelectTrigger
+          id={id}
+          className={ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS}
+        >
           <SelectValue placeholder={copy.selectUserPlaceholder}>
             {selected?.fullName ?? copy.selectUserPlaceholder}
           </SelectValue>
@@ -782,10 +1037,14 @@ function BillingContactMemberSelect({
         <SelectContent
           position="popper"
           align="start"
-          className={BILLING_CREDITS_SELECT_MENU_CLASS}
+          className={ACCOUNT_WORKSPACE_SELECT_MENU_CLASS}
         >
           {members.map((member) => (
-            <SelectItem key={member.userId} value={String(member.userId)}>
+            <SelectItem
+              key={member.userId}
+              value={String(member.userId)}
+              className={ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS}
+            >
               <span className="flex flex-col gap-0.5 text-left">
                 <span>{member.fullName}</span>
                 <span className="text-xs font-normal text-muted-foreground">
@@ -838,10 +1097,12 @@ function BillingContactsBody({
   const readOnly = !snap.actorCanPersistBillingContacts
 
   return (
-    <section className={GUESTS_SECTION_CLASS}>
+    <section className={ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS}>
       <div className="flex flex-col gap-2">
-        <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.billingContactsTitle}</h2>
-        <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+        <h2 className={ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS}>
+          {copy.billingContactsTitle}
+        </h2>
+        <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
           {copy.billingContactsSubtitle}
         </p>
       </div>
@@ -858,10 +1119,13 @@ function BillingContactsBody({
           }}
         />
 
-        <Separator />
+        <hr aria-hidden className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
 
         <div className={BILLING_FIELD_STACK_CLASS}>
-          <label htmlFor="billing-email" className={BILLING_FIELD_LABEL_CLASS}>
+          <label
+            htmlFor="billing-email"
+            className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}
+          >
             {copy.billingEmail}
           </label>
           <Input
@@ -870,18 +1134,20 @@ function BillingContactsBody({
             value={contacts.billingEmail}
             placeholder={copy.billingEmailPlaceholder}
             disabled={readOnly}
-            className="h-auto py-3"
+            className={ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS}
             onChange={(event) => {
               pageModule.setBillingEmail(event.target.value)
             }}
           />
         </div>
 
-        <Separator />
+        <hr aria-hidden className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
 
-        <div className="flex flex-col gap-3.5">
-          <p className={BILLING_FIELD_LABEL_CLASS}>{copy.lowCreditAlerts}</p>
-          <div className="flex flex-col gap-3.5">
+        <div className={BILLING_ALERT_STACK_CLASS}>
+          <p className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}>
+            {copy.lowCreditAlerts}
+          </p>
+          <div className={BILLING_ALERT_STACK_CLASS}>
             <CheckboxLabel
               checked={contacts.lowCreditAlerts.owner}
               disabled={readOnly}
@@ -912,11 +1178,13 @@ function BillingContactsBody({
           </div>
         </div>
 
-        <Separator />
+        <hr aria-hidden className={ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS} />
 
-        <div className="flex flex-col gap-3.5">
-          <p className={BILLING_FIELD_LABEL_CLASS}>{copy.paymentFailureAlerts}</p>
-          <div className="flex flex-col gap-3.5">
+        <div className={BILLING_ALERT_STACK_CLASS}>
+          <p className={ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS}>
+            {copy.paymentFailureAlerts}
+          </p>
+          <div className={BILLING_ALERT_STACK_CLASS}>
             <CheckboxLabel
               checked={contacts.paymentFailureAlerts.owner}
               disabled={readOnly}
@@ -943,7 +1211,7 @@ function BillingContactsBody({
         <Button
           type="button"
           variant="op-secondary"
-          className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+          className={BILLING_CREDITS_CTA_BUTTON_CLASS}
           disabled={!snap.saveEnabled}
           onClick={() => {
             void pageModule.persistBillingContacts()
@@ -972,7 +1240,7 @@ function BillingCreditsHeaderActions({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-3">
       {snap.showManagePlan ? (
         <Button
           type="button"
@@ -997,6 +1265,15 @@ function BillingCreditsHeaderActions({
           className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
           disabled={snap.buyCreditsDisabled}
           onClick={() => {
+            if (
+              snap.surface === "tabs"
+              && snap.activeTabId === "credits-usage"
+            ) {
+              document
+                .getElementById("credit-top-ups")
+                ?.scrollIntoView({ behavior: "smooth", block: "start" })
+              return
+            }
             pageModule.openBuyCredits()
           }}
         >
@@ -1014,18 +1291,9 @@ export function BillingCreditsPage() {
     pageModule.getSnapshot,
     pageModule.getSnapshot
   )
-  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
 
-  useEffect(() => {
-    const current = searchParams.get("tab")
-    if (current === snap.activeTabId) {
-      return
-    }
-    const next = new URLSearchParams(searchParams)
-    next.set("tab", snap.activeTabId)
-    setSearchParams(next, { replace: true })
-  }, [snap.activeTabId, searchParams, setSearchParams])
+  useWriteActiveTabToSearchParams(snap.activeTabId)
 
   useEffect(() => {
     if (snap.pendingNavigationHref == null) {
@@ -1085,11 +1353,11 @@ export function BillingCreditsPage() {
   }, [snap.isDirty, pageModule])
 
   return (
-    <div className={GUESTS_PAGE_STACK_CLASS}>
+    <div className={ACCOUNT_WORKSPACE_PAGE_STACK_CLASS}>
       <div className={GUESTS_PAGE_HEADER_ROW_CLASS}>
         <div className={GUESTS_PAGE_HEADER_COPY_CLASS}>
           <h1 className={GUESTS_PAGE_TITLE_CLASS}>{copy.title}</h1>
-          <p className={GUESTS_PAGE_SUBTITLE_CLASS}>{copy.subtitle}</p>
+          <p className={ACCOUNT_WORKSPACE_PAGE_SUBTITLE_CLASS}>{copy.subtitle}</p>
         </div>
         <BillingCreditsHeaderActions snap={snap} pageModule={pageModule} />
       </div>
@@ -1099,30 +1367,58 @@ export function BillingCreditsPage() {
         onValueChange={(value) => {
           pageModule.requestTabChange(value as BillingCreditsTabId)
         }}
+        className="flex min-h-0 flex-1 flex-col gap-0"
       >
-        <TabsList variant="line" className="w-full justify-start">
-          {snap.tabs.map((tab) => (
-            <TabsTrigger key={tab.id} value={tab.id}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <div
+          className={cn(
+            ACCOUNT_WORKSPACE_FULL_BLEED_X,
+            ACCOUNT_WORKSPACE_TABS_RULE_CLASS,
+            "shrink-0"
+          )}
+        >
+          <div className={ACCOUNT_WORKSPACE_SHELL_PAD_X}>
+            <TabsList
+              variant="line"
+              className={ACCOUNT_WORKSPACE_TAB_LIST_CLASS}
+            >
+              {snap.tabs.map((tab) => (
+                <TabsTrigger
+                  key={tab.id}
+                  value={tab.id}
+                  className={ACCOUNT_WORKSPACE_TAB_TRIGGER_CLASS}
+                >
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+        </div>
 
-        <TabsContent value="plan-subscription">
-          <PlanSubscriptionBody snap={snap} pageModule={pageModule} />
-        </TabsContent>
-        <TabsContent value="credits-usage">
-          <CreditsUsageBody snap={snap} pageModule={pageModule} />
-        </TabsContent>
-        <TabsContent value="payment-invoices">
-          <PaymentInvoicesBody snap={snap} pageModule={pageModule} />
-        </TabsContent>
-        <TabsContent value="billing-contacts">
-          <BillingContactsBody snap={snap} pageModule={pageModule} />
-        </TabsContent>
-        <TabsContent value="activity">
-          <BillingActivityBody snap={snap} pageModule={pageModule} />
-        </TabsContent>
+        <div
+          className={cn(
+            ACCOUNT_WORKSPACE_FULL_BLEED_X,
+            ACCOUNT_WORKSPACE_FULL_BLEED_BOTTOM,
+            ACCOUNT_WORKSPACE_SHELL_PAD_X,
+            ACCOUNT_WORKSPACE_SHELL_PAD_BOTTOM,
+            ACCOUNT_WORKSPACE_TAB_BODY_CLASS
+          )}
+        >
+          <TabsContent value="plan-subscription" className="mt-0">
+            <PlanSubscriptionBody snap={snap} pageModule={pageModule} />
+          </TabsContent>
+          <TabsContent value="credits-usage" className="mt-0">
+            <CreditsUsageBody snap={snap} pageModule={pageModule} />
+          </TabsContent>
+          <TabsContent value="payment-invoices" className="mt-0">
+            <PaymentInvoicesBody snap={snap} pageModule={pageModule} />
+          </TabsContent>
+          <TabsContent value="billing-contacts" className="mt-0">
+            <BillingContactsBody snap={snap} pageModule={pageModule} />
+          </TabsContent>
+          <TabsContent value="activity" className="mt-0">
+            <BillingActivityBody snap={snap} pageModule={pageModule} />
+          </TabsContent>
+        </div>
       </Tabs>
 
       <AccountWorkspaceConfirmDialog
@@ -1142,6 +1438,11 @@ export function BillingCreditsPage() {
         onCancel={() => {
           pageModule.confirmLeaveDirtyCancel()
         }}
+      />
+
+      <CancelSubscriptionDialog
+        cancelPlanConfirm={snap.cancelPlanConfirm}
+        pageModule={pageModule}
       />
     </div>
   )
@@ -1238,10 +1539,10 @@ export function ManagePlanPage() {
   }, [snap.loadStatus, snap.showPlanCards])
 
   return (
-    <div className={GUESTS_PAGE_STACK_CLASS}>
+    <div className={MANAGE_PLAN_PAGE_STACK_CLASS}>
       <nav
         aria-label="Breadcrumb"
-        className="flex items-center gap-1 text-sm font-medium text-muted-foreground"
+        className={MANAGE_PLAN_BREADCRUMB_CLASS}
       >
         {snap.breadcrumbHref != null ? (
           <Link
@@ -1251,16 +1552,25 @@ export function ManagePlanPage() {
             {copy.breadcrumbBillingCredits}
           </Link>
         ) : (
-          <span>{copy.breadcrumbBillingCredits}</span>
+          <span className="text-foreground">{copy.breadcrumbBillingCredits}</span>
         )}
-        <ChevronRightIcon className="size-4" aria-hidden />
-        <span className="text-foreground">{copy.breadcrumbManagePlan}</span>
+        <ChevronRightIcon
+          className="size-4 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
+        <span className={MANAGE_PLAN_BREADCRUMB_CURRENT_CLASS}>
+          {copy.breadcrumbManagePlan}
+        </span>
       </nav>
 
       <div className={GUESTS_PAGE_HEADER_ROW_CLASS}>
         <div className={GUESTS_PAGE_HEADER_COPY_CLASS}>
-          <h1 className={GUESTS_PAGE_TITLE_CLASS}>{copy.title}</h1>
-          <p className={GUESTS_PAGE_SUBTITLE_CLASS}>{copy.subtitle}</p>
+          <h1 className={GUESTS_PAGE_TITLE_CLASS}>
+            {MANAGE_PLAN_COPY.pageTitle}
+          </h1>
+          <p className={ACCOUNT_WORKSPACE_PAGE_SUBTITLE_CLASS}>
+            {MANAGE_PLAN_COPY.pageSubtitle}
+          </p>
         </div>
         <BillingCreditsHeaderActions
           snap={snap}
@@ -1287,24 +1597,11 @@ export function ManagePlanPage() {
           </Button>
         </div>
       ) : (
-        <div className="flex flex-col gap-8">
-          <section
-            id="plan-cards"
-            className={cn(GUESTS_SECTION_CLASS, {
-              "ring-2 ring-primary/20": snap.managePlanSection == null,
-            })}
-          >
-            <h2 className={GUESTS_SECTION_TITLE_CLASS}>
-              {copy.managePlanPlanCards}
-            </h2>
+        <div className="flex flex-col gap-15">
+          <div id="plan-cards">
             <ManagePlanCardsSection snap={snap} pageModule={pageModule} />
-            <ManagePlanCancelPlanControl
-              showCancelPlan={snap.showCancelPlan}
-              cancelEnabled={snap.ownerManagePlanWritesEnabled}
-              pageModule={pageModule}
-              cancelPlanConfirm={snap.cancelPlanConfirm}
-            />
-          </section>
+          </div>
+
           {snap.additionalGroupLocation != null ? (
             <ManagePlanAdditionalGroupLocationSection
               viewModel={snap.additionalGroupLocation}
@@ -1314,23 +1611,18 @@ export function ManagePlanPage() {
               extraLocationConfirm={snap.extraLocationConfirm}
             />
           ) : null}
+
           <section
             id="credit-top-ups"
-            className={cn(GUESTS_SECTION_CLASS, {
-              "ring-2 ring-primary/20":
-                snap.managePlanSection === "credit-top-ups",
-            })}
+            className="flex flex-col gap-15"
           >
-            <div className="flex items-center gap-2">
-              <h2 className={GUESTS_SECTION_TITLE_CLASS}>
-                {copy.managePlanCreditTopUps}
-              </h2>
-              {snap.managePlanSection === "credit-top-ups" ? (
-                <Badge variant="secondary">Selected</Badge>
-              ) : null}
-            </div>
+            <h2 className={cn(MANAGE_PLAN_SECTION_HEADING_CLASS, "max-w-[640px]")}>
+              {MANAGE_PLAN_COPY.capacityHeading}
+            </h2>
             <CreditTopUpsSection snap={snap} pageModule={pageModule} />
           </section>
+
+          <ManagePlanFaqSection />
         </div>
       )}
     </div>

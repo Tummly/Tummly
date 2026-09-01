@@ -4,10 +4,12 @@ import type { PlanSubscriptionSnapshot } from "@/lib/operatorBillingCredits/crea
 import {
   buildManagePlanCardViewModels,
   buildPlanChangeConfirmCopy,
+  buildPlanRenewalDateMetric,
   defaultPreviewCadence,
   resolvePlanCardCta,
   resolvePlanChangeKind,
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
+import { BILLING_CREDITS_PAGE_COPY } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
 
 function paidPlan(
   overrides: Partial<PlanSubscriptionSnapshot> = {}
@@ -95,18 +97,22 @@ describe("buildManagePlanCardViewModels", () => {
       "Group",
     ])
     expect(cards[1]?.priceHeadline).toBe("£39 / month + VAT")
-    expect(cards[1]?.emailCreditsLabel).toBe("2,500 / month")
-    expect(cards[2]?.annualSaveLabel).toBeNull()
+    expect(cards[1]?.emailCreditsLabel).toBe("2,500/month")
+    expect(cards[1]?.annualSaveLabel).toBe("Save £70 per year")
+    expect(cards[2]?.isMostPopular).toBe(true)
+    expect(cards[2]?.coreFeatures.length).toBeGreaterThan(0)
+    expect(cards[0]?.priceSubline).toBe("No payment card required")
   })
 
-  it("shows annual save when preview cadence is annual", () => {
+  it("hides annual save when preview cadence is annual", () => {
     const cards = buildManagePlanCardViewModels({
       plan: paidPlan(),
       previewCadence: "annual",
     })
 
     expect(cards[1]?.priceHeadline).toBe("£398 / year + VAT")
-    expect(cards[1]?.annualSaveLabel).toBe("Save £70 per year")
+    expect(cards[1]?.annualSaveLabel).toBeNull()
+    expect(cards[1]?.priceSubline).toBeNull()
   })
 })
 
@@ -181,5 +187,37 @@ describe("defaultPreviewCadence", () => {
         paidPlan({ subscriptionPlan: "Pilot", isPilot: true, billingCycle: null })
       )
     ).toBe("monthly")
+  })
+})
+
+describe("buildPlanRenewalDateMetric", () => {
+  it("shows renewal date before cancel is scheduled", () => {
+    expect(
+      buildPlanRenewalDateMetric(paidPlan(), {
+        renewalDate: BILLING_CREDITS_PAGE_COPY.renewalDate,
+        cancelDate: BILLING_CREDITS_PAGE_COPY.cancelDate,
+      })
+    ).toEqual({
+      label: "Renewal date",
+      value: "Renews 12 Aug 2026",
+    })
+  })
+
+  it("shows cancel date after cancel is scheduled", () => {
+    expect(
+      buildPlanRenewalDateMetric(
+        paidPlan({
+          renewalDateLabel: "Renews 30 September 2026",
+          scheduledChangeLine: "Cancels on 30 September 2026",
+        }),
+        {
+          renewalDate: BILLING_CREDITS_PAGE_COPY.renewalDate,
+          cancelDate: BILLING_CREDITS_PAGE_COPY.cancelDate,
+        }
+      )
+    ).toEqual({
+      label: "Cancel date",
+      value: "Cancels on 30 September 2026",
+    })
   })
 })

@@ -60,7 +60,6 @@ import { useAuthStore } from "@/stores/authStore"
 import {
   completeUserSession,
   getDeviceToken,
-  getMultiDashboardPath,
   getPostLoginDestination,
   isActivationCodeDestination,
   isWorkspaceSetupDestination,
@@ -705,9 +704,26 @@ function LoginPageContent() {
 
     try {
       setWorkspaceSubmitting(true)
-      const locationId = await submitWorkspaceSelection(selectedLocationId)
-      persistSelectedLocation(locationId)
-      window.location.href = getMultiDashboardPath(locationId)
+      const selected = await submitWorkspaceSelection(selectedLocationId)
+      persistSelectedLocation(selected.locationId)
+      const auth = useAuthStore.getState()
+      if (auth.token == null) {
+        throw new Error("You must be signed in to continue.")
+      }
+      const accountType =
+        selected.accountType ?? auth.accountType ?? "Multi"
+      persistAuthSession(
+        auth.token,
+        "USER",
+        accountType,
+        auth.refreshToken
+      )
+      window.location.href = getPostLoginDestination(
+        accountType,
+        false,
+        selected.locationId,
+        false
+      )
     } catch (error) {
       setWorkspaceError(
         error instanceof Error

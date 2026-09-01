@@ -1,3 +1,8 @@
+import {
+  OPERATOR_SHELL_MENU_ITEM_CLASS,
+  OPERATOR_SHELL_MENU_PANEL_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
+
 export const ACCOUNT_WORKSPACE_TAB_IDS = [
   "account-details",
   "business-details",
@@ -84,7 +89,126 @@ export function normalizeReportingPeriod(
   return match?.value ?? "7days"
 }
 
+/**
+ * Campaign Email / send-test From display name — same order as
+ * `CampaignSenderDisplayName.Resolve` (stored → workspace → location).
+ */
+export function resolveCampaignSenderDisplayName(params: {
+  storedSenderName: string | null | undefined
+  workspaceName: string | null | undefined
+  locationName: string | null | undefined
+}): string {
+  const sender = (params.storedSenderName ?? "").trim()
+  if (sender !== "") {
+    return sender
+  }
+  const workspace = (params.workspaceName ?? "").trim()
+  if (workspace !== "") {
+    return workspace
+  }
+  return (params.locationName ?? "").trim()
+}
+
 export const ACCOUNT_WORKSPACE_DEFAULT_COUNTRY = "United Kingdom"
+
+/** Figma Main Bg/Subtitle — `#7c7c7c` / `--op-color-gray-550` in light and dark. */
+export const ACCOUNT_WORKSPACE_PAGE_SUBTITLE_CLASS =
+  "m-0 text-base font-medium leading-normal text-[var(--op-color-gray-550)]"
+
+/**
+ * Page column — fill the shell pane; 40px between header and tabs.
+ * Parent shell gutters are `flex min-h-full flex-col`.
+ */
+export const ACCOUNT_WORKSPACE_PAGE_STACK_CLASS =
+  "flex min-h-full flex-1 flex-col gap-10"
+
+/** Tab row rule — light `#e5e5e5` / dark `#262626` via `--op-divider`. */
+export const ACCOUNT_WORKSPACE_TABS_RULE_CLASS =
+  "relative z-10 border-b border-op-divider"
+
+/**
+ * Break shell pane gutters so the tab rule + body wash span the main column.
+ * Re-pad with {@link ACCOUNT_WORKSPACE_SHELL_PAD_X}.
+ */
+export const ACCOUNT_WORKSPACE_FULL_BLEED_X =
+  "-mx-4 sm:-mx-6 md:-mx-8 lg:-mx-[70px]"
+
+/** Cancel shell bottom gutter so the tab body can reach the pane edge. */
+export const ACCOUNT_WORKSPACE_FULL_BLEED_BOTTOM =
+  "-mb-10 lg:-mb-[70px]"
+
+export const ACCOUNT_WORKSPACE_SHELL_PAD_X =
+  "px-4 sm:px-6 md:px-8 lg:px-[70px]"
+
+export const ACCOUNT_WORKSPACE_SHELL_PAD_BOTTOM =
+  "pb-10 lg:pb-[70px]"
+
+/**
+ * Line tabs — green active underline (`after`) sits on the divider (`-mb-px`).
+ * Prefer `after` over `border-b` so TabsTrigger `twMerge` does not drop the bar.
+ * Override TabsTrigger `group-data-horizontal/tabs:after:bottom-[-5px]` (higher
+ * specificity) so the bar is not pushed under the opaque tab body wash.
+ */
+export const ACCOUNT_WORKSPACE_TAB_LIST_CLASS =
+  "h-auto w-full justify-start gap-2.5 rounded-none bg-transparent p-0"
+
+export const ACCOUNT_WORKSPACE_TAB_TRIGGER_CLASS =
+  "-mb-px flex-none rounded-none border-0 bg-transparent px-3.5 pt-0 pb-2.5 text-sm font-medium text-[var(--op-color-gray-550)] shadow-none after:absolute after:inset-x-0 after:z-10 after:h-0.5 after:bg-op-button-primary-background after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:bottom-0 hover:bg-transparent hover:text-foreground focus-visible:border-transparent focus-visible:ring-0 data-active:bg-transparent data-active:font-semibold data-active:text-foreground data-active:shadow-none data-active:after:opacity-100 data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:after:opacity-100 dark:data-active:bg-transparent dark:data-[state=active]:bg-transparent"
+
+/**
+ * Tab body wash — Figma `#181818` / `--op-color-gray-996`; light uses
+ * `--op-background-secondary` (`#ebebeb`).
+ */
+export const ACCOUNT_WORKSPACE_TAB_BODY_CLASS =
+  "flex min-h-0 flex-1 flex-col gap-6 bg-op-background-secondary pt-10 dark:bg-op-color-gray-996"
+
+/**
+ * Identity card — Figma 5735:78763 fill `#1c1c1c` / `--op-color-gray-992`;
+ * light uses surface primary (white).
+ */
+export const ACCOUNT_WORKSPACE_IDENTITY_CARD_CLASS =
+  "flex flex-col gap-10 overflow-clip rounded-op-lg border border-op-card-border bg-op-surface-primary p-6 dark:bg-op-color-gray-992 dark:shadow-none"
+
+export const ACCOUNT_WORKSPACE_IDENTITY_TITLE_CLASS =
+  "m-0 text-xl font-semibold leading-normal text-op-card-title-color"
+
+export const ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS =
+  "m-0 text-sm font-medium leading-normal text-[var(--op-color-gray-550)]"
+
+export const ACCOUNT_WORKSPACE_FIELD_HELPER_CLASS =
+  "m-0 text-xs font-medium leading-4 text-[var(--op-color-gray-550)]"
+
+/** Same label weight as Campaign Message Subject / Filter sheet fields. */
+export const ACCOUNT_WORKSPACE_FIELD_LABEL_CLASS =
+  "m-0 text-sm font-semibold leading-5 text-op-text-primary"
+
+/**
+ * Text inputs — Campaign Message Subject chrome
+ * (`CAMPAIGN_MESSAGE_INPUT_CLASS` + `h-12`).
+ */
+export const ACCOUNT_WORKSPACE_TEXT_INPUT_CLASS =
+  "h-12 rounded-[4px] border-op-input-border bg-transparent px-[15px] text-sm text-op-text-primary placeholder:text-op-input-placeholder dark:bg-transparent dark:disabled:bg-transparent"
+
+/**
+ * Select triggers — Figma Overlay+Border (`p-[15px]`, `rounded-[4px]`,
+ * `border-op-input-border`); placeholder + chevron use input placeholder grey.
+ */
+export const ACCOUNT_WORKSPACE_SELECT_TRIGGER_CLASS =
+  "!h-[50px] !min-h-[50px] w-full justify-between rounded-[4px] border border-op-input-border bg-transparent px-[15px] text-left text-sm font-normal text-op-text-primary shadow-none hover:bg-transparent data-placeholder:text-op-input-placeholder disabled:cursor-not-allowed disabled:bg-op-input-disabled-background disabled:opacity-100 aria-expanded:bg-transparent dark:bg-transparent dark:hover:bg-transparent dark:aria-expanded:bg-transparent dark:disabled:bg-op-input-disabled-background [&_svg]:text-op-input-placeholder"
+
+export const ACCOUNT_WORKSPACE_IDENTITY_DIVIDER_CLASS =
+  "m-0 h-0.5 w-full shrink-0 border-0 bg-op-card-border"
+
+/** Read-only Account structure options (API labels). */
+export const ACCOUNT_STRUCTURE_OPTIONS = [
+  { value: "Single location", label: "Single location" },
+  { value: "Multi-location", label: "Multi-location" },
+] as const
+
+/** Read-only Main operating country options (product default). */
+export const MAIN_OPERATING_COUNTRY_OPTIONS = [
+  { value: "United Kingdom", label: "United Kingdom" },
+] as const
 
 export const ACCOUNT_WORKSPACE_PAGE_COPY = {
   title: "Account & workspace",
@@ -113,10 +237,10 @@ export const ACCOUNT_WORKSPACE_PAGE_COPY = {
     "Could not save workspace defaults. Please try again.",
   workspaceDefaultsTitle: "Workspace defaults",
   workspaceDefaultsSubtitle:
-    "Set restaurant-wide defaults used for weekly briefs, recommendations and campaign email.",
+    "Set the default preferences Tummly should use across your workspace. You can still manage location-specific settings separately.",
   weekStartsOn: "Week starts on",
   defaultReportingPeriod: "Default reporting period",
-  defaultCampaignSenderName: "Default Campaign Sender Name",
+  defaultCampaignSenderName: "Default campaign sender name",
   defaultCampaignSenderNameHelper:
     "Shown as the From display name on Campaign Email and Campaign send test.",
   defaultTimezone: "Default timezone",
@@ -133,7 +257,23 @@ export const ACCOUNT_WORKSPACE_PAGE_COPY = {
   selectUserPlaceholder: "Select user",
   keyContactsTeamHelper:
     "More people appear here after they join in Team & permissions.",
-  manageGuestFacingBrand: "Manage guest-facing brand",
+  workspaceIdentityTitle: "Workspace identity",
+  workspaceIdentitySubtitle:
+    "Manage the internal identity and account structure used by authorised Tummly users.",
+  workspaceName: "Workspace name",
+  workspaceNameHelper:
+    "The internal account name shown to authorised Tummly users. Guest-facing names are managed in Brand & Guest Form and at location level.",
+  guestFacingBusinessName: "Guest-facing business name",
+  guestFacingBusinessNameHelper:
+    "Shown to guests by default across Guest Forms and other restaurant-branded experiences. Individual Locations can use a different display name where configured.",
+  accountStructure: "Account structure",
+  businessCategory: "Business category",
+  businessCategoryHelper:
+    "Used to tailor future templates, onboarding guidance and product recommendations. Changing the category updates future suggestions only. It does not change existing live content.",
+  mainOperatingCountry: "Main operating country",
+  workspaceLogo: "Workspace logo",
+  workspaceLogoHelper:
+    "Used to represent your restaurant inside Tummly and on guest-facing experiences.",
   uploadImage: "Upload image",
   businessIdentityTitle: "Business identity",
   businessIdentitySubtitle:
@@ -141,7 +281,7 @@ export const ACCOUNT_WORKSPACE_PAGE_COPY = {
   businessAddressTitle: "Business address",
   businessAddressSubtitle:
     "Enter the registered or principal business address used for account administration and legal correspondence.",
-  legalStructure: "Legal structure",
+  legalStructure: "Business structure",
   legalStructurePlaceholder: "Select",
   legalBusinessName: "Legal business name",
   legalBusinessNameHelper:
@@ -160,9 +300,12 @@ export const ACCOUNT_WORKSPACE_PAGE_COPY = {
     "The country where the legal business is registered.",
   addressLine1: "Address line 1",
   addressLine2: "Address line 2",
-  townCity: "Town or city",
+  addressLine2Placeholder: "Add address line 2 - optional",
+  townCity: "City or town",
+  townCityPlaceholder: "City or town",
   county: "County",
   postcode: "Postcode",
+  postcodePlaceholder: "Postcode",
   country: "Country",
   ukPostcodeError: "Enter a valid UK postcode.",
   accountControlsStatusTitle: "Account status",
@@ -262,8 +405,14 @@ export function accountRequestConfirmLabels(kind: AccountRequestKindKey): {
   }
 }
 
-/** Select menus above leave-dirty / rename dialogs on this page. */
-export const ACCOUNT_WORKSPACE_SELECT_MENU_CLASS = "z-[130]"
+/**
+ * Select menus above leave-dirty / rename dialogs — operator shell panel chrome
+ * (same spine as Capture / Feedback dialog selects).
+ */
+export const ACCOUNT_WORKSPACE_SELECT_MENU_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CLASS} z-[130] gap-0 p-0`
+
+/** Select rows — square wash, no accent pill (shell menu item). */
+export const ACCOUNT_WORKSPACE_SELECT_ITEM_CLASS = `${OPERATOR_SHELL_MENU_ITEM_CLASS} h-auto w-full justify-start pr-8 text-left text-sm font-normal text-op-text-primary focus:bg-black/5 focus:text-op-text-primary dark:focus:bg-white/5 dark:focus:text-op-text-primary`
 
 export function resolveAccountWorkspaceTabId(
   raw: string | null | undefined

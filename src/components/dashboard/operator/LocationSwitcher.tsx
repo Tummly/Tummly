@@ -3,6 +3,7 @@ import { ChevronDownIcon, XIcon } from "lucide-react"
 
 import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -43,11 +44,15 @@ const locationPanelWidthClass = "w-[min(433px,calc(100vw-1rem))]"
 /** Figma Cards/Border-colour — location row dividers. */
 const locationDividerClass = "h-px w-full shrink-0 bg-op-border-default"
 
-/** Figma location row subtitle: `{address} · Active` (node 3714:22095). */
+/** Figma location row subtitle: `{address} · Active|Paused` (node 3714:22095). */
 function formatLocationSwitcherStatusLine(
   location: OperatorHomeLocationOption
 ): string {
-  const status = location.isActive ? "Active" : "Inactive"
+  const status = location.showPausedBadge
+    ? "Paused"
+    : location.isActive
+      ? "Active"
+      : "Inactive"
   const address = location.address.trim()
   return address.length > 0 ? `${address} · ${status}` : status
 }
@@ -150,10 +155,15 @@ function LocationSwitcherPanel({
                     className={locationRowClass}
                   >
                     <span
-                      className="w-full truncate text-sm font-semibold leading-normal text-op-header-location-heading"
+                      className="flex w-full min-w-0 items-center gap-2 text-sm font-semibold leading-normal text-op-header-location-heading"
                       title={location.name}
                     >
-                      {location.name}
+                      {location.showPausedBadge ? (
+                        <Badge variant="neutral" className="shrink-0">
+                          Paused
+                        </Badge>
+                      ) : null}
+                      <span className="truncate">{location.name}</span>
                     </span>
                     <span
                       className="w-full truncate text-xs font-medium leading-normal text-op-header-location-subheading"
@@ -193,6 +203,10 @@ export function LocationSwitcher({
   className,
 }: LocationSwitcherProps) {
   const [open, setOpen] = useState(false)
+  const selectedOption = locationSwitcher.options.find(
+    (location) => location.id === locationSwitcher.selectedLocationId
+  )
+  const selectedPaused = selectedOption?.showPausedBadge === true
 
   const body = (
     <span className="flex min-w-0 items-center gap-3 overflow-hidden">
@@ -208,10 +222,17 @@ export function LocationSwitcher({
             Restaurant
           </span>
           <span
-            className="block max-w-full truncate text-sm leading-normal text-op-header-location-heading"
+            className="flex max-w-full items-center gap-2 text-sm leading-normal text-op-header-location-heading"
             title={locationSwitcher.selectedLocationName}
           >
-            {locationSwitcher.selectedLocationName}
+            {selectedPaused ? (
+              <Badge variant="neutral" className="shrink-0">
+                Paused
+              </Badge>
+            ) : null}
+            <span className="truncate">
+              {locationSwitcher.selectedLocationName}
+            </span>
           </span>
         </span>
       </span>

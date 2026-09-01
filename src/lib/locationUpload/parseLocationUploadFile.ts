@@ -8,6 +8,7 @@ import {
   combineLocalContact,
   type UploadedLocationDraft,
 } from "@/lib/locationUpload/locationUploadValidation"
+import { extractTownCityFromAddress } from "@/lib/addressLookup"
 
 type ParsedSheetRow = Record<string, unknown>
 
@@ -18,6 +19,9 @@ function normalizeHeader(value: string) {
 const HEADER_ALIASES: Record<string, keyof UploadedLocationDraft | "localContactName" | "localContactEmail"> = {
   "location name": "locationName",
   address: "address",
+  city: "city",
+  "town/city": "city",
+  "town city": "city",
   postcode: "postcode",
   "location phone": "locationPhone",
   "local contact": "localContact",
@@ -46,6 +50,7 @@ function mapSheetRow(
   const values = {
     locationName: "",
     address: "",
+    city: "",
     postcode: "",
     locationPhone: "",
     localContactName: "",
@@ -70,6 +75,7 @@ function mapSheetRow(
     if (
       field === "locationName" ||
       field === "address" ||
+      field === "city" ||
       field === "postcode" ||
       field === "locationPhone"
     ) {
@@ -82,15 +88,18 @@ function mapSheetRow(
     return null
   }
 
+  const localContact =
+    values.localContact ||
+    combineLocalContact(values.localContactName, values.localContactEmail)
+
   return {
     locationName: values.locationName,
     address: values.address,
+    city: values.city || extractTownCityFromAddress(values.address),
     postcode: values.postcode,
     addressOverridden: false,
     locationPhone: values.locationPhone,
-    localContact:
-      values.localContact ||
-      combineLocalContact(values.localContactName, values.localContactEmail),
+    localContact,
   }
 }
 

@@ -22,6 +22,18 @@ namespace TummlyBackend.Tests.Validators
         }
 
         [Fact]
+        public void Should_reject_missing_location_city()
+        {
+            var dto = CreateValidDto();
+            dto.Locations[0].City = "";
+
+            var result = _validator.TestValidate(dto);
+
+            result.ShouldHaveValidationErrorFor("Locations[0].City")
+                .WithErrorMessage("City is required.");
+        }
+
+        [Fact]
         public void Should_accept_address_overridden_flag_without_extra_rules()
         {
             var dto = CreateValidDto();
@@ -61,6 +73,7 @@ namespace TummlyBackend.Tests.Validators
                     {
                         LocationName = "Main",
                         Address = "1 High Street, Manchester",
+                        City = "Manchester",
                         Postcode = "M1 4AB",
                     },
                 ],

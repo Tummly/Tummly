@@ -327,11 +327,19 @@ function TeamInvitationAcceptPage() {
     setWorkspaceSubmitting(true)
     setWorkspaceError(null)
     try {
-      const locationId = await submitWorkspaceSelection(selectedLocationId)
-      persistSelectedLocation(locationId)
+      const selected = await submitWorkspaceSelection(selectedLocationId)
+      persistSelectedLocation(selected.locationId)
+      const accountType = selected.accountType ?? session.accountType
+      persistAuthSession(
+        session.token,
+        "USER",
+        accountType,
+        session.refreshToken
+      )
       window.location.href = dashboardHref({
         ...session,
-        selectedLocationId: locationId,
+        accountType,
+        selectedLocationId: selected.locationId,
       })
     } catch (caught) {
       setWorkspaceError(

@@ -1,6 +1,7 @@
 export const LOCATION_UPLOAD_TEMPLATE_HEADERS = [
   "Location name",
   "Address",
+  "City",
   "Postcode",
   "Location phone",
   "Local contact",

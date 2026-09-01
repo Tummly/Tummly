@@ -60,6 +60,10 @@ namespace TummlyBackend.Tests.Integration
                 body.GetProperty("workspaceName").GetString()
             );
             Assert.Equal(
+                "Main",
+                body.GetProperty("guestFacingBusinessName").GetString()
+            );
+            Assert.Equal(
                 "Single location",
                 body.GetProperty("accountStructure").GetString()
             );
@@ -167,6 +171,43 @@ namespace TummlyBackend.Tests.Integration
                 "DD/MM/YYYY",
                 defaults.GetProperty("dateFormat").GetString()
             );
+        }
+
+        [Fact]
+        public async Task GetDetails_PlanAndBillingStatus_PreferBillingAccount()
+        {
+            var seeded = await SeedOwnerAsync(email: "aw-billing-plan@example.com");
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                context.BillingAccounts.Add(
+                    new BillingAccount
+                    {
+                        RestaurantId = seeded.RestaurantId,
+                        SubscriptionPlan = BillingSubscriptionPlans.Starter,
+                        BillingStatus = BillingStatuses.Active,
+                        ContractedPricebookId = "test-pricebook",
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/account-workspace"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            var status = body.GetProperty("status");
+            Assert.Equal("Starter", status.GetProperty("planStatus").GetString());
+            Assert.Equal("Active", status.GetProperty("billingStatus").GetString());
         }
 
         [Fact]

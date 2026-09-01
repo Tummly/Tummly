@@ -81,6 +81,7 @@ export function GuestLoopRestaurantStep({
           addressName="address"
           postcodeName="postcode"
           addressOverriddenName="addressOverridden"
+          cityName="city"
         />
 
         <FormFloatingInput

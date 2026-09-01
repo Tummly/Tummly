@@ -20,6 +20,10 @@ export const locationItemSchema = z.object({
     .string()
     .trim()
     .min(1, validationMessages.accountSetup.address.required),
+  city: z
+    .string()
+    .trim()
+    .min(1, validationMessages.accountSetup.city.required),
   postcode: z
     .string()
     .trim()
@@ -35,6 +39,7 @@ export type LocationFormItem = z.infer<typeof locationItemSchema>
 export const emptyLocationItem: LocationFormItem = {
   locationName: "",
   address: "",
+  city: "",
   postcode: "",
   addressOverridden: false,
   locationPhone: "",
@@ -59,6 +64,7 @@ export const accountSetupMultiStep2Fields = [
 type AccountSetupMultiStep3FieldName =
   | `locations.${number}.locationName`
   | `locations.${number}.address`
+  | `locations.${number}.city`
   | `locations.${number}.postcode`
   | `locations.${number}.locationPhone`
 
@@ -66,6 +72,7 @@ export function getAccountSetupMultiStep3FieldNames(locationCount: number) {
   return Array.from({ length: locationCount }, (_, index) => [
     `locations.${index}.locationName`,
     `locations.${index}.address`,
+    `locations.${index}.city`,
     `locations.${index}.postcode`,
     `locations.${index}.locationPhone`,
   ]).flat() as [
@@ -137,6 +144,7 @@ export const accountSetupMultiStep3Schema = z.object({
       locationItemSchema.pick({
         locationName: true,
         address: true,
+        city: true,
         postcode: true,
         locationPhone: true,
       })
@@ -186,6 +194,7 @@ export function toMultiLocationSetupPayload(
     locations: parsed.locations.map((location) => ({
       locationName: location.locationName,
       address: location.address,
+      city: location.city.trim() || undefined,
       postcode: location.postcode.trim() || undefined,
       locationPhone: location.locationPhone || undefined,
       localContact: location.localContact.trim() || undefined,

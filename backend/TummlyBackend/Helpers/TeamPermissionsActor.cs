@@ -127,16 +127,16 @@ namespace TummlyBackend.Helpers
 
             if (target.Status == MembershipStatus.Deactivated)
             {
-                return ["reactivate", "remove"];
+                return ["view", "reactivate"];
             }
 
-            var actions = new List<string> { "change-role" };
+            var actions = new List<string> { "view", "edit-role" };
             if (target.PermissionRole != PermissionRoles.Owner)
             {
-                actions.Add("change-location");
+                actions.Add("edit-access");
             }
 
-            actions.Add("deactivate");
+            actions.Add("suspend");
             return actions;
         }
     }

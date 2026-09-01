@@ -77,6 +77,7 @@ export type AccountWorkspaceWorkspaceDefaults = {
 
 export type AccountWorkspaceDetails = {
   workspaceName: string
+  guestFacingBusinessName: string
   accountStructure: string
   businessCategory: string | null
   businessCategoryLabel: string | null
@@ -212,6 +213,7 @@ export type OperatorAccountWorkspacePageSnapshot = {
   accountDetails: {
     workspaceName: string
     workspaceNameError: string | null
+    guestFacingBusinessName: string
     accountStructure: string
     businessCategory: string | null
     businessCategoryLabel: string | null
@@ -667,6 +669,7 @@ export function createOperatorAccountWorkspacePageModule(
       accountDetails: {
         workspaceName: draft.workspaceName,
         workspaceNameError,
+        guestFacingBusinessName: persisted?.guestFacingBusinessName ?? "",
         accountStructure: persisted?.accountStructure ?? "",
         businessCategory: persisted?.businessCategory ?? null,
         businessCategoryLabel: persisted?.businessCategoryLabel ?? null,

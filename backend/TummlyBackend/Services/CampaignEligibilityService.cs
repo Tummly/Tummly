@@ -14,7 +14,7 @@ namespace TummlyBackend.Services
     /// </summary>
     public class CampaignEligibilityService : ICampaignEligibilityService
     {
-        public const string CheckSetVersion = "stage-1-v1";
+        public const string CheckSetVersion = "stage-1-v2";
 
         /// <summary>
         /// Align Matched membership with Guests Smart Group windows.
@@ -33,10 +33,16 @@ namespace TummlyBackend.Services
             };
 
         private readonly ApplicationDbContext _context;
+        private readonly ILocationGuestPermissionLedgerService _permissions;
 
-        public CampaignEligibilityService(ApplicationDbContext context)
+        public CampaignEligibilityService(
+            ApplicationDbContext context,
+            ILocationGuestPermissionLedgerService? permissions = null
+        )
         {
             _context = context;
+            _permissions =
+                permissions ?? new LocationGuestPermissionLedgerService(context);
         }
 
         public async Task<CampaignEligibilityDto> EvaluateAsync(
@@ -65,6 +71,11 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var restaurant = await LoadRestaurantForLocationAsync(
+                locationId,
+                cancellationToken
+            );
+
             var scoped = GuestsListQueryComposer.ScopeToLocations(
                 _context.LocationGuests.AsNoTracking().Include(lg => lg.MasterGuest),
                 [locationId]
@@ -80,7 +91,18 @@ namespace TummlyBackend.Services
                 ))
                 .ToListAsync(cancellationToken);
 
-            return Aggregate(key, matchedRows, evaluatedAt);
+            var permissionStates = await _permissions.GetCurrentStatesBatchAsync(
+                matchedRows.Select(row => row.LocationGuestId).ToList(),
+                cancellationToken
+            );
+
+            return Aggregate(
+                key,
+                matchedRows,
+                restaurant,
+                permissionStates,
+                evaluatedAt
+            );
         }
 
         public async Task<IReadOnlyList<int>> ListChannelEligibleLocationGuestIdsAsync(
@@ -115,6 +137,11 @@ namespace TummlyBackend.Services
             }
 
             var evaluatedAt = DateTime.UtcNow;
+            var restaurant = await LoadRestaurantForLocationAsync(
+                locationId,
+                cancellationToken
+            );
+
             var scoped = GuestsListQueryComposer.ScopeToLocations(
                 _context.LocationGuests.AsNoTracking().Include(lg => lg.MasterGuest),
                 [locationId]
@@ -130,21 +157,51 @@ namespace TummlyBackend.Services
                 ))
                 .ToListAsync(cancellationToken);
 
+            var permissionStates = await _permissions.GetCurrentStatesBatchAsync(
+                matchedRows.Select(row => row.LocationGuestId).ToList(),
+                cancellationToken
+            );
+
             var ids = new List<int>();
             foreach (var guest in matchedRows)
             {
-                if (ResolvePrimaryExclusionReason(guest) != null)
+                var states = ResolveGuestStates(guest, permissionStates);
+
+                if (
+                    ResolvePrimaryExclusionReason(
+                        guest,
+                        restaurant,
+                        states
+                    ) != null
+                )
                 {
                     continue;
                 }
 
                 var hasEmail = !string.IsNullOrWhiteSpace(guest.Email);
                 var hasMobile = !string.IsNullOrWhiteSpace(guest.Mobile);
-                if (channelKey == "email" && hasEmail)
+
+                if (
+                    channelKey == "email"
+                    && hasEmail
+                    && LocationGuestChannelPermissionGate.CanSendOnChannel(
+                        restaurant,
+                        states,
+                        channelKey
+                    )
+                )
                 {
                     ids.Add(guest.LocationGuestId);
                 }
-                else if (channelKey == "sms" && hasMobile)
+                else if (
+                    channelKey == "sms"
+                    && hasMobile
+                    && LocationGuestChannelPermissionGate.CanSendOnChannel(
+                        restaurant,
+                        states,
+                        channelKey
+                    )
+                )
                 {
                     ids.Add(guest.LocationGuestId);
                 }
@@ -195,6 +252,14 @@ namespace TummlyBackend.Services
         private static CampaignEligibilityDto Aggregate(
             string audienceKey,
             IReadOnlyList<GuestEligibilityRow> matched,
+            Restaurant restaurant,
+            IReadOnlyDictionary<
+                int,
+                IReadOnlyDictionary<
+                    LocationGuestPermissionKind,
+                    LocationGuestPermissionState
+                >
+            > permissionStates,
             DateTime evaluatedAt
         )
         {
@@ -206,7 +271,12 @@ namespace TummlyBackend.Services
 
             foreach (var guest in matched)
             {
-                var primaryReason = ResolvePrimaryExclusionReason(guest);
+                var states = ResolveGuestStates(guest, permissionStates);
+                var primaryReason = ResolvePrimaryExclusionReason(
+                    guest,
+                    restaurant,
+                    states
+                );
                 if (primaryReason != null)
                 {
                     reasonCounts[primaryReason] =
@@ -218,12 +288,26 @@ namespace TummlyBackend.Services
 
                 var hasEmail = !string.IsNullOrWhiteSpace(guest.Email);
                 var hasMobile = !string.IsNullOrWhiteSpace(guest.Mobile);
-                if (hasEmail)
+                if (
+                    hasEmail
+                    && LocationGuestChannelPermissionGate.CanSendOnChannel(
+                        restaurant,
+                        states,
+                        "email"
+                    )
+                )
                 {
                     emailEligible += 1;
                 }
 
-                if (hasMobile)
+                if (
+                    hasMobile
+                    && LocationGuestChannelPermissionGate.CanSendOnChannel(
+                        restaurant,
+                        states,
+                        "sms"
+                    )
+                )
                 {
                     smsEligible += 1;
                 }
@@ -257,29 +341,78 @@ namespace TummlyBackend.Services
 
         /// <summary>
         /// One primary reason per excluded guest.
-        /// Priority: account → soft-lock → opt-out → suppression →
+        /// Priority: account → soft-lock → opt-out → channel-disabled →
         /// invalid-contact → channel. Account / soft-lock / suppression are
         /// skipped when Billing stores are absent.
         /// </summary>
         private static string? ResolvePrimaryExclusionReason(
-            GuestEligibilityRow guest
+            GuestEligibilityRow guest,
+            Restaurant restaurant,
+            IReadOnlyDictionary<
+                LocationGuestPermissionKind,
+                LocationGuestPermissionState
+            > states
         )
         {
-            if (!guest.MarketingPreference.IsAllowed())
-            {
-                return "opt-out";
-            }
-
             var hasEmail = !string.IsNullOrWhiteSpace(guest.Email);
             var hasMobile = !string.IsNullOrWhiteSpace(guest.Mobile);
+
             if (!hasEmail && !hasMobile)
             {
                 return "invalid-contact";
             }
 
-            // Stage-1 Currently eligible = ≥1 channel with contact present.
-            // Guests with contact and no opt-out are eligible — no channel reason.
-            return null;
+            var emailAllowed =
+                hasEmail
+                && LocationGuestChannelPermissionGate.CanSendOnChannel(
+                    restaurant,
+                    states,
+                    "email"
+                );
+            var smsAllowed =
+                hasMobile
+                && LocationGuestChannelPermissionGate.CanSendOnChannel(
+                    restaurant,
+                    states,
+                    "sms"
+                );
+
+            if (emailAllowed || smsAllowed)
+            {
+                return null;
+            }
+
+            if (
+                !LocationGuestChannelPermissionGate.IsRestaurantPermissionEnabled(
+                    restaurant,
+                    LocationGuestPermissionKind.EmailMarketing
+                )
+                && !LocationGuestChannelPermissionGate.IsRestaurantPermissionEnabled(
+                    restaurant,
+                    LocationGuestPermissionKind.SmsMarketing
+                )
+            )
+            {
+                return "channel-disabled";
+            }
+
+            return "opt-out";
+        }
+
+        private async Task<Restaurant> LoadRestaurantForLocationAsync(
+            int locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            var restaurantId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == locationId)
+                .Select(row => row.RestaurantId)
+                .FirstAsync(cancellationToken);
+
+            return await _context.Restaurants
+                .AsNoTracking()
+                .FirstAsync(r => r.Id == restaurantId, cancellationToken);
         }
 
         private static CampaignEligibilityDto Unavailable(
@@ -301,6 +434,24 @@ namespace TummlyBackend.Services
                 EvaluatedAt = evaluatedAt,
             };
         }
+
+        private static IReadOnlyDictionary<
+            LocationGuestPermissionKind,
+            LocationGuestPermissionState
+        > ResolveGuestStates(
+            GuestEligibilityRow guest,
+            IReadOnlyDictionary<
+                int,
+                IReadOnlyDictionary<
+                    LocationGuestPermissionKind,
+                    LocationGuestPermissionState
+                >
+            > permissionStates
+        ) =>
+            LocationGuestChannelPermissionGate.ResolveEffectiveStates(
+                guest.MarketingPreference,
+                permissionStates[guest.LocationGuestId]
+            );
 
         private readonly record struct GuestEligibilityRow(
             int LocationGuestId,

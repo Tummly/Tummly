@@ -26,11 +26,20 @@ namespace TummlyBackend.Services
             _pricebookCatalog = pricebookCatalog;
         }
 
+        public const int ImportMaxRows = 100;
+
         public async Task<AddOwnedLocationResult> AddAsync(
             int restaurantId,
+            int actorUserId,
             AddOwnedLocationRequest request
         )
         {
+            var invalid = ValidateDraftFields(request);
+            if (invalid != null)
+            {
+                return invalid;
+            }
+
             if (!_context.Database.IsSqlServer())
             {
                 var gate = AccountLocks.GetOrAdd(
@@ -40,7 +49,11 @@ namespace TummlyBackend.Services
                 await gate.WaitAsync();
                 try
                 {
-                    return await AddLockedAsync(restaurantId, request);
+                    return await AddLockedAsync(
+                        restaurantId,
+                        actorUserId,
+                        request
+                    );
                 }
                 finally
                 {
@@ -48,11 +61,99 @@ namespace TummlyBackend.Services
                 }
             }
 
-            return await AddLockedAsync(restaurantId, request);
+            return await AddLockedAsync(restaurantId, actorUserId, request);
+        }
+
+        public async Task<ImportOwnedLocationsResult> ImportAsync(
+            int restaurantId,
+            int actorUserId,
+            ImportOwnedLocationsRequest request
+        )
+        {
+            var rows = request.Rows ?? [];
+            if (rows.Count == 0)
+            {
+                return new ImportOwnedLocationsResult.InvalidRequest(
+                    "Add at least one location row."
+                );
+            }
+
+            if (rows.Count > ImportMaxRows)
+            {
+                return new ImportOwnedLocationsResult.InvalidRequest(
+                    $"Import up to {ImportMaxRows} locations at a time."
+                );
+            }
+
+            var created = new List<ImportCreatedRow>();
+            var errors = new List<ImportErrorRow>();
+            ImportErrorRow? remainingRowTemplate = null;
+
+            for (var index = 0; index < rows.Count; index++)
+            {
+                if (remainingRowTemplate != null)
+                {
+                    errors.Add(
+                        remainingRowTemplate with { RowIndex = index }
+                    );
+                    continue;
+                }
+
+                var result = await AddAsync(
+                    restaurantId,
+                    actorUserId,
+                    rows[index]
+                );
+
+                switch (result)
+                {
+                    case AddOwnedLocationResult.Created ok:
+                        created.Add(new ImportCreatedRow(index, ok.LocationId));
+                        break;
+                    case AddOwnedLocationResult.InvalidRequest invalid:
+                        errors.Add(
+                            new ImportErrorRow(index, invalid.Message)
+                        );
+                        break;
+                    case AddOwnedLocationResult.CapReached reached:
+                        remainingRowTemplate = new ImportErrorRow(
+                            index,
+                            $"Location cap reached ({reached.Current} of {reached.Cap}).",
+                            LocationCap.CapReachedCode,
+                            reached.Cap,
+                            reached.Current
+                        );
+                        errors.Add(remainingRowTemplate);
+                        break;
+                    case AddOwnedLocationResult.FailClosed:
+                        if (created.Count == 0)
+                        {
+                            return new ImportOwnedLocationsResult.FailClosed();
+                        }
+
+                        remainingRowTemplate = new ImportErrorRow(
+                            index,
+                            "Could not create location."
+                        );
+                        errors.Add(remainingRowTemplate);
+                        break;
+                    default:
+                        errors.Add(
+                            new ImportErrorRow(
+                                index,
+                                "Could not create location."
+                            )
+                        );
+                        break;
+                }
+            }
+
+            return new ImportOwnedLocationsResult.Completed(created, errors);
         }
 
         private async Task<AddOwnedLocationResult> AddLockedAsync(
             int restaurantId,
+            int actorUserId,
             AddOwnedLocationRequest request
         )
         {
@@ -93,28 +194,86 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var actorDisplayName = await _context.Users
+                .AsNoTracking()
+                .Where(row => row.Id == actorUserId)
+                .Select(row => row.FullName)
+                .FirstOrDefaultAsync();
+
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurantId,
-                LocationName = request.LocationName?.Trim() ?? "",
-                Address = request.Address?.Trim() ?? "",
-                Postcode = string.IsNullOrWhiteSpace(request.Postcode)
-                    ? null
-                    : UkPostcode.FormatForDisplay(request.Postcode),
+                LocationName = request.LocationName.Trim(),
+                Address = request.Address.Trim(),
+                City = request.City.Trim(),
+                Postcode = UkPostcode.FormatForDisplay(request.Postcode!),
                 LocationPhone = PhoneNumberHelper.NormalizeOptional(
                     request.LocationPhone
                 ),
                 LocalContact = string.IsNullOrWhiteSpace(request.LocalContact)
                     ? null
                     : request.LocalContact.Trim(),
+                LifecycleStatus = LocationLifecycleStatus.Draft,
                 CreatedAt = DateTime.UtcNow,
             };
 
             _context.RestaurantLocations.Add(location);
             await _context.SaveChangesAsync();
+
+            _context.LocationActivities.Add(
+                new LocationActivity
+                {
+                    RestaurantId = restaurantId,
+                    LocationId = location.Id,
+                    ActorUserId = actorUserId,
+                    ActorDisplayName = string.IsNullOrWhiteSpace(actorDisplayName)
+                        ? null
+                        : actorDisplayName.Trim(),
+                    Kind = LocationActivityKinds.LocationCreated,
+                    Description = $"Created draft location “{location.LocationName}”.",
+                    ToValue = "draft",
+                    OccurredAt = DateTime.UtcNow,
+                }
+            );
+            await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
             return new AddOwnedLocationResult.Created(location.Id);
+        }
+
+        private static AddOwnedLocationResult.InvalidRequest? ValidateDraftFields(
+            AddOwnedLocationRequest request
+        )
+        {
+            if (string.IsNullOrWhiteSpace(request.LocationName))
+            {
+                return new AddOwnedLocationResult.InvalidRequest(
+                    "Location name is required."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Address))
+            {
+                return new AddOwnedLocationResult.InvalidRequest(
+                    "Address is required."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(request.City))
+            {
+                return new AddOwnedLocationResult.InvalidRequest(
+                    "City is required."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Postcode))
+            {
+                return new AddOwnedLocationResult.InvalidRequest(
+                    "Postcode is required."
+                );
+            }
+
+            return null;
         }
 
         private bool TryResolveEntitled(

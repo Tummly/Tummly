@@ -16,8 +16,10 @@ const NAVIGABLE_PRIMARY_NAV_IDS = new Set<OperatorSidebarPrimaryNavId>([
 
 const NAVIGABLE_SETTINGS_CHILD_IDS = new Set<OperatorSidebarSettingsChildId>([
   "account-workspace",
+  "locations",
   "team-permissions",
   "billing-credits",
+  "privacy-consent",
 ])
 
 export type NavigableOperatorSidebarPrimaryNavId = Extract<
@@ -27,7 +29,11 @@ export type NavigableOperatorSidebarPrimaryNavId = Extract<
 
 export type NavigableOperatorSidebarSettingsChildId = Extract<
   OperatorSidebarSettingsChildId,
-  "account-workspace" | "team-permissions" | "billing-credits"
+  | "account-workspace"
+  | "locations"
+  | "team-permissions"
+  | "billing-credits"
+  | "privacy-consent"
 >
 
 export type NavigableOperatorSidebarNavId =
@@ -94,12 +100,42 @@ export function operatorDashboardNavPath(
       ? root
       : navId === "account-workspace"
         ? `${root}/settings/account-workspace`
-        : navId === "team-permissions"
-          ? `${root}/settings/team-permissions`
-          : navId === "billing-credits"
-            ? `${root}/settings/billing-credits`
-          : `${root}/${navId}`
+        : navId === "locations"
+          ? `${root}/settings/locations`
+          : navId === "team-permissions"
+            ? `${root}/settings/team-permissions`
+            : navId === "billing-credits"
+              ? `${root}/settings/billing-credits`
+              : navId === "privacy-consent"
+                ? `${root}/settings/privacy-consent`
+                : `${root}/${navId}`
   return `${path}?location=${locationId}`
+}
+
+/** Settings location detail — path segment + `?location=` shell sync. */
+export function operatorDashboardLocationDetailPath(
+  mode: OperatorDashboardMode,
+  locationId: number,
+  options?: { tab?: string }
+): string {
+  const root = operatorDashboardRootPath(mode)
+  const params = new URLSearchParams({ location: String(locationId) })
+  if (options?.tab != null && options.tab !== "") {
+    params.set("tab", options.tab)
+  }
+  const query = params.toString()
+  return `${root}/settings/locations/${locationId}?${query}`
+}
+
+/** Capture entry for a location — nested multi path or single Capture with shell sync. */
+export function operatorDashboardCaptureForLocationPath(
+  mode: OperatorDashboardMode,
+  locationId: number
+): string {
+  if (mode === "multi") {
+    return operatorDashboardCaptureLocationPath(locationId)
+  }
+  return operatorDashboardNavPath("single", "capture", locationId)
 }
 
 /** Multi nested per-location Capture — path segment + `?location=` shell sync. */
@@ -243,11 +279,20 @@ export function resolveOperatorSidebarActiveId(
   if (segments.includes("account-workspace")) {
     return "account-workspace"
   }
+  if (
+    segments.includes("settings") &&
+    segments[segments.indexOf("settings") + 1] === "locations"
+  ) {
+    return "locations"
+  }
   if (segments.includes("team-permissions")) {
     return "team-permissions"
   }
   if (segments.includes("billing-credits")) {
     return "billing-credits"
+  }
+  if (segments.includes("privacy-consent")) {
+    return "privacy-consent"
   }
   if (segments.includes("guests")) {
     return "guests"

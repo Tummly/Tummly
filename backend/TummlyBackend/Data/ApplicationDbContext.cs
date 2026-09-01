@@ -42,6 +42,8 @@ namespace TummlyBackend.Data
         public DbSet<RestaurantAccessActivity> RestaurantAccessActivities
         { get; set; }
 
+        public DbSet<LocationActivity> LocationActivities { get; set; }
+
         public DbSet<RestaurantAdminPermissionCell> RestaurantAdminPermissionCells
         { get; set; }
 
@@ -110,6 +112,13 @@ namespace TummlyBackend.Data
         public DbSet<LocationGuestTag> LocationGuestTags { get; set; }
 
         public DbSet<LocationGuestActivityEvent> LocationGuestActivityEvents
+        {
+            get;
+            set;
+        }
+
+        public DbSet<LocationGuestPermissionLedgerEntry>
+            LocationGuestPermissionLedgerEntries
         {
             get;
             set;
@@ -376,6 +385,27 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<RestaurantAccessActivity>()
                 .Property(row => row.Kind)
                 .HasMaxLength(40);
+
+            modelBuilder.Entity<LocationActivity>()
+                .HasOne(row => row.Restaurant)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<LocationActivity>()
+                .HasOne(row => row.Location)
+                .WithMany()
+                .HasForeignKey(row => row.LocationId)
+                // NoAction: Restaurant→Location Cascade + LocationActivity→Restaurant
+                // Cascade would otherwise make a second path into LocationActivities (1785).
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<LocationActivity>()
+                .Property(row => row.Kind)
+                .HasMaxLength(40);
+
+            modelBuilder.Entity<LocationActivity>()
+                .HasIndex(row => new { row.RestaurantId, row.OccurredAt, row.Id });
 
             modelBuilder.Entity<RestaurantBillingActivity>()
                 .HasOne(row => row.Restaurant)
@@ -1210,6 +1240,55 @@ namespace TummlyBackend.Data
 
             /*
              =========================================
+             LOCATION GUEST PERMISSION LEDGER
+             =========================================
+            */
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .HasOne(e => e.LocationGuest)
+                .WithMany()
+                .HasForeignKey(e => e.LocationGuestId)
+                // NoAction (not Cascade): SQL Server error 1785.
+                // Guest delete removes ledger rows in LocationGuestDeleteService.
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .HasOne(e => e.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(e => e.RestaurantLocationId)
+                // NoAction (not Cascade): SQL Server error 1785.
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .HasOne(e => e.ActorUser)
+                .WithMany()
+                .HasForeignKey(e => e.ActorUserId)
+                // Restrict (not SetNull/Cascade): SQL Server error 1785.
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .Property(e => e.PermissionKind)
+                .HasConversion(
+                    v => v.ToWireString(),
+                    v => LocationGuestPermissionKindExtensions.FromWireString(v)
+                )
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .HasIndex(e => new
+                {
+                    e.LocationGuestId,
+                    e.PermissionKind,
+                    e.OccurredAt,
+                });
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .HasIndex(e => new { e.RestaurantLocationId, e.OccurredAt });
+
+            /*
+             =========================================
              QR SCAN EVENTS
              =========================================
             */
@@ -1891,6 +1970,23 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<RestaurantLocation>()
                 .HasIndex(l => l.ThankYouCatalogOfferId);
+
+            /*
+             =========================================
+             LOCATION MANAGER (nomination → User)
+             Restrict: never SetNull/Cascade onto Users — SQL Server
+             error 1785 (multiple cascade paths).
+             =========================================
+            */
+
+            modelBuilder.Entity<RestaurantLocation>()
+                .HasOne(l => l.ManagerUser)
+                .WithMany()
+                .HasForeignKey(l => l.ManagerUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<RestaurantLocation>()
+                .HasIndex(l => l.ManagerUserId);
 
             /*
              =========================================

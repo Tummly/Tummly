@@ -79,12 +79,14 @@ namespace TummlyBackend.Tests.Integration
                         {
                             locationName = "Site A",
                             address = "1 High Street",
+                            city = "Leeds",
                             postcode = "LS1 1AA",
                         },
                         new
                         {
                             locationName = "Site B",
                             address = "2 High Street",
+                            city = "Leeds",
                             postcode = "LS1 2AA",
                         },
                     },
@@ -120,7 +122,13 @@ namespace TummlyBackend.Tests.Integration
 
             using var request = AuthorizedPostLocation(
                 seeded.OwnerJwt,
-                new { locationName = "Second", address = "2 High Street" }
+                new
+                {
+                    locationName = "Second",
+                    address = "2 High Street",
+                    city = "Leeds",
+                    postcode = "LS1 2AA",
+                }
             );
             var response = await _client.SendAsync(request);
 
@@ -160,7 +168,13 @@ namespace TummlyBackend.Tests.Integration
 
             using var request = AuthorizedPostLocation(
                 seeded.OwnerJwt,
-                new { locationName = "Second", address = "2 High Street" }
+                new
+                {
+                    locationName = "Second",
+                    address = "2 High Street",
+                    city = "Leeds",
+                    postcode = "LS1 2AA",
+                }
             );
             var response = await _client.SendAsync(request);
 

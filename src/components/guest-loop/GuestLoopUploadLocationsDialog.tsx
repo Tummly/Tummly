@@ -39,6 +39,7 @@ type GuestLoopUploadLocationsDialogProps = {
   onOpenChange: (open: boolean) => void
   onConfirm: (locations: LocationFormItem[]) => void | Promise<void>
   isSubmitting?: boolean
+  confirmLabel?: string
 }
 
 type DialogView = "upload" | "review"
@@ -48,6 +49,7 @@ function toLocationFormItems(locations: UploadedLocationDraft[]): LocationFormIt
     ...emptyLocationItem,
     locationName: location.locationName.trim(),
     address: location.address.trim(),
+    city: location.city.trim(),
     postcode: location.postcode.trim(),
     addressOverridden: location.addressOverridden,
     locationPhone: location.locationPhone.trim(),
@@ -101,6 +103,13 @@ function UploadedLocationReviewFields({
       />
 
       <FloatingLabelInput
+        label="City"
+        value={location.city}
+        onChange={(event) => updateField("city", event.target.value)}
+        required
+      />
+
+      <FloatingLabelInput
         label="Location phone"
         optional
         type="tel"
@@ -136,6 +145,7 @@ export function GuestLoopUploadLocationsDialog({
   onOpenChange,
   onConfirm,
   isSubmitting = false,
+  confirmLabel = "Continue to rollout",
 }: GuestLoopUploadLocationsDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [view, setView] = useState<DialogView>("upload")
@@ -384,7 +394,7 @@ export function GuestLoopUploadLocationsDialog({
                   disabled={!canConfirm || isSubmitting}
                   onClick={() => void handleConfirmReview()}
                 >
-                  Continue to rollout
+                  {confirmLabel}
                 </Button>
 
                 <Button

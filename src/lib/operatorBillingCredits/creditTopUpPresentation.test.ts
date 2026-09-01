@@ -84,7 +84,9 @@ describe("creditTopUpPresentation", () => {
     })
 
     const ai = cards.find((card) => card.channel === "ai")
-    expect(ai?.detailLine).toBe("Operator-triggered AI actions only.")
+    expect(ai?.detailLine).toBe(
+      "Use AI credits for operator-triggered briefs, drafts and regenerations."
+    )
   })
 
   it("disables Buy until a chip is selected", () => {

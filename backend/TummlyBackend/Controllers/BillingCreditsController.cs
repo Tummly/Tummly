@@ -864,8 +864,15 @@ namespace TummlyBackend.Controllers
         }
 
         [HttpPost("cancel-plan")]
-        public async Task<IActionResult> CancelPlan()
+        public async Task<IActionResult> CancelPlan(
+            [FromBody] CancelPlanRequestDto request
+        )
         {
+            if (request == null)
+            {
+                return BadRequest(new { success = false, code = "cancel_reason_required" });
+            }
+
             var unauthorized =
                 OperatorAuth.TryRequireUserId(User, out var userId);
             if (unauthorized != null)
@@ -888,7 +895,8 @@ namespace TummlyBackend.Controllers
             {
                 var result = await _billingCredits.CancelPlanAsync(
                     userId,
-                    manage.RestaurantId
+                    manage.RestaurantId,
+                    request
                 );
                 if (result == null)
                 {
@@ -916,6 +924,17 @@ namespace TummlyBackend.Controllers
                     success = false,
                     code = "cancel_not_available",
                     message = "Cancel plan is not available.",
+                });
+            }
+            catch (InvalidOperationException ex) when (
+                ex.Message == "cancel_reason_required"
+                    || ex.Message == "cancel_notes_too_long"
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = ex.Message,
                 });
             }
         }

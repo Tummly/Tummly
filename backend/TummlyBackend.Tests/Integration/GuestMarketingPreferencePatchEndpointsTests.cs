@@ -296,6 +296,43 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PatchMarketingPreference_AppendsGuestMarketingUnsubscribed_LocationActivity()
+        {
+            var seeded = await SeedOwnerWithGuestAsync(
+                "mkt-loc-act-unsub-tokenxxxx",
+                preference: LocationGuestMarketingPreference.Allowed,
+                ownerFullName: "Ada Operator"
+            );
+
+            var response = await SendPatchAsync(
+                seeded.LocationGuestId,
+                seeded.LocationId,
+                seeded.Jwt,
+                new { preference = "opted_out" }
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var location = await context.RestaurantLocations
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == seeded.LocationId);
+            var activity = await context.LocationActivities
+                .AsNoTracking()
+                .SingleAsync(row =>
+                    row.RestaurantId == location.RestaurantId
+                    && row.Kind
+                        == LocationActivityKinds.GuestMarketingUnsubscribed
+                );
+
+            Assert.Equal(seeded.LocationId, activity.LocationId);
+            Assert.True(activity.ActorUserId > 0);
+            Assert.Equal("Ada Operator", activity.ActorDisplayName);
+        }
+
+        [Fact]
         public async Task PatchMarketingPreference_CreatesNote_WhenNoteNonEmpty()
         {
             var seeded = await SeedOwnerWithGuestAsync(

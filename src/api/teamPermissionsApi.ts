@@ -1,5 +1,10 @@
 import { isAxiosError } from "axios"
 
+import type { PlanEntitlementsAccountSnapshot } from "@/lib/planEntitlements/planEntitlementsPresentation"
+import {
+  normalizePlanEntitlementsAccount,
+  teamMemberCapReachedMessage,
+} from "@/lib/planEntitlements/planEntitlementsPresentation"
 import axiosInstance from "@/api/axiosInstance"
 import type {
   AccessActivityList,
@@ -9,8 +14,27 @@ import type {
 
 function readApiError(error: unknown, fallback: string): string {
   if (isAxiosError(error)) {
-    const message = (error.response?.data as { message?: unknown } | undefined)
-      ?.message
+    const payload = error.response?.data as
+      | {
+          message?: unknown
+          code?: unknown
+          cap?: unknown
+          current?: unknown
+        }
+      | undefined
+    if (
+      payload?.code === "team_member_cap_reached"
+      && typeof payload.cap === "number"
+    ) {
+      return teamMemberCapReachedMessage({
+        cap: payload.cap,
+        current:
+          typeof payload.current === "number" ? payload.current : payload.cap,
+        atCap: true,
+        available: true,
+      })
+    }
+    const message = payload?.message
     if (typeof message === "string" && message.trim() !== "") {
       return message
     }
@@ -33,6 +57,9 @@ export async function getTeamPermissionsPage(): Promise<TeamPermissionsPageData>
     ...data,
     matrix: data.matrix ?? [],
     invitations: data.invitations ?? [],
+    entitlements: normalizePlanEntitlementsAccount(
+      data.entitlements as Record<string, unknown> | undefined
+    ),
   }
 }
 

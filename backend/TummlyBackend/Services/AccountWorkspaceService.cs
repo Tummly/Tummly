@@ -489,12 +489,25 @@ namespace TummlyBackend.Services
             int actorUserId
         )
         {
-            var activeLocations = await _context.RestaurantLocations
+            var locations = await _context.RestaurantLocations
                 .AsNoTracking()
-                .CountAsync(l =>
-                    l.RestaurantId == restaurant.Id
-                    && l.CaptureLocationStatus == CaptureLocationStatus.Active
-                );
+                .Where(l => l.RestaurantId == restaurant.Id)
+                .OrderBy(l => l.Id)
+                .Select(l => new
+                {
+                    l.LocationName,
+                    l.CaptureLocationStatus,
+                })
+                .ToListAsync();
+
+            var activeLocations = locations.Count(l =>
+                l.CaptureLocationStatus == CaptureLocationStatus.Active
+            );
+
+            var guestFacingBusinessName = locations
+                .Select(l => l.LocationName?.Trim() ?? string.Empty)
+                .FirstOrDefault(name => name.Length > 0)
+                ?? string.Empty;
 
             var guestProfiles = await _context.MasterGuests
                 .AsNoTracking()
@@ -510,14 +523,28 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .FirstAsync(u => u.Id == restaurant.OwnerUserId);
 
-            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
-                restaurant.Name,
-                owner.ActivationExpiresAt
-            );
-            var planSnapshot = (
-                SubscriptionPlan: lifecycle.SubscriptionPlan,
-                BillingStatus: lifecycle.BillingStatus
-            );
+            // Prefer live BillingAccount when present. ResolveLifecycle is a
+            // name/activation stub used only when no billing row exists yet.
+            var billingAccount = await _context.BillingAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.RestaurantId == restaurant.Id);
+
+            string planStatus;
+            string billingStatus;
+            if (billingAccount != null)
+            {
+                planStatus = billingAccount.SubscriptionPlan;
+                billingStatus = billingAccount.BillingStatus;
+            }
+            else
+            {
+                var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
+                    restaurant.Name,
+                    owner.ActivationExpiresAt
+                );
+                planStatus = lifecycle.SubscriptionPlan;
+                billingStatus = lifecycle.BillingStatus;
+            }
 
             var activeMembers = await _context.RestaurantMemberships
                 .AsNoTracking()
@@ -540,6 +567,7 @@ namespace TummlyBackend.Services
             {
                 Success = true,
                 WorkspaceName = restaurant.Name,
+                GuestFacingBusinessName = guestFacingBusinessName,
                 AccountStructure = ResolveAccountStructure(restaurant.AccountType),
                 BusinessCategory = restaurant.BusinessCategory,
                 BusinessCategoryLabel = BusinessCategoryLabels.ResolveLabel(
@@ -558,8 +586,8 @@ namespace TummlyBackend.Services
                 Status = new AccountWorkspaceStatusDto
                 {
                     WorkspaceStatus = workspaceStatus,
-                    PlanStatus = planSnapshot.SubscriptionPlan,
-                    BillingStatus = planSnapshot.BillingStatus,
+                    PlanStatus = planStatus,
+                    BillingStatus = billingStatus,
                     AccountCreatedAt = restaurant.CreatedAt,
                     ActiveLocations = activeLocations,
                     TeamMembers = activeMembers.Count == 0 ? 1 : activeMembers.Count,

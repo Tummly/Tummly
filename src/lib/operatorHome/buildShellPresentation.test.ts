@@ -278,4 +278,29 @@ describe("buildOperatorShellPresentation", () => {
 
     expect(presentation.profileSelfRoleSubtitle).toBe("Owner");
   });
+
+  it("passes Paused switcher badge flag through to options", () => {
+    const presentation = buildOperatorShellPresentation(
+      makeShellInput({
+        locations: [
+          {
+            id: 10,
+            name: "Mehmet's Grill",
+            address: "Leeds",
+            isActive: false,
+            showPausedBadge: true,
+          },
+        ],
+        selectedLocationId: 10,
+      }),
+      now,
+    );
+
+    expect(presentation.locationSwitcher.options[0]).toMatchObject({
+      id: 10,
+      name: "Mehmet's Grill",
+      isActive: false,
+      showPausedBadge: true,
+    });
+  });
 });

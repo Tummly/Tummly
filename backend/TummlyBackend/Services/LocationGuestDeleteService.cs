@@ -79,6 +79,10 @@ namespace TummlyBackend.Services
             var activityEvents = await _context.LocationGuestActivityEvents
                 .Where(e => e.LocationGuestId == locationGuestId)
                 .ToListAsync(cancellationToken);
+            var permissionLedgerEntries =
+                await _context.LocationGuestPermissionLedgerEntries
+                    .Where(e => e.LocationGuestId == locationGuestId)
+                    .ToListAsync(cancellationToken);
             var notes = await _context.LocationGuestNotes
                 .Where(n => n.LocationGuestId == locationGuestId)
                 .ToListAsync(cancellationToken);
@@ -87,6 +91,9 @@ namespace TummlyBackend.Services
                 .ToListAsync(cancellationToken);
 
             _context.LocationGuestActivityEvents.RemoveRange(activityEvents);
+            _context.LocationGuestPermissionLedgerEntries.RemoveRange(
+                permissionLedgerEntries
+            );
             _context.LocationGuestNotes.RemoveRange(notes);
             _context.LocationGuestTags.RemoveRange(tagMemberships);
             _context.LocationGuests.Remove(locationGuest);
