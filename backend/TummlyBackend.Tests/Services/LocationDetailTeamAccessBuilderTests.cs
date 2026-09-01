@@ -91,6 +91,23 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public void HasAccessToLocation_AreaManagerWithNamedListIncludingLocation_IsInScope()
+        {
+            var membership = ActiveMembership(
+                PermissionRoles.AreaManager,
+                LocationScopeKind.NamedList,
+                "[10,11]"
+            );
+
+            Assert.True(
+                LocationDetailTeamAccessBuilder.HasAccessToLocation(
+                    membership,
+                    locationId: 10
+                )
+            );
+        }
+
+        [Fact]
         public void Build_OrdersByNameAndMapsAccessLabel()
         {
             var inScope = ActiveMembership(
@@ -111,7 +128,7 @@ namespace TummlyBackend.Tests.Services
             outOfScope.Id = 33;
 
             var rows = LocationDetailTeamAccessBuilder.Build(
-                [outOfScope, inScope],
+                [inScope],
                 locationId: 10,
                 new Dictionary<int, string> { [10] = "Active Camden" },
                 new Dictionary<int, DateTime>()

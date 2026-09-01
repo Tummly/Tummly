@@ -381,7 +381,7 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(await _client.SendAsync(request));
             var rows = body.GetProperty("teamAccessRows");
-            Assert.Equal(3, rows.GetArrayLength());
+            Assert.Equal(4, rows.GetArrayLength());
 
             var names = rows
                 .EnumerateArray()
@@ -389,7 +389,12 @@ namespace TummlyBackend.Tests.Integration
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToList();
             Assert.Equal(
-                ["Active Camden Manager", "Admin User", "Locations Detail Owner"],
+                [
+                    "Active Camden Manager",
+                    "Admin User",
+                    "Area Manager User",
+                    "Locations Detail Owner",
+                ],
                 names
             );
 
@@ -723,6 +728,10 @@ namespace TummlyBackend.Tests.Integration
                 "Active Camden Manager",
                 "in-scope"
             );
+            var areaManager = await AddMemberAsync(
+                "Area Manager User",
+                "area-mgr"
+            );
             var outOfScopeManager = await AddMemberAsync(
                 "Other Location Only",
                 "out-scope"
@@ -756,6 +765,16 @@ namespace TummlyBackend.Tests.Integration
                     LocationScope = LocationScopeKind.NamedList,
                     NamedLocationIdsJson =
                         MembershipLocationScope.SerializeNamedIds([active.Id]),
+                    Status = MembershipStatus.Active,
+                },
+                new RestaurantMembership
+                {
+                    UserId = areaManager.Id,
+                    RestaurantId = restaurant.Id,
+                    PermissionRole = PermissionRoles.AreaManager,
+                    LocationScope = LocationScopeKind.NamedList,
+                    NamedLocationIdsJson =
+                        MembershipLocationScope.SerializeNamedIds([active.Id, other.Id]),
                     Status = MembershipStatus.Active,
                 },
                 new RestaurantMembership

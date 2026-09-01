@@ -170,13 +170,16 @@ namespace TummlyBackend.Services
                 .Where(row => row.RestaurantId == query.RestaurantId)
                 .ToListAsync();
 
-            var scopedMemberUserIds = memberships
+            var scopedMemberships = memberships
                 .Where(row =>
                     LocationDetailTeamAccessBuilder.HasAccessToLocation(
                         row,
                         query.LocationId
                     )
                 )
+                .ToList();
+
+            var scopedMemberUserIds = scopedMemberships
                 .Select(row => row.UserId)
                 .Distinct()
                 .ToList();
@@ -195,7 +198,7 @@ namespace TummlyBackend.Services
                     .ToDictionaryAsync(row => row.UserId, row => row.LastActiveAt);
 
             var teamAccessRows = LocationDetailTeamAccessBuilder.Build(
-                memberships,
+                scopedMemberships,
                 query.LocationId,
                 locationNamesById,
                 lastActiveByUserId

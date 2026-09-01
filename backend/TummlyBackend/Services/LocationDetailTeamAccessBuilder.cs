@@ -32,14 +32,13 @@ namespace TummlyBackend.Services
         }
 
         public static List<LocationDetailTeamAccessRowDto> Build(
-            IEnumerable<RestaurantMembership> memberships,
+            IEnumerable<RestaurantMembership> scopedMemberships,
             int locationId,
             IReadOnlyDictionary<int, string> locationNamesById,
             IReadOnlyDictionary<int, DateTime> lastActiveByUserId
         )
         {
-            return memberships
-                .Where(row => HasAccessToLocation(row, locationId))
+            return scopedMemberships
                 .Select(row =>
                 {
                     var named = MembershipLocationScope.ParseNamedIds(
