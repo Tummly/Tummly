@@ -26,6 +26,7 @@ import {
   type LocationGuestActivityChecklistItemId,
   type LocationGuestActivityChecklistStatusId,
 } from "@/lib/operatorLocations/locationDetailPresentation"
+import { locationDetailRecoveryFeedbackPath } from "@/lib/operatorLocations/locationDetailApi"
 import { cn } from "@/lib/utils"
 
 type LocationDetailGuestActivitySectionProps = {
@@ -171,7 +172,14 @@ export function LocationDetailGuestActivitySection({
                         className={LOCATION_DETAIL_LATEST_FEEDBACK_ACTION_CLASS}
                         asChild
                       >
-                        <Link to={feedbackPath}>{copy.startRecovery}</Link>
+                        <Link
+                          to={locationDetailRecoveryFeedbackPath(
+                            feedbackPath,
+                            row.feedbackId
+                          )}
+                        >
+                          {copy.startRecovery}
+                        </Link>
                       </Button>
                     ) : null}
                     <Button

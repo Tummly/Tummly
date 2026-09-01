@@ -86,6 +86,24 @@ namespace TummlyBackend.DTOs.Locations
         public string SecondaryCta { get; init; } = string.Empty;
     }
 
+    public sealed class LocationDetailLatestFeedbackRowDto
+    {
+        public int FeedbackId { get; init; }
+
+        public string Comment { get; init; } = string.Empty;
+
+        public string GuestName { get; init; } = string.Empty;
+
+        /// <summary>positive | neutral | negative when classification succeeded.</summary>
+        public string? Sentiment { get; init; }
+
+        public string TimeLabel { get; init; } = string.Empty;
+
+        public bool CanStartRecovery { get; init; }
+
+        public int? LocationGuestId { get; init; }
+    }
+
     public sealed class LocationDetailResponseDto
     {
         public bool Success { get; init; } = true;
@@ -104,5 +122,16 @@ namespace TummlyBackend.DTOs.Locations
 
         public IReadOnlyList<LocationDetailOfferCardDto> OfferCards { get; init; }
             = Array.Empty<LocationDetailOfferCardDto>();
+
+        /// <summary>
+        /// Guest activity checklist item id → status (complete | optional | needs-action).
+        /// </summary>
+        public Dictionary<string, string> GuestActivityChecklist { get; init; } = new();
+
+        public IReadOnlyList<LocationDetailLatestFeedbackRowDto> LatestFeedbackRows
+        {
+            get;
+            init;
+        } = Array.Empty<LocationDetailLatestFeedbackRowDto>();
     }
 }

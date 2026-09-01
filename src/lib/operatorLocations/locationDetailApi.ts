@@ -7,6 +7,9 @@ import type {
 import type { LocationLifecycleStatus } from "@/lib/operatorLocations/locationsPresentation"
 import type { LocationSetupStatus } from "@/lib/operatorLocations/locationsPresentation"
 import type {
+  LocationGuestActivityChecklistItemId,
+  LocationGuestActivityChecklistStatusId,
+  LocationDetailLatestFeedbackRow,
   LocationSetupChecklistItemId,
   LocationSetupChecklistStatusId,
 } from "@/lib/operatorLocations/locationDetailPresentation"
@@ -66,6 +69,16 @@ export type LocationDetailApiOfferCard = {
   secondaryCta: string
 }
 
+export type LocationDetailApiLatestFeedbackRow = {
+  feedbackId: number
+  comment: string
+  guestName: string
+  sentiment: "positive" | "neutral" | "negative" | null
+  timeLabel: string
+  canStartRecovery: boolean
+  locationGuestId: number | null
+}
+
 export type LocationDetailApiResponse = {
   success: boolean
   header: LocationDetailApiHeader
@@ -73,6 +86,8 @@ export type LocationDetailApiResponse = {
   overviewMetrics: LocationDetailApiOverviewMetrics
   qrRows: LocationDetailApiQrRow[]
   offerCards: LocationDetailApiOfferCard[]
+  guestActivityChecklist: Record<string, LocationGuestActivityChecklistStatusId>
+  latestFeedbackRows: LocationDetailApiLatestFeedbackRow[]
 }
 
 export function mapLocationDetailSetupChecklist(
@@ -179,4 +194,45 @@ export function mapLocationDetailOfferCards(
       ),
     }
   })
+}
+
+export function mapLocationDetailGuestActivityChecklist(
+  wire: Record<string, LocationGuestActivityChecklistStatusId>
+): Record<
+  LocationGuestActivityChecklistItemId,
+  LocationGuestActivityChecklistStatusId
+> {
+  return {
+    guestProfilesCreated: wire.guestProfilesCreated ?? "optional",
+    offerClaims: wire.offerClaims ?? "optional",
+    consentOptIns: wire.consentOptIns ?? "optional",
+    offerRedemptions: wire.offerRedemptions ?? "optional",
+    feedbackSubmitted: wire.feedbackSubmitted ?? "optional",
+    unsubscribes: wire.unsubscribes ?? "optional",
+    needsRecovery: wire.needsRecovery ?? "complete",
+  }
+}
+
+export function mapLocationDetailLatestFeedbackRows(
+  rows: LocationDetailApiLatestFeedbackRow[]
+): LocationDetailLatestFeedbackRow[] {
+  return rows.map((row) => ({
+    id: String(row.feedbackId),
+    feedbackId: row.feedbackId,
+    comment: row.comment,
+    guestName: row.guestName,
+    sentiment: row.sentiment,
+    timeLabel: row.timeLabel,
+    canStartRecovery: row.canStartRecovery,
+    locationGuestId: row.locationGuestId,
+  }))
+}
+
+/** Feedback inbox deep link for Start recovery (PRD location detail). */
+export function locationDetailRecoveryFeedbackPath(
+  feedbackPath: string,
+  feedbackId: number
+): string {
+  const separator = feedbackPath.includes("?") ? "&" : "?"
+  return `${feedbackPath}${separator}feedbackId=${feedbackId}`
 }

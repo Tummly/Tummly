@@ -75,6 +75,17 @@ function detailResponse(
         secondaryCta: "View redemptions",
       },
     ],
+    guestActivityChecklist: {
+      guestProfilesCreated: "optional",
+      offerClaims: "optional",
+      consentOptIns: "optional",
+      offerRedemptions: "optional",
+      feedbackSubmitted: "optional",
+      unsubscribes: "optional",
+      needsRecovery: "complete",
+      ...(overrides.guestActivityChecklist ?? {}),
+    },
+    latestFeedbackRows: overrides.latestFeedbackRows ?? [],
     ...overrides,
   }
 }
@@ -244,6 +255,58 @@ describe("createOperatorLocationDetailPageModule", () => {
       firstOfferCreated: "optional",
       atLeastOneQrCreated: "incomplete",
     })
+  })
+
+  it("maps guest activity checklist and latest feedback from detail GET", async () => {
+    const getDetail = vi.fn().mockResolvedValue(
+      detailResponse({
+        guestActivityChecklist: {
+          guestProfilesCreated: "complete",
+          offerClaims: "complete",
+          consentOptIns: "optional",
+          offerRedemptions: "optional",
+          feedbackSubmitted: "needs-action",
+          unsubscribes: "optional",
+          needsRecovery: "needs-action",
+        },
+        latestFeedbackRows: [
+          {
+            feedbackId: 88,
+            comment: "Food was cold",
+            guestName: "Alex Rivera",
+            sentiment: "negative",
+            timeLabel: "2 hours ago",
+            canStartRecovery: true,
+            locationGuestId: 501,
+          },
+        ],
+      })
+    )
+    const pageModule = createOperatorLocationDetailPageModule(42, { getDetail })
+
+    await pageModule.load()
+
+    expect(pageModule.getSnapshot().guestActivityChecklist).toEqual({
+      guestProfilesCreated: "complete",
+      offerClaims: "complete",
+      consentOptIns: "optional",
+      offerRedemptions: "optional",
+      feedbackSubmitted: "needs-action",
+      unsubscribes: "optional",
+      needsRecovery: "needs-action",
+    })
+    expect(pageModule.getSnapshot().latestFeedbackRows).toEqual([
+      {
+        id: "88",
+        feedbackId: 88,
+        comment: "Food was cold",
+        guestName: "Alex Rivera",
+        sentiment: "negative",
+        timeLabel: "2 hours ago",
+        canStartRecovery: true,
+        locationGuestId: 501,
+      },
+    ])
   })
 
   it("marks not-found when detail GET returns 404", async () => {

@@ -9,6 +9,8 @@ namespace TummlyBackend.Services
 {
     public sealed class LocationsDetailService : ILocationsDetailService
     {
+        private const int LatestFeedbackLimit = 5;
+
         private readonly ApplicationDbContext _context;
         private readonly TimeProvider _time;
         private readonly LocationDetailOverviewComposer _overview;
@@ -84,9 +86,10 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .AnyAsync(o => o.RestaurantLocationId == query.LocationId);
 
+            var utcNow = _time.GetUtcNow().UtcDateTime;
             var (monthStartUtc, monthEndUtc) = DefaultReportingPeriodWindow.Resolve(
                 "thisMonth",
-                _time.GetUtcNow().UtcDateTime
+                utcNow
             );
 
             var overviewMetrics = await _overview.ComposeAsync(
@@ -102,6 +105,44 @@ namespace TummlyBackend.Services
             );
 
             var offerCards = await _offerCards.ComposeAsync(query.LocationId);
+
+            var scopedGuests = _context.LocationGuests
+                .AsNoTracking()
+                .Where(lg => lg.RestaurantLocationId == query.LocationId);
+
+            var pendingRecoveryCount = await GuestsListQueryComposer
+                .WhereNeedsRecoveryWithNegativeFeedbackInWindow(
+                    scopedGuests,
+                    monthStartUtc,
+                    monthEndUtc
+                )
+                .CountAsync();
+
+            var pendingFeedbackActionCount = await _context.Feedbacks
+                .AsNoTracking()
+                .CountAsync(f =>
+                    f.RestaurantLocationId == query.LocationId
+                    && f.CreatedAt >= monthStartUtc
+                    && f.CreatedAt < monthEndUtc
+                    && f.ClassificationStatus == ClassificationStatus.Succeeded
+                    && f.Sentiment == FeedbackSentiment.Negative
+                    && f.WorkflowStatus != FeedbackWorkflowStatus.Resolved
+                );
+
+            var guestActivityChecklist = LocationDetailGuestActivityChecklistBuilder.Build(
+                overviewMetrics.GuestsCaptured,
+                overviewMetrics.OptIns,
+                overviewMetrics.Feedback,
+                overviewMetrics.OffersClaimed,
+                overviewMetrics.OffersRedeemed,
+                pendingRecoveryCount,
+                pendingFeedbackActionCount
+            );
+
+            var latestFeedbackRows = await LoadLatestFeedbackRowsAsync(
+                query.LocationId,
+                utcNow
+            );
 
             var lifecycleWire = ToLifecycleWire(location.LifecycleStatus);
             var setupStatus = LocationsListService.DeriveSetupStatus(
@@ -157,7 +198,47 @@ namespace TummlyBackend.Services
                 OverviewMetrics = overviewMetrics,
                 QrRows = qrRows,
                 OfferCards = offerCards,
+                GuestActivityChecklist = guestActivityChecklist,
+                LatestFeedbackRows = latestFeedbackRows,
             };
+        }
+
+        private async Task<List<LocationDetailLatestFeedbackRowDto>> LoadLatestFeedbackRowsAsync(
+            int locationId,
+            DateTime utcNow
+        )
+        {
+            var rows = await _context.Feedbacks
+                .AsNoTracking()
+                .Where(f => f.RestaurantLocationId == locationId)
+                .OrderByDescending(f => f.CreatedAt)
+                .ThenByDescending(f => f.Id)
+                .Take(LatestFeedbackLimit)
+                .ToListAsync();
+
+            return rows
+                .Select(feedback =>
+                {
+                    var classification =
+                        FeedbackClassificationMapping.ToApiFields(feedback);
+                    var canStartRecovery =
+                        feedback.WorkflowStatus != FeedbackWorkflowStatus.Resolved;
+
+                    return new LocationDetailLatestFeedbackRowDto
+                    {
+                        FeedbackId = feedback.Id,
+                        Comment = feedback.Comment ?? string.Empty,
+                        GuestName = feedback.GuestName ?? string.Empty,
+                        Sentiment = classification.Sentiment,
+                        TimeLabel = AssistantHomeNeedsAttention.FormatRelativeTime(
+                            feedback.CreatedAt,
+                            utcNow
+                        ),
+                        CanStartRecovery = canStartRecovery,
+                        LocationGuestId = feedback.LocationGuestId,
+                    };
+                })
+                .ToList();
         }
 
         private static string ToLifecycleWire(LocationLifecycleStatus status) =>

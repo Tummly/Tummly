@@ -223,6 +223,119 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetLocationDetail_ReturnsGuestActivityChecklistAndLatestFeedback()
+        {
+            var seeded = await SeedDetailScenarioAsync();
+            var feedbackAt = DateTime.UtcNow.AddHours(-2);
+            var locationGuestId = 0;
+            var guestCreatedAt = DateTime.UtcNow.AddHours(-4);
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+
+                var qrCodeId = await context.QrCodes
+                    .Where(q => q.RestaurantLocationId == seeded.ActiveLocationId)
+                    .Select(q => q.Id)
+                    .FirstAsync();
+
+                var restaurantId = await context.RestaurantLocations
+                    .AsNoTracking()
+                    .Where(l => l.Id == seeded.ActiveLocationId)
+                    .Select(l => l.RestaurantId)
+                    .FirstAsync();
+
+                var masterGuest = new MasterGuest
+                {
+                    RestaurantId = restaurantId,
+                    Email = $"loc-detail-guest-{Guid.NewGuid():N}@example.com",
+                    CreatedAt = guestCreatedAt,
+                };
+                context.MasterGuests.Add(masterGuest);
+                await context.SaveChangesAsync();
+
+                var locationGuest = new LocationGuest
+                {
+                    RestaurantLocationId = seeded.ActiveLocationId,
+                    MasterGuestId = masterGuest.Id,
+                    Name = "Alex Rivera",
+                    CreatedAt = guestCreatedAt,
+                };
+                context.LocationGuests.Add(locationGuest);
+                await context.SaveChangesAsync();
+                locationGuestId = locationGuest.Id;
+
+                context.Feedbacks.Add(
+                    new Feedback
+                    {
+                        RestaurantLocationId = seeded.ActiveLocationId,
+                        QrCodeId = qrCodeId,
+                        LocationGuestId = locationGuestId,
+                        GuestName = "Alex Rivera",
+                        GuestContact = "alex@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = "Food was cold",
+                        CreatedAt = feedbackAt,
+                        ClassificationStatus = ClassificationStatus.Succeeded,
+                        Sentiment = FeedbackSentiment.Negative,
+                        DetectedTagsJson = "[]",
+                        WorkflowStatus = FeedbackWorkflowStatus.New,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/locations/{seeded.ActiveLocationId}/detail"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.OwnerJwt);
+
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+
+            var guestActivity = body.GetProperty("guestActivityChecklist");
+            Assert.Equal(
+                "complete",
+                guestActivity.GetProperty("guestProfilesCreated").GetString()
+            );
+            Assert.Equal(
+                "needs-action",
+                guestActivity.GetProperty("feedbackSubmitted").GetString()
+            );
+            Assert.Equal(
+                "needs-action",
+                guestActivity.GetProperty("needsRecovery").GetString()
+            );
+            Assert.Equal(
+                "optional",
+                guestActivity.GetProperty("unsubscribes").GetString()
+            );
+
+            var latestFeedback = body.GetProperty("latestFeedbackRows")
+                .EnumerateArray()
+                .ToList();
+            Assert.Single(latestFeedback);
+            Assert.Equal("Food was cold", latestFeedback[0]
+                .GetProperty("comment")
+                .GetString());
+            Assert.Equal("Alex Rivera", latestFeedback[0]
+                .GetProperty("guestName")
+                .GetString());
+            Assert.Equal("negative", latestFeedback[0]
+                .GetProperty("sentiment")
+                .GetString());
+            Assert.True(latestFeedback[0]
+                .GetProperty("canStartRecovery")
+                .GetBoolean());
+            Assert.Equal(
+                locationGuestId,
+                latestFeedback[0].GetProperty("locationGuestId").GetInt32()
+            );
+        }
+
+        [Fact]
         public async Task GetLocationDetail_DraftLocation_HasNotStartedChecklistItems()
         {
             var seeded = await SeedDetailScenarioAsync();

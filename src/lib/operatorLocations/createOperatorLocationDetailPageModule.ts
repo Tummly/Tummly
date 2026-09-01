@@ -1,5 +1,7 @@
 import type { LocationDetailApiResponse } from "@/lib/operatorLocations/locationDetailApi"
 import {
+  mapLocationDetailGuestActivityChecklist,
+  mapLocationDetailLatestFeedbackRows,
   mapLocationDetailOfferCards,
   mapLocationDetailOverviewMetrics,
   mapLocationDetailQrRows,
@@ -7,7 +9,6 @@ import {
 } from "@/lib/operatorLocations/locationDetailApi"
 import {
   buildEmptyOverviewMetrics,
-  buildLocationGuestActivityChecklist,
   buildLocationControlsStatus,
   buildLocationTeamAccessRows,
   formatLocationDetailHeaderMeta,
@@ -102,15 +103,7 @@ export function createOperatorLocationDetailPageModule(
     LocationSetupChecklistItemId,
     LocationSetupChecklistStatusId
   > = mapLocationDetailSetupChecklist({})
-  let guestActivityChecklist = buildLocationGuestActivityChecklist({
-    guestsCaptured: 0,
-    optIns: 0,
-    feedback: 0,
-    offersClaimed: 0,
-    offersRedeemed: 0,
-    pendingRecoveryCount: 0,
-    pendingFeedbackActionCount: 0,
-  })
+  let guestActivityChecklist = mapLocationDetailGuestActivityChecklist({})
   let latestFeedbackRows: LocationDetailLatestFeedbackRow[] = []
   let teamAccessRows: LocationDetailTeamAccessRow[] = []
   let locationControlsStatus = buildLocationControlsStatus({
@@ -191,19 +184,12 @@ export function createOperatorLocationDetailPageModule(
             mode: options.dashboardMode,
             locationId,
           })
-    guestActivityChecklist = buildLocationGuestActivityChecklist({
-      guestsCaptured: overviewMetrics.guestsCaptured,
-      optIns: overviewMetrics.optIns,
-      feedback: overviewMetrics.feedback,
-      offersClaimed: overviewMetrics.offersClaimed,
-      offersRedeemed: overviewMetrics.offersRedeemed,
-      pendingRecoveryCount: latestFeedbackRows.filter(
-        (entry) => entry.canStartRecovery
-      ).length,
-      pendingFeedbackActionCount: latestFeedbackRows.filter(
-        (entry) => entry.sentiment === "negative"
-      ).length,
-    })
+    guestActivityChecklist = mapLocationDetailGuestActivityChecklist(
+      response.guestActivityChecklist ?? {}
+    )
+    latestFeedbackRows = mapLocationDetailLatestFeedbackRows(
+      response.latestFeedbackRows ?? []
+    )
     teamAccessRows = buildLocationTeamAccessRows({
       managerName: header.managerName,
       managerUserId: header.managerUserId,
