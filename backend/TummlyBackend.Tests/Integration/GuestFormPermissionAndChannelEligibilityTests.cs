@@ -125,9 +125,9 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task SubmitFeedback_WithdrawsAllPermissionsWhenOptingOut()
+        public async Task SubmitFeedback_WithdrawsMarketingPermissionsWhenOptingOut()
         {
-            const string token = "guest-form-withdraw-all";
+            const string token = "guest-form-withdraw-marketing";
             await SeedGuestLocationAsync(
                 token,
                 emailEnabled: true,
@@ -164,22 +164,30 @@ namespace TummlyBackend.Tests.Integration
                 locationGuest.MarketingPreference
             );
 
-            var kinds = await context.LocationGuestPermissionLedgerEntries
+            var ledger = await context.LocationGuestPermissionLedgerEntries
                 .Where(e => e.LocationGuestId == locationGuest.Id)
-                .Select(e => e.PermissionKind)
-                .Distinct()
                 .ToListAsync();
 
-            Assert.Equal(3, kinds.Count);
+            Assert.Equal(2, ledger.Count);
             Assert.All(
-                await context.LocationGuestPermissionLedgerEntries
-                    .Where(e => e.LocationGuestId == locationGuest.Id)
-                    .ToListAsync(),
+                ledger,
                 e =>
                     Assert.Equal(
                         LocationGuestPermissionLedgerEventKinds.Withdraw,
                         e.EventKind
                     )
+            );
+            Assert.Contains(
+                ledger,
+                e => e.PermissionKind == LocationGuestPermissionKind.EmailMarketing
+            );
+            Assert.Contains(
+                ledger,
+                e => e.PermissionKind == LocationGuestPermissionKind.SmsMarketing
+            );
+            Assert.DoesNotContain(
+                ledger,
+                e => e.PermissionKind == LocationGuestPermissionKind.FeedbackFollowUp
             );
         }
 

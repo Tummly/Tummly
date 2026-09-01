@@ -188,14 +188,35 @@ namespace TummlyBackend.Tests.Integration
                 "perm-records-date-token"
             );
 
-            using var request = AuthorizedGet(
+            using var inWindow = AuthorizedGet(
                 "/api/privacy-consent/permission-records"
-                    + "?datePreset=today&utcOffsetMinutes=0",
+                    + "?dateFrom=2026-08-22T00:00:00Z"
+                    + "&dateTo=2026-08-23T00:00:00Z",
                 seeded.OwnerJwt
             );
-            var response = await _client.SendAsync(request);
+            var inWindowResponse = await _client.SendAsync(inWindow);
+            var inWindowBody = await ReadJsonAsync(inWindowResponse);
 
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, inWindowResponse.StatusCode);
+            Assert.Equal(1, inWindowBody.GetProperty("totalCount").GetInt32());
+            Assert.Equal(
+                "email-marketing",
+                inWindowBody.GetProperty("rows")[0]
+                    .GetProperty("permissionId")
+                    .GetString()
+            );
+
+            using var outOfWindow = AuthorizedGet(
+                "/api/privacy-consent/permission-records"
+                    + "?dateFrom=2026-08-19T00:00:00Z"
+                    + "&dateTo=2026-08-20T00:00:00Z",
+                seeded.OwnerJwt
+            );
+            var outOfWindowResponse = await _client.SendAsync(outOfWindow);
+            var outOfWindowBody = await ReadJsonAsync(outOfWindowResponse);
+
+            Assert.Equal(HttpStatusCode.OK, outOfWindowResponse.StatusCode);
+            Assert.Equal(0, outOfWindowBody.GetProperty("totalCount").GetInt32());
         }
 
         [Fact]
@@ -218,6 +239,27 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(25, pageOneBody.GetProperty("rows").GetArrayLength());
             Assert.Equal(1, pageOneBody.GetProperty("page").GetInt32());
             Assert.Equal(25, pageOneBody.GetProperty("pageSize").GetInt32());
+
+            var firstPageRecordedAt = pageOneBody
+                .GetProperty("rows")
+                .EnumerateArray()
+                .Select(row =>
+                    DateTime.Parse(
+                        row.GetProperty("recordedAt").GetString()!
+                    )
+                )
+                .ToList();
+            Assert.Equal(25, firstPageRecordedAt.Count);
+            for (var i = 1; i < firstPageRecordedAt.Count; i++)
+            {
+                Assert.True(
+                    firstPageRecordedAt[i - 1] >= firstPageRecordedAt[i]
+                );
+            }
+            Assert.True(
+                firstPageRecordedAt[0] > firstPageRecordedAt[^1],
+                "Default sort should return newest recorded rows first."
+            );
 
             var firstPageIds = pageOneBody
                 .GetProperty("rows")

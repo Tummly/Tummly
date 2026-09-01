@@ -121,12 +121,32 @@ namespace TummlyBackend.Helpers
             }
 
             return LocationGuestPermissionKindExtensions.All
+                .Where(kind =>
+                    kind == LocationGuestPermissionKind.EmailMarketing
+                    || kind == LocationGuestPermissionKind.SmsMarketing
+                )
                 .Select(kind => (
                     kind,
                     LocationGuestPermissionLedgerEventKinds.Withdraw
                 ))
                 .ToList();
         }
+
+        public static bool CanSendFeedbackFollowUp(
+            Restaurant restaurant,
+            IReadOnlyDictionary<
+                LocationGuestPermissionKind,
+                LocationGuestPermissionState
+            > states
+        ) =>
+            IsRestaurantPermissionEnabled(
+                restaurant,
+                LocationGuestPermissionKind.FeedbackFollowUp
+            )
+            && IsGuestPermissionGranted(
+                states,
+                LocationGuestPermissionKind.FeedbackFollowUp
+            );
 
         public static IReadOnlyDictionary<
             LocationGuestPermissionKind,
