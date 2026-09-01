@@ -50,7 +50,21 @@ describe("getUploadedLocationStatus", () => {
     ).toBe("missing_required")
   })
 
-  it("marks missing City as missing required", () => {
+  it("fills city from the last address segment when City is empty", () => {
+    expect(
+      getUploadedLocationStatus({
+        locationName: "Bistro",
+        address: "125 High Street, Manchester",
+        city: "",
+        postcode: "M1 4AB",
+        addressOverridden: false,
+        locationPhone: "",
+        localContact: "",
+      })
+    ).toBe("ready")
+  })
+
+  it("marks missing City as missing required when address has no town", () => {
     expect(
       getUploadedLocationStatus({
         locationName: "Bistro",

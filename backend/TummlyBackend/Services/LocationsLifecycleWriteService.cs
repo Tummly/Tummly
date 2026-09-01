@@ -50,14 +50,14 @@ namespace TummlyBackend.Services
                 return missing;
             }
 
-            var from = location.LifecycleStatus.ToString();
+            var from = ToWire(location.LifecycleStatus);
             location.LifecycleStatus = LocationLifecycleStatus.Active;
             await EmitLifecycleAsync(
                 restaurantId,
                 locationId,
                 actorUserId,
                 from,
-                LocationLifecycleStatus.Active.ToString(),
+                ToWire(LocationLifecycleStatus.Active),
                 $"Activated location “{location.LocationName}”."
             );
             await _context.SaveChangesAsync();
@@ -104,8 +104,8 @@ namespace TummlyBackend.Services
                 restaurantId,
                 locationId: null,
                 actorUserId,
-                LocationLifecycleStatus.Draft.ToString(),
-                "Deleted",
+                ToWire(LocationLifecycleStatus.Draft),
+                "deleted",
                 $"Deleted draft location “{name}”."
             );
             await _context.SaveChangesAsync();
@@ -264,8 +264,28 @@ namespace TummlyBackend.Services
                 return true;
             }
 
+            // CatalogOffer → location is Restrict; refuse instead of FK 500.
+            if (
+                await _context.CatalogOffers.AnyAsync(row =>
+                    row.RestaurantLocationId == locationId
+                )
+            )
+            {
+                return true;
+            }
+
             return false;
         }
+
+        private static string ToWire(LocationLifecycleStatus status) =>
+            status switch
+            {
+                LocationLifecycleStatus.Draft => "draft",
+                LocationLifecycleStatus.Active => "active",
+                LocationLifecycleStatus.Paused => "paused",
+                LocationLifecycleStatus.Archived => "archived",
+                _ => status.ToString().ToLowerInvariant(),
+            };
 
         private async Task EmitLifecycleAsync(
             int restaurantId,

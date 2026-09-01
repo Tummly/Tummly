@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -165,14 +166,8 @@ namespace TummlyBackend.Tests.Integration
                     && row.Kind == LocationActivityKinds.LifecycleChanged
                 )
                 .SingleAsync();
-            Assert.Equal(
-                LocationLifecycleStatus.Draft.ToString(),
-                activity.FromValue
-            );
-            Assert.Equal(
-                LocationLifecycleStatus.Active.ToString(),
-                activity.ToValue
-            );
+            Assert.Equal("draft", activity.FromValue);
+            Assert.Equal("active", activity.ToValue);
         }
 
         [Fact]
@@ -206,7 +201,57 @@ namespace TummlyBackend.Tests.Integration
                 await context.LocationActivities.AnyAsync(row =>
                     row.RestaurantId == seeded.RestaurantId
                     && row.Kind == LocationActivityKinds.LifecycleChanged
-                    && row.ToValue == "Deleted"
+                    && row.ToValue == "deleted"
+                )
+            );
+        }
+
+        [Fact]
+        public async Task DeleteDraft_WithCatalogOffer_Refuses()
+        {
+            var seeded = await SeedPilotWithRoomAsync(
+                restaurantName: "Delete Offer Draft Venue"
+            );
+            var locationId = await SeedDraftLocationAsync(
+                seeded.RestaurantId,
+                city: "London"
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                context.CatalogOffers.Add(
+                    new CatalogOffer
+                    {
+                        RestaurantLocationId = locationId,
+                        Status = CatalogOfferStatus.Draft,
+                        OfferType = CatalogOfferType.PercentageDiscount,
+                        Title = "Draft offer",
+                        Description = "Tied to draft location",
+                        Validity = CatalogOfferValidity.Days14AfterIssue,
+                        DiscountPercentage = 10m,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedDelete(
+                $"/api/locations/{locationId}",
+                seeded.OwnerJwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+            using var verify = _factory.Services.CreateScope();
+            var verifyContext = verify.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.True(
+                await verifyContext.RestaurantLocations.AnyAsync(row =>
+                    row.Id == locationId
                 )
             );
         }

@@ -84,6 +84,8 @@ function parseResolveResult(value: unknown): AddressResolveResult | null {
 
           const premiseAddress = readString(premise, "address")
           const premisePostcode = readString(premise, "postcode")
+          const premisePostTown =
+            readString(premise, "postTown") ?? readString(premise, "post_town")
 
           if (!premiseAddress) {
             return null
@@ -92,16 +94,30 @@ function parseResolveResult(value: unknown): AddressResolveResult | null {
           return {
             address: premiseAddress,
             postcode: premisePostcode ?? postcode,
+            postTown: premisePostTown ?? "",
           }
         })
-        .filter((entry): entry is { address: string; postcode: string } =>
-          Boolean(entry)
+        .filter(
+          (
+            entry
+          ): entry is {
+            address: string
+            postcode: string
+            postTown: string
+          } => Boolean(entry)
         )
     : []
+
+  const postTown =
+    readString(record, "postTown")
+    ?? readString(record, "post_town")
+    ?? premises.find((premise) => premise.postTown.trim())?.postTown
+    ?? ""
 
   return {
     postcode,
     address,
+    postTown,
     premises,
     multiplePremises: readBoolean(record, "multiplePremises") ?? premises.length > 1,
     usedBestMatch: readBoolean(record, "usedBestMatch") ?? false,

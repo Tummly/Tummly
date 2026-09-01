@@ -218,9 +218,11 @@ describe("createOperatorLocationsPageModule", () => {
         })
       )
 
+    const completePrivacyReview = vi.fn(async () => undefined)
     const module = createOperatorLocationsPageModule({
       getList,
       getActivity: vi.fn(async () => emptyActivity()),
+      completePrivacyReview,
       debounceMs: 0,
     })
 
@@ -231,7 +233,9 @@ describe("createOperatorLocationsPageModule", () => {
       )
     ).toBe(true)
 
-    await module.load()
+    await module.onReviewSetupAttention("privacy-review")
+
+    expect(completePrivacyReview).toHaveBeenCalledTimes(1)
     expect(
       module.getSnapshot().setupAttentionItems.some(
         (item) => item.id === "privacy-review"

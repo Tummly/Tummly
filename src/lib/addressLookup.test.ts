@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest"
 
 import {
   addressPostcodePairsMatch,
+  extractTownCityFromAddress,
   isDuplicatePostcodeBlurSnapshot,
   pickBestAddressMatch,
   postcodesMatch,
+  resolveTownCity,
   shouldDeferPostcodeBlurLookup,
   shouldReconcileAddress,
   streetLinesOverlap,
@@ -103,5 +105,23 @@ describe("addressLookup helpers", () => {
         "M1 4AB"
       )
     ).toBe(false)
+  })
+
+  it("prefers Ideal Postcodes post_town over the last address segment", () => {
+    expect(
+      resolveTownCity({
+        postTown: "Manchester",
+        address: "125 High Street, Salford",
+      })
+    ).toBe("Manchester")
+  })
+
+  it("falls back to the last address segment when post_town is empty", () => {
+    expect(extractTownCityFromAddress("125 High Street, Manchester")).toBe(
+      "Manchester"
+    )
+    expect(resolveTownCity({ address: "125 High Street, Manchester" })).toBe(
+      "Manchester"
+    )
   })
 })

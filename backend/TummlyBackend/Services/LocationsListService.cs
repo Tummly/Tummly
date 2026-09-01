@@ -21,7 +21,6 @@ namespace TummlyBackend.Services
             "ready",
             "needs-attention",
             "not-started",
-            "blocked",
         ];
 
         private static readonly HashSet<string> AllowedSort =
@@ -193,7 +192,11 @@ namespace TummlyBackend.Services
                 var set = query.Setup
                     .Select(s => s.Trim().ToLowerInvariant())
                     .ToHashSet();
-                filtered = filtered.Where(r => set.Contains(r.SetupStatus));
+                // Archived is out of the PRD setup table — never match setup filters.
+                filtered = filtered.Where(r =>
+                    r.LifecycleStatus != "archived"
+                    && set.Contains(r.SetupStatus)
+                );
             }
 
             if (query.City.Length > 0)
@@ -374,6 +377,8 @@ namespace TummlyBackend.Services
 
             if (lifecycle == LocationLifecycleStatus.Archived)
             {
+                // Not in PRD setup table; wire a stable value for the row, but
+                // setup filters exclude Archived (see GetListAsync).
                 return "ready";
             }
 

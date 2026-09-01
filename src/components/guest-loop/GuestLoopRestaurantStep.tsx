@@ -81,13 +81,7 @@ export function GuestLoopRestaurantStep({
           addressName="address"
           postcodeName="postcode"
           addressOverriddenName="addressOverridden"
-        />
-
-        <FormFloatingInput
-          control={form.control}
-          name="city"
-          label="City"
-          required
+          cityName="city"
         />
 
         <FormFloatingInput

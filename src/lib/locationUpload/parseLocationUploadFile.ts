@@ -8,6 +8,7 @@ import {
   combineLocalContact,
   type UploadedLocationDraft,
 } from "@/lib/locationUpload/locationUploadValidation"
+import { extractTownCityFromAddress } from "@/lib/addressLookup"
 
 type ParsedSheetRow = Record<string, unknown>
 
@@ -87,16 +88,18 @@ function mapSheetRow(
     return null
   }
 
+  const localContact =
+    values.localContact ||
+    combineLocalContact(values.localContactName, values.localContactEmail)
+
   return {
     locationName: values.locationName,
     address: values.address,
-    city: values.city,
+    city: values.city || extractTownCityFromAddress(values.address),
     postcode: values.postcode,
     addressOverridden: false,
     locationPhone: values.locationPhone,
-    localContact:
-      values.localContact ||
-      combineLocalContact(values.localContactName, values.localContactEmail),
+    localContact,
   }
 }
 

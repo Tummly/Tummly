@@ -47,6 +47,7 @@ type FormAddressPostcodeFieldsProps<
   addressName: TAddressName
   postcodeName: TPostcodeName
   addressOverriddenName: TOverrideName
+  cityName?: FieldPath<TFieldValues>
   addressClassName?: string
 }
 
@@ -60,6 +61,7 @@ export function FormAddressPostcodeFields<
   addressName,
   postcodeName,
   addressOverriddenName,
+  cityName,
   addressClassName,
 }: FormAddressPostcodeFieldsProps<
   TFieldValues,
@@ -104,6 +106,17 @@ export function FormAddressPostcodeFields<
             shouldDirty: true,
           })
         }}
+        onCityResolved={
+          cityName
+            ? (city) => {
+                setValue(cityName, city as never, {
+                  shouldDirty: true,
+                  shouldTouch: true,
+                })
+                void trigger(cityName)
+              }
+            : undefined
+        }
         onPostcodeBlur={() => {
           void trigger(postcodeName)
         }}

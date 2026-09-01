@@ -87,6 +87,8 @@ export type OperatorLocationsPageAdapters = {
     address: string
     city: string
     postcode: string
+    locationPhone?: string
+    localContact?: string
   }) => Promise<void>
   importDrafts?: (
     rows: Array<{
@@ -111,6 +113,8 @@ export type OperatorLocationsPageAdapters = {
     locationId: number,
     action: "pause" | "resume" | "archive" | "restore"
   ) => Promise<void>
+  /** Marks restaurant Privacy consent ready (clears privacy-review attention). */
+  completePrivacyReview?: () => Promise<void>
   debounceMs?: number
   getNow?: () => Date
 }
@@ -136,6 +140,8 @@ export type OperatorLocationsPageModule = {
     address: string
     city: string
     postcode: string
+    locationPhone?: string
+    localContact?: string
   }) => Promise<void>
   importDrafts: (
     rows: Array<{
@@ -157,7 +163,7 @@ export type OperatorLocationsPageModule = {
     managerUserId: number | null
   ) => Promise<void>
   onRowAction: (locationId: string, actionId: LocationRowActionId) => void | Promise<void>
-  onReviewSetupAttention: (itemId: LocationsSetupAttentionItemId) => void
+  onReviewSetupAttention: (itemId: LocationsSetupAttentionItemId) => void | Promise<void>
 }
 
 const DEFAULT_SEARCH_DEBOUNCE_MS = 300
@@ -578,8 +584,26 @@ export function createOperatorLocationsPageModule(
         }
       })()
     },
-    onReviewSetupAttention: () => {
-      // Wire review navigation when Setup attention API lands.
+    onReviewSetupAttention: async (itemId) => {
+      if (itemId !== "privacy-review") {
+        // no-active-qr Review navigates to destination pages (out of this slice).
+        return
+      }
+
+      const complete = adapters.completePrivacyReview
+      if (!complete) {
+        return
+      }
+
+      loadStatus = "loading"
+      emit()
+      try {
+        await complete()
+        await fetchListAndActivity()
+      } catch {
+        loadStatus = "error"
+        emit()
+      }
     },
   }
 }

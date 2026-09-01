@@ -5,6 +5,8 @@ import { motion, useReducedMotion } from "framer-motion"
 import { resolvePostcodeAddress, resolveSuggestionAddress, suggestAddresses, isAddressLookupAbortError } from "@/api/addressLookupApi"
 import { FloatingLabelInput } from "@/components/ui/floating-label-input"
 import { FieldErrorSlot } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   ADDRESS_MULTIPLE_PREMISES_NOTE,
   ADDRESS_POSTCODE_MISMATCH_WARNING,
@@ -17,6 +19,7 @@ import {
   isDuplicatePostcodeBlurSnapshot,
   isValidUkPostcode,
   postcodesMatch,
+  resolveTownCity,
   shouldDeferPostcodeBlurLookup,
   shouldReconcileAddress,
   type VerifiedAddressPostcodePair,
@@ -46,7 +49,7 @@ const labelMotionStyle = {
   transformOrigin: "0 0",
 } as const
 
-type AddressFloatingInputProps = {
+type AddressInputProps = {
   id: string
   value: string
   isActive: boolean
@@ -55,12 +58,13 @@ type AddressFloatingInputProps = {
   error?: string
   menuId: string
   showMenu: boolean
+  appearance: "default" | "operator"
   onFocus: () => void
   onBlur: () => void
   onChange: (value: string) => void
 }
 
-const AddressFloatingInput = memo(function AddressFloatingInput({
+const AddressInput = memo(function AddressInput({
   id,
   value,
   isActive,
@@ -69,16 +73,63 @@ const AddressFloatingInput = memo(function AddressFloatingInput({
   error,
   menuId,
   showMenu,
+  appearance,
   onFocus,
   onBlur,
   onChange,
-}: AddressFloatingInputProps) {
+}: AddressInputProps) {
   const shouldReduceMotion = useReducedMotion()
+  const isOperator = appearance === "operator"
+
+  if (isOperator) {
+    return (
+      <div
+        className={cn(
+          "box-border flex h-[50px] w-full shrink-0 items-center gap-2 rounded border px-[15px]",
+          "border-op-input-border",
+          isLocked && "bg-op-background-secondary",
+          error && "border-destructive",
+          "focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
+          error && "focus-within:ring-destructive/20"
+        )}
+      >
+        {showPin ? (
+          <MapPinIcon
+            aria-hidden
+            className="pointer-events-none size-[18px] shrink-0 text-op-text-muted"
+          />
+        ) : null}
+
+        <input
+          id={id}
+          name="tummly-setup-address"
+          type="text"
+          autoComplete="off"
+          role="combobox"
+          aria-expanded={showMenu}
+          aria-controls={menuId}
+          aria-autocomplete="list"
+          aria-invalid={error ? true : undefined}
+          placeholder="Enter"
+          value={value}
+          readOnly={isLocked}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn(
+            "min-w-0 flex-1 border-0 bg-transparent p-0 text-sm leading-5 text-op-text-primary outline-none placeholder:text-op-text-muted",
+            isLocked && "cursor-default"
+          )}
+        />
+      </div>
+    )
+  }
 
   return (
     <div
       className={cn(
-        "box-border flex w-full shrink-0 items-center gap-0.5 rounded-[4px] border border-[rgba(74,74,76,0.4)] px-[13px]",
+        "box-border flex w-full shrink-0 items-center gap-0.5 rounded-[4px] border px-[13px]",
+        "border-[rgba(74,74,76,0.4)]",
         isLocked && "bg-[rgba(54,54,56,0.07)]",
         error && "border-destructive",
         "focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
@@ -93,7 +144,7 @@ const AddressFloatingInput = memo(function AddressFloatingInput({
       {showPin ? (
         <MapPinIcon
           aria-hidden
-          className="pointer-events-none shrink-0 size-[18px] text-[#7d7d7d]"
+          className="pointer-events-none size-[18px] shrink-0 text-[#7d7d7d]"
         />
       ) : null}
 
@@ -142,6 +193,8 @@ const AddressFloatingInput = memo(function AddressFloatingInput({
   )
 })
 
+export type AddressDetailsRevealSource = "suggestion" | "manual"
+
 type AddressPostcodeFieldsProps = {
   address: string
   postcode: string
@@ -149,10 +202,22 @@ type AddressPostcodeFieldsProps = {
   onAddressChange: (value: string) => void
   onPostcodeChange: (value: string) => void
   onAddressOverriddenChange: (value: boolean) => void
+  /** Ideal Postcodes post_town (or address fallback) after a successful lookup. */
+  onCityResolved?: (city: string) => void
+  city?: string
+  onCityChange?: (value: string) => void
+  cityError?: string
+  /**
+   * Operator layout: hide City and Postcode until a suggestion is picked
+   * or the operator uses their own address. Omit to keep both fields visible.
+   */
+  showCityAndPostcode?: boolean
+  onDetailsRevealed?: (source: AddressDetailsRevealSource) => void
   addressError?: string
   postcodeError?: string
   required?: boolean
   addressClassName?: string
+  appearance?: "default" | "operator"
   onPostcodeBlur?: () => void
 }
 
@@ -163,10 +228,17 @@ export function AddressPostcodeFields({
   onAddressChange,
   onPostcodeChange,
   onAddressOverriddenChange,
+  onCityResolved,
+  city = "",
+  onCityChange,
+  cityError,
+  showCityAndPostcode,
+  onDetailsRevealed,
   addressError,
   postcodeError,
   required = true,
   addressClassName,
+  appearance = "default",
   onPostcodeBlur,
 }: AddressPostcodeFieldsProps) {
   const generatedId = useId()
@@ -394,13 +466,20 @@ export function AddressPostcodeFields({
     (
       resolvedAddress: string,
       resolvedPostcode: string,
-      existingPostcode: string
+      existingPostcode: string,
+      resolvedCity: string
     ) => {
       onAddressChange(resolvedAddress)
       setSearchQuery(resolvedAddress)
       onAddressOverriddenChange(false)
       setIsLocked(false)
       setReconciliationNote(null)
+
+      if (resolvedCity.trim()) {
+        onCityResolved?.(resolvedCity.trim())
+      }
+
+      onDetailsRevealed?.("suggestion")
 
       if (!existingPostcode.trim()) {
         if (resolvedPostcode.trim()) {
@@ -432,6 +511,8 @@ export function AddressPostcodeFields({
       clearVerifiedPair,
       onAddressChange,
       onAddressOverriddenChange,
+      onCityResolved,
+      onDetailsRevealed,
       onPostcodeChange,
       rememberVerifiedPair,
     ]
@@ -445,20 +526,31 @@ export function AddressPostcodeFields({
       const resolved = await resolveSuggestionAddress(suggestion.id)
       const resolvedAddress = resolved?.address ?? suggestion.label
       const resolvedPostcode = resolved?.postcode ?? ""
+      const resolvedCity = resolveTownCity({
+        postTown: resolved?.postTown,
+        address: resolvedAddress,
+      })
 
       applyResolvedSuggestion(
         resolvedAddress,
         resolvedPostcode,
-        postcode
+        postcode,
+        resolvedCity
       )
     } catch {
-      onAddressChange(suggestion.label)
-      setSearchQuery(suggestion.label)
+      const fallbackAddress = suggestion.label
+      onAddressChange(fallbackAddress)
+      setSearchQuery(fallbackAddress)
       onAddressOverriddenChange(false)
       setIsLocked(false)
       setReconciliationNote(null)
       clearVerifiedPair()
       setConflictWarning(null)
+      const fallbackCity = resolveTownCity({ address: fallbackAddress })
+      if (fallbackCity) {
+        onCityResolved?.(fallbackCity)
+      }
+      onDetailsRevealed?.("suggestion")
     } finally {
       setIsResolvingSuggestion(false)
     }
@@ -470,6 +562,11 @@ export function AddressPostcodeFields({
     onAddressChange(nextAddress)
     setSearchQuery(nextAddress)
     onAddressOverriddenChange(true)
+    if (appearance === "operator") {
+      onCityChange?.("")
+      onPostcodeChange("")
+      onDetailsRevealed?.("manual")
+    }
     clearVerifiedPair()
     setIsLocked(false)
     setReconciliationNote(null)
@@ -540,6 +637,13 @@ export function AddressPostcodeFields({
         setReconciliationNote(null)
         rememberVerifiedPair(address, postcode)
         recordBlurSnapshot(address, postcode)
+        const city = resolveTownCity({
+          postTown: result.postTown,
+          address,
+        })
+        if (city) {
+          onCityResolved?.(city)
+        }
         return
       }
 
@@ -555,6 +659,13 @@ export function AddressPostcodeFields({
           ? ADDRESS_MULTIPLE_PREMISES_NOTE
           : ADDRESS_RECONCILED_NOTE
       )
+      const city = resolveTownCity({
+        postTown: result.postTown,
+        address: result.address,
+      })
+      if (city) {
+        onCityResolved?.(city)
+      }
     } catch {
       // Leave the operator's entered address untouched when lookup fails.
       recordBlurSnapshot(address, postcode)
@@ -570,6 +681,7 @@ export function AddressPostcodeFields({
     isResolvingSuggestion,
     onAddressChange,
     onAddressOverriddenChange,
+    onCityResolved,
     onPostcodeBlur,
     postcode,
     recordBlurSnapshot,
@@ -597,114 +709,234 @@ export function AddressPostcodeFields({
     (isLoadingSuggestions ||
       suggestions.length > 0 ||
       manualAddressText.trim().length > 0)
+  const isOperator = appearance === "operator"
+  const operatorDetailsVisible = !isOperator || showCityAndPostcode !== false
+  const operatorFieldClass =
+    "h-[50px] rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm text-op-text-primary shadow-none placeholder:text-op-text-muted md:text-sm dark:bg-transparent"
+  const operatorLabelClass =
+    "text-sm font-semibold leading-5 text-op-text-primary"
 
-  return (
-    <div className="flex flex-col gap-6 sm:flex-row sm:gap-5">
-      <div
-        ref={containerRef}
-        className={cn("relative min-w-0 flex-1", addressClassName)}
-      >
-        <div className="flex flex-col gap-1.5">
-          <AddressFloatingInput
-            id={addressInputId}
-            value={searchQuery}
-            isActive={isAddressActive}
-            isLocked={isLocked}
-            showPin={showAddressPin}
-            error={addressError}
-            menuId={menuId}
-            showMenu={showMenu}
-            onFocus={handleAddressFocus}
-            onBlur={handleAddressBlur}
-            onChange={handleAddressChange}
-          />
-
-          <FieldErrorSlot error={addressError} reserveClassName="min-h-0" />
-
-          {conflictWarning ? (
-            <p className="text-sm text-amber-700">{conflictWarning}</p>
-          ) : null}
-
-          {reconciliationNote ? (
-            <p className="text-sm text-[#7d7d7d]">{reconciliationNote}</p>
-          ) : null}
-        </div>
-
-        {showMenu ? (
-          <div
-            id={menuId}
-            role="listbox"
-            className="absolute top-[calc(100%+4px)] z-50 max-h-64 w-full overflow-y-auto rounded-[4px] border border-[rgba(74,74,76,0.2)] bg-white py-1 shadow-md"
-          >
-            {isLoadingSuggestions || isResolvingSuggestion ? (
-              <div className="flex items-center gap-2 px-3 py-2 text-sm text-[#7d7d7d]">
-                <Loader2Icon className="size-4 animate-spin" aria-hidden />
-                <span>
-                  {isResolvingSuggestion
-                    ? "Loading address…"
-                    : "Searching addresses…"}
-                </span>
-              </div>
-            ) : null}
-
-            {!isResolvingSuggestion
-              ? suggestions.map((suggestion) => (
-              <button
-                key={suggestion.id}
-                type="button"
-                role="option"
-                className="flex w-full cursor-pointer px-3 py-2 text-left text-sm text-[#141414] hover:bg-[rgba(54,54,56,0.07)]"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  void handleSelectSuggestion(suggestion)
-                }}
-              >
-                {suggestion.label}
-              </button>
-            ))
-              : null}
-
-            {!isResolvingSuggestion && manualAddressText.trim() ? (
-              <button
-                type="button"
-                role="option"
-                className="flex w-full cursor-pointer flex-col gap-0.5 border-t border-[rgba(74,74,76,0.12)] px-3 py-2 text-left hover:bg-[rgba(54,54,56,0.07)]"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={handleUseMyAddressInstead}
-              >
-                <span className="text-sm font-medium text-[#141414]">
-                  {ADDRESS_USE_MY_ADDRESS_LABEL}
-                </span>
-                <span className="text-xs text-[#7d7d7d]">{manualAddressText}</span>
-              </button>
-            ) : null}
-          </div>
+  const addressField = (
+    <div
+      ref={containerRef}
+      className={cn("relative min-w-0 flex-1", addressClassName)}
+    >
+      <div className={cn("flex flex-col", isOperator ? "gap-2" : "gap-1.5")}>
+        {isOperator ? (
+          <Label htmlFor={addressInputId} className={operatorLabelClass}>
+            Address
+          </Label>
         ) : null}
-      </div>
 
-      <div className="relative min-w-0 flex-1">
-        <FloatingLabelInput
-          id={postcodeInputId}
-          name="tummly-setup-postcode"
-          label="Postcode"
-          value={postcode}
-          onChange={(event) => handlePostcodeChange(event.target.value)}
-          onBlur={() => {
-            void handlePostcodeBlur()
-          }}
-          autoComplete="off"
-          required={required}
-          error={postcodeError}
-          reserveClassName="min-h-0"
+        <AddressInput
+          id={addressInputId}
+          value={searchQuery}
+          isActive={isAddressActive}
+          isLocked={isLocked}
+          showPin={showAddressPin}
+          error={addressError}
+          menuId={menuId}
+          showMenu={showMenu}
+          appearance={appearance}
+          onFocus={handleAddressFocus}
+          onBlur={handleAddressBlur}
+          onChange={handleAddressChange}
         />
 
-        {isResolvingPostcode || isResolvingSuggestion ? (
-          <Loader2Icon
-            aria-hidden
-            className="pointer-events-none absolute right-3 top-4 size-4 animate-spin text-[#7d7d7d]"
-          />
+        <FieldErrorSlot error={addressError} reserveClassName="min-h-0" />
+
+        {conflictWarning ? (
+          <p
+            className={cn(
+              "text-sm",
+              isOperator ? "text-amber-500" : "text-amber-700"
+            )}
+          >
+            {conflictWarning}
+          </p>
+        ) : null}
+
+        {reconciliationNote ? (
+          <p
+            className={cn(
+              "text-sm",
+              isOperator ? "text-op-text-muted" : "text-[#7d7d7d]"
+            )}
+          >
+            {reconciliationNote}
+          </p>
         ) : null}
       </div>
+
+      {showMenu ? (
+        <div
+          id={menuId}
+          role="listbox"
+          className={cn(
+            "absolute top-[calc(100%+4px)] z-[80] max-h-64 w-full overflow-y-auto rounded-[4px] border py-1 shadow-md",
+            isOperator
+              ? "border-op-card-border bg-op-surface-secondary"
+              : "border-[rgba(74,74,76,0.2)] bg-white"
+          )}
+        >
+          {isLoadingSuggestions || isResolvingSuggestion ? (
+            <div
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 text-sm",
+                isOperator ? "text-op-text-muted" : "text-[#7d7d7d]"
+              )}
+            >
+              <Loader2Icon className="size-4 animate-spin" aria-hidden />
+              <span>
+                {isResolvingSuggestion
+                  ? "Loading address…"
+                  : "Searching addresses…"}
+              </span>
+            </div>
+          ) : null}
+
+          {!isResolvingSuggestion
+            ? suggestions.map((suggestion) => (
+                <button
+                  key={suggestion.id}
+                  type="button"
+                  role="option"
+                  className={cn(
+                    "flex w-full cursor-pointer px-3 py-2 text-left text-sm",
+                    isOperator
+                      ? "text-op-text-primary hover:bg-op-background-secondary"
+                      : "text-[#141414] hover:bg-[rgba(54,54,56,0.07)]"
+                  )}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    void handleSelectSuggestion(suggestion)
+                  }}
+                >
+                  {suggestion.label}
+                </button>
+              ))
+            : null}
+
+          {!isResolvingSuggestion && manualAddressText.trim() ? (
+            <button
+              type="button"
+              role="option"
+              className={cn(
+                "flex w-full cursor-pointer flex-col gap-0.5 border-t px-3 py-2 text-left",
+                isOperator
+                  ? "border-op-card-border hover:bg-op-background-secondary"
+                  : "border-[rgba(74,74,76,0.12)] hover:bg-[rgba(54,54,56,0.07)]"
+              )}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={handleUseMyAddressInstead}
+            >
+              <span
+                className={cn(
+                  "text-sm font-medium",
+                  isOperator ? "text-op-text-primary" : "text-[#141414]"
+                )}
+              >
+                {ADDRESS_USE_MY_ADDRESS_LABEL}
+              </span>
+              <span
+                className={cn(
+                  "text-xs",
+                  isOperator ? "text-op-text-muted" : "text-[#7d7d7d]"
+                )}
+              >
+                {manualAddressText}
+              </span>
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+
+  if (!isOperator) {
+    return (
+      <div className="flex flex-col gap-6 sm:flex-row sm:gap-5">
+        {addressField}
+        <div className="relative min-w-0 flex-1">
+          <FloatingLabelInput
+            id={postcodeInputId}
+            name="tummly-setup-postcode"
+            label="Postcode"
+            value={postcode}
+            onChange={(event) => handlePostcodeChange(event.target.value)}
+            onBlur={() => {
+              void handlePostcodeBlur()
+            }}
+            autoComplete="off"
+            required={required}
+            error={postcodeError}
+            reserveClassName="min-h-0"
+          />
+          {isResolvingPostcode || isResolvingSuggestion ? (
+            <Loader2Icon
+              aria-hidden
+              className="pointer-events-none absolute top-4 right-3 size-4 animate-spin text-[#7d7d7d]"
+            />
+          ) : null}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="contents">
+      {addressField}
+
+      {operatorDetailsVisible ? (
+        <>
+          <div className="flex min-w-0 flex-col gap-2">
+            <Label htmlFor={`${generatedId}-city`} className={operatorLabelClass}>
+              City
+            </Label>
+            <Input
+              id={`${generatedId}-city`}
+              className={operatorFieldClass}
+              placeholder="Enter"
+              value={city}
+              onChange={(event) => {
+                onCityChange?.(event.target.value)
+              }}
+              autoComplete="address-level2"
+              aria-invalid={cityError ? true : undefined}
+            />
+            <FieldErrorSlot error={cityError} reserveClassName="min-h-0" />
+          </div>
+
+          <div className="relative min-w-0">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor={postcodeInputId} className={operatorLabelClass}>
+                Postcode
+              </Label>
+              <Input
+                id={postcodeInputId}
+                name="tummly-setup-postcode"
+                className={operatorFieldClass}
+                placeholder="Enter"
+                value={postcode}
+                onChange={(event) => handlePostcodeChange(event.target.value)}
+                onBlur={() => {
+                  void handlePostcodeBlur()
+                }}
+                autoComplete="off"
+                required={required}
+                aria-invalid={postcodeError ? true : undefined}
+              />
+              <FieldErrorSlot error={postcodeError} reserveClassName="min-h-0" />
+            </div>
+            {isResolvingPostcode || isResolvingSuggestion ? (
+              <Loader2Icon
+                aria-hidden
+                className="pointer-events-none absolute top-11 right-3 size-4 animate-spin text-op-text-muted"
+              />
+            ) : null}
+          </div>
+        </>
+      ) : null}
     </div>
   )
 }

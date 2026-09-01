@@ -672,6 +672,12 @@ namespace TummlyBackend.Services
 
         private async Task<IDbContextTransaction?> BeginEntitlementTransactionAsync()
         {
+            // Join an ambient transaction (Settings Pause/Resume wraps Capture).
+            if (_context.Database.CurrentTransaction != null)
+            {
+                return null;
+            }
+
             if (!_context.Database.IsSqlServer())
             {
                 return null;

@@ -231,7 +231,7 @@ namespace TummlyBackend.Services
                         : actorDisplayName.Trim(),
                     Kind = LocationActivityKinds.LocationCreated,
                     Description = $"Created draft location “{location.LocationName}”.",
-                    ToValue = LocationLifecycleStatus.Draft.ToString(),
+                    ToValue = "draft",
                     OccurredAt = DateTime.UtcNow,
                 }
             );

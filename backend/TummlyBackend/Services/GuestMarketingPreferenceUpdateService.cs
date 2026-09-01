@@ -126,7 +126,7 @@ namespace TummlyBackend.Services
                             Kind =
                                 LocationActivityKinds.GuestMarketingUnsubscribed,
                             Description =
-                                "A guest unsubscribed from marketing at this location.",
+                                "Marketing preference set to opted out at this location.",
                             OccurredAt = DateTime.UtcNow,
                         }
                     );

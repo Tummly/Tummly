@@ -257,6 +257,122 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetLocations_AttentionIncludesNoActiveQr()
+        {
+            var seeded = await SeedListScenarioAsync();
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/locations"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.OwnerJwt);
+
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            Assert.True(body.GetProperty("success").GetBoolean());
+
+            var attention = body.GetProperty("attentionItems");
+            var noQr = attention
+                .EnumerateArray()
+                .ToList()
+                .Single(item =>
+                    item.GetProperty("id").GetString() == "no-active-qr"
+                );
+            Assert.Contains(
+                "no active QR",
+                noQr.GetProperty("message").GetString()!,
+                StringComparison.OrdinalIgnoreCase
+            );
+            var locationIds = noQr
+                .GetProperty("locationIds")
+                .EnumerateArray()
+                .Select(id => id.GetInt32())
+                .ToArray();
+            Assert.Contains(seeded.PausedLocationId, locationIds);
+            Assert.DoesNotContain(seeded.ActiveLocationId, locationIds);
+        }
+
+        [Fact]
+        public async Task GetLocations_AttentionIncludesPrivacyReview_WhenNotReady()
+        {
+            var seeded = await SeedListScenarioAsync();
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var restaurant = context.Restaurants.Single(row =>
+                    row.Id == seeded.RestaurantId
+                );
+                restaurant.PrivacyConsentReadyAt = null;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/locations"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.OwnerJwt);
+
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            var attention = body.GetProperty("attentionItems");
+            var privacy = attention
+                .EnumerateArray()
+                .ToList()
+                .Single(item =>
+                    item.GetProperty("id").GetString() == "privacy-review"
+                );
+            var locationIds = privacy
+                .GetProperty("locationIds")
+                .EnumerateArray()
+                .Select(id => id.GetInt32())
+                .OrderBy(id => id)
+                .ToArray();
+            Assert.Equal(
+                new[] { seeded.ActiveLocationId, seeded.PausedLocationId }
+                    .OrderBy(id => id)
+                    .ToArray(),
+                locationIds
+            );
+        }
+
+        [Fact]
+        public async Task GetLocations_SetupReadyFilter_ExcludesArchived()
+        {
+            var seeded = await SeedListScenarioAsync();
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/locations?setup=ready"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.OwnerJwt);
+
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            var rows = body.GetProperty("rows").EnumerateArray().ToArray();
+            Assert.All(
+                rows,
+                row =>
+                    Assert.NotEqual(
+                        "archived",
+                        row.GetProperty("lifecycleStatus").GetString()
+                    )
+            );
+            Assert.Contains(
+                rows,
+                row =>
+                    row.GetProperty("id").GetInt32() == seeded.ActiveLocationId
+            );
+            Assert.DoesNotContain(
+                rows,
+                row =>
+                    row.GetProperty("id").GetInt32()
+                    == seeded.ArchivedLocationId
+            );
+        }
+
+        [Fact]
         public async Task GetLocations_SearchesByQ()
         {
             var seeded = await SeedListScenarioAsync();
@@ -474,7 +590,7 @@ namespace TummlyBackend.Tests.Integration
             await context.SaveChangesAsync();
 
             // Active has QR → ready. Paused has no Active QR → needs-attention.
-            // Draft → not-started. Archived → ready (attention N/A).
+            // Draft → not-started. Archived setup is out of filters.
             context.QrCodes.Add(
                 new QrCode
                 {
@@ -579,7 +695,10 @@ namespace TummlyBackend.Tests.Integration
                     member.Email,
                     member.Role
                 ),
-                active.Id
+                restaurant.Id,
+                active.Id,
+                paused.Id,
+                archived.Id
             );
         }
 
@@ -695,7 +814,10 @@ namespace TummlyBackend.Tests.Integration
         private sealed record ListSeed(
             string OwnerJwt,
             string MemberJwt,
-            int ActiveLocationId
+            int RestaurantId,
+            int ActiveLocationId,
+            int PausedLocationId,
+            int ArchivedLocationId
         );
     }
 }

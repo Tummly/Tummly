@@ -49,6 +49,8 @@ namespace TummlyBackend.Migrations
                 table: "RestaurantLocations",
                 column: "ManagerUserId");
 
+            // Restrict (not SetNull/Cascade): SQL Server error 1785 — multiple
+            // cascade paths from Restaurants/Users graphs.
             migrationBuilder.AddForeignKey(
                 name: "FK_RestaurantLocations_Users_ManagerUserId",
                 table: "RestaurantLocations",

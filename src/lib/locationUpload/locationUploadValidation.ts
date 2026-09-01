@@ -30,12 +30,30 @@ export function combineLocalContact(name: string, email: string) {
   return trimmedName || trimmedEmail
 }
 
+function cityFromDraft(location: UploadedLocationDraft) {
+  const stored = location.city.trim()
+  if (stored) {
+    return stored
+  }
+
+  const parts = location.address
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  if (parts.length < 2) {
+    return ""
+  }
+
+  return parts[parts.length - 1] ?? ""
+}
+
 export function getUploadedLocationStatus(
   location: UploadedLocationDraft
 ): UploadedLocationStatus {
   const locationName = location.locationName.trim()
   const address = location.address.trim()
-  const city = location.city.trim()
+  const city = cityFromDraft(location)
   const postcode = location.postcode.trim()
 
   if (!locationName || !address || !city || !postcode) {

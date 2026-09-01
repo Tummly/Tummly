@@ -18,6 +18,7 @@ import {
   importOwnedLocations,
   setOwnedLocationManager,
 } from "@/api/locationsWriteApi"
+import { savePrivacyConsent } from "@/api/privacyConsentApi"
 import { locationsPageModuleContext } from "@/components/dashboard/operator/Locations/utils/locationsPageModuleContext"
 import { createOperatorLocationsPageModule } from "@/lib/operatorLocations/createOperatorLocationsPageModule"
 
@@ -59,6 +60,9 @@ export function LocationsPageModuleProvider({
           )
         },
         mutateLifecycle: mutateLocationLifecycle,
+        completePrivacyReview: async () => {
+          await savePrivacyConsent()
+        },
       },
       { initialTabId }
     )

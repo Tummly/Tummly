@@ -4,12 +4,12 @@ import { useSearchParams } from "react-router-dom"
 
 import { LocationsActivitySection } from "@/components/dashboard/operator/Locations/LocationsActivitySection"
 import { LocationsAddLocationDialog } from "@/components/dashboard/operator/Locations/LocationsAddLocationDialog"
+import { LocationsImportLocationsDialog } from "@/components/dashboard/operator/Locations/LocationsImportLocationsDialog"
 import { LocationsKpiStrip } from "@/components/dashboard/operator/Locations/LocationsKpiStrip"
 import { LocationsSetManagerDialog } from "@/components/dashboard/operator/Locations/LocationsSetManagerDialog"
 import { LocationsSetupReadinessSection } from "@/components/dashboard/operator/Locations/LocationsSetupReadinessSection"
 import { LocationsTableSection } from "@/components/dashboard/operator/Locations/LocationsTableSection"
 import { useLocationsPageModuleApi } from "@/components/dashboard/operator/Locations/utils/locationsPageModuleContext"
-import { GuestLoopUploadLocationsDialog } from "@/components/guest-loop/GuestLoopUploadLocationsDialog"
 import { OperatorDestructiveConfirmDialog } from "@/components/dashboard/operator/OperatorDestructiveConfirmDialog"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { Button } from "@/components/ui/button"
@@ -262,11 +262,10 @@ export function LocationsPage() {
         }}
       />
 
-      <GuestLoopUploadLocationsDialog
+      <LocationsImportLocationsDialog
         open={importOpen}
         onOpenChange={setImportOpen}
         isSubmitting={importBusy}
-        confirmLabel="Import locations"
         onConfirm={async (locations) => {
           setImportBusy(true)
           try {
@@ -276,8 +275,8 @@ export function LocationsPage() {
                 address: location.address,
                 city: location.city,
                 postcode: location.postcode,
-                locationPhone: location.locationPhone || undefined,
-                localContact: location.localContact || undefined,
+                locationPhone: location.locationPhone,
+                localContact: location.localContact,
               }))
             )
             if (result.createdCount > 0 && result.errors.length === 0) {

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
 using TummlyBackend.DTOs.Locations;
@@ -41,6 +42,8 @@ namespace TummlyBackend.Services
                 );
             }
 
+            await using var transaction = await BeginSettingsCaptureTransactionAsync();
+
             if (location.CaptureLocationStatus != CaptureLocationStatus.Paused)
             {
                 var capture = await _captureLifecycle.PauseLocationCaptureAsync(
@@ -76,6 +79,10 @@ namespace TummlyBackend.Services
                 description: "Location paused"
             );
             await _context.SaveChangesAsync();
+            if (transaction != null)
+            {
+                await transaction.CommitAsync();
+            }
 
             return LocationLifecycleResult.Ok("paused");
         }
@@ -96,6 +103,8 @@ namespace TummlyBackend.Services
                     "Only a Paused location can be resumed."
                 );
             }
+
+            await using var transaction = await BeginSettingsCaptureTransactionAsync();
 
             if (location.CaptureLocationStatus == CaptureLocationStatus.Paused)
             {
@@ -132,6 +141,10 @@ namespace TummlyBackend.Services
                 description: "Location resumed"
             );
             await _context.SaveChangesAsync();
+            if (transaction != null)
+            {
+                await transaction.CommitAsync();
+            }
 
             return LocationLifecycleResult.Ok("active");
         }
@@ -198,6 +211,26 @@ namespace TummlyBackend.Services
             await _context.SaveChangesAsync();
 
             return LocationLifecycleResult.Ok("paused");
+        }
+
+        /// <summary>
+        /// One transaction for Capture cascade + Settings lifecycle so a failed
+        /// Settings save cannot leave Capture Paused while Settings stays Active
+        /// (or the reverse on Resume). InMemory tests skip (not relational).
+        /// </summary>
+        private async Task<IDbContextTransaction?> BeginSettingsCaptureTransactionAsync()
+        {
+            if (_context.Database.CurrentTransaction != null)
+            {
+                return null;
+            }
+
+            if (!_context.Database.IsRelational())
+            {
+                return null;
+            }
+
+            return await _context.Database.BeginTransactionAsync();
         }
 
         private async Task<RestaurantLocation?> LoadOwnedLocationAsync(

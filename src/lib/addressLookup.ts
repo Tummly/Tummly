@@ -20,7 +20,9 @@ export type AddressSuggestion = {
 export type AddressResolveResult = {
   postcode: string
   address: string
-  premises: Array<{ address: string; postcode: string }>
+  /** Ideal Postcodes `post_town` when the resolve payload includes it. */
+  postTown: string
+  premises: Array<{ address: string; postcode: string; postTown?: string }>
   multiplePremises: boolean
   usedBestMatch: boolean
 }
@@ -130,6 +132,19 @@ export function extractTownCityFromAddress(address: string) {
   }
 
   return parts[parts.length - 1] ?? ""
+}
+
+/** Prefer Ideal Postcodes post_town; else last address segment. */
+export function resolveTownCity(input: {
+  postTown?: string | null
+  address?: string | null
+}) {
+  const fromPostTown = input.postTown?.trim() ?? ""
+  if (fromPostTown) {
+    return fromPostTown
+  }
+
+  return extractTownCityFromAddress(input.address ?? "")
 }
 
 export function shouldReconcileAddress(

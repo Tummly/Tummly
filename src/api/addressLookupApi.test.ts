@@ -67,6 +67,7 @@ describe("addressLookupApi", () => {
     const second = await resolvePostcodeAddress("M14AB", "125 High Street")
 
     expect(first?.address).toBe("125 High Street, Manchester")
+    expect(first?.postTown).toBe("")
     expect(second).toEqual(first)
     expect(mockedGet).toHaveBeenCalledTimes(1)
   })

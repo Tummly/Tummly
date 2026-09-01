@@ -7,6 +7,8 @@ export type CreateOwnedLocationInput = {
   address: string
   city: string
   postcode: string
+  locationPhone?: string
+  localContact?: string
 }
 
 function readApiError(error: unknown, fallback: string): string {
@@ -49,6 +51,8 @@ export async function createOwnedLocation(
       address: input.address,
       city: input.city,
       postcode: input.postcode,
+      locationPhone: input.locationPhone,
+      localContact: input.localContact,
     })
     const locationId = response.data.locationId
     if (typeof locationId !== "number") {

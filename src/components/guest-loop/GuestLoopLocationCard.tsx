@@ -83,13 +83,7 @@ export function GuestLoopLocationCard({
             addressName={`locations.${index}.address`}
             postcodeName={`locations.${index}.postcode`}
             addressOverriddenName={`locations.${index}.addressOverridden`}
-          />
-
-          <FormFloatingInput
-            control={form.control}
-            name={`locations.${index}.city`}
-            label="City"
-            required
+            cityName={`locations.${index}.city`}
           />
 
           <FormFloatingInput
