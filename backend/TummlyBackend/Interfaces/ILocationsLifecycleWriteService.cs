@@ -22,5 +22,12 @@ namespace TummlyBackend.Interfaces
             int actorUserId,
             int? managerUserId
         );
+
+        Task<LocationLifecycleWriteResult> EditDetailsAsync(
+            int restaurantId,
+            int locationId,
+            int actorUserId,
+            AddOwnedLocationRequest request
+        );
     }
 }

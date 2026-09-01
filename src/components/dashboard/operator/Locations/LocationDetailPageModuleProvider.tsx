@@ -6,7 +6,7 @@ import {
 } from "react"
 import { useOutletContext, useParams, useSearchParams } from "react-router-dom"
 
-import { getLocationDetail, mutateLocationLifecycle } from "@/api/dashboardApi"
+import { getLocationDetail, mutateLocationLifecycle, updateLocationDetail } from "@/api/dashboardApi"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { locationDetailPageModuleContext } from "@/components/dashboard/operator/Locations/utils/locationDetailPageModuleContext"
 import { createOperatorLocationDetailPageModule } from "@/lib/operatorLocations/createOperatorLocationDetailPageModule"
@@ -29,6 +29,9 @@ export function LocationDetailPageModuleProvider({
         safeLocationId,
         {
           getDetail: (id) => getLocationDetail(id),
+          updateDetails: async (id, input) => {
+            await updateLocationDetail(id, input)
+          },
           mutateLifecycle: async (id, action) => {
             await mutateLocationLifecycle(id, action)
           },

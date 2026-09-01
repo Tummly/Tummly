@@ -40,6 +40,11 @@ function detailResponse(
       atLeastOneQrCreated: "complete",
       ...(overrides.setupChecklist ?? {}),
     },
+    locationControls: {
+      lastScanAt: null,
+      lastFeedbackAt: null,
+      ...(overrides.locationControls ?? {}),
+    },
     overviewMetrics: {
       qrScans: 1204,
       formStarts: 0,
@@ -380,5 +385,97 @@ describe("createOperatorLocationDetailPageModule", () => {
 
     pageModule.requestTabChange("team-access")
     expect(pageModule.getSnapshot().activeTabId).toBe("team-access")
+  })
+
+  it("maps location controls timestamps from detail GET", async () => {
+    const getDetail = vi.fn().mockResolvedValue(
+      detailResponse({
+        locationControls: {
+          lastScanAt: "2026-08-31T12:42:00.000Z",
+          lastFeedbackAt: "2026-08-31T12:50:00.000Z",
+        },
+      })
+    )
+    const pageModule = createOperatorLocationDetailPageModule(42, {
+      getDetail,
+      getNow: () => new Date("2026-08-31T14:00:00.000Z"),
+    })
+
+    await pageModule.load()
+
+    expect(pageModule.getSnapshot().locationControlsStatus.lastScan).toBe(
+      "13:42"
+    )
+    expect(pageModule.getSnapshot().locationControlsStatus.lastFeedback).toBe(
+      "Today, 13:50"
+    )
+  })
+
+  it("saveEditDetails refreshes snapshot after PUT succeeds", async () => {
+    const getDetail = vi
+      .fn()
+      .mockResolvedValueOnce(detailResponse())
+      .mockResolvedValueOnce(
+        detailResponse({
+          header: {
+            name: "Updated Camden",
+            address: "99 High Street",
+            city: "Camden",
+            postcode: "NW1 2BB",
+            liveQrCount: 6,
+            guestsCapturedThisMonth: 842,
+          },
+        })
+      )
+    const updateDetails = vi.fn(async () => undefined)
+    const pageModule = createOperatorLocationDetailPageModule(42, {
+      getDetail,
+      updateDetails,
+    })
+
+    await pageModule.load()
+    await pageModule.saveEditDetails({
+      locationName: "Updated Camden",
+      address: "99 High Street",
+      city: "Camden",
+      postcode: "NW1 2BB",
+    })
+
+    expect(updateDetails).toHaveBeenCalledWith(42, {
+      locationName: "Updated Camden",
+      address: "99 High Street",
+      city: "Camden",
+      postcode: "NW1 2BB",
+    })
+    expect(getDetail).toHaveBeenCalledTimes(2)
+    expect(pageModule.getSnapshot().name).toBe("Updated Camden")
+    expect(pageModule.getSnapshot().editFields.postcode).toBe("NW1 2BB")
+  })
+
+  it("requestLifecycleAction refetches detail after mutate succeeds", async () => {
+    const getDetail = vi
+      .fn()
+      .mockResolvedValueOnce(detailResponse())
+      .mockResolvedValueOnce(
+        detailResponse({
+          header: {
+            lifecycleStatus: "paused",
+            liveQrCount: 6,
+            guestsCapturedThisMonth: 842,
+          },
+        })
+      )
+    const mutateLifecycle = vi.fn(async () => undefined)
+    const pageModule = createOperatorLocationDetailPageModule(42, {
+      getDetail,
+      mutateLifecycle,
+    })
+
+    await pageModule.load()
+    await pageModule.requestLifecycleAction("pause")
+
+    expect(mutateLifecycle).toHaveBeenCalledWith(42, "pause")
+    expect(getDetail).toHaveBeenCalledTimes(2)
+    expect(pageModule.getSnapshot().lifecycleStatus).toBe("paused")
   })
 })

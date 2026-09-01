@@ -336,6 +336,73 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetLocationDetail_IncludesLocationControlsWithLastScanAndFeedback()
+        {
+            var seeded = await SeedDetailScenarioAsync();
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var scanAt = new DateTime(2026, 8, 31, 12, 42, 0, DateTimeKind.Utc);
+                var feedbackAt = new DateTime(
+                    2026,
+                    8,
+                    31,
+                    12,
+                    50,
+                    0,
+                    DateTimeKind.Utc
+                );
+                context.QrScanEvents.Add(
+                    new QrScanEvent
+                    {
+                        RestaurantLocationId = seeded.ActiveLocationId,
+                        CreatedAt = scanAt,
+                    }
+                );
+                context.Feedbacks.Add(
+                    new Feedback
+                    {
+                        RestaurantLocationId = seeded.ActiveLocationId,
+                        QrCodeId = (
+                            await context.QrCodes
+                                .Where(q =>
+                                    q.RestaurantLocationId == seeded.ActiveLocationId
+                                )
+                                .Select(q => q.Id)
+                                .FirstAsync()
+                        ),
+                        GuestName = "Alex Guest",
+                        GuestContact = "alex@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = "Great service",
+                        CreatedAt = feedbackAt,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/locations/{seeded.ActiveLocationId}/detail"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.OwnerJwt);
+
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            var controls = body.GetProperty("locationControls");
+            Assert.Equal(
+                "2026-08-31T12:42:00",
+                controls.GetProperty("lastScanAt").GetString()![..19]
+            );
+            Assert.Equal(
+                "2026-08-31T12:50:00",
+                controls.GetProperty("lastFeedbackAt").GetString()![..19]
+            );
+        }
+
+        [Fact]
         public async Task GetLocationDetail_DraftLocation_HasNotStartedChecklistItems()
         {
             var seeded = await SeedDetailScenarioAsync();

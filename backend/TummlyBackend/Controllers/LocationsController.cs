@@ -349,6 +349,24 @@ namespace TummlyBackend.Controllers
             );
         }
 
+        [HttpPut("{locationId:int}")]
+        public async Task<IActionResult> UpdateLocation(
+            int locationId,
+            [FromBody] AddOwnedLocationRequest request
+        )
+        {
+            return await RunLifecycleWriteAsync(
+                locationId,
+                (restaurantId, userId) =>
+                    _lifecycleWrite.EditDetailsAsync(
+                        restaurantId,
+                        locationId,
+                        userId,
+                        request
+                    )
+            );
+        }
+
         [HttpPost("{locationId:int}/pause")]
         public Task<IActionResult> PauseLocation(int locationId) =>
             MutateLifecycleAsync(locationId, _lifecycle.PauseAsync);

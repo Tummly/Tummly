@@ -545,3 +545,17 @@ export function formatLocationsLastActivityAt(
   }).format(occurred)
   return `${datePart}, ${time}`
 }
+
+/** Location controls Last scan — London time only (Figma `5754:106202`). */
+export function formatLocationControlsLastScanAt(
+  iso: string | null | undefined
+): string {
+  if (iso == null || iso.trim() === "") {
+    return "—"
+  }
+  const occurred = new Date(iso)
+  if (Number.isNaN(occurred.getTime())) {
+    return "—"
+  }
+  return londonTime(occurred)
+}

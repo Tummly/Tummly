@@ -189,6 +189,53 @@ namespace TummlyBackend.Services
             return new LocationLifecycleWriteResult.Ok();
         }
 
+        public async Task<LocationLifecycleWriteResult> EditDetailsAsync(
+            int restaurantId,
+            int locationId,
+            int actorUserId,
+            AddOwnedLocationRequest request
+        )
+        {
+            var invalid = ValidateEditFields(request);
+            if (invalid != null)
+            {
+                return invalid;
+            }
+
+            var location = await LoadOwnedAsync(restaurantId, locationId);
+            if (location == null)
+            {
+                return new LocationLifecycleWriteResult.NotFound();
+            }
+
+            if (location.LifecycleStatus == LocationLifecycleStatus.Archived)
+            {
+                return new LocationLifecycleWriteResult.Conflict(
+                    "Archived locations cannot be edited."
+                );
+            }
+
+            location.LocationName = request.LocationName.Trim();
+            location.Address = request.Address.Trim();
+            location.City = request.City.Trim();
+            location.Postcode = UkPostcode.FormatForDisplay(request.Postcode!);
+            location.LocationPhone = PhoneNumberHelper.NormalizeOptional(
+                request.LocationPhone
+            );
+            location.LocalContact = string.IsNullOrWhiteSpace(request.LocalContact)
+                ? null
+                : request.LocalContact.Trim();
+
+            await EmitEditedAsync(
+                restaurantId,
+                locationId,
+                actorUserId,
+                location.LocationName
+            );
+            await _context.SaveChangesAsync();
+            return new LocationLifecycleWriteResult.Ok();
+        }
+
         private async Task<RestaurantLocation?> LoadOwnedAsync(
             int restaurantId,
             int locationId
@@ -229,6 +276,41 @@ namespace TummlyBackend.Services
             {
                 return new LocationLifecycleWriteResult.InvalidRequest(
                     "Postcode is required to activate."
+                );
+            }
+
+            return null;
+        }
+
+        private static LocationLifecycleWriteResult.InvalidRequest? ValidateEditFields(
+            AddOwnedLocationRequest request
+        )
+        {
+            if (string.IsNullOrWhiteSpace(request.LocationName))
+            {
+                return new LocationLifecycleWriteResult.InvalidRequest(
+                    "Location name is required."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Address))
+            {
+                return new LocationLifecycleWriteResult.InvalidRequest(
+                    "Address is required."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(request.City))
+            {
+                return new LocationLifecycleWriteResult.InvalidRequest(
+                    "City is required."
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Postcode))
+            {
+                return new LocationLifecycleWriteResult.InvalidRequest(
+                    "Postcode is required."
                 );
             }
 
@@ -334,6 +416,28 @@ namespace TummlyBackend.Services
                     Description = description,
                     FromValue = from,
                     ToValue = to,
+                    OccurredAt = DateTime.UtcNow,
+                }
+            );
+        }
+
+        private async Task EmitEditedAsync(
+            int restaurantId,
+            int locationId,
+            int actorUserId,
+            string locationName
+        )
+        {
+            var actorDisplayName = await ActorDisplayNameAsync(actorUserId);
+            _context.LocationActivities.Add(
+                new LocationActivity
+                {
+                    RestaurantId = restaurantId,
+                    LocationId = locationId,
+                    ActorUserId = actorUserId,
+                    ActorDisplayName = actorDisplayName,
+                    Kind = LocationActivityKinds.LocationEdited,
+                    Description = $"Edited details for “{locationName}”.",
                     OccurredAt = DateTime.UtcNow,
                 }
             );

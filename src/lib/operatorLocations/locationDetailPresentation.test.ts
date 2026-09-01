@@ -5,7 +5,9 @@ import {
   buildLocationGuestActivityChecklist,
   buildLocationSetupChecklist,
   buildLocationTeamAccessRows,
+  locationControlsActionNeedsConfirm,
   locationControlsDangerActions,
+  locationControlsLifecycleConfirmCopy,
 } from "@/lib/operatorLocations/locationDetailPresentation"
 
 describe("buildLocationSetupChecklist", () => {
@@ -218,5 +220,22 @@ describe("locationControlsDangerActions", () => {
         enabled: true,
       },
     ])
+  })
+})
+
+describe("locationControlsActionNeedsConfirm", () => {
+  it("requires confirm for pause, archive, and restore only", () => {
+    expect(locationControlsActionNeedsConfirm("pause")).toBe(true)
+    expect(locationControlsActionNeedsConfirm("archive")).toBe(true)
+    expect(locationControlsActionNeedsConfirm("restore")).toBe(true)
+    expect(locationControlsActionNeedsConfirm("resume")).toBe(false)
+  })
+})
+
+describe("locationControlsLifecycleConfirmCopy", () => {
+  it("reuses locations list lifecycle confirm copy", () => {
+    expect(
+      locationControlsLifecycleConfirmCopy("pause", "Alpha Venue").title
+    ).toBe("Pause location?")
   })
 })

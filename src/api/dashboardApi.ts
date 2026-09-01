@@ -12,7 +12,10 @@ import type {
   LocationsListQueryParams,
   LocationsListResponse,
 } from "@/lib/operatorLocations/locationsListQueryParams"
-import type { LocationDetailApiResponse } from "@/lib/operatorLocations/locationDetailApi"
+import type {
+  LocationDetailApiResponse,
+  UpdateLocationDetailInput,
+} from "@/lib/operatorLocations/locationDetailApi"
 import {
   mapCreatedGuestTagApiToGuestTag,
   mapGuestTagApiRowToGuestTag,
@@ -170,6 +173,18 @@ export const getLocationDetail = async (
 ): Promise<LocationDetailApiResponse> => {
   const response = await axiosInstance.get<LocationDetailApiResponse>(
     `/locations/${locationId}/detail`
+  )
+  return response.data
+}
+
+/** PUT /api/locations/:locationId — Settings edit location details. */
+export const updateLocationDetail = async (
+  locationId: number,
+  input: UpdateLocationDetailInput
+): Promise<{ success: boolean }> => {
+  const response = await axiosInstance.put<{ success: boolean }>(
+    `/locations/${locationId}`,
+    input
   )
   return response.data
 }

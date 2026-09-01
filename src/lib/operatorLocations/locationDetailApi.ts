@@ -90,9 +90,15 @@ export type LocationDetailApiLatestFeedbackRow = {
   locationGuestId: number | null
 }
 
+export type LocationDetailApiControls = {
+  lastScanAt: string | null
+  lastFeedbackAt: string | null
+}
+
 export type LocationDetailApiResponse = {
   success: boolean
   header: LocationDetailApiHeader
+  locationControls: LocationDetailApiControls
   setupChecklist: Record<string, LocationSetupChecklistStatusId>
   overviewMetrics: LocationDetailApiOverviewMetrics
   qrRows: LocationDetailApiQrRow[]
@@ -116,6 +122,15 @@ export function mapLocationDetailTeamAccessRows(
         ? formatAccessActivityOccurredAt(row.lastActiveAt, getNow())
         : "—",
   }))
+}
+
+export type UpdateLocationDetailInput = {
+  locationName: string
+  address: string
+  city: string
+  postcode: string
+  locationPhone?: string
+  localContact?: string
 }
 
 export function mapLocationDetailSetupChecklist(

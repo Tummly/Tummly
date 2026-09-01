@@ -102,7 +102,7 @@ namespace TummlyBackend.Services
                         activeQrSet.Contains(l.Id),
                         privacyReady
                     );
-                    var city = NormalizeCity(l.City);
+                    var city = LocationRowWire.NormalizeCity(l.City);
                     var cityId = CityIdFrom(city);
                     var postcode = string.IsNullOrWhiteSpace(l.Postcode)
                         ? null
@@ -114,7 +114,7 @@ namespace TummlyBackend.Services
                     return new ProjectedRow(
                         l.Id,
                         l.LocationName,
-                        ToLifecycleWire(l.LifecycleStatus),
+                        LocationRowWire.ToLifecycleWire(l.LifecycleStatus),
                         setup,
                         string.IsNullOrWhiteSpace(l.ManagerName)
                             ? null
@@ -389,26 +389,6 @@ namespace TummlyBackend.Services
             }
 
             return "ready";
-        }
-
-        private static string ToLifecycleWire(LocationLifecycleStatus status) =>
-            status switch
-            {
-                LocationLifecycleStatus.Draft => "draft",
-                LocationLifecycleStatus.Active => "active",
-                LocationLifecycleStatus.Paused => "paused",
-                LocationLifecycleStatus.Archived => "archived",
-                _ => "active",
-            };
-
-        private static string? NormalizeCity(string? city)
-        {
-            if (string.IsNullOrWhiteSpace(city))
-            {
-                return null;
-            }
-
-            return city.Trim();
         }
 
         private static string CityIdFrom(string? city)

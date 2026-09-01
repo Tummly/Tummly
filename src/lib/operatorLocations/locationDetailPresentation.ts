@@ -7,6 +7,7 @@ import type {
 import {
   LOCATION_LIFECYCLE_LABELS,
   LOCATIONS_CARD_CLASS,
+  LOCATIONS_PAGE_COPY,
 } from "@/lib/operatorLocations/locationsPresentation"
 import {
   CAPTURE_PLACEMENTS_BODY_CELL_CLASS,
@@ -132,6 +133,12 @@ export const LOCATION_DETAIL_PAGE_COPY = {
   archiveLocation: "Archive location",
   restoreLocation: "Restore location",
   controlsUnavailable: "—",
+  editDetails: "Edit details",
+  editDetailsTitle: "Edit details",
+  editDetailsDescription:
+    "Update this location's name, address and contact details.",
+  saveDetails: "Save details",
+  savingDetails: "Saving…",
   loadError: "Could not load this location.",
   notFound: "Location not found.",
   thisMonthSuffix: "this month",
@@ -567,6 +574,97 @@ export function locationControlsDangerActions(
           enabled: false,
         },
       ]
+  }
+}
+
+const LOCATION_CONTROLS_LIFECYCLE_CONFIRM_ACTION_IDS = [
+  "pause",
+  "archive",
+  "restore",
+] as const
+
+export type LocationControlsLifecycleConfirmActionId =
+  (typeof LOCATION_CONTROLS_LIFECYCLE_CONFIRM_ACTION_IDS)[number]
+
+export function locationControlsActionNeedsConfirm(
+  actionId: LocationControlsLifecycleActionId
+): boolean {
+  return (
+    actionId === "pause"
+    || actionId === "archive"
+    || actionId === "restore"
+  )
+}
+
+export function locationControlsLifecycleConfirmCopy(
+  actionId: LocationControlsLifecycleConfirmActionId,
+  locationName: string
+): {
+  title: string
+  description: string
+  confirmLabel: string
+  busyLabel: string
+} {
+  const rowActionId =
+    actionId === "pause"
+      ? "pause-location"
+      : actionId === "archive"
+        ? "archive-location"
+        : "restore-location"
+  const copy = LOCATIONS_PAGE_COPY
+  switch (rowActionId) {
+    case "pause-location":
+      return {
+        title: copy.pauseLocationConfirmTitle,
+        description: copy.pauseLocationConfirmDescription(locationName),
+        confirmLabel: copy.pauseLocationConfirmLabel,
+        busyLabel: "Pausing…",
+      }
+    case "archive-location":
+      return {
+        title: copy.archiveLocationConfirmTitle,
+        description: copy.archiveLocationConfirmDescription(locationName),
+        confirmLabel: copy.archiveLocationConfirmLabel,
+        busyLabel: "Archiving…",
+      }
+    case "restore-location":
+      return {
+        title: copy.restoreLocationConfirmTitle,
+        description: copy.restoreLocationConfirmDescription(locationName),
+        confirmLabel: copy.restoreLocationConfirmLabel,
+        busyLabel: "Restoring…",
+      }
+  }
+}
+
+export function locationControlsLifecycleSuccessToast(
+  actionId: LocationControlsLifecycleActionId
+): string | null {
+  const rowActionId =
+    actionId === "pause"
+      ? "pause-location"
+      : actionId === "archive"
+        ? "archive-location"
+        : actionId === "restore"
+          ? "restore-location"
+          : actionId === "resume"
+            ? "resume-location"
+            : null
+  if (rowActionId == null) {
+    return null
+  }
+  const copy = LOCATIONS_PAGE_COPY
+  switch (rowActionId) {
+    case "pause-location":
+      return copy.pauseLocationSuccessToast
+    case "resume-location":
+      return copy.resumeLocationSuccessToast
+    case "archive-location":
+      return copy.archiveLocationSuccessToast
+    case "restore-location":
+      return copy.restoreLocationSuccessToast
+    default:
+      return null
   }
 }
 

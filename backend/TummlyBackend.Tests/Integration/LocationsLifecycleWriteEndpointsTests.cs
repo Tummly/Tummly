@@ -480,6 +480,205 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         }
 
+        [Fact]
+        public async Task UpdateLocation_Returns401_WhenUnauthenticated()
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                "/api/locations/1"
+            );
+            request.Content = JsonContent.Create(new
+            {
+                locationName = "Updated",
+                address = "1 High Street",
+                city = "London",
+                postcode = "W1D 6QF",
+            });
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task UpdateLocation_UpdatesFields_AndEmitsLocationEditedActivity()
+        {
+            var seeded = await SeedPilotWithRoomAsync(
+                restaurantName: "Edit Details Venue"
+            );
+            var locationId = await SeedDraftLocationAsync(
+                seeded.RestaurantId,
+                city: "London"
+            );
+
+            using var request = AuthorizedPut(
+                $"/api/locations/{locationId}",
+                seeded.OwnerJwt,
+                new
+                {
+                    locationName = "Updated Camden",
+                    address = "99 High Street",
+                    city = "Camden",
+                    postcode = "NW1 1AA",
+                    locationPhone = "020 7946 0958",
+                    localContact = "Front desk",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var location = await context.RestaurantLocations
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == locationId);
+            Assert.Equal("Updated Camden", location.LocationName);
+            Assert.Equal("99 High Street", location.Address);
+            Assert.Equal("Camden", location.City);
+            Assert.Equal("NW1 1AA", location.Postcode);
+            Assert.Equal("+442079460958", location.LocationPhone);
+            Assert.Equal("Front desk", location.LocalContact);
+
+            var activity = await context.LocationActivities
+                .AsNoTracking()
+                .SingleAsync(row =>
+                    row.LocationId == locationId
+                    && row.Kind == LocationActivityKinds.LocationEdited
+                );
+            Assert.Equal(seeded.OwnerUserId, activity.ActorUserId);
+            Assert.Contains("Updated Camden", activity.Description);
+        }
+
+        [Fact]
+        public async Task UpdateLocation_MissingCity_Returns400()
+        {
+            var seeded = await SeedPilotWithRoomAsync(
+                restaurantName: "Edit Missing City Venue"
+            );
+            var locationId = await SeedDraftLocationAsync(
+                seeded.RestaurantId,
+                city: "London"
+            );
+
+            using var request = AuthorizedPut(
+                $"/api/locations/{locationId}",
+                seeded.OwnerJwt,
+                new
+                {
+                    locationName = "Updated",
+                    address = "1 High Street",
+                    city = "",
+                    postcode = "W1D 6QF",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task UpdateLocation_ArchivedLocation_Returns409()
+        {
+            var seeded = await SeedPilotWithRoomAsync(
+                restaurantName: "Edit Archived Venue"
+            );
+            var locationId = await SeedDraftLocationAsync(
+                seeded.RestaurantId,
+                city: "London"
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var location = await context.RestaurantLocations
+                    .SingleAsync(row => row.Id == locationId);
+                location.LifecycleStatus = LocationLifecycleStatus.Archived;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedPut(
+                $"/api/locations/{locationId}",
+                seeded.OwnerJwt,
+                new
+                {
+                    locationName = "Should Fail",
+                    address = "1 High Street",
+                    city = "London",
+                    postcode = "W1D 6QF",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task UpdateLocation_Returns403_WhenLocationsAreaIsViewOnly()
+        {
+            var seeded = await SeedPilotWithRoomAsync(
+                restaurantName: "Edit View Only Venue"
+            );
+            var locationId = await SeedDraftLocationAsync(
+                seeded.RestaurantId,
+                city: "London"
+            );
+
+            string memberJwt;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var jwtService = scope.ServiceProvider
+                    .GetRequiredService<IJwtService>();
+                var member = new User
+                {
+                    FullName = "View Only Member",
+                    Email = $"{Guid.NewGuid():N}@example.com",
+                    PasswordHash = "hash",
+                    PhoneNumber = "07700900444",
+                    Role = "User",
+                    AccountType = "Multi",
+                    IsEmailVerified = true,
+                    IsApprovedByAdmin = true,
+                    SelectedRestaurantId = seeded.RestaurantId,
+                    CreatedAt = DateTime.UtcNow,
+                    ActivatedAt = DateTime.UtcNow,
+                    ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+                };
+                context.Users.Add(member);
+                await context.SaveChangesAsync();
+                context.RestaurantMemberships.Add(
+                    new RestaurantMembership
+                    {
+                        UserId = member.Id,
+                        RestaurantId = seeded.RestaurantId,
+                        PermissionRole = PermissionRoles.Staff,
+                        LocationScope = LocationScopeKind.AllLocations,
+                        NamedLocationIdsJson = "[]",
+                        Status = MembershipStatus.Active,
+                    }
+                );
+                await context.SaveChangesAsync();
+                memberJwt = jwtService.GenerateToken(
+                    member.Id.ToString(),
+                    member.Email,
+                    member.Role
+                );
+            }
+
+            using var request = AuthorizedPut(
+                $"/api/locations/{locationId}",
+                memberJwt,
+                new
+                {
+                    locationName = "Blocked",
+                    address = "1 High Street",
+                    city = "London",
+                    postcode = "W1D 6QF",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
         private async Task<int> SeedDraftLocationAsync(
             int restaurantId,
             string? city

@@ -119,11 +119,20 @@ namespace TummlyBackend.DTOs.Locations
         public DateTime? LastActiveAt { get; init; }
     }
 
+    public sealed class LocationControlsDto
+    {
+        public DateTime? LastScanAt { get; init; }
+
+        public DateTime? LastFeedbackAt { get; init; }
+    }
+
     public sealed class LocationDetailResponseDto
     {
         public bool Success { get; init; } = true;
 
         public LocationDetailHeaderDto Header { get; init; } = new();
+
+        public LocationControlsDto LocationControls { get; init; } = new();
 
         /// <summary>
         /// Checklist item id → status id (complete | optional | incomplete | not-started).

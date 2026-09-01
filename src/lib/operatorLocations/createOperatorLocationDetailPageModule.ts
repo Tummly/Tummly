@@ -1,4 +1,7 @@
-import type { LocationDetailApiResponse } from "@/lib/operatorLocations/locationDetailApi"
+import type {
+  LocationDetailApiResponse,
+  UpdateLocationDetailInput,
+} from "@/lib/operatorLocations/locationDetailApi"
 import {
   mapLocationDetailGuestActivityChecklist,
   mapLocationDetailLatestFeedbackRows,
@@ -32,7 +35,20 @@ import {
 } from "@/lib/operatorLocations/locationDetailPresentation"
 import type { LocationLifecycleStatus } from "@/lib/operatorLocations/locationsPresentation"
 import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
+import {
+  formatLocationControlsLastScanAt,
+  formatLocationsLastActivityAt,
+} from "@/lib/operatorLocations/locationsPresentation"
 import { isAxiosError } from "axios"
+
+export type LocationDetailEditFields = {
+  locationName: string
+  address: string
+  city: string
+  postcode: string
+  locationPhone: string
+  localContact: string
+}
 
 export type LocationDetailSnapshot = {
   locationId: number
@@ -40,6 +56,7 @@ export type LocationDetailSnapshot = {
   city: string
   lifecycleStatus: LocationLifecycleStatus
   headerMeta: string
+  editFields: LocationDetailEditFields
   activeTabId: LocationDetailTabId
   tabs: Array<{ id: LocationDetailTabId; label: string }>
   overviewMetrics: Record<LocationDetailOverviewMetricId, number>
@@ -56,6 +73,7 @@ export type LocationDetailSnapshot = {
   locationControlsStatus: Record<LocationControlsStatusFieldId, string>
   locationControlsActions: LocationControlsDangerAction[]
   lifecycleMutationPending: boolean
+  editDetailsPending: boolean
   qrRows: LocationDetailQrRow[]
   offerCards: LocationDetailOfferCard[]
   loadStatus: "idle" | "loading" | "loaded" | "error" | "not-found"
@@ -63,10 +81,15 @@ export type LocationDetailSnapshot = {
 
 export type OperatorLocationDetailPageAdapters = {
   getDetail: (locationId: number) => Promise<LocationDetailApiResponse>
+  updateDetails?: (
+    locationId: number,
+    input: UpdateLocationDetailInput
+  ) => Promise<void>
   mutateLifecycle?: (
     locationId: number,
     action: LocationControlsLifecycleActionId
   ) => Promise<void>
+  getNow?: () => Date
 }
 
 export type OperatorLocationDetailPageModule = {
@@ -75,11 +98,27 @@ export type OperatorLocationDetailPageModule = {
   load: () => Promise<void>
   setActiveTabFromUrl: (raw: string | null | undefined) => void
   requestTabChange: (tabId: LocationDetailTabId) => void
-  requestLifecycleAction: (action: LocationControlsLifecycleActionId) => void
+  requestLifecycleAction: (
+    action: LocationControlsLifecycleActionId
+  ) => Promise<void>
+  saveEditDetails: (input: UpdateLocationDetailInput) => Promise<void>
 }
 
 function cityFromHeader(city: string | null | undefined): string {
   return city?.trim() || "—"
+}
+
+function editFieldsFromHeader(
+  header: LocationDetailApiResponse["header"]
+): LocationDetailEditFields {
+  return {
+    locationName: header.name,
+    address: header.address,
+    city: header.city?.trim() ?? "",
+    postcode: header.postcode?.trim() ?? "",
+    locationPhone: header.locationPhone?.trim() ?? "",
+    localContact: header.localContact?.trim() ?? "",
+  }
 }
 
 export function createOperatorLocationDetailPageModule(
@@ -92,9 +131,18 @@ export function createOperatorLocationDetailPageModule(
     nowMs?: () => number
   } = {}
 ): OperatorLocationDetailPageModule {
+  const getNow = adapters.getNow ?? (() => new Date())
   let activeTabId = resolveLocationDetailTabId(options.initialTabId)
   let name = options.fallbackName?.trim() || "Location"
   let city = "—"
+  let editFields: LocationDetailEditFields = {
+    locationName: name,
+    address: "",
+    city: "",
+    postcode: "",
+    locationPhone: "",
+    localContact: "",
+  }
   let lifecycleStatus: LocationLifecycleStatus = "active"
   let liveQrCount = 0
   let guestsCapturedThisMonth = 0
@@ -113,6 +161,7 @@ export function createOperatorLocationDetailPageModule(
   })
   let locationControlsActions = locationControlsDangerActions("active")
   let lifecycleMutationPending = false
+  let editDetailsPending = false
   let qrRows: LocationDetailQrRow[] = []
   let offerCards: LocationDetailOfferCard[] = []
   let loadStatus: LocationDetailSnapshot["loadStatus"] = "idle"
@@ -141,6 +190,7 @@ export function createOperatorLocationDetailPageModule(
       city,
       lifecycleStatus,
       headerMeta,
+      editFields,
       activeTabId,
       tabs: LOCATION_DETAIL_TAB_IDS.map((id) => ({
         id,
@@ -154,6 +204,7 @@ export function createOperatorLocationDetailPageModule(
       locationControlsStatus,
       locationControlsActions,
       lifecycleMutationPending,
+      editDetailsPending,
       qrRows,
       offerCards,
       loadStatus,
@@ -164,8 +215,10 @@ export function createOperatorLocationDetailPageModule(
 
   const applyDetailResponse = (response: LocationDetailApiResponse) => {
     const header = response.header
+    const now = getNow()
     name = header.name
     city = cityFromHeader(header.city)
+    editFields = editFieldsFromHeader(header)
     lifecycleStatus = header.lifecycleStatus
     liveQrCount = header.liveQrCount
     guestsCapturedThisMonth = header.guestsCapturedThisMonth
@@ -195,6 +248,13 @@ export function createOperatorLocationDetailPageModule(
       lifecycleStatus: header.lifecycleStatus,
       setupStatus: header.setupStatus,
       liveQrCount: header.liveQrCount,
+      lastScanLabel: formatLocationControlsLastScanAt(
+        response.locationControls.lastScanAt
+      ),
+      lastFeedbackLabel: formatLocationsLastActivityAt(
+        response.locationControls.lastFeedbackAt,
+        now
+      ),
     })
     locationControlsActions = locationControlsDangerActions(
       header.lifecycleStatus
@@ -254,7 +314,7 @@ export function createOperatorLocationDetailPageModule(
       activeTabId = tabId
       emit()
     },
-    requestLifecycleAction: (action) => {
+    requestLifecycleAction: async (action) => {
       const mutate = adapters.mutateLifecycle
       if (mutate == null || lifecycleMutationPending) {
         return
@@ -263,17 +323,35 @@ export function createOperatorLocationDetailPageModule(
       lifecycleMutationPending = true
       emit()
 
-      void (async () => {
-        try {
-          await mutate(locationId, action)
-          lifecycleMutationPending = false
-          await load()
-        } catch {
-          lifecycleMutationPending = false
-          loadStatus = "error"
-          emit()
-        }
-      })()
+      try {
+        await mutate(locationId, action)
+        lifecycleMutationPending = false
+        await load()
+      } catch {
+        lifecycleMutationPending = false
+        loadStatus = "error"
+        emit()
+        throw new Error("Could not update location status.")
+      }
+    },
+    saveEditDetails: async (input) => {
+      const update = adapters.updateDetails
+      if (update == null || editDetailsPending) {
+        throw new Error("Edit details is not configured.")
+      }
+
+      editDetailsPending = true
+      emit()
+
+      try {
+        await update(locationId, input)
+        editDetailsPending = false
+        await load()
+      } catch (error) {
+        editDetailsPending = false
+        emit()
+        throw error
+      }
     },
   }
 }

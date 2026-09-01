@@ -132,13 +132,15 @@ namespace TummlyBackend.Services
                 utcNow
             );
 
-            var lifecycleWire = ToLifecycleWire(location.LifecycleStatus);
+            var lifecycleWire = LocationRowWire.ToLifecycleWire(
+                location.LifecycleStatus
+            );
             var setupStatus = LocationsListService.DeriveSetupStatus(
                 location.LifecycleStatus,
                 hasActiveQr,
                 privacyReady
             );
-            var city = NormalizeCity(location.City);
+            var city = LocationRowWire.NormalizeCity(location.City);
             var managerName = string.IsNullOrWhiteSpace(location.ManagerName)
                 ? null
                 : location.ManagerName.Trim();
@@ -204,6 +206,18 @@ namespace TummlyBackend.Services
                 lastActiveByUserId
             );
 
+            var lastScanAt = await _context.QrScanEvents
+                .AsNoTracking()
+                .Where(e => e.RestaurantLocationId == query.LocationId)
+                .Select(e => (DateTime?)e.CreatedAt)
+                .MaxAsync();
+
+            var lastFeedbackAt = await _context.Feedbacks
+                .AsNoTracking()
+                .Where(f => f.RestaurantLocationId == query.LocationId)
+                .Select(f => (DateTime?)f.CreatedAt)
+                .MaxAsync();
+
             return new LocationDetailResponseDto
             {
                 Success = true,
@@ -226,6 +240,11 @@ namespace TummlyBackend.Services
                         : location.LocalContact.Trim(),
                     LiveQrCount = activeQrCount,
                     GuestsCapturedThisMonth = overviewMetrics.GuestsCaptured,
+                },
+                LocationControls = new LocationControlsDto
+                {
+                    LastScanAt = lastScanAt,
+                    LastFeedbackAt = lastFeedbackAt,
                 },
                 SetupChecklist = setupChecklist,
                 OverviewMetrics = overviewMetrics,
@@ -273,26 +292,6 @@ namespace TummlyBackend.Services
                     };
                 })
                 .ToList();
-        }
-
-        private static string ToLifecycleWire(LocationLifecycleStatus status) =>
-            status switch
-            {
-                LocationLifecycleStatus.Draft => "draft",
-                LocationLifecycleStatus.Active => "active",
-                LocationLifecycleStatus.Paused => "paused",
-                LocationLifecycleStatus.Archived => "archived",
-                _ => "active",
-            };
-
-        private static string? NormalizeCity(string? city)
-        {
-            if (string.IsNullOrWhiteSpace(city))
-            {
-                return null;
-            }
-
-            return city.Trim();
         }
 
         private sealed record LocationSource(
