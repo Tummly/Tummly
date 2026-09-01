@@ -156,6 +156,7 @@ export default function GuestFeedbackPage() {
               locationName={metadata.locationName}
               address={metadata.address}
               brandLogoPublicUrl={metadata.brandLogoPublicUrl}
+              guestFormConsent={metadata.guestFormConsent}
               isSubmitting={isSubmitting}
               submitError={submitError}
               onSubmit={handleSubmit}

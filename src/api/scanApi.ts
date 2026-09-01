@@ -1,6 +1,10 @@
 import axios from "axios"
 
 import { API_BASE_URL } from "@/config/api"
+import {
+  parseGuestFormConsentFromScanMetadata,
+  type GuestFormConsentConfig,
+} from "@/lib/guestFeedback/guestFormConsentPresentation"
 import type { GuestSttResult } from "@/lib/guestFeedback/createGuestMicSttModule"
 import type { GuestFeedbackFormValues } from "@/schemas/guestFeedback"
 import { toGuestFeedbackPayload } from "@/schemas/guestFeedback"
@@ -10,6 +14,7 @@ export type ScanLocationMetadata = {
   locationName: string
   address: string
   brandLogoPublicUrl: string | null
+  guestFormConsent: GuestFormConsentConfig | null
 }
 
 export type GuestThankYouOffer = {
@@ -25,6 +30,7 @@ type ScanMetadataResponse = {
   locationName?: string
   address?: string
   brandLogoPublicUrl?: string | null
+  guestFormConsent?: unknown
   message?: string
 }
 
@@ -57,6 +63,9 @@ export async function fetchScanLocationMetadata(
     locationName: response.data.locationName ?? "",
     address: response.data.address ?? "",
     brandLogoPublicUrl: response.data.brandLogoPublicUrl ?? null,
+    guestFormConsent: parseGuestFormConsentFromScanMetadata(
+      response.data.guestFormConsent
+    ),
   }
 }
 

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Guests;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -14,16 +15,20 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly ILocationGuestActivityRecorder _recorder;
         private readonly IGuestNotesService _notes;
+        private readonly ILocationGuestPermissionLedgerService _permissions;
 
         public GuestMarketingPreferenceUpdateService(
             ApplicationDbContext context,
             ILocationGuestActivityRecorder recorder,
-            IGuestNotesService notes
+            IGuestNotesService notes,
+            ILocationGuestPermissionLedgerService? permissions = null
         )
         {
             _context = context;
             _recorder = recorder;
             _notes = notes;
+            _permissions =
+                permissions ?? new LocationGuestPermissionLedgerService(context);
         }
 
         public async Task<GuestMarketingPreferenceUpdateOutcome> UpdateAsync(
@@ -102,6 +107,28 @@ namespace TummlyBackend.Services
                     next.ToWireString(),
                     actor.FullName,
                     DateTime.UtcNow
+                );
+
+                var changedAt = DateTime.UtcNow;
+                foreach (
+                    var (kind, eventKind) in LocationGuestChannelPermissionGate
+                        .LedgerEventsForOperatorMarketingPreference(next)
+                )
+                {
+                    _permissions.RecordEvent(
+                        locationGuest.Id,
+                        locationId,
+                        kind,
+                        eventKind,
+                        LocationGuestPermissionLedgerSources.Operator,
+                        changedAt,
+                        actorUserId
+                    );
+                }
+
+                await _permissions.SyncMarketingPreferenceRollupAsync(
+                    locationGuest,
+                    cancellationToken
                 );
 
                 if (next == LocationGuestMarketingPreference.OptedOut)

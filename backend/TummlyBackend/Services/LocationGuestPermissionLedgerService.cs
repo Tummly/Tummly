@@ -131,13 +131,104 @@ namespace TummlyBackend.Services
                 );
             }
 
+            return await SyncMarketingPreferenceRollupAsync(
+                locationGuest,
+                cancellationToken
+            );
+        }
+
+        public async Task<LocationGuestMarketingPreference> SyncMarketingPreferenceRollupAsync(
+            LocationGuest locationGuest,
+            CancellationToken cancellationToken = default
+        )
+        {
             var states = await GetCurrentStatesAsync(
-                locationGuestId,
+                locationGuest.Id,
                 cancellationToken
             );
             var rollup = LocationGuestMarketingPreferenceRollup.Derive(states);
             locationGuest.MarketingPreference = rollup;
             return rollup;
+        }
+
+        public async Task<
+            IReadOnlyDictionary<
+                int,
+                IReadOnlyDictionary<
+                    LocationGuestPermissionKind,
+                    LocationGuestPermissionState
+                >
+            >
+        > GetCurrentStatesBatchAsync(
+            IReadOnlyList<int> locationGuestIds,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (locationGuestIds.Count == 0)
+            {
+                return new Dictionary<
+                    int,
+                    IReadOnlyDictionary<
+                        LocationGuestPermissionKind,
+                        LocationGuestPermissionState
+                    >
+                >();
+            }
+
+            var idSet = locationGuestIds.Distinct().ToHashSet();
+
+            var persisted = await _context.LocationGuestPermissionLedgerEntries
+                .AsNoTracking()
+                .Where(e => idSet.Contains(e.LocationGuestId))
+                .ToListAsync(cancellationToken);
+
+            var pending = _context.ChangeTracker
+                .Entries<LocationGuestPermissionLedgerEntry>()
+                .Where(e =>
+                    e.State == EntityState.Added
+                    || e.State == EntityState.Modified
+                )
+                .Select(e => e.Entity)
+                .Where(e => idSet.Contains(e.LocationGuestId));
+
+            var latestByGuestAndKind = persisted
+                .Concat(pending)
+                .GroupBy(e => (e.LocationGuestId, e.PermissionKind))
+                .Select(g => g.OrderByDescending(e => e.OccurredAt)
+                    .ThenByDescending(e => e.Id)
+                    .First());
+
+            var result =
+                new Dictionary<
+                    int,
+                    IReadOnlyDictionary<
+                        LocationGuestPermissionKind,
+                        LocationGuestPermissionState
+                    >
+                >();
+
+            foreach (var guestId in idSet)
+            {
+                var states = LocationGuestPermissionKindExtensions.All.ToDictionary(
+                    kind => kind,
+                    _ => LocationGuestPermissionState.NotRecorded
+                );
+
+                foreach (var entry in latestByGuestAndKind.Where(e =>
+                             e.LocationGuestId == guestId
+                         ))
+                {
+                    states[entry.PermissionKind] =
+                        entry.EventKind
+                            == LocationGuestPermissionLedgerEventKinds.Grant
+                            ? LocationGuestPermissionState.Granted
+                            : LocationGuestPermissionState.Withdrawn;
+                }
+
+                result[guestId] = states;
+            }
+
+            return result;
         }
     }
 }

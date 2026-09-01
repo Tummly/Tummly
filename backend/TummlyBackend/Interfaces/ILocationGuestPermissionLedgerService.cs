@@ -37,7 +37,31 @@ namespace TummlyBackend.Interfaces
         /// in the same unit of work as <see cref="RecordEvent"/>.
         /// </summary>
         Task<LocationGuestMarketingPreference> SyncMarketingPreferenceRollupAsync(
+            LocationGuest locationGuest,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <inheritdoc cref="SyncMarketingPreferenceRollupAsync(LocationGuest, CancellationToken)"/>
+        Task<LocationGuestMarketingPreference> SyncMarketingPreferenceRollupAsync(
             int locationGuestId,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
+        /// Current permission state per guest id (latest ledger event per kind).
+        /// Guests with no ledger rows get all kinds
+        /// <see cref="LocationGuestPermissionState.NotRecorded"/>.
+        /// </summary>
+        Task<
+            IReadOnlyDictionary<
+                int,
+                IReadOnlyDictionary<
+                    LocationGuestPermissionKind,
+                    LocationGuestPermissionState
+                >
+            >
+        > GetCurrentStatesBatchAsync(
+            IReadOnlyList<int> locationGuestIds,
             CancellationToken cancellationToken = default
         );
     }

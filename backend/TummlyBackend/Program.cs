@@ -481,6 +481,10 @@ builder.Services.AddScoped<
     LocationGuestPermissionLedgerService
 >();
 builder.Services.AddScoped<
+    IGuestFormPermissionApplyService,
+    GuestFormPermissionApplyService
+>();
+builder.Services.AddScoped<
     ILocationGuestDeleteService,
     LocationGuestDeleteService
 >();
