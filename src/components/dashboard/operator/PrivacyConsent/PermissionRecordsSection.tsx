@@ -37,6 +37,9 @@ import {
   GUESTS_TABLE_LOCATION_CLASS,
   GUESTS_TOOLBAR_ACTIONS_CLASS,
   GUESTS_TOOLBAR_ROW_CLASS,
+  GUESTS_PAGINATION_BUTTON_CLASS,
+  GUESTS_PAGINATION_LABEL_CLASS,
+  GUESTS_PAGINATION_ROW_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import {
   PERMISSION_RECORD_CURRENT_STATE_LABELS,
@@ -58,6 +61,11 @@ type PermissionRecordsSectionProps = {
   onRemoveFilterChip: (chip: FilterChip) => void
   onClearSearchAndFilters: () => void
   onViewRecord: (recordId: string) => void
+  pageRangeLabel: string
+  canGoPrevious: boolean
+  canGoNext: boolean
+  onPreviousPage: () => void
+  onNextPage: () => void
 }
 
 /** Permission records card — Figma 5746:100788. */
@@ -73,6 +81,11 @@ export function PermissionRecordsSection({
   onRemoveFilterChip,
   onClearSearchAndFilters,
   onViewRecord,
+  pageRangeLabel,
+  canGoPrevious,
+  canGoNext,
+  onPreviousPage,
+  onNextPage,
 }: PermissionRecordsSectionProps) {
   const copy = PRIVACY_CONSENT_PAGE_COPY
 
@@ -251,6 +264,36 @@ export function PermissionRecordsSection({
             </Table>
           </div>
         )}
+
+        {!empty ? (
+          <div className={GUESTS_PAGINATION_ROW_CLASS}>
+            <p className={GUESTS_PAGINATION_LABEL_CLASS}>{pageRangeLabel}</p>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="op-secondary"
+                disabled={!canGoPrevious}
+                aria-disabled={!canGoPrevious}
+                aria-label="Previous page"
+                className={GUESTS_PAGINATION_BUTTON_CLASS}
+                onClick={onPreviousPage}
+              >
+                Previous
+              </Button>
+              <Button
+                type="button"
+                variant="op-secondary"
+                disabled={!canGoNext}
+                aria-disabled={!canGoNext}
+                aria-label="Next page"
+                className={GUESTS_PAGINATION_BUTTON_CLASS}
+                onClick={onNextPage}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   )

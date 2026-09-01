@@ -186,43 +186,30 @@ describe("createOperatorLocationsPageModule", () => {
     expect(module.getSnapshot().activityItems).toEqual([])
   })
 
-  it("clears privacy-review setup attention after ready when refetching Locations", async () => {
-    const getList = vi
-      .fn()
-      .mockResolvedValueOnce(
-        apiResponse({
-          kpis: {
-            active: 1,
-            draft: 0,
-            paused: 1,
-            setupNeedsAttention: 2,
+  it("navigates to Privacy and consent for privacy-review setup attention", async () => {
+    const getList = vi.fn(async () =>
+      apiResponse({
+        kpis: {
+          active: 1,
+          draft: 0,
+          paused: 1,
+          setupNeedsAttention: 2,
+        },
+        attentionItems: [
+          {
+            id: "privacy-review",
+            message: "2 locations need a privacy review",
+            locationIds: [10, 12],
           },
-          attentionItems: [
-            {
-              id: "privacy-review",
-              message: "2 locations need a privacy review",
-              locationIds: [10, 12],
-            },
-          ],
-        })
-      )
-      .mockResolvedValueOnce(
-        apiResponse({
-          kpis: {
-            active: 1,
-            draft: 0,
-            paused: 1,
-            setupNeedsAttention: 0,
-          },
-          attentionItems: [],
-        })
-      )
+        ],
+      })
+    )
 
-    const completePrivacyReview = vi.fn(async () => undefined)
+    const navigateToPrivacyConsent = vi.fn()
     const module = createOperatorLocationsPageModule({
       getList,
       getActivity: vi.fn(async () => emptyActivity()),
-      completePrivacyReview,
+      navigateToPrivacyConsent,
       debounceMs: 0,
     })
 
@@ -235,13 +222,12 @@ describe("createOperatorLocationsPageModule", () => {
 
     await module.onReviewSetupAttention("privacy-review")
 
-    expect(completePrivacyReview).toHaveBeenCalledTimes(1)
+    expect(navigateToPrivacyConsent).toHaveBeenCalledTimes(1)
     expect(
       module.getSnapshot().setupAttentionItems.some(
         (item) => item.id === "privacy-review"
       )
-    ).toBe(false)
-    expect(module.getSnapshot().setupAttentionItems).toEqual([])
+    ).toBe(true)
   })
 
   it("keeps getSnapshot identity until emit", async () => {

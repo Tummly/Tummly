@@ -365,4 +365,88 @@ describe("createOperatorPrivacyConsentPageModule", () => {
     await pageModule.load()
     expect(pageModule.getSnapshot().activityItems).toEqual([])
   })
+
+  it("pages permission records with Previous and Next", async () => {
+    const getPermissionRecords = vi
+      .fn()
+      .mockResolvedValueOnce(
+        recordsResponse({ totalCount: 30, page: 1, pageSize: 25 })
+      )
+      .mockResolvedValueOnce(
+        recordsResponse({ totalCount: 30, page: 2, pageSize: 25, rows: [] })
+      )
+    const api = adapters({ getPermissionRecords, debounceMs: 0 })
+    const pageModule = createOperatorPrivacyConsentPageModule(api)
+    await pageModule.load()
+
+    const first = pageModule.getSnapshot()
+    expect(first.permissionRecordsCanGoNext).toBe(true)
+    expect(first.permissionRecordsCanGoPrevious).toBe(false)
+    expect(first.permissionRecordsPageRangeLabel).toBe(
+      "Showing 1–25 of 30 permission records"
+    )
+
+    pageModule.goToNextPermissionRecordsPage()
+    await Promise.resolve()
+
+    expect(getPermissionRecords).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 2 })
+    )
+    expect(pageModule.getSnapshot().permissionRecordsCanGoPrevious).toBe(true)
+  })
+
+  it("syncs location filter options from the adapter", () => {
+    const getLocationFilterOptions = vi
+      .fn()
+      .mockReturnValueOnce([])
+      .mockReturnValueOnce([{ id: "5", label: "Shoreditch" }])
+    const api = adapters({ getLocationFilterOptions })
+    const pageModule = createOperatorPrivacyConsentPageModule(api)
+
+    expect(pageModule.getSnapshot().permissionRecordsLocationOptions).toEqual(
+      []
+    )
+
+    pageModule.syncLocationFilterOptions()
+    expect(pageModule.getSnapshot().permissionRecordsLocationOptions).toEqual([
+      { id: "5", label: "Shoreditch" },
+    ])
+  })
+
+  it("surfaces toggle save errors in toast state", async () => {
+    const patchToggles = vi.fn(async () => {
+      throw new Error("Network failed")
+    })
+    const api = adapters({ patchToggles })
+    const pageModule = createOperatorPrivacyConsentPageModule(api)
+    await pageModule.load()
+
+    await pageModule.setGuestPermissionEnabled("email-marketing", false)
+
+    expect(pageModule.getSnapshot().toast).toEqual({
+      kind: "error",
+      message: "Network failed",
+    })
+    expect(
+      pageModule.getSnapshot().guestPermissions.find(
+        (card) => card.id === "email-marketing"
+      )?.enabled
+    ).toBe(true)
+  })
+
+  it("surfaces consent wording save errors in toast state", async () => {
+    const saveWording = vi.fn(async () => {
+      throw new Error("Save rejected")
+    })
+    const api = adapters({ saveWording })
+    const pageModule = createOperatorPrivacyConsentPageModule(api)
+    await pageModule.load()
+
+    await pageModule.saveConsentWording({ emailConsentWording: "New copy." })
+
+    expect(pageModule.getSnapshot().toast).toEqual({
+      kind: "error",
+      message: "Save rejected",
+    })
+  })
 })

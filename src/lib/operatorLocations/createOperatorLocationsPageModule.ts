@@ -113,8 +113,8 @@ export type OperatorLocationsPageAdapters = {
     locationId: number,
     action: "pause" | "resume" | "archive" | "restore"
   ) => Promise<void>
-  /** Marks restaurant Privacy consent ready (clears privacy-review attention). */
-  completePrivacyReview?: () => Promise<void>
+  /** Opens Privacy & consent so the operator can enter wording before ready. */
+  navigateToPrivacyConsent?: () => void
   debounceMs?: number
   getNow?: () => Date
 }
@@ -590,20 +590,7 @@ export function createOperatorLocationsPageModule(
         return
       }
 
-      const complete = adapters.completePrivacyReview
-      if (!complete) {
-        return
-      }
-
-      loadStatus = "loading"
-      emit()
-      try {
-        await complete()
-        await fetchListAndActivity()
-      } catch {
-        loadStatus = "error"
-        emit()
-      }
+      adapters.navigateToPrivacyConsent?.()
     },
   }
 }

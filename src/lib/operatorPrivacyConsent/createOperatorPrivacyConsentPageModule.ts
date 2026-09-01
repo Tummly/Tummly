@@ -30,8 +30,10 @@ import {
   PERMISSION_RECORDS_DEMO_ROWS,
   PRIVACY_ACTIVITY_DEMO_ITEMS,
   PRIVACY_CONSENT_TAB_IDS,
+  PRIVACY_CONSENT_PAGE_COPY,
   PRIVACY_CONSENT_TAB_LABELS,
   PRIVACY_SETUP_STATUS_DEMO_ROWS,
+  formatPermissionRecordsPageRange,
   resolvePrivacyConsentTabId,
   type GuestPermissionCard,
   type GuestPermissionId,
@@ -63,7 +65,14 @@ export type PrivacyConsentSnapshot = {
   permissionRecordsLocationOptions: Array<{ id: string; label: string }>
   permissionRecordsRows: PermissionRecordRow[]
   permissionRecordsEmpty: boolean
+  permissionRecordsPage: number
+  permissionRecordsPageSize: number
+  permissionRecordsTotalCount: number
+  permissionRecordsPageRangeLabel: string
+  permissionRecordsCanGoPrevious: boolean
+  permissionRecordsCanGoNext: boolean
   activityItems: PrivacyActivityItem[]
+  toast: { kind: "success" | "error"; message: string } | null
 }
 
 export type OperatorPrivacyConsentPageAdapters = {
@@ -71,7 +80,9 @@ export type OperatorPrivacyConsentPageAdapters = {
   patchToggles: (
     payload: ReturnType<typeof patchPayloadForGuestPermission>
   ) => Promise<void>
-  saveWording?: (input: SavePrivacyConsentInput) => Promise<void>
+  saveWording?: (
+    input: SavePrivacyConsentInput
+  ) => Promise<{ privacyReady: boolean }>
   getPermissionRecords: (
     params: PermissionRecordsListQueryParams
   ) => Promise<PermissionRecordsListResponse>
@@ -106,6 +117,10 @@ export type OperatorPrivacyConsentPageModule = {
   applyPermissionRecordsFilters: () => void
   removePermissionRecordsFilterChip: (chip: FilterChip) => void
   clearPermissionRecordsSearchAndFilters: () => void
+  goToPreviousPermissionRecordsPage: () => void
+  goToNextPermissionRecordsPage: () => void
+  syncLocationFilterOptions: () => void
+  clearToast: () => void
   viewPermissionRecord: (recordId: string) => void
 }
 
@@ -229,6 +244,7 @@ export function createOperatorPrivacyConsentPageModule(
     : adapters.getLocationFilterOptions()
   let permissionRecordsTotalCount = isDemo ? permissionRecordsRows.length : 0
   let permissionRecordsPage = 1
+  let toast: PrivacyConsentSnapshot["toast"] = null
 
   const listeners = new Set<() => void>()
   let snapshot: PrivacyConsentSnapshot
@@ -262,6 +278,13 @@ export function createOperatorPrivacyConsentPageModule(
       : permissionRecordsRows
     const filterChips =
       applied == null ? [] : projectChips(schema(), applied)
+    const pageSize = PERMISSION_RECORDS_PAGE_SIZE
+    const safePage = Math.max(1, permissionRecordsPage)
+    const maxPage = Math.max(
+      1,
+      Math.ceil(permissionRecordsTotalCount / pageSize)
+    )
+    const clampedPage = Math.min(safePage, maxPage)
 
     return {
       activeTabId,
@@ -287,7 +310,18 @@ export function createOperatorPrivacyConsentPageModule(
       permissionRecordsRows: filteredRows,
       permissionRecordsEmpty:
         permissionRecordsTotalCount === 0 && loadStatus !== "loading",
+      permissionRecordsPage: clampedPage,
+      permissionRecordsPageSize: pageSize,
+      permissionRecordsTotalCount,
+      permissionRecordsPageRangeLabel: formatPermissionRecordsPageRange({
+        page: clampedPage,
+        pageSize,
+        totalCount: permissionRecordsTotalCount,
+      }),
+      permissionRecordsCanGoPrevious: clampedPage > 1,
+      permissionRecordsCanGoNext: clampedPage * pageSize < permissionRecordsTotalCount,
       activityItems,
+      toast,
     }
   }
 
@@ -483,8 +517,15 @@ export function createOperatorPrivacyConsentPageModule(
         applyPageData(pageData)
         applyActivityResponse(activityResponse)
         emit()
-      } catch {
+      } catch (error) {
         guestPermissions = previous
+        toast = {
+          kind: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : PRIVACY_CONSENT_PAGE_COPY.guestPermissionToggleError,
+        }
         emit()
       }
     },
@@ -506,9 +547,20 @@ export function createOperatorPrivacyConsentPageModule(
         ])
         applyPageData(pageData)
         applyActivityResponse(activityResponse)
+        toast = {
+          kind: "success",
+          message: PRIVACY_CONSENT_PAGE_COPY.consentWordingSaveSuccess,
+        }
         emit()
-      } catch {
-        // Leave snapshot unchanged on failure.
+      } catch (error) {
+        toast = {
+          kind: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : PRIVACY_CONSENT_PAGE_COPY.consentWordingSaveError,
+        }
+        emit()
       }
     },
     setPermissionRecordsSearchQuery: (query) => {
@@ -583,6 +635,38 @@ export function createOperatorPrivacyConsentPageModule(
         return
       }
       void fetchPermissionRecords()
+    },
+    goToPreviousPermissionRecordsPage: () => {
+      if (permissionRecordsPage <= 1 || isDemo) {
+        return
+      }
+      permissionRecordsPage -= 1
+      void fetchPermissionRecords()
+    },
+    goToNextPermissionRecordsPage: () => {
+      const pageSize = PERMISSION_RECORDS_PAGE_SIZE
+      if (
+        isDemo
+        || permissionRecordsPage * pageSize >= permissionRecordsTotalCount
+      ) {
+        return
+      }
+      permissionRecordsPage += 1
+      void fetchPermissionRecords()
+    },
+    syncLocationFilterOptions: () => {
+      if (isDemo) {
+        return
+      }
+      permissionRecordsLocationOptions = adapters.getLocationFilterOptions()
+      emit()
+    },
+    clearToast: () => {
+      if (toast == null) {
+        return
+      }
+      toast = null
+      emit()
     },
     viewPermissionRecord: (recordId) => {
       if (!canViewGuests || adapters.navigateToGuestProfile == null) {

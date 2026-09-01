@@ -2,6 +2,7 @@ import { useEffect, useSyncExternalStore } from "react"
 import { useSearchParams } from "react-router-dom"
 
 import { GuestPermissionsSection } from "@/components/dashboard/operator/PrivacyConsent/GuestPermissionsSection"
+import { ConsentWordingSection } from "@/components/dashboard/operator/PrivacyConsent/ConsentWordingSection"
 import { PermissionRecordsSection } from "@/components/dashboard/operator/PrivacyConsent/PermissionRecordsSection"
 import { PrivacyActivitySection } from "@/components/dashboard/operator/PrivacyConsent/PrivacyActivitySection"
 import { PrivacySetupStatusSection } from "@/components/dashboard/operator/PrivacyConsent/PrivacySetupStatusSection"
@@ -142,8 +143,22 @@ export function PrivacyConsentPage() {
             ACCOUNT_WORKSPACE_TAB_BODY_CLASS
           )}
         >
-          <TabsContent value="privacy-setup" className="mt-0">
+          <TabsContent value="privacy-setup" className="mt-0 flex flex-col gap-5">
             <PrivacySetupStatusSection rows={snap.privacySetupRows} />
+            <ConsentWordingSection
+              emailWording={snap.emailConsentWording}
+              smsWording={snap.smsConsentWording}
+              emailEnabled={
+                snap.guestPermissions.find((card) => card.id === "email-marketing")
+                  ?.enabled === true
+              }
+              smsEnabled={
+                snap.guestPermissions.find((card) => card.id === "sms-marketing")
+                  ?.enabled === true
+              }
+              readOnly={!snap.actorCanManage}
+              onSave={pageModule.saveConsentWording}
+            />
           </TabsContent>
 
           <TabsContent value="guest-permissions" className="mt-0">
@@ -171,6 +186,11 @@ export function PrivacyConsentPage() {
                 pageModule.clearPermissionRecordsSearchAndFilters
               }
               onViewRecord={pageModule.viewPermissionRecord}
+              pageRangeLabel={snap.permissionRecordsPageRangeLabel}
+              canGoPrevious={snap.permissionRecordsCanGoPrevious}
+              canGoNext={snap.permissionRecordsCanGoNext}
+              onPreviousPage={pageModule.goToPreviousPermissionRecordsPage}
+              onNextPage={pageModule.goToNextPermissionRecordsPage}
             />
           </TabsContent>
 

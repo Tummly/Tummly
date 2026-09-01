@@ -4,7 +4,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom"
 
 import {
   getLocationsActivity,
@@ -18,8 +18,9 @@ import {
   importOwnedLocations,
   setOwnedLocationManager,
 } from "@/api/locationsWriteApi"
-import { savePrivacyConsent } from "@/api/privacyConsentApi"
 import { locationsPageModuleContext } from "@/components/dashboard/operator/Locations/utils/locationsPageModuleContext"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
+import { operatorDashboardNavPath } from "@/lib/operatorHome/operatorDashboardPaths"
 import { createOperatorLocationsPageModule } from "@/lib/operatorLocations/createOperatorLocationsPageModule"
 
 export function LocationsPageModuleProvider({
@@ -27,6 +28,9 @@ export function LocationsPageModuleProvider({
 }: {
   children: ReactNode
 }) {
+  const navigate = useNavigate()
+  const { mode, selectedLocationId } =
+    useOutletContext<DashboardOutletContext>()
   const [searchParams] = useSearchParams()
   const initialTabId = searchParams.get("tab")
   const [pageModule] = useState(() =>
@@ -60,8 +64,10 @@ export function LocationsPageModuleProvider({
           )
         },
         mutateLifecycle: mutateLocationLifecycle,
-        completePrivacyReview: async () => {
-          await savePrivacyConsent()
+        navigateToPrivacyConsent: () => {
+          navigate(
+            operatorDashboardNavPath(mode, "privacy-consent", selectedLocationId)
+          )
         },
       },
       { initialTabId }

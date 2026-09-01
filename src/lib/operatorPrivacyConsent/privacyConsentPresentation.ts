@@ -39,7 +39,30 @@ export const PRIVACY_CONSENT_PAGE_COPY = {
   privacyActivityEmptyTitle: "No activity yet",
   privacyActivityEmptyBody:
     "Privacy and consent activity will appear here.",
+  consentWordingTitle: "Consent wording",
+  consentWordingSubtitle:
+    "Edit the consent copy guests see for enabled marketing channels on your guest form.",
+  emailConsentWordingLabel: "Email marketing consent",
+  smsConsentWordingLabel: "SMS marketing consent",
+  consentWordingSave: "Save consent wording",
+  consentWordingSaveSuccess: "Consent wording saved.",
+  consentWordingSaveError: "Could not save consent wording.",
+  guestPermissionToggleError: "Could not save guest permission.",
 } as const
+
+/** Pagination label for permission records table. */
+export function formatPermissionRecordsPageRange(options: {
+  page: number
+  pageSize: number
+  totalCount: number
+}): string {
+  if (options.totalCount === 0) {
+    return "Showing 0 of 0 permission records"
+  }
+  const start = (options.page - 1) * options.pageSize + 1
+  const end = Math.min(options.page * options.pageSize, options.totalCount)
+  return `Showing ${start}–${end} of ${options.totalCount} permission records`
+}
 
 /** Nested permission tile — Figma Concent card fill `#171717`. */
 export const GUEST_PERMISSION_TILE_CLASS =

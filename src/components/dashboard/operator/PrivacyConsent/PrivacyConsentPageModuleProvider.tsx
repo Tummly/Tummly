@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react"
 import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom"
+import { toast } from "sonner"
 
 import {
   getPermissionRecords,
@@ -54,7 +55,32 @@ export function PrivacyConsentPageModuleProvider({
   )
 
   useEffect(() => {
+    if (workspace.snapshot.status !== "loaded") {
+      return
+    }
+    pageModule.syncLocationFilterOptions()
+  }, [pageModule, workspace.snapshot.status, workspace.snapshot.locations])
+
+  useEffect(() => {
+    if (workspace.snapshot.status !== "loaded") {
+      return
+    }
     void pageModule.load()
+  }, [pageModule, workspace.snapshot.status])
+
+  useEffect(() => {
+    return pageModule.subscribe(() => {
+      const snap = pageModule.getSnapshot()
+      if (snap.toast == null) {
+        return
+      }
+      if (snap.toast.kind === "success") {
+        toast.success(snap.toast.message)
+      } else {
+        toast.error(snap.toast.message)
+      }
+      pageModule.clearToast()
+    })
   }, [pageModule])
 
   useEffect(() => {
