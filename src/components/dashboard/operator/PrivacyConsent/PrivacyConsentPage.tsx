@@ -1,5 +1,6 @@
-import { useEffect, useSyncExternalStore } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useSyncExternalStore } from "react"
+
+import { useWriteActiveTabToSearchParams } from "@/hooks/useWriteActiveTabToSearchParams"
 
 import { GuestPermissionsSection } from "@/components/dashboard/operator/PrivacyConsent/GuestPermissionsSection"
 import { ConsentWordingSection } from "@/components/dashboard/operator/PrivacyConsent/ConsentWordingSection"
@@ -44,18 +45,9 @@ export function PrivacyConsentPage() {
     pageModule.getSnapshot,
     pageModule.getSnapshot
   )
-  const [searchParams, setSearchParams] = useSearchParams()
   const copy = PRIVACY_CONSENT_PAGE_COPY
 
-  useEffect(() => {
-    const current = searchParams.get("tab")
-    if (current === snap.activeTabId) {
-      return
-    }
-    const next = new URLSearchParams(searchParams)
-    next.set("tab", snap.activeTabId)
-    setSearchParams(next, { replace: true })
-  }, [snap.activeTabId, searchParams, setSearchParams])
+  useWriteActiveTabToSearchParams(snap.activeTabId)
 
   const permissionRecordsSchema = permissionRecordsFilterSheetSchema({
     locations: snap.permissionRecordsLocationOptions,

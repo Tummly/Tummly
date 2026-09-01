@@ -1,11 +1,12 @@
-import { useEffect, useSyncExternalStore } from "react"
+import { useSyncExternalStore } from "react"
 import { ChevronRightIcon } from "lucide-react"
 import {
   Link,
   useNavigate,
   useOutletContext,
-  useSearchParams,
 } from "react-router-dom"
+
+import { useWriteActiveTabToSearchParams } from "@/hooks/useWriteActiveTabToSearchParams"
 
 import { LocationDetailGuestLoopTab } from "@/components/dashboard/operator/Locations/LocationDetailGuestLoopTab"
 import { LocationDetailLocationControlsTab } from "@/components/dashboard/operator/Locations/LocationDetailLocationControlsTab"
@@ -65,10 +66,11 @@ export function LocationDetailPage() {
     pageModule.getSnapshot,
     pageModule.getSnapshot
   )
-  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const { mode } = useOutletContext<DashboardOutletContext>()
   const copy = LOCATION_DETAIL_PAGE_COPY
+
+  useWriteActiveTabToSearchParams(snap.activeTabId, { defaultTabId: "overview" })
 
   const locationsListPath = operatorDashboardNavPath(
     mode,
@@ -102,23 +104,6 @@ export function LocationDetailPage() {
     "team-permissions",
     snap.locationId
   )
-
-  useEffect(() => {
-    const current = searchParams.get("tab")
-    if (current === snap.activeTabId) {
-      return
-    }
-    if (current == null && snap.activeTabId === "overview") {
-      return
-    }
-    const next = new URLSearchParams(searchParams)
-    if (snap.activeTabId === "overview") {
-      next.delete("tab")
-    } else {
-      next.set("tab", snap.activeTabId)
-    }
-    setSearchParams(next, { replace: true })
-  }, [searchParams, setSearchParams, snap.activeTabId])
 
   const lifecycleVariant = locationLifecycleBadgeVariant(snap.lifecycleStatus)
   const lifecycleLabel = LOCATION_LIFECYCLE_LABELS[snap.lifecycleStatus]

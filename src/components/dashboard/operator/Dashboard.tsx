@@ -183,7 +183,13 @@ function DashboardContent({ mode }: DashboardProps) {
     preferRef.current(queryLocationId)
   }, [queryLocationId, workspace.snapshot.status])
 
+  // Write picker selection to `?location=` only when selection changes — not when
+  // the URL changes first (e.g. View location from the list). Including
+  // searchParams here races preferLocationFromQuery and flips the shell location.
   useEffect(() => {
+    if (workspace.snapshot.status !== "loaded") {
+      return
+    }
     const selectedLocationId = workspace.snapshot.selectedLocationId
     if (selectedLocationId == null) {
       return
@@ -199,7 +205,8 @@ function DashboardContent({ mode }: DashboardProps) {
       },
       { replace: true }
     )
-  }, [workspace.snapshot.selectedLocationId, searchParams, setSearchParams])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- searchParams omitted; see comment above
+  }, [workspace.snapshot.selectedLocationId, workspace.snapshot.status, setSearchParams])
 
   useEffect(() => {
     if (workspace.snapshot.status !== "loaded") {

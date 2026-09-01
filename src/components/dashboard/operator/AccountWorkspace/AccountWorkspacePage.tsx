@@ -4,7 +4,9 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react"
-import { Link, useNavigate, useOutletContext, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useOutletContext } from "react-router-dom"
+
+import { useWriteActiveTabToSearchParams } from "@/hooks/useWriteActiveTabToSearchParams"
 
 import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
@@ -235,9 +237,10 @@ export function AccountWorkspacePage() {
     snap.accountRequestConfirm != null
       ? accountRequestConfirmLabels(snap.accountRequestConfirm)
       : null
-  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useWriteActiveTabToSearchParams(snap.activeTabId)
 
   const selectedLocationName =
     locations.find((location) => location.id === selectedLocationId)
@@ -249,16 +252,6 @@ export function AccountWorkspacePage() {
     || selectedLocationName?.trim()
     || firstLocationName?.trim()
     || ""
-
-  useEffect(() => {
-    const current = searchParams.get("tab")
-    if (current === snap.activeTabId) {
-      return
-    }
-    const next = new URLSearchParams(searchParams)
-    next.set("tab", snap.activeTabId)
-    setSearchParams(next, { replace: true })
-  }, [snap.activeTabId, searchParams, setSearchParams])
 
   useEffect(() => {
     if (snap.pendingNavigationHref == null) {

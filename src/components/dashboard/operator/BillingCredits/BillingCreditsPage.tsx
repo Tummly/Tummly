@@ -6,7 +6,9 @@ import {
   MessageSquareIcon,
   PackageIcon,
 } from "lucide-react"
-import { Link, useNavigate, useSearchParams } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
+
+import { useWriteActiveTabToSearchParams } from "@/hooks/useWriteActiveTabToSearchParams"
 
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
 import { useBillingCreditsPageModuleApi } from "@/components/dashboard/operator/BillingCredits/utils/billingCreditsPageModuleContext"
@@ -1289,18 +1291,9 @@ export function BillingCreditsPage() {
     pageModule.getSnapshot,
     pageModule.getSnapshot
   )
-  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
 
-  useEffect(() => {
-    const current = searchParams.get("tab")
-    if (current === snap.activeTabId) {
-      return
-    }
-    const next = new URLSearchParams(searchParams)
-    next.set("tab", snap.activeTabId)
-    setSearchParams(next, { replace: true })
-  }, [snap.activeTabId, searchParams, setSearchParams])
+  useWriteActiveTabToSearchParams(snap.activeTabId)
 
   useEffect(() => {
     if (snap.pendingNavigationHref == null) {

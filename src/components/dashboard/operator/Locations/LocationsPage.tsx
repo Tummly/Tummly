@@ -1,6 +1,8 @@
-import { useEffect, useState, useSyncExternalStore } from "react"
+import { useState, useSyncExternalStore } from "react"
 import { toast } from "sonner"
-import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom"
+import { useNavigate, useOutletContext } from "react-router-dom"
+
+import { useWriteActiveTabToSearchParams } from "@/hooks/useWriteActiveTabToSearchParams"
 
 import { LocationsActivitySection } from "@/components/dashboard/operator/Locations/LocationsActivitySection"
 import { LocationsAddLocationDialog } from "@/components/dashboard/operator/Locations/LocationsAddLocationDialog"
@@ -59,10 +61,11 @@ export function LocationsPage() {
     pageModule.getSnapshot,
     pageModule.getSnapshot
   )
-  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { mode } = useOutletContext<DashboardOutletContext>()
+  const { mode, selectLocation } = useOutletContext<DashboardOutletContext>()
   const copy = LOCATIONS_PAGE_COPY
+
+  useWriteActiveTabToSearchParams(snap.activeTabId)
 
   const [addOpen, setAddOpen] = useState(false)
   const [addBusy, setAddBusy] = useState(false)
@@ -94,16 +97,6 @@ export function LocationsPage() {
   const [lifecycleBusy, setLifecycleBusy] = useState(false)
   const [lifecycleError, setLifecycleError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const current = searchParams.get("tab")
-    if (current === snap.activeTabId) {
-      return
-    }
-    const next = new URLSearchParams(searchParams)
-    next.set("tab", snap.activeTabId)
-    setSearchParams(next, { replace: true })
-  }, [snap.activeTabId, searchParams, setSearchParams])
-
   const schema = locationsFilterSheetSchema({
     cities: snap.cityFilterOptions,
   })
@@ -128,6 +121,11 @@ export function LocationsPage() {
       toast.error(lifecycleActionErrorMessage(error))
       return false
     }
+  }
+
+  const navigateWithLocation = (path: string, locationId: number) => {
+    selectLocation(locationId)
+    navigate(path)
   }
 
   const handleRowAction = (locationId: string, actionId: LocationRowActionId) => {
@@ -168,7 +166,7 @@ export function LocationsPage() {
       actionId
     )
     if (navPath != null) {
-      navigate(navPath)
+      navigateWithLocation(navPath, numericId)
       return
     }
 
@@ -197,7 +195,10 @@ export function LocationsPage() {
         toast.error(copy.noActiveQrReviewEmptyToast)
         return
       }
-      navigate(operatorDashboardCaptureForLocationPath(mode, firstLocationId))
+      navigateWithLocation(
+        operatorDashboardCaptureForLocationPath(mode, firstLocationId),
+        firstLocationId
+      )
       return
     }
 
@@ -310,7 +311,10 @@ export function LocationsPage() {
                 if (!Number.isFinite(id)) {
                   return
                 }
-                navigate(operatorDashboardLocationDetailPath(mode, id))
+                navigateWithLocation(
+                  operatorDashboardLocationDetailPath(mode, id),
+                  id
+                )
               }}
             />
           </TabsContent>
