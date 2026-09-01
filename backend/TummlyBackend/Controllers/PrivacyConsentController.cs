@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.PrivacyConsent;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Controllers
 {
@@ -14,16 +15,19 @@ namespace TummlyBackend.Controllers
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IPrivacyConsentSaveService _save;
         private readonly IPrivacyConsentService _privacyConsent;
+        private readonly IPermissionRecordsListService _permissionRecords;
 
         public PrivacyConsentController(
             IRestaurantPermissionHelper permissions,
             IPrivacyConsentSaveService save,
-            IPrivacyConsentService privacyConsent
+            IPrivacyConsentService privacyConsent,
+            IPermissionRecordsListService permissionRecords
         )
         {
             _permissions = permissions;
             _save = save;
             _privacyConsent = privacyConsent;
+            _permissionRecords = permissionRecords;
         }
 
         [HttpGet]
@@ -65,6 +69,70 @@ namespace TummlyBackend.Controllers
                     }
                 ),
             };
+        }
+
+        [HttpGet("permission-records")]
+        public async Task<IActionResult> GetPermissionRecords(
+            [FromQuery] string? q = null,
+            [FromQuery] string[]? permission = null,
+            [FromQuery] string[]? currentState = null,
+            [FromQuery] string[]? location = null,
+            [FromQuery] string? datePreset = null,
+            [FromQuery] DateTime? dateFrom = null,
+            [FromQuery] DateTime? dateTo = null,
+            [FromQuery] string sort = "recent-activity",
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = PermissionRecordsListService.DefaultPageSize,
+            [FromQuery] int utcOffsetMinutes = 0
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out _);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeLocationSetAsync(
+                User,
+                OperatorAreaIds.PrivacyConsent,
+                PermissionLevel.View
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _permissionRecords.ListAsync(
+                    new PermissionRecordsListQuery
+                    {
+                        RestaurantId = decision.RestaurantId,
+                        LocationIds = decision.LocationIds,
+                        Q = q,
+                        Permissions = permission ?? [],
+                        CurrentStates = currentState ?? [],
+                        Locations = location ?? [],
+                        DatePreset = datePreset,
+                        DateFrom = dateFrom,
+                        DateTo = dateTo,
+                        Sort = sort,
+                        Page = page,
+                        PageSize = pageSize,
+                        UtcOffsetMinutes = utcOffsetMinutes,
+                    }
+                );
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
         }
 
         [HttpGet("activity")]
