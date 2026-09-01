@@ -17,7 +17,6 @@ import {
 } from "@/api/privacyConsentApi"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { privacyConsentPageModuleContext } from "@/components/dashboard/operator/PrivacyConsent/utils/privacyConsentPageModuleContext"
-import { useWorkspaceSession } from "@/components/dashboard/operator/useWorkspaceSession"
 import { operatorDashboardGuestProfilePath } from "@/lib/operatorHome/operatorDashboardPaths"
 import { createOperatorPrivacyConsentPageModule } from "@/lib/operatorPrivacyConsent/createOperatorPrivacyConsentPageModule"
 
@@ -27,10 +26,9 @@ export function PrivacyConsentPageModuleProvider({
   children: ReactNode
 }) {
   const navigate = useNavigate()
-  const { mode } = useOutletContext<DashboardOutletContext>()
-  const workspace = useWorkspaceSession(mode)
-  const workspaceRef = useRef(workspace)
-  workspaceRef.current = workspace
+  const { mode, locations } = useOutletContext<DashboardOutletContext>()
+  const locationsRef = useRef(locations)
+  locationsRef.current = locations
   const [searchParams] = useSearchParams()
   const initialTabId = searchParams.get("tab")
   const [pageModule] = useState(() =>
@@ -41,7 +39,7 @@ export function PrivacyConsentPageModuleProvider({
       getPermissionRecords,
       getActivity: getPrivacyConsentActivity,
       getLocationFilterOptions: () =>
-        workspaceRef.current.snapshot.locations.map((location) => ({
+        locationsRef.current.map((location) => ({
           id: String(location.id),
           label: location.locationName,
         })),
@@ -55,18 +53,12 @@ export function PrivacyConsentPageModuleProvider({
   )
 
   useEffect(() => {
-    if (workspace.snapshot.status !== "loaded") {
-      return
-    }
     pageModule.syncLocationFilterOptions()
-  }, [pageModule, workspace.snapshot.status, workspace.snapshot.locations])
+  }, [pageModule, locations])
 
   useEffect(() => {
-    if (workspace.snapshot.status !== "loaded") {
-      return
-    }
     void pageModule.load()
-  }, [pageModule, workspace.snapshot.status])
+  }, [pageModule])
 
   useEffect(() => {
     return pageModule.subscribe(() => {

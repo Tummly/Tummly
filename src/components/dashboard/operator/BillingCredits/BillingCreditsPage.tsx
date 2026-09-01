@@ -1311,6 +1311,28 @@ export function BillingCreditsPage() {
   }, [snap.pendingNavigationHref, pageModule, navigate])
 
   useEffect(() => {
+    if (snap.pendingPayRedirectUrl == null) {
+      return
+    }
+    const url = pageModule.consumePendingPayRedirect()
+    if (url == null) {
+      return
+    }
+    window.location.assign(url)
+  }, [snap.pendingPayRedirectUrl, pageModule])
+
+  useEffect(() => {
+    if (snap.pendingPaymentMethodRedirectUrl == null) {
+      return
+    }
+    const href = pageModule.consumePendingPaymentMethodRedirect()
+    if (href == null) {
+      return
+    }
+    window.location.assign(href)
+  }, [snap.pendingPaymentMethodRedirectUrl, pageModule])
+
+  useEffect(() => {
     registerLeaveDirtyGuard({
       isBlocked: () => pageModule.getSnapshot().isDirty,
       requestLeave: (href) => pageModule.requestNavigateAway(href),

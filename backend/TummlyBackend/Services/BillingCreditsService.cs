@@ -1461,6 +1461,7 @@ namespace TummlyBackend.Services
                     is "idempotency_target_mismatch"
                         or "revolut_customer_required"
                         or "Frontend:BaseUrl is not configured."
+                        or RevolutHostedCheckoutRedirectUrls.InvalidHostErrorCode
             )
             {
                 var status = ex.Message == "idempotency_target_mismatch"

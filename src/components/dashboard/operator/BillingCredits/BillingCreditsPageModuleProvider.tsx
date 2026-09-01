@@ -1,10 +1,11 @@
 import {
   createElement,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
-import { useLocation, useOutletContext, useSearchParams } from "react-router-dom"
+import { useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import {
@@ -40,10 +41,12 @@ export function BillingCreditsPageModuleProvider({
 }) {
   const [searchParams] = useSearchParams()
   const location = useLocation()
+  const navigate = useNavigate()
   const { mode, selectedLocationId } =
     useOutletContext<DashboardOutletContext>()
   const initialTabId = searchParams.get("tab")
   const initialSection = searchParams.get("section")
+  const handledTopUpReturnRef = useRef<string | null>(null)
   const [pageModule] = useState(() =>
     createOperatorBillingCreditsPageModule(
       {
@@ -115,16 +118,36 @@ export function BillingCreditsPageModuleProvider({
   useEffect(() => {
     const outcome = searchParams.get("topUpOutcome")
     if (outcome == null) {
+      handledTopUpReturnRef.current = null
       return
     }
     if (
-      outcome === "success"
-      || outcome === "cancel"
-      || outcome === "fail"
+      outcome !== "success"
+      && outcome !== "cancel"
+      && outcome !== "fail"
     ) {
-      pageModule.handleTopUpPayReturn(outcome)
+      return
     }
-  }, [pageModule, searchParams])
+
+    const returnKey = `${location.pathname}?${searchParams.toString()}`
+    if (handledTopUpReturnRef.current === returnKey) {
+      return
+    }
+    handledTopUpReturnRef.current = returnKey
+
+    pageModule.handleTopUpPayReturn(outcome)
+    void pageModule.load()
+
+    const next = new URLSearchParams(searchParams)
+    next.delete("topUpOutcome")
+    navigate(
+      {
+        pathname: location.pathname,
+        search: next.toString() === "" ? "" : `?${next.toString()}`,
+      },
+      { replace: true }
+    )
+  }, [pageModule, searchParams, location.pathname, navigate])
 
   useEffect(() => {
     const snap = pageModule.getSnapshot()

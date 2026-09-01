@@ -131,9 +131,15 @@ namespace TummlyBackend.Services
                 channel,
                 pack.Quantity
             );
-            var redirectUrl = BuildCreditsUsageRedirectUrl(
+            var redirectUrl = RevolutHostedCheckoutRedirectUrls.BuildBillingCreditsTabUrl(
+                _configuration,
                 restaurantAccountType,
-                locationId
+                locationId,
+                "credits-usage",
+                new Dictionary<string, string>
+                {
+                    ["topUpOutcome"] = "success",
+                }
             );
 
             var created = await _merchant.CreateOrderAsync(
@@ -249,30 +255,6 @@ namespace TummlyBackend.Services
             }
 
             return url;
-        }
-
-        private string BuildCreditsUsageRedirectUrl(
-            string restaurantAccountType,
-            int locationId
-        )
-        {
-            var baseUrl = _configuration["Frontend:BaseUrl"]?.Trim().TrimEnd('/');
-            if (string.IsNullOrWhiteSpace(baseUrl))
-            {
-                throw new InvalidOperationException(
-                    "Frontend:BaseUrl is not configured."
-                );
-            }
-
-            var root = string.Equals(
-                restaurantAccountType,
-                "Multi",
-                StringComparison.Ordinal
-            )
-                ? "/multi-dashboard"
-                : "/single-dashboard";
-
-            return $"{baseUrl}{root}/settings/billing-credits?location={locationId}&tab=credits-usage";
         }
 
         internal static bool IsPayableOrder(RevolutOrderRetrieveResult order)

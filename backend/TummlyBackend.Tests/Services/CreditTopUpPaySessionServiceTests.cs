@@ -47,6 +47,10 @@ namespace TummlyBackend.Tests.Services
                 "tab=credits-usage",
                 merchant.LastCreateOrderRequest.RedirectUrl
             );
+            Assert.Contains(
+                "topUpOutcome=success",
+                merchant.LastCreateOrderRequest.RedirectUrl
+            );
 
             var intent = await context.RevolutOrderIntents.SingleAsync();
             Assert.Equal(RevolutOrderIntentPurposes.Topup, intent.Purpose);
