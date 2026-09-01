@@ -75,14 +75,26 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var latestEvents = await _context.LocationGuestPermissionLedgerEntries
+            var persisted = await _context.LocationGuestPermissionLedgerEntries
                 .AsNoTracking()
                 .Where(e => e.LocationGuestId == locationGuestId)
+                .ToListAsync(cancellationToken);
+
+            var pending = _context.ChangeTracker
+                .Entries<LocationGuestPermissionLedgerEntry>()
+                .Where(e =>
+                    e.State == EntityState.Added
+                    || e.State == EntityState.Modified
+                )
+                .Select(e => e.Entity)
+                .Where(e => e.LocationGuestId == locationGuestId);
+
+            var latestEvents = persisted
+                .Concat(pending)
                 .GroupBy(e => e.PermissionKind)
                 .Select(g => g.OrderByDescending(e => e.OccurredAt)
                     .ThenByDescending(e => e.Id)
-                    .First())
-                .ToListAsync(cancellationToken);
+                    .First());
 
             var states = LocationGuestPermissionKindExtensions.All.ToDictionary(
                 kind => kind,

@@ -16,21 +16,21 @@ namespace TummlyBackend.Migrations
                 table: "Restaurants",
                 type: "bit",
                 nullable: false,
-                defaultValue: false);
+                defaultValue: true);
 
             migrationBuilder.AddColumn<bool>(
                 name: "FeedbackFollowUpPermissionEnabled",
                 table: "Restaurants",
                 type: "bit",
                 nullable: false,
-                defaultValue: false);
+                defaultValue: true);
 
             migrationBuilder.AddColumn<bool>(
                 name: "SmsMarketingPermissionEnabled",
                 table: "Restaurants",
                 type: "bit",
                 nullable: false,
-                defaultValue: false);
+                defaultValue: true);
 
             migrationBuilder.CreateTable(
                 name: "LocationGuestPermissionLedgerEntries",
@@ -50,13 +50,14 @@ namespace TummlyBackend.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_LocationGuestPermissionLedgerEntries", x => x.Id);
+                    // NoAction (not Cascade): SQL Server error 1785.
+                    // Guest delete removes ledger rows in LocationGuestDeleteService.
                     table.ForeignKey(
                         name: "FK_LocationGuestPermissionLedgerEntries_LocationGuests_LocationGuestId",
                         column: x => x.LocationGuestId,
                         principalTable: "LocationGuests",
                         principalColumn: "Id");
-                    // NoAction: SQL Server cascade-path limits; guest delete
-                    // removes ledger rows in LocationGuestDeleteService.
+                    // NoAction (not Cascade): SQL Server error 1785.
                     table.ForeignKey(
                         name: "FK_LocationGuestPermissionLedgerEntries_RestaurantLocations_RestaurantLocationId",
                         column: x => x.RestaurantLocationId,

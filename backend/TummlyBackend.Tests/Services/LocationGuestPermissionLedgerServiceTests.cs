@@ -109,6 +109,32 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SyncMarketingPreferenceRollupAsync_IncludesPendingLedgerEvents()
+        {
+            var guest = await SeedLocationGuestAsync(
+                LocationGuestMarketingPreference.NotRecorded
+            );
+            var at = new DateTime(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc);
+
+            _ledger.RecordEvent(
+                guest.Id,
+                guest.RestaurantLocationId,
+                LocationGuestPermissionKind.EmailMarketing,
+                LocationGuestPermissionLedgerEventKinds.Grant,
+                LocationGuestPermissionLedgerSources.GuestForm,
+                at
+            );
+
+            var rollup = await _ledger.SyncMarketingPreferenceRollupAsync(guest.Id);
+
+            Assert.Equal(LocationGuestMarketingPreference.Allowed, rollup);
+            Assert.Equal(
+                LocationGuestMarketingPreference.Allowed,
+                guest.MarketingPreference
+            );
+        }
+
+        [Fact]
         public async Task BackfillFromLegacyAllowed_MatchesMigrationMapping()
         {
             var guest = await SeedLocationGuestAsync(

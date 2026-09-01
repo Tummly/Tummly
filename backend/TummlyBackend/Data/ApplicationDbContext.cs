@@ -1248,7 +1248,7 @@ namespace TummlyBackend.Data
                 .HasOne(e => e.LocationGuest)
                 .WithMany()
                 .HasForeignKey(e => e.LocationGuestId)
-                // NoAction: same SQL Server cascade-path limits as activity events.
+                // NoAction (not Cascade): SQL Server error 1785.
                 // Guest delete removes ledger rows in LocationGuestDeleteService.
                 .OnDelete(DeleteBehavior.NoAction);
 
@@ -1256,6 +1256,7 @@ namespace TummlyBackend.Data
                 .HasOne(e => e.RestaurantLocation)
                 .WithMany()
                 .HasForeignKey(e => e.RestaurantLocationId)
+                // NoAction (not Cascade): SQL Server error 1785.
                 .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()

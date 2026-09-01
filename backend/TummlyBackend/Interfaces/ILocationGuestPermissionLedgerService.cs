@@ -32,7 +32,9 @@ namespace TummlyBackend.Interfaces
         /// <summary>
         /// Recomputes and writes the legacy
         /// <see cref="LocationGuest.MarketingPreference"/> rollup from the
-        /// permission ledger current state.
+        /// permission ledger current state (persisted rows plus pending
+        /// Added/Modified entries on this context). Caller must invoke this
+        /// in the same unit of work as <see cref="RecordEvent"/>.
         /// </summary>
         Task<LocationGuestMarketingPreference> SyncMarketingPreferenceRollupAsync(
             int locationGuestId,
