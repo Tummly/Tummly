@@ -1,10 +1,12 @@
 import type { LocationDetailApiResponse } from "@/lib/operatorLocations/locationDetailApi"
-import { mapLocationDetailSetupChecklist } from "@/lib/operatorLocations/locationDetailApi"
+import {
+  mapLocationDetailSetupChecklist,
+  mapLocationDetailTeamAccessRows,
+} from "@/lib/operatorLocations/locationDetailApi"
 import {
   buildEmptyOverviewMetrics,
   buildLocationGuestActivityChecklist,
   buildLocationControlsStatus,
-  buildLocationTeamAccessRows,
   formatLocationDetailHeaderMeta,
   locationControlsDangerActions,
   LOCATION_DETAIL_TAB_IDS,
@@ -169,10 +171,7 @@ export function createOperatorLocationDetailPageModule(
     liveQrCount = header.liveQrCount
     guestsCapturedThisMonth = header.guestsCapturedThisMonth
     setupChecklist = mapLocationDetailSetupChecklist(response.setupChecklist)
-    teamAccessRows = buildLocationTeamAccessRows({
-      managerName: header.managerName,
-      managerUserId: header.managerUserId,
-    })
+    teamAccessRows = mapLocationDetailTeamAccessRows(response.teamAccessRows)
     locationControlsStatus = buildLocationControlsStatus({
       lifecycleStatus: header.lifecycleStatus,
       setupStatus: header.setupStatus,

@@ -29,6 +29,21 @@ namespace TummlyBackend.DTOs.Locations
         public int GuestsCapturedThisMonth { get; init; }
     }
 
+    public sealed class LocationDetailTeamAccessRowDto
+    {
+        public int MembershipId { get; init; }
+
+        public int UserId { get; init; }
+
+        public string Name { get; init; } = string.Empty;
+
+        public string Role { get; init; } = string.Empty;
+
+        public string AccessLabel { get; init; } = string.Empty;
+
+        public DateTime? LastActiveAt { get; init; }
+    }
+
     public sealed class LocationDetailResponseDto
     {
         public bool Success { get; init; } = true;
@@ -39,5 +54,7 @@ namespace TummlyBackend.DTOs.Locations
         /// Checklist item id → status id (complete | optional | incomplete | not-started).
         /// </summary>
         public Dictionary<string, string> SetupChecklist { get; init; } = new();
+
+        public List<LocationDetailTeamAccessRowDto> TeamAccessRows { get; init; } = [];
     }
 }

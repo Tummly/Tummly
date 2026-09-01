@@ -40,6 +40,16 @@ function detailResponse(
       atLeastOneQrCreated: "complete",
       ...(overrides.setupChecklist ?? {}),
     },
+    teamAccessRows: [
+      {
+        membershipId: 7,
+        userId: 7,
+        name: "Aisha",
+        role: "Location Manager",
+        accessLabel: "KFC Chicken — Camden only",
+        lastActiveAt: null,
+      },
+    ],
     ...overrides,
   }
 }
@@ -117,8 +127,8 @@ describe("createOperatorLocationDetailPageModule", () => {
       {
         id: "7",
         name: "Aisha",
-        role: "Manager",
-        accessLabel: "This location only",
+        role: "Location Manager",
+        accessLabel: "KFC Chicken — Camden only",
         lastActiveLabel: "—",
       },
     ])
@@ -129,6 +139,36 @@ describe("createOperatorLocationDetailPageModule", () => {
       "pause"
     )
     expect(pageModule.getSnapshot().loadStatus).toBe("loaded")
+  })
+
+  it("maps teamAccessRows from detail response including last active", async () => {
+    const getDetail = vi.fn().mockResolvedValue(
+      detailResponse({
+        teamAccessRows: [
+          {
+            membershipId: 3,
+            userId: 3,
+            name: "Sam",
+            role: "Admin",
+            accessLabel: "All locations",
+            lastActiveAt: "2026-08-26T09:42:00.000Z",
+          },
+        ],
+      })
+    )
+    const pageModule = createOperatorLocationDetailPageModule(42, { getDetail })
+
+    await pageModule.load()
+
+    expect(pageModule.getSnapshot().teamAccessRows).toEqual([
+      {
+        id: "3",
+        name: "Sam",
+        role: "Admin",
+        accessLabel: "All locations",
+        lastActiveLabel: "Today, 09:42",
+      },
+    ])
   })
 
   it("uses server setup checklist without client heuristics", async () => {
