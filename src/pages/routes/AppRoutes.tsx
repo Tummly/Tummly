@@ -49,6 +49,8 @@ import { AccountWorkspacePageModuleProvider } from "@/components/dashboard/opera
 import { AccountWorkspaceRoute } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceRoute";
 import { LocationsPageModuleProvider } from "@/components/dashboard/operator/Locations/LocationsPageModuleProvider";
 import { LocationsRoute } from "@/components/dashboard/operator/Locations/LocationsRoute";
+import { LocationDetailPageModuleProvider } from "@/components/dashboard/operator/Locations/LocationDetailPageModuleProvider";
+import { LocationDetailRoute } from "@/components/dashboard/operator/Locations/LocationDetailRoute";
 import { PrivacyConsentPageModuleProvider } from "@/components/dashboard/operator/PrivacyConsent/PrivacyConsentPageModuleProvider";
 import { PrivacyConsentRoute } from "@/components/dashboard/operator/PrivacyConsent/PrivacyConsentRoute";
 import { TeamPermissionsPageModuleProvider } from "@/components/dashboard/operator/TeamPermissions/TeamPermissionsPageModuleProvider";
@@ -209,14 +211,24 @@ function AppRoutes() {
                     </AccountWorkspacePageModuleProvider>
                   }
                 />
-                <Route
-                  path="settings/locations"
-                  element={
-                    <LocationsPageModuleProvider>
-                      <LocationsRoute />
-                    </LocationsPageModuleProvider>
-                  }
-                />
+                <Route path="settings/locations">
+                  <Route
+                    index
+                    element={
+                      <LocationsPageModuleProvider>
+                        <LocationsRoute />
+                      </LocationsPageModuleProvider>
+                    }
+                  />
+                  <Route
+                    path=":locationId"
+                    element={
+                      <LocationDetailPageModuleProvider>
+                        <LocationDetailRoute />
+                      </LocationDetailPageModuleProvider>
+                    }
+                  />
+                </Route>
                 <Route
                   path="settings/team-permissions"
                   element={
@@ -310,14 +322,24 @@ function AppRoutes() {
                     </AccountWorkspacePageModuleProvider>
                   }
                 />
-                <Route
-                  path="settings/locations"
-                  element={
-                    <LocationsPageModuleProvider>
-                      <LocationsRoute />
-                    </LocationsPageModuleProvider>
-                  }
-                />
+                <Route path="settings/locations">
+                  <Route
+                    index
+                    element={
+                      <LocationsPageModuleProvider>
+                        <LocationsRoute />
+                      </LocationsPageModuleProvider>
+                    }
+                  />
+                  <Route
+                    path=":locationId"
+                    element={
+                      <LocationDetailPageModuleProvider>
+                        <LocationDetailRoute />
+                      </LocationDetailPageModuleProvider>
+                    }
+                  />
+                </Route>
                 <Route
                   path="settings/team-permissions"
                   element={

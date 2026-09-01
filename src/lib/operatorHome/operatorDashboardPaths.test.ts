@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest"
 import {
   guestProfileHeaderActionPaths,
   operatorDashboardCampaignsPathWithOffer,
+  operatorDashboardCaptureForLocationPath,
   operatorDashboardCaptureLocationPath,
   operatorDashboardGuestEditPath,
   operatorDashboardGuestProfilePath,
+  operatorDashboardLocationDetailPath,
   operatorDashboardModeForAccountType,
   operatorDashboardNavPath,
   operatorDashboardCampaignDetailsPath,
@@ -167,6 +169,24 @@ describe("operatorDashboardNavPath", () => {
     )
     expect(operatorDashboardNavPath("multi", "locations", 7)).toBe(
       "/multi-dashboard/settings/locations?location=7"
+    )
+  })
+
+  it("builds Location detail path with location query", () => {
+    expect(operatorDashboardLocationDetailPath("single", 42)).toBe(
+      "/single-dashboard/settings/locations/42?location=42"
+    )
+    expect(
+      operatorDashboardLocationDetailPath("multi", 7, { tab: "overview" })
+    ).toBe("/multi-dashboard/settings/locations/7?location=7&tab=overview")
+  })
+
+  it("builds Capture path for a location in single and multi", () => {
+    expect(operatorDashboardCaptureForLocationPath("single", 42)).toBe(
+      "/single-dashboard/capture?location=42"
+    )
+    expect(operatorDashboardCaptureForLocationPath("multi", 7)).toBe(
+      "/multi-dashboard/capture/locations/7?location=7"
     )
   })
 
@@ -392,6 +412,16 @@ describe("resolveOperatorSidebarActiveId", () => {
     ).toBe("locations")
     expect(
       resolveOperatorSidebarActiveId("/multi-dashboard/settings/locations")
+    ).toBe("locations")
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/multi-dashboard/settings/locations/7"
+      )
+    ).toBe("locations")
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/single-dashboard/settings/locations/42"
+      )
     ).toBe("locations")
     expect(
       resolveOperatorSidebarActiveId(

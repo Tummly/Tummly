@@ -77,6 +77,7 @@ type LocationsTableSectionProps = {
   onPreviousPage: () => void
   onNextPage: () => void
   onRowAction: (locationId: string, actionId: LocationRowActionId) => void
+  onOpenLocation?: (locationId: string) => void
 }
 
 export function LocationsTableSection({
@@ -89,6 +90,7 @@ export function LocationsTableSection({
   onPreviousPage,
   onNextPage,
   onRowAction,
+  onOpenLocation,
 }: LocationsTableSectionProps) {
   const copy = LOCATIONS_PAGE_COPY
 
@@ -228,9 +230,22 @@ export function LocationsTableSection({
                       className={GUESTS_TABLE_BODY_ROW_CLASS}
                     >
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                        <span className={GUESTS_TABLE_GUEST_NAME_CLASS}>
-                          {row.name}
-                        </span>
+                        {onOpenLocation != null ? (
+                          <button
+                            type="button"
+                            className={cn(
+                              GUESTS_TABLE_GUEST_NAME_CLASS,
+                              "cursor-pointer text-left hover:underline"
+                            )}
+                            onClick={() => onOpenLocation(row.id)}
+                          >
+                            {row.name}
+                          </button>
+                        ) : (
+                          <span className={GUESTS_TABLE_GUEST_NAME_CLASS}>
+                            {row.name}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         {lifecycleVariant == null ? (

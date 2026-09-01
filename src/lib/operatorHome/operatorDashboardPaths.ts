@@ -112,6 +112,32 @@ export function operatorDashboardNavPath(
   return `${path}?location=${locationId}`
 }
 
+/** Settings location detail — path segment + `?location=` shell sync. */
+export function operatorDashboardLocationDetailPath(
+  mode: OperatorDashboardMode,
+  locationId: number,
+  options?: { tab?: string }
+): string {
+  const root = operatorDashboardRootPath(mode)
+  const params = new URLSearchParams({ location: String(locationId) })
+  if (options?.tab != null && options.tab !== "") {
+    params.set("tab", options.tab)
+  }
+  const query = params.toString()
+  return `${root}/settings/locations/${locationId}?${query}`
+}
+
+/** Capture entry for a location — nested multi path or single Capture with shell sync. */
+export function operatorDashboardCaptureForLocationPath(
+  mode: OperatorDashboardMode,
+  locationId: number
+): string {
+  if (mode === "multi") {
+    return operatorDashboardCaptureLocationPath(locationId)
+  }
+  return operatorDashboardNavPath("single", "capture", locationId)
+}
+
 /** Multi nested per-location Capture — path segment + `?location=` shell sync. */
 export function operatorDashboardCaptureLocationPath(
   locationId: number

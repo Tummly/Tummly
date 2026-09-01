@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react"
 import { toast } from "sonner"
-import { useSearchParams } from "react-router-dom"
+import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom"
 
 import { LocationsActivitySection } from "@/components/dashboard/operator/Locations/LocationsActivitySection"
 import { LocationsAddLocationDialog } from "@/components/dashboard/operator/Locations/LocationsAddLocationDialog"
@@ -10,6 +10,7 @@ import { LocationsSetManagerDialog } from "@/components/dashboard/operator/Locat
 import { LocationsSetupReadinessSection } from "@/components/dashboard/operator/Locations/LocationsSetupReadinessSection"
 import { LocationsTableSection } from "@/components/dashboard/operator/Locations/LocationsTableSection"
 import { useLocationsPageModuleApi } from "@/components/dashboard/operator/Locations/utils/locationsPageModuleContext"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { OperatorDestructiveConfirmDialog } from "@/components/dashboard/operator/OperatorDestructiveConfirmDialog"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { Button } from "@/components/ui/button"
@@ -31,6 +32,7 @@ import {
   GUESTS_PAGE_HEADER_ROW_CLASS,
   GUESTS_PAGE_TITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
+import { operatorDashboardLocationDetailPath } from "@/lib/operatorHome/operatorDashboardPaths"
 import { locationsFilterSheetSchema } from "@/lib/operatorLocations/locationsFilterSheetSchema"
 import {
   LOCATIONS_PAGE_COPY,
@@ -50,6 +52,8 @@ export function LocationsPage() {
     pageModule.getSnapshot
   )
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const { mode } = useOutletContext<DashboardOutletContext>()
   const copy = LOCATIONS_PAGE_COPY
 
   const [addOpen, setAddOpen] = useState(false)
@@ -212,6 +216,13 @@ export function LocationsPage() {
               onPreviousPage={pageModule.goToPreviousPage}
               onNextPage={pageModule.goToNextPage}
               onRowAction={handleRowAction}
+              onOpenLocation={(locationId) => {
+                const id = Number.parseInt(locationId, 10)
+                if (!Number.isFinite(id)) {
+                  return
+                }
+                navigate(operatorDashboardLocationDetailPath(mode, id))
+              }}
             />
           </TabsContent>
 
