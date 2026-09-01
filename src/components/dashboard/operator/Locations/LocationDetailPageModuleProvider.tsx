@@ -6,7 +6,7 @@ import {
 } from "react"
 import { useOutletContext, useParams, useSearchParams } from "react-router-dom"
 
-import { getLocationsList, mutateLocationLifecycle } from "@/api/dashboardApi"
+import { getLocationDetail, mutateLocationLifecycle } from "@/api/dashboardApi"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { locationDetailPageModuleContext } from "@/components/dashboard/operator/Locations/utils/locationDetailPageModuleContext"
 import { createOperatorLocationDetailPageModule } from "@/lib/operatorLocations/createOperatorLocationDetailPageModule"
@@ -28,8 +28,7 @@ export function LocationDetailPageModuleProvider({
       createOperatorLocationDetailPageModule(
         safeLocationId,
         {
-          getList: (params) => getLocationsList(params),
-          fallbackName: fallback?.locationName,
+          getDetail: (id) => getLocationDetail(id),
           mutateLifecycle: async (id, action) => {
             await mutateLocationLifecycle(id, action)
           },
@@ -37,7 +36,6 @@ export function LocationDetailPageModuleProvider({
         {
           initialTabId: searchParams.get("tab"),
           fallbackName: fallback?.locationName,
-          fallbackAddress: fallback?.address,
         }
       ),
     // Recreate only when the path location changes; tab sync is separate.

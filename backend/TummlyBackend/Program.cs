@@ -496,6 +496,7 @@ builder.Services.AddScoped<
 builder.Services.AddScoped<IOwnedLocationService, OwnedLocationService>();
 builder.Services.AddScoped<IOwnedLocationInsertService, OwnedLocationInsertService>();
 builder.Services.AddScoped<ILocationsListService, LocationsListService>();
+builder.Services.AddScoped<ILocationsDetailService, LocationsDetailService>();
 builder.Services.AddScoped<ILocationsActivityService, LocationsActivityService>();
 builder.Services.AddScoped<ILocationsLifecycleWriteService, LocationsLifecycleWriteService>();
 builder.Services.AddScoped<ILocationLifecycleService, LocationLifecycleService>();

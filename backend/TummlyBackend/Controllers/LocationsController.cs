@@ -15,6 +15,7 @@ namespace TummlyBackend.Controllers
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IOwnedLocationInsertService _insert;
         private readonly ILocationsListService _list;
+        private readonly ILocationsDetailService _detail;
         private readonly ILocationsLifecycleWriteService _lifecycleWrite;
         private readonly ILocationLifecycleService _lifecycle;
         private readonly ILocationsActivityService _activity;
@@ -23,6 +24,7 @@ namespace TummlyBackend.Controllers
             IRestaurantPermissionHelper permissions,
             IOwnedLocationInsertService insert,
             ILocationsListService list,
+            ILocationsDetailService detail,
             ILocationsLifecycleWriteService lifecycleWrite,
             ILocationLifecycleService lifecycle,
             ILocationsActivityService activity
@@ -31,6 +33,7 @@ namespace TummlyBackend.Controllers
             _permissions = permissions;
             _insert = insert;
             _list = list;
+            _detail = detail;
             _lifecycleWrite = lifecycleWrite;
             _lifecycle = lifecycle;
             _activity = activity;
@@ -120,6 +123,55 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 });
             }
+        }
+
+        [HttpGet("{locationId:int}/detail")]
+        public async Task<IActionResult> GetLocationDetail(int locationId)
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out _);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var decision = await _permissions.AuthorizeLocationSetAsync(
+                User,
+                OperatorAreaIds.Locations,
+                PermissionLevel.View
+            );
+            var denied = decision.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            if (!decision.LocationIds.Contains(locationId))
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Location not found.",
+                });
+            }
+
+            var result = await _detail.GetDetailAsync(
+                new LocationDetailQuery
+                {
+                    RestaurantId = decision.RestaurantId,
+                    LocationId = locationId,
+                }
+            );
+
+            if (result == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Location not found.",
+                });
+            }
+
+            return Ok(result);
         }
 
         [HttpPost]

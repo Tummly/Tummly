@@ -1,44 +1,57 @@
 import { describe, expect, it, vi } from "vitest"
+import { AxiosError, type AxiosResponse } from "axios"
 
 import { createOperatorLocationDetailPageModule } from "@/lib/operatorLocations/createOperatorLocationDetailPageModule"
-import type { LocationsListResponse } from "@/lib/operatorLocations/locationsListQueryParams"
+import type { LocationDetailApiResponse } from "@/lib/operatorLocations/locationDetailApi"
 import {
   formatLocationDetailHeaderMeta,
   formatLocationDetailMonthMetric,
   resolveLocationDetailTabId,
 } from "@/lib/operatorLocations/locationDetailPresentation"
 
-function listResponse(
-  overrides: Partial<LocationsListResponse> = {}
-): LocationsListResponse {
+function detailResponse(
+  overrides: Partial<LocationDetailApiResponse> = {}
+): LocationDetailApiResponse {
   return {
     success: true,
-    rows: [
-      {
-        id: 42,
-        name: "KFC Chicken — Camden",
-        lifecycleStatus: "active",
-        setupStatus: "ready",
-        managerName: "Aisha",
-        city: "Camden",
-        postcode: "NW1 1AA",
-        cityId: "camden",
-        cityPostcode: "Camden, NW1 1AA",
-        lastActivityAt: null,
-      },
-    ],
-    totalCount: 1,
-    page: 1,
-    pageSize: 100,
-    kpis: {
-      active: 1,
-      draft: 0,
-      paused: 0,
-      setupNeedsAttention: 0,
+    header: {
+      id: 42,
+      name: "KFC Chicken — Camden",
+      city: "Camden",
+      lifecycleStatus: "active",
+      setupStatus: "ready",
+      managerName: "Aisha",
+      managerUserId: 7,
+      address: "1 High Street",
+      postcode: "NW1 1AA",
+      locationPhone: null,
+      localContact: null,
+      liveQrCount: 6,
+      guestsCapturedThisMonth: 842,
+      ...(overrides.header ?? {}),
     },
-    cityFacets: [],
+    setupChecklist: {
+      locationDetailsAdded: "complete",
+      qrCodePublishedLive: "complete",
+      guestFormConnected: "complete",
+      teamAccessAssigned: "complete",
+      guestPrivacyNotice: "complete",
+      firstOfferCreated: "complete",
+      atLeastOneQrCreated: "complete",
+      ...(overrides.setupChecklist ?? {}),
+    },
     ...overrides,
   }
+}
+
+function axios404(): AxiosError {
+  return new AxiosError(
+    "Not Found",
+    "ERR_BAD_REQUEST",
+    undefined,
+    undefined,
+    { status: 404 } as AxiosResponse
+  )
 }
 
 describe("resolveLocationDetailTabId", () => {
@@ -80,16 +93,20 @@ describe("formatLocationDetailMonthMetric", () => {
 
 describe("createOperatorLocationDetailPageModule", () => {
   it("keeps getSnapshot identity until emit", async () => {
-    const getList = vi.fn().mockResolvedValue(listResponse())
-    const pageModule = createOperatorLocationDetailPageModule(42, { getList })
+    const getDetail = vi.fn().mockResolvedValue(detailResponse())
+    const pageModule = createOperatorLocationDetailPageModule(42, { getDetail })
 
     expect(pageModule.getSnapshot()).toBe(pageModule.getSnapshot())
 
     await pageModule.load()
 
     expect(pageModule.getSnapshot()).toBe(pageModule.getSnapshot())
+    expect(getDetail).toHaveBeenCalledWith(42)
     expect(pageModule.getSnapshot().name).toBe("KFC Chicken — Camden")
     expect(pageModule.getSnapshot().city).toBe("Camden")
+    expect(pageModule.getSnapshot().headerMeta).toBe(
+      "Camden · 6 QR codes · 842 guests captured"
+    )
     expect(pageModule.getSnapshot().setupChecklist.locationDetailsAdded).toBe(
       "complete"
     )
@@ -98,7 +115,7 @@ describe("createOperatorLocationDetailPageModule", () => {
     )
     expect(pageModule.getSnapshot().teamAccessRows).toEqual([
       {
-        id: "location-manager",
+        id: "7",
         name: "Aisha",
         role: "Manager",
         accessLabel: "This location only",
@@ -114,9 +131,42 @@ describe("createOperatorLocationDetailPageModule", () => {
     expect(pageModule.getSnapshot().loadStatus).toBe("loaded")
   })
 
-  it("marks not-found when the list has no matching row", async () => {
-    const getList = vi.fn().mockResolvedValue(listResponse({ rows: [] }))
-    const pageModule = createOperatorLocationDetailPageModule(99, { getList })
+  it("uses server setup checklist without client heuristics", async () => {
+    const getDetail = vi.fn().mockResolvedValue(
+      detailResponse({
+        setupChecklist: {
+          locationDetailsAdded: "incomplete",
+          qrCodePublishedLive: "incomplete",
+          guestFormConnected: "complete",
+          teamAccessAssigned: "optional",
+          guestPrivacyNotice: "incomplete",
+          firstOfferCreated: "optional",
+          atLeastOneQrCreated: "incomplete",
+        },
+      })
+    )
+    const pageModule = createOperatorLocationDetailPageModule(42, { getDetail })
+
+    await pageModule.load()
+
+    expect(pageModule.getSnapshot().setupChecklist).toEqual({
+      locationDetailsAdded: "incomplete",
+      qrCodePublishedLive: "incomplete",
+      guestFormConnected: "complete",
+      teamAccessAssigned: "optional",
+      guestPrivacyNotice: "incomplete",
+      firstOfferCreated: "optional",
+      atLeastOneQrCreated: "incomplete",
+    })
+  })
+
+  it("marks not-found when detail GET returns 404", async () => {
+    const getDetail = vi.fn().mockRejectedValue(axios404())
+    const pageModule = createOperatorLocationDetailPageModule(
+      99,
+      { getDetail },
+      { fallbackName: "Best effort" }
+    )
 
     await pageModule.load()
 
@@ -125,7 +175,7 @@ describe("createOperatorLocationDetailPageModule", () => {
 
   it("changes tabs through requestTabChange", () => {
     const pageModule = createOperatorLocationDetailPageModule(42, {
-      getList: vi.fn(),
+      getDetail: vi.fn(),
     })
 
     pageModule.requestTabChange("team-access")

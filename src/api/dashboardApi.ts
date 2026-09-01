@@ -12,6 +12,7 @@ import type {
   LocationsListQueryParams,
   LocationsListResponse,
 } from "@/lib/operatorLocations/locationsListQueryParams"
+import type { LocationDetailApiResponse } from "@/lib/operatorLocations/locationDetailApi"
 import {
   mapCreatedGuestTagApiToGuestTag,
   mapGuestTagApiRowToGuestTag,
@@ -159,6 +160,16 @@ export const getLocationsList = async (
       params,
       paramsSerializer: serializeRepeatedParams,
     }
+  )
+  return response.data
+}
+
+/** GET /api/locations/:locationId/detail — Settings Location detail header + checklist. */
+export const getLocationDetail = async (
+  locationId: number
+): Promise<LocationDetailApiResponse> => {
+  const response = await axiosInstance.get<LocationDetailApiResponse>(
+    `/locations/${locationId}/detail`
   )
   return response.data
 }

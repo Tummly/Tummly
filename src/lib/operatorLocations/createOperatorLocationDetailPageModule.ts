@@ -1,10 +1,9 @@
-import type { LocationsListApiRow } from "@/lib/operatorLocations/locationsListQueryParams"
-import type { LocationsListResponse } from "@/lib/operatorLocations/locationsListQueryParams"
+import type { LocationDetailApiResponse } from "@/lib/operatorLocations/locationDetailApi"
+import { mapLocationDetailSetupChecklist } from "@/lib/operatorLocations/locationDetailApi"
 import {
   buildEmptyOverviewMetrics,
   buildLocationGuestActivityChecklist,
   buildLocationControlsStatus,
-  buildLocationSetupChecklist,
   buildLocationTeamAccessRows,
   formatLocationDetailHeaderMeta,
   locationControlsDangerActions,
@@ -26,7 +25,7 @@ import {
   type LocationSetupChecklistStatusId,
 } from "@/lib/operatorLocations/locationDetailPresentation"
 import type { LocationLifecycleStatus } from "@/lib/operatorLocations/locationsPresentation"
-import type { LocationSetupStatus } from "@/lib/operatorLocations/locationsPresentation"
+import { isAxiosError } from "axios"
 
 export type LocationDetailSnapshot = {
   locationId: number
@@ -56,13 +55,7 @@ export type LocationDetailSnapshot = {
 }
 
 export type OperatorLocationDetailPageAdapters = {
-  getList: (params: {
-    page: number
-    pageSize: number
-    sort: "name-asc"
-  }) => Promise<LocationsListResponse>
-  /** Optional fallback name when the list response does not include the row. */
-  fallbackName?: string
+  getDetail: (locationId: number) => Promise<LocationDetailApiResponse>
   mutateLifecycle?: (
     locationId: number,
     action: LocationControlsLifecycleActionId
@@ -78,21 +71,8 @@ export type OperatorLocationDetailPageModule = {
   requestLifecycleAction: (action: LocationControlsLifecycleActionId) => void
 }
 
-function cityFromRow(row: LocationsListApiRow | null, fallbackAddress: string) {
-  if (row?.city?.trim()) {
-    return row.city.trim()
-  }
-  if (row?.cityPostcode?.trim()) {
-    return row.cityPostcode.split(",")[0]?.trim() || "—"
-  }
-  const parts = fallbackAddress
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean)
-  if (parts.length >= 2) {
-    return parts[parts.length - 1] ?? "—"
-  }
-  return "—"
+function cityFromHeader(city: string | null | undefined): string {
+  return city?.trim() || "—"
 }
 
 export function createOperatorLocationDetailPageModule(
@@ -101,22 +81,19 @@ export function createOperatorLocationDetailPageModule(
   options: {
     initialTabId?: string | null
     fallbackName?: string
-    fallbackAddress?: string
   } = {}
 ): OperatorLocationDetailPageModule {
   let activeTabId = resolveLocationDetailTabId(options.initialTabId)
   let name = options.fallbackName?.trim() || "Location"
   let city = "—"
   let lifecycleStatus: LocationLifecycleStatus = "active"
-  let setupStatus: LocationSetupStatus = "not-started"
+  let liveQrCount = 0
+  let guestsCapturedThisMonth = 0
   let overviewMetrics = buildEmptyOverviewMetrics()
-  let setupChecklist = buildLocationSetupChecklist({
-    lifecycleStatus: "active",
-    setupStatus: "not-started",
-    managerName: null,
-    qrCount: 0,
-    hasOffer: false,
-  })
+  let setupChecklist: Record<
+    LocationSetupChecklistItemId,
+    LocationSetupChecklistStatusId
+  > = mapLocationDetailSetupChecklist({})
   let guestActivityChecklist = buildLocationGuestActivityChecklist({
     guestsCaptured: 0,
     optIns: 0,
@@ -153,8 +130,8 @@ export function createOperatorLocationDetailPageModule(
   const projectSnapshot = (): LocationDetailSnapshot => {
     const headerMeta = formatLocationDetailHeaderMeta({
       city,
-      qrCount: qrRows.length,
-      guestCount: overviewMetrics.guestsCaptured,
+      qrCount: liveQrCount,
+      guestCount: guestsCapturedThisMonth,
     })
 
     return {
@@ -184,53 +161,44 @@ export function createOperatorLocationDetailPageModule(
 
   snapshot = projectSnapshot()
 
+  const applyDetailResponse = (response: LocationDetailApiResponse) => {
+    const header = response.header
+    name = header.name
+    city = cityFromHeader(header.city)
+    lifecycleStatus = header.lifecycleStatus
+    liveQrCount = header.liveQrCount
+    guestsCapturedThisMonth = header.guestsCapturedThisMonth
+    setupChecklist = mapLocationDetailSetupChecklist(response.setupChecklist)
+    teamAccessRows = buildLocationTeamAccessRows({
+      managerName: header.managerName,
+      managerUserId: header.managerUserId,
+    })
+    locationControlsStatus = buildLocationControlsStatus({
+      lifecycleStatus: header.lifecycleStatus,
+      setupStatus: header.setupStatus,
+      liveQrCount: header.liveQrCount,
+    })
+    locationControlsActions = locationControlsDangerActions(
+      header.lifecycleStatus
+    )
+  }
+
   const load = async () => {
     const generation = ++loadGeneration
     loadStatus = "loading"
     emit()
 
     try {
-      const response = await adapters.getList({
-        page: 1,
-        pageSize: 100,
-        sort: "name-asc",
-      })
+      const response = await adapters.getDetail(locationId)
 
       if (generation !== loadGeneration) {
         return
       }
 
-      const row =
-        response.rows.find((entry) => entry.id === locationId) ?? null
+      applyDetailResponse(response)
 
-      if (row == null) {
-        if (adapters.fallbackName?.trim() || options.fallbackName?.trim()) {
-          name =
-            adapters.fallbackName?.trim()
-            || options.fallbackName?.trim()
-            || name
-          city = cityFromRow(null, options.fallbackAddress ?? "")
-          loadStatus = "loaded"
-          emit()
-          return
-        }
-        loadStatus = "not-found"
-        emit()
-        return
-      }
-
-      name = row.name
-      city = cityFromRow(row, "")
-      lifecycleStatus = row.lifecycleStatus
-      setupStatus = row.setupStatus
+      // Ticket 02+ will populate these from detail GET extensions.
       overviewMetrics = buildEmptyOverviewMetrics()
-      setupChecklist = buildLocationSetupChecklist({
-        lifecycleStatus: row.lifecycleStatus,
-        setupStatus: row.setupStatus,
-        managerName: row.managerName,
-        qrCount: qrRows.length,
-        hasOffer: offerCards.length > 0,
-      })
       guestActivityChecklist = buildLocationGuestActivityChecklist({
         guestsCaptured: overviewMetrics.guestsCaptured,
         optIns: overviewMetrics.optIns,
@@ -247,22 +215,15 @@ export function createOperatorLocationDetailPageModule(
       qrRows = []
       offerCards = []
       latestFeedbackRows = []
-      teamAccessRows = buildLocationTeamAccessRows({
-        managerName: row.managerName,
-        managerUserId: row.managerUserId ?? null,
-      })
-      locationControlsStatus = buildLocationControlsStatus({
-        lifecycleStatus: row.lifecycleStatus,
-        setupStatus: row.setupStatus,
-        liveQrCount: qrRows.length,
-      })
-      locationControlsActions = locationControlsDangerActions(
-        row.lifecycleStatus
-      )
       loadStatus = "loaded"
       emit()
-    } catch {
+    } catch (error) {
       if (generation !== loadGeneration) {
+        return
+      }
+      if (isAxiosError(error) && error.response?.status === 404) {
+        loadStatus = "not-found"
+        emit()
         return
       }
       loadStatus = "error"
