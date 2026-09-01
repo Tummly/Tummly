@@ -574,13 +574,14 @@ export function createOperatorLocationsPageModule(
         return
       }
 
-      void (async () => {
+      return (async () => {
         try {
           await mutate(id, lifecycleAction)
           await fetchListAndActivity()
-        } catch {
+        } catch (error) {
           loadStatus = "error"
           emit()
+          throw error
         }
       })()
     },

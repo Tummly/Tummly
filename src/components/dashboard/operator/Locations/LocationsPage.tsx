@@ -32,14 +32,22 @@ import {
   GUESTS_PAGE_HEADER_ROW_CLASS,
   GUESTS_PAGE_TITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
-import { operatorDashboardLocationDetailPath } from "@/lib/operatorHome/operatorDashboardPaths"
+import {
+  operatorDashboardCaptureForLocationPath,
+  operatorDashboardLocationDetailPath,
+} from "@/lib/operatorHome/operatorDashboardPaths"
 import { locationsFilterSheetSchema } from "@/lib/operatorLocations/locationsFilterSheetSchema"
 import {
   LOCATIONS_PAGE_COPY,
   LOCATIONS_PAGE_PRIMARY_BUTTON_CLASS,
   LOCATIONS_PAGE_SECONDARY_BUTTON_CLASS,
   LOCATIONS_TAB_COUNT_BADGE_CLASS,
+  locationRowActionNeedsConfirm,
+  locationRowLifecycleConfirmCopy,
+  locationRowLifecycleSuccessToast,
+  resolveLocationRowActionNavigation,
   type LocationRowActionId,
+  type LocationsSetupAttentionItemId,
   type LocationsTabId,
 } from "@/lib/operatorLocations/locationsPresentation"
 import { cn } from "@/lib/utils"
@@ -78,6 +86,14 @@ export function LocationsPage() {
   const [managerBusy, setManagerBusy] = useState(false)
   const [managerError, setManagerError] = useState<string | null>(null)
 
+  const [lifecycleConfirm, setLifecycleConfirm] = useState<{
+    locationId: string
+    name: string
+    actionId: "pause-location" | "archive-location" | "restore-location"
+  } | null>(null)
+  const [lifecycleBusy, setLifecycleBusy] = useState(false)
+  const [lifecycleError, setLifecycleError] = useState<string | null>(null)
+
   useEffect(() => {
     const current = searchParams.get("tab")
     if (current === snap.activeTabId) {
@@ -91,6 +107,25 @@ export function LocationsPage() {
   const schema = locationsFilterSheetSchema({
     cities: snap.cityFilterOptions,
   })
+
+  const runLifecycleAction = async (
+    locationId: string,
+    actionId: LocationRowActionId
+  ) => {
+    try {
+      await pageModule.onRowAction(locationId, actionId)
+      const message = locationRowLifecycleSuccessToast(actionId)
+      if (message != null) {
+        toast.success(message)
+      }
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error && error.message.trim().length > 0
+          ? error.message
+          : copy.lifecycleErrorToast
+      )
+    }
+  }
 
   const handleRowAction = (locationId: string, actionId: LocationRowActionId) => {
     const row = snap.rows.find((item) => item.id === locationId)
@@ -120,8 +155,59 @@ export function LocationsPage() {
         name: row?.name ?? "Location",
         managerUserId: row?.managerUserId ?? null,
       })
+      return
+    }
+
+    const numericId = Number.parseInt(locationId, 10)
+    const navPath = resolveLocationRowActionNavigation(
+      mode,
+      numericId,
+      actionId
+    )
+    if (navPath != null) {
+      navigate(navPath)
+      return
+    }
+
+    if (actionId === "resume-location") {
+      void runLifecycleAction(locationId, actionId)
+      return
+    }
+
+    if (locationRowActionNeedsConfirm(actionId)) {
+      setLifecycleError(null)
+      setLifecycleConfirm({
+        locationId,
+        name: row?.name ?? "this location",
+        actionId,
+      })
     }
   }
+
+  const handleReviewSetupAttention = (itemId: LocationsSetupAttentionItemId) => {
+    if (itemId === "no-active-qr") {
+      const item = snap.setupAttentionItems.find(
+        (attentionItem) => attentionItem.id === "no-active-qr"
+      )
+      const firstLocationId = item?.locationIds?.[0]
+      if (firstLocationId == null) {
+        toast.error(copy.noActiveQrReviewEmptyToast)
+        return
+      }
+      navigate(operatorDashboardCaptureForLocationPath(mode, firstLocationId))
+      return
+    }
+
+    void pageModule.onReviewSetupAttention(itemId)
+  }
+
+  const lifecycleConfirmCopy =
+    lifecycleConfirm == null
+      ? null
+      : locationRowLifecycleConfirmCopy(
+          lifecycleConfirm.actionId,
+          lifecycleConfirm.name
+        )
 
   return (
     <div className={ACCOUNT_WORKSPACE_PAGE_STACK_CLASS}>
@@ -229,7 +315,7 @@ export function LocationsPage() {
           <TabsContent value="setup-readiness" className="mt-0">
             <LocationsSetupReadinessSection
               items={snap.setupAttentionItems}
-              onReviewLocation={pageModule.onReviewSetupAttention}
+              onReviewLocation={handleReviewSetupAttention}
             />
           </TabsContent>
 
@@ -358,6 +444,50 @@ export function LocationsPage() {
             )
           } finally {
             setDeleteBusy(false)
+          }
+        }}
+      />
+
+      <OperatorDestructiveConfirmDialog
+        open={lifecycleConfirm != null}
+        busy={lifecycleBusy}
+        error={lifecycleError}
+        title={lifecycleConfirmCopy?.title ?? ""}
+        description={lifecycleConfirmCopy?.description ?? ""}
+        confirmLabel={lifecycleConfirmCopy?.confirmLabel ?? "Confirm"}
+        busyLabel={lifecycleConfirmCopy?.busyLabel ?? "Updating…"}
+        onOpenChange={(open) => {
+          if (!open) {
+            setLifecycleConfirm(null)
+            setLifecycleError(null)
+          }
+        }}
+        onConfirm={async () => {
+          if (lifecycleConfirm == null) {
+            return
+          }
+          setLifecycleBusy(true)
+          setLifecycleError(null)
+          try {
+            await pageModule.onRowAction(
+              lifecycleConfirm.locationId,
+              lifecycleConfirm.actionId
+            )
+            const message = locationRowLifecycleSuccessToast(
+              lifecycleConfirm.actionId
+            )
+            if (message != null) {
+              toast.success(message)
+            }
+            setLifecycleConfirm(null)
+          } catch (error: unknown) {
+            setLifecycleError(
+              error instanceof Error && error.message.trim().length > 0
+                ? error.message
+                : copy.lifecycleErrorToast
+            )
+          } finally {
+            setLifecycleBusy(false)
           }
         }}
       />

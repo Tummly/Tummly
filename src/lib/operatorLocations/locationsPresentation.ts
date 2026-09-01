@@ -4,6 +4,13 @@ import type { VariantProps } from "class-variance-authority"
 
 import type { badgeVariants } from "@/components/ui/badge"
 import {
+  operatorDashboardCaptureForLocationPath,
+  operatorDashboardLocationDetailPath,
+  operatorDashboardNavPath,
+  operatorDashboardRootPath,
+  type OperatorDashboardMode,
+} from "@/lib/operatorHome/operatorDashboardPaths"
+import {
   GUESTS_PAGE_PRIMARY_BUTTON_CLASS,
   GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
   GUESTS_ROW_ACTIONS_ITEM_CLASS,
@@ -56,6 +63,25 @@ export const LOCATIONS_PAGE_COPY = {
   activityTitle: "Activity",
   activityEmptyTitle: "No activity yet",
   activityEmptyBody: "Location activity will appear here.",
+  noActiveQrReviewEmptyToast:
+    "No locations need a QR review right now.",
+  pauseLocationConfirmTitle: "Pause location?",
+  pauseLocationConfirmDescription: (name: string) =>
+    `Pause “${name}”? Guest capture and campaigns will stop for this location until you resume it.`,
+  archiveLocationConfirmTitle: "Archive location?",
+  archiveLocationConfirmDescription: (name: string) =>
+    `Archive “${name}”? QR codes and guest capture will stop. You can restore the location later.`,
+  restoreLocationConfirmTitle: "Restore location?",
+  restoreLocationConfirmDescription: (name: string) =>
+    `Restore “${name}”? The location will return to a paused state until you resume it.`,
+  pauseLocationConfirmLabel: "Pause location",
+  archiveLocationConfirmLabel: "Archive location",
+  restoreLocationConfirmLabel: "Restore location",
+  pauseLocationSuccessToast: "Location paused.",
+  resumeLocationSuccessToast: "Location resumed.",
+  archiveLocationSuccessToast: "Location archived.",
+  restoreLocationSuccessToast: "Location restored.",
+  lifecycleErrorToast: "Could not update location.",
 } as const
 
 /** Needs-attention row chrome — Figma 5748:103603. */
@@ -249,11 +275,142 @@ export function locationRowActionsForLifecycle(
         "archive-location",
       ])
     case "archived":
-      return actions([
-        "view-historical-record",
-        "restore-location",
-        "export-location-history",
-      ])
+      return actions(["view-historical-record", "restore-location"])
+  }
+}
+
+export type LocationRowActionRouteKind =
+  | "navigation"
+  | "lifecycle"
+  | "lifecycle-confirm"
+  | "draft-ui"
+
+const LOCATION_ROW_NAVIGATION_ACTION_IDS = [
+  "view-location",
+  "edit-location",
+  "view-qr-placements",
+  "view-feedback",
+  "view-reports",
+  "view-historical-activity",
+  "view-historical-record",
+] as const satisfies readonly LocationRowActionId[]
+
+const LOCATION_ROW_LIFECYCLE_CONFIRM_ACTION_IDS = [
+  "pause-location",
+  "archive-location",
+  "restore-location",
+] as const satisfies readonly LocationRowActionId[]
+
+/** Row ⋮ routing — navigation vs lifecycle vs draft chrome (ticket 09). */
+export function classifyLocationRowAction(
+  actionId: LocationRowActionId
+): LocationRowActionRouteKind {
+  if (
+    (LOCATION_ROW_NAVIGATION_ACTION_IDS as readonly LocationRowActionId[]).includes(
+      actionId
+    )
+  ) {
+    return "navigation"
+  }
+  if (actionId === "resume-location") {
+    return "lifecycle"
+  }
+  if (
+    (
+      LOCATION_ROW_LIFECYCLE_CONFIRM_ACTION_IDS as readonly LocationRowActionId[]
+    ).includes(actionId)
+  ) {
+    return "lifecycle-confirm"
+  }
+  return "draft-ui"
+}
+
+export function locationRowActionNeedsConfirm(
+  actionId: LocationRowActionId
+): actionId is (typeof LOCATION_ROW_LIFECYCLE_CONFIRM_ACTION_IDS)[number] {
+  return (
+    LOCATION_ROW_LIFECYCLE_CONFIRM_ACTION_IDS as readonly LocationRowActionId[]
+  ).includes(actionId)
+}
+
+/** Dashboard path for row navigation actions, or null when not a nav action. */
+export function resolveLocationRowActionNavigation(
+  mode: OperatorDashboardMode,
+  locationId: number,
+  actionId: LocationRowActionId
+): string | null {
+  if (!Number.isFinite(locationId)) {
+    return null
+  }
+
+  switch (actionId) {
+    case "view-location":
+    case "view-historical-record":
+      return operatorDashboardLocationDetailPath(mode, locationId)
+    case "edit-location":
+      return operatorDashboardLocationDetailPath(mode, locationId, {
+        tab: "setup-details",
+      })
+    case "view-qr-placements":
+      return operatorDashboardCaptureForLocationPath(mode, locationId)
+    case "view-feedback":
+      return operatorDashboardNavPath(mode, "feedback", locationId)
+    case "view-reports":
+      return `${operatorDashboardRootPath(mode)}/reports?location=${locationId}`
+    case "view-historical-activity":
+      return operatorDashboardLocationDetailPath(mode, locationId, {
+        tab: "guest-loop",
+      })
+    default:
+      return null
+  }
+}
+
+export function locationRowLifecycleConfirmCopy(
+  actionId: (typeof LOCATION_ROW_LIFECYCLE_CONFIRM_ACTION_IDS)[number],
+  locationName: string
+): { title: string; description: string; confirmLabel: string; busyLabel: string } {
+  const copy = LOCATIONS_PAGE_COPY
+  switch (actionId) {
+    case "pause-location":
+      return {
+        title: copy.pauseLocationConfirmTitle,
+        description: copy.pauseLocationConfirmDescription(locationName),
+        confirmLabel: copy.pauseLocationConfirmLabel,
+        busyLabel: "Pausing…",
+      }
+    case "archive-location":
+      return {
+        title: copy.archiveLocationConfirmTitle,
+        description: copy.archiveLocationConfirmDescription(locationName),
+        confirmLabel: copy.archiveLocationConfirmLabel,
+        busyLabel: "Archiving…",
+      }
+    case "restore-location":
+      return {
+        title: copy.restoreLocationConfirmTitle,
+        description: copy.restoreLocationConfirmDescription(locationName),
+        confirmLabel: copy.restoreLocationConfirmLabel,
+        busyLabel: "Restoring…",
+      }
+  }
+}
+
+export function locationRowLifecycleSuccessToast(
+  actionId: LocationRowActionId
+): string | null {
+  const copy = LOCATIONS_PAGE_COPY
+  switch (actionId) {
+    case "pause-location":
+      return copy.pauseLocationSuccessToast
+    case "resume-location":
+      return copy.resumeLocationSuccessToast
+    case "archive-location":
+      return copy.archiveLocationSuccessToast
+    case "restore-location":
+      return copy.restoreLocationSuccessToast
+    default:
+      return null
   }
 }
 

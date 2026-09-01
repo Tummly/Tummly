@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildLocationsKpis,
+  classifyLocationRowAction,
   formatLocationsLastActivityAt,
   formatLocationsPageRange,
   formatNeedsAttentionSubtitle,
   locationLifecycleBadgeVariant,
+  locationRowActionNeedsConfirm,
   locationRowActionsForLifecycle,
+  locationRowLifecycleConfirmCopy,
+  locationRowLifecycleSuccessToast,
+  resolveLocationRowActionNavigation,
   resolveLocationsTabId,
 } from "@/lib/operatorLocations/locationsPresentation"
 
@@ -51,11 +56,70 @@ describe("locationRowActionsForLifecycle", () => {
   it("returns Archived location actions from Figma", () => {
     expect(
       locationRowActionsForLifecycle("archived").map((action) => action.id)
-    ).toEqual([
-      "view-historical-record",
-      "restore-location",
-      "export-location-history",
-    ])
+    ).toEqual(["view-historical-record", "restore-location"])
+  })
+})
+
+describe("classifyLocationRowAction", () => {
+  it("routes navigation, lifecycle, confirm, and draft actions", () => {
+    expect(classifyLocationRowAction("view-location")).toBe("navigation")
+    expect(classifyLocationRowAction("view-feedback")).toBe("navigation")
+    expect(classifyLocationRowAction("resume-location")).toBe("lifecycle")
+    expect(classifyLocationRowAction("pause-location")).toBe("lifecycle-confirm")
+    expect(classifyLocationRowAction("continue-setup")).toBe("draft-ui")
+  })
+
+  it("requires confirm for pause, archive, and restore only", () => {
+    expect(locationRowActionNeedsConfirm("pause-location")).toBe(true)
+    expect(locationRowActionNeedsConfirm("archive-location")).toBe(true)
+    expect(locationRowActionNeedsConfirm("restore-location")).toBe(true)
+    expect(locationRowActionNeedsConfirm("resume-location")).toBe(false)
+    expect(locationRowActionNeedsConfirm("view-location")).toBe(false)
+  })
+})
+
+describe("resolveLocationRowActionNavigation", () => {
+  it("maps row navigation actions to dashboard paths", () => {
+    expect(
+      resolveLocationRowActionNavigation("single", 42, "view-location")
+    ).toBe("/single-dashboard/settings/locations/42?location=42")
+    expect(
+      resolveLocationRowActionNavigation("multi", 7, "edit-location")
+    ).toBe("/multi-dashboard/settings/locations/7?location=7&tab=setup-details")
+    expect(
+      resolveLocationRowActionNavigation("single", 3, "view-qr-placements")
+    ).toBe("/single-dashboard/capture?location=3")
+    expect(
+      resolveLocationRowActionNavigation("multi", 3, "view-qr-placements")
+    ).toBe("/multi-dashboard/capture/locations/3?location=3")
+    expect(
+      resolveLocationRowActionNavigation("single", 5, "view-feedback")
+    ).toBe("/single-dashboard/feedback?location=5")
+    expect(
+      resolveLocationRowActionNavigation("single", 5, "view-reports")
+    ).toBe("/single-dashboard/reports?location=5")
+    expect(
+      resolveLocationRowActionNavigation("single", 9, "view-historical-activity")
+    ).toBe(
+      "/single-dashboard/settings/locations/9?location=9&tab=guest-loop"
+    )
+    expect(
+      resolveLocationRowActionNavigation("single", 9, "view-historical-record")
+    ).toBe("/single-dashboard/settings/locations/9?location=9")
+    expect(
+      resolveLocationRowActionNavigation("single", 9, "pause-location")
+    ).toBeNull()
+  })
+})
+
+describe("locationRowLifecycleConfirmCopy", () => {
+  it("returns confirm dialog copy for lifecycle actions", () => {
+    expect(
+      locationRowLifecycleConfirmCopy("pause-location", "Alpha Venue").title
+    ).toBe("Pause location?")
+    expect(
+      locationRowLifecycleSuccessToast("resume-location")
+    ).toBe("Location resumed.")
   })
 })
 

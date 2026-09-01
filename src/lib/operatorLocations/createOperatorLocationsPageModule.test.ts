@@ -474,4 +474,24 @@ describe("createOperatorLocationsPageModule", () => {
       expect(module.getSnapshot().rows[0]?.lifecycleStatus).toBe(nextStatus)
     }
   )
+
+  it("sets loadStatus error and rethrows when lifecycle mutate fails", async () => {
+    const getList = vi.fn(async () => apiResponse())
+    const getActivity = vi.fn(async () => emptyActivity())
+    const mutateLifecycle = vi.fn(async () => {
+      throw new Error("Pause failed.")
+    })
+    const module = createOperatorLocationsPageModule({
+      getList,
+      getActivity,
+      mutateLifecycle,
+      debounceMs: 0,
+    })
+    await module.load()
+
+    await expect(
+      module.onRowAction("10", "pause-location")
+    ).rejects.toThrow("Pause failed.")
+    expect(module.getSnapshot().loadStatus).toBe("error")
+  })
 })
