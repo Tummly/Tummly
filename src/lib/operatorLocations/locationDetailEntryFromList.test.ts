@@ -56,6 +56,26 @@ function detailResponse(
       firstOfferCreated: "optional",
       atLeastOneQrCreated: "complete",
     },
+    locationControls: {
+      lastScanAt: null,
+      lastFeedbackAt: null,
+      ...(overrides.locationControls ?? {}),
+    },
+    overviewMetrics: {
+      qrScans: 0,
+      formStarts: 0,
+      feedback: 0,
+      guestsCaptured: 0,
+      optIns: 0,
+      offersClaimed: 0,
+      offersRedeemed: 0,
+      ...(overrides.overviewMetrics ?? {}),
+    },
+    qrRows: overrides.qrRows ?? [],
+    offerCards: overrides.offerCards ?? [],
+    guestActivityChecklist: overrides.guestActivityChecklist ?? {},
+    latestFeedbackRows: overrides.latestFeedbackRows ?? [],
+    teamAccessRows: overrides.teamAccessRows ?? [],
     ...overrides,
   }
 }
