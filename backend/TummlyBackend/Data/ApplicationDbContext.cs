@@ -117,6 +117,13 @@ namespace TummlyBackend.Data
             set;
         }
 
+        public DbSet<LocationGuestPermissionLedgerEntry>
+            LocationGuestPermissionLedgerEntries
+        {
+            get;
+            set;
+        }
+
         public DbSet<QrScanEvent> QrScanEvents { get; set; }
 
         public DbSet<LocationGuestNote> LocationGuestNotes { get; set; }
@@ -1230,6 +1237,54 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<LocationGuestActivityEvent>()
                 .HasIndex(e => e.Kind);
+
+            /*
+             =========================================
+             LOCATION GUEST PERMISSION LEDGER
+             =========================================
+            */
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .HasOne(e => e.LocationGuest)
+                .WithMany()
+                .HasForeignKey(e => e.LocationGuestId)
+                // NoAction: same SQL Server cascade-path limits as activity events.
+                // Guest delete removes ledger rows in LocationGuestDeleteService.
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .HasOne(e => e.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(e => e.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .HasOne(e => e.ActorUser)
+                .WithMany()
+                .HasForeignKey(e => e.ActorUserId)
+                // Restrict (not SetNull/Cascade): SQL Server error 1785.
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .Property(e => e.PermissionKind)
+                .HasConversion(
+                    v => v.ToWireString(),
+                    v => LocationGuestPermissionKindExtensions.FromWireString(v)
+                )
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .HasIndex(e => new
+                {
+                    e.LocationGuestId,
+                    e.PermissionKind,
+                    e.OccurredAt,
+                });
+
+            modelBuilder.Entity<LocationGuestPermissionLedgerEntry>()
+                .HasIndex(e => new { e.RestaurantLocationId, e.OccurredAt });
 
             /*
              =========================================
