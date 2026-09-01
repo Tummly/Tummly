@@ -108,22 +108,25 @@ export function LocationsPage() {
     cities: snap.cityFilterOptions,
   })
 
+  const lifecycleActionErrorMessage = (error: unknown) =>
+    error instanceof Error && error.message.trim().length > 0
+      ? error.message
+      : copy.lifecycleErrorToast
+
   const runLifecycleAction = async (
     locationId: string,
     actionId: LocationRowActionId
-  ) => {
+  ): Promise<boolean> => {
     try {
       await pageModule.onRowAction(locationId, actionId)
       const message = locationRowLifecycleSuccessToast(actionId)
       if (message != null) {
         toast.success(message)
       }
+      return true
     } catch (error: unknown) {
-      toast.error(
-        error instanceof Error && error.message.trim().length > 0
-          ? error.message
-          : copy.lifecycleErrorToast
-      )
+      toast.error(lifecycleActionErrorMessage(error))
+      return false
     }
   }
 
@@ -468,27 +471,16 @@ export function LocationsPage() {
           }
           setLifecycleBusy(true)
           setLifecycleError(null)
-          try {
-            await pageModule.onRowAction(
-              lifecycleConfirm.locationId,
-              lifecycleConfirm.actionId
-            )
-            const message = locationRowLifecycleSuccessToast(
-              lifecycleConfirm.actionId
-            )
-            if (message != null) {
-              toast.success(message)
-            }
+          const succeeded = await runLifecycleAction(
+            lifecycleConfirm.locationId,
+            lifecycleConfirm.actionId
+          )
+          if (succeeded) {
             setLifecycleConfirm(null)
-          } catch (error: unknown) {
-            setLifecycleError(
-              error instanceof Error && error.message.trim().length > 0
-                ? error.message
-                : copy.lifecycleErrorToast
-            )
-          } finally {
-            setLifecycleBusy(false)
+          } else {
+            setLifecycleError(copy.lifecycleErrorToast)
           }
+          setLifecycleBusy(false)
         }}
       />
 

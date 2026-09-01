@@ -76,6 +76,17 @@ describe("classifyLocationRowAction", () => {
     expect(locationRowActionNeedsConfirm("resume-location")).toBe(false)
     expect(locationRowActionNeedsConfirm("view-location")).toBe(false)
   })
+
+  it("maps lifecycle-confirm actions to dialog-open routing", () => {
+    for (const actionId of [
+      "pause-location",
+      "archive-location",
+      "restore-location",
+    ] as const) {
+      expect(classifyLocationRowAction(actionId)).toBe("lifecycle-confirm")
+      expect(locationRowActionNeedsConfirm(actionId)).toBe(true)
+    }
+  })
 })
 
 describe("resolveLocationRowActionNavigation", () => {
