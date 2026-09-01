@@ -94,11 +94,21 @@ export function LocationDetailOffersSection({
                   {card.meta}
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  <Button type="button" variant="op-secondary" disabled>
-                    {card.primaryCta}
+                  <Button
+                    type="button"
+                    variant="op-secondary"
+                    className={LOCATION_DETAIL_ACTION_BUTTON_CLASS}
+                    asChild
+                  >
+                    <Link to={card.hrefPrimary}>{card.primaryCta}</Link>
                   </Button>
-                  <Button type="button" variant="op-tertiary" disabled>
-                    {card.secondaryCta}
+                  <Button
+                    type="button"
+                    variant="op-tertiary"
+                    className={LOCATION_DETAIL_ACTION_BUTTON_CLASS}
+                    asChild
+                  >
+                    <Link to={card.hrefSecondary}>{card.secondaryCta}</Link>
                   </Button>
                 </div>
               </article>

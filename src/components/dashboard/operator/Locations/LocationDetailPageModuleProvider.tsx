@@ -18,7 +18,7 @@ export function LocationDetailPageModuleProvider({
 }) {
   const { locationId: rawLocationId } = useParams()
   const [searchParams] = useSearchParams()
-  const { locations } = useOutletContext<DashboardOutletContext>()
+  const { locations, mode } = useOutletContext<DashboardOutletContext>()
   const locationId = Number.parseInt(rawLocationId ?? "", 10)
   const safeLocationId = Number.isFinite(locationId) ? locationId : -1
   const fallback = locations.find((location) => location.id === safeLocationId)
@@ -36,11 +36,12 @@ export function LocationDetailPageModuleProvider({
         {
           initialTabId: searchParams.get("tab"),
           fallbackName: fallback?.locationName,
+          dashboardMode: mode,
         }
       ),
     // Recreate only when the path location changes; tab sync is separate.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fallback name is best-effort on create
-    [safeLocationId]
+    [safeLocationId, mode]
   )
 
   useEffect(() => {

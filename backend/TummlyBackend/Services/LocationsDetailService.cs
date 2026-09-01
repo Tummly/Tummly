@@ -11,14 +11,23 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly TimeProvider _time;
+        private readonly LocationDetailOverviewComposer _overview;
+        private readonly LocationDetailQrRowsComposer _qrRows;
+        private readonly LocationDetailOfferCardsComposer _offerCards;
 
         public LocationsDetailService(
             ApplicationDbContext context,
-            TimeProvider time
+            TimeProvider time,
+            LocationDetailOverviewComposer overview,
+            LocationDetailQrRowsComposer qrRows,
+            LocationDetailOfferCardsComposer offerCards
         )
         {
             _context = context;
             _time = time;
+            _overview = overview;
+            _qrRows = qrRows;
+            _offerCards = offerCards;
         }
 
         public async Task<LocationDetailResponseDto?> GetDetailAsync(
@@ -75,17 +84,24 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .AnyAsync(o => o.RestaurantLocationId == query.LocationId);
 
-            var monthStartUtc = DefaultReportingPeriodWindow.Resolve(
+            var (monthStartUtc, monthEndUtc) = DefaultReportingPeriodWindow.Resolve(
                 "thisMonth",
                 _time.GetUtcNow().UtcDateTime
-            ).FromUtc;
+            );
 
-            var guestsCapturedThisMonth = await _context.LocationGuests
-                .AsNoTracking()
-                .CountAsync(lg =>
-                    lg.RestaurantLocationId == query.LocationId
-                    && lg.CreatedAt >= monthStartUtc
-                );
+            var overviewMetrics = await _overview.ComposeAsync(
+                query.LocationId,
+                monthStartUtc,
+                monthEndUtc
+            );
+
+            var qrRows = await _qrRows.ComposeAsync(
+                query.LocationId,
+                monthStartUtc,
+                monthEndUtc
+            );
+
+            var offerCards = await _offerCards.ComposeAsync(query.LocationId);
 
             var lifecycleWire = ToLifecycleWire(location.LifecycleStatus);
             var setupStatus = LocationsListService.DeriveSetupStatus(
@@ -135,9 +151,12 @@ namespace TummlyBackend.Services
                         ? null
                         : location.LocalContact.Trim(),
                     LiveQrCount = activeQrCount,
-                    GuestsCapturedThisMonth = guestsCapturedThisMonth,
+                    GuestsCapturedThisMonth = overviewMetrics.GuestsCaptured,
                 },
                 SetupChecklist = setupChecklist,
+                OverviewMetrics = overviewMetrics,
+                QrRows = qrRows,
+                OfferCards = offerCards,
             };
         }
 

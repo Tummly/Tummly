@@ -623,6 +623,8 @@ export type LocationDetailOfferCard = {
   meta: string
   primaryCta: string
   secondaryCta: string
+  hrefPrimary: string
+  hrefSecondary: string
 }
 
 export function formatLocationDetailHeaderMeta(input: {

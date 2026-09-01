@@ -29,6 +29,63 @@ namespace TummlyBackend.DTOs.Locations
         public int GuestsCapturedThisMonth { get; init; }
     }
 
+    public sealed class LocationDetailOverviewMetricsDto
+    {
+        public int QrScans { get; init; }
+
+        public int FormStarts { get; init; }
+
+        public int Feedback { get; init; }
+
+        public int GuestsCaptured { get; init; }
+
+        public int OptIns { get; init; }
+
+        public int OffersClaimed { get; init; }
+
+        public int OffersRedeemed { get; init; }
+    }
+
+    public sealed class LocationDetailQrRowDto
+    {
+        public int QrCodeId { get; init; }
+
+        public string Name { get; init; } = string.Empty;
+
+        public string Placement { get; init; } = string.Empty;
+
+        public string StatusLabel { get; init; } = string.Empty;
+
+        public int Scans { get; init; }
+
+        public int Starts { get; init; }
+
+        public int Submissions { get; init; }
+
+        public int OptIns { get; init; }
+
+        public int Claims { get; init; }
+
+        public DateTime? LastScanAtUtc { get; init; }
+    }
+
+    public sealed class LocationDetailOfferCardDto
+    {
+        public int EntityId { get; init; }
+
+        public string Kind { get; init; } = string.Empty;
+
+        public string StatusLabel { get; init; } = string.Empty;
+
+        public string Title { get; init; } = string.Empty;
+
+        public string Meta { get; init; } = string.Empty;
+
+        public string PrimaryCta { get; init; } = string.Empty;
+
+        public string SecondaryCta { get; init; } = string.Empty;
+    }
+
     public sealed class LocationDetailResponseDto
     {
         public bool Success { get; init; } = true;
@@ -39,5 +96,13 @@ namespace TummlyBackend.DTOs.Locations
         /// Checklist item id → status id (complete | optional | incomplete | not-started).
         /// </summary>
         public Dictionary<string, string> SetupChecklist { get; init; } = new();
+
+        public LocationDetailOverviewMetricsDto OverviewMetrics { get; init; } = new();
+
+        public IReadOnlyList<LocationDetailQrRowDto> QrRows { get; init; }
+            = Array.Empty<LocationDetailQrRowDto>();
+
+        public IReadOnlyList<LocationDetailOfferCardDto> OfferCards { get; init; }
+            = Array.Empty<LocationDetailOfferCardDto>();
     }
 }

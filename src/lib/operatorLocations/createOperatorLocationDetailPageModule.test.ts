@@ -40,6 +40,41 @@ function detailResponse(
       atLeastOneQrCreated: "complete",
       ...(overrides.setupChecklist ?? {}),
     },
+    overviewMetrics: {
+      qrScans: 1204,
+      formStarts: 0,
+      feedback: 18,
+      guestsCaptured: 842,
+      optIns: 96,
+      offersClaimed: 44,
+      offersRedeemed: 12,
+      ...(overrides.overviewMetrics ?? {}),
+    },
+    qrRows: overrides.qrRows ?? [
+      {
+        qrCodeId: 9,
+        name: "Counter card",
+        placement: "Counter card",
+        statusLabel: "Active",
+        scans: 1204,
+        starts: 0,
+        submissions: 18,
+        optIns: 96,
+        claims: 0,
+        lastScanAtUtc: "2026-09-01T10:00:00Z",
+      },
+    ],
+    offerCards: overrides.offerCards ?? [
+      {
+        entityId: 10,
+        kind: "offer",
+        statusLabel: "Active",
+        title: "Welcome offer",
+        meta: "44 claims · 12 redemptions",
+        primaryCta: "View offer",
+        secondaryCta: "View redemptions",
+      },
+    ],
     ...overrides,
   }
 }
@@ -94,7 +129,11 @@ describe("formatLocationDetailMonthMetric", () => {
 describe("createOperatorLocationDetailPageModule", () => {
   it("keeps getSnapshot identity until emit", async () => {
     const getDetail = vi.fn().mockResolvedValue(detailResponse())
-    const pageModule = createOperatorLocationDetailPageModule(42, { getDetail })
+    const pageModule = createOperatorLocationDetailPageModule(
+      42,
+      { getDetail },
+      { dashboardMode: "multi" }
+    )
 
     expect(pageModule.getSnapshot()).toBe(pageModule.getSnapshot())
 
@@ -129,6 +168,53 @@ describe("createOperatorLocationDetailPageModule", () => {
       "pause"
     )
     expect(pageModule.getSnapshot().loadStatus).toBe("loaded")
+  })
+
+  it("maps overview metrics, qr rows, and offer cards from detail response", async () => {
+    const fixedNow = Date.parse("2026-09-01T12:00:00Z")
+    const getDetail = vi.fn().mockResolvedValue(detailResponse())
+    const pageModule = createOperatorLocationDetailPageModule(
+      42,
+      { getDetail },
+      {
+        dashboardMode: "single",
+        nowMs: () => fixedNow,
+      }
+    )
+
+    await pageModule.load()
+
+    expect(pageModule.getSnapshot().overviewMetrics).toEqual({
+      qrScans: 1204,
+      formStarts: 0,
+      feedback: 18,
+      guestsCaptured: 842,
+      optIns: 96,
+      offersClaimed: 44,
+      offersRedeemed: 12,
+    })
+    expect(pageModule.getSnapshot().qrRows).toEqual([
+      {
+        id: "9",
+        name: "Counter card",
+        placement: "Counter card",
+        statusLabel: "Active",
+        scans: "1,204 opens",
+        starts: "0 starts",
+        submissions: "18 submissions",
+        optIns: "96 opt-ins",
+        claims: "0 claims",
+        lastScannedLabel: "2 hours ago",
+      },
+    ])
+    expect(pageModule.getSnapshot().offerCards[0]).toMatchObject({
+      id: "offer-10",
+      kind: "offer",
+      title: "Welcome offer",
+      hrefPrimary: "/single-dashboard/offers/10?location=42",
+      hrefSecondary:
+        "/single-dashboard/offers/10?location=42&tab=redemptions",
+    })
   })
 
   it("uses server setup checklist without client heuristics", async () => {
@@ -171,6 +257,15 @@ describe("createOperatorLocationDetailPageModule", () => {
     await pageModule.load()
 
     expect(pageModule.getSnapshot().loadStatus).toBe("not-found")
+  })
+
+  it("marks error when detail GET fails with a non-404 status", async () => {
+    const getDetail = vi.fn().mockRejectedValue(new Error("network"))
+    const pageModule = createOperatorLocationDetailPageModule(42, { getDetail })
+
+    await pageModule.load()
+
+    expect(pageModule.getSnapshot().loadStatus).toBe("error")
   })
 
   it("changes tabs through requestTabChange", () => {

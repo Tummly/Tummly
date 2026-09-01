@@ -1,9 +1,21 @@
+import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
+import type {
+  LocationDetailOfferCard,
+  LocationDetailOverviewMetricId,
+  LocationDetailQrRow,
+} from "@/lib/operatorLocations/locationDetailPresentation"
 import type { LocationLifecycleStatus } from "@/lib/operatorLocations/locationsPresentation"
 import type { LocationSetupStatus } from "@/lib/operatorLocations/locationsPresentation"
 import type {
   LocationSetupChecklistItemId,
   LocationSetupChecklistStatusId,
 } from "@/lib/operatorLocations/locationDetailPresentation"
+import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
+import {
+  operatorDashboardCampaignDetailsPath,
+  operatorDashboardCampaignPreviewPath,
+  operatorDashboardOfferDetailsPath,
+} from "@/lib/operatorHome/operatorDashboardPaths"
 
 export type LocationDetailApiHeader = {
   id: number
@@ -21,10 +33,46 @@ export type LocationDetailApiHeader = {
   guestsCapturedThisMonth: number
 }
 
+export type LocationDetailApiOverviewMetrics = {
+  qrScans: number
+  formStarts: number
+  feedback: number
+  guestsCaptured: number
+  optIns: number
+  offersClaimed: number
+  offersRedeemed: number
+}
+
+export type LocationDetailApiQrRow = {
+  qrCodeId: number
+  name: string
+  placement: string
+  statusLabel: string
+  scans: number
+  starts: number
+  submissions: number
+  optIns: number
+  claims: number
+  lastScanAtUtc: string | null
+}
+
+export type LocationDetailApiOfferCard = {
+  entityId: number
+  kind: "offer" | "campaign"
+  statusLabel: string
+  title: string
+  meta: string
+  primaryCta: string
+  secondaryCta: string
+}
+
 export type LocationDetailApiResponse = {
   success: boolean
   header: LocationDetailApiHeader
   setupChecklist: Record<string, LocationSetupChecklistStatusId>
+  overviewMetrics: LocationDetailApiOverviewMetrics
+  qrRows: LocationDetailApiQrRow[]
+  offerCards: LocationDetailApiOfferCard[]
 }
 
 export function mapLocationDetailSetupChecklist(
@@ -39,4 +87,96 @@ export function mapLocationDetailSetupChecklist(
     firstOfferCreated: wire.firstOfferCreated ?? "optional",
     atLeastOneQrCreated: wire.atLeastOneQrCreated ?? "not-started",
   }
+}
+
+export function mapLocationDetailOverviewMetrics(
+  wire: LocationDetailApiOverviewMetrics
+): Record<LocationDetailOverviewMetricId, number> {
+  return {
+    qrScans: wire.qrScans,
+    formStarts: wire.formStarts,
+    feedback: wire.feedback,
+    guestsCaptured: wire.guestsCaptured,
+    optIns: wire.optIns,
+    offersClaimed: wire.offersClaimed,
+    offersRedeemed: wire.offersRedeemed,
+  }
+}
+
+function formatQrMetricCount(value: number, suffix: string): string {
+  return `${value.toLocaleString("en-GB")} ${suffix}`
+}
+
+export function mapLocationDetailQrRows(
+  wire: readonly LocationDetailApiQrRow[],
+  nowMs: number = Date.now()
+): LocationDetailQrRow[] {
+  return wire.map((row) => ({
+    id: String(row.qrCodeId),
+    name: row.name,
+    placement: row.placement,
+    statusLabel: row.statusLabel,
+    scans: formatQrMetricCount(row.scans, "opens"),
+    starts: formatQrMetricCount(row.starts, "starts"),
+    submissions: formatQrMetricCount(row.submissions, "submissions"),
+    optIns: formatQrMetricCount(row.optIns, "opt-ins"),
+    claims: formatQrMetricCount(row.claims, "claims"),
+    lastScannedLabel:
+      row.lastScanAtUtc == null || row.lastScanAtUtc === ""
+        ? "—"
+        : formatRelativeTime(row.lastScanAtUtc, nowMs) || "—",
+  }))
+}
+
+export function mapLocationDetailOfferCards(
+  wire: readonly LocationDetailApiOfferCard[],
+  options: {
+    mode: OperatorDashboardMode
+    locationId: number
+  }
+): LocationDetailOfferCard[] {
+  return wire.map((card) => {
+    if (card.kind === "campaign") {
+      return {
+        id: `campaign-${card.entityId}`,
+        kind: "campaign",
+        statusLabel: card.statusLabel,
+        title: card.title,
+        meta: card.meta,
+        primaryCta: card.primaryCta,
+        secondaryCta: card.secondaryCta,
+        hrefPrimary: operatorDashboardCampaignDetailsPath(
+          options.mode,
+          card.entityId,
+          options.locationId
+        ),
+        hrefSecondary: operatorDashboardCampaignPreviewPath(
+          options.mode,
+          card.entityId,
+          options.locationId
+        ),
+      }
+    }
+
+    return {
+      id: `offer-${card.entityId}`,
+      kind: "offer",
+      statusLabel: card.statusLabel,
+      title: card.title,
+      meta: card.meta,
+      primaryCta: card.primaryCta,
+      secondaryCta: card.secondaryCta,
+      hrefPrimary: operatorDashboardOfferDetailsPath(
+        options.mode,
+        card.entityId,
+        options.locationId
+      ),
+      hrefSecondary: operatorDashboardOfferDetailsPath(
+        options.mode,
+        card.entityId,
+        options.locationId,
+        { tab: "redemptions" }
+      ),
+    }
+  })
 }

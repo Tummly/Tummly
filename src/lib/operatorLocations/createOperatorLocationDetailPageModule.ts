@@ -1,5 +1,10 @@
 import type { LocationDetailApiResponse } from "@/lib/operatorLocations/locationDetailApi"
-import { mapLocationDetailSetupChecklist } from "@/lib/operatorLocations/locationDetailApi"
+import {
+  mapLocationDetailOfferCards,
+  mapLocationDetailOverviewMetrics,
+  mapLocationDetailQrRows,
+  mapLocationDetailSetupChecklist,
+} from "@/lib/operatorLocations/locationDetailApi"
 import {
   buildEmptyOverviewMetrics,
   buildLocationGuestActivityChecklist,
@@ -25,6 +30,7 @@ import {
   type LocationSetupChecklistStatusId,
 } from "@/lib/operatorLocations/locationDetailPresentation"
 import type { LocationLifecycleStatus } from "@/lib/operatorLocations/locationsPresentation"
+import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
 import { isAxiosError } from "axios"
 
 export type LocationDetailSnapshot = {
@@ -81,6 +87,8 @@ export function createOperatorLocationDetailPageModule(
   options: {
     initialTabId?: string | null
     fallbackName?: string
+    dashboardMode?: OperatorDashboardMode
+    nowMs?: () => number
   } = {}
 ): OperatorLocationDetailPageModule {
   let activeTabId = resolveLocationDetailTabId(options.initialTabId)
@@ -169,6 +177,33 @@ export function createOperatorLocationDetailPageModule(
     liveQrCount = header.liveQrCount
     guestsCapturedThisMonth = header.guestsCapturedThisMonth
     setupChecklist = mapLocationDetailSetupChecklist(response.setupChecklist)
+    overviewMetrics = mapLocationDetailOverviewMetrics(
+      response.overviewMetrics
+    )
+    qrRows = mapLocationDetailQrRows(
+      response.qrRows,
+      options.nowMs?.() ?? Date.now()
+    )
+    offerCards =
+      options.dashboardMode == null
+        ? []
+        : mapLocationDetailOfferCards(response.offerCards, {
+            mode: options.dashboardMode,
+            locationId,
+          })
+    guestActivityChecklist = buildLocationGuestActivityChecklist({
+      guestsCaptured: overviewMetrics.guestsCaptured,
+      optIns: overviewMetrics.optIns,
+      feedback: overviewMetrics.feedback,
+      offersClaimed: overviewMetrics.offersClaimed,
+      offersRedeemed: overviewMetrics.offersRedeemed,
+      pendingRecoveryCount: latestFeedbackRows.filter(
+        (entry) => entry.canStartRecovery
+      ).length,
+      pendingFeedbackActionCount: latestFeedbackRows.filter(
+        (entry) => entry.sentiment === "negative"
+      ).length,
+    })
     teamAccessRows = buildLocationTeamAccessRows({
       managerName: header.managerName,
       managerUserId: header.managerUserId,
@@ -196,25 +231,6 @@ export function createOperatorLocationDetailPageModule(
       }
 
       applyDetailResponse(response)
-
-      // Ticket 02+ will populate these from detail GET extensions.
-      overviewMetrics = buildEmptyOverviewMetrics()
-      guestActivityChecklist = buildLocationGuestActivityChecklist({
-        guestsCaptured: overviewMetrics.guestsCaptured,
-        optIns: overviewMetrics.optIns,
-        feedback: overviewMetrics.feedback,
-        offersClaimed: overviewMetrics.offersClaimed,
-        offersRedeemed: overviewMetrics.offersRedeemed,
-        pendingRecoveryCount: latestFeedbackRows.filter(
-          (entry) => entry.canStartRecovery
-        ).length,
-        pendingFeedbackActionCount: latestFeedbackRows.filter(
-          (entry) => entry.sentiment === "negative"
-        ).length,
-      })
-      qrRows = []
-      offerCards = []
-      latestFeedbackRows = []
       loadStatus = "loaded"
       emit()
     } catch (error) {

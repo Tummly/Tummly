@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -179,6 +180,49 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetLocationDetail_ReturnsOverviewMetricsAndQrRows()
+        {
+            var seeded = await SeedDetailScenarioAsync();
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/locations/{seeded.ActiveLocationId}/detail"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.OwnerJwt);
+
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+
+            var metrics = body.GetProperty("overviewMetrics");
+            Assert.Equal(1, metrics.GetProperty("qrScans").GetInt32());
+            Assert.Equal(0, metrics.GetProperty("formStarts").GetInt32());
+            Assert.Equal(1, metrics.GetProperty("feedback").GetInt32());
+            Assert.Equal(0, metrics.GetProperty("guestsCaptured").GetInt32());
+            Assert.Equal(1, metrics.GetProperty("optIns").GetInt32());
+            Assert.Equal(0, metrics.GetProperty("offersClaimed").GetInt32());
+            Assert.Equal(0, metrics.GetProperty("offersRedeemed").GetInt32());
+
+            var qrRows = body.GetProperty("qrRows");
+            Assert.Equal(1, qrRows.GetArrayLength());
+            var row = qrRows[0];
+            Assert.Equal(seeded.ActiveQrCodeId, row.GetProperty("qrCodeId").GetInt32());
+            Assert.Equal("Counter card", row.GetProperty("name").GetString());
+            Assert.Equal("Counter card", row.GetProperty("placement").GetString());
+            Assert.Equal("Active", row.GetProperty("statusLabel").GetString());
+            Assert.Equal(1, row.GetProperty("scans").GetInt32());
+            Assert.Equal(0, row.GetProperty("starts").GetInt32());
+            Assert.Equal(1, row.GetProperty("submissions").GetInt32());
+            Assert.Equal(1, row.GetProperty("optIns").GetInt32());
+            Assert.Equal(0, row.GetProperty("claims").GetInt32());
+            Assert.NotEqual(JsonValueKind.Null, row.GetProperty("lastScanAtUtc").ValueKind);
+
+            var offerCards = body.GetProperty("offerCards");
+            Assert.Equal(1, offerCards.GetArrayLength());
+            Assert.Equal("offer", offerCards[0].GetProperty("kind").GetString());
+            Assert.Equal("View offer", offerCards[0].GetProperty("primaryCta").GetString());
+        }
+
+        [Fact]
         public async Task GetLocationDetail_DraftLocation_HasNotStartedChecklistItems()
         {
             var seeded = await SeedDetailScenarioAsync();
@@ -307,6 +351,43 @@ namespace TummlyBackend.Tests.Integration
                     CreatedAt = DateTime.UtcNow,
                 }
             );
+            await context.SaveChangesAsync();
+
+            var activeQr = await context.QrCodes
+                .AsNoTracking()
+                .SingleAsync(q => q.RestaurantLocationId == active.Id);
+
+            var monthStartUtc = DefaultReportingPeriodWindow.Resolve(
+                "thisMonth",
+                DateTime.UtcNow
+            ).FromUtc;
+            var scanAt = monthStartUtc.AddHours(2);
+            var feedbackAt = monthStartUtc.AddHours(3);
+
+            context.QrScanEvents.Add(
+                new QrScanEvent
+                {
+                    RestaurantLocationId = active.Id,
+                    QrCodeId = activeQr.Id,
+                    CreatedAt = scanAt,
+                }
+            );
+            context.Feedbacks.Add(
+                new Feedback
+                {
+                    RestaurantLocationId = active.Id,
+                    QrCodeId = activeQr.Id,
+                    GuestName = "Taylor",
+                    GuestContact = "07700900999",
+                    ContactType = ContactType.Phone,
+                    Comment = "Great service",
+                    OffersOptOut = false,
+                    ClassificationStatus = ClassificationStatus.Succeeded,
+                    WorkflowStatus = FeedbackWorkflowStatus.New,
+                    CreatedAt = feedbackAt,
+                }
+            );
+
             context.CatalogOffers.Add(
                 new CatalogOffer
                 {
@@ -388,7 +469,8 @@ namespace TummlyBackend.Tests.Integration
                 ActiveLocationId: active.Id,
                 DraftLocationId: draft.Id,
                 OutOfScopeLocationId: draft.Id,
-                ManagerUserId: manager.Id
+                ManagerUserId: manager.Id,
+                ActiveQrCodeId: activeQr.Id
             );
         }
 
@@ -500,7 +582,8 @@ namespace TummlyBackend.Tests.Integration
             int ActiveLocationId,
             int DraftLocationId,
             int OutOfScopeLocationId,
-            int ManagerUserId
+            int ManagerUserId,
+            int ActiveQrCodeId
         );
     }
 }

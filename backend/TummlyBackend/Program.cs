@@ -496,6 +496,9 @@ builder.Services.AddScoped<
 builder.Services.AddScoped<IOwnedLocationService, OwnedLocationService>();
 builder.Services.AddScoped<IOwnedLocationInsertService, OwnedLocationInsertService>();
 builder.Services.AddScoped<ILocationsListService, LocationsListService>();
+builder.Services.AddScoped<LocationDetailOverviewComposer>();
+builder.Services.AddScoped<LocationDetailQrRowsComposer>();
+builder.Services.AddScoped<LocationDetailOfferCardsComposer>();
 builder.Services.AddScoped<ILocationsDetailService, LocationsDetailService>();
 builder.Services.AddScoped<ILocationsActivityService, LocationsActivityService>();
 builder.Services.AddScoped<ILocationsLifecycleWriteService, LocationsLifecycleWriteService>();
