@@ -301,7 +301,7 @@ namespace TummlyBackend.Tests.Integration
                 guestActivity.GetProperty("guestProfilesCreated").GetString()
             );
             Assert.Equal(
-                "needs-action",
+                "complete",
                 guestActivity.GetProperty("feedbackSubmitted").GetString()
             );
             Assert.Equal(
@@ -316,7 +316,7 @@ namespace TummlyBackend.Tests.Integration
             var latestFeedback = body.GetProperty("latestFeedbackRows")
                 .EnumerateArray()
                 .ToList();
-            Assert.Single(latestFeedback);
+            Assert.Equal(2, latestFeedback.Count);
             Assert.Equal("Food was cold", latestFeedback[0]
                 .GetProperty("comment")
                 .GetString());

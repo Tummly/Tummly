@@ -13,12 +13,11 @@ namespace TummlyBackend.Tests.Services
                 feedback: 3,
                 offersClaimed: 2,
                 offersRedeemed: 0,
-                pendingRecoveryCount: 1,
-                pendingFeedbackActionCount: 1
+                pendingRecoveryCount: 1
             );
 
             Assert.Equal("complete", checklist["guestProfilesCreated"]);
-            Assert.Equal("needs-action", checklist["feedbackSubmitted"]);
+            Assert.Equal("complete", checklist["feedbackSubmitted"]);
             Assert.Equal("needs-action", checklist["needsRecovery"]);
             Assert.Equal("optional", checklist["offerRedemptions"]);
             Assert.Equal("optional", checklist["unsubscribes"]);
@@ -33,8 +32,7 @@ namespace TummlyBackend.Tests.Services
                 feedback: 0,
                 offersClaimed: 0,
                 offersRedeemed: 0,
-                pendingRecoveryCount: 0,
-                pendingFeedbackActionCount: 0
+                pendingRecoveryCount: 0
             );
 
             Assert.Equal("optional", checklist["guestProfilesCreated"]);

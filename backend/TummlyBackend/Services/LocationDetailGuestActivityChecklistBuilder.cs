@@ -12,8 +12,7 @@ namespace TummlyBackend.Services
             int feedback,
             int offersClaimed,
             int offersRedeemed,
-            int pendingRecoveryCount,
-            int pendingFeedbackActionCount
+            int pendingRecoveryCount
         )
         {
             string CountStatus(int count) => count > 0 ? "complete" : "optional";
@@ -24,9 +23,7 @@ namespace TummlyBackend.Services
                 ["offerClaims"] = CountStatus(offersClaimed),
                 ["consentOptIns"] = CountStatus(optIns),
                 ["offerRedemptions"] = CountStatus(offersRedeemed),
-                ["feedbackSubmitted"] = pendingFeedbackActionCount > 0
-                    ? "needs-action"
-                    : CountStatus(feedback),
+                ["feedbackSubmitted"] = CountStatus(feedback),
                 ["unsubscribes"] = "optional",
                 ["needsRecovery"] = pendingRecoveryCount > 0
                     ? "needs-action"

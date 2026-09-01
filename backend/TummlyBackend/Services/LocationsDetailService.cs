@@ -118,25 +118,13 @@ namespace TummlyBackend.Services
                 )
                 .CountAsync();
 
-            var pendingFeedbackActionCount = await _context.Feedbacks
-                .AsNoTracking()
-                .CountAsync(f =>
-                    f.RestaurantLocationId == query.LocationId
-                    && f.CreatedAt >= monthStartUtc
-                    && f.CreatedAt < monthEndUtc
-                    && f.ClassificationStatus == ClassificationStatus.Succeeded
-                    && f.Sentiment == FeedbackSentiment.Negative
-                    && f.WorkflowStatus != FeedbackWorkflowStatus.Resolved
-                );
-
             var guestActivityChecklist = LocationDetailGuestActivityChecklistBuilder.Build(
                 overviewMetrics.GuestsCaptured,
                 overviewMetrics.OptIns,
                 overviewMetrics.Feedback,
                 overviewMetrics.OffersClaimed,
                 overviewMetrics.OffersRedeemed,
-                pendingRecoveryCount,
-                pendingFeedbackActionCount
+                pendingRecoveryCount
             );
 
             var latestFeedbackRows = await LoadLatestFeedbackRowsAsync(
