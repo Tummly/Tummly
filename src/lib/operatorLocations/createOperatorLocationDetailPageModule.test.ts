@@ -142,6 +142,7 @@ describe("createOperatorLocationDetailPageModule", () => {
   })
 
   it("maps teamAccessRows from detail response including last active", async () => {
+    vi.useFakeTimers({ now: new Date("2026-08-26T12:00:00.000Z") })
     const getDetail = vi.fn().mockResolvedValue(
       detailResponse({
         teamAccessRows: [
@@ -169,6 +170,7 @@ describe("createOperatorLocationDetailPageModule", () => {
         lastActiveLabel: "Today, 09:42",
       },
     ])
+    vi.useRealTimers()
   })
 
   it("uses server setup checklist without client heuristics", async () => {
