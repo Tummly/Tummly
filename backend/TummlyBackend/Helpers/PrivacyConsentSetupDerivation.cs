@@ -33,12 +33,7 @@ namespace TummlyBackend.Helpers
             Restaurant restaurant
         )
         {
-            var wordingConfigured = IsGuestPermissionWordingConfigured(
-                restaurant
-            );
-            var wordingStatus = wordingConfigured
-                ? StatusConfigured
-                : StatusNotUsed;
+            var wordingStatus = GuestPermissionWordingStatus(restaurant);
 
             return
             [
@@ -74,6 +69,24 @@ namespace TummlyBackend.Helpers
                         : StatusNotUsed
                 ),
             ];
+        }
+
+        private static string GuestPermissionWordingStatus(Restaurant restaurant)
+        {
+            if (IsGuestPermissionWordingConfigured(restaurant))
+            {
+                return StatusConfigured;
+            }
+
+            if (
+                restaurant.EmailMarketingPermissionEnabled
+                || restaurant.SmsMarketingPermissionEnabled
+            )
+            {
+                return StatusEnabled;
+            }
+
+            return StatusConfigured;
         }
     }
 

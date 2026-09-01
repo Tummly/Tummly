@@ -146,9 +146,38 @@ namespace TummlyBackend.Tests.Integration
                     row => row.GetProperty("status").GetString()
                 );
             Assert.Equal(
-                PrivacyConsentSetupDerivation.StatusNotUsed,
+                PrivacyConsentSetupDerivation.StatusEnabled,
                 rows["guest-permission-wording"]
             );
+        }
+
+        [Fact]
+        public async Task Save_SetsReady_WhenQualifyingWordingProvided()
+        {
+            var seeded = await SeedOwnerWithIncompletePrivacyAsync();
+
+            using var saveRequest = AuthorizedJson(
+                HttpMethod.Put,
+                "/api/privacy-consent",
+                seeded.OwnerJwt,
+                new
+                {
+                    smsConsentWording = "We may text you offers.",
+                    emailConsentWording = "We may email you offers.",
+                }
+            );
+            var saveResponse = await _client.SendAsync(saveRequest);
+            Assert.Equal(HttpStatusCode.OK, saveResponse.StatusCode);
+            var saveBody = await ReadJsonAsync(saveResponse);
+            Assert.True(saveBody.GetProperty("privacyReady").GetBoolean());
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurant = await context.Restaurants
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == seeded.RestaurantId);
+            Assert.NotNull(restaurant.PrivacyConsentReadyAt);
         }
 
         [Fact]
@@ -178,6 +207,22 @@ namespace TummlyBackend.Tests.Integration
                 .AsNoTracking()
                 .SingleAsync(row => row.Id == seeded.RestaurantId);
             Assert.Null(restaurant.PrivacyConsentReadyAt);
+        }
+
+        [Fact]
+        public async Task Patch_Returns401_WhenUnauthenticated()
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Patch,
+                "/api/privacy-consent"
+            )
+            {
+                Content = JsonContent.Create(
+                    new { smsMarketingPermissionEnabled = false }
+                ),
+            };
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
 
         [Fact]
@@ -276,14 +321,22 @@ namespace TummlyBackend.Tests.Integration
             var body = await ReadJsonAsync(response);
             Assert.True(body.GetProperty("success").GetBoolean());
             var items = body.GetProperty("items").EnumerateArray().ToList();
-            Assert.Equal(2, items.Count);
+            Assert.Equal(4, items.Count);
             Assert.Equal(
                 LocationActivityKinds.ConsentCopyChanged,
                 items[0].GetProperty("kind").GetString()
             );
             Assert.Equal(
-                LocationActivityKinds.GuestPermissionToggleChanged,
+                LocationActivityKinds.GuestMarketingUnsubscribed,
                 items[1].GetProperty("kind").GetString()
+            );
+            Assert.Equal(
+                LocationActivityKinds.PrivacyReviewCompleted,
+                items[2].GetProperty("kind").GetString()
+            );
+            Assert.Equal(
+                LocationActivityKinds.GuestPermissionToggleChanged,
+                items[3].GetProperty("kind").GetString()
             );
             Assert.DoesNotContain(
                 items,
@@ -608,9 +661,11 @@ namespace TummlyBackend.Tests.Integration
             };
             context.RestaurantLocations.Add(location);
 
-            var t0 = DateTime.UtcNow.AddHours(-2);
-            var t1 = DateTime.UtcNow.AddHours(-1);
-            var t2 = DateTime.UtcNow;
+            var t0 = DateTime.UtcNow.AddHours(-4);
+            var t1 = DateTime.UtcNow.AddHours(-3);
+            var t2 = DateTime.UtcNow.AddHours(-2);
+            var t3 = DateTime.UtcNow.AddHours(-1);
+            var t4 = DateTime.UtcNow;
 
             context.LocationActivities.AddRange(
                 new LocationActivity
@@ -639,9 +694,29 @@ namespace TummlyBackend.Tests.Integration
                     LocationId = null,
                     ActorUserId = owner.Id,
                     ActorDisplayName = owner.FullName,
+                    Kind = LocationActivityKinds.PrivacyReviewCompleted,
+                    Description = "Completed the privacy review.",
+                    OccurredAt = t2,
+                },
+                new LocationActivity
+                {
+                    RestaurantId = restaurant.Id,
+                    LocationId = location.Id,
+                    ActorUserId = owner.Id,
+                    ActorDisplayName = owner.FullName,
+                    Kind = LocationActivityKinds.GuestMarketingUnsubscribed,
+                    Description = "Guest opted out of marketing.",
+                    OccurredAt = t3,
+                },
+                new LocationActivity
+                {
+                    RestaurantId = restaurant.Id,
+                    LocationId = null,
+                    ActorUserId = owner.Id,
+                    ActorDisplayName = owner.FullName,
                     Kind = LocationActivityKinds.ConsentCopyChanged,
                     Description = "Updated consent wording.",
-                    OccurredAt = t2,
+                    OccurredAt = t4,
                 }
             );
             await context.SaveChangesAsync();
