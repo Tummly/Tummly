@@ -139,6 +139,8 @@ export const LOCATION_DETAIL_PAGE_COPY = {
     "Update this location's name, address and contact details.",
   saveDetails: "Save details",
   savingDetails: "Saving…",
+  editDetailsSuccessToast: "Location details updated.",
+  editDetailsErrorToast: "Could not save location details.",
   loadError: "Could not load this location.",
   notFound: "Location not found.",
   thisMonthSuffix: "this month",

@@ -105,12 +105,12 @@ export function LocationDetailSetupDetailsTab({
           setEditError(null)
           try {
             await pageModule.saveEditDetails(input)
-            toast.success("Location details updated.")
+            toast.success(copy.editDetailsSuccessToast)
           } catch (error) {
             setEditError(
               error instanceof Error
                 ? error.message
-                : "Could not save location details."
+                : copy.editDetailsErrorToast
             )
             throw error
           }

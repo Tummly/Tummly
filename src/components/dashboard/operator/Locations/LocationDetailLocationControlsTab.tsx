@@ -25,6 +25,7 @@ import {
   type LocationControlsLifecycleActionId,
   type LocationControlsLifecycleConfirmActionId,
 } from "@/lib/operatorLocations/locationDetailPresentation"
+import { LOCATIONS_PAGE_COPY } from "@/lib/operatorLocations/locationsPresentation"
 import { cn } from "@/lib/utils"
 
 type LocationDetailLocationControlsTabProps = {
@@ -63,7 +64,7 @@ export function LocationDetailLocationControlsTab({
         toast.error(
           error instanceof Error
             ? error.message
-            : "Could not update location status."
+            : LOCATIONS_PAGE_COPY.lifecycleErrorToast
         )
       }
       return
@@ -183,7 +184,7 @@ export function LocationDetailLocationControlsTab({
             setLifecycleError(
               error instanceof Error
                 ? error.message
-                : "Could not update location status."
+                : LOCATIONS_PAGE_COPY.lifecycleErrorToast
             )
           }
         }}

@@ -339,49 +339,12 @@ namespace TummlyBackend.Tests.Integration
         public async Task GetLocationDetail_IncludesLocationControlsWithLastScanAndFeedback()
         {
             var seeded = await SeedDetailScenarioAsync();
-
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider
-                    .GetRequiredService<ApplicationDbContext>();
-                var scanAt = new DateTime(2026, 8, 31, 12, 42, 0, DateTimeKind.Utc);
-                var feedbackAt = new DateTime(
-                    2026,
-                    8,
-                    31,
-                    12,
-                    50,
-                    0,
-                    DateTimeKind.Utc
-                );
-                context.QrScanEvents.Add(
-                    new QrScanEvent
-                    {
-                        RestaurantLocationId = seeded.ActiveLocationId,
-                        CreatedAt = scanAt,
-                    }
-                );
-                context.Feedbacks.Add(
-                    new Feedback
-                    {
-                        RestaurantLocationId = seeded.ActiveLocationId,
-                        QrCodeId = (
-                            await context.QrCodes
-                                .Where(q =>
-                                    q.RestaurantLocationId == seeded.ActiveLocationId
-                                )
-                                .Select(q => q.Id)
-                                .FirstAsync()
-                        ),
-                        GuestName = "Alex Guest",
-                        GuestContact = "alex@example.com",
-                        ContactType = ContactType.Email,
-                        Comment = "Great service",
-                        CreatedAt = feedbackAt,
-                    }
-                );
-                await context.SaveChangesAsync();
-            }
+            var monthStartUtc = DefaultReportingPeriodWindow.Resolve(
+                "thisMonth",
+                DateTime.UtcNow
+            ).FromUtc;
+            var expectedLastScanAt = monthStartUtc.AddHours(2);
+            var expectedLastFeedbackAt = monthStartUtc.AddHours(3);
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
@@ -393,12 +356,12 @@ namespace TummlyBackend.Tests.Integration
             var body = await ReadJsonAsync(await _client.SendAsync(request));
             var controls = body.GetProperty("locationControls");
             Assert.Equal(
-                "2026-08-31T12:42:00",
-                controls.GetProperty("lastScanAt").GetString()![..19]
+                expectedLastScanAt,
+                controls.GetProperty("lastScanAt").GetDateTime()
             );
             Assert.Equal(
-                "2026-08-31T12:50:00",
-                controls.GetProperty("lastFeedbackAt").GetString()![..19]
+                expectedLastFeedbackAt,
+                controls.GetProperty("lastFeedbackAt").GetDateTime()
             );
         }
 

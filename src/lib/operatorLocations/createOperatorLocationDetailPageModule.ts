@@ -38,6 +38,7 @@ import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboard
 import {
   formatLocationControlsLastScanAt,
   formatLocationsLastActivityAt,
+  LOCATIONS_PAGE_COPY,
 } from "@/lib/operatorLocations/locationsPresentation"
 import { isAxiosError } from "axios"
 
@@ -331,7 +332,7 @@ export function createOperatorLocationDetailPageModule(
         lifecycleMutationPending = false
         loadStatus = "error"
         emit()
-        throw new Error("Could not update location status.")
+        throw new Error(LOCATIONS_PAGE_COPY.lifecycleErrorToast)
       }
     },
     saveEditDetails: async (input) => {
