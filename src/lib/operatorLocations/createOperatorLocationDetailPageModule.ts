@@ -203,7 +203,13 @@ export function createOperatorLocationDetailPageModule(
       latestFeedbackRows,
       teamAccessRows,
       locationControlsStatus,
-      locationControlsActions,
+      locationControlsActions:
+        loadStatus === "loaded"
+          ? locationControlsActions
+          : locationControlsActions.map((action) => ({
+              ...action,
+              enabled: false,
+            })),
       lifecycleMutationPending,
       editDetailsPending,
       qrRows,
@@ -330,7 +336,6 @@ export function createOperatorLocationDetailPageModule(
         await load()
       } catch {
         lifecycleMutationPending = false
-        loadStatus = "error"
         emit()
         throw new Error(LOCATIONS_PAGE_COPY.lifecycleErrorToast)
       }

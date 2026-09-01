@@ -24,10 +24,15 @@ namespace TummlyBackend.Services
         };
 
         private readonly ApplicationDbContext _context;
+        private readonly TimeProvider _time;
 
-        public LocationDetailOfferCardsComposer(ApplicationDbContext context)
+        public LocationDetailOfferCardsComposer(
+            ApplicationDbContext context,
+            TimeProvider time
+        )
         {
             _context = context;
+            _time = time;
         }
 
         public async Task<IReadOnlyList<LocationDetailOfferCardDto>> ComposeAsync(
@@ -35,6 +40,10 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            var venueLocalToday = DateOnly.FromDateTime(
+                LondonDateFormat.ToLondonLocal(_time.GetUtcNow().UtcDateTime)
+            );
+
             var offers = await _context.CatalogOffers
                 .AsNoTracking()
                 .Where(o =>
@@ -46,9 +55,26 @@ namespace TummlyBackend.Services
                     "offer",
                     o.Status,
                     o.Title,
-                    o.UpdatedAt
+                    o.UpdatedAt,
+                    o.Validity,
+                    o.CustomExpiryDate
                 ))
                 .ToListAsync(cancellationToken);
+
+            var activeOffers = offers
+                .Where(offer =>
+                    string.Equals(
+                        CatalogOfferStatus.ResolveEffectiveStatus(
+                            offer.Status,
+                            offer.Validity,
+                            offer.CustomExpiryDate,
+                            venueLocalToday
+                        ),
+                        CatalogOfferStatus.Active,
+                        StringComparison.Ordinal
+                    )
+                )
+                .ToList();
 
             var campaigns = await _context.Campaigns
                 .AsNoTracking()
@@ -61,11 +87,13 @@ namespace TummlyBackend.Services
                     "campaign",
                     c.Status,
                     c.Name,
-                    c.UpdatedAt
+                    c.UpdatedAt,
+                    CatalogOfferValidity.Days30AfterIssue,
+                    null
                 ))
                 .ToListAsync(cancellationToken);
 
-            var selected = offers
+            var selected = activeOffers
                 .Concat(campaigns)
                 .OrderByDescending(card => card.UpdatedAt)
                 .Take(MaxCards)
@@ -217,7 +245,9 @@ namespace TummlyBackend.Services
             string Kind,
             string Status,
             string Title,
-            DateTime UpdatedAt
+            DateTime UpdatedAt,
+            CatalogOfferValidity Validity,
+            DateOnly? CustomExpiryDate
         );
     }
 }

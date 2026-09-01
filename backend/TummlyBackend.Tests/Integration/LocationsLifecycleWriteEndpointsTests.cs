@@ -611,6 +611,28 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task UpdateLocation_Returns404_WhenLocationNotInScope()
+        {
+            var seeded = await SeedPilotWithRoomAsync(
+                restaurantName: "Edit Out Of Scope Venue"
+            );
+
+            using var request = AuthorizedPut(
+                "/api/locations/999999",
+                seeded.OwnerJwt,
+                new
+                {
+                    locationName = "Should Fail",
+                    address = "1 High Street",
+                    city = "London",
+                    postcode = "W1D 6QF",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        [Fact]
         public async Task UpdateLocation_Returns403_WhenLocationsAreaIsViewOnly()
         {
             var seeded = await SeedPilotWithRoomAsync(

@@ -407,14 +407,11 @@ namespace TummlyBackend.Controllers
 
             if (!decision.LocationIds.Contains(locationId))
             {
-                return StatusCode(
-                    StatusCodes.Status403Forbidden,
-                    new
-                    {
-                        success = false,
-                        message = "You do not have access to this location.",
-                    }
-                );
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Location not found.",
+                });
             }
 
             var result = await action(decision.RestaurantId, userId);

@@ -111,11 +111,7 @@ namespace TummlyBackend.Services
                 .Where(lg => lg.RestaurantLocationId == query.LocationId);
 
             var pendingRecoveryCount = await GuestsListQueryComposer
-                .WhereNeedsRecoveryWithNegativeFeedbackInWindow(
-                    scopedGuests,
-                    monthStartUtc,
-                    monthEndUtc
-                )
+                .WherePendingRecovery(scopedGuests)
                 .CountAsync();
 
             var guestActivityChecklist = LocationDetailGuestActivityChecklistBuilder.Build(
@@ -161,11 +157,6 @@ namespace TummlyBackend.Services
                 hasOffer
             );
 
-            var locationNamesById = await _context.RestaurantLocations
-                .AsNoTracking()
-                .Where(row => row.RestaurantId == query.RestaurantId)
-                .ToDictionaryAsync(row => row.Id, row => row.LocationName);
-
             var memberships = await _context.RestaurantMemberships
                 .AsNoTracking()
                 .Include(row => row.User)
@@ -180,6 +171,24 @@ namespace TummlyBackend.Services
                     )
                 )
                 .ToList();
+
+            var locationIdsForAccessLabels = scopedMemberships
+                .SelectMany(row =>
+                    MembershipLocationScope.ParseNamedIds(row.NamedLocationIdsJson)
+                )
+                .Append(query.LocationId)
+                .Distinct()
+                .ToList();
+
+            var locationNamesById = locationIdsForAccessLabels.Count == 0
+                ? new Dictionary<int, string>()
+                : await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .Where(row =>
+                        row.RestaurantId == query.RestaurantId
+                        && locationIdsForAccessLabels.Contains(row.Id)
+                    )
+                    .ToDictionaryAsync(row => row.Id, row => row.LocationName);
 
             var scopedMemberUserIds = scopedMemberships
                 .Select(row => row.UserId)

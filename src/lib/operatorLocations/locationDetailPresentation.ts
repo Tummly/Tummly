@@ -142,6 +142,7 @@ export const LOCATION_DETAIL_PAGE_COPY = {
   editDetailsSuccessToast: "Location details updated.",
   editDetailsErrorToast: "Could not save location details.",
   loadError: "Could not load this location.",
+  retryLoad: "Retry",
   notFound: "Location not found.",
   thisMonthSuffix: "this month",
 } as const

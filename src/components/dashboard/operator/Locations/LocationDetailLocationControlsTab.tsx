@@ -140,7 +140,11 @@ export function LocationDetailLocationControlsTab({
                 type="button"
                 variant={action.variant}
                 className={LOCATION_DETAIL_ACTION_BUTTON_CLASS}
-                disabled={!action.enabled || snap.lifecycleMutationPending}
+                disabled={
+                  snap.loadStatus !== "loaded"
+                  || !action.enabled
+                  || snap.lifecycleMutationPending
+                }
                 onClick={() => {
                   onLifecycleAction(action.id)
                 }}

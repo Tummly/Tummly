@@ -48,7 +48,11 @@ export function LocationDetailSetupDetailsTab({
             type="button"
             variant="op-secondary"
             className={LOCATION_DETAIL_ACTION_BUTTON_CLASS}
-            disabled={snap.lifecycleStatus === "archived" || snap.editDetailsPending}
+            disabled={
+              snap.loadStatus !== "loaded"
+              || snap.lifecycleStatus === "archived"
+              || snap.editDetailsPending
+            }
             onClick={() => {
               setEditError(null)
               setEditOpen(true)

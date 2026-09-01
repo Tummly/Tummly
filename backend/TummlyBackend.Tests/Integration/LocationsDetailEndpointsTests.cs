@@ -116,6 +116,37 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetLocationDetail_ReturnsDetailForArchivedLocation()
+        {
+            var seeded = await SeedDetailScenarioAsync();
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var location = await context.RestaurantLocations.FindAsync(
+                    seeded.DraftLocationId
+                );
+                location!.LifecycleStatus = LocationLifecycleStatus.Archived;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/locations/{seeded.DraftLocationId}/detail"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.OwnerJwt);
+
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+
+            Assert.Equal(
+                "archived",
+                body.GetProperty("header").GetProperty("lifecycleStatus").GetString()
+            );
+        }
+
+        [Fact]
         public async Task GetLocationDetail_ReturnsHeaderAndSetupChecklist()
         {
             var seeded = await SeedDetailScenarioAsync();

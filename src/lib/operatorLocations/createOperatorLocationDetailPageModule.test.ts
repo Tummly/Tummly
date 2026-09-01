@@ -500,4 +500,54 @@ describe("createOperatorLocationDetailPageModule", () => {
     expect(getDetail).toHaveBeenCalledTimes(2)
     expect(pageModule.getSnapshot().lifecycleStatus).toBe("paused")
   })
+
+  it("keeps loaded snapshot when lifecycle mutate fails", async () => {
+    const getDetail = vi.fn().mockResolvedValue(detailResponse())
+    const mutateLifecycle = vi.fn(async () => {
+      throw new Error("network")
+    })
+    const pageModule = createOperatorLocationDetailPageModule(42, {
+      getDetail,
+      mutateLifecycle,
+    })
+
+    await pageModule.load()
+    expect(pageModule.getSnapshot().loadStatus).toBe("loaded")
+
+    await expect(pageModule.requestLifecycleAction("pause")).rejects.toThrow(
+      "Could not update location."
+    )
+
+    expect(pageModule.getSnapshot().loadStatus).toBe("loaded")
+    expect(pageModule.getSnapshot().lifecycleStatus).toBe("active")
+    expect(pageModule.getSnapshot().lifecycleMutationPending).toBe(false)
+  })
+
+  it("disables lifecycle actions until detail GET completes", async () => {
+    let resolveDetail: (value: LocationDetailApiResponse) => void = () => {}
+    const getDetail = vi.fn(
+      () =>
+        new Promise<LocationDetailApiResponse>((resolve) => {
+          resolveDetail = resolve
+        })
+    )
+    const pageModule = createOperatorLocationDetailPageModule(42, { getDetail })
+
+    const loadPromise = pageModule.load()
+    expect(pageModule.getSnapshot().loadStatus).toBe("loading")
+    expect(
+      pageModule.getSnapshot().locationControlsActions.every(
+        (action) => !action.enabled
+      )
+    ).toBe(true)
+
+    resolveDetail(detailResponse())
+    await loadPromise
+
+    expect(
+      pageModule.getSnapshot().locationControlsActions.some(
+        (action) => action.enabled
+      )
+    ).toBe(true)
+  })
 })

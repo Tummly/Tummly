@@ -16,6 +16,7 @@ import { useLocationDetailPageModuleApi } from "@/components/dashboard/operator/
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   ACCOUNT_WORKSPACE_FULL_BLEED_BOTTOM,
@@ -119,10 +120,6 @@ export function LocationDetailPage() {
     setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams, snap.activeTabId])
 
-  useEffect(() => {
-    pageModule.setActiveTabFromUrl(searchParams.get("tab"))
-  }, [pageModule, searchParams])
-
   const lifecycleVariant = locationLifecycleBadgeVariant(snap.lifecycleStatus)
   const lifecycleLabel = LOCATION_LIFECYCLE_LABELS[snap.lifecycleStatus]
 
@@ -143,12 +140,48 @@ export function LocationDetailPage() {
     )
   }
 
+  if (snap.loadStatus === "idle" || snap.loadStatus === "loading") {
+    return (
+      <div
+        className="flex flex-1 items-center justify-center"
+        role="status"
+        aria-live="polite"
+        aria-label="Loading location detail"
+      >
+        <Spinner />
+      </div>
+    )
+  }
+
   if (snap.loadStatus === "error") {
     return (
-      <div className={ACCOUNT_WORKSPACE_PAGE_STACK_CLASS}>
+      <div
+        className={cn(
+          ACCOUNT_WORKSPACE_PAGE_STACK_CLASS,
+          "flex flex-1 flex-col items-center justify-center gap-3"
+        )}
+      >
         <p className="m-0 text-base font-medium text-[var(--op-color-red-550)]">
           {copy.loadError}
         </p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Button
+            type="button"
+            variant="op-secondary"
+            onClick={() => {
+              void pageModule.load()
+            }}
+          >
+            {copy.retryLoad}
+          </Button>
+          <Button
+            type="button"
+            variant="op-tertiary"
+            onClick={() => navigate(locationsListPath)}
+          >
+            {copy.breadcrumbLocations}
+          </Button>
+        </div>
       </div>
     )
   }
