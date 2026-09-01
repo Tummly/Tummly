@@ -463,4 +463,26 @@ describe("createOperatorPrivacyConsentPageModule", () => {
       message: "Save rejected",
     })
   })
+
+  it("keeps page loaded when a follow-up permission-records fetch fails", async () => {
+    const getPermissionRecords = vi
+      .fn()
+      .mockResolvedValueOnce(
+        recordsResponse({ totalCount: 30, page: 1, pageSize: 25 })
+      )
+      .mockRejectedValueOnce(new Error("Records unavailable"))
+    const api = adapters({ getPermissionRecords, debounceMs: 0 })
+    const pageModule = createOperatorPrivacyConsentPageModule(api)
+    await pageModule.load()
+    expect(pageModule.getSnapshot().loadStatus).toBe("loaded")
+
+    pageModule.goToNextPermissionRecordsPage()
+    await Promise.resolve()
+
+    expect(pageModule.getSnapshot().loadStatus).toBe("loaded")
+    expect(pageModule.getSnapshot().toast).toEqual({
+      kind: "error",
+      message: "Records unavailable",
+    })
+  })
 })

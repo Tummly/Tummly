@@ -386,8 +386,19 @@ export function createOperatorPrivacyConsentPageModule(
       }
       applyRecordsResponse(response)
       emit()
-    } catch {
+    } catch (error) {
       if (generation !== recordsGeneration) {
+        return
+      }
+      if (loadStatus === "loaded") {
+        toast = {
+          kind: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : PRIVACY_CONSENT_PAGE_COPY.permissionRecordsLoadError,
+        }
+        emit()
         return
       }
       loadStatus = "error"

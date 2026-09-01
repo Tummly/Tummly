@@ -48,6 +48,7 @@ export const PRIVACY_CONSENT_PAGE_COPY = {
   consentWordingSaveSuccess: "Consent wording saved.",
   consentWordingSaveError: "Could not save consent wording.",
   guestPermissionToggleError: "Could not save guest permission.",
+  permissionRecordsLoadError: "Could not load permission records.",
 } as const
 
 /** Pagination label for permission records table. */
