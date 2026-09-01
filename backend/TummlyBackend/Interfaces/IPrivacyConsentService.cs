@@ -4,7 +4,11 @@ namespace TummlyBackend.Interfaces
 {
     public interface IPrivacyConsentService
     {
-        Task<PrivacyConsentGetResult> GetAsync(int restaurantId);
+        Task<PrivacyConsentGetResult> GetAsync(
+            int restaurantId,
+            bool actorCanManage,
+            bool canViewGuests
+        );
 
         Task<PrivacyConsentPatchResult> PatchTogglesAsync(
             int restaurantId,

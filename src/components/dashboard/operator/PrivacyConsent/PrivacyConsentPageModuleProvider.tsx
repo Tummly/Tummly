@@ -1,12 +1,23 @@
 import {
   createElement,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom"
 
+import {
+  getPermissionRecords,
+  getPrivacyConsent,
+  getPrivacyConsentActivity,
+  patchPrivacyConsentToggles,
+  savePrivacyConsent,
+} from "@/api/privacyConsentApi"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { privacyConsentPageModuleContext } from "@/components/dashboard/operator/PrivacyConsent/utils/privacyConsentPageModuleContext"
+import { useWorkspaceSession } from "@/components/dashboard/operator/useWorkspaceSession"
+import { operatorDashboardGuestProfilePath } from "@/lib/operatorHome/operatorDashboardPaths"
 import { createOperatorPrivacyConsentPageModule } from "@/lib/operatorPrivacyConsent/createOperatorPrivacyConsentPageModule"
 
 export function PrivacyConsentPageModuleProvider({
@@ -14,13 +25,37 @@ export function PrivacyConsentPageModuleProvider({
 }: {
   children: ReactNode
 }) {
+  const navigate = useNavigate()
+  const { mode } = useOutletContext<DashboardOutletContext>()
+  const workspace = useWorkspaceSession(mode)
+  const workspaceRef = useRef(workspace)
+  workspaceRef.current = workspace
   const [searchParams] = useSearchParams()
   const initialTabId = searchParams.get("tab")
   const [pageModule] = useState(() =>
     createOperatorPrivacyConsentPageModule({
-      initialTabId,
-    })
+      getPage: getPrivacyConsent,
+      patchToggles: patchPrivacyConsentToggles,
+      saveWording: savePrivacyConsent,
+      getPermissionRecords,
+      getActivity: getPrivacyConsentActivity,
+      getLocationFilterOptions: () =>
+        workspaceRef.current.snapshot.locations.map((location) => ({
+          id: String(location.id),
+          label: location.locationName,
+        })),
+      navigateToGuestProfile: (locationGuestId, locationId) => {
+        navigate(
+          operatorDashboardGuestProfilePath(mode, locationGuestId, locationId)
+        )
+      },
+      debounceMs: 300,
+    }, { initialTabId })
   )
+
+  useEffect(() => {
+    void pageModule.load()
+  }, [pageModule])
 
   useEffect(() => {
     pageModule.setActiveTabFromUrl(searchParams.get("tab"))

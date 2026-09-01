@@ -92,6 +92,8 @@ namespace TummlyBackend.Tests.Integration
                 body.GetProperty("feedbackFollowUpPermissionEnabled")
                     .GetBoolean()
             );
+            Assert.True(body.GetProperty("actorCanManage").GetBoolean());
+            Assert.True(body.GetProperty("canViewGuests").GetBoolean());
 
             var rows = body.GetProperty("privacySetupRows").EnumerateArray()
                 .ToDictionary(

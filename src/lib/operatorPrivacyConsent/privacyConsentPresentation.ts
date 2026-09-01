@@ -189,6 +189,7 @@ export type PermissionRecordCurrentState = "granted" | "withdrawn"
 
 export type PermissionRecordRow = {
   id: string
+  locationGuestId: number
   guestName: string
   permissionId: GuestPermissionId
   permissionLabel: string
@@ -212,6 +213,7 @@ export const PERMISSION_RECORD_CURRENT_STATE_LABELS: Record<
 export const PERMISSION_RECORDS_DEMO_ROWS: readonly PermissionRecordRow[] = [
   {
     id: "1",
+    locationGuestId: 1,
     guestName: "Amira Khan",
     permissionId: "email-marketing",
     permissionLabel: "Email marketing",
@@ -224,6 +226,7 @@ export const PERMISSION_RECORDS_DEMO_ROWS: readonly PermissionRecordRow[] = [
   },
   {
     id: "2",
+    locationGuestId: 2,
     guestName: "Liam Chen",
     permissionId: "sms-marketing",
     permissionLabel: "SMS marketing",
@@ -236,6 +239,7 @@ export const PERMISSION_RECORDS_DEMO_ROWS: readonly PermissionRecordRow[] = [
   },
   {
     id: "3",
+    locationGuestId: 3,
     guestName: "Sophia Martinez",
     permissionId: "feedback-follow-up",
     permissionLabel: "Feedback follow-up",

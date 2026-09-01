@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils"
 
 type GuestPermissionsSectionProps = {
   cards: readonly GuestPermissionCard[]
+  readOnly?: boolean
   onEnabledChange: (id: GuestPermissionId, enabled: boolean) => void
 }
 
@@ -43,6 +44,7 @@ function GuestPermissionMetaRow({
 /** Guest permissions card — Figma 5746:100280. */
 export function GuestPermissionsSection({
   cards,
+  readOnly = false,
   onEnabledChange,
 }: GuestPermissionsSectionProps) {
   const copy = PRIVACY_CONSENT_PAGE_COPY
@@ -77,6 +79,7 @@ export function GuestPermissionsSection({
                   <Switch
                     id={switchId}
                     checked={card.enabled}
+                    disabled={readOnly}
                     onCheckedChange={(checked) => {
                       onEnabledChange(card.id, checked)
                     }}

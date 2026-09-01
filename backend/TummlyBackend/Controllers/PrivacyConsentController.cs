@@ -50,7 +50,28 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
-            var result = await _privacyConsent.GetAsync(decision.RestaurantId);
+            var actorCanManage =
+                (
+                    await _permissions.AuthorizeAsync(
+                        User,
+                        OperatorAreaIds.PrivacyConsent,
+                        PermissionLevel.Manage
+                    )
+                ).Status == RestaurantPermissionStatus.Allowed;
+            var canViewGuests =
+                (
+                    await _permissions.AuthorizeLocationSetAsync(
+                        User,
+                        OperatorAreaIds.Guests,
+                        PermissionLevel.View
+                    )
+                ).Status == RestaurantPermissionStatus.Allowed;
+
+            var result = await _privacyConsent.GetAsync(
+                decision.RestaurantId,
+                actorCanManage,
+                canViewGuests
+            );
 
             return result switch
             {

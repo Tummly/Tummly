@@ -52,6 +52,7 @@ type PermissionRecordsSectionProps = {
   filterChipCount: number
   rows: readonly PermissionRecordRow[]
   empty: boolean
+  canViewGuests: boolean
   onSearchQueryChange: (query: string) => void
   onOpenFilters: () => void
   onRemoveFilterChip: (chip: FilterChip) => void
@@ -66,6 +67,7 @@ export function PermissionRecordsSection({
   filterChipCount,
   rows,
   empty,
+  canViewGuests,
   onSearchQueryChange,
   onOpenFilters,
   onRemoveFilterChip,
@@ -228,6 +230,13 @@ export function PermissionRecordsSection({
                           type="button"
                           variant="op-tertiary"
                           className="h-10 rounded-[2px] px-[17px] py-[11px]"
+                          disabled={!canViewGuests}
+                          aria-disabled={!canViewGuests}
+                          aria-label={
+                            canViewGuests
+                              ? copy.permissionRecordsView
+                              : `${copy.permissionRecordsView} (unavailable)`
+                          }
                           onClick={() => {
                             onViewRecord(row.id)
                           }}

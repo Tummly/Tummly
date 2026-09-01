@@ -7,6 +7,8 @@ import { PrivacyActivitySection } from "@/components/dashboard/operator/PrivacyC
 import { PrivacySetupStatusSection } from "@/components/dashboard/operator/PrivacyConsent/PrivacySetupStatusSection"
 import { usePrivacyConsentPageModuleApi } from "@/components/dashboard/operator/PrivacyConsent/utils/privacyConsentPageModuleContext"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
+import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   ACCOUNT_WORKSPACE_FULL_BLEED_BOTTOM,
@@ -32,6 +34,8 @@ import {
 } from "@/lib/operatorPrivacyConsent/privacyConsentPresentation"
 import { cn } from "@/lib/utils"
 
+const LOAD_ERROR_MESSAGE = "Could not load Privacy & consent."
+
 export function PrivacyConsentPage() {
   const pageModule = usePrivacyConsentPageModuleApi()
   const snap = useSyncExternalStore(
@@ -55,6 +59,36 @@ export function PrivacyConsentPage() {
   const permissionRecordsSchema = permissionRecordsFilterSheetSchema({
     locations: snap.permissionRecordsLocationOptions,
   })
+
+  if (snap.loadStatus === "idle" || snap.loadStatus === "loading") {
+    return (
+      <div
+        className="flex flex-1 items-center justify-center"
+        role="status"
+        aria-live="polite"
+        aria-label="Loading Privacy and consent"
+      >
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (snap.loadStatus === "error") {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3">
+        <p className="m-0 text-sm text-muted-foreground">{LOAD_ERROR_MESSAGE}</p>
+        <Button
+          type="button"
+          variant="op-secondary"
+          onClick={() => {
+            void pageModule.retryLoad()
+          }}
+        >
+          Retry
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <div className={ACCOUNT_WORKSPACE_PAGE_STACK_CLASS}>
@@ -115,7 +149,10 @@ export function PrivacyConsentPage() {
           <TabsContent value="guest-permissions" className="mt-0">
             <GuestPermissionsSection
               cards={snap.guestPermissions}
-              onEnabledChange={pageModule.setGuestPermissionEnabled}
+              readOnly={!snap.actorCanManage}
+              onEnabledChange={(id, enabled) => {
+                void pageModule.setGuestPermissionEnabled(id, enabled)
+              }}
             />
           </TabsContent>
 
@@ -126,6 +163,7 @@ export function PrivacyConsentPage() {
               filterChipCount={snap.permissionRecordsFilterChipCount}
               rows={snap.permissionRecordsRows}
               empty={snap.permissionRecordsEmpty}
+              canViewGuests={snap.canViewGuests}
               onSearchQueryChange={pageModule.setPermissionRecordsSearchQuery}
               onOpenFilters={pageModule.openPermissionRecordsFilters}
               onRemoveFilterChip={pageModule.removePermissionRecordsFilterChip}

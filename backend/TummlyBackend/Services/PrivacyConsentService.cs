@@ -18,7 +18,11 @@ namespace TummlyBackend.Services
             _context = context;
         }
 
-        public async Task<PrivacyConsentGetResult> GetAsync(int restaurantId)
+        public async Task<PrivacyConsentGetResult> GetAsync(
+            int restaurantId,
+            bool actorCanManage,
+            bool canViewGuests
+        )
         {
             var restaurant = await _context.Restaurants
                 .AsNoTracking()
@@ -55,6 +59,8 @@ namespace TummlyBackend.Services
                     privacyConsentReadyAt =
                         restaurant.PrivacyConsentReadyAt?.ToUniversalTime()
                             .ToString("O"),
+                    actorCanManage,
+                    canViewGuests,
                 }
             );
         }

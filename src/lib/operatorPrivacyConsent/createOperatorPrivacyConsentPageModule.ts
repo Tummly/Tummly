@@ -7,9 +7,24 @@ import {
   removeAppliedChip,
   type FilterChip,
   type FilterSheetSession,
-  type OperatorFilterSelection,
 } from "@/lib/operatorFilterSheet"
+import type { SavePrivacyConsentInput } from "@/api/privacyConsentApi"
+import {
+  mapGuestPermissionCardsFromApi,
+  mapPermissionRecordRowFromApi,
+  mapPrivacyActivityItemFromApi,
+  mapPrivacySetupRowsFromApi,
+  patchPayloadForGuestPermission,
+  type PrivacyConsentPageApiData,
+  type PrivacyConsentActivityApiItem,
+} from "@/lib/operatorPrivacyConsent/mapPrivacyConsentApiResponse"
 import { permissionRecordsFilterSheetSchema } from "@/lib/operatorPrivacyConsent/permissionRecordsFilterSheetSchema"
+import {
+  buildPermissionRecordsListQueryParams,
+  PERMISSION_RECORDS_PAGE_SIZE,
+  type PermissionRecordsListQueryParams,
+  type PermissionRecordsListResponse,
+} from "@/lib/operatorPrivacyConsent/permissionRecordsListQueryParams"
 import {
   GUEST_PERMISSIONS_DEMO_CARDS,
   PERMISSION_RECORDS_DEMO_ROWS,
@@ -32,6 +47,9 @@ export type PrivacyConsentSnapshot = {
     id: PrivacyConsentTabId
     label: string
   }>
+  loadStatus: "idle" | "loading" | "loaded" | "error"
+  actorCanManage: boolean
+  canViewGuests: boolean
   privacySetupRows: PrivacySetupStatusRow[]
   guestPermissions: GuestPermissionCard[]
   permissionRecordsSearchQuery: string
@@ -45,15 +63,36 @@ export type PrivacyConsentSnapshot = {
   activityItems: PrivacyActivityItem[]
 }
 
+export type OperatorPrivacyConsentPageAdapters = {
+  getPage: () => Promise<PrivacyConsentPageApiData>
+  patchToggles: (
+    payload: ReturnType<typeof patchPayloadForGuestPermission>
+  ) => Promise<void>
+  saveWording?: (input: SavePrivacyConsentInput) => Promise<void>
+  getPermissionRecords: (
+    params: PermissionRecordsListQueryParams
+  ) => Promise<PermissionRecordsListResponse>
+  getActivity: () => Promise<{ items: PrivacyConsentActivityApiItem[] }>
+  getLocationFilterOptions: () => Array<{ id: string; label: string }>
+  navigateToGuestProfile?: (
+    locationGuestId: number,
+    locationId: number
+  ) => void
+  debounceMs?: number
+  getNow?: () => Date
+}
+
 export type OperatorPrivacyConsentPageModule = {
   getSnapshot: () => PrivacyConsentSnapshot
   subscribe: (listener: () => void) => () => void
+  load: () => Promise<void>
+  retryLoad: () => Promise<void>
   setActiveTabFromUrl: (raw: string | null | undefined) => void
   requestTabChange: (tabId: PrivacyConsentTabId) => void
   setGuestPermissionEnabled: (
     id: GuestPermissionId,
     enabled: boolean
-  ) => void
+  ) => Promise<void>
   setPermissionRecordsSearchQuery: (query: string) => void
   setPermissionRecordsFiltersSession: (
     session: FilterSheetSession | null
@@ -66,107 +105,133 @@ export type OperatorPrivacyConsentPageModule = {
   viewPermissionRecord: (recordId: string) => void
 }
 
-function locationOptionsFromRows(rows: readonly PermissionRecordRow[]) {
-  const seen = new Map<string, string>()
-  for (const row of rows) {
-    if (!seen.has(row.locationId)) {
-      seen.set(row.locationId, row.locationLabel)
-    }
-  }
-  return [...seen.entries()].map(([id, label]) => ({ id, label }))
-}
-
-function multiSelectIds(
-  selection: OperatorFilterSelection | undefined,
-  fieldId: string
-): string[] {
-  const value = selection?.[fieldId]
-  if (value == null || value.kind !== "multi-select") {
-    return []
-  }
-  return value.ids
-}
-
-function rowMatchesPermissionRecordsFilters(
-  row: PermissionRecordRow,
-  applied: OperatorFilterSelection | undefined
-): boolean {
-  if (applied == null) {
-    return true
-  }
-
-  const permissionIds = multiSelectIds(applied, "permission")
-  if (permissionIds.length > 0 && !permissionIds.includes(row.permissionId)) {
-    return false
-  }
-
-  const currentStateIds = multiSelectIds(applied, "currentState").filter(
-    (id) => id === "granted" || id === "withdrawn"
-  )
-  if (
-    currentStateIds.length > 0
-    && !currentStateIds.includes(row.currentState)
-  ) {
-    return false
-  }
-
-  const locationIds = multiSelectIds(applied, "location")
-  if (locationIds.length > 0 && !locationIds.includes(row.locationId)) {
-    return false
-  }
-
-  return true
-}
+const DEFAULT_SEARCH_DEBOUNCE_MS = 300
 
 /** Figma 5746:100788 shows Filters (3): Eligible to contact, Negative, Camden. */
 function demoPermissionRecordsApplied(
-  schemaFieldsEmpty: OperatorFilterSelection
-): OperatorFilterSelection {
+  schemaFieldsEmpty: ReturnType<typeof emptySelection>
+) {
   return {
     ...schemaFieldsEmpty,
     currentState: {
-      kind: "multi-select",
+      kind: "multi-select" as const,
       ids: ["eligible-to-contact", "negative"],
     },
     location: {
-      kind: "multi-select",
+      kind: "multi-select" as const,
       ids: ["camden"],
     },
   }
 }
 
-export function createOperatorPrivacyConsentPageModule(options: {
-  initialTabId?: string | null
-  privacySetupRows?: PrivacySetupStatusRow[]
-  guestPermissions?: GuestPermissionCard[]
-  permissionRecordsRows?: PermissionRecordRow[]
-  activityItems?: PrivacyActivityItem[]
-  /** When true, skip Figma Filters (3) seed. */
-  skipPermissionRecordsDemoFilters?: boolean
-} = {}): OperatorPrivacyConsentPageModule {
-  const privacySetupRows = options.privacySetupRows ?? [
+function filterClientSideDemoRows(
+  rows: readonly PermissionRecordRow[],
+  applied: FilterSheetSession["applied"] | undefined,
+  query: string
+): PermissionRecordRow[] {
+  const lowered = query.trim().toLowerCase()
+  return rows.filter((row) => {
+    const permissionIds =
+      applied?.permission?.kind === "multi-select"
+        ? applied.permission.ids
+        : []
+    if (permissionIds.length > 0 && !permissionIds.includes(row.permissionId)) {
+      return false
+    }
+
+    const currentStateIds =
+      applied?.currentState?.kind === "multi-select"
+        ? applied.currentState.ids.filter(
+            (id) => id === "granted" || id === "withdrawn"
+          )
+        : []
+    if (
+      currentStateIds.length > 0
+      && !currentStateIds.includes(row.currentState)
+    ) {
+      return false
+    }
+
+    const locationIds =
+      applied?.location?.kind === "multi-select" ? applied.location.ids : []
+    if (locationIds.length > 0 && !locationIds.includes(row.locationId)) {
+      return false
+    }
+
+    if (lowered === "") {
+      return true
+    }
+    return (
+      row.guestName.toLowerCase().includes(lowered)
+      || row.searchText.includes(lowered)
+    )
+  })
+}
+
+export function createOperatorPrivacyConsentPageModule(
+  adapters: OperatorPrivacyConsentPageAdapters,
+  options: {
+    initialTabId?: string | null
+    /** Test/demo seed path — skips live adapters on load. */
+    demo?: {
+      privacySetupRows?: PrivacySetupStatusRow[]
+      guestPermissions?: GuestPermissionCard[]
+      permissionRecordsRows?: PermissionRecordRow[]
+      activityItems?: PrivacyActivityItem[]
+      skipPermissionRecordsDemoFilters?: boolean
+    }
+  } = {}
+): OperatorPrivacyConsentPageModule {
+  const debounceMs = adapters.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS
+  const getNow = adapters.getNow ?? (() => new Date())
+  const isDemo = options.demo != null
+
+  let privacySetupRows = options.demo?.privacySetupRows ?? [
     ...PRIVACY_SETUP_STATUS_DEMO_ROWS,
   ]
-  let guestPermissions = (options.guestPermissions ?? [
+  let guestPermissions = (options.demo?.guestPermissions ?? [
     ...GUEST_PERMISSIONS_DEMO_CARDS,
   ]).map((card) => ({ ...card }))
-  const allPermissionRecords =
-    options.permissionRecordsRows ?? [...PERMISSION_RECORDS_DEMO_ROWS]
-  const activityItems = options.activityItems ?? [...PRIVACY_ACTIVITY_DEMO_ITEMS]
+  let permissionRecordsRows: PermissionRecordRow[] = isDemo
+    ? [...(options.demo?.permissionRecordsRows ?? PERMISSION_RECORDS_DEMO_ROWS)]
+    : []
+  let activityItems: PrivacyActivityItem[] = options.demo?.activityItems ?? [
+    ...PRIVACY_ACTIVITY_DEMO_ITEMS,
+  ]
+  let actorCanManage = false
+  let canViewGuests = false
+  let loadStatus: PrivacyConsentSnapshot["loadStatus"] = isDemo
+    ? "loaded"
+    : "idle"
+  let loadGeneration = 0
+  let recordsGeneration = 0
+  let searchTimer: ReturnType<typeof setTimeout> | null = null
+  const permissionRecordsById = new Map<string, PermissionRecordRow>()
 
   let activeTabId = resolvePrivacyConsentTabId(options.initialTabId)
   let permissionRecordsSearchQuery = ""
   let permissionRecordsFiltersOpen = false
   let permissionRecordsFiltersSession: FilterSheetSession | null = null
+  let permissionRecordsLocationOptions = isDemo
+    ? [...new Map(
+        permissionRecordsRows.map((row) => [
+          row.locationId,
+          { id: row.locationId, label: row.locationLabel },
+        ])
+      ).values()]
+    : adapters.getLocationFilterOptions()
+  let permissionRecordsTotalCount = isDemo ? permissionRecordsRows.length : 0
+  let permissionRecordsPage = 1
+
   const listeners = new Set<() => void>()
   let snapshot: PrivacyConsentSnapshot
 
   const schema = () =>
     permissionRecordsFilterSheetSchema({
-      locations: locationOptionsFromRows(allPermissionRecords),
+      locations: permissionRecordsLocationOptions,
     })
 
-  if (!options.skipPermissionRecordsDemoFilters) {
+  if (isDemo && !options.demo?.skipPermissionRecordsDemoFilters) {
     permissionRecordsFiltersSession = openSession(
       demoPermissionRecordsApplied(emptySelection(schema()))
     )
@@ -181,19 +246,13 @@ export function createOperatorPrivacyConsentPageModule(options: {
 
   const projectSnapshot = (): PrivacyConsentSnapshot => {
     const applied = permissionRecordsFiltersSession?.applied
-    const query = permissionRecordsSearchQuery.trim().toLowerCase()
-    const filtered = allPermissionRecords.filter((row) => {
-      if (!rowMatchesPermissionRecordsFilters(row, applied)) {
-        return false
-      }
-      if (query === "") {
-        return true
-      }
-      return (
-        row.guestName.toLowerCase().includes(query)
-        || row.searchText.includes(query)
-      )
-    })
+    const filteredRows = isDemo
+      ? filterClientSideDemoRows(
+          permissionRecordsRows,
+          applied,
+          permissionRecordsSearchQuery
+        )
+      : permissionRecordsRows
     const filterChips =
       applied == null ? [] : projectChips(schema(), applied)
 
@@ -203,6 +262,9 @@ export function createOperatorPrivacyConsentPageModule(options: {
         id,
         label: PRIVACY_CONSENT_TAB_LABELS[id],
       })),
+      loadStatus,
+      actorCanManage,
+      canViewGuests,
       privacySetupRows,
       guestPermissions: guestPermissions.map((card) => ({ ...card })),
       permissionRecordsSearchQuery,
@@ -211,16 +273,132 @@ export function createOperatorPrivacyConsentPageModule(options: {
         applied == null ? 0 : chipCount(schema(), applied),
       permissionRecordsFiltersOpen,
       permissionRecordsFiltersSession,
-      permissionRecordsLocationOptions: locationOptionsFromRows(
-        allPermissionRecords
-      ),
-      permissionRecordsRows: filtered,
-      permissionRecordsEmpty: filtered.length === 0,
+      permissionRecordsLocationOptions,
+      permissionRecordsRows: filteredRows,
+      permissionRecordsEmpty:
+        permissionRecordsTotalCount === 0 && loadStatus !== "loading",
       activityItems,
     }
   }
 
   snapshot = projectSnapshot()
+
+  const applyPageData = (data: PrivacyConsentPageApiData) => {
+    privacySetupRows = mapPrivacySetupRowsFromApi(data.privacySetupRows)
+    guestPermissions = mapGuestPermissionCardsFromApi(data)
+    actorCanManage = data.actorCanManage
+    canViewGuests = data.canViewGuests
+  }
+
+  const applyRecordsResponse = (response: PermissionRecordsListResponse) => {
+    const now = getNow()
+    permissionRecordsRows = response.rows.map((row) => {
+      const mapped = mapPermissionRecordRowFromApi(row, now)
+      permissionRecordsById.set(mapped.id, mapped)
+      return mapped
+    })
+    permissionRecordsTotalCount = response.totalCount
+    permissionRecordsPage = response.page
+  }
+
+  const applyActivityResponse = (
+    response: Awaited<ReturnType<OperatorPrivacyConsentPageAdapters["getActivity"]>>
+  ) => {
+    const now = getNow()
+    activityItems = response.items.map((item) =>
+      mapPrivacyActivityItemFromApi(item, now)
+    )
+  }
+
+  const fetchPermissionRecords = async () => {
+    if (isDemo) {
+      return
+    }
+
+    const generation = ++recordsGeneration
+    try {
+      const response = await adapters.getPermissionRecords(
+        buildPermissionRecordsListQueryParams({
+          searchQuery: permissionRecordsSearchQuery,
+          page: permissionRecordsPage,
+          pageSize: PERMISSION_RECORDS_PAGE_SIZE,
+          applied: permissionRecordsFiltersSession?.applied ?? null,
+          now: getNow(),
+        })
+      )
+      if (generation !== recordsGeneration) {
+        return
+      }
+      applyRecordsResponse(response)
+      emit()
+    } catch {
+      if (generation !== recordsGeneration) {
+        return
+      }
+      loadStatus = "error"
+      emit()
+    }
+  }
+
+  const scheduleRecordsFetch = () => {
+    if (isDemo) {
+      emit()
+      return
+    }
+    if (searchTimer != null) {
+      clearTimeout(searchTimer)
+    }
+    searchTimer = setTimeout(() => {
+      searchTimer = null
+      permissionRecordsPage = 1
+      void fetchPermissionRecords()
+    }, debounceMs)
+  }
+
+  const fetchAll = async () => {
+    if (isDemo) {
+      return
+    }
+
+    const generation = ++loadGeneration
+    if (loadStatus === "idle" || loadStatus === "error") {
+      loadStatus = "loading"
+      emit()
+    }
+
+    try {
+      permissionRecordsLocationOptions = adapters.getLocationFilterOptions()
+      const [pageData, recordsResponse, activityResponse] = await Promise.all([
+        adapters.getPage(),
+        adapters.getPermissionRecords(
+          buildPermissionRecordsListQueryParams({
+            searchQuery: permissionRecordsSearchQuery,
+            page: permissionRecordsPage,
+            pageSize: PERMISSION_RECORDS_PAGE_SIZE,
+            applied: permissionRecordsFiltersSession?.applied ?? null,
+            now: getNow(),
+          })
+        ),
+        adapters.getActivity(),
+      ])
+
+      if (generation !== loadGeneration) {
+        return
+      }
+
+      applyPageData(pageData)
+      applyRecordsResponse(recordsResponse)
+      applyActivityResponse(activityResponse)
+      loadStatus = "loaded"
+      emit()
+    } catch {
+      if (generation !== loadGeneration) {
+        return
+      }
+      loadStatus = "error"
+      emit()
+    }
+  }
 
   return {
     getSnapshot: () => snapshot,
@@ -230,6 +408,8 @@ export function createOperatorPrivacyConsentPageModule(options: {
         listeners.delete(listener)
       }
     },
+    load: fetchAll,
+    retryLoad: fetchAll,
     setActiveTabFromUrl: (raw) => {
       const next = resolvePrivacyConsentTabId(raw)
       if (next === activeTabId) {
@@ -245,7 +425,27 @@ export function createOperatorPrivacyConsentPageModule(options: {
       activeTabId = tabId
       emit()
     },
-    setGuestPermissionEnabled: (id, enabled) => {
+    setGuestPermissionEnabled: async (id, enabled) => {
+      if (isDemo) {
+        const index = guestPermissions.findIndex((card) => card.id === id)
+        if (index < 0) {
+          return
+        }
+        const current = guestPermissions[index]
+        if (current == null || current.enabled === enabled) {
+          return
+        }
+        guestPermissions = guestPermissions.map((card, cardIndex) =>
+          cardIndex === index ? { ...card, enabled } : card
+        )
+        emit()
+        return
+      }
+
+      if (!actorCanManage) {
+        return
+      }
+
       const index = guestPermissions.findIndex((card) => card.id === id)
       if (index < 0) {
         return
@@ -254,14 +454,34 @@ export function createOperatorPrivacyConsentPageModule(options: {
       if (current == null || current.enabled === enabled) {
         return
       }
+
+      const previous = guestPermissions
       guestPermissions = guestPermissions.map((card, cardIndex) =>
         cardIndex === index ? { ...card, enabled } : card
       )
       emit()
+
+      try {
+        await adapters.patchToggles(patchPayloadForGuestPermission(id, enabled))
+        const [pageData, activityResponse] = await Promise.all([
+          adapters.getPage(),
+          adapters.getActivity(),
+        ])
+        applyPageData(pageData)
+        applyActivityResponse(activityResponse)
+        emit()
+      } catch {
+        guestPermissions = previous
+        emit()
+      }
     },
     setPermissionRecordsSearchQuery: (query) => {
       permissionRecordsSearchQuery = query
-      emit()
+      if (isDemo) {
+        emit()
+        return
+      }
+      scheduleRecordsFetch()
     },
     setPermissionRecordsFiltersSession: (session) => {
       permissionRecordsFiltersSession = session
@@ -293,7 +513,12 @@ export function createOperatorPrivacyConsentPageModule(options: {
         permissionRecordsFiltersSession
       )
       permissionRecordsFiltersOpen = false
-      emit()
+      permissionRecordsPage = 1
+      if (isDemo) {
+        emit()
+        return
+      }
+      void fetchPermissionRecords()
     },
     removePermissionRecordsFilterChip: (chip) => {
       if (permissionRecordsFiltersSession == null) {
@@ -306,15 +531,32 @@ export function createOperatorPrivacyConsentPageModule(options: {
           chip
         )
       )
-      emit()
+      permissionRecordsPage = 1
+      if (isDemo) {
+        emit()
+        return
+      }
+      void fetchPermissionRecords()
     },
     clearPermissionRecordsSearchAndFilters: () => {
       permissionRecordsSearchQuery = ""
       permissionRecordsFiltersSession = null
-      emit()
+      permissionRecordsPage = 1
+      if (isDemo) {
+        emit()
+        return
+      }
+      void fetchPermissionRecords()
     },
-    viewPermissionRecord: (_recordId) => {
-      // Guest profile deep-link lands with the records API.
+    viewPermissionRecord: (recordId) => {
+      if (!canViewGuests || adapters.navigateToGuestProfile == null) {
+        return
+      }
+      const row = permissionRecordsById.get(recordId)
+      if (row == null) {
+        return
+      }
+      adapters.navigateToGuestProfile(row.locationGuestId, Number.parseInt(row.locationId, 10))
     },
   }
 }
