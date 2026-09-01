@@ -106,7 +106,6 @@ function createModule(options?: {
   onCreateDigitalGuestLinkError?: (message: string) => void
   onDigitalGuestLinkCreated?: (message: string) => void
   onLocationCaptureError?: (message: string) => void
-  syncSelectedLocation?: (locationId: number) => void
   navigateToCaptureLocation?: (
     locationId: number,
     navOptions?: { openPlacementDetailQrCodeId?: number }
@@ -193,7 +192,6 @@ function createModule(options?: {
   )
   const onDigitalGuestLinkCreated = vi.fn(options?.onDigitalGuestLinkCreated)
   const onLocationCaptureError = vi.fn(options?.onLocationCaptureError)
-  const syncSelectedLocation = vi.fn(options?.syncSelectedLocation)
   const navigateToCaptureLocation = vi.fn(options?.navigateToCaptureLocation)
   const canManageLocationCapture = vi.fn(
     options?.canManageLocationCapture ?? (() => true)
@@ -209,7 +207,6 @@ function createModule(options?: {
     pauseLocationCapture,
     activateLocationCapture,
     getMultiCaptureOverviewDateRange: () => options?.range ?? DEFAULT_RANGE,
-    syncSelectedLocation,
     navigateToCaptureLocation,
     canManageLocationCapture,
     onOverviewLoadError,
@@ -229,7 +226,6 @@ function createModule(options?: {
     createDigitalGuestLink,
     pauseLocationCapture,
     activateLocationCapture,
-    syncSelectedLocation,
     navigateToCaptureLocation,
     canManageLocationCapture,
     onOverviewLoadError,
@@ -321,7 +317,6 @@ describe("createOperatorMultiCapturePageModule", () => {
         pauseRestoreQrCodeCount: 0,
       }),
       getMultiCaptureOverviewDateRange: () => range,
-      syncSelectedLocation: vi.fn(),
       navigateToCaptureLocation: vi.fn(),
       canManageLocationCapture: () => true,
       debounceMs: 0,
@@ -343,17 +338,12 @@ describe("createOperatorMultiCapturePageModule", () => {
     )
   })
 
-  it("navigateToLocationCapture syncs selected location then navigates", () => {
-    const { pageModule, syncSelectedLocation, navigateToCaptureLocation } =
-      createModule()
+  it("navigateToLocationCapture navigates without pre-syncing workspace selection", () => {
+    const { pageModule, navigateToCaptureLocation } = createModule()
 
     pageModule.navigateToLocationCapture(42)
 
-    expect(syncSelectedLocation).toHaveBeenCalledExactlyOnceWith(42)
     expect(navigateToCaptureLocation).toHaveBeenCalledExactlyOnceWith(42)
-    expect(syncSelectedLocation.mock.invocationCallOrder[0]).toBeLessThan(
-      navigateToCaptureLocation.mock.invocationCallOrder[0]!
-    )
   })
 
   it("exposes per-row actions with Create live, Preview from active count, and Pause for authorized Active rows", async () => {
@@ -471,7 +461,6 @@ describe("createOperatorMultiCapturePageModule", () => {
     const {
       pageModule,
       createDigitalGuestLink,
-      syncSelectedLocation,
       navigateToCaptureLocation,
       onDigitalGuestLinkCreated,
     } = createModule({
@@ -524,7 +513,6 @@ describe("createOperatorMultiCapturePageModule", () => {
       "Digital guest link created"
     )
     expect(pageModule.getSnapshot().createDialog.isOpen).toBe(false)
-    expect(syncSelectedLocation).toHaveBeenCalledWith(2)
     expect(navigateToCaptureLocation).toHaveBeenCalledWith(2, {
       openPlacementDetailQrCodeId: 77,
     })

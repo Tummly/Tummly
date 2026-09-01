@@ -1,5 +1,5 @@
 import { createElement, useRef, useState, type ReactNode } from "react"
-import { useNavigate, useOutletContext } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
 import {
@@ -11,7 +11,6 @@ import {
 } from "@/api/dashboardApi"
 import { multiCapturePageModuleContext } from "@/components/dashboard/operator/Capture/utils/multiCapturePageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
-import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { buildCaptureLocationHandoffState } from "@/lib/operatorCapture/captureLocationHandoff"
 import { createDigitalGuestLinkAdapters } from "@/lib/operatorCapture/createDigitalGuestLinkAdapters"
 import {
@@ -27,9 +26,6 @@ export function MultiCapturePageModuleProvider({
 }) {
   const dashboardUiStore = useDashboardUiStoreApi()
   const navigate = useNavigate()
-  const { selectLocation } = useOutletContext<DashboardOutletContext>()
-  const selectLocationRef = useRef(selectLocation)
-  selectLocationRef.current = selectLocation
   const navigateRef = useRef(navigate)
   navigateRef.current = navigate
 
@@ -71,9 +67,6 @@ export function MultiCapturePageModuleProvider({
       },
       getMultiCaptureOverviewDateRange: () =>
         dashboardUiStore.getState().multiCaptureOverviewDateRange,
-      syncSelectedLocation: (locationId) => {
-        selectLocationRef.current(locationId)
-      },
       navigateToCaptureLocation: (locationId, options) => {
         const path = operatorDashboardCaptureLocationPath(locationId)
         if (options?.openPlacementDetailQrCodeId != null) {

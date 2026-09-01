@@ -25,7 +25,6 @@ describe("locationRowActionsForLifecycle", () => {
       "set-manager",
       "view-qr-placements",
       "view-feedback",
-      "view-reports",
       "pause-location",
     ])
   })

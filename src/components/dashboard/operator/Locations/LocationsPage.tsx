@@ -62,7 +62,7 @@ export function LocationsPage() {
     pageModule.getSnapshot
   )
   const navigate = useNavigate()
-  const { mode, selectLocation } = useOutletContext<DashboardOutletContext>()
+  const { mode } = useOutletContext<DashboardOutletContext>()
   const copy = LOCATIONS_PAGE_COPY
 
   useWriteActiveTabToSearchParams(snap.activeTabId)
@@ -123,11 +123,6 @@ export function LocationsPage() {
     }
   }
 
-  const navigateWithLocation = (path: string, locationId: number) => {
-    selectLocation(locationId)
-    navigate(path)
-  }
-
   const handleRowAction = (locationId: string, actionId: LocationRowActionId) => {
     const row = snap.rows.find((item) => item.id === locationId)
     if (actionId === "continue-setup") {
@@ -166,7 +161,7 @@ export function LocationsPage() {
       actionId
     )
     if (navPath != null) {
-      navigateWithLocation(navPath, numericId)
+      navigate(navPath)
       return
     }
 
@@ -195,10 +190,7 @@ export function LocationsPage() {
         toast.error(copy.noActiveQrReviewEmptyToast)
         return
       }
-      navigateWithLocation(
-        operatorDashboardCaptureForLocationPath(mode, firstLocationId),
-        firstLocationId
-      )
+      navigate(operatorDashboardCaptureForLocationPath(mode, firstLocationId))
       return
     }
 
@@ -311,10 +303,7 @@ export function LocationsPage() {
                 if (!Number.isFinite(id)) {
                   return
                 }
-                navigateWithLocation(
-                  operatorDashboardLocationDetailPath(mode, id),
-                  id
-                )
+                navigate(operatorDashboardLocationDetailPath(mode, id))
               }}
             />
           </TabsContent>

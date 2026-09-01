@@ -256,7 +256,7 @@ export function locationRowActionsForLifecycle(
         "set-manager",
         "view-qr-placements",
         "view-feedback",
-        "view-reports",
+        // view-reports hidden until Reports route ships (same as export-location-history).
         "pause-location",
       ])
     case "draft":

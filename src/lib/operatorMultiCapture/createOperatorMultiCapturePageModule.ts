@@ -183,8 +183,6 @@ export type OperatorMultiCapturePageAdapters = {
     | { ok: false; message: string }
   >
   getMultiCaptureOverviewDateRange: () => HomePerformanceDateRange
-  /** Sync workspace selected location before nested Capture navigation. */
-  syncSelectedLocation: (locationId: number) => void
   /** Navigate to `/multi-dashboard/capture/locations/:locationId`. */
   navigateToCaptureLocation: (
     locationId: number,
@@ -841,7 +839,9 @@ export function createOperatorMultiCapturePageModule(
       })
     },
     navigateToLocationCapture(locationId) {
-      adapters.syncSelectedLocation(locationId)
+      // Navigate only — destination URLs carry `?location=`. Calling
+      // syncSelectedLocation first makes Dashboard rewrite the query on the
+      // current route and can swallow this navigation (Capture root table).
       adapters.navigateToCaptureLocation(locationId)
     },
     getLocationRowActions(locationId) {
@@ -1010,7 +1010,6 @@ export function createOperatorMultiCapturePageModule(
       adapters.onDigitalGuestLinkCreated?.(
         OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY.successToast
       )
-      adapters.syncSelectedLocation(locationId)
       adapters.navigateToCaptureLocation(locationId, {
         openPlacementDetailQrCodeId: result.qrCodeId,
       })
