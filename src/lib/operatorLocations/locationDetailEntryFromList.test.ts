@@ -91,14 +91,17 @@ describe("location detail entry from Locations list", () => {
     "row action %s opens detail tab %s",
     (actionId, expectedTab) => {
       for (const mode of ["single", "multi"] as const) {
+        const path = resolveLocationRowActionNavigation(mode, 9, actionId)
+        expect(path).not.toBeNull()
         expect(tabFromListRowAction(mode, 9, actionId)).toBe(expectedTab)
+        if (expectedTab === "overview") {
+          expect(tabParamFromDetailPath(path!)).toBeNull()
+        } else {
+          expect(tabParamFromDetailPath(path!)).toBe(expectedTab)
+        }
       }
     }
   )
-
-  it("explicit overview tab param resolves to overview", () => {
-    expect(resolveLocationDetailTabId("overview")).toBe("overview")
-  })
 
   it("invalid tab param falls back to overview without breaking load", async () => {
     const getDetail = vi.fn().mockResolvedValue(detailResponse())
