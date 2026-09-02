@@ -128,6 +128,29 @@ namespace TummlyBackend.Services
             return BuildDto(locationId, cart);
         }
 
+        public async Task ClearCartAsync(
+            int restaurantId,
+            int locationId,
+            int userId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var cart = await FindCartWithLinesAsync(
+                restaurantId,
+                locationId,
+                userId,
+                cancellationToken
+            );
+            if (cart == null)
+            {
+                return;
+            }
+
+            _context.ShopCartLines.RemoveRange(cart.Lines);
+            _context.ShopCarts.Remove(cart);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
         private async Task<ShopCart?> FindCartWithLinesAsync(
             int restaurantId,
             int locationId,

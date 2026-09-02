@@ -9,6 +9,7 @@ import {
   mapShopCartToItems,
   upsertShopCartLine,
 } from "@/api/shopCartApi"
+import type { CheckoutLine } from "@/api/shopOrdersApi"
 import { ShopHeader } from "@/components/dashboard/operator/Shop/ShopHeader"
 import { ShopToolbar } from "@/components/dashboard/operator/Shop/ShopToolbar"
 import { ShopBanner } from "@/components/dashboard/operator/Shop/ShopBanner"
@@ -46,6 +47,23 @@ type ShopPageProps = {
   locations: Array<{ id: number; locationName: string; address: string }>
   mode: DashboardProps["mode"]
   onSelectLocation?: (locationId: number) => void
+}
+
+type ExpressCheckoutState = {
+  lines: CheckoutLine[]
+}
+
+function toCheckoutLine(product: ShopProduct, quantity: number): CheckoutLine {
+  const unitNetPence =
+    product.unitNetPence ?? Math.round(product.price * 100)
+  return {
+    skuId: product.id,
+    title: product.title,
+    quantity,
+    unitNetPence,
+    lineNetPence: unitNetPence * quantity,
+    specification: `${product.material} · ${product.dimensions}`,
+  }
 }
 
 export function ShopPage({
@@ -92,11 +110,14 @@ export function ShopPage({
   const [isLocationDetailsOpen, setIsLocationDetailsOpen] = useState<boolean>(false)
   const [isOrdersOpen, setIsOrdersOpen] = useState<boolean>(false)
   const [isCreateQrAssetOpen, setIsCreateQrAssetOpen] = useState<boolean>(false)
-  const [isSubmittingOrder, setIsSubmittingOrder] = useState<boolean>(false)
+  const [isSubmittingOrder] = useState<boolean>(false)
+  const [checkoutFromCart, setCheckoutFromCart] = useState(false)
+  const [expressCheckout, setExpressCheckout] =
+    useState<ExpressCheckoutState | null>(null)
 
   const [locationDetails, setLocationDetails] = useState<LocationDetails | null>(null)
 
-  const [orders, setOrders] = useState<ShopOrder[]>([
+  const [orders] = useState<ShopOrder[]>([
     {
       id: "ord-1",
       orderNumber: "ORD-9421",
@@ -321,14 +342,25 @@ export function ShopPage({
     }
   }
 
+  const checkoutLines: CheckoutLine[] = useMemo(
+    () =>
+      checkoutFromCart
+        ? cartItems.map((item) =>
+            toCheckoutLine(item.product, item.quantity)
+          )
+        : (expressCheckout?.lines ?? []),
+    [cartItems, checkoutFromCart, expressCheckout]
+  )
+
   const handleCheckout = () => {
-    setIsCartOpen(false)
-    const firstProduct = cartItems[0]?.product || selectedProduct
-    if (firstProduct) {
-      setSearchParams({ view: "checkout", product: firstProduct.id })
-    } else {
-      setSearchParams({ view: "checkout" })
+    if (cartItems.length === 0) {
+      toast.error("Your cart is empty.")
+      return
     }
+    setIsCartOpen(false)
+    setCheckoutFromCart(true)
+    setExpressCheckout(null)
+    setSearchParams({ view: "checkout" })
     scrollShopPaneToTop()
   }
 
@@ -342,43 +374,69 @@ export function ShopPage({
     scrollShopPaneToTop()
   }
 
-  const handleOrderNow = (product: ShopProduct, _quantity: number) => {
+  const handleOrderNow = (product: ShopProduct, quantity: number) => {
     // Express path (lock 05): do not merge into the server cart.
-    setSearchParams({ view: "checkout", product: product.id })
+    setCheckoutFromCart(false)
+    setExpressCheckout({
+      lines: [toCheckoutLine(product, quantity)],
+    })
+    setSearchParams({ view: "checkout" })
     scrollShopPaneToTop()
   }
 
   const handleBackToShop = () => {
+    setCheckoutFromCart(false)
+    setExpressCheckout(null)
     setSearchParams({})
     scrollShopPaneToTop()
   }
 
+  const clearCheckoutSession = () => {
+    setCheckoutFromCart(false)
+    setExpressCheckout(null)
+  }
+
   return (
     <div className="flex flex-col gap-6 pb-20">
-      {currentView === "checkout" ? (
+      {currentView === "checkout" && checkoutLines.length > 0 ? (
         <ShopCheckoutScreen
-          product={selectedProduct}
+          locationId={selectedLocationId}
+          lines={checkoutLines}
+          fromCart={checkoutFromCart}
           selectedLocationName={locationName}
           selectedLocationAddress={locationAddress}
           locations={locations}
           onSelectLocation={onSelectLocation}
           onBackToShop={handleBackToShop}
           onBackToProduct={() => {
-            if (selectedProduct) {
-              setSearchParams({ product: selectedProduct.id })
+            const wasFromCart = checkoutFromCart
+            const expressSkuId = expressCheckout?.lines[0]?.skuId
+            clearCheckoutSession()
+            if (!wasFromCart && expressSkuId) {
+              setSearchParams({ product: expressSkuId })
             } else {
               setSearchParams({})
             }
             scrollShopPaneToTop()
           }}
-          onOrderPlaced={(_newOrder) => {
-            // Lock 05: express checkout must not clear the server cart.
-            // Cart-path clear on place lands on ticket 15 (server-side).
-            setSearchParams({ view: "orders" })
-            scrollShopPaneToTop()
+          onOrderPlaced={(_orderNumber) => {
+            void (async () => {
+              if (checkoutFromCart) {
+                try {
+                  const cart = await fetchShopCart(selectedLocationId)
+                  applyCartResponse(cart)
+                } catch {
+                  toast.error("Could not refresh cart after order.")
+                }
+              }
+              clearCheckoutSession()
+              setSearchParams({ view: "orders" })
+              scrollShopPaneToTop()
+            })()
           }}
           onSaveDraft={(_draft) => {
             toast.success("Draft saved successfully")
+            clearCheckoutSession()
             setSearchParams({ view: "orders" })
             scrollShopPaneToTop()
           }}

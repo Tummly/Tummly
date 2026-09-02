@@ -523,6 +523,7 @@ builder.Services.AddSingleton<IMaterialsCatalog>(sp =>
 );
 builder.Services.AddScoped<IShopCartService, ShopCartService>();
 builder.Services.AddScoped<IShopOrderNumberAllocator, ShopOrderNumberAllocator>();
+builder.Services.AddScoped<IShopOrderPlaceService, ShopOrderPlaceService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ICreditLedger, CreditLedgerService>();
 builder.Services.AddScoped<ICreditThresholdEvaluator, CreditThresholdEvaluator>();

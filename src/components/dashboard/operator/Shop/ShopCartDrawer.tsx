@@ -1,4 +1,4 @@
-import { Trash2, Plus, Minus, ShoppingBag, MapPin, CheckCircle2 } from "lucide-react"
+import { Trash2, Plus, Minus, ShoppingBag, MapPin } from "lucide-react"
 import {
   Sheet,
   SheetContent,
@@ -170,14 +170,7 @@ export function ShopCartDrawer({
               className="h-11 w-full rounded-md text-sm font-medium"
               onClick={onCheckout}
             >
-              {isSubmitting ? (
-                "Processing order..."
-              ) : (
-                <>
-                  <CheckCircle2 className="mr-2 size-4" />
-                  Confirm & Place Order
-                </>
-              )}
+              {isSubmitting ? "Loading…" : "Proceed to checkout"}
             </Button>
           </div>
         )}

@@ -27,5 +27,12 @@ namespace TummlyBackend.Interfaces
             string skuId,
             CancellationToken cancellationToken = default
         );
+
+        Task ClearCartAsync(
+            int restaurantId,
+            int locationId,
+            int userId,
+            CancellationToken cancellationToken = default
+        );
     }
 }
