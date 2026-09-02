@@ -114,6 +114,7 @@ describe("getOperatorSidebarNav", () => {
         && entry.id !== "feedback"
         && entry.id !== "campaigns"
         && entry.id !== "offers"
+        && entry.id !== "reports"
     )) {
       expect(item.navigable).toBe(false)
       expect(item.active).toBe(false)
@@ -167,6 +168,22 @@ describe("getOperatorSidebarNav", () => {
     })
     expect(nav.primary.find((item) => item.id === "home")).toMatchObject({
       active: false,
+    })
+  })
+
+  it("marks Reports active on Reports routes", () => {
+    const nav = getOperatorSidebarNav("reports", {
+      mode: "multi",
+      locationId: 3,
+    })
+
+    expect(nav.primary.find((item) => item.id === "reports")).toMatchObject({
+      active: true,
+      to: "/multi-dashboard/reports?location=3",
+    })
+    expect(nav.primary.find((item) => item.id === "home")).toMatchObject({
+      active: false,
+      to: "/multi-dashboard?location=3",
     })
   })
 
