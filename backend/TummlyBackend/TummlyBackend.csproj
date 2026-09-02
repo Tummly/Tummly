@@ -60,6 +60,12 @@
     <Content Include="..\..\docs\product\billing-pack-v3.0\current-pricebook-id" Link="Assets\billing-pack\current-pricebook-id">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="..\..\docs\product\materials-catalog-v1\tummly_uk_materials_catalog_v1.json" Link="Assets\materials-catalog\tummly_uk_materials_catalog_v1.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\docs\product\materials-catalog-v1\current-materials-catalog-id" Link="Assets\materials-catalog\current-materials-catalog-id">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

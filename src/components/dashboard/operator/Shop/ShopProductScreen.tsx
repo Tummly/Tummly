@@ -18,10 +18,7 @@ import {
 import {
   ShopCatalogItemCard,
 } from "@/components/dashboard/operator/Shop/ShopCatalogItemCard"
-import {
-  type ShopProduct,
-  SHOP_CATALOG_PRODUCTS,
-} from "@/components/dashboard/operator/Shop/ShopCatalogSection"
+import type { ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
 import tummlyStickerImg from "@/assets/images/shop/tummly-sticker.png"
 import tummlyBagImg from "@/assets/images/shop/tummly-bag.png"
 import { cn } from "@/lib/utils"
@@ -60,6 +57,7 @@ const PACKAGE_OPTIONS: PackageOption[] = [
 
 type ShopProductScreenProps = {
   product: ShopProduct
+  catalogProducts: ShopProduct[]
   selectedLocationName: string
   locations: Array<{ id: number; locationName: string; address: string }>
   onSelectLocation?: (locationId: number) => void
@@ -71,6 +69,7 @@ type ShopProductScreenProps = {
 
 export function ShopProductScreen({
   product,
+  catalogProducts,
   selectedLocationName,
   locations,
   onSelectLocation,
@@ -118,9 +117,9 @@ export function ShopProductScreen({
   const unitPrice = selectedPack.price / selectedPack.quantity
   const calculatedPrice = (unitPrice * customQuantity).toFixed(2)
 
-  const relatedProducts = SHOP_CATALOG_PRODUCTS.filter(
-    (p) => p.id !== product.id
-  ).slice(0, 4)
+  const relatedProducts = catalogProducts
+    .filter((p) => p.id !== product.id)
+    .slice(0, 4)
 
   const handleSelectRelated = (relProduct: ShopProduct) => {
     onSelectRelatedProduct(relProduct)

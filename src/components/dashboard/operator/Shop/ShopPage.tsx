@@ -1,16 +1,13 @@
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
+import { fetchShopCatalog, fetchShopCatalogItem } from "@/api/shopCatalogApi"
 import { ShopHeader } from "@/components/dashboard/operator/Shop/ShopHeader"
 import { ShopToolbar } from "@/components/dashboard/operator/Shop/ShopToolbar"
 import { ShopBanner } from "@/components/dashboard/operator/Shop/ShopBanner"
 import { ShopRecommendationSection } from "@/components/dashboard/operator/Shop/ShopRecommendationSection"
-import {
-  ShopCatalogSection,
-  type ShopProduct,
-  SHOP_CATALOG_PRODUCTS,
-} from "@/components/dashboard/operator/Shop/ShopCatalogSection"
+import { ShopCatalogSection } from "@/components/dashboard/operator/Shop/ShopCatalogSection"
 import { ShopCartFloatingButton } from "@/components/dashboard/operator/Shop/ShopCartFloatingButton"
 import {
   ShopCartDrawer,
@@ -33,12 +30,24 @@ import {
 import { ShopCheckoutScreen } from "@/components/dashboard/operator/Shop/ShopCheckoutScreen"
 import { ShopCreateQrAssetDialog } from "@/components/dashboard/operator/Shop/ShopCreateQrAssetDialog"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
+import type { ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
 
 type ShopPageProps = {
   selectedLocationId: number
   locations: Array<{ id: number; locationName: string; address: string }>
   mode: DashboardProps["mode"]
   onSelectLocation?: (locationId: number) => void
+}
+
+function findProductById(
+  products: ShopProduct[],
+  skuId: string | null
+): ShopProduct | null {
+  if (skuId == null) {
+    return null
+  }
+
+  return products.find((product) => product.id === skuId) ?? null
 }
 
 export function ShopPage({
@@ -50,19 +59,26 @@ export function ShopPage({
   const productParam = searchParams.get("product")
   const viewParam = searchParams.get("view")
 
+  const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>([])
+  const [catalogLoading, setCatalogLoading] = useState(true)
+  const [productDetail, setProductDetail] = useState<ShopProduct | null>(null)
+
   const currentView: "shop" | "orders" | "product" | "checkout" =
     viewParam === "checkout"
       ? "checkout"
       : productParam
-      ? "product"
-      : viewParam === "orders"
-      ? "orders"
-      : "shop"
+        ? "product"
+        : viewParam === "orders"
+          ? "orders"
+          : "shop"
 
-  const selectedProduct = productParam
-    ? SHOP_CATALOG_PRODUCTS.find((p) => p.id === productParam) ??
-      SHOP_CATALOG_PRODUCTS[0]
-    : SHOP_CATALOG_PRODUCTS[0]
+  const selectedProduct = useMemo(() => {
+    if (productDetail && productDetail.id === productParam) {
+      return productDetail
+    }
+
+    return findProductById(catalogProducts, productParam) ?? catalogProducts[0] ?? null
+  }, [catalogProducts, productDetail, productParam])
 
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [cartItems, setCartItems] = useState<CartItem[]>([])
@@ -86,6 +102,71 @@ export function ShopPage({
       status: "delivered",
     },
   ])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadCatalog() {
+      setCatalogLoading(true)
+      try {
+        const { products } = await fetchShopCatalog(selectedLocationId)
+        if (!cancelled) {
+          setCatalogProducts(products)
+        }
+      } catch {
+        if (!cancelled) {
+          setCatalogProducts([])
+          toast.error("Could not load shop catalog.")
+        }
+      } finally {
+        if (!cancelled) {
+          setCatalogLoading(false)
+        }
+      }
+    }
+
+    void loadCatalog()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedLocationId])
+
+  useEffect(() => {
+    if (productParam == null) {
+      setProductDetail(null)
+      return
+    }
+
+    let cancelled = false
+
+    async function loadProductDetail() {
+      if (productParam == null) {
+        return
+      }
+
+      try {
+        const detail = await fetchShopCatalogItem(
+          selectedLocationId,
+          productParam
+        )
+        if (!cancelled) {
+          setProductDetail(detail)
+        }
+      } catch {
+        if (!cancelled) {
+          setProductDetail(null)
+          toast.error("Could not load product details.")
+        }
+      }
+    }
+
+    void loadProductDetail()
+
+    return () => {
+      cancelled = true
+    }
+  }, [productParam, selectedLocationId])
 
   const currentLocation =
     locations.find((l) => l.id === selectedLocationId) ?? locations[0]
@@ -123,9 +204,7 @@ export function ShopPage({
   }
 
   const handleAddStarterKitToCart = () => {
-    const starterProduct =
-      SHOP_CATALOG_PRODUCTS.find((p) => p.id === "table-tents") ??
-      SHOP_CATALOG_PRODUCTS[0]
+    const starterProduct = findProductById(catalogProducts, "table-tents")
     if (starterProduct) {
       handleAddToCart(starterProduct, 1)
       setIsCartOpen(true)
@@ -133,15 +212,9 @@ export function ShopPage({
   }
 
   const handleAddRecommendedKitToCart = () => {
-    const tableStands =
-      SHOP_CATALOG_PRODUCTS.find((p) => p.id === "table-tents") ??
-      SHOP_CATALOG_PRODUCTS[0]
-    const decals =
-      SHOP_CATALOG_PRODUCTS.find((p) => p.id === "window-stickers") ??
-      SHOP_CATALOG_PRODUCTS[3]
-    const billCards =
-      SHOP_CATALOG_PRODUCTS.find((p) => p.id === "counter-cards-1") ??
-      SHOP_CATALOG_PRODUCTS[1]
+    const tableStands = findProductById(catalogProducts, "table-tents")
+    const decals = findProductById(catalogProducts, "window-stickers")
+    const billCards = findProductById(catalogProducts, "counter-cards")
 
     if (tableStands) {
       handleAddToCart(
@@ -244,6 +317,7 @@ export function ShopPage({
       ) : currentView === "product" && selectedProduct ? (
         <ShopProductScreen
           product={selectedProduct}
+          catalogProducts={catalogProducts}
           selectedLocationName={locationName}
           locations={locations}
           onSelectLocation={onSelectLocation}
@@ -275,16 +349,22 @@ export function ShopPage({
           <ShopRecommendationSection
             locationName={locationName}
             locationDetails={locationDetails}
+            catalogProducts={catalogProducts}
             onAddLocationDetails={() => setIsLocationDetailsOpen(true)}
             onAddRecommendedToCart={handleAddRecommendedKitToCart}
             onSelectProduct={handleSelectProduct}
           />
 
-          <ShopCatalogSection
-            searchQuery={searchQuery}
-            onAddToCart={handleAddToCart}
-            onSelectProduct={handleSelectProduct}
-          />
+          {catalogLoading ? (
+            <p className="text-sm text-muted-foreground">Loading catalog…</p>
+          ) : (
+            <ShopCatalogSection
+              products={catalogProducts}
+              searchQuery={searchQuery}
+              onAddToCart={handleAddToCart}
+              onSelectProduct={handleSelectProduct}
+            />
+          )}
         </>
       )}
 

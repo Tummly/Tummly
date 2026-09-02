@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Billing;
 using TummlyBackend.Billing.Pricebook;
+using TummlyBackend.Shop.MaterialsCatalog;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -516,6 +517,9 @@ builder.Services.AddScoped<ITeamMemberCapGate, TeamMemberCapGate>();
 builder.Services.AddScoped<IPlanEntitlementsSnapshot, PlanEntitlementsSnapshotService>();
 builder.Services.AddSingleton<IPricebookCatalog>(sp =>
     PricebookCatalog.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
+);
+builder.Services.AddSingleton<IMaterialsCatalog>(sp =>
+    MaterialsCatalog.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
 );
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ICreditLedger, CreditLedgerService>();

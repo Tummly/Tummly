@@ -7,7 +7,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import type { ShopProduct } from "@/components/dashboard/operator/Shop/ShopCatalogSection"
+import type { ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
 
 export type CartItem = {
   product: ShopProduct

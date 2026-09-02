@@ -25,7 +25,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import type { ShopProduct } from "@/components/dashboard/operator/Shop/ShopCatalogSection"
+import type { ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
 import type { DetailedShopOrder, DetailedShopDraft } from "@/components/dashboard/operator/Shop/ShopOrdersScreen"
 import { scrollShopPaneToTop } from "@/components/dashboard/operator/Shop/ShopProductScreen"
 import { cn } from "@/lib/utils"

@@ -1,0 +1,103 @@
+{
+  "catalog": {
+    "id": "tummly_uk_materials_catalog_v1"
+  },
+  "skus": [
+    {
+      "skuId": "table-tents",
+      "title": "Table tents",
+      "category": "tabletop",
+      "description": "Place a branded QR prompt on guest tables to collect private feedback after a dine-in visit.",
+      "material": "3mm Matte Frosted Acrylic",
+      "dimensions": "105mm x 148mm (A6)",
+      "qrType": "SmartGuest",
+      "unitNetPence": 2400,
+      "minOrderQty": 1,
+      "currency": "GBP",
+      "imageUrl": "/assets/images/shop/tummly-sticker.png",
+      "isPlanIncluded": true,
+      "popularBadge": "Essential",
+      "mintOnShopFulfilment": false
+    },
+    {
+      "skuId": "counter-cards",
+      "title": "Counter cards",
+      "category": "payment",
+      "description": "Place a compact QR prompt on ordering, payment or collection counter.",
+      "material": "350gsm Soft-touch Recycled Card",
+      "dimensions": "85mm x 55mm (Card size)",
+      "qrType": "CounterCard",
+      "unitNetPence": 1800,
+      "minOrderQty": 1,
+      "currency": "GBP",
+      "imageUrl": "/assets/images/shop/tummly-sticker.png",
+      "isPlanIncluded": false,
+      "popularBadge": null,
+      "mintOnShopFulfilment": false
+    },
+    {
+      "skuId": "window-stickers",
+      "title": "Window stickers",
+      "category": "window",
+      "description": "Invite guests to share feedback using a branded QR prompt at an entrance or front windows.",
+      "material": "UV-resistant Clear Vinyl Cling",
+      "dimensions": "150mm x 150mm",
+      "qrType": "WindowSticker",
+      "unitNetPence": 1400,
+      "minOrderQty": 1,
+      "currency": "GBP",
+      "imageUrl": "/assets/images/shop/tummly-sticker.png",
+      "isPlanIncluded": false,
+      "popularBadge": null,
+      "mintOnShopFulfilment": false
+    },
+    {
+      "skuId": "packaging-stickers",
+      "title": "Packaging stickers",
+      "category": "takeaway",
+      "description": "Add a compact feedback prompt to takeaway packaging, food boxes or paper bags.",
+      "material": "Matte Sticker Paper with Strong Adhesive",
+      "dimensions": "50mm x 50mm",
+      "qrType": "PackagingSticker",
+      "unitNetPence": 2200,
+      "minOrderQty": 1,
+      "currency": "GBP",
+      "imageUrl": "/assets/images/shop/tummly-sticker.png",
+      "isPlanIncluded": false,
+      "popularBadge": null,
+      "mintOnShopFulfilment": false
+    },
+    {
+      "skuId": "receipt-stickers",
+      "title": "Receipt stickers",
+      "category": "payment",
+      "description": "Add a small QR prompt to printed receipts, collection bags or order slips.",
+      "material": "Direct Thermal Matte Sticker Roll",
+      "dimensions": "40mm x 40mm",
+      "qrType": "ReceiptSticker",
+      "unitNetPence": 1600,
+      "minOrderQty": 1,
+      "currency": "GBP",
+      "imageUrl": "/assets/images/shop/tummly-sticker.png",
+      "isPlanIncluded": false,
+      "popularBadge": null,
+      "mintOnShopFulfilment": true
+    },
+    {
+      "skuId": "delivery-inserts",
+      "title": "Delivery inserts",
+      "category": "delivery",
+      "description": "Include a branded feedback card inside delivery and collection orders.",
+      "material": "250gsm Silk Finish Card",
+      "dimensions": "A6 Postcard Size",
+      "qrType": "DeliveryInsert",
+      "unitNetPence": 3200,
+      "minOrderQty": 1,
+      "currency": "GBP",
+      "imageUrl": "/assets/images/shop/tummly-sticker.png",
+      "isPlanIncluded": false,
+      "popularBadge": null,
+      "mintOnShopFulfilment": false
+    }
+  ]
+}

@@ -6,6 +6,8 @@ export type ShopCatalogItemCardProps = {
   description: string
   price: number
   imageSrc: string
+  isPlanIncluded?: boolean
+  popularBadge?: string
   className?: string
   onViewMaterial?: () => void
 }
@@ -15,6 +17,8 @@ export function ShopCatalogItemCard({
   description,
   price,
   imageSrc,
+  isPlanIncluded,
+  popularBadge,
   className,
   onViewMaterial,
 }: ShopCatalogItemCardProps) {
@@ -27,7 +31,21 @@ export function ShopCatalogItemCard({
         className
       )}
     >
-      <div className="flex h-44 w-full items-center justify-center overflow-hidden bg-op-background-primary/80 sm:h-48">
+      <div className="relative flex h-44 w-full items-center justify-center overflow-hidden bg-op-background-primary/80 sm:h-48">
+        {(isPlanIncluded || popularBadge) && (
+          <div className="absolute left-3 top-3 z-10 flex flex-col gap-1">
+            {isPlanIncluded && (
+              <span className="rounded-[4px] bg-op-action-primary px-2 py-0.5 text-[10px] font-medium text-white">
+                Included with your plan
+              </span>
+            )}
+            {popularBadge && (
+              <span className="rounded-[4px] bg-op-surface-secondary px-2 py-0.5 text-[10px] font-medium text-op-text-primary">
+                {popularBadge}
+              </span>
+            )}
+          </div>
+        )}
         <img
           src={imageSrc}
           alt={title}

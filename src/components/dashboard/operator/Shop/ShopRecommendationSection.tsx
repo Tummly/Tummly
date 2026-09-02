@@ -3,15 +3,20 @@ import { SlidersHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { LocationDetails } from "@/components/dashboard/operator/Shop/ShopLocationDetailsDialog"
 import { ShopRecommendationCard } from "@/components/dashboard/operator/Shop/ShopRecommendationCard"
-import {
-  type ShopProduct,
-  SHOP_CATALOG_PRODUCTS,
-} from "@/components/dashboard/operator/Shop/ShopCatalogSection"
+import type { ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
 import tummlyStickerImg from "@/assets/images/shop/tummly-sticker.png"
+
+function findCatalogProduct(
+  catalogProducts: ShopProduct[],
+  skuId: string
+): ShopProduct | undefined {
+  return catalogProducts.find((product) => product.id === skuId)
+}
 
 type ShopRecommendationSectionProps = {
   locationName: string
   locationDetails: LocationDetails | null
+  catalogProducts: ShopProduct[]
   onAddLocationDetails: () => void
   onAddRecommendedToCart: () => void
   onSelectProduct?: (product: ShopProduct) => void
@@ -20,6 +25,7 @@ type ShopRecommendationSectionProps = {
 export function ShopRecommendationSection({
   locationName,
   locationDetails,
+  catalogProducts,
   onAddLocationDetails,
   onAddRecommendedToCart,
   onSelectProduct,
@@ -119,10 +125,10 @@ export function ShopRecommendationSection({
               imageSrc={tummlyStickerImg}
               onOrderNow={onAddRecommendedToCart}
               onSelectCard={() => {
-                const prod =
-                  SHOP_CATALOG_PRODUCTS.find((p) => p.id === "table-tents") ??
-                  SHOP_CATALOG_PRODUCTS[0]
-                onSelectProduct?.(prod)
+                const prod = findCatalogProduct(catalogProducts, "table-tents")
+                if (prod) {
+                  onSelectProduct?.(prod)
+                }
               }}
             />
             <ShopRecommendationCard
@@ -134,10 +140,10 @@ export function ShopRecommendationSection({
               imageSrc={tummlyStickerImg}
               onOrderNow={onAddRecommendedToCart}
               onSelectCard={() => {
-                const prod =
-                  SHOP_CATALOG_PRODUCTS.find((p) => p.id === "counter-cards-1") ??
-                  SHOP_CATALOG_PRODUCTS[1]
-                onSelectProduct?.(prod)
+                const prod = findCatalogProduct(catalogProducts, "counter-cards")
+                if (prod) {
+                  onSelectProduct?.(prod)
+                }
               }}
             />
             <ShopRecommendationCard
@@ -149,10 +155,10 @@ export function ShopRecommendationSection({
               imageSrc={tummlyStickerImg}
               onOrderNow={onAddRecommendedToCart}
               onSelectCard={() => {
-                const prod =
-                  SHOP_CATALOG_PRODUCTS.find((p) => p.id === "window-stickers") ??
-                  SHOP_CATALOG_PRODUCTS[3]
-                onSelectProduct?.(prod)
+                const prod = findCatalogProduct(catalogProducts, "window-stickers")
+                if (prod) {
+                  onSelectProduct?.(prod)
+                }
               }}
             />
           </div>
