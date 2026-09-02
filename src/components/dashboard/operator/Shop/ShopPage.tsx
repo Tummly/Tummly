@@ -30,17 +30,12 @@ import {
   ShopLocationDetailsDialog,
   type LocationDetails,
 } from "@/components/dashboard/operator/Shop/ShopLocationDetailsDialog"
-import {
-  ShopOrdersDialog,
-  type ShopOrder,
-} from "@/components/dashboard/operator/Shop/ShopOrdersDialog"
 import { ShopOrdersScreen } from "@/components/dashboard/operator/Shop/ShopOrdersScreen"
 import {
   ShopProductScreen,
   scrollShopPaneToTop,
 } from "@/components/dashboard/operator/Shop/ShopProductScreen"
 import { ShopCheckoutScreen } from "@/components/dashboard/operator/Shop/ShopCheckoutScreen"
-import { ShopCreateQrAssetDialog } from "@/components/dashboard/operator/Shop/ShopCreateQrAssetDialog"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
 import {
   findShopProductById,
@@ -124,8 +119,6 @@ export function ShopPage({
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false)
   const [isStarterKitOpen, setIsStarterKitOpen] = useState<boolean>(false)
   const [isLocationDetailsOpen, setIsLocationDetailsOpen] = useState<boolean>(false)
-  const [isOrdersOpen, setIsOrdersOpen] = useState<boolean>(false)
-  const [isCreateQrAssetOpen, setIsCreateQrAssetOpen] = useState<boolean>(false)
   const [checkoutFromCart, setCheckoutFromCart] = useState(false)
   const [expressCheckout, setExpressCheckout] =
     useState<ExpressCheckoutState | null>(null)
@@ -146,18 +139,6 @@ export function ShopPage({
     promptLocations: basedOn.promptLocations.join(","),
     existingMaterials: basedOn.existingMaterials,
   })
-
-  const [orders] = useState<ShopOrder[]>([
-    {
-      id: "ord-1",
-      orderNumber: "ORD-9421",
-      date: "12 Oct 2026",
-      locationName:
-        locations.find((l) => l.id === selectedLocationId)?.locationName ?? "Location",
-      items: ["10x Tabletop Acrylic Stands", "4x Storefront Window Decals"],
-      status: "delivered",
-    },
-  ])
 
   useEffect(() => {
     let cancelled = false
@@ -585,12 +566,6 @@ export function ShopPage({
               scrollShopPaneToTop()
             })()
           }}
-          onSaveDraft={(_draft) => {
-            toast.success("Draft saved successfully")
-            clearCheckoutSession()
-            setSearchParams({ view: "orders" })
-            scrollShopPaneToTop()
-          }}
           paidWriteChrome={paidWriteChrome}
         />
       ) : currentView === "orders" ? (
@@ -600,11 +575,6 @@ export function ShopPage({
           locations={locations}
           onSelectLocation={onSelectLocation}
           onBackToShop={handleBackToShop}
-          onContinueCheckoutDraft={(draft) => {
-            setSearchParams({ view: "checkout" })
-            scrollShopPaneToTop()
-            toast.info(`Resuming checkout for ${draft.draftNumber}`)
-          }}
           onReorder={({ prefill }) => {
             setCheckoutFromCart(false)
             setExpressCheckout({
@@ -647,7 +617,6 @@ export function ShopPage({
           <ShopToolbar
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
-            onCreateQrAsset={() => setIsCreateQrAssetOpen(true)}
             onViewOrders={handleViewOrders}
           />
 
@@ -723,18 +692,6 @@ export function ShopPage({
         onOpenChange={setIsLocationDetailsOpen}
         onSaveDetails={handleSaveLocationDetails}
         initialDetails={locationDetails}
-        locationName={locationName}
-      />
-
-      <ShopOrdersDialog
-        open={isOrdersOpen}
-        onOpenChange={setIsOrdersOpen}
-        orders={orders}
-      />
-
-      <ShopCreateQrAssetDialog
-        open={isCreateQrAssetOpen}
-        onOpenChange={setIsCreateQrAssetOpen}
         locationName={locationName}
       />
     </div>

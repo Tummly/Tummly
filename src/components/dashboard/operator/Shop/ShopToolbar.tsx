@@ -1,18 +1,17 @@
 import { Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { SHOP_TOOLBAR_PRIMARY_ACTIONS } from "@/lib/operatorShop/shopOutOfScopeChrome"
 
 type ShopToolbarProps = {
   searchQuery: string
   onSearchQueryChange: (query: string) => void
-  onCreateQrAsset: () => void
   onViewOrders: () => void
 }
 
 export function ShopToolbar({
   searchQuery,
   onSearchQueryChange,
-  onCreateQrAsset,
   onViewOrders,
 }: ShopToolbarProps) {
   return (
@@ -29,22 +28,17 @@ export function ShopToolbar({
       </div>
 
       <div className="flex items-center gap-2.5 shrink-0">
-        <Button
-          type="button"
-          variant="op-primary"
-          className="h-10 rounded-md px-4 text-sm font-medium"
-          onClick={onCreateQrAsset}
-        >
-          Create QR asset
-        </Button>
-        <Button
-          type="button"
-          variant="op-secondary"
-          className="h-10 rounded-md px-4 text-sm font-medium"
-          onClick={onViewOrders}
-        >
-          View orders
-        </Button>
+        {SHOP_TOOLBAR_PRIMARY_ACTIONS.map((action) => (
+          <Button
+            key={action.id}
+            type="button"
+            variant="op-secondary"
+            className="h-10 rounded-md px-4 text-sm font-medium"
+            onClick={onViewOrders}
+          >
+            {action.label}
+          </Button>
+        ))}
       </div>
     </div>
   )

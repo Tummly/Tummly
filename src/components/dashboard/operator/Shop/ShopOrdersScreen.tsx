@@ -19,13 +19,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
-import { OperatorDestructiveConfirmDialog } from "@/components/dashboard/operator/OperatorDestructiveConfirmDialog"
 import { ShopOrderDetailSidebar } from "@/components/dashboard/operator/Shop/ShopOrderDetailSidebar"
 import {
   shopOrdersFilterSheetSchema,
-  getShopOrdersSortId,
   type DetailedShopOrder,
-  type ShopOrdersMaterialTypeId,
 } from "@/lib/operatorShop/shopOrdersFilterSheetSchema"
 import { buildShopOrdersListQueryParams } from "@/lib/operatorShop/shopOrdersListQueryParams"
 import { mapShopOrdersListResponse, mapShopOrderDetailToRow } from "@/lib/operatorShop/mapShopOrdersApiResponse"
@@ -43,62 +40,6 @@ import { cn } from "@/lib/utils"
 
 export type { DetailedShopOrder }
 
-export type DetailedShopDraft = {
-  id: string
-  draftNumber: string
-  draftDate: string
-  isoDate: string
-  locationId?: string | number
-  locationName: string
-  materials: string
-  materialTypes: ShopOrdersMaterialTypeId[]
-  lastCompletedStep: string
-  lastUpdatedDate: string
-  items?: string[]
-}
-
-const DEFAULT_DRAFTS: DetailedShopDraft[] = [
-  {
-    id: "draft-10428",
-    draftNumber: "#TM-10428",
-    draftDate: "29 Jul 2026",
-    isoDate: "2026-07-29",
-    locationId: "1",
-    locationName: "Padella · Borough Market",
-    materials: "Table tents · Pack of 20",
-    materialTypes: ["table-tents"],
-    lastCompletedStep: "Delivery details",
-    lastUpdatedDate: "Updated 29 July 2026",
-    items: ["20x Table tents (Matte Frosted Acrylic)"],
-  },
-  {
-    id: "draft-10429",
-    draftNumber: "#TM-10428",
-    draftDate: "29 Jul 2026",
-    isoDate: "2026-07-29",
-    locationId: "1",
-    locationName: "Padella · Borough Market",
-    materials: "Table tents · Pack of 20",
-    materialTypes: ["table-tents"],
-    lastCompletedStep: "Delivery details",
-    lastUpdatedDate: "Updated 29 July 2026",
-    items: ["20x Table tents (Matte Frosted Acrylic)"],
-  },
-  {
-    id: "draft-10430",
-    draftNumber: "#TM-10428",
-    draftDate: "29 Jul 2026",
-    isoDate: "2026-07-29",
-    locationId: "1",
-    locationName: "Padella · Borough Market",
-    materials: "Table tents · Pack of 20",
-    materialTypes: ["table-tents"],
-    lastCompletedStep: "Delivery details",
-    lastUpdatedDate: "Updated 29 July 2026",
-    items: ["20x Table tents (Matte Frosted Acrylic)"],
-  },
-]
-
 const PAGE_SIZE = 25
 
 type ShopOrdersScreenProps = {
@@ -107,7 +48,6 @@ type ShopOrdersScreenProps = {
   locations: Array<{ id: number; locationName: string; address: string }>
   onSelectLocation?: (locationId: number) => void
   onBackToShop: () => void
-  onContinueCheckoutDraft?: (draft: DetailedShopDraft) => void
   onReorder?: (input: {
     order: DetailedShopOrder
     prefill: ShopReorderPrefillWire
@@ -120,10 +60,8 @@ export function ShopOrdersScreen({
   locations,
   onSelectLocation,
   onBackToShop,
-  onContinueCheckoutDraft,
   onReorder,
 }: ShopOrdersScreenProps) {
-  const [activeTab, setActiveTab] = useState<"orders" | "drafts">("orders")
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
@@ -141,9 +79,6 @@ export function ShopOrdersScreen({
   const [selectedOrder, setSelectedOrder] = useState<DetailedShopOrder | null>(
     null
   )
-  const [drafts, setDrafts] = useState<DetailedShopDraft[]>(DEFAULT_DRAFTS)
-  const [deleteDraftTarget, setDeleteDraftTarget] =
-    useState<DetailedShopDraft | null>(null)
 
   const schema = useMemo(
     () =>
@@ -187,10 +122,6 @@ export function ShopOrdersScreen({
   }, [searchQuery])
 
   const loadOrders = useCallback(async () => {
-    if (activeTab !== "orders") {
-      return
-    }
-
     setListLoading(true)
     setListError(null)
     try {
@@ -213,13 +144,7 @@ export function ShopOrdersScreen({
     } finally {
       setListLoading(false)
     }
-  }, [
-    activeTab,
-    debouncedSearch,
-    filterSelection,
-    page,
-    selectedLocationId,
-  ])
+  }, [debouncedSearch, filterSelection, page, selectedLocationId])
 
   useEffect(() => {
     void loadOrders()
@@ -251,21 +176,6 @@ export function ShopOrdersScreen({
     setFilterSelection(emptySelection(schema))
     setSearchQuery("")
     setPage(1)
-  }
-
-  const handleContinueCheckout = (draft: DetailedShopDraft) => {
-    if (onContinueCheckoutDraft) {
-      onContinueCheckoutDraft(draft)
-    } else {
-      toast.info(`Continuing checkout for draft ${draft.draftNumber}`)
-    }
-  }
-
-  const handleConfirmDeleteDraft = () => {
-    if (deleteDraftTarget == null) return
-    setDrafts((prev) => prev.filter((d) => d.id !== deleteDraftTarget.id))
-    toast.success("Draft deleted")
-    setDeleteDraftTarget(null)
   }
 
   const handleCancelOrder = async (
@@ -329,59 +239,6 @@ export function ShopOrdersScreen({
       toast.error("Could not start reorder.")
     }
   }
-
-  // Filter and sort the drafts list
-  const filteredDrafts = useMemo(() => {
-    const matched = drafts.filter((draft) => {
-      // 1. Search Query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase()
-        const matchSearch =
-          draft.draftNumber.toLowerCase().includes(q) ||
-          draft.materials.toLowerCase().includes(q) ||
-          draft.locationName.toLowerCase().includes(q) ||
-          draft.lastCompletedStep.toLowerCase().includes(q)
-        if (!matchSearch) return false
-      }
-
-      // 2. Location filter
-      const locationField = filterSelection.location
-      if (locationField?.kind === "location-scope") {
-        const override = locationField.value
-        if (override.kind === "individual" && override.locationIds.length > 0) {
-          const draftLocId = String(draft.locationId ?? "")
-          const draftLocName = draft.locationName.toLowerCase()
-          const matchesLoc = override.locationIds.some(
-            (id) => id === draftLocId || draftLocName.includes(id.toLowerCase())
-          )
-          if (!matchesLoc) return false
-        }
-      }
-
-      // 3. Material type filter
-      const materialField = filterSelection.materialType
-      if (
-        materialField?.kind === "multi-select" &&
-        materialField.ids.length > 0
-      ) {
-        const hasMatchingMaterial = materialField.ids.some((id) =>
-          draft.materialTypes.includes(id as ShopOrdersMaterialTypeId)
-        )
-        if (!hasMatchingMaterial) return false
-      }
-
-      return true
-    })
-
-    const sortId = getShopOrdersSortId(filterSelection)
-    return matched.sort((a, b) => {
-      if (sortId === "oldest") {
-        return new Date(a.isoDate).getTime() - new Date(b.isoDate).getTime()
-      }
-      // default newest first
-      return new Date(b.isoDate).getTime() - new Date(a.isoDate).getTime()
-    })
-  }, [drafts, searchQuery, filterSelection])
 
   return (
     <div className="flex flex-col gap-6 pb-20">
@@ -496,34 +353,6 @@ export function ShopOrdersScreen({
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <div className="flex border-b border-op-border-default">
-        <button
-          type="button"
-          onClick={() => setActiveTab("orders")}
-          className={cn(
-            "border-b-2 px-4 py-3 text-sm font-medium transition-colors",
-            activeTab === "orders"
-              ? "border-op-action-primary bg-op-card-background text-op-text-primary"
-              : "border-transparent text-op-text-muted hover:text-op-text-primary"
-          )}
-        >
-          Orders
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("drafts")}
-          className={cn(
-            "border-b-2 px-4 py-3 text-sm font-medium transition-colors",
-            activeTab === "drafts"
-              ? "border-op-action-primary bg-op-card-background text-op-text-primary"
-              : "border-transparent text-op-text-muted hover:text-op-text-primary"
-          )}
-        >
-          Drafts
-        </button>
-      </div>
-
       {/* Main Table Card Container */}
       <div className="flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6">
         {/* Search and Filters Toolbar */}
@@ -581,9 +410,8 @@ export function ShopOrdersScreen({
           )}
         </div>
 
-        {/* Tab 1: Orders Table */}
-        {activeTab === "orders" && (
-          <>
+        {/* Orders Table */}
+        <>
             {listLoading ? (
               <div className="py-16 text-center text-sm text-op-text-muted">
                 Loading orders…
@@ -741,147 +569,6 @@ export function ShopOrdersScreen({
               </div>
             </div>
           </>
-        )}
-
-        {/* Tab 2: Drafts Table */}
-        {activeTab === "drafts" && (
-          <>
-            {filteredDrafts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-3 rounded-[4px] border border-dashed border-op-border-default/80 py-16 text-center">
-                <div className="flex size-12 items-center justify-center rounded-full bg-op-surface-secondary text-op-text-muted">
-                  <Inbox className="size-6" />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <h3 className="text-sm font-semibold text-op-text-primary">
-                    No drafts match your criteria
-                  </h3>
-                  <p className="text-xs text-op-text-muted">
-                    Try adjusting your search terms or clearing active filters.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="op-secondary"
-                  size="sm"
-                  className="mt-2 rounded-[4px] text-xs"
-                  onClick={handleClearAllFilters}
-                >
-                  Clear filters
-                </Button>
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-[4px] border border-op-border-default">
-                <table className="w-full min-w-[900px] border-collapse text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-op-border-default bg-op-background-primary">
-                      <th className="px-4 py-3 font-semibold text-op-text-primary">
-                        Draft
-                      </th>
-                      <th className="px-4 py-3 font-semibold text-op-text-primary">
-                        Location
-                      </th>
-                      <th className="px-4 py-3 font-semibold text-op-text-primary">
-                        Materials
-                      </th>
-                      <th className="px-4 py-3 font-semibold text-op-text-primary">
-                        Last completed step
-                      </th>
-                      <th className="px-4 py-3 font-semibold text-op-text-primary">
-                        Last updated
-                      </th>
-                      <th className="px-4 py-3 text-center font-semibold text-op-text-primary">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredDrafts.map((draft, idx) => (
-                      <tr
-                        key={`${draft.id}-${idx}`}
-                        className="border-b border-op-border-default/60 transition-colors hover:bg-op-surface-secondary/40 last:border-0"
-                      >
-                        <td className="px-4 py-3.5 font-normal text-op-text-primary">
-                          {draft.draftNumber} · {draft.draftDate}
-                        </td>
-                        <td className="px-4 py-3.5 text-op-text-secondary">
-                          {draft.locationName}
-                        </td>
-                        <td className="px-4 py-3.5 text-op-text-primary">
-                          {draft.materials}
-                        </td>
-                        <td className="px-4 py-3.5 text-op-text-secondary">
-                          {draft.lastCompletedStep}
-                        </td>
-                        <td className="px-4 py-3.5 text-op-text-secondary">
-                          {draft.lastUpdatedDate}
-                        </td>
-                        <td className="px-4 py-3.5 text-center">
-                          <DropdownMenu modal={false}>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="size-8 rounded-[4px] text-op-text-muted hover:bg-op-surface-secondary hover:text-op-text-primary"
-                                aria-label={`Actions for draft ${draft.draftNumber}`}
-                              >
-                                <MoreVertical className="size-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                              align="end"
-                              className="w-44 border-op-border-default bg-op-background-primary text-op-text-primary"
-                            >
-                              <DropdownMenuItem
-                                onClick={() => handleContinueCheckout(draft)}
-                                className="cursor-pointer text-xs"
-                              >
-                                Continue checkout
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => setDeleteDraftTarget(draft)}
-                                className="cursor-pointer text-xs text-red-500 hover:text-red-500 focus:bg-red-500/10 focus:text-red-500"
-                              >
-                                Delete draft
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Bottom Pagination for Drafts */}
-            <div className="flex items-center justify-between pt-2 text-xs text-op-text-muted">
-              <span>
-                Showing 1–{filteredDrafts.length} of {drafts.length} drafts
-              </span>
-              <div className="flex items-center gap-3">
-                <Button
-                  type="button"
-                  variant="op-secondary"
-                  size="sm"
-                  className="h-8.5 rounded-[4px] px-3.5 text-xs opacity-50"
-                  disabled
-                >
-                  Previous
-                </Button>
-                <Button
-                  type="button"
-                  variant="op-secondary"
-                  size="sm"
-                  className="h-8.5 rounded-[4px] px-3.5 text-xs opacity-50"
-                  disabled
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
       </div>
 
       {/* Order Filter Sheet Dialog */}
@@ -893,19 +580,6 @@ export function ShopOrdersScreen({
         onSessionChange={setFilterSession}
         onOpenChange={setIsFilterSheetOpen}
         onApply={handleApplyFilters}
-      />
-
-      {/* Delete Draft Confirm Dialog */}
-      <OperatorDestructiveConfirmDialog
-        open={deleteDraftTarget !== null}
-        title="Delete this draft?"
-        description="This removes the saved checkout information. No order has been placed and no payment has been taken."
-        confirmLabel="Delete draft"
-        cancelLabel="Keep draft"
-        onOpenChange={(open) => {
-          if (!open) setDeleteDraftTarget(null)
-        }}
-        onConfirm={handleConfirmDeleteDraft}
       />
 
       {/* Order Detail Sidebar */}

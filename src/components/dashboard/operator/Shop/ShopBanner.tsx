@@ -23,13 +23,15 @@ export function ShopBanner({
 
       <div className="relative z-10 flex flex-col justify-center p-6 sm:max-w-md md:max-w-lg md:p-10">
         <span className="text-xs font-semibold uppercase tracking-wider text-neutral-600">
-          Included with your plan
+          Materials pack
         </span>
         <h2 className="mt-2 text-2xl font-bold tracking-tight text-neutral-900 sm:text-3xl">
-          Your QR starter kit is ready
+          Review the QR starter kit
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-neutral-700">
-          Get the essential materials you need to start collecting private feedback at this location. We&apos;ll recommend quantities based on how the location operates.
+          See the essential materials pack for collecting private feedback at
+          this location. Recommended quantities follow how the location
+          operates. Reorder is always paid at checkout.
         </p>
 
         <div className="mt-6 flex flex-wrap items-center gap-3">

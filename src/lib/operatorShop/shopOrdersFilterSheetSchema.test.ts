@@ -88,6 +88,21 @@ describe("shopOrdersFilterSheetSchema", () => {
     expect(normalizePaymentStatusToId("Refunded")).toBe("refunded")
   })
 
+  it("exposes four stored fulfilment filter options", () => {
+    const schema = shopOrdersFilterSheetSchema()
+    const fulfilment = schema.fields.find((field) => field.id === "fulfilmentStatus")
+    expect(fulfilment?.kind).toBe("multi-select")
+    if (fulfilment?.kind !== "multi-select") {
+      throw new Error("expected multi-select fulfilment field")
+    }
+    expect(fulfilment.options.map((option) => option.id)).toEqual([
+      "processing",
+      "in_transit",
+      "delivered",
+      "cancelled",
+    ])
+  })
+
   it("filters by fulfilment status id", () => {
     const schema = shopOrdersFilterSheetSchema()
     const selection: typeof emptySelection = {

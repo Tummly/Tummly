@@ -1,4 +1,4 @@
-import { Check, Package, Sparkles } from "lucide-react"
+import { Check, Package } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -61,18 +61,15 @@ export function ShopStarterKitDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-4 py-2">
-          <div className="rounded-lg border border-op-action-primary/30 bg-op-action-primary/5 p-3.5">
-            <div className="flex items-center gap-2 text-xs font-semibold text-op-text-success">
-              <Sparkles className="size-4" />
-              <span>Complimentary with your Tummly plan</span>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Every location receives one free complete QR starter pack with custom high-resolution branding.
-            </p>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Review the named materials pack, then add it to your cart. Shop
+            reorder is always paid at checkout.
+          </p>
 
           <div className="flex flex-col gap-2.5">
-            <span className="text-xs font-semibold text-foreground">What&apos;s inside this kit:</span>
+            <span className="text-xs font-semibold text-foreground">
+              What&apos;s inside this kit:
+            </span>
             {kitItems.map((item, index) => (
               <div
                 key={index}
@@ -82,7 +79,9 @@ export function ShopStarterKitDialog({
                   <Check className="size-3" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-semibold text-foreground">{item.title}</span>
+                  <span className="font-semibold text-foreground">
+                    {item.title}
+                  </span>
                   <span className="text-muted-foreground">{item.desc}</span>
                 </div>
               </div>
@@ -108,7 +107,7 @@ export function ShopStarterKitDialog({
               onOpenChange(false)
             }}
           >
-            Order Free Starter Kit
+            Add starter kit to cart
           </Button>
         </DialogFooter>
       </DialogContent>

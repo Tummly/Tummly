@@ -25,7 +25,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import type { DetailedShopDraft } from "@/components/dashboard/operator/Shop/ShopOrdersScreen"
 import { scrollShopPaneToTop } from "@/components/dashboard/operator/Shop/ShopProductScreen"
 import {
   computeShopCheckoutTotalsPence,
@@ -57,7 +56,6 @@ type ShopCheckoutScreenProps = {
   onBackToShop: () => void
   onBackToProduct?: () => void
   onOrderPlaced?: (orderNumber: string) => void
-  onSaveDraft?: (draft: DetailedShopDraft) => void
   paidWriteChrome: ShopPaidWriteChrome
 }
 
@@ -89,7 +87,6 @@ export function ShopCheckoutScreen({
   onBackToShop,
   onBackToProduct,
   onOrderPlaced,
-  onSaveDraft,
   paidWriteChrome,
 }: ShopCheckoutScreenProps) {
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>("delivery")
@@ -330,47 +327,6 @@ export function ShopCheckoutScreen({
       toast.error("Could not place order.")
     } finally {
       setIsPaymentProcessing(false)
-    }
-  }
-
-  const handleSaveDraft = () => {
-    const draftNum = `#TM-${Math.floor(10400 + Math.random() * 90)}`
-    const materialsSummary =
-      checkoutLines.length === 1
-        ? `${checkoutLines[0].title} · Pack of ${checkoutLines[0].quantity}`
-        : `${checkoutLines.length} materials`
-    const newDraft: DetailedShopDraft = {
-      id: `draft-${Date.now()}`,
-      draftNumber: draftNum,
-      draftDate: new Date().toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }),
-      isoDate: new Date().toISOString().split("T")[0],
-      locationName: selectedLocationName,
-      materials: materialsSummary,
-      materialTypes: ["table-tents"],
-      lastCompletedStep:
-        checkoutStep === "payment" ? "Payment details" : "Delivery details",
-      lastUpdatedDate: `Updated ${new Date().toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })}`,
-      items: checkoutLines.map(
-        (line) =>
-          `${line.quantity}x ${line.title}${
-            line.specification ? ` (${line.specification})` : ""
-          }`
-      ),
-    }
-
-    if (onSaveDraft) {
-      onSaveDraft(newDraft)
-    } else {
-      toast.success("Draft saved successfully")
-      onBackToShop()
     }
   }
 
@@ -1081,14 +1037,6 @@ export function ShopCheckoutScreen({
                     >
                       Back
                     </Button>
-
-                    <button
-                      type="button"
-                      onClick={handleSaveDraft}
-                      className="text-sm font-medium text-op-text-muted transition-colors hover:text-op-text-primary hover:underline"
-                    >
-                      Save at Drafts
-                    </button>
                   </div>
 
                   {purchaseBlocked ? (
