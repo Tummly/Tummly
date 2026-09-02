@@ -130,7 +130,7 @@ export function FeedbackReportPage({
             <img
               src={aiIconPng}
               alt=""
-              className="size-4 shrink-0 brightness-0 dark:invert"
+              className="size-4 shrink-0 brightness-0 invert"
             />
             <span>{FEEDBACK_REPORT_PAGE_COPY.generateBrief}</span>
           </Button>
@@ -286,7 +286,7 @@ export function FeedbackReportPage({
               <img
                 src={aiIconPng}
                 alt=""
-                className="size-5 shrink-0 brightness-0 dark:invert"
+                className="size-5 shrink-0 brightness-0 invert"
               />
               <h2 className="text-xl font-bold text-op-text-primary">
                 {FEEDBACK_REPORT_PAGE_COPY.commonThemesTitle}
@@ -469,7 +469,7 @@ export function FeedbackReportPage({
               <img
                 src={aiIconPng}
                 alt=""
-                className="size-5 shrink-0 brightness-0 dark:invert mt-0.5"
+                className="size-5 shrink-0 brightness-0 invert mt-0.5"
               />
               <p className="text-sm font-medium text-op-text-primary leading-relaxed">
                 {FEEDBACK_REPORT_PAGE_COPY.sourceInsightText}
