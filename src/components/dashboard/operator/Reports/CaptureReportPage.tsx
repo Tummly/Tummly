@@ -2,8 +2,6 @@ import { useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import aiIconPng from "@/assets/svg/ui-icons/ai-icon.png"
 import {
-  Calendar,
-  ChevronDown,
   ChevronRight,
   Download,
   ArrowUpRight,
@@ -21,13 +19,17 @@ import {
   CaptureReportPlacementActionModal,
   type CaptureReportPlacementActionType,
 } from "@/components/dashboard/operator/Reports/CaptureReportPlacementActionModal"
+import { ReportsDateRangeControl } from "@/components/dashboard/operator/Reports/ReportsDateRangeControl"
+import {
+  DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
+  labelForHomePerformanceDateRange,
+  type HomePerformanceDateRange,
+} from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   CAPTURE_REPORT_PAGE_COPY,
-  DATE_PRESET_LABELS,
   mockCaptureReportData,
   type CaptureReportData,
   type CaptureReportPlacementRow,
-  type DatePreset,
 } from "@/lib/operatorReports/captureReportPresentation"
 import {
   operatorDashboardNavPath,
@@ -56,7 +58,9 @@ export function CaptureReportPage({
 }: CaptureReportPageProps) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [datePreset, setDatePreset] = useState<DatePreset>("7d")
+  const [dateRange, setDateRange] = useState<HomePerformanceDateRange>(
+    DEFAULT_HOME_PERFORMANCE_DATE_RANGE
+  )
   const [isExportOpen, setIsExportOpen] = useState(false)
   const [activePlacementModal, setActivePlacementModal] = useState<{
     actionType: CaptureReportPlacementActionType | null
@@ -67,7 +71,7 @@ export function CaptureReportPage({
   })
 
   const isPageEmpty = propIsEmpty ?? (searchParams.get("empty") === "true")
-  const dateRangeLabel = DATE_PRESET_LABELS[datePreset]
+  const dateRangeLabel = labelForHomePerformanceDateRange(dateRange)
 
   const reportsBasePath = operatorDashboardNavPath(
     mode,
@@ -156,36 +160,10 @@ export function CaptureReportPage({
           </Button>
 
           {/* Date Range Selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="op-date"
-                className="h-10 gap-2 rounded-xs border-op-button-date-border px-4 text-xs font-medium text-op-button-date-text hover:bg-op-surface-secondary"
-              >
-                <Calendar className="size-3.5" />
-                <span>{dateRangeLabel}</span>
-                <ChevronDown className="size-3.5 opacity-70" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-44 border-op-border-default bg-op-background-primary text-op-text-primary z-[220]"
-            >
-              {(Object.keys(DATE_PRESET_LABELS) as DatePreset[]).map((key) => (
-                <DropdownMenuItem
-                  key={key}
-                  onClick={() => setDatePreset(key)}
-                  className={cn(
-                    "cursor-pointer text-xs",
-                    datePreset === key && "font-semibold text-op-action-primary"
-                  )}
-                >
-                  {DATE_PRESET_LABELS[key]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <ReportsDateRangeControl
+            selectedRange={dateRange}
+            onCommitRange={setDateRange}
+          />
         </div>
       </div>
 

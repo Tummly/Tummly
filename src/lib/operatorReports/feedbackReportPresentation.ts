@@ -17,7 +17,10 @@ export const FEEDBACK_REPORT_PAGE_COPY = {
   breadcrumbReports: "Reports",
   breadcrumbFeedbackReport: "Feedback report",
   title: "Feedback report",
+  pageTitle: "Feedback report",
   subtitle:
+    "Read private guest feedback, spot common themes and follow up where needed.",
+  pageSubtitle:
     "Read private guest feedback, spot common themes and follow up where needed.",
   generateBrief: "Generate brief",
   export: "Export",

@@ -17,7 +17,10 @@ export const CAPTURE_REPORT_PAGE_COPY = {
   breadcrumbReports: "Reports",
   breadcrumbCaptureReport: "Capture report",
   title: "Capture report",
+  pageTitle: "Capture report",
   subtitle:
+    "See which QR codes and placements turn scans into guest feedback and contactable guests.",
+  pageSubtitle:
     "See which QR codes and placements turn scans into guest feedback and contactable guests.",
   generateBrief: "Generate brief",
   export: "Export",
