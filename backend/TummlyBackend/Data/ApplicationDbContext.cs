@@ -2170,6 +2170,8 @@ namespace TummlyBackend.Data
                 .HasOne(row => row.User)
                 .WithMany()
                 .HasForeignKey(row => row.UserId)
+                // NoAction: Restaurants→Users Cascade + ShopCart→Restaurant
+                // Cascade would otherwise make a second path (1785).
                 .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<ShopCart>()
@@ -2206,18 +2208,22 @@ namespace TummlyBackend.Data
                 .HasOne(row => row.Location)
                 .WithMany()
                 .HasForeignKey(row => row.LocationId)
+                // NoAction: Restaurant→Location Cascade + ShopOrder→Restaurant
+                // Cascade would otherwise make a second path (1785).
                 .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<ShopOrder>()
                 .HasOne(row => row.PlacedByUser)
                 .WithMany()
                 .HasForeignKey(row => row.PlacedByUserId)
+                // NoAction: Restaurants→Users Cascade + ShopOrder→Restaurant (1785).
                 .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<ShopOrder>()
                 .HasOne(row => row.CancelledByUser)
                 .WithMany()
                 .HasForeignKey(row => row.CancelledByUserId)
+                // NoAction: Restaurants→Users Cascade + ShopOrder→Restaurant (1785).
                 .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<ShopOrder>()

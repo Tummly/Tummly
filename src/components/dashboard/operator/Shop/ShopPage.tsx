@@ -372,7 +372,8 @@ export function ShopPage({
             scrollShopPaneToTop()
           }}
           onOrderPlaced={(_newOrder) => {
-            void handleClearCart()
+            // Lock 05: express checkout must not clear the server cart.
+            // Cart-path clear on place lands on ticket 15 (server-side).
             setSearchParams({ view: "orders" })
             scrollShopPaneToTop()
           }}
