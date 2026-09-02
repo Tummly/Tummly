@@ -13,6 +13,7 @@ const NAVIGABLE_PRIMARY_NAV_IDS = new Set<OperatorSidebarPrimaryNavId>([
   "feedback",
   "campaigns",
   "offers",
+  "reports",
 ])
 
 const NAVIGABLE_SETTINGS_CHILD_IDS = new Set<OperatorSidebarSettingsChildId>([
@@ -22,7 +23,7 @@ const NAVIGABLE_SETTINGS_CHILD_IDS = new Set<OperatorSidebarSettingsChildId>([
 
 export type NavigableOperatorSidebarPrimaryNavId = Extract<
   OperatorSidebarPrimaryNavId,
-  "home" | "guests" | "capture" | "feedback" | "campaigns" | "offers"
+  "home" | "guests" | "capture" | "feedback" | "campaigns" | "offers" | "reports"
 >
 
 export type NavigableOperatorSidebarSettingsChildId = Extract<
@@ -46,7 +47,7 @@ export function operatorDashboardRootPath(
   return mode === "single" ? "/single-dashboard" : "/multi-dashboard"
 }
 
-/** AccountType from auth session → which dashboard root the operator may use. */
+/** AccountType from auth session ? which dashboard root the operator may use. */
 export function operatorDashboardModeForAccountType(
   accountType: string | null | undefined
 ): OperatorDashboardMode | null {
@@ -108,7 +109,7 @@ export function operatorDashboardNavPath(
   return `${path}?location=${locationId}`
 }
 
-/** Multi nested per-location Capture — path segment + `?location=` shell sync. */
+/** Multi nested per-location Capture ? path segment + `?location=` shell sync. */
 export function operatorDashboardCaptureLocationPath(
   locationId: number
 ): string {
@@ -190,7 +191,7 @@ export function operatorDashboardOfferPreviewPath(
 
 /**
  * Campaigns list with optional catalog offerId query for Share-in-campaign CTA
- * (Offer Details Claims empty — ticket 24). Does not open wizard prefill.
+ * (Offer Details Claims empty ? ticket 24). Does not open wizard prefill.
  */
 export function operatorDashboardCampaignsPathWithOffer(
   mode: OperatorDashboardMode,
@@ -220,7 +221,7 @@ export function operatorDashboardGuestEditPath(
   return hash == null ? base : `${base}#${hash}`
 }
 
-/** Guest Profile header destinations: Edit + ⋮ Manage tags / Delete. */
+/** Guest Profile header destinations: Edit + ? Manage tags / Delete. */
 export function guestProfileHeaderActionPaths(
   mode: OperatorDashboardMode,
   guestId: number | string,
@@ -266,6 +267,9 @@ export function resolveOperatorSidebarActiveId(
   }
   if (segments.includes("offers")) {
     return "offers"
+  }
+  if (segments.includes("reports")) {
+    return "reports"
   }
   if (segments.includes("shop")) {
     return "tummly-shop"

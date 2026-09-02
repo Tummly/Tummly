@@ -328,6 +328,15 @@ describe("resolveOperatorSidebarActiveId", () => {
     )
   })
 
+  it("marks Reports active on Reports routes", () => {
+    expect(resolveOperatorSidebarActiveId("/single-dashboard/reports")).toBe(
+      "reports"
+    )
+    expect(resolveOperatorSidebarActiveId("/multi-dashboard/reports")).toBe(
+      "reports"
+    )
+  })
+
   it("marks Offers active on Offers routes", () => {
     expect(resolveOperatorSidebarActiveId("/single-dashboard/offers")).toBe(
       "offers"
