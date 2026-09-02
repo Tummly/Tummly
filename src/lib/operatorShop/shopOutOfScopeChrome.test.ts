@@ -1,38 +1,45 @@
+import { readFileSync, existsSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import { mapShopOrdersListResponse } from "@/lib/operatorShop/mapShopOrdersApiResponse"
-import { SHOP_ORDERS_FULFILMENT_STATUS_LABELS } from "@/lib/operatorShop/shopOrdersFilterSheetSchema"
-import {
-  SHOP_ORDERS_SURFACE_TABS,
-  SHOP_TOOLBAR_PRIMARY_ACTIONS,
-} from "@/lib/operatorShop/shopOutOfScopeChrome"
+
+const shopDir = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../components/dashboard/operator/Shop"
+)
+
+function readShopSource(fileName: string): string {
+  return readFileSync(join(shopDir, fileName), "utf8")
+}
 
 describe("shop out-of-scope chrome (ticket 21)", () => {
-  it("collapses fulfilment filter ids to the four stored values", () => {
-    expect(Object.keys(SHOP_ORDERS_FULFILMENT_STATUS_LABELS)).toEqual([
-      "processing",
-      "in_transit",
-      "delivered",
-      "cancelled",
-    ])
+  it("omits Create QR control and dialog", () => {
+    expect(existsSync(join(shopDir, "ShopCreateQrAssetDialog.tsx"))).toBe(
+      false
+    )
+    const toolbar = readShopSource("ShopToolbar.tsx")
+    expect(toolbar).not.toMatch(/Create QR|onCreateQrAsset/i)
+    expect(toolbar).toMatch(/View orders/)
   })
 
-  it("omits Create QR from toolbar primary actions", () => {
-    expect(SHOP_TOOLBAR_PRIMARY_ACTIONS.map((action) => action.id)).toEqual([
-      "view-orders",
-    ])
-    expect(
-      SHOP_TOOLBAR_PRIMARY_ACTIONS.some((action) =>
-        /create qr/i.test(action.label)
-      )
-    ).toBe(false)
+  it("removes draft routes and draft chrome from orders and checkout", () => {
+    const orders = readShopSource("ShopOrdersScreen.tsx")
+    const checkout = readShopSource("ShopCheckoutScreen.tsx")
+    const page = readShopSource("ShopPage.tsx")
+
+    expect(orders).not.toMatch(
+      /DEFAULT_DRAFTS|DetailedShopDraft|activeTab|"drafts"/
+    )
+    expect(orders).not.toMatch(/>\s*Drafts\s*</)
+    expect(checkout).not.toMatch(/onSaveDraft|handleSaveDraft|Save at Drafts/)
+    expect(page).not.toMatch(/onContinueCheckoutDraft|onSaveDraft/)
   })
 
-  it("orders surface has no drafts tab or draft routes", () => {
-    expect(SHOP_ORDERS_SURFACE_TABS).toEqual(["orders"])
-    expect(SHOP_ORDERS_SURFACE_TABS).not.toContain("drafts")
-  })
+  it("removes seeded local orders dialog; list mapping uses the API adapter", () => {
+    expect(existsSync(join(shopDir, "ShopOrdersDialog.tsx"))).toBe(false)
+    expect(readShopSource("ShopPage.tsx")).not.toMatch(/ShopOrdersDialog/)
 
-  it("maps orders list rows from the API adapter", () => {
     const mapped = mapShopOrdersListResponse({
       items: [
         {
@@ -66,5 +73,9 @@ describe("shop out-of-scope chrome (ticket 21)", () => {
     expect(mapped.orders[0]?.fulfilmentStatus).toBe("Processing")
     expect(mapped.totalCount).toBe(1)
     expect(mapped.aggregates.inProgress).toBe(1)
+
+    const ordersScreen = readShopSource("ShopOrdersScreen.tsx")
+    expect(ordersScreen).toMatch(/fetchShopOrdersList/)
+    expect(ordersScreen).toMatch(/mapShopOrdersListResponse/)
   })
 })
