@@ -521,6 +521,8 @@ builder.Services.AddSingleton<IPricebookCatalog>(sp =>
 builder.Services.AddSingleton<IMaterialsCatalog>(sp =>
     MaterialsCatalog.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
 );
+builder.Services.AddScoped<IShopCartService, ShopCartService>();
+builder.Services.AddScoped<IShopOrderNumberAllocator, ShopOrderNumberAllocator>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ICreditLedger, CreditLedgerService>();
 builder.Services.AddScoped<ICreditThresholdEvaluator, CreditThresholdEvaluator>();

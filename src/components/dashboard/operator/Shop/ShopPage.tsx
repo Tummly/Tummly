@@ -3,6 +3,12 @@ import { useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { fetchShopCatalog, fetchShopCatalogItem } from "@/api/shopCatalogApi"
+import {
+  deleteShopCartLine,
+  fetchShopCart,
+  mapShopCartToItems,
+  upsertShopCartLine,
+} from "@/api/shopCartApi"
 import { ShopHeader } from "@/components/dashboard/operator/Shop/ShopHeader"
 import { ShopToolbar } from "@/components/dashboard/operator/Shop/ShopToolbar"
 import { ShopBanner } from "@/components/dashboard/operator/Shop/ShopBanner"
@@ -132,6 +138,30 @@ export function ShopPage({
   }, [selectedLocationId])
 
   useEffect(() => {
+    let cancelled = false
+
+    async function loadCart() {
+      try {
+        const cart = await fetchShopCart(selectedLocationId)
+        if (!cancelled) {
+          setCartItems(mapShopCartToItems(cart, catalogProducts))
+        }
+      } catch {
+        if (!cancelled) {
+          setCartItems([])
+          toast.error("Could not load shop cart.")
+        }
+      }
+    }
+
+    void loadCart()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedLocationId, catalogProducts])
+
+  useEffect(() => {
     if (productParam == null) {
       setProductDetail(null)
       return
@@ -174,65 +204,121 @@ export function ShopPage({
 
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0)
 
-  const handleAddToCart = (product: ShopProduct, quantity: number = 1) => {
-    setCartItems((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id)
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        )
-      }
-      return [...prev, { product, quantity }]
-    })
-    toast.success(`Added ${product.title} to cart`)
+  const applyCartResponse = (cart: Awaited<ReturnType<typeof fetchShopCart>>) => {
+    setCartItems(mapShopCartToItems(cart, catalogProducts))
   }
 
-  const handleUpdateQuantity = (productId: string, quantity: number) => {
-    setCartItems((prev) =>
-      prev.map((item) =>
-        item.product.id === productId ? { ...item, quantity } : item
-      )
+  const putAbsoluteQuantity = async (
+    skuId: string,
+    quantity: number
+  ): Promise<Awaited<ReturnType<typeof fetchShopCart>>> => {
+    const cart = await upsertShopCartLine(
+      selectedLocationId,
+      skuId,
+      quantity
     )
+    applyCartResponse(cart)
+    return cart
   }
 
-  const handleRemoveFromCart = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.product.id !== productId))
-    toast.info("Item removed from cart")
+  const handleAddToCart = async (
+    product: ShopProduct,
+    quantity: number = 1
+  ) => {
+    const existing = cartItems.find((item) => item.product.id === product.id)
+    const nextQuantity = (existing?.quantity ?? 0) + quantity
+    try {
+      await putAbsoluteQuantity(product.id, nextQuantity)
+      toast.success(`Added ${product.title} to cart`)
+    } catch {
+      toast.error("Could not update cart.")
+    }
+  }
+
+  const handleUpdateQuantity = async (productId: string, quantity: number) => {
+    try {
+      await putAbsoluteQuantity(productId, quantity)
+    } catch {
+      toast.error("Could not update cart.")
+    }
+  }
+
+  const handleRemoveFromCart = async (productId: string) => {
+    try {
+      const cart = await deleteShopCartLine(selectedLocationId, productId)
+      applyCartResponse(cart)
+      toast.info("Item removed from cart")
+    } catch {
+      toast.error("Could not update cart.")
+    }
+  }
+
+  const handleClearCart = async () => {
+    try {
+      let cart = await fetchShopCart(selectedLocationId)
+      for (const line of cart.lines) {
+        cart = await deleteShopCartLine(selectedLocationId, line.skuId)
+      }
+      applyCartResponse(cart)
+    } catch {
+      toast.error("Could not clear cart.")
+    }
   }
 
   const handleAddStarterKitToCart = () => {
     const starterProduct = findShopProductById(catalogProducts, "table-tents")
     if (starterProduct) {
-      handleAddToCart(starterProduct, 1)
-      setIsCartOpen(true)
+      void handleAddToCart(starterProduct, 1).then(() => {
+        setIsCartOpen(true)
+      })
     }
   }
 
-  const handleAddRecommendedKitToCart = () => {
+  const handleAddRecommendedKitToCart = async () => {
+    const additions: Array<{ product: ShopProduct; quantity: number }> = []
     const tableStands = findShopProductById(catalogProducts, "table-tents")
     const decals = findShopProductById(catalogProducts, "window-stickers")
     const billCards = findShopProductById(catalogProducts, "counter-cards")
 
     if (tableStands) {
-      handleAddToCart(
-        tableStands,
-        locationDetails?.tableCount ? Math.ceil(locationDetails.tableCount / 10) : 2
-      )
+      additions.push({
+        product: tableStands,
+        quantity: locationDetails?.tableCount
+          ? Math.ceil(locationDetails.tableCount / 10)
+          : 2,
+      })
     }
     if (decals) {
-      handleAddToCart(
-        decals,
-        locationDetails?.entranceCount ? Math.ceil(locationDetails.entranceCount / 2) : 1
-      )
+      additions.push({
+        product: decals,
+        quantity: locationDetails?.entranceCount
+          ? Math.ceil(locationDetails.entranceCount / 2)
+          : 1,
+      })
     }
     if (billCards) {
-      handleAddToCart(billCards, 1)
+      additions.push({ product: billCards, quantity: 1 })
     }
 
-    toast.success(`Recommended materials kit added to cart for ${locationName}`)
-    setIsCartOpen(true)
+    try {
+      let working = cartItems
+      for (const addition of additions) {
+        const existing = working.find(
+          (item) => item.product.id === addition.product.id
+        )
+        const nextQuantity = (existing?.quantity ?? 0) + addition.quantity
+        const cart = await putAbsoluteQuantity(
+          addition.product.id,
+          nextQuantity
+        )
+        working = mapShopCartToItems(cart, catalogProducts)
+      }
+
+      toast.success(`Recommended materials kit added to cart for ${locationName}`)
+      setIsCartOpen(true)
+    } catch {
+      toast.error("Could not add recommended kit.")
+    }
   }
 
   const handleCheckout = () => {
@@ -256,8 +342,8 @@ export function ShopPage({
     scrollShopPaneToTop()
   }
 
-  const handleOrderNow = (product: ShopProduct, quantity: number) => {
-    handleAddToCart(product, quantity)
+  const handleOrderNow = (product: ShopProduct, _quantity: number) => {
+    // Express path (lock 05): do not merge into the server cart.
     setSearchParams({ view: "checkout", product: product.id })
     scrollShopPaneToTop()
   }
@@ -286,7 +372,7 @@ export function ShopPage({
             scrollShopPaneToTop()
           }}
           onOrderPlaced={(_newOrder) => {
-            setCartItems([])
+            void handleClearCart()
             setSearchParams({ view: "orders" })
             scrollShopPaneToTop()
           }}
@@ -350,7 +436,9 @@ export function ShopPage({
             locationDetails={locationDetails}
             catalogProducts={catalogProducts}
             onAddLocationDetails={() => setIsLocationDetailsOpen(true)}
-            onAddRecommendedToCart={handleAddRecommendedKitToCart}
+            onAddRecommendedToCart={() => {
+              void handleAddRecommendedKitToCart()
+            }}
             onSelectProduct={handleSelectProduct}
           />
 
@@ -360,7 +448,9 @@ export function ShopPage({
             <ShopCatalogSection
               products={catalogProducts}
               searchQuery={searchQuery}
-              onAddToCart={handleAddToCart}
+              onAddToCart={(product) => {
+                void handleAddToCart(product)
+              }}
               onSelectProduct={handleSelectProduct}
             />
           )}
@@ -376,9 +466,15 @@ export function ShopPage({
         open={isCartOpen}
         onOpenChange={setIsCartOpen}
         items={cartItems}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemoveItem={handleRemoveFromCart}
-        onClearCart={() => setCartItems([])}
+        onUpdateQuantity={(productId, quantity) => {
+          void handleUpdateQuantity(productId, quantity)
+        }}
+        onRemoveItem={(productId) => {
+          void handleRemoveFromCart(productId)
+        }}
+        onClearCart={() => {
+          void handleClearCart()
+        }}
         onCheckout={handleCheckout}
         selectedLocationName={locationName}
         selectedLocationAddress={locationAddress}
