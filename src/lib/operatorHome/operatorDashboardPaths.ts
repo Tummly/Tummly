@@ -201,6 +201,22 @@ export function operatorDashboardCampaignsPathWithOffer(
   return `${operatorDashboardNavPath(mode, "campaigns", locationId)}&offerId=${offerId}`
 }
 
+export function operatorDashboardCaptureReportPath(
+  mode: OperatorDashboardMode,
+  locationId: number
+): string {
+  const root = operatorDashboardRootPath(mode)
+  return `${root}/reports/capture?location=${locationId}`
+}
+
+export function operatorDashboardFeedbackReportPath(
+  mode: OperatorDashboardMode,
+  locationId: number
+): string {
+  const root = operatorDashboardRootPath(mode)
+  return `${root}/reports/feedback?location=${locationId}`
+}
+
 export function operatorDashboardGuestProfilePath(
   mode: OperatorDashboardMode,
   guestId: number | string,
@@ -253,6 +269,9 @@ export function resolveOperatorSidebarActiveId(
   if (segments.includes("team-permissions")) {
     return "team-permissions"
   }
+  if (segments.includes("reports")) {
+    return "reports"
+  }
   if (segments.includes("guests")) {
     return "guests"
   }
@@ -267,9 +286,6 @@ export function resolveOperatorSidebarActiveId(
   }
   if (segments.includes("offers")) {
     return "offers"
-  }
-  if (segments.includes("reports")) {
-    return "reports"
   }
   if (segments.includes("shop")) {
     return "tummly-shop"

@@ -18,7 +18,11 @@ import {
 import { ReportsWeeklyBriefDialog } from "@/components/dashboard/operator/Reports/ReportsWeeklyBriefDialog"
 import { ReportsExportDialog } from "@/components/dashboard/operator/Reports/ReportsExportDialog"
 import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
-import { operatorDashboardNavPath } from "@/lib/operatorHome/operatorDashboardPaths"
+import {
+  operatorDashboardNavPath,
+  operatorDashboardCaptureReportPath,
+  operatorDashboardFeedbackReportPath,
+} from "@/lib/operatorHome/operatorDashboardPaths"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
 import { cn } from "@/lib/utils"
 
@@ -354,7 +358,11 @@ export function ReportsPage({
                 type="button"
                 variant="op-primary"
                 className="h-9 rounded-xs px-4 text-xs font-medium"
-                onClick={() => navTo("feedback")}
+                onClick={() =>
+                  navigate(
+                    operatorDashboardFeedbackReportPath(mode, selectedLocationId)
+                  )
+                }
               >
                 Open feedback report
               </Button>
@@ -411,7 +419,11 @@ export function ReportsPage({
                 type="button"
                 variant="op-primary"
                 className="h-9 rounded-xs px-4 text-xs font-medium"
-                onClick={() => navTo("capture")}
+                onClick={() =>
+                  navigate(
+                    operatorDashboardCaptureReportPath(mode, selectedLocationId)
+                  )
+                }
               >
                 View capture report
               </Button>

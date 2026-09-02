@@ -4,6 +4,8 @@ import {
   guestProfileHeaderActionPaths,
   operatorDashboardCampaignsPathWithOffer,
   operatorDashboardCaptureLocationPath,
+  operatorDashboardCaptureReportPath,
+  operatorDashboardFeedbackReportPath,
   operatorDashboardGuestEditPath,
   operatorDashboardGuestProfilePath,
   operatorDashboardModeForAccountType,
@@ -212,6 +214,28 @@ describe("operatorDashboardCampaignsPathWithOffer", () => {
   })
 })
 
+describe("operatorDashboardCaptureReportPath", () => {
+  it("builds Capture report paths with location query", () => {
+    expect(operatorDashboardCaptureReportPath("single", 42)).toBe(
+      "/single-dashboard/reports/capture?location=42"
+    )
+    expect(operatorDashboardCaptureReportPath("multi", 7)).toBe(
+      "/multi-dashboard/reports/capture?location=7"
+    )
+  })
+})
+
+describe("operatorDashboardFeedbackReportPath", () => {
+  it("builds Feedback report paths with location query", () => {
+    expect(operatorDashboardFeedbackReportPath("single", 42)).toBe(
+      "/single-dashboard/reports/feedback?location=42"
+    )
+    expect(operatorDashboardFeedbackReportPath("multi", 7)).toBe(
+      "/multi-dashboard/reports/feedback?location=7"
+    )
+  })
+})
+
 describe("operatorDashboardGuestProfilePath", () => {
   it("builds Guest Profile paths with location query", () => {
     expect(operatorDashboardGuestProfilePath("single", 1842, 42)).toBe(
@@ -335,6 +359,18 @@ describe("resolveOperatorSidebarActiveId", () => {
     expect(resolveOperatorSidebarActiveId("/multi-dashboard/reports")).toBe(
       "reports"
     )
+    expect(
+      resolveOperatorSidebarActiveId("/single-dashboard/reports/capture")
+    ).toBe("reports")
+    expect(
+      resolveOperatorSidebarActiveId("/multi-dashboard/reports/capture")
+    ).toBe("reports")
+    expect(
+      resolveOperatorSidebarActiveId("/single-dashboard/reports/feedback")
+    ).toBe("reports")
+    expect(
+      resolveOperatorSidebarActiveId("/multi-dashboard/reports/feedback")
+    ).toBe("reports")
   })
 
   it("marks Offers active on Offers routes", () => {
