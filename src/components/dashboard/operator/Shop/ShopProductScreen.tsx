@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react"
-import { Link } from "react-router-dom"
 import {
   ChevronRight,
   ShoppingBag,
@@ -21,6 +20,7 @@ import {
 } from "@/components/dashboard/operator/Shop/ShopCatalogItemCard"
 import type { ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
 import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
+import { ShopPaidWriteHelperNote } from "@/components/dashboard/operator/Shop/ShopPaidWriteHelperNote"
 import tummlyStickerImg from "@/assets/images/shop/tummly-sticker.png"
 import tummlyBagImg from "@/assets/images/shop/tummly-bag.png"
 import { cn } from "@/lib/utils"
@@ -415,17 +415,10 @@ export function ShopProductScreen({
                   Add to cart
                 </Button>
               </div>
-              {purchaseBlocked && paidWriteChrome.helperCta ? (
-                <p className="text-xs text-op-text-muted">
-                  Purchases are paused.{" "}
-                  <Link
-                    to={paidWriteChrome.helperCta.href}
-                    className="font-medium text-op-action-primary underline-offset-2 hover:underline"
-                  >
-                    {paidWriteChrome.helperCta.label}
-                  </Link>
-                </p>
-              ) : null}
+              <ShopPaidWriteHelperNote
+                chrome={paidWriteChrome}
+                className="text-xs"
+              />
             </div>
           </div>
         </div>

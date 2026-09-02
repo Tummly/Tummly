@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react"
-import { Link } from "react-router-dom"
 import {
   ChevronRight,
   Package,
@@ -37,6 +36,7 @@ import {
   type ShopShipToPayload,
 } from "@/api/shopOrdersApi"
 import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
+import { ShopPaidWriteHelperNote } from "@/components/dashboard/operator/Shop/ShopPaidWriteHelperNote"
 import { ukPostcodeRegex } from "@/lib/locationUpload/locationUploadValidation"
 import { tryNormalizePhoneToE164 } from "@/lib/phoneNumber"
 import { cn } from "@/lib/utils"
@@ -1074,16 +1074,8 @@ export function ShopCheckoutScreen({
                     </button>
                   </div>
 
-                  {purchaseBlocked && paidWriteChrome.helperCta ? (
-                    <p className="text-sm text-op-text-muted">
-                      Purchases are paused.{" "}
-                      <Link
-                        to={paidWriteChrome.helperCta.href}
-                        className="font-medium text-op-action-primary underline-offset-2 hover:underline"
-                      >
-                        {paidWriteChrome.helperCta.label}
-                      </Link>
-                    </p>
+                  {purchaseBlocked ? (
+                    <ShopPaidWriteHelperNote chrome={paidWriteChrome} />
                   ) : null}
                 </div>
               </div>

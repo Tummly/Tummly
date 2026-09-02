@@ -242,9 +242,7 @@ export function ShopPage({
         return
       }
 
-      const nextParams = new URLSearchParams(searchParams)
-      nextParams.delete("shopPayOutcome")
-      nextParams.delete("shopOrderId")
+      const nextParams = new URLSearchParams()
       nextParams.set("view", "orders")
       setSearchParams(nextParams)
 
@@ -261,13 +259,7 @@ export function ShopPage({
     return () => {
       cancelled = true
     }
-  }, [
-    shopOrderId,
-    shopPayOutcome,
-    searchParams,
-    selectedLocationId,
-    setSearchParams,
-  ])
+  }, [shopOrderId, shopPayOutcome, selectedLocationId, setSearchParams])
 
   const currentLocation =
     locations.find((l) => l.id === selectedLocationId) ?? locations[0]

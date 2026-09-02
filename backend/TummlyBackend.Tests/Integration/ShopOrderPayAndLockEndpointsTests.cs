@@ -92,6 +92,32 @@ namespace TummlyBackend.Tests.Integration
                 "processing",
                 orderBody.GetProperty("fulfilmentStatus").GetString()
             );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var order = await context.ShopOrders
+                    .AsNoTracking()
+                    .SingleAsync(row => row.Id == orderId);
+                Assert.Equal(ShopPaymentStatuses.Paid, order.PaymentStatus);
+                Assert.Equal(revolutOrderId, order.RevolutOrderId);
+                Assert.NotNull(order.PaidAtUtc);
+
+                var intent = await context.RevolutOrderIntents
+                    .AsNoTracking()
+                    .SingleAsync(row => row.ShopOrderId == orderId);
+                Assert.False(intent.IsOpen);
+                Assert.Equal(
+                    RevolutOrderIntentPurposes.ShopMaterialsOrder,
+                    intent.Purpose
+                );
+
+                var invoiceExists = await context.TummlyVatInvoices
+                    .AsNoTracking()
+                    .AnyAsync(row => row.RevolutOrderId == revolutOrderId);
+                Assert.True(invoiceExists);
+            }
         }
 
         [Fact]
@@ -167,6 +193,68 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.Forbidden, payResponse.StatusCode);
             var payBody = await ReadJsonAsync(payResponse);
             Assert.Equal("soft_lock", payBody.GetProperty("code").GetString());
+        }
+
+        [Fact]
+        public async Task Dormant_CartPut_Return403()
+        {
+            var seeded = await SeedPaidShopWorkspaceAsync();
+            await SetBillingStatusAsync(
+                seeded.RestaurantId,
+                BillingStatuses.Dormant
+            );
+
+            var put = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "table-tents",
+                2
+            );
+            Assert.Equal(HttpStatusCode.Forbidden, put.StatusCode);
+            var body = await ReadJsonAsync(put);
+            Assert.Equal("dormant", body.GetProperty("code").GetString());
+        }
+
+        [Fact]
+        public async Task ChargebackRestricted_CartPutAndPay_Return403()
+        {
+            var seeded = await SeedPaidShopWorkspaceAsync();
+            await SetChargebackRestrictedAsync(seeded.RestaurantId, restricted: true);
+
+            var put = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "table-tents",
+                2
+            );
+            Assert.Equal(HttpStatusCode.Forbidden, put.StatusCode);
+            var putBody = await ReadJsonAsync(put);
+            Assert.Equal(
+                "chargeback_restricted",
+                putBody.GetProperty("code").GetString()
+            );
+
+            var orderId = await PlaceAwaitingPaymentOrderAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                bypassLock: true
+            );
+            await SetChargebackRestrictedAsync(seeded.RestaurantId, restricted: true);
+
+            using var payRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/shop/orders/{orderId}/pay?locationId={seeded.InScopeLocationId}"
+            );
+            payRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.MemberJwt);
+            payRequest.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
+            var payResponse = await _client.SendAsync(payRequest);
+            Assert.Equal(HttpStatusCode.Forbidden, payResponse.StatusCode);
+            var payBody = await ReadJsonAsync(payResponse);
+            Assert.Equal(
+                "chargeback_restricted",
+                payBody.GetProperty("code").GetString()
+            );
         }
 
         [Fact]

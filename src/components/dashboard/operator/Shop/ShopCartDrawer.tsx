@@ -1,5 +1,4 @@
 import { Trash2, Plus, Minus, ShoppingBag, MapPin } from "lucide-react"
-import { Link } from "react-router-dom"
 import {
   Sheet,
   SheetContent,
@@ -10,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button"
 import type { ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
 import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
+import { ShopPaidWriteHelperNote } from "@/components/dashboard/operator/Shop/ShopPaidWriteHelperNote"
 
 export type CartItem = {
   product: ShopProduct
@@ -177,17 +177,10 @@ export function ShopCartDrawer({
             >
               {isSubmitting ? "Loading…" : "Proceed to checkout"}
             </Button>
-            {purchaseBlocked && paidWriteChrome.helperCta ? (
-              <p className="text-center text-xs text-op-text-muted">
-                Purchases are paused.{" "}
-                <Link
-                  to={paidWriteChrome.helperCta.href}
-                  className="font-medium text-op-action-primary underline-offset-2 hover:underline"
-                >
-                  {paidWriteChrome.helperCta.label}
-                </Link>
-              </p>
-            ) : null}
+            <ShopPaidWriteHelperNote
+              chrome={paidWriteChrome}
+              className="text-center text-xs"
+            />
           </div>
         )}
       </SheetContent>
