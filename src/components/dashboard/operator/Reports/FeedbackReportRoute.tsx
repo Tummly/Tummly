@@ -19,7 +19,7 @@ export function FeedbackReportRoute() {
       selectedLocationName={locationName}
       locations={locations}
       mode={mode}
-      isEmpty={true}
+      isEmpty={false}
     />
   )
 }

@@ -123,7 +123,7 @@ export function ReportsPage({
             className="h-9 gap-2 rounded-xs px-3.5 text-xs font-medium"
             onClick={() => setIsWeeklyBriefOpen(true)}
           >
-            <img src={aiIconPng} alt="" className="size-3.5 shrink-0 brightness-0" />
+            <img src={aiIconPng} alt="" className="size-3.5 shrink-0 brightness-0 invert" />
             <span>Generate brief</span>
           </Button>
 
@@ -181,7 +181,7 @@ export function ReportsPage({
           {/* 1. This week's guest loop Card */}
           <div className="w-full flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-7 sm:p-8">
             <div className="flex items-center gap-2.5">
-              <img src={aiIconPng} alt="" className="size-4 shrink-0 brightness-0" />
+              <img src={aiIconPng} alt="" className="size-4 shrink-0 brightness-0 invert" />
               <h2 className="text-base sm:text-lg font-bold text-op-text-primary">
                 This week's guest loop
               </h2>
@@ -347,7 +347,7 @@ export function ReportsPage({
 
             {/* AI Insight banner */}
             <div className="flex items-start gap-3 rounded-sm border border-op-border-default/60 bg-op-background-primary/80 p-4">
-              <img src={aiIconPng} alt="" className="mt-0.5 size-4 shrink-0 brightness-0" />
+              <img src={aiIconPng} alt="" className="mt-0.5 size-4 shrink-0 brightness-0 invert" />
               <p className="text-xs sm:text-sm font-medium leading-relaxed text-op-text-muted">
                 Common themes this period: guests mentioned delivery packaging, wait time during busy periods and friendly staff. A few comments may need follow-up because the guest shared contact details and raised a specific issue.
               </p>
@@ -500,7 +500,7 @@ export function ReportsPage({
 
             {/* AI Insight banner */}
             <div className="flex items-start gap-3 rounded-sm border border-op-border-default/60 bg-op-background-primary/80 p-4">
-              <img src={aiIconPng} alt="" className="mt-0.5 size-4 shrink-0 brightness-0" />
+              <img src={aiIconPng} alt="" className="mt-0.5 size-4 shrink-0 brightness-0 invert" />
               <p className="text-xs sm:text-sm font-medium leading-relaxed text-op-text-muted">
                 Your quiet-day offer had the most redemptions this period. One campaign caused more opt-outs than usual, so review the audience before sending again.
               </p>
@@ -521,7 +521,7 @@ export function ReportsPage({
           {/* 6. Recommended actions Card */}
           <div className="w-full flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-7 sm:p-8">
             <div className="flex items-center gap-2.5">
-              <img src={aiIconPng} alt="" className="size-4 shrink-0 brightness-0" />
+              <img src={aiIconPng} alt="" className="size-4 shrink-0 brightness-0 invert" />
               <div className="flex flex-col gap-0.5">
                 <h2 className="text-lg sm:text-xl font-bold text-op-text-primary">
                   Recommended actions

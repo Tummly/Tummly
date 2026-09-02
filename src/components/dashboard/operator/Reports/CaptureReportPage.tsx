@@ -8,9 +8,6 @@ import {
   Download,
   ArrowUpRight,
   MoreVertical,
-  QrCode,
-  Edit,
-  Eye,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,10 +19,15 @@ import {
 import { ReportsWeeklyBriefDialog } from "@/components/dashboard/operator/Reports/ReportsWeeklyBriefDialog"
 import { ReportsExportDialog } from "@/components/dashboard/operator/Reports/ReportsExportDialog"
 import {
+  CaptureReportPlacementActionModal,
+  type CaptureReportPlacementActionType,
+} from "@/components/dashboard/operator/Reports/CaptureReportPlacementActionModal"
+import {
   CAPTURE_REPORT_PAGE_COPY,
   DATE_PRESET_LABELS,
   mockCaptureReportData,
   type CaptureReportData,
+  type CaptureReportPlacementRow,
   type DatePreset,
 } from "@/lib/operatorReports/captureReportPresentation"
 import {
@@ -57,6 +59,13 @@ export function CaptureReportPage({
   const [datePreset, setDatePreset] = useState<DatePreset>("7d")
   const [isWeeklyBriefOpen, setIsWeeklyBriefOpen] = useState(false)
   const [isExportOpen, setIsExportOpen] = useState(false)
+  const [activePlacementModal, setActivePlacementModal] = useState<{
+    actionType: CaptureReportPlacementActionType | null
+    placement: CaptureReportPlacementRow | null
+  }>({
+    actionType: null,
+    placement: null,
+  })
 
   const isPageEmpty = propIsEmpty ?? (searchParams.get("empty") === "true")
   const dateRangeLabel = DATE_PRESET_LABELS[datePreset]
@@ -127,7 +136,7 @@ export function CaptureReportPage({
             <img
               src={aiIconPng}
               alt=""
-              className="size-4 shrink-0 brightness-0 dark:invert"
+              className="size-4 shrink-0 brightness-0 invert"
             />
             <span>{CAPTURE_REPORT_PAGE_COPY.generateBrief}</span>
           </Button>
@@ -260,7 +269,7 @@ export function CaptureReportPage({
               <img
                 src={aiIconPng}
                 alt=""
-                className="size-5 shrink-0 brightness-0 dark:invert mt-0.5"
+                className="size-5 shrink-0 brightness-0 invert mt-0.5"
               />
               <p className="text-sm font-medium text-op-text-secondary leading-relaxed max-w-3xl">
                 {CAPTURE_REPORT_PAGE_COPY.funnelInsight}
@@ -367,30 +376,63 @@ export function CaptureReportPage({
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
                             align="end"
-                            className="w-48 border-op-border-default bg-op-background-primary text-op-text-primary z-[220]"
+                            className="w-40 border-op-border-default bg-op-background-primary text-op-text-primary z-[220] py-1"
                           >
                             <DropdownMenuItem
-                              className="cursor-pointer gap-2 text-xs"
-                              onClick={handleCreatePlacement}
+                              className="cursor-pointer text-xs font-medium text-op-text-primary hover:bg-op-surface-secondary/80 focus:bg-op-surface-secondary"
+                              onClick={() =>
+                                setActivePlacementModal({
+                                  actionType: "view-qr",
+                                  placement: row,
+                                })
+                              }
                             >
-                              <Eye className="size-3.5 text-op-text-muted" />
-                              <span>
-                                {CAPTURE_REPORT_PAGE_COPY.viewPlacement}
-                              </span>
+                              View QR
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              className="cursor-pointer gap-2 text-xs"
-                              onClick={handleCreatePlacement}
+                              className="cursor-pointer text-xs font-medium text-op-text-primary hover:bg-op-surface-secondary/80 focus:bg-op-surface-secondary"
+                              onClick={() =>
+                                setActivePlacementModal({
+                                  actionType: "download-pdf",
+                                  placement: row,
+                                })
+                              }
                             >
-                              <Edit className="size-3.5 text-op-text-muted" />
-                              <span>{CAPTURE_REPORT_PAGE_COPY.editDetails}</span>
+                              Download PDF
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              className="cursor-pointer gap-2 text-xs"
-                              onClick={handleCreatePlacement}
+                              className="cursor-pointer text-xs font-medium text-op-text-primary hover:bg-op-surface-secondary/80 focus:bg-op-surface-secondary"
+                              onClick={() =>
+                                setActivePlacementModal({
+                                  actionType:
+                                    row.status === "Active" ? "pause" : "activate",
+                                  placement: row,
+                                })
+                              }
                             >
-                              <QrCode className="size-3.5 text-op-text-muted" />
-                              <span>{CAPTURE_REPORT_PAGE_COPY.downloadQr}</span>
+                              {row.status === "Active" ? "Pause" : "Activate"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="cursor-pointer text-xs font-medium text-op-text-primary hover:bg-op-surface-secondary/80 focus:bg-op-surface-secondary"
+                              onClick={() =>
+                                setActivePlacementModal({
+                                  actionType: "duplicate",
+                                  placement: row,
+                                })
+                              }
+                            >
+                              Duplicate
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="cursor-pointer text-xs font-medium text-op-text-primary hover:bg-op-surface-secondary/80 focus:bg-op-surface-secondary"
+                              onClick={() =>
+                                setActivePlacementModal({
+                                  actionType: "archive",
+                                  placement: row,
+                                })
+                              }
+                            >
+                              Archive
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -407,7 +449,7 @@ export function CaptureReportPage({
                 <img
                   src={aiIconPng}
                   alt=""
-                  className="size-5 shrink-0 brightness-0 dark:invert mt-0.5"
+                  className="size-5 shrink-0 brightness-0 invert mt-0.5"
                 />
                 <div className="flex flex-col gap-1">
                   <h3 className="text-sm font-semibold text-op-text-primary">
@@ -457,6 +499,19 @@ export function CaptureReportPage({
         onOpenChange={setIsExportOpen}
         locationName={selectedLocationName}
         dateRangeLabel={dateRangeLabel}
+      />
+
+      {/* Reusable Placement Action Modal */}
+      <CaptureReportPlacementActionModal
+        open={activePlacementModal.actionType != null}
+        actionType={activePlacementModal.actionType}
+        placement={activePlacementModal.placement}
+        locationName={selectedLocationName}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActivePlacementModal({ actionType: null, placement: null })
+          }
+        }}
       />
     </div>
   )
