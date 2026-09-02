@@ -89,6 +89,8 @@ namespace TummlyBackend.Data
 
         public DbSet<ShopOrderSequence> ShopOrderSequences { get; set; }
 
+        public DbSet<ShopLocationDetails> ShopLocationDetails { get; set; }
+
         public DbSet<RevolutPendingPaySession> RevolutPendingPaySessions
         {
             get;
@@ -2264,6 +2266,30 @@ namespace TummlyBackend.Data
                 .WithMany()
                 .HasForeignKey(row => row.RestaurantId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ShopLocationDetails>()
+                .HasKey(row => row.LocationId);
+
+            modelBuilder.Entity<ShopLocationDetails>()
+                .HasOne(row => row.Location)
+                .WithOne()
+                .HasForeignKey<ShopLocationDetails>(row => row.LocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ShopLocationDetails>()
+                .Property(row => row.TakeawayVolume)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<ShopLocationDetails>()
+                .Property(row => row.PromptLocations)
+                .HasMaxLength(256)
+                .IsRequired();
+
+            modelBuilder.Entity<ShopLocationDetails>()
+                .Property(row => row.ExistingMaterials)
+                .HasMaxLength(16)
+                .IsRequired();
         }
 
         public override int SaveChanges()

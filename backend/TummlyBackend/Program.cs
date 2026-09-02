@@ -522,6 +522,7 @@ builder.Services.AddSingleton<IMaterialsCatalog>(sp =>
     MaterialsCatalog.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
 );
 builder.Services.AddScoped<IShopCartService, ShopCartService>();
+builder.Services.AddScoped<IShopLocationRecommendationsService, ShopLocationRecommendationsService>();
 builder.Services.AddScoped<IShopOrderNumberAllocator, ShopOrderNumberAllocator>();
 builder.Services.AddScoped<IShopOrderPlaceService, ShopOrderPlaceService>();
 builder.Services.AddScoped<IShopMaterialsOrderPaySession, ShopMaterialsOrderPaySessionService>();
