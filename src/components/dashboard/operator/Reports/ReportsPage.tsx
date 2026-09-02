@@ -1,22 +1,16 @@
 import { useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import aiIconPng from "@/assets/svg/ui-icons/ai-icon.png"
-import {
-  Calendar,
-  ChevronDown,
-  Download,
-  ArrowUpRight,
-  ArrowDownRight,
-} from "lucide-react"
+import { Download, ArrowUpRight, ArrowDownRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { ReportsExportDialog } from "@/components/dashboard/operator/Reports/ReportsExportDialog"
 import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
+import { ReportsDateRangeControl } from "@/components/dashboard/operator/Reports/ReportsDateRangeControl"
+import {
+  DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
+  labelForHomePerformanceDateRange,
+  type HomePerformanceDateRange,
+} from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   operatorDashboardNavPath,
   operatorDashboardCaptureReportPath,
@@ -24,17 +18,6 @@ import {
   operatorDashboardWeeklyBriefPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
-import { cn } from "@/lib/utils"
-
-type DatePreset = "7d" | "30d" | "90d" | "month" | "ytd"
-
-const DATE_PRESET_LABELS: Record<DatePreset, string> = {
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  "90d": "Last 90 days",
-  month: "This month",
-  ytd: "Year to date",
-}
 
 // Structured mock data for easy replacement with live API query
 export const mockReportsData = {
@@ -89,11 +72,13 @@ export function ReportsPage({
 }: ReportsPageProps) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [datePreset, setDatePreset] = useState<DatePreset>("7d")
+  const [dateRange, setDateRange] = useState<HomePerformanceDateRange>(
+    DEFAULT_HOME_PERFORMANCE_DATE_RANGE
+  )
   const [isExportOpen, setIsExportOpen] = useState(false)
 
   const isPageEmpty = propIsEmpty ?? (searchParams.get("empty") === "true")
-  const dateRangeLabel = DATE_PRESET_LABELS[datePreset]
+  const dateRangeLabel = labelForHomePerformanceDateRange(dateRange)
 
   const navTo = (destination: "feedback" | "capture" | "campaigns" | "offers") => {
     const path = operatorDashboardNavPath(mode, destination, selectedLocationId)
@@ -142,36 +127,10 @@ export function ReportsPage({
           </Button>
 
           {/* Date Range Selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-9 gap-2 rounded-xs border-op-border-default bg-transparent px-3.5 text-xs font-medium text-op-text-primary hover:bg-op-surface-secondary"
-              >
-                <Calendar className="size-3.5 text-op-text-muted" />
-                <span>{dateRangeLabel}</span>
-                <ChevronDown className="size-3.5 text-op-text-muted" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-44 border-op-border-default bg-op-background-primary text-op-text-primary"
-            >
-              {(Object.keys(DATE_PRESET_LABELS) as DatePreset[]).map((key) => (
-                <DropdownMenuItem
-                  key={key}
-                  onClick={() => setDatePreset(key)}
-                  className={cn(
-                    "cursor-pointer text-xs",
-                    datePreset === key && "font-semibold text-op-action-primary"
-                  )}
-                >
-                  {DATE_PRESET_LABELS[key]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <ReportsDateRangeControl
+            selectedRange={dateRange}
+            onCommitRange={setDateRange}
+          />
         </div>
       </div>
 
