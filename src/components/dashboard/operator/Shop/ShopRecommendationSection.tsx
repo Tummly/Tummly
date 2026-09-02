@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ShopRecommendationCard } from "@/components/dashboard/operator/Shop/ShopRecommendationCard"
 import {
+  EXISTING_MATERIALS_OPTIONS,
   SHOP_PROMPT_OPTIONS,
 } from "@/components/dashboard/operator/Shop/ShopLocationDetailsDialog"
 import { findShopProductById, type ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
@@ -29,13 +30,10 @@ function formatPromptLabel(id: string): string {
 }
 
 function formatExistingMaterials(value: string): string {
-  if (value === "yes") {
-    return "Yes, materials are already in use"
-  }
-  if (value === "not-sure") {
-    return "Not sure about existing materials"
-  }
-  return "No existing materials yet"
+  return (
+    EXISTING_MATERIALS_OPTIONS.find((option) => option.value === value)
+      ?.label ?? value
+  )
 }
 
 const basedOnChipClassName =

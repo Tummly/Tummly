@@ -66,11 +66,11 @@ export const SHOP_PROMPT_OPTIONS = [
   { id: "windows", label: "Entrance or window" },
 ] as const
 
-const EXISTING_MATERIALS_OPTIONS = [
+export const EXISTING_MATERIALS_OPTIONS = [
   { value: "no", label: "No, this is the first order" },
   { value: "yes", label: "Yes, materials are already in use" },
   { value: "not-sure", label: "Not sure" },
-]
+] as const
 
 export function ShopLocationDetailsDialog({
   open,
@@ -80,18 +80,16 @@ export function ShopLocationDetailsDialog({
   locationName,
 }: ShopLocationDetailsDialogProps) {
   const [tableCount, setTableCount] = useState<string>(
-    initialDetails?.tableCount ? String(initialDetails.tableCount) : ""
+    countToInput(initialDetails?.tableCount)
   )
   const [counterCount, setCounterCount] = useState<string>(
-    initialDetails?.counterCount ? String(initialDetails.counterCount) : ""
+    countToInput(initialDetails?.counterCount)
   )
   const [entranceCount, setEntranceCount] = useState<string>(
-    initialDetails?.entranceCount ? String(initialDetails.entranceCount) : ""
+    countToInput(initialDetails?.entranceCount)
   )
   const [secondaryEntranceCount, setSecondaryEntranceCount] = useState<string>(
-    initialDetails?.secondaryEntranceCount
-      ? String(initialDetails.secondaryEntranceCount)
-      : ""
+    countToInput(initialDetails?.secondaryEntranceCount)
   )
   const [takeawayVolume, setTakeawayVolume] = useState<string>(
     initialDetails?.takeawayVolume ?? ""
@@ -108,19 +106,11 @@ export function ShopLocationDetailsDialog({
 
   useEffect(() => {
     if (open) {
-      setTableCount(
-        initialDetails?.tableCount ? String(initialDetails.tableCount) : ""
-      )
-      setCounterCount(
-        initialDetails?.counterCount ? String(initialDetails.counterCount) : ""
-      )
-      setEntranceCount(
-        initialDetails?.entranceCount ? String(initialDetails.entranceCount) : ""
-      )
+      setTableCount(countToInput(initialDetails?.tableCount))
+      setCounterCount(countToInput(initialDetails?.counterCount))
+      setEntranceCount(countToInput(initialDetails?.entranceCount))
       setSecondaryEntranceCount(
-        initialDetails?.secondaryEntranceCount
-          ? String(initialDetails.secondaryEntranceCount)
-          : ""
+        countToInput(initialDetails?.secondaryEntranceCount)
       )
       setTakeawayVolume(initialDetails?.takeawayVolume ?? "")
       setSelectedPrompts(
@@ -155,8 +145,6 @@ export function ShopLocationDetailsDialog({
         takeawayVolume: takeawayVolume || "not-sure",
         promptLocations: selectedPrompts.join(","),
         existingMaterials: existingMaterials || "no",
-        serviceType: "Full Table Service",
-        seatingArea: "Indoor & Outdoor",
       })
       onOpenChange(false)
     } finally {
