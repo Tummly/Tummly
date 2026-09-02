@@ -32,28 +32,14 @@ namespace TummlyBackend.Controllers
             try
             {
                 var result = await _fulfilment.GetListAsync(
-                    new AdminShopOrdersListQuery
-                    {
-                        Page = page,
-                        PageSize = pageSize,
-                        Q = q,
-                        RestaurantId = restaurantId,
-                        FulfilmentStatus =
-                            fulfilmentStatus ?? Array.Empty<string>(),
-                    },
+                    BuildListQuery(page, pageSize, q, restaurantId, fulfilmentStatus),
                     cancellationToken
                 );
                 return Ok(result);
             }
             catch (ArgumentException ex)
             {
-                return BadRequest(
-                    new
-                    {
-                        success = false,
-                        message = ex.Message,
-                    }
-                );
+                return QueryBadRequest(ex);
             }
         }
 
@@ -69,29 +55,17 @@ namespace TummlyBackend.Controllers
         {
             try
             {
+                // page/pageSize accepted on the wire (Guests export pattern) but
+                // ignored for warehouse dump — ExportCsvAsync returns all matches.
                 var result = await _fulfilment.ExportCsvAsync(
-                    new AdminShopOrdersListQuery
-                    {
-                        Page = page,
-                        PageSize = pageSize,
-                        Q = q,
-                        RestaurantId = restaurantId,
-                        FulfilmentStatus =
-                            fulfilmentStatus ?? Array.Empty<string>(),
-                    },
+                    BuildListQuery(page, pageSize, q, restaurantId, fulfilmentStatus),
                     cancellationToken
                 );
                 return File(result.Content, result.ContentType, result.FileName);
             }
             catch (ArgumentException ex)
             {
-                return BadRequest(
-                    new
-                    {
-                        success = false,
-                        message = ex.Message,
-                    }
-                );
+                return QueryBadRequest(ex);
             }
         }
 
@@ -140,6 +114,35 @@ namespace TummlyBackend.Controllers
                     }
                 ),
             };
+        }
+
+        private static AdminShopOrdersListQuery BuildListQuery(
+            int page,
+            int pageSize,
+            string? q,
+            int? restaurantId,
+            string[]? fulfilmentStatus
+        )
+        {
+            return new AdminShopOrdersListQuery
+            {
+                Page = page,
+                PageSize = pageSize,
+                Q = q,
+                RestaurantId = restaurantId,
+                FulfilmentStatus = fulfilmentStatus ?? Array.Empty<string>(),
+            };
+        }
+
+        private BadRequestObjectResult QueryBadRequest(ArgumentException ex)
+        {
+            return BadRequest(
+                new
+                {
+                    success = false,
+                    message = ex.Message,
+                }
+            );
         }
     }
 }
