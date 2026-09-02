@@ -60,6 +60,8 @@ import { ManagePlanRoute } from "@/components/dashboard/operator/BillingCredits/
 import { BillingCreditsPageModuleProvider } from "@/components/dashboard/operator/BillingCredits/BillingCreditsPageModuleProvider";
 import { ShopRoute } from "@/components/dashboard/operator/Shop/ShopRoute";
 import { ReportsRoute } from "@/components/dashboard/operator/Reports/ReportsRoute";
+import { CaptureReportRoute } from "@/components/dashboard/operator/Reports/CaptureReportRoute";
+import { FeedbackReportRoute } from "@/components/dashboard/operator/Reports/FeedbackReportRoute";
 import AdminDashboard from "../../components/dashboard/admin/Dashboard";
 import SupportDashboard from "../../components/dashboard/support/Dashboard";
 import SupportQueryDetailPage from "../../components/dashboard/support/SupportQueryDetailPage";
@@ -264,6 +266,8 @@ function AppRoutes() {
                   }
                 />
                 <Route path="reports" element={<ReportsRoute />} />
+                <Route path="reports/capture" element={<CaptureReportRoute />} />
+                <Route path="reports/feedback" element={<FeedbackReportRoute />} />
                 <Route path="shop" element={<ShopRoute />} />
               </Route>
             </Route>
@@ -377,6 +381,8 @@ function AppRoutes() {
                   }
                 />
                 <Route path="reports" element={<ReportsRoute />} />
+                <Route path="reports/capture" element={<CaptureReportRoute />} />
+                <Route path="reports/feedback" element={<FeedbackReportRoute />} />
                 <Route path="shop" element={<ShopRoute />} />
               </Route>
             </Route>
