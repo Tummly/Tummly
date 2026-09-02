@@ -85,6 +85,13 @@ namespace TummlyBackend.DTOs.Shop
         public required ShopOrderShipToDto ShipTo { get; init; }
     }
 
+    public sealed class ShopOrderPayResponseDto
+    {
+        public required string Outcome { get; init; }
+
+        public required string RedirectUrl { get; init; }
+    }
+
     public sealed class ShopOrderShipToDto
     {
         public required string ContactName { get; init; }

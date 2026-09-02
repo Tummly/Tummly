@@ -416,6 +416,9 @@ function DashboardContent({ mode }: DashboardProps) {
         context={{
           activationPeriodBadge: presentation.activationPeriodBadge,
           billingCreditsAccess: workspace.snapshot.billingCreditsAccess,
+          billingStatus: workspace.snapshot.billingStatus,
+          subscriptionPlan: workspace.snapshot.subscriptionPlan,
+          permissionRole: workspace.snapshot.permissionRole,
           selectedLocationId,
           locations: workspace.snapshot.locations,
           mode,
@@ -458,6 +461,9 @@ export type DashboardOutletContext = {
     typeof buildOperatorShellPresentation
   >["activationPeriodBadge"]
   billingCreditsAccess: BillingCreditsAccess
+  billingStatus: string
+  subscriptionPlan: string
+  permissionRole: string
   selectedLocationId: number
   locations: Array<{ id: number; locationName: string; address: string }>
   mode: DashboardProps["mode"]

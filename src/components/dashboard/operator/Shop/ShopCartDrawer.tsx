@@ -1,4 +1,5 @@
 import { Trash2, Plus, Minus, ShoppingBag, MapPin } from "lucide-react"
+import { Link } from "react-router-dom"
 import {
   Sheet,
   SheetContent,
@@ -8,6 +9,7 @@ import {
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import type { ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
+import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
 
 export type CartItem = {
   product: ShopProduct
@@ -25,6 +27,7 @@ type ShopCartDrawerProps = {
   selectedLocationName: string
   selectedLocationAddress?: string
   isSubmitting?: boolean
+  paidWriteChrome: ShopPaidWriteChrome
 }
 
 export function ShopCartDrawer({
@@ -37,7 +40,9 @@ export function ShopCartDrawer({
   selectedLocationName,
   selectedLocationAddress,
   isSubmitting = false,
+  paidWriteChrome,
 }: ShopCartDrawerProps) {
+  const purchaseBlocked = paidWriteChrome.purchaseDisabled
   const subtotal = items.reduce(
     (total, item) => total + item.product.price * item.quantity,
     0
@@ -166,12 +171,23 @@ export function ShopCartDrawer({
             <Button
               type="button"
               variant="op-primary"
-              disabled={isSubmitting}
+              disabled={isSubmitting || purchaseBlocked}
               className="h-11 w-full rounded-md text-sm font-medium"
               onClick={onCheckout}
             >
               {isSubmitting ? "Loading…" : "Proceed to checkout"}
             </Button>
+            {purchaseBlocked && paidWriteChrome.helperCta ? (
+              <p className="text-center text-xs text-op-text-muted">
+                Purchases are paused.{" "}
+                <Link
+                  to={paidWriteChrome.helperCta.href}
+                  className="font-medium text-op-action-primary underline-offset-2 hover:underline"
+                >
+                  {paidWriteChrome.helperCta.label}
+                </Link>
+              </p>
+            ) : null}
           </div>
         )}
       </SheetContent>

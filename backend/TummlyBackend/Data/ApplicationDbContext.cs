@@ -922,6 +922,9 @@ namespace TummlyBackend.Data
                 .Property(row => row.PackLookupKey)
                 .HasMaxLength(128);
 
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .HasIndex(row => row.ShopOrderId);
+
             /*
              =========================================
              TUMMLY VAT INVOICES / DOCUMENT SEQUENCES (ticket 17)

@@ -693,6 +693,11 @@ namespace TummlyBackend.Services
                         RevolutOrderIntentPurposes.Topup,
                         StringComparison.Ordinal
                     )
+                    || string.Equals(
+                        intent.Purpose,
+                        RevolutOrderIntentPurposes.ShopMaterialsOrder,
+                        StringComparison.Ordinal
+                    )
                 );
 
             var reason = retrieved.BillingReason?.Trim() ?? string.Empty;

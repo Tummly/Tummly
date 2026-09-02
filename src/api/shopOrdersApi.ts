@@ -75,6 +75,62 @@ export async function placeShopOrder(
   return response.data
 }
 
+export async function fetchShopOrder(
+  orderId: string,
+  locationId: number
+): Promise<ShopOrderWire> {
+  const response = await axiosInstance.get<ShopOrderWire>(
+    `/api/shop/orders/${orderId}`,
+    { params: { locationId } }
+  )
+  return response.data
+}
+
+export type ShopOrderPayWire = {
+  outcome: string
+  redirectUrl: string
+}
+
+export async function payShopOrder(input: {
+  orderId: string
+  locationId: number
+  idempotencyKey: string
+}): Promise<ShopOrderPayWire> {
+  const response = await axiosInstance.post<ShopOrderPayWire>(
+    `/api/shop/orders/${input.orderId}/pay`,
+    {},
+    {
+      params: { locationId: input.locationId },
+      headers: { "Idempotency-Key": input.idempotencyKey },
+    }
+  )
+  return response.data
+}
+
+export async function pollShopOrderUntilPaid(input: {
+  orderId: string
+  locationId: number
+  attempts?: number
+  intervalMs?: number
+}): Promise<ShopOrderWire | null> {
+  const attempts = input.attempts ?? 12
+  const intervalMs = input.intervalMs ?? 1500
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const order = await fetchShopOrder(input.orderId, input.locationId)
+    if (order.paymentStatus === "paid") {
+      return order
+    }
+    if (attempt < attempts - 1) {
+      await new Promise((resolve) => {
+        setTimeout(resolve, intervalMs)
+      })
+    }
+  }
+
+  return null
+}
+
 export async function fetchShopDeliveryDefaults(
   locationId: number
 ): Promise<ShopDeliveryDefaultsWire> {

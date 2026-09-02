@@ -41,12 +41,17 @@ import {
   findShopProductById,
   type ShopProduct,
 } from "@/lib/operatorShop/shopCatalogTypes"
+import {
+  pollShopOrderUntilPaid,
+} from "@/api/shopOrdersApi"
+import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
 
 type ShopPageProps = {
   selectedLocationId: number
   locations: Array<{ id: number; locationName: string; address: string }>
   mode: DashboardProps["mode"]
   onSelectLocation?: (locationId: number) => void
+  paidWriteChrome: ShopPaidWriteChrome
 }
 
 type ExpressCheckoutState = {
@@ -70,10 +75,13 @@ export function ShopPage({
   selectedLocationId,
   locations,
   onSelectLocation,
+  paidWriteChrome,
 }: ShopPageProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   const productParam = searchParams.get("product")
   const viewParam = searchParams.get("view")
+  const shopPayOutcome = searchParams.get("shopPayOutcome")
+  const shopOrderId = searchParams.get("shopOrderId")
 
   const [catalogProducts, setCatalogProducts] = useState<ShopProduct[]>([])
   const [catalogLoading, setCatalogLoading] = useState(true)
@@ -217,6 +225,50 @@ export function ShopPage({
     }
   }, [productParam, selectedLocationId])
 
+  useEffect(() => {
+    if (shopPayOutcome !== "success" || shopOrderId == null) {
+      return
+    }
+
+    let cancelled = false
+
+    void (async () => {
+      toast.message("Confirming your Revolut payment…")
+      const paidOrder = await pollShopOrderUntilPaid({
+        orderId: shopOrderId,
+        locationId: selectedLocationId,
+      })
+      if (cancelled) {
+        return
+      }
+
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete("shopPayOutcome")
+      nextParams.delete("shopOrderId")
+      nextParams.set("view", "orders")
+      setSearchParams(nextParams)
+
+      if (paidOrder) {
+        toast.success(`Order ${paidOrder.orderNumber} is paid.`)
+      } else {
+        toast.info(
+          "Payment is still processing. Check Orders for the latest status."
+        )
+      }
+      scrollShopPaneToTop()
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    shopOrderId,
+    shopPayOutcome,
+    searchParams,
+    selectedLocationId,
+    setSearchParams,
+  ])
+
   const currentLocation =
     locations.find((l) => l.id === selectedLocationId) ?? locations[0]
   const locationName = currentLocation?.locationName ?? "Location"
@@ -245,6 +297,10 @@ export function ShopPage({
     product: ShopProduct,
     quantity: number = 1
   ) => {
+    if (paidWriteChrome.purchaseDisabled) {
+      return
+    }
+
     const existing = cartItems.find((item) => item.product.id === product.id)
     const nextQuantity = (existing?.quantity ?? 0) + quantity
     try {
@@ -256,6 +312,10 @@ export function ShopPage({
   }
 
   const handleUpdateQuantity = async (productId: string, quantity: number) => {
+    if (paidWriteChrome.purchaseDisabled) {
+      return
+    }
+
     try {
       await putAbsoluteQuantity(productId, quantity)
     } catch {
@@ -264,6 +324,10 @@ export function ShopPage({
   }
 
   const handleRemoveFromCart = async (productId: string) => {
+    if (paidWriteChrome.purchaseDisabled) {
+      return
+    }
+
     try {
       const cart = await deleteShopCartLine(selectedLocationId, productId)
       applyCartResponse(cart)
@@ -352,6 +416,10 @@ export function ShopPage({
   )
 
   const handleCheckout = () => {
+    if (paidWriteChrome.purchaseDisabled) {
+      return
+    }
+
     if (cartItems.length === 0) {
       toast.error("Your cart is empty.")
       return
@@ -374,6 +442,10 @@ export function ShopPage({
   }
 
   const handleOrderNow = (product: ShopProduct, quantity: number) => {
+    if (paidWriteChrome.purchaseDisabled) {
+      return
+    }
+
     // Express path (lock 05): do not merge into the server cart.
     setCheckoutFromCart(false)
     setExpressCheckout({
@@ -439,6 +511,7 @@ export function ShopPage({
             setSearchParams({ view: "orders" })
             scrollShopPaneToTop()
           }}
+          paidWriteChrome={paidWriteChrome}
         />
       ) : currentView === "orders" ? (
         <ShopOrdersScreen
@@ -468,6 +541,7 @@ export function ShopPage({
           onAddToCart={handleAddToCart}
           onOrderNow={handleOrderNow}
           onSelectRelatedProduct={handleSelectProduct}
+          paidWriteChrome={paidWriteChrome}
         />
       ) : (
         <>
@@ -536,6 +610,7 @@ export function ShopPage({
         onCheckout={handleCheckout}
         selectedLocationName={locationName}
         selectedLocationAddress={locationAddress}
+        paidWriteChrome={paidWriteChrome}
       />
 
       <ShopStarterKitDialog

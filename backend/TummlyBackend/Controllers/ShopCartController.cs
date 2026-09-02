@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TummlyBackend.Data;
 using TummlyBackend.DTOs.Shop;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -13,14 +14,17 @@ namespace TummlyBackend.Controllers
     {
         private readonly IShopCartService _carts;
         private readonly IRestaurantPermissionHelper _permissions;
+        private readonly ApplicationDbContext _context;
 
         public ShopCartController(
             IShopCartService carts,
-            IRestaurantPermissionHelper permissions
+            IRestaurantPermissionHelper permissions,
+            ApplicationDbContext context
         )
         {
             _carts = carts;
             _permissions = permissions;
+            _context = context;
         }
 
         [HttpGet]
@@ -62,6 +66,15 @@ namespace TummlyBackend.Controllers
             if (gate.Denied != null)
             {
                 return gate.Denied;
+            }
+
+            var paidWriteDenied = await DenyPaidWriteIfLockedAsync(
+                gate.RestaurantId,
+                cancellationToken
+            );
+            if (paidWriteDenied != null)
+            {
+                return paidWriteDenied;
             }
 
             if (string.IsNullOrWhiteSpace(body.SkuId))
@@ -109,6 +122,15 @@ namespace TummlyBackend.Controllers
                 return gate.Denied;
             }
 
+            var paidWriteDenied = await DenyPaidWriteIfLockedAsync(
+                gate.RestaurantId,
+                cancellationToken
+            );
+            if (paidWriteDenied != null)
+            {
+                return paidWriteDenied;
+            }
+
             var cart = await _carts.RemoveLineAsync(
                 gate.RestaurantId,
                 locationId!.Value,
@@ -117,6 +139,19 @@ namespace TummlyBackend.Controllers
                 cancellationToken
             );
             return Ok(cart);
+        }
+
+        private async Task<IActionResult?> DenyPaidWriteIfLockedAsync(
+            int restaurantId,
+            CancellationToken cancellationToken
+        )
+        {
+            var deny = await OperatorBillingLockGate.EvaluatePaidWriteDenyAsync(
+                _context,
+                restaurantId,
+                cancellationToken
+            );
+            return deny != null ? OperatorBillingLockGate.Forbidden(deny) : null;
         }
 
         private async Task<(

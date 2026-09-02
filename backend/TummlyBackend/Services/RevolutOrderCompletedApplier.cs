@@ -118,6 +118,19 @@ namespace TummlyBackend.Services
                 return;
             }
 
+            if (
+                intent != null
+                && string.Equals(
+                    intent.Purpose,
+                    RevolutOrderIntentPurposes.ShopMaterialsOrder,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                await ApplyShopMaterialsOrderAsync(intent, cancellationToken);
+                return;
+            }
+
             var reason = request.BillingReason?.Trim() ?? string.Empty;
             if (!IsMintableBillingReason(reason))
             {
@@ -622,6 +635,89 @@ namespace TummlyBackend.Services
                     Qty = quantity,
                 }
             );
+            BillingActivityWriter.TryAppend(
+                _context,
+                new BillingActivityAppendRequest
+                {
+                    RestaurantId = intent.RestaurantId,
+                    Kind = BillingActivityKinds.InvoicePaid,
+                    OccurredAtUtc = nowUtc,
+                    InvoiceNo = invoice.DocumentNumber,
+                }
+            );
+
+            if (intent.IsOpen)
+            {
+                intent.IsOpen = false;
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        private async Task ApplyShopMaterialsOrderAsync(
+            RevolutOrderIntent intent,
+            CancellationToken cancellationToken
+        )
+        {
+            if (!intent.IsOpen)
+            {
+                return;
+            }
+
+            if (intent.ShopOrderId is not Guid shopOrderId)
+            {
+                throw new InvalidOperationException("invalid_shop_order_intent");
+            }
+
+            var shopOrder = await _context.ShopOrders
+                .Include(row => row.Lines)
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.Id == shopOrderId
+                        && row.RestaurantId == intent.RestaurantId,
+                    cancellationToken
+                );
+            if (shopOrder == null)
+            {
+                throw new InvalidOperationException("shop_order_missing");
+            }
+
+            var nowUtc = _clock.GetUtcNow().UtcDateTime;
+            shopOrder.PaymentStatus = ShopPaymentStatuses.Paid;
+            shopOrder.FulfilmentStatus = ShopFulfilmentStatuses.Processing;
+            shopOrder.PaidAtUtc = nowUtc;
+            shopOrder.ProcessingStartedAtUtc = nowUtc;
+            shopOrder.RevolutOrderId = intent.OrderId;
+            shopOrder.UpdatedAtUtc = nowUtc;
+
+            var billingAccount = await _context.BillingAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.RestaurantId == intent.RestaurantId,
+                    cancellationToken
+                );
+            var plan = billingAccount?.SubscriptionPlan
+                ?? BillingSubscriptionPlans.Starter;
+            var cycle = billingAccount?.BillingCycle ?? BillingCycles.Monthly;
+            var lineDescription =
+                $"Tummly Shop materials order {shopOrder.OrderNumber}";
+
+            var invoice = await _vatInvoices.MintForCompletedOrderAsync(
+                new TummlyVatInvoiceMintRequest(
+                    RevolutOrderId: intent.OrderId,
+                    RevolutSubscriptionId: null,
+                    RestaurantId: intent.RestaurantId,
+                    Plan: plan,
+                    BillingCycle: cycle,
+                    PaymentSuccessUtc: nowUtc,
+                    NetPenceOverride: intent.NetAmountMinor > 0
+                        ? intent.NetAmountMinor
+                        : null,
+                    LineDescriptionOverride: lineDescription
+                ),
+                cancellationToken
+            );
+
             BillingActivityWriter.TryAppend(
                 _context,
                 new BillingActivityAppendRequest

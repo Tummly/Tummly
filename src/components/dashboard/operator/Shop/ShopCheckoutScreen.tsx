@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { Link } from "react-router-dom"
 import {
   ChevronRight,
   Package,
@@ -30,10 +31,12 @@ import { scrollShopPaneToTop } from "@/components/dashboard/operator/Shop/ShopPr
 import {
   computeShopCheckoutTotalsPence,
   fetchShopDeliveryDefaults,
+  payShopOrder,
   placeShopOrder,
   type CheckoutLine,
   type ShopShipToPayload,
 } from "@/api/shopOrdersApi"
+import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
 import { ukPostcodeRegex } from "@/lib/locationUpload/locationUploadValidation"
 import { tryNormalizePhoneToE164 } from "@/lib/phoneNumber"
 import { cn } from "@/lib/utils"
@@ -53,6 +56,7 @@ type ShopCheckoutScreenProps = {
   onBackToProduct?: () => void
   onOrderPlaced?: (orderNumber: string) => void
   onSaveDraft?: (draft: DetailedShopDraft) => void
+  paidWriteChrome: ShopPaidWriteChrome
 }
 
 function penceToPounds(pence: number): string {
@@ -82,6 +86,7 @@ export function ShopCheckoutScreen({
   onBackToProduct,
   onOrderPlaced,
   onSaveDraft,
+  paidWriteChrome,
 }: ShopCheckoutScreenProps) {
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>("delivery")
   const [checkoutLines, setCheckoutLines] = useState<CheckoutLine[]>(lines)
@@ -102,19 +107,16 @@ export function ShopCheckoutScreen({
   const [addressFormLine1, setAddressFormLine1] = useState("")
   const [addressFormLine2, setAddressFormLine2] = useState("")
 
-  const [cardType] = useState("Visa")
-  const [cardLast4] = useState("4242")
-  const [cardExpiry, setCardExpiry] = useState("08/29")
-
   const [checkedReviewDetails, setCheckedReviewDetails] = useState(false)
   const [checkedAgreeTerms, setCheckedAgreeTerms] = useState(false)
 
   const [isEditQuantityOpen, setIsEditQuantityOpen] = useState(false)
-  const [isEditPaymentOpen, setIsEditPaymentOpen] = useState(false)
   const [isPaymentProcessing, setIsPaymentProcessing] = useState(false)
   const [returnStepAfterAddress, setReturnStepAfterAddress] = useState<
     "delivery" | "payment"
   >("payment")
+
+  const purchaseBlocked = paidWriteChrome.purchaseDisabled
 
   useEffect(() => {
     setCheckoutLines(lines)
@@ -241,6 +243,10 @@ export function ShopCheckoutScreen({
   }
 
   const handlePlaceOrder = async () => {
+    if (purchaseBlocked) {
+      return
+    }
+
     if (!checkedReviewDetails || !checkedAgreeTerms) {
       toast.error("Please confirm the checkout checkboxes to proceed")
       return
@@ -291,12 +297,18 @@ export function ShopCheckoutScreen({
             shipTo,
           })
 
-      toast.success(`Order ${order.orderNumber} placed successfully!`)
-      if (onOrderPlaced) {
-        onOrderPlaced(order.orderNumber)
-      } else {
-        onBackToShop()
+      const paySession = await payShopOrder({
+        orderId: order.id,
+        locationId,
+        idempotencyKey: crypto.randomUUID(),
+      })
+
+      if (paySession.outcome === "pay" && paySession.redirectUrl) {
+        window.location.assign(paySession.redirectUrl)
+        return
       }
+
+      toast.error("Could not start Revolut payment.")
     } catch {
       toast.error("Could not place order.")
     } finally {
@@ -965,42 +977,19 @@ export function ShopCheckoutScreen({
 
                   <div className="flex flex-col gap-3.5">
                     <h3 className="text-base font-semibold text-op-text-primary">
-                      Payment method
+                      Payment
                     </h3>
 
-                    <div className="flex w-full items-center justify-between rounded-sm border border-op-action-primary/60 bg-op-background-primary p-4">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-sm font-medium text-op-text-primary">
-                          {cardType} ending in {cardLast4}
-                        </span>
-                        <span className="text-sm font-medium text-op-text-muted">
-                          Expires {cardExpiry}
-                        </span>
-                      </div>
-
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8.5 rounded-xs border-op-border-default bg-transparent px-3 text-xs font-medium text-op-text-primary hover:bg-op-surface-secondary"
-                        onClick={() => setIsEditPaymentOpen(true)}
-                      >
-                        Edit payment
-                      </Button>
+                    <div className="rounded-sm border border-op-border-default bg-op-background-primary p-4">
+                      <p className="text-sm font-medium text-op-text-primary">
+                        Pay securely with Revolut
+                      </p>
+                      <p className="mt-1 text-sm text-op-text-muted">
+                        After you place the order, you are redirected to Revolut
+                        to complete payment. Your order is marked paid only
+                        after Revolut confirms payment.
+                      </p>
                     </div>
-                  </div>
-
-                  <div className="border-t border-op-border-default" />
-
-                  <div>
-                    <Button
-                      type="button"
-                      variant="op-secondary"
-                      className="h-9.5 rounded-xs px-4 text-sm font-medium"
-                      onClick={() => setIsEditPaymentOpen(true)}
-                    >
-                      Add payment method
-                    </Button>
                   </div>
                 </div>
 
@@ -1051,35 +1040,51 @@ export function ShopCheckoutScreen({
                   </span>
                 </label>
 
-                <div className="flex items-center gap-4 pt-2">
-                  <Button
-                    type="button"
-                    variant="op-secondary"
-                    disabled={isPaymentProcessing}
-                    onClick={() => {
-                      void handlePlaceOrder()
-                    }}
-                    className="h-10 rounded-xs px-5 text-sm font-medium"
-                  >
-                    {isPaymentProcessing ? "Processing..." : "Place order"}
-                  </Button>
+                <div className="flex flex-col gap-3 pt-2">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <Button
+                      type="button"
+                      variant="op-secondary"
+                      disabled={isPaymentProcessing || purchaseBlocked}
+                      onClick={() => {
+                        void handlePlaceOrder()
+                      }}
+                      className="h-10 rounded-xs px-5 text-sm font-medium"
+                    >
+                      {isPaymentProcessing
+                        ? "Processing..."
+                        : "Place order and pay with Revolut"}
+                    </Button>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleBackToDelivery}
-                    className="h-10 rounded-xs border-op-border-default bg-transparent px-5 text-sm font-medium text-op-text-primary hover:bg-op-surface-secondary"
-                  >
-                    Back
-                  </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleBackToDelivery}
+                      className="h-10 rounded-xs border-op-border-default bg-transparent px-5 text-sm font-medium text-op-text-primary hover:bg-op-surface-secondary"
+                    >
+                      Back
+                    </Button>
 
-                  <button
-                    type="button"
-                    onClick={handleSaveDraft}
-                    className="ml-2 text-sm font-medium text-op-text-muted transition-colors hover:text-op-text-primary hover:underline"
-                  >
-                    Save at Drafts
-                  </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      className="text-sm font-medium text-op-text-muted transition-colors hover:text-op-text-primary hover:underline"
+                    >
+                      Save at Drafts
+                    </button>
+                  </div>
+
+                  {purchaseBlocked && paidWriteChrome.helperCta ? (
+                    <p className="text-sm text-op-text-muted">
+                      Purchases are paused.{" "}
+                      <Link
+                        to={paidWriteChrome.helperCta.href}
+                        className="font-medium text-op-action-primary underline-offset-2 hover:underline"
+                      >
+                        {paidWriteChrome.helperCta.label}
+                      </Link>
+                    </p>
+                  ) : null}
                 </div>
               </div>
             )}
@@ -1135,82 +1140,6 @@ export function ShopCheckoutScreen({
           </DialogContent>
         </Dialog>
       ) : null}
-
-      <Dialog open={isEditPaymentOpen} onOpenChange={setIsEditPaymentOpen}>
-        <DialogContent
-          className="z-[200] w-full max-w-md gap-6 rounded-sm border border-op-border-default bg-op-card-background p-6 text-op-text-primary shadow-2xl"
-          overlayClassName="z-[190] bg-black/60 backdrop-blur-xs"
-        >
-          <DialogHeader className="text-left">
-            <DialogTitle className="text-lg font-bold text-op-text-primary">
-              Payment Method
-            </DialogTitle>
-            <DialogDescription className="text-xs text-op-text-muted">
-              Add or update card details for this order
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-op-text-muted">
-                Cardholder name
-              </label>
-              <Input
-                defaultValue="Mohamed Mahmoud"
-                className="h-10 rounded-sm border-op-border-default bg-op-background-primary text-xs text-op-text-primary"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-op-text-muted">
-                Card number
-              </label>
-              <Input
-                defaultValue="•••• •••• •••• 4242"
-                className="h-10 rounded-sm border-op-border-default bg-op-background-primary text-xs text-op-text-primary"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-op-text-muted">
-                  Expiry date
-                </label>
-                <Input
-                  value={cardExpiry}
-                  onChange={(e) => setCardExpiry(e.target.value)}
-                  placeholder="MM/YY"
-                  className="h-10 rounded-sm border-op-border-default bg-op-background-primary text-xs text-op-text-primary"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-op-text-muted">
-                  CVC
-                </label>
-                <Input
-                  defaultValue="123"
-                  type="password"
-                  maxLength={4}
-                  className="h-10 rounded-sm border-op-border-default bg-op-background-primary text-xs text-op-text-primary"
-                />
-              </div>
-            </div>
-
-            <Button
-              type="button"
-              variant="op-primary"
-              onClick={() => {
-                setIsEditPaymentOpen(false)
-                toast.success("Payment method updated")
-              }}
-              className="h-9 text-xs font-medium"
-            >
-              Save payment method
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

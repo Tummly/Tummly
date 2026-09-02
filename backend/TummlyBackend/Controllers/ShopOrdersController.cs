@@ -5,6 +5,8 @@ using TummlyBackend.Data;
 using TummlyBackend.DTOs.Shop;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Controllers
 {
@@ -14,16 +16,19 @@ namespace TummlyBackend.Controllers
     public class ShopOrdersController : ControllerBase
     {
         private readonly IShopOrderPlaceService _orders;
+        private readonly IShopMaterialsOrderPaySession _paySessions;
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly ApplicationDbContext _context;
 
         public ShopOrdersController(
             IShopOrderPlaceService orders,
+            IShopMaterialsOrderPaySession paySessions,
             IRestaurantPermissionHelper permissions,
             ApplicationDbContext context
         )
         {
             _orders = orders;
+            _paySessions = paySessions;
             _permissions = permissions;
             _context = context;
         }
@@ -41,6 +46,16 @@ namespace TummlyBackend.Controllers
             if (gate.Denied != null)
             {
                 return gate.Denied;
+            }
+
+            var paidWriteDeny = await OperatorBillingLockGate.EvaluatePaidWriteDenyAsync(
+                _context,
+                gate.RestaurantId,
+                cancellationToken
+            );
+            if (paidWriteDeny != null)
+            {
+                return OperatorBillingLockGate.Forbidden(paidWriteDeny);
             }
 
             var placedByName = await ResolveDisplayNameAsync(
@@ -76,6 +91,232 @@ namespace TummlyBackend.Controllers
             }
 
             return Ok(result.Order);
+        }
+
+        [HttpGet("orders/{orderId:guid}")]
+        public async Task<IActionResult> GetOrder(
+            Guid orderId,
+            [FromQuery] int? locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            var gate = await AuthorizeShopAsync(
+                locationId,
+                PermissionLevel.View
+            );
+            if (gate.Denied != null)
+            {
+                return gate.Denied;
+            }
+
+            var order = await _context.ShopOrders
+                .AsNoTracking()
+                .Include(row => row.Lines)
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.Id == orderId
+                        && row.RestaurantId == gate.RestaurantId,
+                    cancellationToken
+                );
+            if (order == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Shop order was not found.",
+                });
+            }
+
+            if (locationId is > 0 && order.LocationId != locationId.Value)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Shop order was not found.",
+                });
+            }
+
+            return Ok(ShopOrderDtoMapper.Map(order));
+        }
+
+        [HttpPost("orders/{orderId:guid}/pay")]
+        public async Task<IActionResult> PayOrder(
+            Guid orderId,
+            [FromQuery] int? locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            var gate = await AuthorizeShopAsync(
+                locationId,
+                PermissionLevel.Scoped
+            );
+            if (gate.Denied != null)
+            {
+                return gate.Denied;
+            }
+
+            var paidWriteDeny = await OperatorBillingLockGate.EvaluatePaidWriteDenyAsync(
+                _context,
+                gate.RestaurantId,
+                cancellationToken
+            );
+            if (paidWriteDeny != null)
+            {
+                return OperatorBillingLockGate.Forbidden(paidWriteDeny);
+            }
+
+            if (
+                !Request.Headers.TryGetValue("Idempotency-Key", out var keyHeader)
+                || string.IsNullOrWhiteSpace(keyHeader)
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "idempotency_key_required",
+                    message = "Idempotency-Key header is required.",
+                });
+            }
+
+            var order = await _context.ShopOrders
+                .Include(row => row.Lines)
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.Id == orderId
+                        && row.RestaurantId == gate.RestaurantId,
+                    cancellationToken
+                );
+            if (order == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Shop order was not found.",
+                });
+            }
+
+            if (locationId is > 0 && order.LocationId != locationId.Value)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Shop order was not found.",
+                });
+            }
+
+            var billingAccount = await _context.BillingAccounts
+                .FirstOrDefaultAsync(
+                    row => row.RestaurantId == gate.RestaurantId,
+                    cancellationToken
+                );
+            if (billingAccount == null)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Billing account was not found.",
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(billingAccount.RevolutCustomerId))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "revolut_customer_required",
+                    message = "revolut_customer_required",
+                });
+            }
+
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.Id == gate.RestaurantId,
+                    cancellationToken
+                );
+            if (restaurant == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Restaurant was not found.",
+                });
+            }
+
+            try
+            {
+                var checkoutUrl = await _paySessions.StartAsync(
+                    billingAccount,
+                    restaurant.AccountType,
+                    order,
+                    keyHeader.ToString().Trim(),
+                    cancellationToken
+                );
+
+                return Ok(new ShopOrderPayResponseDto
+                {
+                    Outcome = "pay",
+                    RedirectUrl = checkoutUrl,
+                });
+            }
+            catch (RevolutMerchantNotReadyException ex)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                {
+                    success = false,
+                    code = ex.Code,
+                    message = ex.Code,
+                });
+            }
+            catch (InvalidOperationException ex) when (
+                ex.Message == "idempotency_target_mismatch"
+            )
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = "idempotency_target_mismatch",
+                    message =
+                        "Idempotency-Key was already used for a different shop order.",
+                });
+            }
+            catch (InvalidOperationException ex) when (
+                ex.Message
+                    is "revolut_customer_required"
+                        or "shop_order_not_payable"
+                        or RevolutHostedCheckoutRedirectUrls.InvalidHostErrorCode
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = ex.Message,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex) when (
+                ex.Message is RevolutMerchantCreateGate.VatNotReady
+            )
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                {
+                    success = false,
+                    code = ex.Message,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex) when (
+                ex.Message == "revolut_http_error"
+                    || ex.Message == "Frontend:BaseUrl is not configured."
+            )
+            {
+                return StatusCode(StatusCodes.Status502BadGateway, new
+                {
+                    success = false,
+                    code = ex.Message,
+                    message = ex.Message,
+                });
+            }
         }
 
         [HttpGet("locations/{locationId:int}/delivery-defaults")]

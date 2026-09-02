@@ -54,6 +54,48 @@ namespace TummlyBackend.Helpers
             return $"{baseUrl}{root}/settings/billing-credits?{queryString}";
         }
 
+        public static string BuildShopOrdersTabUrl(
+            IConfiguration configuration,
+            string restaurantAccountType,
+            int locationId,
+            IReadOnlyDictionary<string, string>? extraQuery = null
+        )
+        {
+            var baseUrl = ResolveRedirectBaseUrl(configuration);
+            ValidateRevolutRedirectHost(baseUrl);
+
+            var root = string.Equals(
+                restaurantAccountType,
+                "Multi",
+                StringComparison.Ordinal
+            )
+                ? "/multi-dashboard"
+                : "/single-dashboard";
+
+            var query = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["location"] = locationId.ToString(),
+                ["view"] = "orders",
+            };
+
+            if (extraQuery != null)
+            {
+                foreach (var (key, value) in extraQuery)
+                {
+                    query[key] = value;
+                }
+            }
+
+            var queryString = string.Join(
+                "&",
+                query.Select(pair =>
+                    $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(pair.Value)}"
+                )
+            );
+
+            return $"{baseUrl}{root}/shop?{queryString}";
+        }
+
         internal static string ResolveRedirectBaseUrl(IConfiguration configuration)
         {
             var overrideUrl = configuration["Frontend:RevolutRedirectBaseUrl"]

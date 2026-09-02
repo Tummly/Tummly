@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { Link } from "react-router-dom"
 import {
   ChevronRight,
   ShoppingBag,
@@ -19,6 +20,7 @@ import {
   ShopCatalogItemCard,
 } from "@/components/dashboard/operator/Shop/ShopCatalogItemCard"
 import type { ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
+import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
 import tummlyStickerImg from "@/assets/images/shop/tummly-sticker.png"
 import tummlyBagImg from "@/assets/images/shop/tummly-bag.png"
 import { cn } from "@/lib/utils"
@@ -65,6 +67,7 @@ type ShopProductScreenProps = {
   onAddToCart: (product: ShopProduct, quantity: number) => void
   onOrderNow: (product: ShopProduct, quantity: number) => void
   onSelectRelatedProduct: (product: ShopProduct) => void
+  paidWriteChrome: ShopPaidWriteChrome
 }
 
 export function ShopProductScreen({
@@ -77,7 +80,9 @@ export function ShopProductScreen({
   onAddToCart,
   onOrderNow,
   onSelectRelatedProduct,
+  paidWriteChrome,
 }: ShopProductScreenProps) {
+  const purchaseBlocked = paidWriteChrome.purchaseDisabled
   const [selectedPackId, setSelectedPackId] = useState<string>("pack-20")
   const [customQuantity, setCustomQuantity] = useState<number>(20)
   const [activeImageIdx, setActiveImageIdx] = useState<number>(0)
@@ -393,6 +398,7 @@ export function ShopProductScreen({
                 <Button
                   type="button"
                   variant="op-primary"
+                  disabled={purchaseBlocked}
                   className="h-10 gap-1.5 rounded-md px-5 text-xs font-semibold"
                   onClick={() => onOrderNow(product, customQuantity)}
                 >
@@ -402,12 +408,24 @@ export function ShopProductScreen({
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={purchaseBlocked}
                   className="h-10 rounded-md border-op-border-default bg-transparent px-4 text-xs font-medium text-op-text-primary hover:bg-op-surface-secondary"
                   onClick={() => onAddToCart(product, customQuantity)}
                 >
                   Add to cart
                 </Button>
               </div>
+              {purchaseBlocked && paidWriteChrome.helperCta ? (
+                <p className="text-xs text-op-text-muted">
+                  Purchases are paused.{" "}
+                  <Link
+                    to={paidWriteChrome.helperCta.href}
+                    className="font-medium text-op-action-primary underline-offset-2 hover:underline"
+                  >
+                    {paidWriteChrome.helperCta.label}
+                  </Link>
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
