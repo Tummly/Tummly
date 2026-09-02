@@ -67,6 +67,8 @@ export function mapShopOrderDetailToRow(
     fulfilmentStatus:
       detail.fulfilmentStatusLabel as DetailedShopOrder["fulfilmentStatus"],
     updatedDate: formatShopDisplayDate(detail.updatedAtUtc),
+    canCancel: detail.canCancel,
+    cancelBlockReason: detail.cancelBlockReason ?? null,
     items: detail.lines.map(
       (line) => `${line.quantity}x ${line.title} (${line.materialType})`
     ),

@@ -96,6 +96,13 @@ export function ShopOrderDetailSidebar({
   const trackingUrl = progress?.trackingUrl ?? null
 
   const invoiceNumber = `INV-${order.orderNumber.replace("#", "")}`
+  const canCancel = order.canCancel === true
+  const cancelBlockMessage =
+    order.cancelBlockReason === "in_transit"
+      ? "This order has already been dispatched and cannot be cancelled."
+      : order.cancelBlockReason === "delivered"
+        ? "This order has been delivered and cannot be cancelled."
+        : null
 
   const handleDownloadInvoice = () => {
     downloadOrderInvoice(order)
@@ -197,15 +204,23 @@ export function ShopOrderDetailSidebar({
                       >
                         Contact support
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setIsCancelOrderOpen(true)}
-                        className="cursor-pointer text-xs text-red-500 hover:text-red-500 focus:bg-red-500/10 focus:text-red-500"
-                      >
-                        Cancel order
-                      </DropdownMenuItem>
+                      {canCancel ? (
+                        <DropdownMenuItem
+                          onClick={() => setIsCancelOrderOpen(true)}
+                          className="cursor-pointer text-xs text-red-500 hover:text-red-500 focus:bg-red-500/10 focus:text-red-500"
+                        >
+                          Cancel order
+                        </DropdownMenuItem>
+                      ) : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
+
+                {cancelBlockMessage ? (
+                  <p className="text-xs font-medium text-op-text-muted">
+                    {cancelBlockMessage}
+                  </p>
+                ) : null}
               </div>
 
               {/* Close Button */}

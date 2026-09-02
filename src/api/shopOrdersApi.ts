@@ -86,6 +86,22 @@ export type ShopOrderDetailWire = ShopOrderWire & {
   paymentSummary: ShopOrderPaymentSummaryWire
   progress: ShopOrderProgressWire
   updatedAtUtc: string
+  canCancel: boolean
+  cancelBlockReason?: string | null
+}
+
+export type ShopReorderPrefillWire = {
+  locationId: number
+  lines: Array<{
+    skuId: string
+    quantity: number
+    title: string
+    unitNetPence: number
+    lineNetPence: number
+  }>
+  shipTo: ShopShipToPayload
+  deliveryMethod: "standard" | "express"
+  sourceOrderNumber: string
 }
 
 export type ShopDeliveryDefaultsWire = {
@@ -217,6 +233,33 @@ export async function fetchShopDeliveryDefaults(
 ): Promise<ShopDeliveryDefaultsWire> {
   const response = await axiosInstance.get<ShopDeliveryDefaultsWire>(
     `/api/shop/locations/${locationId}/delivery-defaults`
+  )
+  return response.data
+}
+
+export async function cancelShopOrder(input: {
+  orderId: string
+  locationId: number
+  reason: string
+}): Promise<ShopOrderDetailWire> {
+  const response = await axiosInstance.post<ShopOrderDetailWire>(
+    `/api/shop/orders/${input.orderId}/cancel`,
+    {
+      locationId: input.locationId,
+      reason: input.reason,
+    }
+  )
+  return response.data
+}
+
+export async function reorderShopOrder(input: {
+  orderId: string
+  locationId: number
+}): Promise<ShopReorderPrefillWire> {
+  const response = await axiosInstance.post<ShopReorderPrefillWire>(
+    `/api/shop/orders/${input.orderId}/reorder`,
+    {},
+    { params: { locationId: input.locationId } }
   )
   return response.data
 }

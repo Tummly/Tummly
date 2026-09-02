@@ -162,6 +162,8 @@ export type DetailedShopOrder = {
   fulfilmentStatus: "Processing" | "Dispatched" | "Delivered" | "Cancelled"
   updatedDate: string
   items?: string[]
+  canCancel?: boolean
+  cancelBlockReason?: string | null
   detail?: ShopOrderDetailWire
 }
 

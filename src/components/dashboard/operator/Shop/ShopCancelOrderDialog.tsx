@@ -18,20 +18,20 @@ import {
 } from "@/components/ui/select"
 import type { DetailedShopOrder } from "@/lib/operatorShop/shopOrdersFilterSheetSchema"
 
-const CANCEL_REASONS = [
-  "Ordered by mistake",
-  "Incorrect quantity",
-  "Incorrect location",
-  "Delivery details changed",
-  "No longer required",
-  "Other",
-]
+export const SHOP_CANCEL_REASONS = [
+  { slug: "ordered_by_mistake", label: "Ordered by mistake" },
+  { slug: "incorrect_quantity", label: "Incorrect quantity" },
+  { slug: "incorrect_location", label: "Incorrect location" },
+  { slug: "delivery_details_changed", label: "Delivery details changed" },
+  { slug: "no_longer_required", label: "No longer required" },
+  { slug: "other", label: "Other" },
+] as const
 
 type ShopCancelOrderDialogProps = {
   order: DetailedShopOrder | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onConfirmCancel: (order: DetailedShopOrder, reason: string) => void
+  onConfirmCancel: (order: DetailedShopOrder, reasonSlug: string) => void
 }
 
 export function ShopCancelOrderDialog({
@@ -40,22 +40,22 @@ export function ShopCancelOrderDialog({
   onOpenChange,
   onConfirmCancel,
 }: ShopCancelOrderDialogProps) {
-  const [reason, setReason] = useState<string>("")
+  const [reasonSlug, setReasonSlug] = useState<string>("")
 
   useEffect(() => {
     if (open) {
-      setReason("")
+      setReasonSlug("")
     }
   }, [open])
 
   if (!order) return null
 
   const handleConfirm = () => {
-    if (!reason) {
+    if (!reasonSlug) {
       toast.error("Please select a cancellation reason")
       return
     }
-    onConfirmCancel(order, reason)
+    onConfirmCancel(order, reasonSlug)
     onOpenChange(false)
   }
 
@@ -73,7 +73,7 @@ export function ShopCancelOrderDialog({
               Cancel order {order.orderNumber}?
             </DialogTitle>
             <DialogDescription className="text-sm font-medium text-op-text-muted leading-relaxed">
-              This order has not entered production and can still be cancelled. Any completed payment will be reviewed for refund.
+              This order will be cancelled. Our team will process your refund separately.
             </DialogDescription>
           </DialogHeader>
 
@@ -97,7 +97,7 @@ export function ShopCancelOrderDialog({
           <label className="text-sm font-semibold text-op-text-primary">
             Why are you cancelling this order?
           </label>
-          <Select value={reason} onValueChange={setReason}>
+          <Select value={reasonSlug} onValueChange={setReasonSlug}>
             <SelectTrigger className="h-11 w-full rounded-sm border-op-border-default bg-op-background-primary px-3.5 text-sm text-op-text-primary">
               <SelectValue placeholder="Select" />
             </SelectTrigger>
@@ -105,13 +105,13 @@ export function ShopCancelOrderDialog({
               position="popper"
               className="z-[250] border-op-border-default bg-op-card-background text-op-text-primary"
             >
-              {CANCEL_REASONS.map((r) => (
+              {SHOP_CANCEL_REASONS.map((reason) => (
                 <SelectItem
-                  key={r}
-                  value={r}
+                  key={reason.slug}
+                  value={reason.slug}
                   className="cursor-pointer text-sm focus:bg-op-surface-secondary focus:text-op-text-primary"
                 >
-                  {r}
+                  {reason.label}
                 </SelectItem>
               ))}
             </SelectContent>

@@ -9,7 +9,7 @@ import {
   mapShopCartToItems,
   upsertShopCartLine,
 } from "@/api/shopCartApi"
-import type { CheckoutLine } from "@/api/shopOrdersApi"
+import type { CheckoutLine, ShopShipToPayload } from "@/api/shopOrdersApi"
 import { ShopHeader } from "@/components/dashboard/operator/Shop/ShopHeader"
 import { ShopToolbar } from "@/components/dashboard/operator/Shop/ShopToolbar"
 import { ShopBanner } from "@/components/dashboard/operator/Shop/ShopBanner"
@@ -56,6 +56,9 @@ type ShopPageProps = {
 
 type ExpressCheckoutState = {
   lines: CheckoutLine[]
+  shipTo?: ShopShipToPayload
+  deliveryMethod?: "standard" | "express"
+  sourceOrderNumber?: string
 }
 
 function toCheckoutLine(product: ShopProduct, quantity: number): CheckoutLine {
@@ -466,6 +469,8 @@ export function ShopPage({
           locationId={selectedLocationId}
           lines={checkoutLines}
           fromCart={checkoutFromCart}
+          initialShipTo={expressCheckout?.shipTo}
+          initialDeliveryMethod={expressCheckout?.deliveryMethod}
           selectedLocationName={locationName}
           selectedLocationAddress={locationAddress}
           locations={locations}
@@ -517,10 +522,22 @@ export function ShopPage({
             scrollShopPaneToTop()
             toast.info(`Resuming checkout for ${draft.draftNumber}`)
           }}
-          onReorder={(order) => {
+          onReorder={({ prefill }) => {
+            setCheckoutFromCart(false)
+            setExpressCheckout({
+              lines: prefill.lines.map((line) => ({
+                skuId: line.skuId,
+                title: line.title,
+                quantity: line.quantity,
+                unitNetPence: line.unitNetPence,
+                lineNetPence: line.lineNetPence,
+              })),
+              shipTo: prefill.shipTo,
+              deliveryMethod: prefill.deliveryMethod,
+              sourceOrderNumber: prefill.sourceOrderNumber,
+            })
             setSearchParams({ view: "checkout" })
             scrollShopPaneToTop()
-            toast.success(`Reviewing reorder for ${order.orderNumber}`)
           }}
         />
       ) : currentView === "product" && selectedProduct ? (

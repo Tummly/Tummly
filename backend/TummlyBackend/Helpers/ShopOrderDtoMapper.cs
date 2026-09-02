@@ -73,7 +73,14 @@ namespace TummlyBackend.Helpers
                     TrackingUrl = trackingVisible ? order.TrackingUrl : null,
                 },
                 UpdatedAtUtc = order.UpdatedAtUtc,
+                CanCancel = ShopOrderCancelRules.CanCancel(order),
+                CancelBlockReason = ShopOrderCancelRules.CancelBlockReason(order),
             };
+        }
+
+        public static ShopOrderShipToDto MapShipToPublic(ShopOrder order)
+        {
+            return MapShipTo(order);
         }
 
         private static IReadOnlyList<ShopOrderLineDto> MapLines(ShopOrder order)

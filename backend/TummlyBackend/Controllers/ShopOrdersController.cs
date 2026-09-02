@@ -21,6 +21,7 @@ namespace TummlyBackend.Controllers
         private readonly IGuestsEffectiveLocationService _effectiveLocations;
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly ApplicationDbContext _context;
+        private readonly IShopOrderCancelReorderService _cancelReorder;
 
         public ShopOrdersController(
             IShopOrderPlaceService orders,
@@ -28,7 +29,8 @@ namespace TummlyBackend.Controllers
             IShopOrdersListService ordersList,
             IGuestsEffectiveLocationService effectiveLocations,
             IRestaurantPermissionHelper permissions,
-            ApplicationDbContext context
+            ApplicationDbContext context,
+            IShopOrderCancelReorderService cancelReorder
         )
         {
             _orders = orders;
@@ -37,6 +39,7 @@ namespace TummlyBackend.Controllers
             _effectiveLocations = effectiveLocations;
             _permissions = permissions;
             _context = context;
+            _cancelReorder = cancelReorder;
         }
 
         [HttpGet("orders")]
@@ -218,6 +221,147 @@ namespace TummlyBackend.Controllers
             }
 
             return Ok(ShopOrderDtoMapper.MapOperatorDetail(order));
+        }
+
+        [HttpPost("orders/{orderId:guid}/cancel")]
+        public async Task<IActionResult> CancelOrder(
+            Guid orderId,
+            [FromBody] CancelShopOrderRequest body,
+            CancellationToken cancellationToken
+        )
+        {
+            var gate = await AuthorizeShopAsync(
+                body.LocationId,
+                PermissionLevel.Scoped
+            );
+            if (gate.Denied != null)
+            {
+                return gate.Denied;
+            }
+
+            if (!gate.LocationIds.Contains(body.LocationId))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    success = false,
+                    message = "You do not have access to this location.",
+                });
+            }
+
+            var result = await _cancelReorder.CancelAsync(
+                gate.RestaurantId,
+                gate.UserId,
+                orderId,
+                body.LocationId,
+                body.Reason,
+                cancellationToken
+            );
+
+            if (result.Order == null)
+            {
+                if (result.ErrorCode == "order_not_found")
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = result.ErrorMessage,
+                    });
+                }
+
+                if (result.ErrorCode == "shop_order_not_cancellable")
+                {
+                    return Conflict(new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                    });
+                }
+
+                return BadRequest(new
+                {
+                    success = false,
+                    code = result.ErrorCode,
+                    message = result.ErrorMessage,
+                });
+            }
+
+            return Ok(result.Order);
+        }
+
+        [HttpPost("orders/{orderId:guid}/reorder")]
+        public async Task<IActionResult> ReorderOrder(
+            Guid orderId,
+            [FromQuery] int locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            var gate = await AuthorizeShopAsync(
+                locationId,
+                PermissionLevel.Scoped
+            );
+            if (gate.Denied != null)
+            {
+                return gate.Denied;
+            }
+
+            if (!gate.LocationIds.Contains(locationId))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    success = false,
+                    message = "You do not have access to this location.",
+                });
+            }
+
+            var result = await _cancelReorder.BuildReorderPrefillAsync(
+                gate.RestaurantId,
+                orderId,
+                locationId,
+                cancellationToken
+            );
+
+            if (result.Prefill == null)
+            {
+                if (result.ErrorCode == "order_not_found")
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = result.ErrorMessage,
+                    });
+                }
+
+                if (result.ErrorCode == "catalog_sku_unavailable")
+                {
+                    return Conflict(new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                        unavailableSkuIds = result.UnavailableSkuIds,
+                    });
+                }
+
+                if (result.ErrorCode == "shop_order_not_reorderable")
+                {
+                    return Conflict(new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                    });
+                }
+
+                return BadRequest(new
+                {
+                    success = false,
+                    code = result.ErrorCode,
+                    message = result.ErrorMessage,
+                });
+            }
+
+            return Ok(result.Prefill);
         }
 
         [HttpPost("orders/{orderId:guid}/pay")]

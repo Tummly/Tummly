@@ -48,6 +48,8 @@ type ShopCheckoutScreenProps = {
   locationId: number
   lines: CheckoutLine[]
   fromCart: boolean
+  initialShipTo?: ShopShipToPayload
+  initialDeliveryMethod?: DeliveryMethod
   selectedLocationName: string
   selectedLocationAddress?: string
   locations: Array<{ id: number; locationName: string; address: string }>
@@ -79,6 +81,8 @@ export function ShopCheckoutScreen({
   locationId,
   lines,
   fromCart,
+  initialShipTo,
+  initialDeliveryMethod,
   selectedLocationName,
   locations,
   onSelectLocation,
@@ -90,7 +94,9 @@ export function ShopCheckoutScreen({
 }: ShopCheckoutScreenProps) {
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>("delivery")
   const [checkoutLines, setCheckoutLines] = useState<CheckoutLine[]>(lines)
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("standard")
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(
+    initialDeliveryMethod ?? "standard"
+  )
 
   const [contactName, setContactName] = useState("")
   const [contactPhone, setContactPhone] = useState("")
@@ -126,6 +132,17 @@ export function ShopCheckoutScreen({
     let cancelled = false
 
     async function loadDeliveryDefaults() {
+      if (initialShipTo) {
+        setContactName(initialShipTo.contactName)
+        setContactPhone(initialShipTo.contactPhone ?? "")
+        setAddressLine1(initialShipTo.addressLine1)
+        setAddressLine2(initialShipTo.addressLine2 ?? "")
+        setPostcode(initialShipTo.postcode)
+        setCountry(initialShipTo.country || "United Kingdom")
+        setDeliveryInstructions(initialShipTo.deliveryInstructions ?? "")
+        return
+      }
+
       try {
         const defaults = await fetchShopDeliveryDefaults(locationId)
         if (cancelled) {
@@ -149,7 +166,7 @@ export function ShopCheckoutScreen({
     return () => {
       cancelled = true
     }
-  }, [locationId])
+  }, [locationId, initialShipTo])
 
   const canEditQuantity = !fromCart && checkoutLines.length === 1
   const singleLine = checkoutLines.length === 1 ? checkoutLines[0] : null

@@ -114,5 +114,9 @@ namespace TummlyBackend.DTOs.Shop
         public required ShopOrderProgressDto Progress { get; init; }
 
         public DateTime UpdatedAtUtc { get; init; }
+
+        public bool CanCancel { get; init; }
+
+        public string? CancelBlockReason { get; init; }
     }
 }

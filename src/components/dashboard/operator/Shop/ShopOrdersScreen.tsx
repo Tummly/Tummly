@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react"
+import { isAxiosError } from "axios"
 import {
   ChevronRight,
   MapPin,
@@ -28,7 +29,7 @@ import {
 } from "@/lib/operatorShop/shopOrdersFilterSheetSchema"
 import { buildShopOrdersListQueryParams } from "@/lib/operatorShop/shopOrdersListQueryParams"
 import { mapShopOrdersListResponse, mapShopOrderDetailToRow } from "@/lib/operatorShop/mapShopOrdersApiResponse"
-import { fetchShopOrdersList, fetchShopOrder } from "@/api/shopOrdersApi"
+import { fetchShopOrdersList, fetchShopOrder, cancelShopOrder, reorderShopOrder, type ShopReorderPrefillWire } from "@/api/shopOrdersApi"
 import {
   emptySelection,
   openSession,
@@ -107,7 +108,10 @@ type ShopOrdersScreenProps = {
   onSelectLocation?: (locationId: number) => void
   onBackToShop: () => void
   onContinueCheckoutDraft?: (draft: DetailedShopDraft) => void
-  onReorder?: (order: DetailedShopOrder) => void
+  onReorder?: (input: {
+    order: DetailedShopOrder
+    prefill: ShopReorderPrefillWire
+  }) => void
 }
 
 export function ShopOrdersScreen({
@@ -264,45 +268,65 @@ export function ShopOrdersScreen({
     setDeleteDraftTarget(null)
   }
 
-  const handleCancelOrder = (order: DetailedShopOrder, reason: string) => {
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === order.id
-          ? {
-              ...o,
-              fulfilmentStatus: "Cancelled",
-              paymentStatus: "Refunded",
-              updatedDate: new Date().toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              }),
-            }
-          : o
+  const handleCancelOrder = async (
+    order: DetailedShopOrder,
+    reasonSlug: string
+  ) => {
+    const locationId =
+      typeof order.locationId === "number"
+        ? order.locationId
+        : selectedLocationId
+
+    try {
+      const updated = await cancelShopOrder({
+        orderId: order.id,
+        locationId,
+        reason: reasonSlug,
+      })
+      const mapped = mapShopOrderDetailToRow(updated)
+      setOrders((prev) =>
+        prev.map((row) => (row.id === mapped.id ? mapped : row))
       )
-    )
-    setSelectedOrder((prev) =>
-      prev && prev.id === order.id
-        ? {
-            ...prev,
-            fulfilmentStatus: "Cancelled",
-            paymentStatus: "Refunded",
-            updatedDate: new Date().toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            }),
-          }
-        : prev
-    )
-    toast.success(`Order ${order.orderNumber} cancelled (${reason})`)
+      setSelectedOrder((prev) =>
+        prev && prev.id === mapped.id ? mapped : prev
+      )
+      toast.success(`Order ${mapped.orderNumber} cancelled`)
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 409) {
+        toast.error("This order can no longer be cancelled.")
+        return
+      }
+      toast.error("Could not cancel order.")
+    }
   }
 
-  const handleReorder = (order: DetailedShopOrder) => {
-    if (onReorder) {
-      onReorder(order)
-    } else {
-      toast.success(`Items from ${order.orderNumber} added to cart for reorder`)
+  const handleReorder = async (order: DetailedShopOrder) => {
+    const locationId =
+      typeof order.locationId === "number"
+        ? order.locationId
+        : selectedLocationId
+
+    try {
+      const prefill = await reorderShopOrder({
+        orderId: order.id,
+        locationId,
+      })
+      if (onReorder) {
+        onReorder({ order, prefill })
+      } else {
+        toast.success(`Reviewing reorder for ${order.orderNumber}`)
+      }
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 409) {
+        const code = error.response.data?.code
+        if (code === "catalog_sku_unavailable") {
+          toast.error("One or more materials are no longer available.")
+          return
+        }
+        toast.error("This order cannot be reordered.")
+        return
+      }
+      toast.error("Could not start reorder.")
     }
   }
 
