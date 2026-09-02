@@ -110,7 +110,6 @@ export function ShopPage({
   const [isLocationDetailsOpen, setIsLocationDetailsOpen] = useState<boolean>(false)
   const [isOrdersOpen, setIsOrdersOpen] = useState<boolean>(false)
   const [isCreateQrAssetOpen, setIsCreateQrAssetOpen] = useState<boolean>(false)
-  const [isSubmittingOrder] = useState<boolean>(false)
   const [checkoutFromCart, setCheckoutFromCart] = useState(false)
   const [expressCheckout, setExpressCheckout] =
     useState<ExpressCheckoutState | null>(null)
@@ -537,7 +536,6 @@ export function ShopPage({
         onCheckout={handleCheckout}
         selectedLocationName={locationName}
         selectedLocationAddress={locationAddress}
-        isSubmitting={isSubmittingOrder}
       />
 
       <ShopStarterKitDialog

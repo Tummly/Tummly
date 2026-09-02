@@ -284,14 +284,6 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (request.FromCart == false && !hasLines)
-            {
-                return ShopOrderPlaceResult.Fail(
-                    "exclusive_mode",
-                    "Provide fromCart: true or a non-empty lines array."
-                );
-            }
-
             return null;
         }
 

@@ -35,6 +35,7 @@ import {
   type ShopShipToPayload,
 } from "@/api/shopOrdersApi"
 import { ukPostcodeRegex } from "@/lib/locationUpload/locationUploadValidation"
+import { tryNormalizePhoneToE164 } from "@/lib/phoneNumber"
 import { cn } from "@/lib/utils"
 
 type DeliveryMethod = "standard" | "express"
@@ -230,8 +231,11 @@ export function ShopCheckoutScreen({
     if (!ukPostcodeRegex.test(postcode.trim())) {
       return "Enter a valid UK postcode."
     }
-    if (!country.trim()) {
-      return "Country is required."
+    if (country.trim() !== "United Kingdom") {
+      return "Country must be United Kingdom."
+    }
+    if (contactPhone.trim() && !tryNormalizePhoneToE164(contactPhone)) {
+      return "Enter a valid UK phone number."
     }
     return null
   }
@@ -253,9 +257,12 @@ export function ShopCheckoutScreen({
       return
     }
 
+    const normalizedPhone = contactPhone.trim()
+      ? tryNormalizePhoneToE164(contactPhone)
+      : null
     const shipTo: ShopShipToPayload = {
       contactName: contactName.trim(),
-      contactPhone: contactPhone.trim() || null,
+      contactPhone: normalizedPhone,
       addressLine1: addressLine1.trim(),
       addressLine2: addressLine2.trim() || null,
       postcode: postcode.trim(),
