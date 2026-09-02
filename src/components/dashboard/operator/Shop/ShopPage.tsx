@@ -9,6 +9,11 @@ import {
   mapShopCartToItems,
   upsertShopCartLine,
 } from "@/api/shopCartApi"
+import {
+  fetchShopLocationRecommendations,
+  saveShopLocationDetails,
+  type ShopLocationRecommendations,
+} from "@/api/shopRecommendationsApi"
 import type { CheckoutLine, ShopShipToPayload } from "@/api/shopOrdersApi"
 import { ShopHeader } from "@/components/dashboard/operator/Shop/ShopHeader"
 import { ShopToolbar } from "@/components/dashboard/operator/Shop/ShopToolbar"
@@ -126,6 +131,21 @@ export function ShopPage({
     useState<ExpressCheckoutState | null>(null)
 
   const [locationDetails, setLocationDetails] = useState<LocationDetails | null>(null)
+  const [recommendations, setRecommendations] =
+    useState<ShopLocationRecommendations | null>(null)
+  const [recommendationsLoading, setRecommendationsLoading] = useState(true)
+
+  const mapBasedOnToLocationDetails = (
+    basedOn: NonNullable<ShopLocationRecommendations["basedOn"]>
+  ): LocationDetails => ({
+    tableCount: basedOn.tableCount,
+    counterCount: basedOn.counterCount,
+    entranceCount: basedOn.entranceCount,
+    secondaryEntranceCount: basedOn.secondaryEntranceCount,
+    takeawayVolume: basedOn.takeawayVolume,
+    promptLocations: basedOn.promptLocations.join(","),
+    existingMaterials: basedOn.existingMaterials,
+  })
 
   const [orders] = useState<ShopOrder[]>([
     {
@@ -191,6 +211,74 @@ export function ShopPage({
       cancelled = true
     }
   }, [selectedLocationId, catalogProducts])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadRecommendations() {
+      setRecommendationsLoading(true)
+      try {
+        const payload = await fetchShopLocationRecommendations(
+          selectedLocationId
+        )
+        if (!cancelled) {
+          setRecommendations(payload)
+          if (payload.basedOn) {
+            setLocationDetails(mapBasedOnToLocationDetails(payload.basedOn))
+          } else {
+            setLocationDetails(null)
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setRecommendations(null)
+          toast.error("Could not load recommendations.")
+        }
+      } finally {
+        if (!cancelled) {
+          setRecommendationsLoading(false)
+        }
+      }
+    }
+
+    void loadRecommendations()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedLocationId])
+
+  const refetchRecommendations = async () => {
+    setRecommendationsLoading(true)
+    try {
+      const payload = await fetchShopLocationRecommendations(
+        selectedLocationId
+      )
+      setRecommendations(payload)
+      if (payload.basedOn) {
+        setLocationDetails(mapBasedOnToLocationDetails(payload.basedOn))
+      }
+    } catch {
+      toast.error("Could not load recommendations.")
+    } finally {
+      setRecommendationsLoading(false)
+    }
+  }
+
+  const handleSaveLocationDetails = async (details: LocationDetails) => {
+    await saveShopLocationDetails(selectedLocationId, {
+      tableCount: details.tableCount,
+      counterCount: details.counterCount ?? 0,
+      entranceCount: details.entranceCount ?? 0,
+      secondaryEntranceCount: details.secondaryEntranceCount ?? 0,
+      takeawayVolume: details.takeawayVolume ?? "not-sure",
+      promptLocations: details.promptLocations ?? "",
+      existingMaterials: details.existingMaterials ?? "no",
+    })
+    setLocationDetails(details)
+    await refetchRecommendations()
+    toast.success("Location details saved.")
+  }
 
   useEffect(() => {
     if (productParam == null) {
@@ -354,49 +442,42 @@ export function ShopPage({
   }
 
   const handleAddRecommendedKitToCart = async () => {
-    const additions: Array<{ product: ShopProduct; quantity: number }> = []
-    const tableStands = findShopProductById(catalogProducts, "table-tents")
-    const decals = findShopProductById(catalogProducts, "window-stickers")
-    const billCards = findShopProductById(catalogProducts, "counter-cards")
+    if (paidWriteChrome.purchaseDisabled) {
+      return
+    }
 
-    if (tableStands) {
-      additions.push({
-        product: tableStands,
-        quantity: locationDetails?.tableCount
-          ? Math.ceil(locationDetails.tableCount / 10)
-          : 2,
-      })
-    }
-    if (decals) {
-      additions.push({
-        product: decals,
-        quantity: locationDetails?.entranceCount
-          ? Math.ceil(locationDetails.entranceCount / 2)
-          : 1,
-      })
-    }
-    if (billCards) {
-      additions.push({ product: billCards, quantity: 1 })
+    const lines = recommendations?.lines ?? []
+    if (lines.length === 0) {
+      toast.error("No recommended items to add.")
+      return
     }
 
     try {
-      let working = cartItems
-      for (const addition of additions) {
-        const existing = working.find(
-          (item) => item.product.id === addition.product.id
-        )
-        const nextQuantity = (existing?.quantity ?? 0) + addition.quantity
-        const cart = await putAbsoluteQuantity(
-          addition.product.id,
-          nextQuantity
-        )
-        working = mapShopCartToItems(cart, catalogProducts)
+      for (const line of lines) {
+        await putAbsoluteQuantity(line.skuId, line.quantity)
       }
 
       toast.success(`Recommended materials kit added to cart for ${locationName}`)
       setIsCartOpen(true)
     } catch {
       toast.error("Could not add recommended kit.")
+    }
+  }
+
+  const handleOrderRecommendedLine = async (
+    skuId: string,
+    quantity: number
+  ) => {
+    if (paidWriteChrome.purchaseDisabled) {
+      return
+    }
+
+    try {
+      await putAbsoluteQuantity(skuId, quantity)
+      toast.success("Item added to cart")
+      setIsCartOpen(true)
+    } catch {
+      toast.error("Could not add item to cart.")
     }
   }
 
@@ -575,11 +656,16 @@ export function ShopPage({
 
           <ShopRecommendationSection
             locationName={locationName}
-            locationDetails={locationDetails}
+            recommendations={recommendations}
+            recommendationsLoading={recommendationsLoading}
             catalogProducts={catalogProducts}
+            paidWriteChrome={paidWriteChrome}
             onAddLocationDetails={() => setIsLocationDetailsOpen(true)}
             onAddRecommendedToCart={() => {
               void handleAddRecommendedKitToCart()
+            }}
+            onOrderRecommendedLine={(skuId, quantity) => {
+              void handleOrderRecommendedLine(skuId, quantity)
             }}
             onSelectProduct={handleSelectProduct}
           />
@@ -633,7 +719,7 @@ export function ShopPage({
       <ShopLocationDetailsDialog
         open={isLocationDetailsOpen}
         onOpenChange={setIsLocationDetailsOpen}
-        onSaveDetails={setLocationDetails}
+        onSaveDetails={handleSaveLocationDetails}
         initialDetails={locationDetails}
         locationName={locationName}
       />

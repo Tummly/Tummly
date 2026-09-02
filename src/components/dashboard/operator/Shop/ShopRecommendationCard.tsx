@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Minus, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -7,10 +7,11 @@ export type ShopRecommendationCardProps = {
   title: string
   description: string
   allocationText: string
-  price: number
+  unitPriceGbp: number
   initialQuantity?: number
   imageSrc: string
   className?: string
+  purchaseDisabled?: boolean
   onOrderNow?: (quantity: number) => void
   onSelectCard?: () => void
 }
@@ -19,14 +20,19 @@ export function ShopRecommendationCard({
   title,
   description,
   allocationText,
-  price,
-  initialQuantity = 20,
+  unitPriceGbp,
+  initialQuantity = 1,
   imageSrc,
   className,
+  purchaseDisabled = false,
   onOrderNow,
   onSelectCard,
 }: ShopRecommendationCardProps) {
   const [quantity, setQuantity] = useState<number>(initialQuantity)
+
+  useEffect(() => {
+    setQuantity(initialQuantity)
+  }, [initialQuantity])
 
   const handleDecrease = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -43,7 +49,7 @@ export function ShopRecommendationCard({
     onOrderNow?.(quantity)
   }
 
-  const totalPrice = (price * (quantity / Math.max(1, initialQuantity))).toFixed(2)
+  const totalPrice = (unitPriceGbp * quantity).toFixed(2)
 
   return (
     <div
@@ -111,6 +117,7 @@ export function ShopRecommendationCard({
         <Button
           type="button"
           variant="op-secondary"
+          disabled={purchaseDisabled}
           className="h-8.5 w-full rounded-[4px] text-xs font-medium"
           onClick={handleOrderClick}
         >

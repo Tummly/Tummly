@@ -39,7 +39,7 @@ export type LocationDetails = {
 type ShopLocationDetailsDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSaveDetails: (details: LocationDetails) => void
+  onSaveDetails: (details: LocationDetails) => Promise<void>
   initialDetails?: LocationDetails | null
   locationName: string
 }
@@ -101,6 +101,7 @@ export function ShopLocationDetailsDialog({
     initialDetails?.existingMaterials ?? ""
   )
   const [isPromptsOpen, setIsPromptsOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -134,25 +135,30 @@ export function ShopLocationDetailsDialog({
     )
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const parsedTableCount = parseInt(tableCount, 10) || 12
-    const parsedCounterCount = parseInt(counterCount, 10) || 2
-    const parsedEntranceCount = parseInt(entranceCount, 10) || 2
+    const parsedTableCount = parseInt(tableCount, 10) || 0
+    const parsedCounterCount = parseInt(counterCount, 10) || 0
+    const parsedEntranceCount = parseInt(entranceCount, 10) || 0
     const parsedSecondaryEntrance = parseInt(secondaryEntranceCount, 10) || 0
 
-    onSaveDetails({
-      tableCount: parsedTableCount,
-      counterCount: parsedCounterCount,
-      entranceCount: parsedEntranceCount,
-      secondaryEntranceCount: parsedSecondaryEntrance,
-      takeawayVolume: takeawayVolume || "none",
-      promptLocations: selectedPrompts.join(","),
-      existingMaterials: existingMaterials || "no",
-      serviceType: "Full Table Service",
-      seatingArea: "Indoor & Outdoor",
-    })
-    onOpenChange(false)
+    setIsSaving(true)
+    try {
+      await onSaveDetails({
+        tableCount: parsedTableCount,
+        counterCount: parsedCounterCount,
+        entranceCount: parsedEntranceCount,
+        secondaryEntranceCount: parsedSecondaryEntrance,
+        takeawayVolume: takeawayVolume || "not-sure",
+        promptLocations: selectedPrompts.join(","),
+        existingMaterials: existingMaterials || "no",
+        serviceType: "Full Table Service",
+        seatingArea: "Indoor & Outdoor",
+      })
+      onOpenChange(false)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const promptTriggerLabel = () => {
@@ -401,9 +407,10 @@ export function ShopLocationDetailsDialog({
             <Button
               type="submit"
               variant="op-primary"
+              disabled={isSaving}
               className="h-10 rounded-[4px] bg-op-action-primary px-5 text-xs font-semibold text-white hover:opacity-90"
             >
-              Generate recommendation
+              {isSaving ? "Saving…" : "Generate recommendation"}
             </Button>
             <Button
               type="button"

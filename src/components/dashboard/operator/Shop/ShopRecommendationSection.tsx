@@ -1,42 +1,70 @@
-import { useState } from "react"
 import { SlidersHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import type { LocationDetails } from "@/components/dashboard/operator/Shop/ShopLocationDetailsDialog"
 import { ShopRecommendationCard } from "@/components/dashboard/operator/Shop/ShopRecommendationCard"
 import { findShopProductById, type ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
-import tummlyStickerImg from "@/assets/images/shop/tummly-sticker.png"
+import type { ShopLocationRecommendations } from "@/api/shopRecommendationsApi"
+import { formatShopPence } from "@/lib/operatorShop/mapShopRecommendations"
+import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
 
 type ShopRecommendationSectionProps = {
   locationName: string
-  locationDetails: LocationDetails | null
+  recommendations: ShopLocationRecommendations | null
+  recommendationsLoading: boolean
   catalogProducts: ShopProduct[]
+  paidWriteChrome: ShopPaidWriteChrome
   onAddLocationDetails: () => void
   onAddRecommendedToCart: () => void
+  onOrderRecommendedLine: (skuId: string, quantity: number) => void
   onSelectProduct?: (product: ShopProduct) => void
+}
+
+function formatPromptLabel(id: string): string {
+  const labels: Record<string, string> = {
+    tables: "Dine-in tables",
+    counters: "Counters",
+    collection: "Collection point",
+    packaging: "Takeaway packaging",
+    delivery: "Delivery orders",
+    receipts: "Printed receipts",
+    windows: "Entrances or windows",
+  }
+  return labels[id] ?? id
+}
+
+function formatExistingMaterials(value: string): string {
+  if (value === "yes") {
+    return "Yes, materials are already in use"
+  }
+  if (value === "not-sure") {
+    return "Not sure about existing materials"
+  }
+  return "No existing materials yet"
 }
 
 export function ShopRecommendationSection({
   locationName,
-  locationDetails,
+  recommendations,
+  recommendationsLoading,
   catalogProducts,
+  paidWriteChrome,
   onAddLocationDetails,
   onAddRecommendedToCart,
+  onOrderRecommendedLine,
   onSelectProduct,
 }: ShopRecommendationSectionProps) {
-  const [hasDismissed, setHasDismissed] = useState(false)
+  const purchaseBlocked = paidWriteChrome.purchaseDisabled
+  const needsDetails = recommendations?.needsLocationDetails ?? true
+  const basedOn = recommendations?.basedOn
+  const lines = recommendations?.lines ?? []
+  const summary = recommendations?.summary
 
-  // Default demo state if none entered yet
-  const details = locationDetails || {
-    tableCount: 18,
-    counterCount: 2,
-    entranceCount: 2,
-    takeawayVolume: "100-249",
-    promptLocations: "tables,counters,bills,windows",
-    existingMaterials: "yes",
-    serviceType: "Full Table Service",
+  if (recommendationsLoading) {
+    return (
+      <div className="flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6">
+        <p className="text-sm text-muted-foreground">Loading recommendations…</p>
+      </div>
+    )
   }
-
-  const hasDetails = locationDetails !== null || !hasDismissed
 
   return (
     <div className="flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6">
@@ -53,7 +81,7 @@ export function ShopRecommendationSection({
         </div>
       </div>
 
-      {!hasDetails ? (
+      {needsDetails ? (
         <div className="flex min-h-[140px] flex-col items-center justify-center p-6 text-center">
           <h4 className="text-xs font-medium text-foreground">
             Get a recommendation for this location
@@ -72,145 +100,122 @@ export function ShopRecommendationSection({
         </div>
       ) : (
         <div className="flex flex-col gap-6">
-          {/* Based-on tag pills row */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground">
-                Based on
-              </span>
-              <span className="rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
-                {details.tableCount || 18} guest tables
-              </span>
-              <span className="rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
-                {details.counterCount || 1} table service
-              </span>
-              <span className="rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
-                {details.entranceCount || 2} entrances
-              </span>
-              <span className="rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
-                All touchpoints (Tables, Counters, Bills, Windows)
-              </span>
-              <span className="rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
-                Yes, materials are already in use
-              </span>
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 shrink-0 gap-1.5 rounded-md border-op-border-default bg-transparent px-3 text-xs text-foreground hover:bg-op-surface-secondary"
-              onClick={onAddLocationDetails}
-            >
-              <SlidersHorizontal className="size-3 text-muted-foreground" />
-              Edit location details
-            </Button>
-          </div>
-
-          {/* Horizontal scroll cards */}
-          <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            <ShopRecommendationCard
-              title="Table tents"
-              description="Place one on each guest table to collect feedback after dine-in visits."
-              allocationText={`${details.tableCount || 18} for guest tables + 2 spare`}
-              price={69.0}
-              initialQuantity={20}
-              imageSrc={tummlyStickerImg}
-              onOrderNow={onAddRecommendedToCart}
-              onSelectCard={() => {
-                const prod = findShopProductById(catalogProducts, "table-tents")
-                if (prod) {
-                  onSelectProduct?.(prod)
-                }
-              }}
-            />
-            <ShopRecommendationCard
-              title="Counter cards"
-              description="Place one on each guest table to collect feedback after dine-in visits."
-              allocationText={`${details.tableCount || 18} for guest tables + 2 spare`}
-              price={68.0}
-              initialQuantity={20}
-              imageSrc={tummlyStickerImg}
-              onOrderNow={onAddRecommendedToCart}
-              onSelectCard={() => {
-                const prod = findShopProductById(catalogProducts, "counter-cards")
-                if (prod) {
-                  onSelectProduct?.(prod)
-                }
-              }}
-            />
-            <ShopRecommendationCard
-              title="Window stickers"
-              description="Place one on each guest table to collect feedback after dine-in visits."
-              allocationText={`${details.tableCount || 18} for guest tables + 2 spare`}
-              price={68.0}
-              initialQuantity={20}
-              imageSrc={tummlyStickerImg}
-              onOrderNow={onAddRecommendedToCart}
-              onSelectCard={() => {
-                const prod = findShopProductById(catalogProducts, "window-stickers")
-                if (prod) {
-                  onSelectProduct?.(prod)
-                }
-              }}
-            />
-          </div>
-
-          {/* Recommendation summary footer */}
-          <div className="flex flex-col gap-4 border-t border-op-border-default/60 pt-6">
-            <div className="flex flex-col gap-1">
-              <h4 className="text-base font-semibold text-foreground sm:text-lg">
-                Recommendation summary
-              </h4>
-              <span className="text-xs text-muted-foreground sm:text-sm">
-                4 materials types · 214 total pieces
-              </span>
-            </div>
-
-            <div className="flex w-full max-w-md flex-col gap-2 rounded-md border border-op-border-default/60 bg-op-card-background p-4 text-xs sm:text-sm">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>Materials sub-total:</span>
-                <span className="font-semibold text-foreground">£145.00</span>
-              </div>
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>Starter-kit allowance:</span>
-                <span className="font-semibold text-op-text-success">-£69.00</span>
-              </div>
-              <div className="flex items-center justify-between border-t border-op-border-default/60 pt-2.5 font-medium text-foreground">
-                <span className="font-semibold">Estimated total:</span>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-base font-bold text-foreground sm:text-lg">
-                    £76.00
+          {basedOn && (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Based on
+                </span>
+                <span className="rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
+                  {basedOn.tableCount} guest tables
+                </span>
+                <span className="rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
+                  {basedOn.counterCount} service counters
+                </span>
+                <span className="rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
+                  {basedOn.entranceCount + basedOn.secondaryEntranceCount} entrances
+                </span>
+                {basedOn.promptLocations.length > 0 && (
+                  <span className="rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
+                    {basedOn.promptLocations.map(formatPromptLabel).join(", ")}
                   </span>
-                  <span className="text-[11px] font-normal text-muted-foreground sm:text-xs">
-                    excluding VAT and delivery
-                  </span>
-                </div>
+                )}
+                <span className="rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
+                  {formatExistingMaterials(basedOn.existingMaterials)}
+                </span>
               </div>
-            </div>
 
-            <div className="flex items-center gap-3 pt-1">
               <Button
                 type="button"
-                variant="op-primary"
-                className="h-10 rounded-md px-6 text-xs font-semibold sm:text-sm"
-                onClick={onAddRecommendedToCart}
-              >
-                Add recommended items
-              </Button>
-              <Button
-                type="button"
-                variant="op-secondary"
-                className="h-10 rounded-md px-6 text-xs font-medium sm:text-sm"
+                variant="outline"
+                size="sm"
+                className="h-8 shrink-0 gap-1.5 rounded-md border-op-border-default bg-transparent px-3 text-xs text-foreground hover:bg-op-surface-secondary"
                 onClick={onAddLocationDetails}
               >
-                Review recommendation
+                <SlidersHorizontal className="size-3 text-muted-foreground" />
+                Edit location details
               </Button>
             </div>
+          )}
+
+          <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            {lines.map((line) => (
+              <ShopRecommendationCard
+                key={line.skuId}
+                title={line.title}
+                description={line.reason}
+                allocationText={line.allocationText}
+                unitPriceGbp={line.unitPriceGbp}
+                initialQuantity={line.quantity}
+                imageSrc={line.imageSrc}
+                purchaseDisabled={purchaseBlocked}
+                onOrderNow={(quantity) => {
+                  onOrderRecommendedLine(line.skuId, quantity)
+                }}
+                onSelectCard={() => {
+                  const prod = findShopProductById(catalogProducts, line.skuId)
+                  if (prod) {
+                    onSelectProduct?.(prod)
+                  }
+                }}
+              />
+            ))}
           </div>
+
+          {summary && lines.length > 0 && (
+            <div className="flex flex-col gap-4 border-t border-op-border-default/60 pt-6">
+              <div className="flex flex-col gap-1">
+                <h4 className="text-base font-semibold text-foreground sm:text-lg">
+                  Recommendation summary
+                </h4>
+                <span className="text-xs text-muted-foreground sm:text-sm">
+                  {summary.materialTypeCount} materials types · {summary.totalPieces} total pieces
+                </span>
+              </div>
+
+              <div className="flex w-full max-w-md flex-col gap-2 rounded-md border border-op-border-default/60 bg-op-card-background p-4 text-xs sm:text-sm">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Materials sub-total:</span>
+                  <span className="font-semibold text-foreground">
+                    {formatShopPence(summary.materialsNetPence)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-t border-op-border-default/60 pt-2.5 font-medium text-foreground">
+                  <span className="font-semibold">Estimated total:</span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-base font-bold text-foreground sm:text-lg">
+                      {formatShopPence(summary.materialsNetPence)}
+                    </span>
+                    <span className="text-[11px] font-normal text-muted-foreground sm:text-xs">
+                      excluding VAT and delivery
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-1">
+                <Button
+                  type="button"
+                  variant="op-primary"
+                  disabled={purchaseBlocked}
+                  className="h-10 rounded-md px-6 text-xs font-semibold sm:text-sm"
+                  onClick={onAddRecommendedToCart}
+                >
+                  Add recommended items
+                </Button>
+                <Button
+                  type="button"
+                  variant="op-secondary"
+                  className="h-10 rounded-md px-6 text-xs font-medium sm:text-sm"
+                  onClick={onAddLocationDetails}
+                >
+                  Review recommendation
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
   )
 }
-
