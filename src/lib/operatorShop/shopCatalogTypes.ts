@@ -46,3 +46,10 @@ export type ShopCatalogDetailWire = ShopCatalogListItemWire & {
   catalogVersion: string
   mintOnShopFulfilment: boolean
 }
+
+export function findShopProductById(
+  products: ShopProduct[],
+  skuId: string
+): ShopProduct | undefined {
+  return products.find((product) => product.id === skuId)
+}

@@ -3,15 +3,8 @@ import { SlidersHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { LocationDetails } from "@/components/dashboard/operator/Shop/ShopLocationDetailsDialog"
 import { ShopRecommendationCard } from "@/components/dashboard/operator/Shop/ShopRecommendationCard"
-import type { ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
+import { findShopProductById, type ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
 import tummlyStickerImg from "@/assets/images/shop/tummly-sticker.png"
-
-function findCatalogProduct(
-  catalogProducts: ShopProduct[],
-  skuId: string
-): ShopProduct | undefined {
-  return catalogProducts.find((product) => product.id === skuId)
-}
 
 type ShopRecommendationSectionProps = {
   locationName: string
@@ -125,7 +118,7 @@ export function ShopRecommendationSection({
               imageSrc={tummlyStickerImg}
               onOrderNow={onAddRecommendedToCart}
               onSelectCard={() => {
-                const prod = findCatalogProduct(catalogProducts, "table-tents")
+                const prod = findShopProductById(catalogProducts, "table-tents")
                 if (prod) {
                   onSelectProduct?.(prod)
                 }
@@ -140,7 +133,7 @@ export function ShopRecommendationSection({
               imageSrc={tummlyStickerImg}
               onOrderNow={onAddRecommendedToCart}
               onSelectCard={() => {
-                const prod = findCatalogProduct(catalogProducts, "counter-cards")
+                const prod = findShopProductById(catalogProducts, "counter-cards")
                 if (prod) {
                   onSelectProduct?.(prod)
                 }
@@ -155,7 +148,7 @@ export function ShopRecommendationSection({
               imageSrc={tummlyStickerImg}
               onOrderNow={onAddRecommendedToCart}
               onSelectCard={() => {
-                const prod = findCatalogProduct(catalogProducts, "window-stickers")
+                const prod = findShopProductById(catalogProducts, "window-stickers")
                 if (prod) {
                   onSelectProduct?.(prod)
                 }

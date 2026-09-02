@@ -25,23 +25,7 @@ namespace TummlyBackend.Controllers
         [HttpGet]
         public async Task<IActionResult> GetCatalog([FromQuery] int? locationId)
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out _);
-            if (unauthorized != null)
-            {
-                return unauthorized;
-            }
-
-            if (locationId is not > 0)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "locationId is required.",
-                });
-            }
-
-            var gate = await GateLocationAsync(locationId.Value);
-            var denied = gate.ToHttpResult();
+            var denied = await AuthorizeCatalogReadAsync(locationId);
             if (denied != null)
             {
                 return denied;
@@ -61,23 +45,7 @@ namespace TummlyBackend.Controllers
             [FromQuery] int? locationId
         )
         {
-            var unauthorized = OperatorAuth.TryRequireUserId(User, out _);
-            if (unauthorized != null)
-            {
-                return unauthorized;
-            }
-
-            if (locationId is not > 0)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "locationId is required.",
-                });
-            }
-
-            var gate = await GateLocationAsync(locationId.Value);
-            var denied = gate.ToHttpResult();
+            var denied = await AuthorizeCatalogReadAsync(locationId);
             if (denied != null)
             {
                 return denied;
@@ -100,14 +68,30 @@ namespace TummlyBackend.Controllers
             });
         }
 
-        private Task<RestaurantPermissionDecision> GateLocationAsync(int locationId)
+        private async Task<IActionResult?> AuthorizeCatalogReadAsync(int? locationId)
         {
-            return _permissions.AuthorizeLocationAsync(
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out _);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (locationId is not > 0)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "locationId is required.",
+                });
+            }
+
+            var gate = await _permissions.AuthorizeLocationAsync(
                 User,
                 OperatorAreaIds.TummlyShop,
                 PermissionLevel.View,
-                locationId
+                locationId.Value
             );
+            return gate.ToHttpResult();
         }
     }
 }

@@ -12,11 +12,6 @@ namespace TummlyBackend.Shop.MaterialsCatalog
         public const string PackRelativeDirectory = "docs/product/materials-catalog-v1";
         public const string AssetsRelativeDirectory = "Assets/materials-catalog";
 
-        private static readonly JsonSerializerOptions JsonOptions = new()
-        {
-            PropertyNameCaseInsensitive = true,
-        };
-
         private readonly IReadOnlyDictionary<string, MaterialsCatalogSnapshot> _byId;
 
         private MaterialsCatalog(

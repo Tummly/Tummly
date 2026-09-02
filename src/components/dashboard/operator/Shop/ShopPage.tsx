@@ -30,24 +30,16 @@ import {
 import { ShopCheckoutScreen } from "@/components/dashboard/operator/Shop/ShopCheckoutScreen"
 import { ShopCreateQrAssetDialog } from "@/components/dashboard/operator/Shop/ShopCreateQrAssetDialog"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
-import type { ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
+import {
+  findShopProductById,
+  type ShopProduct,
+} from "@/lib/operatorShop/shopCatalogTypes"
 
 type ShopPageProps = {
   selectedLocationId: number
   locations: Array<{ id: number; locationName: string; address: string }>
   mode: DashboardProps["mode"]
   onSelectLocation?: (locationId: number) => void
-}
-
-function findProductById(
-  products: ShopProduct[],
-  skuId: string | null
-): ShopProduct | null {
-  if (skuId == null) {
-    return null
-  }
-
-  return products.find((product) => product.id === skuId) ?? null
 }
 
 export function ShopPage({
@@ -77,7 +69,14 @@ export function ShopPage({
       return productDetail
     }
 
-    return findProductById(catalogProducts, productParam) ?? catalogProducts[0] ?? null
+    if (productParam != null) {
+      const fromCatalog = findShopProductById(catalogProducts, productParam)
+      if (fromCatalog) {
+        return fromCatalog
+      }
+    }
+
+    return catalogProducts[0] ?? null
   }, [catalogProducts, productDetail, productParam])
 
   const [searchQuery, setSearchQuery] = useState<string>("")
@@ -204,7 +203,7 @@ export function ShopPage({
   }
 
   const handleAddStarterKitToCart = () => {
-    const starterProduct = findProductById(catalogProducts, "table-tents")
+    const starterProduct = findShopProductById(catalogProducts, "table-tents")
     if (starterProduct) {
       handleAddToCart(starterProduct, 1)
       setIsCartOpen(true)
@@ -212,9 +211,9 @@ export function ShopPage({
   }
 
   const handleAddRecommendedKitToCart = () => {
-    const tableStands = findProductById(catalogProducts, "table-tents")
-    const decals = findProductById(catalogProducts, "window-stickers")
-    const billCards = findProductById(catalogProducts, "counter-cards")
+    const tableStands = findShopProductById(catalogProducts, "table-tents")
+    const decals = findShopProductById(catalogProducts, "window-stickers")
+    const billCards = findShopProductById(catalogProducts, "counter-cards")
 
     if (tableStands) {
       handleAddToCart(
