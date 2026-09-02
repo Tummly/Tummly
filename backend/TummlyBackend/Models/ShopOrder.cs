@@ -80,7 +80,7 @@ namespace TummlyBackend.Models
         [MaxLength(32)]
         public string? FulfilmentStatus { get; set; }
 
-        [MaxLength(2000)]
+        [MaxLength(2048)]
         public string? TrackingUrl { get; set; }
 
         public DateTime? ProcessingStartedAtUtc { get; set; }

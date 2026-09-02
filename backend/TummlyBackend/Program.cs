@@ -528,6 +528,7 @@ builder.Services.AddScoped<IShopOrderPlaceService, ShopOrderPlaceService>();
 builder.Services.AddScoped<IShopMaterialsOrderPaySession, ShopMaterialsOrderPaySessionService>();
 builder.Services.AddScoped<IShopOrdersListService, ShopOrdersListService>();
 builder.Services.AddScoped<IShopOrderCancelReorderService, ShopOrderCancelReorderService>();
+builder.Services.AddScoped<IAdminShopOrderFulfilmentService, AdminShopOrderFulfilmentService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ICreditLedger, CreditLedgerService>();
 builder.Services.AddScoped<ICreditThresholdEvaluator, CreditThresholdEvaluator>();
