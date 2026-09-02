@@ -222,16 +222,12 @@ export function ShopPage({
           selectedLocationId
         )
         if (!cancelled) {
-          setRecommendations(payload)
-          if (payload.basedOn) {
-            setLocationDetails(mapBasedOnToLocationDetails(payload.basedOn))
-          } else {
-            setLocationDetails(null)
-          }
+          applyRecommendationsPayload(payload)
         }
       } catch {
         if (!cancelled) {
           setRecommendations(null)
+          setLocationDetails(null)
           toast.error("Could not load recommendations.")
         }
       } finally {
@@ -248,16 +244,22 @@ export function ShopPage({
     }
   }, [selectedLocationId])
 
+  function applyRecommendationsPayload(payload: ShopLocationRecommendations) {
+    setRecommendations(payload)
+    if (payload.basedOn) {
+      setLocationDetails(mapBasedOnToLocationDetails(payload.basedOn))
+    } else {
+      setLocationDetails(null)
+    }
+  }
+
   const refetchRecommendations = async () => {
     setRecommendationsLoading(true)
     try {
       const payload = await fetchShopLocationRecommendations(
         selectedLocationId
       )
-      setRecommendations(payload)
-      if (payload.basedOn) {
-        setLocationDetails(mapBasedOnToLocationDetails(payload.basedOn))
-      }
+      applyRecommendationsPayload(payload)
     } catch {
       toast.error("Could not load recommendations.")
     } finally {

@@ -1,6 +1,10 @@
 import { SlidersHorizontal } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ShopRecommendationCard } from "@/components/dashboard/operator/Shop/ShopRecommendationCard"
+import {
+  SHOP_PROMPT_OPTIONS,
+} from "@/components/dashboard/operator/Shop/ShopLocationDetailsDialog"
 import { findShopProductById, type ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
 import type { ShopLocationRecommendations } from "@/api/shopRecommendationsApi"
 import { formatShopPence } from "@/lib/operatorShop/mapShopRecommendations"
@@ -19,16 +23,9 @@ type ShopRecommendationSectionProps = {
 }
 
 function formatPromptLabel(id: string): string {
-  const labels: Record<string, string> = {
-    tables: "Dine-in tables",
-    counters: "Counters",
-    collection: "Collection point",
-    packaging: "Takeaway packaging",
-    delivery: "Delivery orders",
-    receipts: "Printed receipts",
-    windows: "Entrances or windows",
-  }
-  return labels[id] ?? id
+  return (
+    SHOP_PROMPT_OPTIONS.find((option) => option.id === id)?.label ?? id
+  )
 }
 
 function formatExistingMaterials(value: string): string {
@@ -40,6 +37,9 @@ function formatExistingMaterials(value: string): string {
   }
   return "No existing materials yet"
 }
+
+const basedOnChipClassName =
+  "rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground"
 
 export function ShopRecommendationSection({
   locationName,
@@ -106,23 +106,23 @@ export function ShopRecommendationSection({
                 <span className="text-xs font-medium text-muted-foreground">
                   Based on
                 </span>
-                <span className="rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
+                <Badge variant="outline" className={basedOnChipClassName}>
                   {basedOn.tableCount} guest tables
-                </span>
-                <span className="rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
+                </Badge>
+                <Badge variant="outline" className={basedOnChipClassName}>
                   {basedOn.counterCount} service counters
-                </span>
-                <span className="rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
+                </Badge>
+                <Badge variant="outline" className={basedOnChipClassName}>
                   {basedOn.entranceCount + basedOn.secondaryEntranceCount} entrances
-                </span>
+                </Badge>
                 {basedOn.promptLocations.length > 0 && (
-                  <span className="rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
+                  <Badge variant="outline" className={basedOnChipClassName}>
                     {basedOn.promptLocations.map(formatPromptLabel).join(", ")}
-                  </span>
+                  </Badge>
                 )}
-                <span className="rounded-md border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-foreground">
+                <Badge variant="outline" className={basedOnChipClassName}>
                   {formatExistingMaterials(basedOn.existingMaterials)}
-                </span>
+                </Badge>
               </div>
 
               <Button

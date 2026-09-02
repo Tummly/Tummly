@@ -144,6 +144,52 @@ namespace TummlyBackend.Tests.Integration
             var uncappedFloor = (int)Math.Ceiling(baseline * 1.1) + 2;
             var cappedFloor = Math.Min(uncappedFloor, baseline * 2);
             Assert.Equal(Math.Max(baseline, cappedFloor), quantity);
+            Assert.True(uncappedFloor < baseline * 2);
+        }
+
+        [Fact]
+        public async Task GetRecommendations_CapsActivityFloor_AtTwiceBaseline()
+        {
+            // baseline = tableCount + 2 = 2; uncapped floor = ceil(2.2)+2 = 5;
+            // cap = 2 * baseline = 4 — so the 2× baseline cap must bind.
+            var seeded = await SeedWorkspaceAsync();
+            var smartGuestQrId = await SeedSmartGuestQrWithFeedbackAsync(
+                seeded.LocationId,
+                feedbackCount: 6
+            );
+            Assert.True(smartGuestQrId > 0);
+
+            await PutDetailsAsync(
+                seeded.MemberJwt,
+                seeded.LocationId,
+                new
+                {
+                    tableCount = 0,
+                    counterCount = 0,
+                    entranceCount = 0,
+                    secondaryEntranceCount = 0,
+                    takeawayVolume = "not-sure",
+                    promptLocations = "tables",
+                    existingMaterials = "no",
+                }
+            );
+
+            using var getRequest = AuthorizedGet(
+                $"/api/shop/locations/{seeded.LocationId}/recommendations",
+                seeded.MemberJwt
+            );
+            var getResponse = await _client.SendAsync(getRequest);
+            var body = await ReadJsonAsync(getResponse);
+
+            var tableLine = FindLine(body.GetProperty("lines"), "table-tents");
+            Assert.NotNull(tableLine);
+            var baseline = 2;
+            var uncappedFloor = (int)Math.Ceiling(baseline * 1.1) + 2;
+            Assert.True(uncappedFloor > baseline * 2);
+            Assert.Equal(
+                baseline * 2,
+                tableLine.Value.GetProperty("quantity").GetInt32()
+            );
         }
 
         [Fact]

@@ -146,9 +146,7 @@ namespace TummlyBackend.Services
                 details,
                 prompts,
                 activityByQrType,
-                hasActivity,
-                fromDate,
-                toDate
+                hasActivity
             );
 
             response.Lines = lines;
@@ -160,9 +158,7 @@ namespace TummlyBackend.Services
             ShopLocationDetails details,
             HashSet<string> prompts,
             IReadOnlyDictionary<QrType, QrTypeActivity> activityByQrType,
-            bool hasActivity,
-            DateTime fromDate,
-            DateTime toDate
+            bool hasActivity
         )
         {
             var includedSkus = new List<(string SkuId, int Quantity, string AllocationText, string Reason)>();
@@ -203,12 +199,13 @@ namespace TummlyBackend.Services
                     continue;
                 }
 
+                var fromPrompts = inPrompts || skuId == "receipt-stickers";
                 var allocationText = BuildAllocationText(
                     skuId,
                     details,
                     quantity,
                     baseline,
-                    inPrompts || skuId == "receipt-stickers"
+                    fromPrompts
                 );
                 var reason = BuildReason(
                     skuId,
@@ -216,8 +213,7 @@ namespace TummlyBackend.Services
                     qrType,
                     feedbackCount,
                     hasActivity,
-                    fromDate,
-                    toDate
+                    fromPrompts
                 );
 
                 includedSkus.Add((skuId, quantity, allocationText, reason));
@@ -281,9 +277,8 @@ namespace TummlyBackend.Services
                         + details.SecondaryEntranceCount
                         + 1
                     : 2,
-                "packaging-stickers" or "delivery-inserts" => fromPrompts
-                    ? TakeawayPackQty(details.TakeawayVolume)
-                    : TakeawayPackQty(details.TakeawayVolume),
+                "packaging-stickers" or "delivery-inserts" =>
+                    TakeawayPackQty(details.TakeawayVolume),
                 "receipt-stickers" => 1,
                 _ => 0,
             };
@@ -353,14 +348,24 @@ namespace TummlyBackend.Services
             QrType qrType,
             int feedbackSubmitted,
             bool hasActivity,
-            DateTime fromDate,
-            DateTime toDate
+            bool fromPrompts
         )
         {
             var windowLabel =
                 $"the last {RecommendationWindowCalendarDays} days";
+            var qrLabel = QrTypeLabel(qrType);
+            var citeActivity = hasActivity && feedbackSubmitted >= 5;
 
-            if (!hasActivity || feedbackSubmitted < 5)
+            // Activity-only adds (not in promptLocations) cite window feedback,
+            // not placement counts that did not put the SKU in the kit.
+            if (!fromPrompts)
+            {
+                return citeActivity
+                    ? $"Based on {qrLabel} feedback in {windowLabel}."
+                    : "Based on how this location operates.";
+            }
+
+            if (!citeActivity)
             {
                 return skuId switch
                 {
@@ -380,7 +385,6 @@ namespace TummlyBackend.Services
                 };
             }
 
-            var qrLabel = QrTypeLabel(qrType);
             return skuId switch
             {
                 "table-tents" =>

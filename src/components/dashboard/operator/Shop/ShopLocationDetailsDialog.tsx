@@ -32,8 +32,11 @@ export type LocationDetails = {
   takeawayVolume?: string
   promptLocations?: string
   existingMaterials?: string
-  serviceType?: string
-  seatingArea?: string
+}
+
+/** Persist 0 as "0"; only blank when the field was never set. */
+function countToInput(value: number | undefined): string {
+  return typeof value === "number" ? String(value) : ""
 }
 
 type ShopLocationDetailsDialogProps = {
@@ -53,7 +56,7 @@ const TAKEAWAY_OPTIONS = [
   { value: "not-sure", label: "Not sure" },
 ]
 
-const PROMPT_OPTIONS = [
+export const SHOP_PROMPT_OPTIONS = [
   { id: "tables", label: "Dine-in tables" },
   { id: "counters", label: "Ordering or payment counter" },
   { id: "collection", label: "Collection point" },
@@ -61,7 +64,7 @@ const PROMPT_OPTIONS = [
   { id: "delivery", label: "Delivery orders" },
   { id: "receipts", label: "Printed receipts" },
   { id: "windows", label: "Entrance or window" },
-]
+] as const
 
 const EXISTING_MATERIALS_OPTIONS = [
   { value: "no", label: "No, this is the first order" },
@@ -164,7 +167,7 @@ export function ShopLocationDetailsDialog({
   const promptTriggerLabel = () => {
     if (selectedPrompts.length === 0) return null
     const labels = selectedPrompts
-      .map((id) => PROMPT_OPTIONS.find((o) => o.id === id)?.label)
+      .map((id) => SHOP_PROMPT_OPTIONS.find((o) => o.id === id)?.label)
       .filter(Boolean)
     if (labels.length <= 2) return labels.join(", ")
     return `${labels.slice(0, 2).join(", ")} (+${labels.length - 2})`
@@ -340,7 +343,7 @@ export function ShopLocationDetailsDialog({
                   className="z-[140] w-(--radix-popover-trigger-width) min-w-[280px] rounded-[4px] border border-op-border-default bg-op-card-background p-1.5 text-xs text-foreground shadow-xl"
                 >
                   <div className="flex flex-col gap-1">
-                    {PROMPT_OPTIONS.map((opt) => {
+                    {SHOP_PROMPT_OPTIONS.map((opt) => {
                       const isChecked = selectedPrompts.includes(opt.id)
                       return (
                         <button
