@@ -30,14 +30,6 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            if (!ShopCancelReasons.IsValidSlug(reasonSlug))
-            {
-                return ShopOrderCancelResult.Fail(
-                    "invalid_cancel_reason",
-                    "reason must be a valid cancel reason slug."
-                );
-            }
-
             var order = await _context.ShopOrders
                 .Include(row => row.Lines)
                 .FirstOrDefaultAsync(
@@ -65,6 +57,14 @@ namespace TummlyBackend.Services
             {
                 return ShopOrderCancelResult.Ok(
                     ShopOrderDtoMapper.MapOperatorDetail(order)
+                );
+            }
+
+            if (!ShopCancelReasons.IsValidSlug(reasonSlug))
+            {
+                return ShopOrderCancelResult.Fail(
+                    "invalid_cancel_reason",
+                    "reason must be a valid cancel reason slug."
                 );
             }
 
@@ -155,7 +155,7 @@ namespace TummlyBackend.Services
             {
                 LocationId = order.LocationId,
                 Lines = lines,
-                ShipTo = ShopOrderDtoMapper.MapShipToPublic(order),
+                ShipTo = ShopOrderDtoMapper.MapShipTo(order),
                 DeliveryMethod = order.DeliveryMethod,
                 SourceOrderNumber = order.OrderNumber,
             });

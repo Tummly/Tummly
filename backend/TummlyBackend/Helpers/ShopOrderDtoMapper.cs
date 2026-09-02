@@ -78,9 +78,18 @@ namespace TummlyBackend.Helpers
             };
         }
 
-        public static ShopOrderShipToDto MapShipToPublic(ShopOrder order)
+        internal static ShopOrderShipToDto MapShipTo(ShopOrder order)
         {
-            return MapShipTo(order);
+            return new ShopOrderShipToDto
+            {
+                ContactName = order.ShipToContactName,
+                ContactPhone = order.ShipToContactPhone,
+                AddressLine1 = order.ShipToAddressLine1,
+                AddressLine2 = order.ShipToAddressLine2,
+                Postcode = order.ShipToPostcode,
+                Country = order.ShipToCountry,
+                DeliveryInstructions = order.DeliveryInstructions,
+            };
         }
 
         private static IReadOnlyList<ShopOrderLineDto> MapLines(ShopOrder order)
@@ -97,20 +106,6 @@ namespace TummlyBackend.Helpers
                     LineNetPence = line.LineNetPence,
                 })
                 .ToList();
-        }
-
-        private static ShopOrderShipToDto MapShipTo(ShopOrder order)
-        {
-            return new ShopOrderShipToDto
-            {
-                ContactName = order.ShipToContactName,
-                ContactPhone = order.ShipToContactPhone,
-                AddressLine1 = order.ShipToAddressLine1,
-                AddressLine2 = order.ShipToAddressLine2,
-                Postcode = order.ShipToPostcode,
-                Country = order.ShipToCountry,
-                DeliveryInstructions = order.DeliveryInstructions,
-            };
         }
     }
 }

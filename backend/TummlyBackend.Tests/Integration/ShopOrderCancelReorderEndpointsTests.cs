@@ -104,6 +104,64 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task CancelDeliveredOrder_Returns409()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                seeded.InScopeLocationId,
+                ShopPaymentStatuses.Paid,
+                ShopFulfilmentStatuses.Delivered
+            );
+
+            using var request = AuthorizedPost(
+                $"/api/shop/orders/{orderId}/cancel",
+                seeded.MemberJwt,
+                new
+                {
+                    locationId = seeded.InScopeLocationId,
+                    reason = ShopCancelReasons.NoLongerRequired,
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "shop_order_not_cancellable",
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task CancelAlreadyCancelled_IsIdempotent200EvenWithInvalidReason()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                seeded.InScopeLocationId,
+                ShopPaymentStatuses.Paid,
+                ShopFulfilmentStatuses.Cancelled
+            );
+
+            using var request = AuthorizedPost(
+                $"/api/shop/orders/{orderId}/cancel",
+                seeded.MemberJwt,
+                new
+                {
+                    locationId = seeded.InScopeLocationId,
+                    reason = "not-a-valid-slug",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "cancelled",
+                body.GetProperty("fulfilmentStatus").GetString()
+            );
+        }
+
+        [Fact]
         public async Task CancelAlreadyCancelled_IsIdempotent200()
         {
             var seeded = await SeedWorkspaceAsync();
