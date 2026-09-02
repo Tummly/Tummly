@@ -15,13 +15,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ReportsWeeklyBriefDialog } from "@/components/dashboard/operator/Reports/ReportsWeeklyBriefDialog"
 import { ReportsExportDialog } from "@/components/dashboard/operator/Reports/ReportsExportDialog"
 import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
 import {
   operatorDashboardNavPath,
   operatorDashboardCaptureReportPath,
   operatorDashboardFeedbackReportPath,
+  operatorDashboardWeeklyBriefPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
 import { cn } from "@/lib/utils"
@@ -90,7 +90,6 @@ export function ReportsPage({
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [datePreset, setDatePreset] = useState<DatePreset>("7d")
-  const [isWeeklyBriefOpen, setIsWeeklyBriefOpen] = useState(false)
   const [isExportOpen, setIsExportOpen] = useState(false)
 
   const isPageEmpty = propIsEmpty ?? (searchParams.get("empty") === "true")
@@ -121,7 +120,11 @@ export function ReportsPage({
             type="button"
             variant="op-secondary"
             className="h-9 gap-2 rounded-xs px-3.5 text-xs font-medium"
-            onClick={() => setIsWeeklyBriefOpen(true)}
+            onClick={() =>
+              navigate(
+                operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
+              )
+            }
           >
             <img src={aiIconPng} alt="" className="size-3.5 shrink-0 brightness-0 invert" />
             <span>Generate brief</span>
@@ -197,7 +200,11 @@ export function ReportsPage({
                   type="button"
                   variant="op-primary"
                   className="h-9 rounded-xs px-4 text-xs font-medium"
-                  onClick={() => setIsWeeklyBriefOpen(true)}
+                  onClick={() =>
+                    navigate(
+                      operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
+                    )
+                  }
                 >
                   View weekly brief
                 </Button>
@@ -605,17 +612,6 @@ export function ReportsPage({
           </div>
         </>
       )}
-
-      {/* Modals */}
-      <ReportsWeeklyBriefDialog
-        open={isWeeklyBriefOpen}
-        onOpenChange={setIsWeeklyBriefOpen}
-        locationName={selectedLocationName}
-        dateRangeLabel={dateRangeLabel}
-        onNavigateToFeedback={() => navTo("feedback")}
-        onNavigateToCampaigns={() => navTo("campaigns")}
-        onNavigateToCapture={() => navTo("capture")}
-      />
 
       <ReportsExportDialog
         open={isExportOpen}

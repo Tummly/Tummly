@@ -16,7 +16,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ReportsWeeklyBriefDialog } from "@/components/dashboard/operator/Reports/ReportsWeeklyBriefDialog"
 import { ReportsExportDialog } from "@/components/dashboard/operator/Reports/ReportsExportDialog"
 import {
   CaptureReportPlacementActionModal,
@@ -33,6 +32,7 @@ import {
 import {
   operatorDashboardNavPath,
   operatorDashboardCaptureLocationPath,
+  operatorDashboardWeeklyBriefPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
 import { cn } from "@/lib/utils"
@@ -57,7 +57,6 @@ export function CaptureReportPage({
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [datePreset, setDatePreset] = useState<DatePreset>("7d")
-  const [isWeeklyBriefOpen, setIsWeeklyBriefOpen] = useState(false)
   const [isExportOpen, setIsExportOpen] = useState(false)
   const [activePlacementModal, setActivePlacementModal] = useState<{
     actionType: CaptureReportPlacementActionType | null
@@ -117,21 +116,25 @@ export function CaptureReportPage({
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-bold tracking-tight text-op-text-primary">
-            {CAPTURE_REPORT_PAGE_COPY.title}
+            {CAPTURE_REPORT_PAGE_COPY.pageTitle}
           </h1>
-          <p className="text-base font-medium text-op-text-muted">
-            {CAPTURE_REPORT_PAGE_COPY.subtitle}
+          <p className="text-sm sm:text-base font-medium text-op-text-muted">
+            {CAPTURE_REPORT_PAGE_COPY.pageSubtitle}
           </p>
         </div>
 
-        {/* Actions Row */}
+        {/* Header Action Buttons */}
         <div className="flex flex-wrap items-center gap-3">
           {/* Generate Brief Button */}
           <Button
             type="button"
             variant="op-secondary"
             className="h-10 gap-2 rounded-xs px-4 text-sm font-medium"
-            onClick={() => setIsWeeklyBriefOpen(true)}
+            onClick={() =>
+              navigate(
+                operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
+              )
+            }
           >
             <img
               src={aiIconPng}
@@ -473,25 +476,6 @@ export function CaptureReportPage({
           </div>
         </div>
       )}
-
-      {/* Weekly Brief Dialog */}
-      <ReportsWeeklyBriefDialog
-        open={isWeeklyBriefOpen}
-        onOpenChange={setIsWeeklyBriefOpen}
-        locationName={selectedLocationName}
-        dateRangeLabel={dateRangeLabel}
-        onNavigateToFeedback={() =>
-          navigate(
-            operatorDashboardNavPath(mode, "feedback", selectedLocationId)
-          )
-        }
-        onNavigateToCampaigns={() =>
-          navigate(
-            operatorDashboardNavPath(mode, "campaigns", selectedLocationId)
-          )
-        }
-        onNavigateToCapture={handleCreatePlacement}
-      />
 
       {/* Export Dialog */}
       <ReportsExportDialog
