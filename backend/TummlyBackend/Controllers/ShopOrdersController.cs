@@ -17,20 +17,101 @@ namespace TummlyBackend.Controllers
     {
         private readonly IShopOrderPlaceService _orders;
         private readonly IShopMaterialsOrderPaySession _paySessions;
+        private readonly IShopOrdersListService _ordersList;
+        private readonly IGuestsEffectiveLocationService _effectiveLocations;
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly ApplicationDbContext _context;
 
         public ShopOrdersController(
             IShopOrderPlaceService orders,
             IShopMaterialsOrderPaySession paySessions,
+            IShopOrdersListService ordersList,
+            IGuestsEffectiveLocationService effectiveLocations,
             IRestaurantPermissionHelper permissions,
             ApplicationDbContext context
         )
         {
             _orders = orders;
             _paySessions = paySessions;
+            _ordersList = ordersList;
+            _effectiveLocations = effectiveLocations;
             _permissions = permissions;
             _context = context;
+        }
+
+        [HttpGet("orders")]
+        public async Task<IActionResult> ListOrders(
+            [FromQuery] int locationId,
+            [FromQuery] string? q = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 25,
+            [FromQuery] string sort = "newest",
+            [FromQuery] string[]? fulfilmentStatus = null,
+            [FromQuery] string[]? paymentStatus = null,
+            [FromQuery] string[]? materialType = null,
+            [FromQuery] string? orderDatePreset = null,
+            [FromQuery] DateTime? orderDateFrom = null,
+            [FromQuery] DateTime? orderDateTo = null,
+            [FromQuery] string? locationScope = "all",
+            [FromQuery] int[]? locationIds = null,
+            [FromQuery] int utcOffsetMinutes = 0,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var gate = await AuthorizeShopAsync(
+                locationId,
+                PermissionLevel.View
+            );
+            if (gate.Denied != null)
+            {
+                return gate.Denied;
+            }
+
+            try
+            {
+                var effectiveLocations = await _effectiveLocations.ResolveAsync(
+                    gate.LocationIds,
+                    gate.ShellLocation!,
+                    locationScope,
+                    locationIds
+                );
+                var effectiveDenied = effectiveLocations.ToHttpResult();
+                if (effectiveDenied != null)
+                {
+                    return effectiveDenied;
+                }
+
+                var result = await _ordersList.GetListAsync(
+                    new ShopOrdersListQuery
+                    {
+                        RestaurantId = gate.RestaurantId,
+                        ShellLocationId = locationId,
+                        LocationIds = effectiveLocations.LocationIds!,
+                        Q = q,
+                        Page = page,
+                        PageSize = pageSize,
+                        Sort = sort,
+                        FulfilmentStatus = fulfilmentStatus ?? Array.Empty<string>(),
+                        PaymentStatus = paymentStatus ?? Array.Empty<string>(),
+                        MaterialType = materialType ?? Array.Empty<string>(),
+                        OrderDatePreset = orderDatePreset,
+                        OrderDateFrom = orderDateFrom,
+                        OrderDateTo = orderDateTo,
+                        UtcOffsetMinutes = utcOffsetMinutes,
+                    },
+                    cancellationToken
+                );
+
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
         }
 
         [HttpPost("orders")]
@@ -127,16 +208,16 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            if (locationId is > 0 && order.LocationId != locationId.Value)
+            if (!gate.LocationIds.Contains(order.LocationId))
             {
-                return NotFound(new
+                return StatusCode(StatusCodes.Status403Forbidden, new
                 {
                     success = false,
-                    message = "Shop order was not found.",
+                    message = "You do not have access to this location.",
                 });
             }
 
-            return Ok(ShopOrderDtoMapper.Map(order));
+            return Ok(ShopOrderDtoMapper.MapOperatorDetail(order));
         }
 
         [HttpPost("orders/{orderId:guid}/pay")]
@@ -195,12 +276,12 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            if (locationId is > 0 && order.LocationId != locationId.Value)
+            if (!gate.LocationIds.Contains(order.LocationId))
             {
-                return NotFound(new
+                return StatusCode(StatusCodes.Status403Forbidden, new
                 {
                     success = false,
-                    message = "Shop order was not found.",
+                    message = "You do not have access to this location.",
                 });
             }
 
@@ -371,28 +452,25 @@ namespace TummlyBackend.Controllers
             return string.IsNullOrWhiteSpace(name) ? "Operator" : name.Trim();
         }
 
-        private async Task<(
-            IActionResult? Denied,
-            int RestaurantId,
-            int UserId
-        )> AuthorizeShopAsync(int? locationId, PermissionLevel minimum)
+        private async Task<ShopGate> AuthorizeShopAsync(
+            int? locationId,
+            PermissionLevel minimum
+        )
         {
             var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
             if (unauthorized != null)
             {
-                return (unauthorized, 0, 0);
+                return ShopGate.FromDenied(unauthorized);
             }
 
             if (locationId is not > 0)
             {
-                return (
+                return ShopGate.FromDenied(
                     BadRequest(new
                     {
                         success = false,
                         message = "locationId is required.",
-                    }),
-                    0,
-                    0
+                    })
                 );
             }
 
@@ -405,10 +483,39 @@ namespace TummlyBackend.Controllers
             var denied = decision.ToHttpResult();
             if (denied != null)
             {
-                return (denied, 0, 0);
+                return ShopGate.FromDenied(denied);
             }
 
-            return (null, decision.RestaurantId, userId);
+            return ShopGate.FromAllowed(
+                decision.RestaurantId,
+                userId,
+                decision.LocationIds,
+                decision.Location!
+            );
+        }
+
+        private sealed record ShopGate(
+            IActionResult? Denied,
+            int RestaurantId,
+            int UserId,
+            IReadOnlyList<int> LocationIds,
+            RestaurantLocation? ShellLocation
+        )
+        {
+            public static ShopGate FromDenied(IActionResult denied)
+            {
+                return new ShopGate(denied, 0, 0, [], null);
+            }
+
+            public static ShopGate FromAllowed(
+                int restaurantId,
+                int userId,
+                IReadOnlyList<int> locationIds,
+                RestaurantLocation shellLocation
+            )
+            {
+                return new ShopGate(null, restaurantId, userId, locationIds, shellLocation);
+            }
         }
     }
 }

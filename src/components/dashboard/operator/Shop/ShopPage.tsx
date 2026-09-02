@@ -507,6 +507,7 @@ export function ShopPage({
         />
       ) : currentView === "orders" ? (
         <ShopOrdersScreen
+          selectedLocationId={selectedLocationId}
           selectedLocationName={locationName}
           locations={locations}
           onSelectLocation={onSelectLocation}

@@ -1,5 +1,6 @@
 /** Shop Orders filter schema, sort options, and filtering/sorting helpers. */
 
+import type { ShopOrderDetailWire } from "@/api/shopOrdersApi"
 import type {
   FilterSheetSchema,
   OperatorFilterSelection,
@@ -7,10 +8,8 @@ import type {
 } from "@/lib/operatorFilterSheet"
 
 export type ShopOrdersFulfilmentStatusId =
-  | "order-received"
   | "processing"
-  | "in-production"
-  | "dispatched"
+  | "in_transit"
   | "delivered"
   | "cancelled"
 
@@ -18,52 +17,40 @@ export const SHOP_ORDERS_FULFILMENT_STATUS_LABELS: Record<
   ShopOrdersFulfilmentStatusId,
   string
 > = {
-  "order-received": "Order received",
   processing: "Processing",
-  "in-production": "In production",
-  dispatched: "Dispatched",
+  in_transit: "Dispatched",
   delivered: "Delivered",
   cancelled: "Cancelled",
 }
 
-export type ShopOrdersPaymentStatusId =
-  | "paid"
-  | "payment-due"
-  | "overdue"
-  | "payment-failed"
-  | "refunded"
-  | "partially-refunded"
+export type ShopOrdersPaymentStatusId = "paid" | "refunded"
 
 export const SHOP_ORDERS_PAYMENT_STATUS_LABELS: Record<
   ShopOrdersPaymentStatusId,
   string
 > = {
   paid: "Paid",
-  "payment-due": "Payment due",
-  overdue: "Overdue",
-  "payment-failed": "Payment failed",
   refunded: "Refunded",
-  "partially-refunded": "Partially refunded",
 }
 
 export type ShopOrdersMaterialTypeId =
   | "table-tents"
-  | "package-seal-stickers"
+  | "counter-cards"
+  | "window-stickers"
   | "packaging-stickers"
   | "receipt-stickers"
-  | "window-stickers"
-  | "starter-kits"
+  | "delivery-inserts"
 
 export const SHOP_ORDERS_MATERIAL_TYPE_LABELS: Record<
   ShopOrdersMaterialTypeId,
   string
 > = {
   "table-tents": "Table tents",
-  "package-seal-stickers": "Package seal stickers",
+  "counter-cards": "Counter cards",
   "packaging-stickers": "Packaging stickers",
   "receipt-stickers": "Receipt stickers",
   "window-stickers": "Window stickers",
-  "starter-kits": "Starter Kits",
+  "delivery-inserts": "Delivery inserts",
 }
 
 export type ShopOrdersSortId =
@@ -171,22 +158,11 @@ export type DetailedShopOrder = {
   placedBy: string
   total: string
   totalNumeric: number
-  paymentStatus:
-    | "Paid"
-    | "Payment due"
-    | "Overdue"
-    | "Payment failed"
-    | "Refunded"
-    | "Partially refunded"
-  fulfilmentStatus:
-    | "Order received"
-    | "Processing"
-    | "In production"
-    | "Dispatched"
-    | "Delivered"
-    | "Cancelled"
+  paymentStatus: "Paid" | "Refunded"
+  fulfilmentStatus: "Processing" | "Dispatched" | "Delivered" | "Cancelled"
   updatedDate: string
   items?: string[]
+  detail?: ShopOrderDetailWire
 }
 
 /** Matches status string to enum ID. */
@@ -194,14 +170,10 @@ export function normalizeFulfilmentStatusToId(
   status: DetailedShopOrder["fulfilmentStatus"]
 ): ShopOrdersFulfilmentStatusId {
   switch (status) {
-    case "Order received":
-      return "order-received"
     case "Processing":
       return "processing"
-    case "In production":
-      return "in-production"
     case "Dispatched":
-      return "dispatched"
+      return "in_transit"
     case "Delivered":
       return "delivered"
     case "Cancelled":
@@ -216,16 +188,8 @@ export function normalizePaymentStatusToId(
   switch (status) {
     case "Paid":
       return "paid"
-    case "Payment due":
-      return "payment-due"
-    case "Overdue":
-      return "overdue"
-    case "Payment failed":
-      return "payment-failed"
     case "Refunded":
       return "refunded"
-    case "Partially refunded":
-      return "partially-refunded"
   }
 }
 

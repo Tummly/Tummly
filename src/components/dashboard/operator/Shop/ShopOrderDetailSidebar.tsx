@@ -20,6 +20,41 @@ import { ShopCancelOrderDialog } from "@/components/dashboard/operator/Shop/Shop
 import { downloadOrderInvoice } from "@/lib/operatorShop/downloadOrderInvoice"
 import type { DetailedShopOrder } from "@/lib/operatorShop/shopOrdersFilterSheetSchema"
 
+function penceToPounds(pence: number): string {
+  return `£${(pence / 100).toFixed(2)}`
+}
+
+function formatProgressTimestamp(iso: string | null | undefined): string | null {
+  if (iso == null) return null
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+function formatShipToAddress(input: {
+  contactName: string
+  contactPhone?: string | null
+  addressLine1: string
+  addressLine2?: string | null
+  postcode: string
+  country: string
+}): string {
+  return [
+    input.contactName,
+    input.addressLine1,
+    input.addressLine2,
+    input.postcode,
+    input.country,
+    input.contactPhone,
+  ]
+    .filter((part) => part != null && String(part).trim().length > 0)
+    .join(" · ")
+}
+
 type ShopOrderDetailSidebarProps = {
   order: DetailedShopOrder | null
   open: boolean
@@ -43,25 +78,33 @@ export function ShopOrderDetailSidebar({
   if (!order) return null
 
   const isCompletedStep = (step: "received" | "processing" | "dispatched" | "delivered") => {
-    const status = order.fulfilmentStatus.toLowerCase()
+    const status = order.fulfilmentStatus
     switch (step) {
       case "received":
         return true
       case "processing":
         return (
-          status === "processing" ||
-          status === "in production" ||
-          status === "dispatched" ||
-          status === "delivered"
+          status === "Processing" ||
+          status === "Dispatched" ||
+          status === "Delivered"
         )
       case "dispatched":
-        return status === "dispatched" || status === "delivered"
+        return status === "Dispatched" || status === "Delivered"
       case "delivered":
-        return status === "delivered"
+        return status === "Delivered"
       default:
         return false
     }
   }
+
+  const detail = order.detail
+  const progress = detail?.progress
+  const receivedAt =
+    formatProgressTimestamp(progress?.orderReceivedAtUtc) ?? order.orderDate
+  const processingAt = formatProgressTimestamp(progress?.processingStartedAtUtc)
+  const dispatchedAt = formatProgressTimestamp(progress?.dispatchedAtUtc)
+  const deliveredAt = formatProgressTimestamp(progress?.deliveredAtUtc)
+  const trackingUrl = progress?.trackingUrl ?? null
 
   const invoiceNumber = `INV-${order.orderNumber.replace("#", "")}`
 
@@ -206,9 +249,7 @@ export function ShopOrderDetailSidebar({
                     Your order was successfully confirmed.
                   </span>
                 </div>
-                <span className="text-xs text-op-text-muted">
-                  {order.orderDate} at 10:24
-                </span>
+                <span className="text-xs text-op-text-muted">{receivedAt}</span>
               </div>
 
               {/* Line 1 */}
@@ -233,7 +274,7 @@ export function ShopOrderDetailSidebar({
                   </span>
                 </div>
                 <span className="text-xs text-op-text-muted">
-                  {order.orderDate} at 11:05
+                  {processingAt ?? "Pending"}
                 </span>
               </div>
 
@@ -261,15 +302,24 @@ export function ShopOrderDetailSidebar({
                     Dispatched
                   </span>
                   <span className="text-xs text-op-text-muted">
-                    Tracking information will appear here after dispatch.
+                    {trackingUrl != null
+                      ? "Track your shipment using the link below."
+                      : "Tracking information will appear here after dispatch."}
                   </span>
                 </div>
                 <span className="text-xs text-op-text-muted">
-                  {order.fulfilmentStatus === "Dispatched" ||
-                  order.fulfilmentStatus === "Delivered"
-                    ? `${order.updatedDate}`
-                    : "Expected [date]"}
+                  {dispatchedAt ?? "Pending"}
                 </span>
+                {trackingUrl != null ? (
+                  <a
+                    href={trackingUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-medium text-op-action-primary underline-offset-2 hover:underline"
+                  >
+                    Open tracking link
+                  </a>
+                ) : null}
               </div>
 
               {/* Line 3 */}
@@ -297,9 +347,7 @@ export function ShopOrderDetailSidebar({
                   </span>
                 </div>
                 <span className="text-xs text-op-text-muted">
-                  {order.fulfilmentStatus === "Delivered"
-                    ? `${order.updatedDate}`
-                    : "Expected [date range]"}
+                  {deliveredAt ?? "Pending"}
                 </span>
               </div>
             </div>
@@ -310,65 +358,46 @@ export function ShopOrderDetailSidebar({
                 Materials
               </h3>
 
-              <div className="flex flex-col gap-5 rounded-sm border border-op-border-default/50 bg-op-background-primary p-6">
-                <div className="flex flex-col gap-1">
-                  <h4 className="text-base font-semibold text-op-text-primary">
-                    {order.materials.split("·")[0]?.trim() || "Table tents"}
-                  </h4>
-                  <p className="text-sm font-medium text-op-text-muted">
-                    A5 folded card · Double-sided · Matte finish
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-3.5 text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="text-op-text-muted">Quantity</span>
-                    <span className="text-op-text-primary font-medium">
-                      {order.materials.split("·")[1]?.trim() || "Pack of 20"}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-op-text-muted">Location</span>
-                    <span className="text-op-text-primary font-medium">
-                      {order.locationName}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-op-text-muted">Price</span>
-                    <span className="text-op-text-primary font-medium">
-                      {order.total}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-op-text-muted">Status</span>
-                    <span className="text-op-text-primary font-medium">
-                      {order.fulfilmentStatus}
-                    </span>
-                  </div>
-                </div>
-
-                <div>
-                  <Button
-                    type="button"
-                    variant="op-secondary"
-                    className="h-9.5 rounded-xs px-4 text-sm font-medium"
-                    onClick={() => {
-                      if (onViewMaterial) {
-                        onViewMaterial(order)
-                      } else {
-                        toast.info(
-                          `Viewing material specifications for ${order.materials}`
-                        )
-                      }
-                    }}
+              {(detail?.lines ?? []).length > 0 ? (
+                detail!.lines.map((line) => (
+                  <div
+                    key={line.skuId}
+                    className="flex flex-col gap-5 rounded-sm border border-op-border-default/50 bg-op-background-primary p-6"
                   >
-                    View material
-                  </Button>
+                    <div className="flex flex-col gap-1">
+                      <h4 className="text-base font-semibold text-op-text-primary">
+                        {line.title}
+                      </h4>
+                      <p className="text-sm font-medium text-op-text-muted">
+                        {line.materialType}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-3.5 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-op-text-muted">Quantity</span>
+                        <span className="font-medium text-op-text-primary">
+                          {line.quantity}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-op-text-muted">Line total</span>
+                        <span className="font-medium text-op-text-primary">
+                          {penceToPounds(line.lineNetPence)} excluding VAT
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col gap-5 rounded-sm border border-op-border-default/50 bg-op-background-primary p-6">
+                  <div className="flex flex-col gap-1">
+                    <h4 className="text-base font-semibold text-op-text-primary">
+                      {order.materials.split("·")[0]?.trim() || "Materials"}
+                    </h4>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Section 3: Delivery */}
@@ -382,8 +411,10 @@ export function ShopOrderDetailSidebar({
                   <span className="text-sm font-semibold text-op-text-primary">
                     Delivery address
                   </span>
-                  <p className="text-sm text-op-text-muted leading-relaxed">
-                    {order.placedBy} · {order.locationName} · 6 Southwark Street, London SE1 1TQ, United Kingdom · +44 20 7407 1234
+                  <p className="text-sm leading-relaxed text-op-text-muted">
+                    {detail?.shipTo
+                      ? formatShipToAddress(detail.shipTo)
+                      : order.locationName}
                   </p>
                 </div>
 
@@ -391,15 +422,10 @@ export function ShopOrderDetailSidebar({
                   <span className="text-sm font-semibold text-op-text-primary">
                     Delivery method
                   </span>
-                  <p className="text-sm text-op-text-muted">Standard delivery</p>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm font-semibold text-op-text-primary">
-                    Estimated delivery
-                  </span>
                   <p className="text-sm text-op-text-muted">
-                    [Date or date range]
+                    {detail?.deliveryMethod === "express"
+                      ? "Express delivery"
+                      : "Standard delivery"}
                   </p>
                 </div>
 
@@ -407,8 +433,9 @@ export function ShopOrderDetailSidebar({
                   <span className="text-sm font-semibold text-op-text-primary">
                     Delivery instructions
                   </span>
-                  <p className="text-sm text-op-text-muted leading-relaxed">
-                    Please deliver through the restaurant’s side entrance and ask for the duty manager.
+                  <p className="text-sm leading-relaxed text-op-text-muted">
+                    {detail?.shipTo.deliveryInstructions?.trim() ||
+                      "No special instructions provided."}
                   </p>
                 </div>
               </div>
@@ -421,29 +448,36 @@ export function ShopOrderDetailSidebar({
               </h3>
 
               <div className="flex flex-col gap-3 text-sm">
-                <div className="flex justify-between items-center">
+                <div className="flex items-center justify-between">
                   <span className="text-op-text-muted">Materials subtotal:</span>
-                  <span className="text-op-text-primary font-medium">{order.total}</span>
+                  <span className="font-medium text-op-text-primary">
+                    {detail
+                      ? penceToPounds(detail.materialsNetPence)
+                      : order.total}
+                  </span>
                 </div>
 
-                <div className="flex justify-between items-center">
-                  <span className="text-op-text-muted">Starter Kit allowance:</span>
-                  <span className="text-op-text-muted">−£[allowance]</span>
-                </div>
-
-                <div className="flex justify-between items-center">
+                <div className="flex items-center justify-between">
                   <span className="text-op-text-muted">Delivery:</span>
-                  <span className="text-op-text-muted">£[delivery]</span>
+                  <span className="text-op-text-muted">
+                    {detail
+                      ? penceToPounds(detail.deliveryNetPence)
+                      : "£0.00"}
+                  </span>
                 </div>
 
-                <div className="flex justify-between items-center">
+                <div className="flex items-center justify-between">
                   <span className="text-op-text-muted">VAT:</span>
-                  <span className="text-op-text-muted">£[VAT]</span>
+                  <span className="text-op-text-muted">
+                    {detail ? penceToPounds(detail.vatPence) : "—"}
+                  </span>
                 </div>
 
-                <div className="flex justify-between items-center pt-1 font-bold">
+                <div className="flex items-center justify-between pt-1 font-bold">
                   <span className="text-op-text-primary">Order total:</span>
-                  <span className="text-op-text-primary text-base font-bold">{order.total}</span>
+                  <span className="text-base font-bold text-op-text-primary">
+                    {detail ? penceToPounds(detail.grossPence) : order.total}
+                  </span>
                 </div>
               </div>
 
@@ -452,7 +486,12 @@ export function ShopOrderDetailSidebar({
                   Payment method
                 </span>
                 <span className="text-sm text-op-text-muted">
-                  Visa ending in 4242 · Paid on {order.orderDate}
+                  {detail?.paymentSummary.revolutOrderId
+                    ? `Revolut reference ${detail.paymentSummary.revolutOrderId}`
+                    : "Paid via Revolut checkout"}
+                  {detail?.paymentSummary.paidAtUtc
+                    ? ` · Paid on ${formatProgressTimestamp(detail.paymentSummary.paidAtUtc)}`
+                    : ""}
                 </span>
               </div>
             </div>

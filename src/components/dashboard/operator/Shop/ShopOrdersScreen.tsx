@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import {
   ChevronRight,
   MapPin,
@@ -22,12 +22,13 @@ import { OperatorDestructiveConfirmDialog } from "@/components/dashboard/operato
 import { ShopOrderDetailSidebar } from "@/components/dashboard/operator/Shop/ShopOrderDetailSidebar"
 import {
   shopOrdersFilterSheetSchema,
-  matchesShopOrderFilters,
-  sortShopOrders,
   getShopOrdersSortId,
   type DetailedShopOrder,
   type ShopOrdersMaterialTypeId,
 } from "@/lib/operatorShop/shopOrdersFilterSheetSchema"
+import { buildShopOrdersListQueryParams } from "@/lib/operatorShop/shopOrdersListQueryParams"
+import { mapShopOrdersListResponse, mapShopOrderDetailToRow } from "@/lib/operatorShop/mapShopOrdersApiResponse"
+import { fetchShopOrdersList, fetchShopOrder } from "@/api/shopOrdersApi"
 import {
   emptySelection,
   openSession,
@@ -54,157 +55,6 @@ export type DetailedShopDraft = {
   lastUpdatedDate: string
   items?: string[]
 }
-
-const DEFAULT_ORDERS: DetailedShopOrder[] = [
-  {
-    id: "ord-10428",
-    orderNumber: "#TM-10428",
-    orderDate: "29 Jul 2026",
-    isoDate: "2026-07-29",
-    locationId: "1",
-    locationName: "Padella · Borough Market",
-    materials: "Table tents · Pack of 20",
-    materialTypes: ["table-tents"],
-    placedBy: "Mohamed Mahmoud",
-    total: "£82.80",
-    totalNumeric: 82.8,
-    paymentStatus: "Paid",
-    fulfilmentStatus: "In production",
-    updatedDate: "30 Jul 2026",
-    items: [
-      "20x Table tents (Matte Frosted Acrylic)",
-      "4x Window stickers (Static Cling)",
-    ],
-  },
-  {
-    id: "ord-10429",
-    orderNumber: "#TM-10427",
-    orderDate: "25 Jul 2026",
-    isoDate: "2026-07-25",
-    locationId: "2",
-    locationName: "The Ivy Soho Brasserie",
-    materials: "Window stickers · Pack of 10",
-    materialTypes: ["window-stickers"],
-    placedBy: "Sarah Jenkins",
-    total: "£45.00",
-    totalNumeric: 45.0,
-    paymentStatus: "Paid",
-    fulfilmentStatus: "Dispatched",
-    updatedDate: "28 Jul 2026",
-    items: [
-      "10x Window stickers (Front entrance decals)",
-      "2x Counter cards (Soft-touch Recycled Card)",
-    ],
-  },
-  {
-    id: "ord-10430",
-    orderNumber: "#TM-10420",
-    orderDate: "18 Jul 2026",
-    isoDate: "2026-07-18",
-    locationId: "3",
-    locationName: "Dishoom Covent Garden",
-    materials: "Starter Kits · Starter Pack Deluxe",
-    materialTypes: ["starter-kits", "table-tents"],
-    placedBy: "Rahul Verma",
-    total: "£195.00",
-    totalNumeric: 195.0,
-    paymentStatus: "Payment due",
-    fulfilmentStatus: "Processing",
-    updatedDate: "19 Jul 2026",
-    items: [
-      "1x Starter Deluxe Kit (30 Table Tents, 10 Window Stickers, 500 Seal Stickers)",
-      "50x Bill presenter cards",
-    ],
-  },
-  {
-    id: "ord-10431",
-    orderNumber: "#TM-10410",
-    orderDate: "05 Jul 2026",
-    isoDate: "2026-07-05",
-    locationId: "1",
-    locationName: "Padella · Borough Market",
-    materials: "Packaging stickers · Roll of 500",
-    materialTypes: ["packaging-stickers"],
-    placedBy: "Mohamed Mahmoud",
-    total: "£64.50",
-    totalNumeric: 64.5,
-    paymentStatus: "Paid",
-    fulfilmentStatus: "Delivered",
-    updatedDate: "10 Jul 2026",
-    items: ["500x Takeout packaging stickers (Glossy Vinyl)"],
-  },
-  {
-    id: "ord-10432",
-    orderNumber: "#TM-10395",
-    orderDate: "20 Jun 2026",
-    isoDate: "2026-06-20",
-    locationId: "2",
-    locationName: "The Ivy Soho Brasserie",
-    materials: "Package seal stickers · 250 pcs",
-    materialTypes: ["package-seal-stickers"],
-    placedBy: "Sarah Jenkins",
-    total: "£38.00",
-    totalNumeric: 38.0,
-    paymentStatus: "Overdue",
-    fulfilmentStatus: "Order received",
-    updatedDate: "20 Jun 2026",
-    items: ["250x Tamper-evident package seal stickers"],
-  },
-  {
-    id: "ord-10433",
-    orderNumber: "#TM-10370",
-    orderDate: "12 May 2026",
-    isoDate: "2026-05-12",
-    locationId: "3",
-    locationName: "Dishoom Covent Garden",
-    materials: "Receipt stickers · Roll of 1000",
-    materialTypes: ["receipt-stickers"],
-    placedBy: "Liam O'Connor",
-    total: "£112.00",
-    totalNumeric: 112.0,
-    paymentStatus: "Payment failed",
-    fulfilmentStatus: "Cancelled",
-    updatedDate: "13 May 2026",
-    items: ["1000x Thermal receipt QR promo stickers"],
-  },
-  {
-    id: "ord-10434",
-    orderNumber: "#TM-10340",
-    orderDate: "14 Mar 2026",
-    isoDate: "2026-03-14",
-    locationId: "1",
-    locationName: "Padella · Borough Market",
-    materials: "Table tents · Pack of 50",
-    materialTypes: ["table-tents"],
-    placedBy: "Mohamed Mahmoud",
-    total: "£165.60",
-    totalNumeric: 165.6,
-    paymentStatus: "Refunded",
-    fulfilmentStatus: "Cancelled",
-    updatedDate: "16 Mar 2026",
-    items: ["50x Table tents (Matte Frosted Acrylic)"],
-  },
-  {
-    id: "ord-10435",
-    orderNumber: "#TM-10290",
-    orderDate: "20 Jan 2026",
-    isoDate: "2026-01-20",
-    locationId: "2",
-    locationName: "The Ivy Soho Brasserie",
-    materials: "Starter Kits · All-in-one Pack",
-    materialTypes: ["starter-kits"],
-    placedBy: "Sarah Jenkins",
-    total: "£240.00",
-    totalNumeric: 240.0,
-    paymentStatus: "Partially refunded",
-    fulfilmentStatus: "Delivered",
-    updatedDate: "25 Jan 2026",
-    items: [
-      "1x All-in-one Starter Kit",
-      "20x Extra replacement window decals",
-    ],
-  },
-]
 
 const DEFAULT_DRAFTS: DetailedShopDraft[] = [
   {
@@ -248,7 +98,10 @@ const DEFAULT_DRAFTS: DetailedShopDraft[] = [
   },
 ]
 
+const PAGE_SIZE = 25
+
 type ShopOrdersScreenProps = {
+  selectedLocationId: number
   selectedLocationName: string
   locations: Array<{ id: number; locationName: string; address: string }>
   onSelectLocation?: (locationId: number) => void
@@ -258,6 +111,7 @@ type ShopOrdersScreenProps = {
 }
 
 export function ShopOrdersScreen({
+  selectedLocationId,
   selectedLocationName,
   locations,
   onSelectLocation,
@@ -267,8 +121,18 @@ export function ShopOrdersScreen({
 }: ShopOrdersScreenProps) {
   const [activeTab, setActiveTab] = useState<"orders" | "drafts">("orders")
   const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
-  const [orders, setOrders] = useState<DetailedShopOrder[]>(DEFAULT_ORDERS)
+  const [orders, setOrders] = useState<DetailedShopOrder[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [page, setPage] = useState(1)
+  const [listLoading, setListLoading] = useState(true)
+  const [listError, setListError] = useState<string | null>(null)
+  const [aggregates, setAggregates] = useState({
+    inProgress: 0,
+    dispatched: 0,
+    deliveredLast90Days: 0,
+  })
   const [selectedOrder, setSelectedOrder] = useState<DetailedShopOrder | null>(
     null
   )
@@ -306,15 +170,79 @@ export function ShopOrdersScreen({
 
   const handleApplyFilters = (nextSelection: OperatorFilterSelection) => {
     setFilterSelection(nextSelection)
+    setPage(1)
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim())
+      setPage(1)
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [searchQuery])
+
+  const loadOrders = useCallback(async () => {
+    if (activeTab !== "orders") {
+      return
+    }
+
+    setListLoading(true)
+    setListError(null)
+    try {
+      const params = buildShopOrdersListQueryParams({
+        locationId: selectedLocationId,
+        q: debouncedSearch,
+        filters: filterSelection,
+        page,
+        pageSize: PAGE_SIZE,
+      })
+      const response = await fetchShopOrdersList(params)
+      const mapped = mapShopOrdersListResponse(response)
+      setOrders(mapped.orders)
+      setTotalCount(mapped.totalCount)
+      setAggregates(mapped.aggregates)
+    } catch {
+      setListError("Could not load shop orders.")
+      setOrders([])
+      setTotalCount(0)
+    } finally {
+      setListLoading(false)
+    }
+  }, [
+    activeTab,
+    debouncedSearch,
+    filterSelection,
+    page,
+    selectedLocationId,
+  ])
+
+  useEffect(() => {
+    void loadOrders()
+  }, [loadOrders])
+
+  const handleViewOrder = async (order: DetailedShopOrder) => {
+    setSelectedOrder(order)
+    try {
+      const detail = await fetchShopOrder(order.id, selectedLocationId)
+      setSelectedOrder(mapShopOrderDetailToRow(detail))
+    } catch {
+      toast.error("Could not load order details.")
+    }
+  }
+
+  const pageStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const pageEnd = Math.min(page * PAGE_SIZE, totalCount)
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   const handleRemoveFilterChip = (chip: FilterChip) => {
     setFilterSelection((prev) => removeAppliedChip(schema, prev, chip))
+    setPage(1)
   }
 
   const handleClearAllFilters = () => {
     setFilterSelection(emptySelection(schema))
     setSearchQuery("")
+    setPage(1)
   }
 
   const handleContinueCheckout = (draft: DetailedShopDraft) => {
@@ -374,28 +302,6 @@ export function ShopOrdersScreen({
     }
   }
 
-  // Filter and sort the orders list
-  const filteredOrders = useMemo(() => {
-    const matched = orders.filter((order) => {
-      // 1. Search Query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase()
-        const matchSearch =
-          order.orderNumber.toLowerCase().includes(q) ||
-          order.materials.toLowerCase().includes(q) ||
-          order.locationName.toLowerCase().includes(q) ||
-          order.placedBy.toLowerCase().includes(q)
-        if (!matchSearch) return false
-      }
-
-      // 2. Filter selection
-      return matchesShopOrderFilters(order, filterSelection)
-    })
-
-    const sortId = getShopOrdersSortId(filterSelection)
-    return sortShopOrders(matched, sortId)
-  }, [orders, searchQuery, filterSelection])
-
   // Filter and sort the drafts list
   const filteredDrafts = useMemo(() => {
     const matched = drafts.filter((draft) => {
@@ -448,28 +354,6 @@ export function ShopOrdersScreen({
       return new Date(b.isoDate).getTime() - new Date(a.isoDate).getTime()
     })
   }, [drafts, searchQuery, filterSelection])
-
-  // KPI Calculations
-  const kpiInProgress = useMemo(
-    () =>
-      orders.filter(
-        (o) =>
-          o.fulfilmentStatus === "In production" ||
-          o.fulfilmentStatus === "Processing" ||
-          o.fulfilmentStatus === "Order received"
-      ).length,
-    [orders]
-  )
-
-  const kpiDispatched = useMemo(
-    () => orders.filter((o) => o.fulfilmentStatus === "Dispatched").length,
-    [orders]
-  )
-
-  const kpiDelivered = useMemo(
-    () => orders.filter((o) => o.fulfilmentStatus === "Delivered").length,
-    [orders]
-  )
 
   return (
     <div className="flex flex-col gap-6 pb-20">
@@ -551,7 +435,7 @@ export function ShopOrdersScreen({
               Orders in progress
             </span>
             <span className="text-3xl font-extrabold leading-none text-op-text-primary">
-              {kpiInProgress}
+              {aggregates.inProgress}
             </span>
             <span className="text-xs text-op-text-muted">
               Orders being processed or produced
@@ -563,7 +447,7 @@ export function ShopOrdersScreen({
               Dispatched
             </span>
             <span className="text-3xl font-extrabold leading-none text-op-text-primary">
-              {kpiDispatched}
+              {aggregates.dispatched}
             </span>
             <span className="text-xs text-op-text-muted">
               Orders currently on their way
@@ -575,7 +459,7 @@ export function ShopOrdersScreen({
               Delivered
             </span>
             <span className="text-3xl font-extrabold leading-none text-op-text-primary">
-              {kpiDelivered}
+              {aggregates.deliveredLast90Days}
             </span>
             <span className="text-xs text-op-text-muted">
               Orders delivered in the last 90 days
@@ -672,7 +556,23 @@ export function ShopOrdersScreen({
         {/* Tab 1: Orders Table */}
         {activeTab === "orders" && (
           <>
-            {filteredOrders.length === 0 ? (
+            {listLoading ? (
+              <div className="py-16 text-center text-sm text-op-text-muted">
+                Loading orders…
+              </div>
+            ) : listError != null ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+                <p className="text-sm text-op-text-muted">{listError}</p>
+                <Button
+                  type="button"
+                  variant="op-secondary"
+                  size="sm"
+                  onClick={() => void loadOrders()}
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : orders.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 rounded-[4px] border border-dashed border-op-border-default/80 py-16 text-center">
                 <div className="flex size-12 items-center justify-center rounded-full bg-op-surface-secondary text-op-text-muted">
                   <Inbox className="size-6" />
@@ -730,9 +630,9 @@ export function ShopOrdersScreen({
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredOrders.map((order, idx) => (
+                    {orders.map((order) => (
                       <tr
-                        key={`${order.id}-${idx}`}
+                        key={order.id}
                         className="border-b border-op-border-default/60 transition-colors hover:bg-op-surface-secondary/40 last:border-0"
                       >
                         <td className="px-4 py-3.5 font-normal text-op-text-primary">
@@ -767,7 +667,7 @@ export function ShopOrdersScreen({
                             variant="outline"
                             size="sm"
                             className="h-8.5 rounded-[4px] border-op-border-default bg-transparent px-3 text-xs text-op-text-primary hover:bg-op-surface-secondary"
-                            onClick={() => setSelectedOrder(order)}
+                            onClick={() => void handleViewOrder(order)}
                           >
                             View order
                           </Button>
@@ -782,15 +682,16 @@ export function ShopOrdersScreen({
             {/* Bottom Pagination for Orders */}
             <div className="flex items-center justify-between pt-2 text-xs text-op-text-muted">
               <span>
-                Showing 1–{filteredOrders.length} of {orders.length} orders
+                Showing {pageStart}–{pageEnd} of {totalCount} orders
               </span>
               <div className="flex items-center gap-3">
                 <Button
                   type="button"
                   variant="op-secondary"
                   size="sm"
-                  className="h-8.5 rounded-[4px] px-3.5 text-xs opacity-50"
-                  disabled
+                  className="h-8.5 rounded-[4px] px-3.5 text-xs"
+                  disabled={page <= 1 || listLoading}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
                 >
                   Previous
                 </Button>
@@ -798,8 +699,11 @@ export function ShopOrdersScreen({
                   type="button"
                   variant="op-secondary"
                   size="sm"
-                  className="h-8.5 rounded-[4px] px-3.5 text-xs opacity-50"
-                  disabled
+                  className="h-8.5 rounded-[4px] px-3.5 text-xs"
+                  disabled={page >= totalPages || listLoading}
+                  onClick={() =>
+                    setPage((current) => Math.min(totalPages, current + 1))
+                  }
                 >
                   Next
                 </Button>

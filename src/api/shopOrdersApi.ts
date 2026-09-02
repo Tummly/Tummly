@@ -1,4 +1,5 @@
 import axiosInstance from "@/api/axiosInstance"
+import type { ShopOrdersListQueryParams } from "@/lib/operatorShop/shopOrdersListQueryParams"
 
 export type ShopShipToPayload = {
   contactName: string
@@ -34,6 +35,57 @@ export type ShopOrderWire = {
   currency: string
   lines: ShopOrderLineWire[]
   shipTo: ShopShipToPayload
+}
+
+export type ShopOrderListItemWire = {
+  id: string
+  orderNumber: string
+  orderDate: string
+  locationId: number
+  locationName: string
+  materialsSummary: string
+  materialTypes: string[]
+  placedBy: string
+  totalFormatted: string
+  totalGrossPence: number
+  paymentStatus: string
+  fulfilmentStatus: string
+  updatedAtUtc: string
+}
+
+export type ShopOrdersListWire = {
+  items: ShopOrderListItemWire[]
+  totalCount: number
+  page: number
+  pageSize: number
+  aggregates: {
+    inProgress: number
+    dispatched: number
+    deliveredLast90Days: number
+  }
+}
+
+export type ShopOrderProgressWire = {
+  orderReceivedAtUtc: string | null
+  processingStartedAtUtc: string | null
+  dispatchedAtUtc: string | null
+  deliveredAtUtc: string | null
+  trackingUrl: string | null
+}
+
+export type ShopOrderPaymentSummaryWire = {
+  paidAtUtc: string | null
+  revolutOrderId: string | null
+}
+
+export type ShopOrderDetailWire = ShopOrderWire & {
+  orderDate: string
+  placedBy: string
+  paymentStatusLabel: string
+  fulfilmentStatusLabel: string
+  paymentSummary: ShopOrderPaymentSummaryWire
+  progress: ShopOrderProgressWire
+  updatedAtUtc: string
 }
 
 export type ShopDeliveryDefaultsWire = {
@@ -78,10 +130,39 @@ export async function placeShopOrder(
 export async function fetchShopOrder(
   orderId: string,
   locationId: number
-): Promise<ShopOrderWire> {
-  const response = await axiosInstance.get<ShopOrderWire>(
+): Promise<ShopOrderDetailWire> {
+  const response = await axiosInstance.get<ShopOrderDetailWire>(
     `/api/shop/orders/${orderId}`,
     { params: { locationId } }
+  )
+  return response.data
+}
+
+export async function fetchShopOrdersList(
+  params: ShopOrdersListQueryParams
+): Promise<ShopOrdersListWire> {
+  const response = await axiosInstance.get<ShopOrdersListWire>(
+    "/api/shop/orders",
+    {
+      params,
+      paramsSerializer: {
+        serialize: (rawParams) => {
+          const search = new URLSearchParams()
+          for (const [key, value] of Object.entries(rawParams)) {
+            if (value == null || value === "") continue
+            if (Array.isArray(value)) {
+              for (const item of value) {
+                if (item == null || item === "") continue
+                search.append(key, String(item))
+              }
+              continue
+            }
+            search.append(key, String(value))
+          }
+          return search.toString()
+        },
+      },
+    }
   )
   return response.data
 }
