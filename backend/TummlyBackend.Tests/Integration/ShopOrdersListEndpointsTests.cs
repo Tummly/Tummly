@@ -135,6 +135,40 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ListOrders_AppliesSearchQuery()
+        {
+            var seeded = await SeedWorkspaceAsync(namedInScopeOnly: false);
+            await InsertOrderAsync(
+                seeded,
+                seeded.InScopeLocationId,
+                ShopPaymentStatuses.Paid,
+                ShopFulfilmentStatuses.Processing,
+                placedByName: "Unique Search Person"
+            );
+            await InsertOrderAsync(
+                seeded,
+                seeded.InScopeLocationId,
+                ShopPaymentStatuses.Paid,
+                ShopFulfilmentStatuses.Processing,
+                placedByName: "Someone Else"
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/shop/orders?locationId={seeded.InScopeLocationId}&locationScope=all&q=Unique+Search",
+                seeded.MemberJwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(1, body.GetProperty("totalCount").GetInt32());
+            Assert.Equal(
+                "Unique Search Person",
+                body.GetProperty("items")[0].GetProperty("placedBy").GetString()
+            );
+        }
+
+        [Fact]
         public async Task GetOrder_Returns403_ForOutOfScopeLocation()
         {
             var seeded = await SeedWorkspaceAsync(namedInScopeOnly: true);
@@ -202,7 +236,8 @@ namespace TummlyBackend.Tests.Integration
             string? fulfilmentStatus,
             string? trackingUrl = null,
             string? opsNotes = null,
-            DateTime? deliveredAtUtc = null
+            DateTime? deliveredAtUtc = null,
+            string placedByName = "Shop Member"
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -238,7 +273,7 @@ namespace TummlyBackend.Tests.Integration
                 LocationId = locationId,
                 LocationNameSnapshot = locationName,
                 PlacedByUserId = seeded.MemberUserId,
-                PlacedByNameSnapshot = "Shop Member",
+                PlacedByNameSnapshot = placedByName,
                 MaterialsNetPence = 2400,
                 VatPence = 480,
                 DeliveryNetPence = 0,

@@ -3,18 +3,14 @@ import type {
   ShopOrderListItemWire,
   ShopOrdersListWire,
 } from "@/api/shopOrdersApi"
+import {
+  formatShopDisplayDate,
+  formatShopGbpFromPence,
+} from "@/lib/operatorShop/formatShopMoney"
 import type {
   DetailedShopOrder,
   ShopOrdersMaterialTypeId,
 } from "@/lib/operatorShop/shopOrdersFilterSheetSchema"
-
-function formatUpdatedDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  })
-}
 
 export function mapShopOrderListItemToRow(
   item: ShopOrderListItemWire
@@ -33,7 +29,7 @@ export function mapShopOrderListItemToRow(
     totalNumeric: item.totalGrossPence / 100,
     paymentStatus: item.paymentStatus as DetailedShopOrder["paymentStatus"],
     fulfilmentStatus: item.fulfilmentStatus as DetailedShopOrder["fulfilmentStatus"],
-    updatedDate: formatUpdatedDate(item.updatedAtUtc),
+    updatedDate: formatShopDisplayDate(item.updatedAtUtc),
   }
 }
 
@@ -65,12 +61,12 @@ export function mapShopOrderDetailToRow(
       (line) => line.skuId as ShopOrdersMaterialTypeId
     ),
     placedBy: detail.placedBy,
-    total: `£${(detail.grossPence / 100).toFixed(2)}`,
+    total: formatShopGbpFromPence(detail.grossPence),
     totalNumeric: detail.grossPence / 100,
     paymentStatus: detail.paymentStatusLabel as DetailedShopOrder["paymentStatus"],
     fulfilmentStatus:
       detail.fulfilmentStatusLabel as DetailedShopOrder["fulfilmentStatus"],
-    updatedDate: formatUpdatedDate(detail.updatedAtUtc),
+    updatedDate: formatShopDisplayDate(detail.updatedAtUtc),
     items: detail.lines.map(
       (line) => `${line.quantity}x ${line.title} (${line.materialType})`
     ),

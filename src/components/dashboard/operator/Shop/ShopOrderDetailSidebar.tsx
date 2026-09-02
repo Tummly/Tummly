@@ -17,23 +17,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ShopReorderDialog } from "@/components/dashboard/operator/Shop/ShopReorderDialog"
 import { ShopCancelOrderDialog } from "@/components/dashboard/operator/Shop/ShopCancelOrderDialog"
+import {
+  formatShopGbpFromPence,
+  formatShopProgressTimestamp,
+} from "@/lib/operatorShop/formatShopMoney"
 import { downloadOrderInvoice } from "@/lib/operatorShop/downloadOrderInvoice"
 import type { DetailedShopOrder } from "@/lib/operatorShop/shopOrdersFilterSheetSchema"
-
-function penceToPounds(pence: number): string {
-  return `£${(pence / 100).toFixed(2)}`
-}
-
-function formatProgressTimestamp(iso: string | null | undefined): string | null {
-  if (iso == null) return null
-  return new Date(iso).toLocaleString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
 
 function formatShipToAddress(input: {
   contactName: string
@@ -100,10 +89,10 @@ export function ShopOrderDetailSidebar({
   const detail = order.detail
   const progress = detail?.progress
   const receivedAt =
-    formatProgressTimestamp(progress?.orderReceivedAtUtc) ?? order.orderDate
-  const processingAt = formatProgressTimestamp(progress?.processingStartedAtUtc)
-  const dispatchedAt = formatProgressTimestamp(progress?.dispatchedAtUtc)
-  const deliveredAt = formatProgressTimestamp(progress?.deliveredAtUtc)
+    formatShopProgressTimestamp(progress?.orderReceivedAtUtc) ?? order.orderDate
+  const processingAt = formatShopProgressTimestamp(progress?.processingStartedAtUtc)
+  const dispatchedAt = formatShopProgressTimestamp(progress?.dispatchedAtUtc)
+  const deliveredAt = formatShopProgressTimestamp(progress?.deliveredAtUtc)
   const trackingUrl = progress?.trackingUrl ?? null
 
   const invoiceNumber = `INV-${order.orderNumber.replace("#", "")}`
@@ -383,7 +372,7 @@ export function ShopOrderDetailSidebar({
                       <div className="flex items-center justify-between">
                         <span className="text-op-text-muted">Line total</span>
                         <span className="font-medium text-op-text-primary">
-                          {penceToPounds(line.lineNetPence)} excluding VAT
+                          {formatShopGbpFromPence(line.lineNetPence)} excluding VAT
                         </span>
                       </div>
                     </div>
@@ -452,7 +441,7 @@ export function ShopOrderDetailSidebar({
                   <span className="text-op-text-muted">Materials subtotal:</span>
                   <span className="font-medium text-op-text-primary">
                     {detail
-                      ? penceToPounds(detail.materialsNetPence)
+                      ? formatShopGbpFromPence(detail.materialsNetPence)
                       : order.total}
                   </span>
                 </div>
@@ -461,7 +450,7 @@ export function ShopOrderDetailSidebar({
                   <span className="text-op-text-muted">Delivery:</span>
                   <span className="text-op-text-muted">
                     {detail
-                      ? penceToPounds(detail.deliveryNetPence)
+                      ? formatShopGbpFromPence(detail.deliveryNetPence)
                       : "£0.00"}
                   </span>
                 </div>
@@ -469,14 +458,14 @@ export function ShopOrderDetailSidebar({
                 <div className="flex items-center justify-between">
                   <span className="text-op-text-muted">VAT:</span>
                   <span className="text-op-text-muted">
-                    {detail ? penceToPounds(detail.vatPence) : "—"}
+                    {detail ? formatShopGbpFromPence(detail.vatPence) : "—"}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between pt-1 font-bold">
                   <span className="text-op-text-primary">Order total:</span>
                   <span className="text-base font-bold text-op-text-primary">
-                    {detail ? penceToPounds(detail.grossPence) : order.total}
+                    {detail ? formatShopGbpFromPence(detail.grossPence) : order.total}
                   </span>
                 </div>
               </div>
@@ -490,7 +479,7 @@ export function ShopOrderDetailSidebar({
                     ? `Revolut reference ${detail.paymentSummary.revolutOrderId}`
                     : "Paid via Revolut checkout"}
                   {detail?.paymentSummary.paidAtUtc
-                    ? ` · Paid on ${formatProgressTimestamp(detail.paymentSummary.paidAtUtc)}`
+                    ? ` · Paid on ${formatShopProgressTimestamp(detail.paymentSummary.paidAtUtc)}`
                     : ""}
                 </span>
               </div>

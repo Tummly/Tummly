@@ -133,6 +133,7 @@ export function ShopOrdersScreen({
     dispatched: 0,
     deliveredLast90Days: 0,
   })
+  const [viewingOrderId, setViewingOrderId] = useState<string | null>(null)
   const [selectedOrder, setSelectedOrder] = useState<DetailedShopOrder | null>(
     null
   )
@@ -221,12 +222,15 @@ export function ShopOrdersScreen({
   }, [loadOrders])
 
   const handleViewOrder = async (order: DetailedShopOrder) => {
-    setSelectedOrder(order)
+    setViewingOrderId(order.id)
     try {
       const detail = await fetchShopOrder(order.id, selectedLocationId)
       setSelectedOrder(mapShopOrderDetailToRow(detail))
     } catch {
       toast.error("Could not load order details.")
+      setSelectedOrder(null)
+    } finally {
+      setViewingOrderId(null)
     }
   }
 
@@ -667,9 +671,12 @@ export function ShopOrdersScreen({
                             variant="outline"
                             size="sm"
                             className="h-8.5 rounded-[4px] border-op-border-default bg-transparent px-3 text-xs text-op-text-primary hover:bg-op-surface-secondary"
+                            disabled={viewingOrderId === order.id}
                             onClick={() => void handleViewOrder(order)}
                           >
-                            View order
+                            {viewingOrderId === order.id
+                              ? "Loading…"
+                              : "View order"}
                           </Button>
                         </td>
                       </tr>
