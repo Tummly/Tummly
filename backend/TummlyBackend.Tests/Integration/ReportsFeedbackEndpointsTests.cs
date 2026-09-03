@@ -154,6 +154,10 @@ namespace TummlyBackend.Tests.Integration
             var needsAttention = body.GetProperty("needsAttention");
             Assert.Equal(JsonValueKind.Array, needsAttention.ValueKind);
             Assert.Equal(5, needsAttention.GetArrayLength());
+            Assert.Equal(
+                "Needs Guest 4",
+                needsAttention[0].GetProperty("guestName").GetString()
+            );
             Assert.True(
                 needsAttention[0].TryGetProperty("feedbackId", out _)
             );

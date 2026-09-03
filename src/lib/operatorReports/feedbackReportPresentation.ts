@@ -24,7 +24,7 @@ export const FEEDBACK_REPORT_PAGE_COPY = {
   export: "Export",
   emptyTitle: "No feedback yet",
   emptySubtitle:
-    "Once guests submit private feedback, you'll see messages, contactability and follow-up activity here.",
+    "Once guests submit private feedback, you'll see messages, marketing opt-ins and follow-up activity here.",
   checkGuestForm: "Check guest form",
   needsFollowUpTitle: "Needs follow-up",
   needsFollowUpSubtitle: "Feedback that may need a team response.",

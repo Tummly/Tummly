@@ -570,6 +570,20 @@ describe("createOperatorReportsPageModule", () => {
     expect(adapters.getOverview).not.toHaveBeenCalled()
   })
 
+  it("sets lifetimeEmpty Feedback status from feedback API", async () => {
+    const adapters = createAdapters({
+      getFeedback: async () => ({
+        success: true,
+        lifetimeEmpty: true,
+      }),
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    module.setActiveSurface("feedback")
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().feedbackLoadStatus).toBe("lifetimeEmpty")
+    expect(module.getSnapshot().feedbackReport).toBeNull()
+  })
+
   it("retries Feedback load after error", async () => {
     const getFeedback = vi
       .fn<OperatorReportsPageAdapters["getFeedback"]>()
