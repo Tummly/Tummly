@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -9,18 +9,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
-import { ReportsExportDialog } from "@/components/dashboard/operator/Reports/ReportsExportDialog"
-import { ReportsInsightBanner } from "@/components/dashboard/operator/Reports/ReportsInsightBanner"
 import { ReportsKpiStrip } from "@/components/dashboard/operator/Reports/ReportsKpiStrip"
 import { ReportsPageChrome } from "@/components/dashboard/operator/Reports/ReportsPageChrome"
 import { ReportsSection } from "@/components/dashboard/operator/Reports/ReportsSection"
 import { ReportsStandardHeaderActions } from "@/components/dashboard/operator/Reports/ReportsStandardHeaderActions"
-import {
-  DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
-  labelForHomePerformanceDateRange,
-  type HomePerformanceDateRange,
-} from "@/lib/operatorHome/homePerformanceDateRange"
+import { useReportsPageModuleApi } from "@/components/dashboard/operator/Reports/utils/reportsPageModuleContext"
+import { useReportsPageModule } from "@/components/dashboard/operator/Reports/utils/useReportsPageModule"
+import { useStore } from "zustand"
+import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   REPORTS_BODY_STACK_CLASS,
   REPORTS_HUB_PAGE_COPY,
@@ -46,218 +44,46 @@ import {
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
 
-// Structured mock data for easy replacement with live API query
-export const mockReportsData = {
-  summary: {
-    feedbackCount: 42,
-    contactableCount: 28,
-    topSource: "Delivery inserts",
-    quietDayOfferRedemptions: 12,
-  },
-  funnel: {
-    qrScans: { value: "158", delta: "+14% vs previous period", positive: true },
-    feedbackReceived: {
-      value: "42",
-      delta: "+8% vs previous period",
-      positive: true,
-    },
-    contactableGuests: {
-      value: "28",
-      delta: "+12% vs previous period",
-      positive: true,
-    },
-    offerRedemptions: {
-      value: "12",
-      delta: "+20% vs previous period",
-      positive: true,
-    },
-    campaignActivity: {
-      value: "3",
-      delta: "0% vs previous period",
-      positive: null,
-    },
-  },
-  privateFeedback: {
-    feedbackMessages: {
-      value: "42",
-      delta: "+8% vs previous period",
-      positive: true,
-    },
-    contactable: {
-      value: "28",
-      delta: "+12% vs previous period",
-      positive: true,
-    },
-    followUpNeeded: {
-      value: "6",
-      delta: "6 pending reviews",
-      attention: true,
-    },
-    followedUp: {
-      value: "36",
-      delta: "+15% vs previous period",
-      positive: true,
-    },
-  },
-  captureSources: [
-    { source: "Delivery insert", scans: 72, feedback: 18, contactable: 11 },
-    { source: "Counter card", scans: 45, feedback: 12, contactable: 7 },
-    { source: "Receipt QR", scans: 33, feedback: 15, contactable: 5 },
-    { source: "Table card", scans: 88, feedback: 22, contactable: 9 },
-  ],
-  offersAndCampaigns: {
-    activeOffers: {
-      value: "3",
-      delta: "0% vs previous period",
-      positive: null,
-    },
-    offerClaims: {
-      value: "38",
-      delta: "+15% vs previous period",
-      positive: true,
-    },
-    offerRedemptions: {
-      value: "12",
-      delta: "+20% vs previous period",
-      positive: true,
-    },
-    campaignsSent: {
-      value: "2",
-      delta: "+1 vs previous period",
-      positive: true,
-    },
-    unsubscribes: {
-      value: "1",
-      delta: "-50% vs previous period",
-      positive: true,
-    },
-  },
-}
-
 type ReportsPageProps = {
-  selectedLocationId?: number
-  selectedLocationName?: string
-  locations?: Array<{ id: number; locationName: string; address: string }>
   mode?: DashboardProps["mode"]
-  isEmpty?: boolean
 }
 
-export function ReportsPage({
-  selectedLocationId = 1,
-  selectedLocationName = "Mehmet's Grill",
-  locations: _locations = [],
-  mode = "single",
-  isEmpty: propIsEmpty,
-}: ReportsPageProps) {
+export function ReportsPage({ mode = "single" }: ReportsPageProps) {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const [dateRange, setDateRange] = useState<HomePerformanceDateRange>(
-    DEFAULT_HOME_PERFORMANCE_DATE_RANGE
+  const dashboardUiStore = useDashboardUiStoreApi()
+  const setReportsDateRange = useStore(
+    dashboardUiStore,
+    (state) => state.setReportsDateRange
   )
-  const [isExportOpen, setIsExportOpen] = useState(false)
+  const reports = useReportsPageModule()
+  const pageModule = useReportsPageModuleApi()
+  const {
+    hubLoadStatus,
+    hubOverview,
+    hubLoadError,
+    exportAllowed,
+    dateRange,
+    selectedLocationId,
+  } = reports.snapshot
 
-  const isPageEmpty = propIsEmpty ?? searchParams.get("empty") === "true"
-  const dateRangeLabel = labelForHomePerformanceDateRange(dateRange)
+  useEffect(() => {
+    pageModule.setActiveSurface("hub")
+  }, [pageModule])
+
+  const locationId = selectedLocationId ?? 1
+
+  const handleCommitRange = (range: HomePerformanceDateRange) => {
+    setReportsDateRange(range)
+    void reports.reloadForReportsDateRange()
+  }
 
   const navTo = (
     destination: "feedback" | "capture" | "campaigns" | "offers"
   ) => {
-    const path = operatorDashboardNavPath(mode, destination, selectedLocationId)
-    navigate(path)
+    navigate(operatorDashboardNavPath(mode, destination, locationId))
   }
 
-  const funnelKpis = [
-    {
-      label: "QR scans",
-      value: mockReportsData.funnel.qrScans.value,
-      delta: mockReportsData.funnel.qrScans.delta,
-      positive: mockReportsData.funnel.qrScans.positive,
-    },
-    {
-      label: "Feedback received",
-      value: mockReportsData.funnel.feedbackReceived.value,
-      delta: mockReportsData.funnel.feedbackReceived.delta,
-      positive: mockReportsData.funnel.feedbackReceived.positive,
-    },
-    {
-      label: "Contactable guests",
-      value: mockReportsData.funnel.contactableGuests.value,
-      delta: mockReportsData.funnel.contactableGuests.delta,
-      positive: mockReportsData.funnel.contactableGuests.positive,
-    },
-    {
-      label: "Offer redemptions",
-      value: mockReportsData.funnel.offerRedemptions.value,
-      delta: mockReportsData.funnel.offerRedemptions.delta,
-      positive: mockReportsData.funnel.offerRedemptions.positive,
-    },
-    {
-      label: "Campaign activity",
-      value: mockReportsData.funnel.campaignActivity.value,
-      delta: mockReportsData.funnel.campaignActivity.delta,
-      positive: mockReportsData.funnel.campaignActivity.positive,
-    },
-  ]
-
-  const privateFeedbackKpis = [
-    {
-      label: "Feedback messages",
-      value: mockReportsData.privateFeedback.feedbackMessages.value,
-      delta: mockReportsData.privateFeedback.feedbackMessages.delta,
-      positive: mockReportsData.privateFeedback.feedbackMessages.positive,
-    },
-    {
-      label: "Contactable",
-      value: mockReportsData.privateFeedback.contactable.value,
-      delta: mockReportsData.privateFeedback.contactable.delta,
-      positive: mockReportsData.privateFeedback.contactable.positive,
-    },
-    {
-      label: "Follow-up needed",
-      value: mockReportsData.privateFeedback.followUpNeeded.value,
-      delta: mockReportsData.privateFeedback.followUpNeeded.delta,
-      positive: null,
-    },
-    {
-      label: "Followed up",
-      value: mockReportsData.privateFeedback.followedUp.value,
-      delta: mockReportsData.privateFeedback.followedUp.delta,
-      positive: mockReportsData.privateFeedback.followedUp.positive,
-    },
-  ]
-
-  const offersKpis = [
-    {
-      label: "Active offers",
-      value: mockReportsData.offersAndCampaigns.activeOffers.value,
-      delta: mockReportsData.offersAndCampaigns.activeOffers.delta,
-      positive: mockReportsData.offersAndCampaigns.activeOffers.positive,
-    },
-    {
-      label: "Offer claims",
-      value: mockReportsData.offersAndCampaigns.offerClaims.value,
-      delta: mockReportsData.offersAndCampaigns.offerClaims.delta,
-      positive: mockReportsData.offersAndCampaigns.offerClaims.positive,
-    },
-    {
-      label: "Offer redemptions",
-      value: mockReportsData.offersAndCampaigns.offerRedemptions.value,
-      delta: mockReportsData.offersAndCampaigns.offerRedemptions.delta,
-      positive: mockReportsData.offersAndCampaigns.offerRedemptions.positive,
-    },
-    {
-      label: "Campaigns sent",
-      value: mockReportsData.offersAndCampaigns.campaignsSent.value,
-      delta: mockReportsData.offersAndCampaigns.campaignsSent.delta,
-      positive: mockReportsData.offersAndCampaigns.campaignsSent.positive,
-    },
-    {
-      label: "Unsubscribes",
-      value: mockReportsData.offersAndCampaigns.unsubscribes.value,
-      delta: mockReportsData.offersAndCampaigns.unsubscribes.delta,
-      positive: mockReportsData.offersAndCampaigns.unsubscribes.positive,
-    },
-  ]
+  const showDateRange = hubLoadStatus !== "lifetimeEmpty"
 
   return (
     <ReportsPageChrome
@@ -266,39 +92,60 @@ export function ReportsPage({
       actions={
         <ReportsStandardHeaderActions
           onGenerateBrief={() =>
-            navigate(
-              operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
-            )
+            navigate(operatorDashboardWeeklyBriefPath(mode, locationId))
           }
-          onExport={() => setIsExportOpen(true)}
+          onExport={() => reports.openExportDialog()}
+          exportDisabled={!exportAllowed}
           selectedRange={dateRange}
-          onCommitRange={setDateRange}
+          onCommitRange={handleCommitRange}
+          showDateRange={showDateRange}
         />
       }
     >
-      {isPageEmpty ? (
-        <ReportsEmptyState />
-      ) : (
+      {hubLoadStatus === "loading" || hubLoadStatus === "idle" ? (
+        <div
+          className="flex min-h-48 items-center justify-center"
+          role="status"
+          aria-live="polite"
+          aria-label="Loading reports"
+        >
+          <div
+            className="size-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
+            aria-hidden
+          />
+        </div>
+      ) : null}
+
+      {hubLoadStatus === "error" ? (
+        <div className="flex flex-col items-start gap-3" role="alert">
+          <p className="m-0 text-sm text-destructive">
+            {hubLoadError ?? "Could not load report data."}
+          </p>
+          <Button
+            type="button"
+            variant="op-secondary"
+            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            onClick={() => {
+              void reports.retryHubLoad()
+            }}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
+      {hubLoadStatus === "lifetimeEmpty" ? <ReportsEmptyState /> : null}
+
+      {hubLoadStatus === "ready" && hubOverview != null ? (
         <div className={REPORTS_BODY_STACK_CLASS}>
           <ReportsSection title="This week's guest loop">
-            <ReportsInsightBanner>
-              You received {mockReportsData.summary.feedbackCount} feedback
-              messages this week and captured{" "}
-              {mockReportsData.summary.contactableCount} contactable guests.{" "}
-              {mockReportsData.summary.topSource} created the most feedback,
-              while your quiet-day offer drove{" "}
-              {mockReportsData.summary.quietDayOfferRedemptions} redemptions.
-            </ReportsInsightBanner>
-
             <div className="flex flex-wrap items-center gap-3">
               <Button
                 type="button"
                 variant="op-primary"
                 className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
                 onClick={() =>
-                  navigate(
-                    operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
-                  )
+                  navigate(operatorDashboardWeeklyBriefPath(mode, locationId))
                 }
               >
                 View weekly brief
@@ -319,21 +166,14 @@ export function ReportsPage({
             title="Guest Loop funnel"
             subtitle="See where guests move from scan to feedback, contact and offer use."
           >
-            <ReportsKpiStrip items={funnelKpis} />
+            <ReportsKpiStrip items={hubOverview.funnelKpis} />
           </ReportsSection>
 
           <ReportsSection
             title="Private feedback"
             subtitle="What guests told you through the feedback form."
           >
-            <ReportsKpiStrip items={privateFeedbackKpis} />
-
-            <ReportsInsightBanner>
-              Common themes this period: guests mentioned delivery packaging,
-              wait time during busy periods and friendly staff. A few comments
-              may need follow-up because the guest shared contact details and
-              raised a specific issue.
-            </ReportsInsightBanner>
+            <ReportsKpiStrip items={hubOverview.privateFeedbackKpis} />
 
             <div>
               <Button
@@ -342,10 +182,7 @@ export function ReportsPage({
                 className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
                 onClick={() =>
                   navigate(
-                    operatorDashboardFeedbackReportPath(
-                      mode,
-                      selectedLocationId
-                    )
+                    operatorDashboardFeedbackReportPath(mode, locationId)
                   )
                 }
               >
@@ -372,30 +209,41 @@ export function ReportsPage({
                       Feedback
                     </TableHead>
                     <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
-                      Contactable guests
+                      Marketing opt-ins
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockReportsData.captureSources.map((row) => (
-                    <TableRow
-                      key={row.source}
-                      className={REPORTS_TABLE_BODY_ROW_CLASS}
-                    >
-                      <TableCell className={REPORTS_TABLE_NAME_CELL_CLASS}>
-                        {row.source}
-                      </TableCell>
-                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
-                        {row.scans}
-                      </TableCell>
-                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
-                        {row.feedback}
-                      </TableCell>
-                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
-                        {row.contactable}
+                  {hubOverview.topCaptureSources.length === 0 ? (
+                    <TableRow className={REPORTS_TABLE_BODY_ROW_CLASS}>
+                      <TableCell
+                        className={REPORTS_TABLE_BODY_CELL_CLASS}
+                        colSpan={4}
+                      >
+                        No capture source activity in this period.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    hubOverview.topCaptureSources.map((row) => (
+                      <TableRow
+                        key={row.qrCodeId}
+                        className={REPORTS_TABLE_BODY_ROW_CLASS}
+                      >
+                        <TableCell className={REPORTS_TABLE_NAME_CELL_CLASS}>
+                          {row.source}
+                        </TableCell>
+                        <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                          {row.scans}
+                        </TableCell>
+                        <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                          {row.feedback}
+                        </TableCell>
+                        <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                          {row.marketingOptIns}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -407,10 +255,7 @@ export function ReportsPage({
                 className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
                 onClick={() =>
                   navigate(
-                    operatorDashboardCaptureReportPath(
-                      mode,
-                      selectedLocationId
-                    )
+                    operatorDashboardCaptureReportPath(mode, locationId)
                   )
                 }
               >
@@ -423,13 +268,7 @@ export function ReportsPage({
             title="Offers and campaigns"
             subtitle="Track claims, redemptions and campaign response."
           >
-            <ReportsKpiStrip items={offersKpis} />
-
-            <ReportsInsightBanner>
-              Your quiet-day offer had the most redemptions this period. One
-              campaign caused more opt-outs than usual, so review the audience
-              before sending again.
-            </ReportsInsightBanner>
+            <ReportsKpiStrip items={hubOverview.offersKpis} />
 
             <div className="flex flex-wrap items-center gap-3">
               <Button
@@ -438,10 +277,7 @@ export function ReportsPage({
                 className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
                 onClick={() =>
                   navigate(
-                    operatorDashboardOffersReportPath(
-                      mode,
-                      selectedLocationId
-                    )
+                    operatorDashboardOffersReportPath(mode, locationId)
                   )
                 }
               >
@@ -453,10 +289,7 @@ export function ReportsPage({
                 className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
                 onClick={() =>
                   navigate(
-                    operatorDashboardCampaignsReportPath(
-                      mode,
-                      selectedLocationId
-                    )
+                    operatorDashboardCampaignsReportPath(mode, locationId)
                   )
                 }
               >
@@ -464,72 +297,8 @@ export function ReportsPage({
               </Button>
             </div>
           </ReportsSection>
-
-          <ReportsSection
-            title="Recommended actions"
-            subtitle="Practical next steps based on this period's activity."
-          >
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-4">
-                <ReportsInsightBanner title="Check delivery packaging feedback">
-                  Several recent comments mentioned delivery packaging. Review
-                  the original messages before making changes.
-                </ReportsInsightBanner>
-                <div>
-                  <Button
-                    type="button"
-                    variant="op-tertiary"
-                    className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-                    onClick={() => navTo("feedback")}
-                  >
-                    View feedback
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-4">
-                <ReportsInsightBanner title="Move your counter QR closer to payment">
-                  Your counter card is getting fewer scans than delivery
-                  inserts. Try placing it closer to the payment area.
-                </ReportsInsightBanner>
-                <div>
-                  <Button
-                    type="button"
-                    variant="op-tertiary"
-                    className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-                    onClick={() => navTo("capture")}
-                  >
-                    View QR codes
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-4">
-                <ReportsInsightBanner title="Follow up with 6 guests">
-                  These guests shared contact details and may need a response.
-                </ReportsInsightBanner>
-                <div>
-                  <Button
-                    type="button"
-                    variant="op-tertiary"
-                    className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-                    onClick={() => navTo("feedback")}
-                  >
-                    Open follow-up queue
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </ReportsSection>
         </div>
-      )}
-
-      <ReportsExportDialog
-        open={isExportOpen}
-        onOpenChange={setIsExportOpen}
-        locationName={selectedLocationName}
-        dateRangeLabel={dateRangeLabel}
-      />
+      ) : null}
     </ReportsPageChrome>
   )
 }

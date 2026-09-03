@@ -28,6 +28,9 @@ export type MultiCaptureOverviewDateRange = HomePerformanceDateRange
 /** Feedback page date range — same shape as Home; drives summary + inbox. */
 export type FeedbackPageDateRange = HomePerformanceDateRange
 
+/** Reports KPI date range — Home performance vocabulary; hub + child reports. */
+export type ReportsDateRange = HomePerformanceDateRange
+
 export const DEFAULT_CAPTURE_PERFORMANCE_DATE_RANGE: CapturePerformanceDateRange =
   DEFAULT_HOME_PERFORMANCE_DATE_RANGE
 
@@ -38,6 +41,9 @@ export const DEFAULT_FEEDBACK_PAGE_DATE_RANGE: FeedbackPageDateRange = {
   kind: "preset",
   presetId: "last30",
 }
+
+export const DEFAULT_REPORTS_DATE_RANGE: ReportsDateRange =
+  DEFAULT_HOME_PERFORMANCE_DATE_RANGE
 
 export type OperatorDashboardUiState = {
   homePerformanceDateRange: HomePerformanceDateRange
@@ -54,6 +60,8 @@ export type OperatorDashboardUiState = {
   ) => void
   feedbackPageDateRange: FeedbackPageDateRange
   setFeedbackPageDateRange: (range: FeedbackPageDateRange) => void
+  reportsDateRange: ReportsDateRange
+  setReportsDateRange: (range: ReportsDateRange) => void
   feedbackInboxIntent: AssistantFeedbackInboxIntent | null
   setFeedbackInboxIntent: (intent: AssistantFeedbackInboxIntent | null) => void
   guestsIntent: AssistantGuestsIntent | null
@@ -87,6 +95,8 @@ export function createOperatorDashboardUiStore(): OperatorDashboardUiStore {
     feedbackPageDateRange: DEFAULT_FEEDBACK_PAGE_DATE_RANGE,
     setFeedbackPageDateRange: (feedbackPageDateRange) =>
       set({ feedbackPageDateRange }),
+    reportsDateRange: DEFAULT_REPORTS_DATE_RANGE,
+    setReportsDateRange: (reportsDateRange) => set({ reportsDateRange }),
     feedbackInboxIntent: null,
     setFeedbackInboxIntent: (feedbackInboxIntent) =>
       set({ feedbackInboxIntent }),

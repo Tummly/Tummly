@@ -388,6 +388,10 @@ builder.Services.AddScoped<
     OffersMetricsService
 >();
 builder.Services.AddScoped<
+    IReportsOverviewService,
+    ReportsOverviewService
+>();
+builder.Services.AddScoped<
     IOfferIssueService,
     OfferIssueService
 >();

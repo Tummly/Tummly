@@ -12,16 +12,20 @@ import {
 type ReportsStandardHeaderActionsProps = {
   onGenerateBrief: () => void
   onExport: () => void
+  exportDisabled?: boolean
   selectedRange: HomePerformanceDateRange
   onCommitRange: (range: HomePerformanceDateRange) => void
+  showDateRange?: boolean
 }
 
 /** Generate brief + Export + date range — shared across Reports hub and report pages. */
 export function ReportsStandardHeaderActions({
   onGenerateBrief,
   onExport,
+  exportDisabled = false,
   selectedRange,
   onCommitRange,
+  showDateRange = true,
 }: ReportsStandardHeaderActionsProps) {
   return (
     <>
@@ -44,15 +48,18 @@ export function ReportsStandardHeaderActions({
         variant="op-secondary"
         className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
         onClick={onExport}
+        disabled={exportDisabled}
       >
         <Download className="size-4" aria-hidden />
         <span>{REPORTS_STANDARD_ACTIONS_COPY.export}</span>
       </Button>
 
-      <ReportsDateRangeControl
-        selectedRange={selectedRange}
-        onCommitRange={onCommitRange}
-      />
+      {showDateRange ? (
+        <ReportsDateRangeControl
+          selectedRange={selectedRange}
+          onCommitRange={onCommitRange}
+        />
+      ) : null}
     </>
   )
 }

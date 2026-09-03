@@ -17,7 +17,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { ReportsExportDialog } from "@/components/dashboard/operator/Reports/ReportsExportDialog"
 import {
   CaptureReportPlacementActionModal,
   type CaptureReportPlacementActionType,
@@ -28,12 +27,8 @@ import { ReportsKpiStrip } from "@/components/dashboard/operator/Reports/Reports
 import { ReportsPageChrome } from "@/components/dashboard/operator/Reports/ReportsPageChrome"
 import { ReportsSection } from "@/components/dashboard/operator/Reports/ReportsSection"
 import { ReportsStandardHeaderActions } from "@/components/dashboard/operator/Reports/ReportsStandardHeaderActions"
+import { useReportsChildChrome } from "@/components/dashboard/operator/Reports/utils/useReportsChildChrome"
 import { ReportsStatusBadge } from "@/components/dashboard/operator/Reports/ReportsStatusBadge"
-import {
-  DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
-  labelForHomePerformanceDateRange,
-  type HomePerformanceDateRange,
-} from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   CAPTURE_REPORT_PAGE_COPY,
   mockCaptureReportData,
@@ -86,10 +81,8 @@ export function CaptureReportPage({
 }: CaptureReportPageProps) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [dateRange, setDateRange] = useState<HomePerformanceDateRange>(
-    DEFAULT_HOME_PERFORMANCE_DATE_RANGE
-  )
-  const [isExportOpen, setIsExportOpen] = useState(false)
+  const reportsChrome = useReportsChildChrome("capture")
+  const { dateRange, exportAllowed, openExportDialog, commitRange } = reportsChrome
   const [activePlacementModal, setActivePlacementModal] = useState<{
     actionType: CaptureReportPlacementActionType | null
     placement: CaptureReportPlacementRow | null
@@ -99,7 +92,6 @@ export function CaptureReportPage({
   })
 
   const isPageEmpty = propIsEmpty ?? searchParams.get("empty") === "true"
-  const dateRangeLabel = labelForHomePerformanceDateRange(dateRange)
 
   const reportsBasePath = operatorDashboardNavPath(
     mode,
@@ -143,9 +135,10 @@ export function CaptureReportPage({
               operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
             )
           }
-          onExport={() => setIsExportOpen(true)}
+          onExport={openExportDialog}
+          exportDisabled={!exportAllowed}
           selectedRange={dateRange}
-          onCommitRange={setDateRange}
+          onCommitRange={commitRange}
         />
       }
     >
@@ -381,12 +374,6 @@ export function CaptureReportPage({
         </div>
       )}
 
-      <ReportsExportDialog
-        open={isExportOpen}
-        onOpenChange={setIsExportOpen}
-        locationName={selectedLocationName}
-        dateRangeLabel={dateRangeLabel}
-      />
 
       <CaptureReportPlacementActionModal
         open={activePlacementModal.actionType != null}

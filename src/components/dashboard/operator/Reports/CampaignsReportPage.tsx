@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { MessageSquare, Megaphone, Tag } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -11,17 +10,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
-import { ReportsExportDialog } from "@/components/dashboard/operator/Reports/ReportsExportDialog"
 import { ReportsKpiStrip } from "@/components/dashboard/operator/Reports/ReportsKpiStrip"
 import { ReportsPageChrome } from "@/components/dashboard/operator/Reports/ReportsPageChrome"
 import { ReportsSection } from "@/components/dashboard/operator/Reports/ReportsSection"
 import { ReportsStandardHeaderActions } from "@/components/dashboard/operator/Reports/ReportsStandardHeaderActions"
+import { useReportsChildChrome } from "@/components/dashboard/operator/Reports/utils/useReportsChildChrome"
 import { ReportsStatusBadge } from "@/components/dashboard/operator/Reports/ReportsStatusBadge"
-import {
-  DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
-  labelForHomePerformanceDateRange,
-  type HomePerformanceDateRange,
-} from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   CAMPAIGNS_REPORT_PAGE_COPY,
   mockCampaignsReportData,
@@ -67,13 +61,10 @@ export function CampaignsReportPage({
 }: CampaignsReportPageProps) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [dateRange, setDateRange] = useState<HomePerformanceDateRange>(
-    DEFAULT_HOME_PERFORMANCE_DATE_RANGE
-  )
-  const [isExportOpen, setIsExportOpen] = useState(false)
+  const reportsChrome = useReportsChildChrome("campaigns")
+  const { dateRange, exportAllowed, openExportDialog, commitRange } = reportsChrome
 
   const isPageEmpty = propIsEmpty ?? searchParams.get("empty") === "true"
-  const dateRangeLabel = labelForHomePerformanceDateRange(dateRange)
 
   const reportsBasePath = operatorDashboardNavPath(
     mode,
@@ -152,9 +143,10 @@ export function CampaignsReportPage({
               operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
             )
           }
-          onExport={() => setIsExportOpen(true)}
+          onExport={openExportDialog}
+          exportDisabled={!exportAllowed}
           selectedRange={dateRange}
-          onCommitRange={setDateRange}
+          onCommitRange={commitRange}
         />
       }
     >
@@ -294,12 +286,6 @@ export function CampaignsReportPage({
         </div>
       )}
 
-      <ReportsExportDialog
-        open={isExportOpen}
-        onOpenChange={setIsExportOpen}
-        locationName={selectedLocationName}
-        dateRangeLabel={dateRangeLabel}
-      />
     </ReportsPageChrome>
   )
 }
