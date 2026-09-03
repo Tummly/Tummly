@@ -1018,6 +1018,26 @@ namespace TummlyBackend.Data
                 .HasMaxLength(64)
                 .IsRequired();
 
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.CustomerBillingEmail)
+                .HasMaxLength(320);
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.SellerBillingEmail)
+                .HasMaxLength(320);
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.DeliverToSnapshot)
+                .HasMaxLength(2000);
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.PaymentMethodSummary)
+                .HasMaxLength(128);
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.LineItemsJson)
+                .HasColumnType("nvarchar(max)");
+
             /*
              =========================================
              ADMIN PAYMENT REFUND INTENTS (ticket 25)

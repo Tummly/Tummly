@@ -127,7 +127,11 @@ namespace TummlyBackend.Services
                 )
             )
             {
-                await ApplyShopMaterialsOrderAsync(intent, cancellationToken);
+                await ApplyShopMaterialsOrderAsync(
+                    intent,
+                    request.PaymentMethodSummary,
+                    cancellationToken
+                );
                 return;
             }
 
@@ -656,6 +660,7 @@ namespace TummlyBackend.Services
 
         private async Task ApplyShopMaterialsOrderAsync(
             RevolutOrderIntent intent,
+            string? paymentMethodSummary,
             CancellationToken cancellationToken
         )
         {
@@ -701,6 +706,12 @@ namespace TummlyBackend.Services
             var cycle = billingAccount?.BillingCycle ?? BillingCycles.Monthly;
             var lineDescription =
                 $"Tummly Shop materials order {shopOrder.OrderNumber}";
+            var vatRateBps = TummlyVatMath.DefaultVatRateBps;
+            var lineItems = BuildShopInvoiceLineItems(shopOrder, vatRateBps);
+            var deliverTo = FormatShopDeliverToSnapshot(shopOrder);
+            var paymentSummary = string.IsNullOrWhiteSpace(paymentMethodSummary)
+                ? "Paid"
+                : paymentMethodSummary.Trim();
 
             var invoice = await _vatInvoices.MintForCompletedOrderAsync(
                 new TummlyVatInvoiceMintRequest(
@@ -712,8 +723,12 @@ namespace TummlyBackend.Services
                     PaymentSuccessUtc: nowUtc,
                     NetPenceOverride: intent.NetAmountMinor > 0
                         ? intent.NetAmountMinor
-                        : null,
-                    LineDescriptionOverride: lineDescription
+                        : shopOrder.MaterialsNetPence + shopOrder.DeliveryNetPence,
+                    LineDescriptionOverride: lineDescription,
+                    CustomerBillingEmail: billingAccount?.BillingEmail,
+                    DeliverToSnapshot: deliverTo,
+                    PaymentMethodSummary: paymentSummary,
+                    LineItems: lineItems
                 ),
                 cancellationToken
             );
@@ -735,6 +750,83 @@ namespace TummlyBackend.Services
             }
 
             await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        private static IReadOnlyList<TummlyVatInvoiceLineItemDto> BuildShopInvoiceLineItems(
+            ShopOrder shopOrder,
+            int vatRateBps
+        )
+        {
+            var lines = new List<TummlyVatInvoiceLineItemDto>();
+            foreach (var line in shopOrder.Lines.OrderBy(row => row.TitleSnapshot))
+            {
+                lines.Add(
+                    new TummlyVatInvoiceLineItemDto(
+                        Title: line.TitleSnapshot,
+                        Subtitle: $"Pack of {line.Quantity}",
+                        Quantity: 1,
+                        UnitNetPence: line.LineNetPence,
+                        VatRateBps: vatRateBps,
+                        AmountNetPence: line.LineNetPence
+                    )
+                );
+            }
+
+            var deliveryTitle = string.Equals(
+                shopOrder.DeliveryMethod,
+                ShopDeliveryMethods.Express,
+                StringComparison.OrdinalIgnoreCase
+            )
+                ? "Express delivery"
+                : "Standard delivery";
+            lines.Add(
+                new TummlyVatInvoiceLineItemDto(
+                    Title: deliveryTitle,
+                    Subtitle: null,
+                    Quantity: 1,
+                    UnitNetPence: shopOrder.DeliveryNetPence,
+                    VatRateBps: vatRateBps,
+                    AmountNetPence: shopOrder.DeliveryNetPence
+                )
+            );
+
+            return lines;
+        }
+
+        private static string FormatShopDeliverToSnapshot(ShopOrder shopOrder)
+        {
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(shopOrder.ShipToContactName))
+            {
+                parts.Add(shopOrder.ShipToContactName.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(shopOrder.LocationNameSnapshot))
+            {
+                parts.Add(shopOrder.LocationNameSnapshot.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(shopOrder.ShipToAddressLine1))
+            {
+                parts.Add(shopOrder.ShipToAddressLine1.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(shopOrder.ShipToAddressLine2))
+            {
+                parts.Add(shopOrder.ShipToAddressLine2.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(shopOrder.ShipToPostcode))
+            {
+                parts.Add(shopOrder.ShipToPostcode.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(shopOrder.ShipToCountry))
+            {
+                parts.Add(shopOrder.ShipToCountry.Trim());
+            }
+
+            return string.Join('\n', parts);
         }
 
         private static (

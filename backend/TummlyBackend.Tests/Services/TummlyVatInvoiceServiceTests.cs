@@ -85,7 +85,7 @@ namespace TummlyBackend.Tests.Services
             );
 
             Assert.StartsWith("%PDF", pdf);
-            Assert.Contains("TAX INVOICE", pdf, StringComparison.Ordinal);
+            Assert.Contains("Invoice", pdf, StringComparison.Ordinal);
             Assert.Contains("TM-2026-000001", pdf, StringComparison.Ordinal);
             Assert.Contains("Tummly Ltd", pdf, StringComparison.Ordinal);
             Assert.Contains("GB999", pdf, StringComparison.Ordinal);
@@ -94,9 +94,83 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("\\(Monthly\\)", pdf, StringComparison.Ordinal);
             Assert.Contains("GBP 39", pdf, StringComparison.Ordinal);
             Assert.Contains("GBP 46.80", pdf, StringComparison.Ordinal);
-            Assert.Contains("Payment status: Paid", pdf, StringComparison.Ordinal);
+            Assert.Contains("From", pdf, StringComparison.Ordinal);
+            Assert.Contains("Bill to", pdf, StringComparison.Ordinal);
+            Assert.Contains("Amount due", pdf, StringComparison.Ordinal);
+            Assert.Contains("Tax = VAT", pdf, StringComparison.Ordinal);
+            Assert.Contains("Paid", pdf, StringComparison.Ordinal);
             Assert.Contains("/Helvetica-Bold", pdf, StringComparison.Ordinal);
-            Assert.DoesNotContain("CREDIT NOTE", pdf, StringComparison.Ordinal);
+            Assert.Contains("/Im1", pdf, StringComparison.Ordinal);
+            Assert.Contains("/DCTDecode", pdf, StringComparison.Ordinal);
+            Assert.DoesNotContain("Credit note", pdf, StringComparison.Ordinal);
+            Assert.DoesNotContain("TAX INVOICE", pdf, StringComparison.Ordinal);
+            Assert.DoesNotContain("Deliver to", pdf, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void Render_ShopInvoice_IncludesDeliverToAndLineItems()
+        {
+            var lineItems = TummlyVatInvoiceLineItems.Serialize(
+                [
+                    new TummlyVatInvoiceLineItemDto(
+                        Title: "Tummly Table Tents",
+                        Subtitle: "Pack of 20",
+                        Quantity: 20,
+                        UnitNetPence: 345,
+                        VatRateBps: 2000,
+                        AmountNetPence: 6900
+                    ),
+                    new TummlyVatInvoiceLineItemDto(
+                        Title: "Standard delivery",
+                        Subtitle: null,
+                        Quantity: 1,
+                        UnitNetPence: 0,
+                        VatRateBps: 2000,
+                        AmountNetPence: 0
+                    ),
+                ]
+            );
+
+            var invoice = new TummlyVatInvoice
+            {
+                DocumentNumber = "TM-2026-000042",
+                DocumentPrefix = TummlyVatInvoice.PrefixTm,
+                InvoiceDateUtc = _now,
+                TaxPointUtc = _now,
+                LineDescription = "Tummly Shop materials order ORD-1",
+                Quantity = 1,
+                NetPence = 6900,
+                VatRateBps = 2000,
+                VatPence = 1380,
+                GrossPence = 8280,
+                Currency = TummlyVatInvoice.CurrencyGbp,
+                PaymentStatus = TummlyVatInvoice.PaymentStatusPaid,
+                CustomerBusinessName = "Padella Borough",
+                CustomerAddress = "6 Southwark Street, London, SE1 1TQ",
+                SellerLegalName = "Tummly Ltd",
+                SellerRegisteredAddress = "1 Example Road, London",
+                SellerVatRegistrationNumber = "GB999",
+                DeliverToSnapshot =
+                    "Mohamed Mahmoud\nPadella Borough\n6 Southwark Street\nSE1 1TQ\nUnited Kingdom",
+                PaymentMethodSummary = "Paid via Visa ending in 4242",
+                LineItemsJson = lineItems,
+            };
+
+            var pdf = System.Text.Encoding.ASCII.GetString(
+                TummlyVatInvoicePdfWriter.Render(invoice)
+            );
+
+            Assert.Contains("Deliver to", pdf, StringComparison.Ordinal);
+            Assert.Contains("Mohamed Mahmoud", pdf, StringComparison.Ordinal);
+            Assert.Contains("Tummly Table Tents", pdf, StringComparison.Ordinal);
+            Assert.Contains("Pack of 20", pdf, StringComparison.Ordinal);
+            Assert.Contains("Standard delivery", pdf, StringComparison.Ordinal);
+            Assert.Contains(
+                "Paid via Visa ending in 4242",
+                pdf,
+                StringComparison.Ordinal
+            );
+            Assert.Contains("GBP 82.80", pdf, StringComparison.Ordinal);
         }
 
         [Fact]
@@ -125,7 +199,7 @@ namespace TummlyBackend.Tests.Services
                 TummlyVatInvoicePdfWriter.Render(invoice)
             );
 
-            Assert.Contains("CREDIT NOTE", pdf, StringComparison.Ordinal);
+            Assert.Contains("Credit note", pdf, StringComparison.Ordinal);
             Assert.Contains("TCN-2026-000001", pdf, StringComparison.Ordinal);
             Assert.DoesNotContain("TAX INVOICE", pdf, StringComparison.Ordinal);
         }

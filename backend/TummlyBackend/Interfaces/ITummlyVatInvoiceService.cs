@@ -51,7 +51,13 @@ namespace TummlyBackend.Interfaces
         string BillingCycle,
         DateTime PaymentSuccessUtc,
         int? NetPenceOverride = null,
-        string? LineDescriptionOverride = null
+        string? LineDescriptionOverride = null,
+        string? CustomerBillingEmail = null,
+        string? SellerBillingEmail = null,
+        string? DeliverToSnapshot = null,
+        string? PaymentMethodSummary = null,
+        IReadOnlyList<TummlyBackend.Helpers.TummlyVatInvoiceLineItemDto>? LineItems =
+            null
     );
 
     public sealed record TummlyVatCreditNoteMintRequest(
@@ -60,6 +66,12 @@ namespace TummlyBackend.Interfaces
         int RestaurantId,
         DateTime RefundCompletedUtc,
         int? NetPenceOverride = null,
-        string? LineDescriptionOverride = null
+        string? LineDescriptionOverride = null,
+        string? CustomerBillingEmail = null,
+        string? SellerBillingEmail = null,
+        string? DeliverToSnapshot = null,
+        string? PaymentMethodSummary = null,
+        IReadOnlyList<TummlyBackend.Helpers.TummlyVatInvoiceLineItemDto>? LineItems =
+            null
     );
 }

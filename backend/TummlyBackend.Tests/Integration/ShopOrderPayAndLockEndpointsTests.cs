@@ -70,7 +70,8 @@ namespace TummlyBackend.Tests.Integration
                 Id: revolutOrderId,
                 State: "completed",
                 AmountMinor: 12480,
-                CheckoutUrl: FakeFirstPaidRevolutMerchantClient.CheckoutUrl
+                CheckoutUrl: FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
+                PaymentMethodSummary: "Paid via Visa ending in 4242"
             );
 
             var webhookBody =
@@ -126,6 +127,43 @@ namespace TummlyBackend.Tests.Integration
                         && row.DocumentNumber == invoiceDocumentNumber
                     );
                 Assert.True(invoiceExists);
+
+                var invoice = await context.TummlyVatInvoices
+                    .AsNoTracking()
+                    .SingleAsync(row => row.RevolutOrderId == revolutOrderId);
+                Assert.False(string.IsNullOrWhiteSpace(invoice.DeliverToSnapshot));
+                Assert.Contains(
+                    order.ShipToContactName,
+                    invoice.DeliverToSnapshot,
+                    StringComparison.Ordinal
+                );
+                Assert.Contains(
+                    order.ShipToPostcode,
+                    invoice.DeliverToSnapshot,
+                    StringComparison.Ordinal
+                );
+                Assert.Equal(
+                    "Paid via Visa ending in 4242",
+                    invoice.PaymentMethodSummary
+                );
+                Assert.False(string.IsNullOrWhiteSpace(invoice.LineItemsJson));
+                Assert.Contains(
+                    "Standard delivery",
+                    invoice.LineItemsJson,
+                    StringComparison.Ordinal
+                );
+
+                var pdf = System.Text.Encoding.ASCII.GetString(
+                    TummlyVatInvoicePdfWriter.Render(invoice)
+                );
+                Assert.Contains("Deliver to", pdf, StringComparison.Ordinal);
+                Assert.Contains("Invoice", pdf, StringComparison.Ordinal);
+                Assert.Contains(
+                    "Paid via Visa ending in 4242",
+                    pdf,
+                    StringComparison.Ordinal
+                );
+                Assert.Contains("Tax = VAT", pdf, StringComparison.Ordinal);
             }
         }
 

@@ -882,7 +882,8 @@ namespace TummlyBackend.Services
                             SubscriptionId: retrieved.SubscriptionId
                                 ?? intent?.RevolutSubscriptionId,
                             RawWebhookBody: rawBody,
-                            RawOrderBody: retrieved.RawBody ?? string.Empty
+                            RawOrderBody: retrieved.RawBody ?? string.Empty,
+                            PaymentMethodSummary: retrieved.PaymentMethodSummary
                         ),
                         cancellationToken
                     );

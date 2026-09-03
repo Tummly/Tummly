@@ -293,7 +293,8 @@ namespace TummlyBackend.Interfaces
         string? CheckoutUrl = null,
         string? OrderType = null,
         string? RelatedOrderId = null,
-        int? AmountMinor = null
+        int? AmountMinor = null,
+        string? PaymentMethodSummary = null
     );
 
     public static class RevolutOrderTypes
