@@ -1,17 +1,36 @@
-import { Link, useNavigate, useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
-import aiIconPng from "@/assets/svg/ui-icons/ai-icon.png"
-import {
-  ChevronRight,
-  Download,
-  CheckCircle,
-} from "lucide-react"
+import { Download, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
+import { ReportsInsightBanner } from "@/components/dashboard/operator/Reports/ReportsInsightBanner"
+import { ReportsPageChrome } from "@/components/dashboard/operator/Reports/ReportsPageChrome"
+import { ReportsSection } from "@/components/dashboard/operator/Reports/ReportsSection"
+import { ReportsStatusBadge } from "@/components/dashboard/operator/Reports/ReportsStatusBadge"
 import {
   WEEKLY_BRIEF_PAGE_COPY,
   mockWeeklyBriefData,
   type WeeklyBriefData,
 } from "@/lib/operatorReports/weeklyBriefPresentation"
+import {
+  REPORTS_BODY_STACK_CLASS,
+  REPORTS_PAGE_ACTION_BUTTON_CLASS,
+  REPORTS_TABLE_BODY_CELL_CLASS,
+  REPORTS_TABLE_BODY_ROW_CLASS,
+  REPORTS_TABLE_CLASS,
+  REPORTS_TABLE_FRAME_CLASS,
+  REPORTS_TABLE_HEAD_CELL_CLASS,
+  REPORTS_TABLE_HEAD_ROW_CLASS,
+  REPORTS_TABLE_NAME_CELL_CLASS,
+} from "@/lib/operatorReports/reportsPresentation"
 import {
   operatorDashboardNavPath,
   operatorDashboardFeedbackReportPath,
@@ -30,8 +49,8 @@ type WeeklyBriefPageProps = {
 
 export function WeeklyBriefPage({
   selectedLocationId = 1,
-  selectedLocationName = "Mehmet's Grill",
-  locations = [],
+  selectedLocationName: _selectedLocationName = "Mehmet's Grill",
+  locations: _locations = [],
   mode = "single",
   isEmpty: propIsEmpty,
   data = mockWeeklyBriefData,
@@ -39,7 +58,7 @@ export function WeeklyBriefPage({
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
-  const isPageEmpty = propIsEmpty ?? (searchParams.get("empty") === "true")
+  const isPageEmpty = propIsEmpty ?? searchParams.get("empty") === "true"
 
   const reportsBasePath = operatorDashboardNavPath(
     mode,
@@ -66,100 +85,73 @@ export function WeeklyBriefPage({
   }
 
   return (
-    <div className="w-full flex flex-col gap-6">
-      {/* 1. Breadcrumb Navigation */}
-      <nav aria-label="Breadcrumb" className="inline-flex items-center gap-2.5">
-        <Link
-          to={reportsBasePath}
-          className="text-base font-medium text-op-text-primary hover:text-op-text-primary/80 transition-colors"
-        >
-          {WEEKLY_BRIEF_PAGE_COPY.breadcrumbReports}
-        </Link>
-        <ChevronRight className="size-4 text-op-text-muted shrink-0" />
-        <span className="text-base font-medium text-op-text-muted">
-          {WEEKLY_BRIEF_PAGE_COPY.breadcrumbWeeklyBrief}
-        </span>
-      </nav>
-
-      {/* 2. Page Header Row */}
-      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-bold tracking-tight text-op-text-primary">
-            {WEEKLY_BRIEF_PAGE_COPY.pageTitle}
-          </h1>
-          <p className="text-sm sm:text-base font-medium text-op-text-muted">
-            {WEEKLY_BRIEF_PAGE_COPY.pageSubtitle}
-          </p>
-        </div>
-
-        {/* Header Action Buttons */}
-        <div className="flex items-center gap-3 shrink-0">
+    <ReportsPageChrome
+      title={WEEKLY_BRIEF_PAGE_COPY.pageTitle}
+      subtitle={WEEKLY_BRIEF_PAGE_COPY.pageSubtitle}
+      breadcrumb={{
+        reportsBasePath,
+        currentLabel: WEEKLY_BRIEF_PAGE_COPY.breadcrumbWeeklyBrief,
+      }}
+      actions={
+        <>
           <Button
             type="button"
             variant="op-secondary"
-            className="h-10 gap-2 rounded-xs px-4 text-sm font-medium"
+            className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
             onClick={handleDownloadPdf}
           >
-            <Download className="size-4" />
+            <Download className="size-4" aria-hidden />
             <span>{WEEKLY_BRIEF_PAGE_COPY.downloadPdf}</span>
           </Button>
 
           <Button
             type="button"
             variant="op-tertiary"
-            className="h-10 gap-2 rounded-xs px-4 text-sm font-medium"
+            className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
             onClick={handleMarkAsReviewed}
           >
-            <CheckCircle className="size-4" />
+            <CheckCircle className="size-4" aria-hidden />
             <span>{WEEKLY_BRIEF_PAGE_COPY.markAsReviewed}</span>
           </Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {isPageEmpty ? (
-        /* Empty State View */
-        <div className="w-full min-h-[420px] flex flex-col items-center justify-center gap-4 rounded-md border border-op-border-default bg-op-card-background p-12 text-center shadow-sm">
-          <div className="flex flex-col items-center gap-2 max-w-md">
-            <h2 className="text-xl font-bold text-op-text-primary">
-              {WEEKLY_BRIEF_PAGE_COPY.emptyTitle}
-            </h2>
-            <p className="text-sm font-medium text-op-text-muted leading-relaxed">
-              {WEEKLY_BRIEF_PAGE_COPY.emptySubtitle}
-            </p>
-          </div>
-
-          <Button
-            type="button"
-            variant="op-primary"
-            className="h-10 rounded-xs px-5 text-sm font-medium mt-2"
-            onClick={() =>
-              navigate(
-                operatorDashboardFeedbackReportPath(mode, selectedLocationId)
-              )
-            }
-          >
-            {WEEKLY_BRIEF_PAGE_COPY.generateBrief}
-          </Button>
-        </div>
+        <ReportsEmptyState
+          title={WEEKLY_BRIEF_PAGE_COPY.emptyTitle}
+          subtitle={WEEKLY_BRIEF_PAGE_COPY.emptySubtitle}
+          action={
+            <Button
+              type="button"
+              variant="op-primary"
+              className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+              onClick={() =>
+                navigate(
+                  operatorDashboardFeedbackReportPath(mode, selectedLocationId)
+                )
+              }
+            >
+              {WEEKLY_BRIEF_PAGE_COPY.generateBrief}
+            </Button>
+          }
+        />
       ) : (
-        /* Populated 6-Card View */
-        <div className="w-full flex flex-col gap-6">
-          {/* 1. Period & Metadata Card */}
-          <div className="w-full flex flex-col gap-4 rounded-md border border-op-border-default bg-op-card-background p-6 sm:p-7 shadow-sm">
+        <div className={REPORTS_BODY_STACK_CLASS}>
+          <ReportsSection>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="flex items-center justify-between gap-4">
-                <span className="text-sm sm:text-base font-semibold text-op-text-muted">
+                <span className="text-sm font-semibold text-op-text-muted sm:text-base">
                   Period
                 </span>
-                <span className="text-sm sm:text-base font-medium text-op-text-primary text-right">
+                <span className="text-right text-sm font-medium text-op-text-primary sm:text-base">
                   {data.period}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <span className="text-sm sm:text-base font-semibold text-op-text-muted">
+                <span className="text-sm font-semibold text-op-text-muted sm:text-base">
                   Data sources
                 </span>
-                <span className="text-sm sm:text-base font-medium text-op-text-primary text-right">
+                <span className="text-right text-sm font-medium text-op-text-primary sm:text-base">
                   {data.dataSources}
                 </span>
               </div>
@@ -169,18 +161,18 @@ export function WeeklyBriefPage({
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="flex items-center justify-between gap-4">
-                <span className="text-sm sm:text-base font-semibold text-op-text-muted">
+                <span className="text-sm font-semibold text-op-text-muted sm:text-base">
                   Location
                 </span>
-                <span className="text-sm sm:text-base font-medium text-op-text-primary text-right">
+                <span className="text-right text-sm font-medium text-op-text-primary sm:text-base">
                   {data.location}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <span className="text-sm sm:text-base font-semibold text-op-text-muted">
+                <span className="text-sm font-semibold text-op-text-muted sm:text-base">
                   Confidence
                 </span>
-                <span className="text-sm sm:text-base font-medium text-op-text-primary text-right">
+                <span className="text-right text-sm font-medium text-op-text-primary sm:text-base">
                   {data.confidence}
                 </span>
               </div>
@@ -190,158 +182,100 @@ export function WeeklyBriefPage({
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="flex items-center justify-between gap-4">
-                <span className="text-sm sm:text-base font-semibold text-op-text-muted">
+                <span className="text-sm font-semibold text-op-text-muted sm:text-base">
                   Generated
                 </span>
-                <span className="text-sm sm:text-base font-medium text-op-text-primary text-right">
+                <span className="text-right text-sm font-medium text-op-text-primary sm:text-base">
                   {data.generated}
                 </span>
               </div>
             </div>
-          </div>
+          </ReportsSection>
 
-          {/* 2. Executive Summary Card */}
-          <div className="w-full flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6 sm:p-7 shadow-sm">
-            <div className="flex items-center gap-2.5 pb-2 border-b border-op-border-default">
-              <img
-                src={aiIconPng}
-                alt=""
-                className="size-5 shrink-0 brightness-0 invert"
-              />
-              <h2 className="text-xl font-bold text-op-text-primary">
-                {WEEKLY_BRIEF_PAGE_COPY.executiveSummaryTitle}
-              </h2>
-            </div>
+          <ReportsSection title={WEEKLY_BRIEF_PAGE_COPY.executiveSummaryTitle}>
+            <ReportsInsightBanner>
+              {data.executiveSummary}
+            </ReportsInsightBanner>
+          </ReportsSection>
 
-            <div className="w-full p-5 rounded-sm bg-op-background-primary/80 border border-op-border-default/60">
-              <p className="text-sm font-medium text-op-text-muted leading-relaxed max-w-4xl">
-                {data.executiveSummary}
-              </p>
-            </div>
-          </div>
-
-          {/* 3. What Changed Card */}
-          <div className="w-full flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6 sm:p-7 shadow-sm">
-            <h2 className="text-xl font-bold text-op-text-primary">
-              {WEEKLY_BRIEF_PAGE_COPY.whatChangedTitle}
-            </h2>
-
-            {/* Changes Table */}
-            <div className="w-full overflow-x-auto rounded-xs border border-op-border-default">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-neutral-800/90 border-b border-op-border-default text-op-text-primary font-semibold">
-                  <tr>
-                    <th className="px-4 py-3 border-r border-op-border-default w-60 min-w-[180px]">
+          <ReportsSection title={WEEKLY_BRIEF_PAGE_COPY.whatChangedTitle}>
+            <div className={REPORTS_TABLE_FRAME_CLASS}>
+              <Table className={REPORTS_TABLE_CLASS}>
+                <TableHeader>
+                  <TableRow className={REPORTS_TABLE_HEAD_ROW_CLASS}>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       {WEEKLY_BRIEF_PAGE_COPY.areaHeader}
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default w-40 min-w-[120px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       {WEEKLY_BRIEF_PAGE_COPY.changeHeader}
-                    </th>
-                    <th className="px-4 py-3 min-w-[280px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       {WEEKLY_BRIEF_PAGE_COPY.meaningHeader}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-op-border-default">
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {data.changes.map((row) => (
-                    <tr
+                    <TableRow
                       key={row.id}
-                      className="hover:bg-op-surface-secondary/20 transition-colors"
+                      className={REPORTS_TABLE_BODY_ROW_CLASS}
                     >
-                      <td className="px-4 py-3 border-r border-op-border-default font-semibold text-op-text-primary">
+                      <TableCell className={REPORTS_TABLE_NAME_CELL_CLASS}>
                         {row.area}
-                      </td>
-                      <td
+                      </TableCell>
+                      <TableCell
                         className={cn(
-                          "px-4 py-3 border-r border-op-border-default font-semibold",
+                          REPORTS_TABLE_BODY_CELL_CLASS,
+                          "font-semibold",
                           row.change.startsWith("+")
                             ? "text-green-500"
                             : row.change.startsWith("-")
                               ? "text-red-400"
-                              : "text-op-text-primary"
+                              : undefined
                         )}
                       >
                         {row.change}
-                      </td>
-                      <td className="px-4 py-3 text-op-text-primary font-normal">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.meaning}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
-          </div>
+          </ReportsSection>
 
-          {/* 4. Feedback Summary Card */}
-          <div className="w-full flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6 sm:p-7 shadow-sm">
-            <div className="flex items-center gap-2.5 pb-2 border-b border-op-border-default">
-              <img
-                src={aiIconPng}
-                alt=""
-                className="size-5 shrink-0 brightness-0 invert"
-              />
-              <h2 className="text-xl font-bold text-op-text-primary">
-                {WEEKLY_BRIEF_PAGE_COPY.feedbackSummaryTitle}
-              </h2>
+          <ReportsSection title={WEEKLY_BRIEF_PAGE_COPY.feedbackSummaryTitle}>
+            <ReportsInsightBanner title={data.feedbackSummary.text}>
+              {data.feedbackSummary.subtitle}
+            </ReportsInsightBanner>
+            <div>
+              <Button
+                type="button"
+                variant="op-tertiary"
+                className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+                onClick={() => handleActionNavigation("feedback-inbox")}
+              >
+                {WEEKLY_BRIEF_PAGE_COPY.reviewFollowUpQueue}
+              </Button>
             </div>
+          </ReportsSection>
 
-            <div className="w-full p-5 rounded-sm bg-op-background-primary/80 border border-op-border-default/60 flex flex-col gap-5">
-              <div className="flex flex-col gap-2">
-                <p className="text-base font-medium text-op-text-primary leading-relaxed max-w-4xl">
-                  {data.feedbackSummary.text}
-                </p>
-                <p className="text-sm font-medium text-op-text-muted">
-                  {data.feedbackSummary.subtitle}
-                </p>
-              </div>
-
-              <div>
-                <Button
-                  type="button"
-                  variant="op-tertiary"
-                  className="h-10 px-4 rounded-xs text-sm font-medium"
-                  onClick={() => handleActionNavigation("feedback-inbox")}
-                >
-                  {WEEKLY_BRIEF_PAGE_COPY.reviewFollowUpQueue}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* 5. Recommended Actions Card */}
-          <div className="w-full flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6 sm:p-7 shadow-sm">
-            <div className="flex items-center gap-2.5 pb-2 border-b border-op-border-default">
-              <img
-                src={aiIconPng}
-                alt=""
-                className="size-5 shrink-0 brightness-0 invert"
-              />
-              <h2 className="text-xl font-bold text-op-text-primary">
-                {WEEKLY_BRIEF_PAGE_COPY.recommendedActionsTitle}
-              </h2>
-            </div>
-
+          <ReportsSection
+            title={WEEKLY_BRIEF_PAGE_COPY.recommendedActionsTitle}
+          >
             <div className="flex flex-col gap-4">
               {data.recommendedActions.map((action) => (
-                <div
-                  key={action.id}
-                  className="w-full p-5 rounded-sm bg-op-background-primary/80 border border-op-border-default/60 flex flex-col gap-4"
-                >
-                  <div className="flex flex-col gap-1">
-                    <h3 className="text-base font-semibold text-op-text-primary">
-                      {action.title}
-                    </h3>
-                    <p className="text-sm font-normal text-op-text-muted leading-relaxed">
-                      {action.subtitle}
-                    </p>
-                  </div>
-
+                <div key={action.id} className="flex flex-col gap-4">
+                  <ReportsInsightBanner title={action.title}>
+                    {action.subtitle}
+                  </ReportsInsightBanner>
                   <div>
                     <Button
                       type="button"
                       variant="op-tertiary"
-                      className="h-10 px-4 rounded-xs text-sm font-medium"
+                      className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
                       onClick={() => handleActionNavigation(action.target)}
                     >
                       {action.cta}
@@ -350,24 +284,21 @@ export function WeeklyBriefPage({
                 </div>
               ))}
             </div>
-          </div>
+          </ReportsSection>
 
-          {/* 6. Suggested Campaign Card */}
-          <div className="w-full flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6 sm:p-7 shadow-sm">
-            <h2 className="text-xl font-bold text-op-text-primary">
-              {WEEKLY_BRIEF_PAGE_COPY.suggestedCampaignTitle}
-            </h2>
-
-            <div className="w-72 sm:w-80 p-4 rounded-sm bg-op-background-primary/80 border border-op-border-default/60 flex flex-col justify-between gap-6">
+          <ReportsSection
+            title={WEEKLY_BRIEF_PAGE_COPY.suggestedCampaignTitle}
+          >
+            <div className="flex w-72 flex-col justify-between gap-6 rounded-sm border border-op-border-default/60 bg-op-background-primary/80 p-4 sm:w-80">
               <div className="flex flex-col gap-3">
-                <span className="w-fit px-2.5 py-1 rounded-xs bg-op-card-background text-xs font-normal text-op-text-primary border border-op-border-default">
-                  {data.suggestedCampaign.status}
-                </span>
+                <ReportsStatusBadge
+                  status={data.suggestedCampaign.status}
+                />
                 <div className="flex flex-col gap-1.5">
-                  <h3 className="text-base font-semibold text-op-text-primary leading-snug">
+                  <h3 className="text-base font-semibold leading-snug text-op-text-primary">
                     {data.suggestedCampaign.title}
                   </h3>
-                  <p className="text-xs font-normal text-op-text-muted leading-relaxed">
+                  <p className="text-xs font-normal leading-relaxed text-op-text-muted">
                     {data.suggestedCampaign.subtitle}
                   </p>
                 </div>
@@ -377,16 +308,16 @@ export function WeeklyBriefPage({
                 <Button
                   type="button"
                   variant="op-secondary"
-                  className="h-10 px-4 rounded-xs text-sm font-medium"
+                  className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
                   onClick={() => handleActionNavigation("campaigns")}
                 >
                   {data.suggestedCampaign.cta}
                 </Button>
               </div>
             </div>
-          </div>
+          </ReportsSection>
         </div>
       )}
-    </div>
+    </ReportsPageChrome>
   )
 }

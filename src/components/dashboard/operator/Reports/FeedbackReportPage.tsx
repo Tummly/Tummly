@@ -1,10 +1,22 @@
 import { useState } from "react"
-import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import aiIconPng from "@/assets/svg/ui-icons/ai-icon.png"
-import { ChevronRight, Download, ArrowUpRight } from "lucide-react"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
 import { ReportsExportDialog } from "@/components/dashboard/operator/Reports/ReportsExportDialog"
-import { ReportsDateRangeControl } from "@/components/dashboard/operator/Reports/ReportsDateRangeControl"
+import { ReportsInsightBanner } from "@/components/dashboard/operator/Reports/ReportsInsightBanner"
+import { ReportsKpiStrip } from "@/components/dashboard/operator/Reports/ReportsKpiStrip"
+import { ReportsPageChrome } from "@/components/dashboard/operator/Reports/ReportsPageChrome"
+import { ReportsSection } from "@/components/dashboard/operator/Reports/ReportsSection"
+import { ReportsStandardHeaderActions } from "@/components/dashboard/operator/Reports/ReportsStandardHeaderActions"
+import { ReportsStatusBadge } from "@/components/dashboard/operator/Reports/ReportsStatusBadge"
 import {
   DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
   labelForHomePerformanceDateRange,
@@ -16,12 +28,23 @@ import {
   type FeedbackReportData,
 } from "@/lib/operatorReports/feedbackReportPresentation"
 import {
+  REPORTS_BODY_STACK_CLASS,
+  REPORTS_PAGE_ACTION_BUTTON_CLASS,
+  REPORTS_TABLE_ACTIONS_CELL_CLASS,
+  REPORTS_TABLE_BODY_CELL_CLASS,
+  REPORTS_TABLE_BODY_ROW_CLASS,
+  REPORTS_TABLE_CLASS,
+  REPORTS_TABLE_FRAME_CLASS,
+  REPORTS_TABLE_HEAD_ACTIONS_CELL_CLASS,
+  REPORTS_TABLE_HEAD_CELL_CLASS,
+  REPORTS_TABLE_HEAD_ROW_CLASS,
+  REPORTS_TABLE_NAME_CELL_CLASS,
+} from "@/lib/operatorReports/reportsPresentation"
+import {
   operatorDashboardNavPath,
-  operatorDashboardCaptureLocationPath,
   operatorDashboardWeeklyBriefPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
-import { cn } from "@/lib/utils"
 
 type FeedbackReportPageProps = {
   selectedLocationId?: number
@@ -35,7 +58,7 @@ type FeedbackReportPageProps = {
 export function FeedbackReportPage({
   selectedLocationId = 1,
   selectedLocationName = "Mehmet's Grill",
-  locations = [],
+  locations: _locations = [],
   mode = "single",
   isEmpty: propIsEmpty,
   data = mockFeedbackReportData,
@@ -47,7 +70,7 @@ export function FeedbackReportPage({
   )
   const [isExportOpen, setIsExportOpen] = useState(false)
 
-  const isPageEmpty = propIsEmpty ?? (searchParams.get("empty") === "true")
+  const isPageEmpty = propIsEmpty ?? searchParams.get("empty") === "true"
   const dateRangeLabel = labelForHomePerformanceDateRange(dateRange)
 
   const reportsBasePath = operatorDashboardNavPath(
@@ -58,14 +81,6 @@ export function FeedbackReportPage({
 
   const handleOpenFeedbackInbox = () => {
     navigate(operatorDashboardNavPath(mode, "feedback", selectedLocationId))
-  }
-
-  const handleCreatePlacement = () => {
-    if (mode === "multi") {
-      navigate(operatorDashboardCaptureLocationPath(selectedLocationId))
-    } else {
-      navigate(operatorDashboardNavPath(mode, "capture", selectedLocationId))
-    }
   }
 
   const topKpisList = [
@@ -85,143 +100,60 @@ export function FeedbackReportPage({
   ]
 
   return (
-    <div className="w-full flex flex-col gap-6">
-      {/* 1. Breadcrumb Navigation */}
-      <nav aria-label="Breadcrumb" className="inline-flex items-center gap-2.5">
-        <Link
-          to={reportsBasePath}
-          className="text-base font-medium text-op-text-primary hover:text-op-text-primary/80 transition-colors"
-        >
-          {FEEDBACK_REPORT_PAGE_COPY.breadcrumbReports}
-        </Link>
-        <ChevronRight className="size-4 text-op-text-muted shrink-0" />
-        <span className="text-base font-medium text-op-text-muted">
-          {FEEDBACK_REPORT_PAGE_COPY.breadcrumbFeedbackReport}
-        </span>
-      </nav>
-
-      {/* 2. Page Header Row */}
-      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-bold tracking-tight text-op-text-primary">
-            {FEEDBACK_REPORT_PAGE_COPY.title}
-          </h1>
-          <p className="text-base font-medium text-op-text-muted">
-            {FEEDBACK_REPORT_PAGE_COPY.subtitle}
-          </p>
-        </div>
-
-        {/* Actions Row */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Generate Brief Button */}
-          <Button
-            type="button"
-            variant="op-secondary"
-            className="h-10 gap-2 rounded-xs px-4 text-sm font-medium"
-            onClick={() =>
-              navigate(
-                operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
-              )
-            }
-          >
-            <img
-              src={aiIconPng}
-              alt=""
-              className="size-4 shrink-0 brightness-0 invert"
-            />
-            <span>{FEEDBACK_REPORT_PAGE_COPY.generateBrief}</span>
-          </Button>
-
-          {/* Export Button */}
-          <Button
-            type="button"
-            variant="op-secondary"
-            className="h-10 gap-2 rounded-xs px-4 text-sm font-medium"
-            onClick={() => setIsExportOpen(true)}
-          >
-            <Download className="size-4" />
-            <span>{FEEDBACK_REPORT_PAGE_COPY.export}</span>
-          </Button>
-
-          {/* Date Range Selector */}
-          <ReportsDateRangeControl
-            selectedRange={dateRange}
-            onCommitRange={setDateRange}
-          />
-        </div>
-      </div>
-
+    <ReportsPageChrome
+      title={FEEDBACK_REPORT_PAGE_COPY.title}
+      subtitle={FEEDBACK_REPORT_PAGE_COPY.subtitle}
+      breadcrumb={{
+        reportsBasePath,
+        currentLabel: FEEDBACK_REPORT_PAGE_COPY.breadcrumbFeedbackReport,
+      }}
+      actions={
+        <ReportsStandardHeaderActions
+          onGenerateBrief={() =>
+            navigate(
+              operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
+            )
+          }
+          onExport={() => setIsExportOpen(true)}
+          selectedRange={dateRange}
+          onCommitRange={setDateRange}
+        />
+      }
+    >
       {isPageEmpty ? (
-        /* Empty State */
-        <div className="flex w-full min-h-[400px] flex-col items-center justify-center gap-2 py-20 text-center">
-          <h2 className="text-lg font-bold text-op-text-primary">
-            {FEEDBACK_REPORT_PAGE_COPY.emptyTitle}
-          </h2>
-          <p className="max-w-md text-sm font-medium leading-relaxed text-op-text-muted">
-            {FEEDBACK_REPORT_PAGE_COPY.emptySubtitle}
-          </p>
-          <Button
-            type="button"
-            variant="op-secondary"
-            className="mt-4 h-10 px-5 rounded-xs text-sm font-medium"
-            onClick={handleOpenFeedbackInbox}
-          >
-            {FEEDBACK_REPORT_PAGE_COPY.checkGuestForm}
-          </Button>
-        </div>
+        <ReportsEmptyState
+          title={FEEDBACK_REPORT_PAGE_COPY.emptyTitle}
+          subtitle={FEEDBACK_REPORT_PAGE_COPY.emptySubtitle}
+          action={
+            <Button
+              type="button"
+              variant="op-secondary"
+              className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+              onClick={handleOpenFeedbackInbox}
+            >
+              {FEEDBACK_REPORT_PAGE_COPY.checkGuestForm}
+            </Button>
+          }
+        />
       ) : (
-        /* Populated Feedback Report Content */
-        <div className="flex flex-col gap-6">
-          {/* Card 1: 5-KPI Strip */}
-          <div className="w-full rounded-md border border-op-border-default bg-op-card-background p-6 shadow-sm">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-op-border-default">
-              {topKpisList.map((kpi, index) => (
-                <div
-                  key={kpi.label}
-                  className={cn(
-                    "flex flex-col justify-between gap-1 py-3 sm:py-2",
-                    index === 0 ? "sm:pl-2" : "sm:px-4",
-                    index === topKpisList.length - 1 ? "sm:pr-2" : ""
-                  )}
-                >
-                  <span className="text-sm font-medium text-op-text-muted">
-                    {kpi.label}
-                  </span>
-                  <span className="text-3xl font-extrabold text-op-text-primary leading-9 tracking-tight">
-                    {kpi.value}
-                  </span>
-                  <div className="flex items-center gap-1 text-xs font-semibold text-op-kpi-info-color pt-0.5">
-                    <ArrowUpRight className="size-3.5 shrink-0" />
-                    <span>{kpi.delta}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className={REPORTS_BODY_STACK_CLASS}>
+          <ReportsSection>
+            <ReportsKpiStrip items={topKpisList} />
+          </ReportsSection>
 
-          {/* Card 2: Feedback over time */}
-          <div className="w-full flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6 shadow-sm">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-xl font-bold text-op-text-primary">
-                {FEEDBACK_REPORT_PAGE_COPY.feedbackOverTimeTitle}
-              </h2>
-              <p className="text-sm font-medium text-op-text-muted">
-                {FEEDBACK_REPORT_PAGE_COPY.feedbackOverTimeSubtitle}
-              </p>
-            </div>
-
-            {/* Visual chart container */}
-            <div className="w-full h-72 rounded-sm bg-op-background-primary/80 border border-op-border-default/60 flex flex-col justify-between p-6 relative overflow-hidden">
-              {/* Subtle background grid lines */}
-              <div className="absolute inset-x-6 inset-y-6 flex flex-col justify-between pointer-events-none opacity-20">
+          <ReportsSection
+            title={FEEDBACK_REPORT_PAGE_COPY.feedbackOverTimeTitle}
+            subtitle={FEEDBACK_REPORT_PAGE_COPY.feedbackOverTimeSubtitle}
+          >
+            <div className="relative flex h-72 w-full flex-col justify-between overflow-hidden rounded-sm border border-op-border-default/60 bg-op-background-primary/80 p-6">
+              <div className="pointer-events-none absolute inset-x-6 inset-y-6 flex flex-col justify-between opacity-20">
                 <div className="w-full border-b border-dashed border-op-border-default" />
                 <div className="w-full border-b border-dashed border-op-border-default" />
                 <div className="w-full border-b border-dashed border-op-border-default" />
                 <div className="w-full border-b border-dashed border-op-border-default" />
               </div>
 
-              {/* Chart SVG Graphic */}
-              <div className="flex-1 w-full flex items-end justify-between z-10 px-4 pb-2">
+              <div className="z-10 flex w-full flex-1 items-end justify-between px-4 pb-2">
                 {[
                   { day: "Mon", count: 6, height: "35%" },
                   { day: "Tue", count: 8, height: "45%" },
@@ -233,13 +165,13 @@ export function FeedbackReportPage({
                 ].map((bar) => (
                   <div
                     key={bar.day}
-                    className="flex flex-col items-center gap-2 h-full justify-end group cursor-pointer"
+                    className="group flex h-full cursor-pointer flex-col items-center justify-end gap-2"
                   >
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[11px] font-semibold text-op-action-primary">
+                    <div className="text-[11px] font-semibold text-op-action-primary opacity-0 transition-opacity group-hover:opacity-100">
                       {bar.count}
                     </div>
                     <div
-                      className="w-8 sm:w-12 bg-op-action-primary/80 hover:bg-op-action-primary rounded-t-xs transition-all duration-300"
+                      className="w-8 rounded-t-xs bg-op-action-primary/80 transition-all duration-300 hover:bg-op-action-primary sm:w-12"
                       style={{ height: bar.height }}
                     />
                     <span className="text-xs font-medium text-op-text-muted">
@@ -249,37 +181,25 @@ export function FeedbackReportPage({
                 ))}
               </div>
             </div>
-          </div>
+          </ReportsSection>
 
-          {/* Card 3: Common themes */}
-          <div className="w-full flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6 shadow-sm">
-            <div className="flex items-center gap-2.5 pb-2 border-b border-op-border-default">
-              <img
-                src={aiIconPng}
-                alt=""
-                className="size-5 shrink-0 brightness-0 invert"
-              />
-              <h2 className="text-xl font-bold text-op-text-primary">
-                {FEEDBACK_REPORT_PAGE_COPY.commonThemesTitle}
-              </h2>
-            </div>
-
+          <ReportsSection title={FEEDBACK_REPORT_PAGE_COPY.commonThemesTitle}>
             <div className="flex flex-col gap-3">
               {data.themes.map((theme) => (
                 <div
                   key={theme.id}
-                  className="w-full p-5 rounded-sm bg-op-background-primary/80 border border-op-border-default/60 flex flex-col justify-start items-start gap-4"
+                  className="flex w-full flex-col items-start justify-start gap-4 rounded-sm border border-op-border-default/60 bg-op-background-primary/80 p-5"
                 >
-                  <p className="text-sm font-normal text-op-text-primary leading-relaxed max-w-4xl">
+                  <p className="max-w-4xl text-sm font-normal leading-relaxed text-op-text-primary">
                     {theme.theme}
                   </p>
-                  <p className="text-xs font-normal text-op-text-muted leading-relaxed">
+                  <p className="text-xs font-normal leading-relaxed text-op-text-muted">
                     {theme.meta}
                   </p>
                   <Button
                     type="button"
                     variant="op-tertiary"
-                    className="h-9 px-4 rounded-xs text-xs font-medium"
+                    className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
                     onClick={handleOpenFeedbackInbox}
                   >
                     {FEEDBACK_REPORT_PAGE_COPY.viewSourceFeedback}
@@ -287,220 +207,161 @@ export function FeedbackReportPage({
                 </div>
               ))}
             </div>
-          </div>
+          </ReportsSection>
 
-          {/* Card 4: Needs follow-up */}
-          <div className="w-full flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6 shadow-sm">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-xl font-bold text-op-text-primary">
-                {FEEDBACK_REPORT_PAGE_COPY.needsFollowUpTitle}
-              </h2>
-              <p className="text-sm font-medium text-op-text-muted">
-                {FEEDBACK_REPORT_PAGE_COPY.needsFollowUpSubtitle}
-              </p>
-            </div>
-
-            {/* Follow-up Table */}
-            <div className="w-full overflow-x-auto rounded-xs border border-op-border-default">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-op-surface-secondary/90 border-b border-op-border-default text-op-text-primary font-semibold">
-                  <tr>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[100px]">
+          <ReportsSection
+            title={FEEDBACK_REPORT_PAGE_COPY.needsFollowUpTitle}
+            subtitle={FEEDBACK_REPORT_PAGE_COPY.needsFollowUpSubtitle}
+          >
+            <div className={REPORTS_TABLE_FRAME_CLASS}>
+              <Table className={REPORTS_TABLE_CLASS}>
+                <TableHeader>
+                  <TableRow className={REPORTS_TABLE_HEAD_ROW_CLASS}>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Date
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[120px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Guest
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[140px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Source
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[280px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Feedback
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[120px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Reason
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[140px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Status
-                    </th>
-                    <th className="px-4 py-3 text-center min-w-[80px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_ACTIONS_CELL_CLASS}>
                       Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-op-border-default">
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {data.followUpList.map((row) => (
-                    <tr
+                    <TableRow
                       key={row.id}
-                      className="hover:bg-op-surface-secondary/20 transition-colors"
+                      className={REPORTS_TABLE_BODY_ROW_CLASS}
                     >
-                      <td className="px-4 py-3 border-r border-op-border-default font-semibold text-op-text-primary">
+                      <TableCell className={REPORTS_TABLE_NAME_CELL_CLASS}>
                         {row.date}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-primary">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.guest}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-muted">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.source}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-primary font-normal">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.feedback}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-muted">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.reason}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default">
-                        <span className="inline-flex items-center px-2 py-1 rounded-xs text-xs font-medium bg-amber-500/15 text-amber-400">
-                          {row.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                        <ReportsStatusBadge status={row.status} />
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_ACTIONS_CELL_CLASS}>
                         <Button
                           type="button"
                           variant="op-tertiary"
-                          className="h-8 px-3 rounded-xs text-xs font-medium"
+                          className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
                           onClick={handleOpenFeedbackInbox}
                         >
                           {FEEDBACK_REPORT_PAGE_COPY.openAction}
                         </Button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
-            {/* CTA */}
             <Button
               type="button"
               variant="op-primary"
-              className="h-10 rounded-xs px-4 text-sm font-medium self-start"
+              className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
               onClick={handleOpenFeedbackInbox}
             >
               {FEEDBACK_REPORT_PAGE_COPY.openFeedbackInbox}
             </Button>
-          </div>
+          </ReportsSection>
 
-          {/* Card 5: Feedback by source */}
-          <div className="w-full flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6 shadow-sm">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-xl font-bold text-op-text-primary">
-                {FEEDBACK_REPORT_PAGE_COPY.feedbackBySourceTitle}
-              </h2>
-              <p className="text-sm font-medium text-op-text-muted">
-                {FEEDBACK_REPORT_PAGE_COPY.feedbackBySourceSubtitle}
-              </p>
-            </div>
-
-            {/* Source Table */}
-            <div className="w-full overflow-x-auto rounded-xs border border-op-border-default">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-op-surface-secondary/90 border-b border-op-border-default text-op-text-primary font-semibold">
-                  <tr>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[160px]">
+          <ReportsSection
+            title={FEEDBACK_REPORT_PAGE_COPY.feedbackBySourceTitle}
+            subtitle={FEEDBACK_REPORT_PAGE_COPY.feedbackBySourceSubtitle}
+          >
+            <div className={REPORTS_TABLE_FRAME_CLASS}>
+              <Table className={REPORTS_TABLE_CLASS}>
+                <TableHeader>
+                  <TableRow className={REPORTS_TABLE_HEAD_ROW_CLASS}>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Source
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[100px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Feedback
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[120px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Contactable
-                    </th>
-                    <th className="px-4 py-3 min-w-[140px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Follow-up needed
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-op-border-default">
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {data.sourcesList.map((row) => (
-                    <tr
+                    <TableRow
                       key={row.source}
-                      className="hover:bg-op-surface-secondary/20 transition-colors"
+                      className={REPORTS_TABLE_BODY_ROW_CLASS}
                     >
-                      <td className="px-4 py-3 border-r border-op-border-default font-semibold text-op-text-primary">
+                      <TableCell className={REPORTS_TABLE_NAME_CELL_CLASS}>
                         {row.source}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-primary">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.feedback}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-primary">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.contactable}
-                      </td>
-                      <td className="px-4 py-3 text-op-text-primary">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.followUpNeeded}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
-            {/* AI Callout Banner */}
-            <div className="w-full p-4 rounded-sm bg-op-background-primary/80 border border-op-border-default/60 flex items-center gap-3">
-              <img
-                src={aiIconPng}
-                alt=""
-                className="size-5 shrink-0 brightness-0 invert mt-0.5"
-              />
-              <p className="text-sm font-medium text-op-text-primary leading-relaxed">
-                {FEEDBACK_REPORT_PAGE_COPY.sourceInsightText}
-              </p>
-            </div>
-          </div>
+            <ReportsInsightBanner>
+              {FEEDBACK_REPORT_PAGE_COPY.sourceInsightText}
+            </ReportsInsightBanner>
+          </ReportsSection>
 
-          {/* Card 6: Feedback status */}
-          <div className="w-full flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6 shadow-sm">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-xl font-bold text-op-text-primary">
-                {FEEDBACK_REPORT_PAGE_COPY.feedbackStatusTitle}
-              </h2>
-            </div>
+          <ReportsSection title={FEEDBACK_REPORT_PAGE_COPY.feedbackStatusTitle}>
+            <ReportsKpiStrip items={statusKpisList} />
 
-            {/* Status 5-KPI Strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-op-border-default">
-              {statusKpisList.map((kpi, index) => (
-                <div
-                  key={kpi.label}
-                  className={cn(
-                    "flex flex-col justify-between gap-1 py-3 sm:py-2",
-                    index === 0 ? "sm:pl-2" : "sm:px-4",
-                    index === statusKpisList.length - 1 ? "sm:pr-2" : ""
-                  )}
-                >
-                  <span className="text-sm font-medium text-op-text-muted">
-                    {kpi.label}
-                  </span>
-                  <span className="text-3xl font-extrabold text-op-text-primary leading-9 tracking-tight">
-                    {kpi.value}
-                  </span>
-                  <div className="flex items-center gap-1 text-xs font-semibold text-op-kpi-info-color pt-0.5">
-                    <ArrowUpRight className="size-3.5 shrink-0" />
-                    <span>{kpi.delta}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* CTA */}
             <Button
               type="button"
               variant="op-primary"
-              className="h-10 rounded-xs px-4 text-sm font-medium self-start"
+              className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
               onClick={handleOpenFeedbackInbox}
             >
               {FEEDBACK_REPORT_PAGE_COPY.manageFeedback}
             </Button>
-          </div>
+          </ReportsSection>
         </div>
       )}
 
-      {/* Export Dialog */}
       <ReportsExportDialog
         open={isExportOpen}
         onOpenChange={setIsExportOpen}
         locationName={selectedLocationName}
         dateRangeLabel={dateRangeLabel}
       />
-    </div>
+    </ReportsPageChrome>
   )
 }

@@ -1,17 +1,22 @@
 import { useState } from "react"
-import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import aiIconPng from "@/assets/svg/ui-icons/ai-icon.png"
-import {
-  ChevronRight,
-  Download,
-  ArrowUpRight,
-  MessageSquare,
-  Megaphone,
-  Tag,
-} from "lucide-react"
+import { useNavigate, useSearchParams } from "react-router-dom"
+import { MessageSquare, Megaphone, Tag } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
 import { ReportsExportDialog } from "@/components/dashboard/operator/Reports/ReportsExportDialog"
-import { ReportsDateRangeControl } from "@/components/dashboard/operator/Reports/ReportsDateRangeControl"
+import { ReportsKpiStrip } from "@/components/dashboard/operator/Reports/ReportsKpiStrip"
+import { ReportsPageChrome } from "@/components/dashboard/operator/Reports/ReportsPageChrome"
+import { ReportsSection } from "@/components/dashboard/operator/Reports/ReportsSection"
+import { ReportsStandardHeaderActions } from "@/components/dashboard/operator/Reports/ReportsStandardHeaderActions"
+import { ReportsStatusBadge } from "@/components/dashboard/operator/Reports/ReportsStatusBadge"
 import {
   DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
   labelForHomePerformanceDateRange,
@@ -23,12 +28,22 @@ import {
   type CampaignsReportData,
 } from "@/lib/operatorReports/campaignsReportPresentation"
 import {
+  REPORTS_BODY_STACK_CLASS,
+  REPORTS_PAGE_ACTION_BUTTON_CLASS,
+  REPORTS_TABLE_BODY_CELL_CLASS,
+  REPORTS_TABLE_BODY_ROW_CLASS,
+  REPORTS_TABLE_CLASS,
+  REPORTS_TABLE_FRAME_CLASS,
+  REPORTS_TABLE_HEAD_CELL_CLASS,
+  REPORTS_TABLE_HEAD_ROW_CLASS,
+  REPORTS_TABLE_NAME_CELL_CLASS,
+} from "@/lib/operatorReports/reportsPresentation"
+import {
   operatorDashboardNavPath,
   operatorDashboardOffersRedemptionLogPath,
   operatorDashboardWeeklyBriefPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
-import { cn } from "@/lib/utils"
 
 type CampaignsReportPageProps = {
   selectedLocationId?: number
@@ -42,7 +57,7 @@ type CampaignsReportPageProps = {
 export function CampaignsReportPage({
   selectedLocationId = 1,
   selectedLocationName = "Mehmet's Grill",
-  locations = [],
+  locations: _locations = [],
   mode = "single",
   isEmpty: propIsEmpty,
   data = mockCampaignsReportData,
@@ -54,7 +69,7 @@ export function CampaignsReportPage({
   )
   const [isExportOpen, setIsExportOpen] = useState(false)
 
-  const isPageEmpty = propIsEmpty ?? (searchParams.get("empty") === "true")
+  const isPageEmpty = propIsEmpty ?? searchParams.get("empty") === "true"
   const dateRangeLabel = labelForHomePerformanceDateRange(dateRange)
 
   const reportsBasePath = operatorDashboardNavPath(
@@ -110,246 +125,159 @@ export function CampaignsReportPage({
     switch (type) {
       case "feedback":
         return (
-          <MessageSquare className="size-4 text-op-action-primary shrink-0" />
+          <MessageSquare className="size-4 shrink-0 text-op-action-primary" />
         )
       case "credits":
-        return <Megaphone className="size-4 text-op-action-primary shrink-0" />
+        return <Megaphone className="size-4 shrink-0 text-op-action-primary" />
       case "offer":
-        return <Tag className="size-4 text-op-action-primary shrink-0" />
+        return <Tag className="size-4 shrink-0 text-op-action-primary" />
     }
   }
 
   return (
-    <div className="w-full flex flex-col gap-6">
-      {/* 1. Breadcrumb Navigation */}
-      <nav aria-label="Breadcrumb" className="inline-flex items-center gap-2.5">
-        <Link
-          to={reportsBasePath}
-          className="text-base font-medium text-op-text-primary hover:text-op-text-primary/80 transition-colors"
-        >
-          {CAMPAIGNS_REPORT_PAGE_COPY.breadcrumbReports}
-        </Link>
-        <ChevronRight className="size-4 text-op-text-muted shrink-0" />
-        <span className="text-base font-medium text-op-text-muted">
-          {CAMPAIGNS_REPORT_PAGE_COPY.breadcrumbCampaignsReport}
-        </span>
-      </nav>
-
-      {/* 2. Page Header Row */}
-      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-bold tracking-tight text-op-text-primary">
-            {CAMPAIGNS_REPORT_PAGE_COPY.pageTitle}
-          </h1>
-          <p className="text-sm sm:text-base font-medium text-op-text-muted">
-            {CAMPAIGNS_REPORT_PAGE_COPY.pageSubtitle}
-          </p>
-        </div>
-
-        {/* Header Action Buttons */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Generate Brief Button */}
-          <Button
-            type="button"
-            variant="op-secondary"
-            className="h-10 gap-2 rounded-xs px-4 text-sm font-medium"
-            onClick={() =>
-              navigate(
-                operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
-              )
-            }
-          >
-            <img
-              src={aiIconPng}
-              alt=""
-              className="size-4 shrink-0 brightness-0 invert"
-            />
-            <span>{CAMPAIGNS_REPORT_PAGE_COPY.generateBrief}</span>
-          </Button>
-
-          {/* Export Button */}
-          <Button
-            type="button"
-            variant="op-secondary"
-            className="h-10 gap-2 rounded-xs px-4 text-sm font-medium"
-            onClick={() => setIsExportOpen(true)}
-          >
-            <Download className="size-4" />
-            <span>{CAMPAIGNS_REPORT_PAGE_COPY.export}</span>
-          </Button>
-
-          {/* Date Range Selector */}
-          <ReportsDateRangeControl
-            selectedRange={dateRange}
-            onCommitRange={setDateRange}
-          />
-        </div>
-      </div>
-
+    <ReportsPageChrome
+      title={CAMPAIGNS_REPORT_PAGE_COPY.pageTitle}
+      subtitle={CAMPAIGNS_REPORT_PAGE_COPY.pageSubtitle}
+      breadcrumb={{
+        reportsBasePath,
+        currentLabel: CAMPAIGNS_REPORT_PAGE_COPY.breadcrumbCampaignsReport,
+      }}
+      actions={
+        <ReportsStandardHeaderActions
+          onGenerateBrief={() =>
+            navigate(
+              operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
+            )
+          }
+          onExport={() => setIsExportOpen(true)}
+          selectedRange={dateRange}
+          onCommitRange={setDateRange}
+        />
+      }
+    >
       {isPageEmpty ? (
-        /* Empty State View */
-        <div className="flex w-full min-h-[400px] flex-col items-center justify-center gap-3 py-20 text-center rounded-md border border-op-border-default bg-op-card-background">
-          <h2 className="text-lg font-bold text-op-text-primary">
-            {CAMPAIGNS_REPORT_PAGE_COPY.emptyTitle}
-          </h2>
-          <p className="max-w-md text-sm font-medium leading-relaxed text-op-text-muted">
-            {CAMPAIGNS_REPORT_PAGE_COPY.emptySubtitle}
-          </p>
-          <Button
-            type="button"
-            variant="op-primary"
-            className="mt-2 h-10 px-5 rounded-xs text-sm font-medium"
-            onClick={handleCreateCampaign}
-          >
-            {CAMPAIGNS_REPORT_PAGE_COPY.createCampaign}
-          </Button>
-        </div>
+        <ReportsEmptyState
+          title={CAMPAIGNS_REPORT_PAGE_COPY.emptyTitle}
+          subtitle={CAMPAIGNS_REPORT_PAGE_COPY.emptySubtitle}
+          action={
+            <Button
+              type="button"
+              variant="op-primary"
+              className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+              onClick={handleCreateCampaign}
+            >
+              {CAMPAIGNS_REPORT_PAGE_COPY.createCampaign}
+            </Button>
+          }
+        />
       ) : (
-        /* Populated Campaigns Report View */
-        <div className="flex flex-col gap-6">
-          {/* Card 1: 6-KPI Strip */}
-          <div className="w-full rounded-md border border-op-border-default bg-op-card-background p-6 shadow-sm">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-y sm:divide-y-0 sm:divide-x divide-op-border-default">
-              {kpisList.map((kpi, index) => (
-                <div
-                  key={kpi.label}
-                  className={cn(
-                    "flex flex-col justify-between gap-1 py-3 sm:py-2",
-                    index === 0 ? "sm:pl-2" : "sm:px-4",
-                    index === kpisList.length - 1 ? "sm:pr-2" : ""
-                  )}
-                >
-                  <span className="text-sm font-medium text-op-text-muted">
-                    {kpi.label}
-                  </span>
-                  <span className="text-3xl font-extrabold text-op-text-primary leading-9 tracking-tight">
-                    {kpi.value}
-                  </span>
-                  <div className="flex items-center gap-1 text-xs font-semibold text-op-kpi-info-color pt-0.5">
-                    <ArrowUpRight className="size-3.5 shrink-0" />
-                    <span>{kpi.delta}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className={REPORTS_BODY_STACK_CLASS}>
+          <ReportsSection>
+            <ReportsKpiStrip items={kpisList} />
+          </ReportsSection>
 
-          {/* Card 2: Campaign Performance Table */}
-          <div className="w-full flex flex-col gap-5 rounded-md border border-op-border-default bg-op-card-background p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-op-text-primary">
-              {CAMPAIGNS_REPORT_PAGE_COPY.performanceSectionTitle}
-            </h2>
-
-            <div className="w-full overflow-x-auto rounded-xs border border-op-border-default">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-neutral-800 border-b border-op-border-default text-op-text-primary font-semibold">
-                  <tr>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[200px]">
+          <ReportsSection
+            title={CAMPAIGNS_REPORT_PAGE_COPY.performanceSectionTitle}
+          >
+            <div className={REPORTS_TABLE_FRAME_CLASS}>
+              <Table className={REPORTS_TABLE_CLASS}>
+                <TableHeader>
+                  <TableRow className={REPORTS_TABLE_HEAD_ROW_CLASS}>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       {CAMPAIGNS_REPORT_PAGE_COPY.campaignHeader}
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[150px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       {CAMPAIGNS_REPORT_PAGE_COPY.goalHeader}
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[110px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       {CAMPAIGNS_REPORT_PAGE_COPY.channelHeader}
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[90px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       {CAMPAIGNS_REPORT_PAGE_COPY.sentHeader}
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[90px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       {CAMPAIGNS_REPORT_PAGE_COPY.claimsHeader}
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[110px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       {CAMPAIGNS_REPORT_PAGE_COPY.redemptionsHeader}
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[110px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       {CAMPAIGNS_REPORT_PAGE_COPY.unsubscribesHeader}
-                    </th>
-                    <th className="px-4 py-3 min-w-[110px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       {CAMPAIGNS_REPORT_PAGE_COPY.statusHeader}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-op-border-default">
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {data.performance.map((row) => (
-                    <tr
+                    <TableRow
                       key={row.id}
-                      className="hover:bg-op-surface-secondary/20 transition-colors"
+                      className={REPORTS_TABLE_BODY_ROW_CLASS}
                     >
-                      <td className="px-4 py-3 border-r border-op-border-default font-semibold text-op-text-primary">
+                      <TableCell className={REPORTS_TABLE_NAME_CELL_CLASS}>
                         {row.campaign}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-primary">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.goal}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default">
-                        <span className="inline-flex items-center px-2 py-1 rounded-xs text-xs font-medium bg-neutral-800 text-op-text-primary border border-op-border-default">
-                          {row.channel}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-primary font-normal">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                        {row.channel}
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.sent}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-primary font-normal">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.claims}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-primary font-normal">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.redemptions}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-primary font-normal">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.unsubscribes}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center px-2 py-1 rounded-xs text-xs font-medium bg-neutral-800 text-op-text-primary border border-op-border-default">
-                          {row.status}
-                        </span>
-                      </td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                        <ReportsStatusBadge status={row.status} />
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
-          </div>
+          </ReportsSection>
 
-          {/* Card 3: Needs Attention Card */}
-          <div className="w-full flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6 shadow-sm">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-xl font-bold text-op-text-primary">
-                {CAMPAIGNS_REPORT_PAGE_COPY.needsAttentionSectionTitle}
-              </h2>
-              <p className="text-sm font-medium text-op-text-muted">
-                {CAMPAIGNS_REPORT_PAGE_COPY.needsAttentionSectionSubtitle}
-              </p>
-            </div>
-
+          <ReportsSection
+            title={CAMPAIGNS_REPORT_PAGE_COPY.needsAttentionSectionTitle}
+            subtitle={CAMPAIGNS_REPORT_PAGE_COPY.needsAttentionSectionSubtitle}
+          >
             <div className="flex flex-col gap-3">
               {data.attentionItems.map((item) => (
                 <div
                   key={item.id}
-                  className="w-full p-5 rounded-sm bg-op-background-primary/80 border border-op-border-default/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                  className="flex w-full flex-col items-start justify-between gap-4 rounded-sm border border-op-border-default/60 bg-op-background-primary/80 p-5 sm:flex-row sm:items-center"
                 >
-                  <div className="flex items-start gap-3.5 flex-1">
+                  <div className="flex flex-1 items-start gap-3.5">
                     <div className="mt-1">{renderAttentionIcon(item.type)}</div>
                     <div className="flex flex-col gap-1">
-                      <h3 className="text-base font-semibold text-op-text-primary leading-6">
+                      <h3 className="text-base font-semibold leading-6 text-op-text-primary">
                         {item.title}
                       </h3>
-                      <p className="text-sm font-medium text-op-text-primary leading-relaxed">
+                      <p className="text-sm font-medium leading-relaxed text-op-text-primary">
                         {item.description}
                       </p>
-                      <p className="text-xs font-medium text-op-text-muted pt-0.5">
+                      <p className="pt-0.5 text-xs font-medium text-op-text-muted">
                         {item.meta}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                  <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
                     {item.actions.map((act) => (
                       <Button
                         key={act.label}
                         type="button"
                         variant="op-tertiary"
-                        className="h-10 px-4 rounded-xs text-sm font-medium"
+                        className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
                         onClick={() => handleAttentionAction(act.target)}
                       >
                         {act.label}
@@ -359,17 +287,16 @@ export function CampaignsReportPage({
                 </div>
               ))}
             </div>
-          </div>
+          </ReportsSection>
         </div>
       )}
 
-      {/* Export Dialog */}
       <ReportsExportDialog
         open={isExportOpen}
         onOpenChange={setIsExportOpen}
         locationName={selectedLocationName}
         dateRangeLabel={dateRangeLabel}
       />
-    </div>
+    </ReportsPageChrome>
   )
 }

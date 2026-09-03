@@ -1,9 +1,11 @@
-import { useOutletContext } from "react-router-dom"
+import { useOutletContext, useSearchParams } from "react-router-dom"
+
 import { WeeklyBriefPage } from "@/components/dashboard/operator/Reports/WeeklyBriefPage"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 
 export function WeeklyBriefRoute() {
   const context = useOutletContext<DashboardOutletContext | undefined>()
+  const [searchParams] = useSearchParams()
 
   const selectedLocationId = context?.selectedLocationId ?? 1
   const locations = context?.locations ?? []
@@ -19,7 +21,7 @@ export function WeeklyBriefRoute() {
       selectedLocationName={locationName}
       locations={locations}
       mode={mode}
-      isEmpty={false}
+      isEmpty={searchParams.get("empty") === "true"}
     />
   )
 }

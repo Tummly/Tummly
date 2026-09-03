@@ -1,18 +1,37 @@
+import type { ReactNode } from "react"
+
+import {
+  REPORTS_EMPTY_ACTIONS_CLASS,
+  REPORTS_EMPTY_HELPER_CLASS,
+  REPORTS_EMPTY_SHELL_CLASS,
+  REPORTS_EMPTY_TITLE_CLASS,
+  REPORTS_HUB_PAGE_COPY,
+} from "@/lib/operatorReports/reportsPresentation"
+import { cn } from "@/lib/utils"
+
 type ReportsEmptyStateProps = {
+  title?: string
+  subtitle?: string
+  action?: ReactNode
   className?: string
 }
 
-export function ReportsEmptyState({ className }: ReportsEmptyStateProps) {
+/** Shared Reports empty shell — Capture empty chrome. */
+export function ReportsEmptyState({
+  title = REPORTS_HUB_PAGE_COPY.emptyTitle,
+  subtitle = REPORTS_HUB_PAGE_COPY.emptySubtitle,
+  action,
+  className,
+}: ReportsEmptyStateProps) {
   return (
-    <div className="flex w-full min-h-[380px] flex-col items-center justify-center gap-7 py-20">
-      <div className="flex flex-col items-center justify-start gap-2.5">
-        <div className="text-center text-base font-medium text-op-text-primary">
-          No report data yet.
-        </div>
-        <div className="w-80 text-center text-sm font-medium leading-5 text-op-text-muted">
-          Create your first QR code and start collecting private guest feedback.
-        </div>
+    <div className={cn(REPORTS_EMPTY_SHELL_CLASS, className)}>
+      <div className="flex flex-col items-center gap-2.5 text-center">
+        <p className={REPORTS_EMPTY_TITLE_CLASS}>{title}</p>
+        <p className={REPORTS_EMPTY_HELPER_CLASS}>{subtitle}</p>
       </div>
+      {action != null ? (
+        <div className={REPORTS_EMPTY_ACTIONS_CLASS}>{action}</div>
+      ) : null}
     </div>
   )
 }

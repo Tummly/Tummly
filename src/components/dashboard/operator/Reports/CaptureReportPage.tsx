@@ -1,25 +1,34 @@
-import { useState } from "react"
-import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import aiIconPng from "@/assets/svg/ui-icons/ai-icon.png"
-import {
-  ChevronRight,
-  Download,
-  ArrowUpRight,
-  MoreVertical,
-} from "lucide-react"
+import { Fragment, useState } from "react"
+import { useNavigate, useSearchParams } from "react-router-dom"
+import { MoreVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { ReportsExportDialog } from "@/components/dashboard/operator/Reports/ReportsExportDialog"
 import {
   CaptureReportPlacementActionModal,
   type CaptureReportPlacementActionType,
 } from "@/components/dashboard/operator/Reports/CaptureReportPlacementActionModal"
-import { ReportsDateRangeControl } from "@/components/dashboard/operator/Reports/ReportsDateRangeControl"
+import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
+import { ReportsInsightBanner } from "@/components/dashboard/operator/Reports/ReportsInsightBanner"
+import { ReportsKpiStrip } from "@/components/dashboard/operator/Reports/ReportsKpiStrip"
+import { ReportsPageChrome } from "@/components/dashboard/operator/Reports/ReportsPageChrome"
+import { ReportsSection } from "@/components/dashboard/operator/Reports/ReportsSection"
+import { ReportsStandardHeaderActions } from "@/components/dashboard/operator/Reports/ReportsStandardHeaderActions"
+import { ReportsStatusBadge } from "@/components/dashboard/operator/Reports/ReportsStatusBadge"
 import {
   DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
   labelForHomePerformanceDateRange,
@@ -32,12 +41,28 @@ import {
   type CaptureReportPlacementRow,
 } from "@/lib/operatorReports/captureReportPresentation"
 import {
+  REPORTS_BODY_STACK_CLASS,
+  REPORTS_PAGE_ACTION_BUTTON_CLASS,
+  REPORTS_ROW_ACTIONS_ITEM_CLASS,
+  REPORTS_ROW_ACTIONS_MENU_CLASS,
+  REPORTS_ROW_ACTIONS_SEPARATOR_CLASS,
+  REPORTS_ROW_ACTIONS_TRIGGER_CLASS,
+  REPORTS_TABLE_ACTIONS_CELL_CLASS,
+  REPORTS_TABLE_BODY_CELL_CLASS,
+  REPORTS_TABLE_BODY_ROW_CLASS,
+  REPORTS_TABLE_CLASS,
+  REPORTS_TABLE_FRAME_CLASS,
+  REPORTS_TABLE_HEAD_ACTIONS_CELL_CLASS,
+  REPORTS_TABLE_HEAD_CELL_CLASS,
+  REPORTS_TABLE_HEAD_ROW_CLASS,
+  REPORTS_TABLE_NAME_CELL_CLASS,
+} from "@/lib/operatorReports/reportsPresentation"
+import {
   operatorDashboardNavPath,
   operatorDashboardCaptureLocationPath,
   operatorDashboardWeeklyBriefPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
-import { cn } from "@/lib/utils"
 
 type CaptureReportPageProps = {
   selectedLocationId?: number
@@ -51,7 +76,7 @@ type CaptureReportPageProps = {
 export function CaptureReportPage({
   selectedLocationId = 1,
   selectedLocationName = "Mehmet's Grill",
-  locations = [],
+  locations: _locations = [],
   mode = "single",
   isEmpty: propIsEmpty,
   data = mockCaptureReportData,
@@ -70,7 +95,7 @@ export function CaptureReportPage({
     placement: null,
   })
 
-  const isPageEmpty = propIsEmpty ?? (searchParams.get("empty") === "true")
+  const isPageEmpty = propIsEmpty ?? searchParams.get("empty") === "true"
   const dateRangeLabel = labelForHomePerformanceDateRange(dateRange)
 
   const reportsBasePath = operatorDashboardNavPath(
@@ -101,361 +126,258 @@ export function CaptureReportPage({
   ]
 
   return (
-    <div className="w-full flex flex-col gap-6">
-      {/* 1. Breadcrumb Navigation */}
-      <nav aria-label="Breadcrumb" className="inline-flex items-center gap-2.5">
-        <Link
-          to={reportsBasePath}
-          className="text-base font-medium text-op-text-primary hover:text-op-text-primary/80 transition-colors"
-        >
-          {CAPTURE_REPORT_PAGE_COPY.breadcrumbReports}
-        </Link>
-        <ChevronRight className="size-4 text-op-text-muted shrink-0" />
-        <span className="text-base font-medium text-op-text-muted">
-          {CAPTURE_REPORT_PAGE_COPY.breadcrumbCaptureReport}
-        </span>
-      </nav>
-
-      {/* 2. Page Header Row */}
-      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-bold tracking-tight text-op-text-primary">
-            {CAPTURE_REPORT_PAGE_COPY.pageTitle}
-          </h1>
-          <p className="text-sm sm:text-base font-medium text-op-text-muted">
-            {CAPTURE_REPORT_PAGE_COPY.pageSubtitle}
-          </p>
-        </div>
-
-        {/* Header Action Buttons */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Generate Brief Button */}
-          <Button
-            type="button"
-            variant="op-secondary"
-            className="h-10 gap-2 rounded-xs px-4 text-sm font-medium"
-            onClick={() =>
-              navigate(
-                operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
-              )
-            }
-          >
-            <img
-              src={aiIconPng}
-              alt=""
-              className="size-4 shrink-0 brightness-0 invert"
-            />
-            <span>{CAPTURE_REPORT_PAGE_COPY.generateBrief}</span>
-          </Button>
-
-          {/* Export Button */}
-          <Button
-            type="button"
-            variant="op-secondary"
-            className="h-10 gap-2 rounded-xs px-4 text-sm font-medium"
-            onClick={() => setIsExportOpen(true)}
-          >
-            <Download className="size-4" />
-            <span>{CAPTURE_REPORT_PAGE_COPY.export}</span>
-          </Button>
-
-          {/* Date Range Selector */}
-          <ReportsDateRangeControl
-            selectedRange={dateRange}
-            onCommitRange={setDateRange}
-          />
-        </div>
-      </div>
-
+    <ReportsPageChrome
+      title={CAPTURE_REPORT_PAGE_COPY.pageTitle}
+      subtitle={CAPTURE_REPORT_PAGE_COPY.pageSubtitle}
+      breadcrumb={{
+        reportsBasePath,
+        currentLabel: CAPTURE_REPORT_PAGE_COPY.breadcrumbCaptureReport,
+      }}
+      actions={
+        <ReportsStandardHeaderActions
+          onGenerateBrief={() =>
+            navigate(
+              operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
+            )
+          }
+          onExport={() => setIsExportOpen(true)}
+          selectedRange={dateRange}
+          onCommitRange={setDateRange}
+        />
+      }
+    >
       {isPageEmpty ? (
-        /* Empty State */
-        <div className="flex w-full min-h-[400px] flex-col items-center justify-center gap-2 py-20 text-center">
-          <h2 className="text-lg font-bold text-op-text-primary">
-            {CAPTURE_REPORT_PAGE_COPY.emptyTitle}
-          </h2>
-          <p className="max-w-md text-sm font-medium leading-relaxed text-op-text-muted">
-            {CAPTURE_REPORT_PAGE_COPY.emptySubtitle}
-          </p>
-        </div>
+        <ReportsEmptyState
+          title={CAPTURE_REPORT_PAGE_COPY.emptyTitle}
+          subtitle={CAPTURE_REPORT_PAGE_COPY.emptySubtitle}
+        />
       ) : (
-        /* Populated Capture Report Content */
-        <div className="flex flex-col gap-6">
-          {/* Card 1: 6-KPI Strip */}
-          <div className="w-full rounded-md border border-op-border-default bg-op-card-background p-6 shadow-sm">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-y sm:divide-y-0 sm:divide-x divide-op-border-default">
-              {kpisList.map((kpi, index) => (
-                <div
-                  key={kpi.label}
-                  className={cn(
-                    "flex flex-col justify-between gap-1 py-3 sm:py-2",
-                    index === 0 ? "sm:pl-2" : "sm:px-4",
-                    index === kpisList.length - 1 ? "sm:pr-2" : ""
-                  )}
-                >
-                  <span className="text-sm font-medium text-op-text-muted">
-                    {kpi.label}
-                  </span>
-                  <span className="text-3xl font-extrabold text-op-text-primary leading-9 tracking-tight">
-                    {kpi.value}
-                  </span>
-                  <div className="flex items-center gap-1 text-xs font-semibold text-op-kpi-info-color pt-0.5">
-                    <ArrowUpRight className="size-3.5 shrink-0" />
-                    <span>{kpi.delta}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className={REPORTS_BODY_STACK_CLASS}>
+          <ReportsSection>
+            <ReportsKpiStrip items={kpisList} />
+          </ReportsSection>
 
-          {/* Card 2: Scan-to-guest funnel */}
-          <div className="w-full flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-op-text-primary">
-              {CAPTURE_REPORT_PAGE_COPY.funnelSectionTitle}
-            </h2>
-
-            {/* Funnel Table */}
-            <div className="w-full overflow-hidden rounded-xs border border-op-border-default">
-              <div className="grid grid-cols-12 bg-op-surface-secondary/90 border-b border-op-border-default text-sm font-semibold text-op-text-primary">
-                <div className="col-span-4 px-4 py-3 border-r border-op-border-default">
-                  Step
-                </div>
-                <div className="col-span-4 px-4 py-3 border-r border-op-border-default">
-                  Count
-                </div>
-                <div className="col-span-4 px-4 py-3">Drop-off</div>
-              </div>
-
-              <div className="divide-y divide-op-border-default">
-                {data.funnel.map((row) => (
-                  <div
-                    key={row.step}
-                    className="grid grid-cols-12 hover:bg-op-surface-secondary/20 transition-colors"
-                  >
-                    <div className="col-span-4 px-4 py-3 border-r border-op-border-default text-sm font-semibold text-op-text-primary">
-                      {row.step}
-                    </div>
-                    <div className="col-span-4 px-4 py-3 border-r border-op-border-default text-sm font-normal text-op-text-muted">
-                      {row.count}
-                    </div>
-                    <div className="col-span-4 px-4 py-3 text-sm font-normal text-op-text-muted">
-                      {row.dropOff}
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <ReportsSection title={CAPTURE_REPORT_PAGE_COPY.funnelSectionTitle}>
+            <div className={REPORTS_TABLE_FRAME_CLASS}>
+              <Table className={REPORTS_TABLE_CLASS}>
+                <TableHeader>
+                  <TableRow className={REPORTS_TABLE_HEAD_ROW_CLASS}>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
+                      Step
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
+                      Count
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
+                      Drop-off
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.funnel.map((row) => (
+                    <TableRow
+                      key={row.step}
+                      className={REPORTS_TABLE_BODY_ROW_CLASS}
+                    >
+                      <TableCell className={REPORTS_TABLE_NAME_CELL_CLASS}>
+                        {row.step}
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                        {row.count}
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                        {row.dropOff}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
 
-            {/* AI Insight Box */}
-            <div className="w-full p-5 rounded-sm bg-op-background-primary/80 border border-op-border-default/60 flex items-start gap-3">
-              <img
-                src={aiIconPng}
-                alt=""
-                className="size-5 shrink-0 brightness-0 invert mt-0.5"
-              />
-              <p className="text-sm font-medium text-op-text-secondary leading-relaxed max-w-3xl">
-                {CAPTURE_REPORT_PAGE_COPY.funnelInsight}
-              </p>
-            </div>
+            <ReportsInsightBanner>
+              {CAPTURE_REPORT_PAGE_COPY.funnelInsight}
+            </ReportsInsightBanner>
 
-            {/* Action CTA */}
             <div>
               <Button
                 type="button"
                 variant="op-primary"
-                className="h-10 rounded-xs px-4 text-sm font-medium"
+                className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
                 onClick={handleReviewGuestForm}
               >
                 {CAPTURE_REPORT_PAGE_COPY.reviewGuestForm}
               </Button>
             </div>
-          </div>
+          </ReportsSection>
 
-          {/* Card 3: QR placement performance */}
-          <div className="w-full flex flex-col gap-6 rounded-md border border-op-border-default bg-op-card-background p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-op-text-primary">
-              {CAPTURE_REPORT_PAGE_COPY.placementSectionTitle}
-            </h2>
-
-            {/* Placements Table */}
-            <div className="w-full overflow-x-auto rounded-xs border border-op-border-default">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-op-surface-secondary/90 border-b border-op-border-default text-op-text-primary font-semibold">
-                  <tr>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[180px]">
+          <ReportsSection
+            title={CAPTURE_REPORT_PAGE_COPY.placementSectionTitle}
+          >
+            <div className={REPORTS_TABLE_FRAME_CLASS}>
+              <Table className={REPORTS_TABLE_CLASS}>
+                <TableHeader>
+                  <TableRow className={REPORTS_TABLE_HEAD_ROW_CLASS}>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       QR name
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[120px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Placement
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[100px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Status
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[80px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Scans
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[90px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Feedback
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[110px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Contactable
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[80px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Claims
-                    </th>
-                    <th className="px-4 py-3 border-r border-op-border-default min-w-[100px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Conversion
-                    </th>
-                    <th className="px-4 py-3 text-center min-w-[80px]">
+                    </TableHead>
+                    <TableHead className={REPORTS_TABLE_HEAD_ACTIONS_CELL_CLASS}>
                       {CAPTURE_REPORT_PAGE_COPY.actionsMenuLabel}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-op-border-default">
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {data.placements.map((row) => (
-                    <tr
+                    <TableRow
                       key={row.id}
-                      className="hover:bg-op-surface-secondary/20 transition-colors"
+                      className={REPORTS_TABLE_BODY_ROW_CLASS}
                     >
-                      <td className="px-4 py-3 border-r border-op-border-default font-semibold text-op-text-primary">
+                      <TableCell className={REPORTS_TABLE_NAME_CELL_CLASS}>
                         {row.qrName}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-muted">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.placement}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-xs text-xs font-medium bg-green-600/20 text-green-600">
-                          {row.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-primary">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                        <ReportsStatusBadge status={row.status} />
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.scans}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-primary">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.feedback}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-primary">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.contactable}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-primary">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.claims}
-                      </td>
-                      <td className="px-4 py-3 border-r border-op-border-default text-op-text-primary">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         {row.conversion}
-                      </td>
-                      <td className="px-4 py-3 text-center">
+                      </TableCell>
+                      <TableCell className={REPORTS_TABLE_ACTIONS_CELL_CLASS}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
                               type="button"
-                              variant="ghost"
+                              variant="op-ghost"
                               size="icon"
-                              className="size-8 text-op-text-primary hover:bg-op-surface-secondary"
+                              className={REPORTS_ROW_ACTIONS_TRIGGER_CLASS}
                               aria-label={`Actions for ${row.qrName}`}
                             >
-                              <MoreVertical className="size-4" />
+                              <MoreVertical className="size-4" aria-hidden />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
                             align="end"
-                            className="w-40 border-op-border-default bg-op-background-primary text-op-text-primary z-[220] py-1"
+                            className={REPORTS_ROW_ACTIONS_MENU_CLASS}
                           >
-                            <DropdownMenuItem
-                              className="cursor-pointer text-xs font-medium text-op-text-primary hover:bg-op-surface-secondary/80 focus:bg-op-surface-secondary"
-                              onClick={() =>
-                                setActivePlacementModal({
-                                  actionType: "view-qr",
-                                  placement: row,
-                                })
-                              }
-                            >
-                              View QR
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="cursor-pointer text-xs font-medium text-op-text-primary hover:bg-op-surface-secondary/80 focus:bg-op-surface-secondary"
-                              onClick={() =>
-                                setActivePlacementModal({
-                                  actionType: "download-pdf",
-                                  placement: row,
-                                })
-                              }
-                            >
-                              Download PDF
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="cursor-pointer text-xs font-medium text-op-text-primary hover:bg-op-surface-secondary/80 focus:bg-op-surface-secondary"
-                              onClick={() =>
-                                setActivePlacementModal({
+                            {(
+                              [
+                                {
+                                  id: "view-qr",
+                                  label: "View QR",
+                                  actionType: "view-qr" as const,
+                                },
+                                {
+                                  id: "download-pdf",
+                                  label: "Download PDF",
+                                  actionType: "download-pdf" as const,
+                                },
+                                {
+                                  id: "pause-activate",
+                                  label:
+                                    row.status === "Active"
+                                      ? "Pause"
+                                      : "Activate",
                                   actionType:
-                                    row.status === "Active" ? "pause" : "activate",
-                                  placement: row,
-                                })
-                              }
-                            >
-                              {row.status === "Active" ? "Pause" : "Activate"}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="cursor-pointer text-xs font-medium text-op-text-primary hover:bg-op-surface-secondary/80 focus:bg-op-surface-secondary"
-                              onClick={() =>
-                                setActivePlacementModal({
-                                  actionType: "duplicate",
-                                  placement: row,
-                                })
-                              }
-                            >
-                              Duplicate
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="cursor-pointer text-xs font-medium text-op-text-primary hover:bg-op-surface-secondary/80 focus:bg-op-surface-secondary"
-                              onClick={() =>
-                                setActivePlacementModal({
-                                  actionType: "archive",
-                                  placement: row,
-                                })
-                              }
-                            >
-                              Archive
-                            </DropdownMenuItem>
+                                    row.status === "Active"
+                                      ? ("pause" as const)
+                                      : ("activate" as const),
+                                },
+                                {
+                                  id: "duplicate",
+                                  label: "Duplicate",
+                                  actionType: "duplicate" as const,
+                                },
+                                {
+                                  id: "archive",
+                                  label: "Archive",
+                                  actionType: "archive" as const,
+                                },
+                              ] as const
+                            ).map((item, index) => (
+                              <Fragment key={item.id}>
+                                {index > 0 ? (
+                                  <DropdownMenuSeparator
+                                    className={
+                                      REPORTS_ROW_ACTIONS_SEPARATOR_CLASS
+                                    }
+                                  />
+                                ) : null}
+                                <DropdownMenuItem
+                                  className={REPORTS_ROW_ACTIONS_ITEM_CLASS}
+                                  onClick={() =>
+                                    setActivePlacementModal({
+                                      actionType: item.actionType,
+                                      placement: row,
+                                    })
+                                  }
+                                >
+                                  {item.label}
+                                </DropdownMenuItem>
+                              </Fragment>
+                            ))}
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
-            {/* AI Insight Box with Action Button */}
-            <div className="w-full p-5 rounded-sm bg-op-background-primary/80 border border-op-border-default/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-start gap-3 flex-1">
-                <img
-                  src={aiIconPng}
-                  alt=""
-                  className="size-5 shrink-0 brightness-0 invert mt-0.5"
-                />
-                <div className="flex flex-col gap-1">
-                  <h3 className="text-sm font-semibold text-op-text-primary">
-                    {CAPTURE_REPORT_PAGE_COPY.placementInsightTitle}
-                  </h3>
-                  <p className="text-sm font-medium text-op-text-secondary leading-relaxed max-w-3xl">
-                    {CAPTURE_REPORT_PAGE_COPY.placementInsightSubtitle}
-                  </p>
-                </div>
-              </div>
-
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <ReportsInsightBanner
+                title={CAPTURE_REPORT_PAGE_COPY.placementInsightTitle}
+                className="flex-1"
+              >
+                {CAPTURE_REPORT_PAGE_COPY.placementInsightSubtitle}
+              </ReportsInsightBanner>
               <Button
                 type="button"
                 variant="op-tertiary"
-                className="h-10 px-4 py-2.5 rounded-xs text-sm font-medium shrink-0"
+                className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
                 onClick={handleCreatePlacement}
               >
                 {CAPTURE_REPORT_PAGE_COPY.createPlacement}
               </Button>
             </div>
-          </div>
+          </ReportsSection>
         </div>
       )}
 
-      {/* Export Dialog */}
       <ReportsExportDialog
         open={isExportOpen}
         onOpenChange={setIsExportOpen}
@@ -463,7 +385,6 @@ export function CaptureReportPage({
         dateRangeLabel={dateRangeLabel}
       />
 
-      {/* Reusable Placement Action Modal */}
       <CaptureReportPlacementActionModal
         open={activePlacementModal.actionType != null}
         actionType={activePlacementModal.actionType}
@@ -475,6 +396,6 @@ export function CaptureReportPage({
           }
         }}
       />
-    </div>
+    </ReportsPageChrome>
   )
 }

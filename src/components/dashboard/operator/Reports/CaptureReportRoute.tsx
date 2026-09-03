@@ -1,9 +1,11 @@
-import { useOutletContext } from "react-router-dom"
+import { useOutletContext, useSearchParams } from "react-router-dom"
+
 import { CaptureReportPage } from "@/components/dashboard/operator/Reports/CaptureReportPage"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 
 export function CaptureReportRoute() {
   const context = useOutletContext<DashboardOutletContext | undefined>()
+  const [searchParams] = useSearchParams()
 
   const selectedLocationId = context?.selectedLocationId ?? 1
   const locations = context?.locations ?? []
@@ -19,7 +21,7 @@ export function CaptureReportRoute() {
       selectedLocationName={locationName}
       locations={locations}
       mode={mode}
-      isEmpty={false}
+      isEmpty={searchParams.get("empty") === "true"}
     />
   )
 }
