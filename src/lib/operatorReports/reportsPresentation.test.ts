@@ -34,6 +34,7 @@ describe("reportsPresentation", () => {
     expect(resolveReportsStatusBadgeVariant("Redeemed")).toBe("ready")
     expect(resolveReportsStatusBadgeVariant("Follow-up needed")).toBe("neutral")
     expect(resolveReportsStatusBadgeVariant("Invalid")).toBe("negative")
+    expect(resolveReportsStatusBadgeVariant("Partially sent")).toBe("negative")
     expect(resolveReportsStatusBadgeVariant("Something else")).toBe("soft")
   })
 })

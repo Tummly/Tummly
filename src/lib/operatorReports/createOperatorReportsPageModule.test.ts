@@ -13,6 +13,7 @@ import type {
   WeeklyBriefMetrics,
 } from "@/types/operatorHome"
 import type {
+  ReportsCampaignsResponse,
   ReportsCaptureResponse,
   ReportsFeedbackResponse,
   ReportsOffersResponse,
@@ -264,11 +265,46 @@ function readyOffers(): Extract<
   }
 }
 
+function readyCampaigns(): Extract<
+  ReportsCampaignsResponse,
+  { lifetimeEmpty: false }
+> {
+  const metric = (value: number, valuePrevious: number) => ({
+    value,
+    valuePrevious,
+  })
+  return {
+    success: true,
+    lifetimeEmpty: false,
+    campaignsSent: metric(2, 1),
+    guestsMessaged: metric(4, 2),
+    failedSends: metric(1, 0),
+    performance: [
+      {
+        campaignId: 9,
+        name: "Quiet Tuesday",
+        goal: "boost-quieter-time",
+        channel: "sms",
+        sent: 3,
+        status: "sent",
+      },
+    ],
+    needsAttention: [
+      {
+        campaignId: 11,
+        name: "Failed blast",
+        status: "failed",
+      },
+    ],
+  }
+}
+
 function createAdapters(overrides: {
   getOverview?: OperatorReportsPageAdapters["getOverview"]
   getCapture?: OperatorReportsPageAdapters["getCapture"]
   getFeedback?: OperatorReportsPageAdapters["getFeedback"]
   getOffers?: OperatorReportsPageAdapters["getOffers"]
+  getCampaigns?: OperatorReportsPageAdapters["getCampaigns"]
   getReportsDateRange?: OperatorReportsPageAdapters["getReportsDateRange"]
   getWeeklyBrief?: OperatorReportsPageAdapters["getWeeklyBrief"]
   generateWeeklyBrief?: OperatorReportsPageAdapters["generateWeeklyBrief"]
@@ -289,6 +325,10 @@ function createAdapters(overrides: {
     overrides.getOffers
       ?? (async () => readyOffers() as ReportsOffersResponse)
   )
+  const getCampaigns = vi.fn(
+    overrides.getCampaigns
+      ?? (async () => readyCampaigns() as ReportsCampaignsResponse)
+  )
   const getReportsDateRange = vi.fn(
     overrides.getReportsDateRange
       ?? (() => DEFAULT_HOME_PERFORMANCE_DATE_RANGE)
@@ -308,6 +348,7 @@ function createAdapters(overrides: {
     getCapture,
     getFeedback,
     getOffers,
+    getCampaigns,
     getReportsDateRange,
     getWeeklyBrief,
     generateWeeklyBrief,
@@ -704,5 +745,50 @@ describe("createOperatorReportsPageModule", () => {
     await module.retryOffersLoad()
     expect(module.getSnapshot().offersLoadStatus).toBe("ready")
     expect(module.getSnapshot().offersReport?.kpis.activeOffers.value).toBe("2")
+  })
+
+  it("loads Campaigns report when the Campaigns surface is active", async () => {
+    const adapters = createAdapters()
+    const module = createOperatorReportsPageModule(adapters)
+    module.setActiveSurface("campaigns")
+    await module.syncWorkspace(workspace())
+    expect(adapters.getCampaigns).toHaveBeenCalledTimes(1)
+    expect(adapters.getOverview).not.toHaveBeenCalled()
+    expect(module.getSnapshot().campaignsLoadStatus).toBe("ready")
+    expect(module.getSnapshot().campaignsReport?.kpis[0]?.value).toBe("2")
+  })
+
+  it("reloads Campaigns report when date range commits on the Campaigns surface", async () => {
+    const adapters = createAdapters()
+    const module = createOperatorReportsPageModule(adapters)
+    module.setActiveSurface("campaigns")
+    await module.syncWorkspace(workspace())
+    expect(adapters.getCampaigns).toHaveBeenCalledTimes(1)
+    expect(adapters.getOverview).not.toHaveBeenCalled()
+
+    adapters.getReportsDateRange.mockReturnValue({
+      kind: "preset",
+      presetId: "last30",
+    })
+    await module.reloadForReportsDateRange()
+    expect(adapters.getCampaigns).toHaveBeenCalledTimes(2)
+    expect(adapters.getOverview).not.toHaveBeenCalled()
+  })
+
+  it("retries Campaigns load after error", async () => {
+    const getCampaigns = vi
+      .fn<OperatorReportsPageAdapters["getCampaigns"]>()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce(readyCampaigns())
+    const adapters = createAdapters({ getCampaigns })
+    const module = createOperatorReportsPageModule(adapters)
+    module.setActiveSurface("campaigns")
+
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().campaignsLoadStatus).toBe("error")
+
+    await module.retryCampaignsLoad()
+    expect(module.getSnapshot().campaignsLoadStatus).toBe("ready")
+    expect(module.getSnapshot().campaignsReport?.kpis[0]?.value).toBe("2")
   })
 })

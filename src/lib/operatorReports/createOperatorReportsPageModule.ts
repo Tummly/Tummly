@@ -20,6 +20,11 @@ import {
   type OffersReportData,
 } from "@/lib/operatorReports/offersReportPresentation"
 import {
+  buildCampaignsReportViewModel,
+  CAMPAIGNS_REPORT_PAGE_COPY,
+  type CampaignsReportViewModel,
+} from "@/lib/operatorReports/campaignsReportPresentation"
+import {
   buildReportsOverviewViewModel,
   REPORTS_HUB_LOAD_ERROR_MESSAGE,
   type ReportsOverviewViewModel,
@@ -34,6 +39,7 @@ import type {
   WeeklyBriefGetResponse,
 } from "@/types/operatorHome"
 import type {
+  ReportsCampaignsResponse,
   ReportsCaptureResponse,
   ReportsFeedbackResponse,
   ReportsKpiLoadStatus,
@@ -88,6 +94,9 @@ export type OperatorReportsPageSnapshot = {
   offersLoadStatus: ReportsKpiLoadStatus
   offersReport: OffersReportData | null
   offersLoadError: string | null
+  campaignsLoadStatus: ReportsKpiLoadStatus
+  campaignsReport: CampaignsReportViewModel | null
+  campaignsLoadError: string | null
   exportAllowed: boolean
   dateRange: HomePerformanceDateRange
   dateRangeLabel: string
@@ -122,11 +131,11 @@ export type OperatorReportsPageAdapters = {
     from: string
     to: string
   }) => Promise<ReportsOffersResponse>
-  getCampaigns?: (input: {
+  getCampaigns: (input: {
     locationId: number
     from: string
     to: string
-  }) => Promise<unknown>
+  }) => Promise<ReportsCampaignsResponse>
   downloadExport?: (input: {
     locationId: number
     from: string
@@ -154,6 +163,7 @@ export type OperatorReportsPageModule = {
   retryCaptureLoad: () => Promise<void>
   retryFeedbackLoad: () => Promise<void>
   retryOffersLoad: () => Promise<void>
+  retryCampaignsLoad: () => Promise<void>
   openExportDialog: () => void
   closeExportDialog: () => void
 }
@@ -173,6 +183,9 @@ type ModuleState = {
   offersLoadStatus: ReportsKpiLoadStatus
   offersReport: OffersReportData | null
   offersLoadError: string | null
+  campaignsLoadStatus: ReportsKpiLoadStatus
+  campaignsReport: CampaignsReportViewModel | null
+  campaignsLoadError: string | null
   exportAllowed: boolean
   exportDialogOpen: boolean
   workspace: OperatorReportsWorkspaceInput | null
@@ -181,6 +194,7 @@ type ModuleState = {
   captureLoadGeneration: number
   feedbackLoadGeneration: number
   offersLoadGeneration: number
+  campaignsLoadGeneration: number
 }
 
 function emptyWeeklyBrief(
@@ -252,8 +266,9 @@ function selectedLocationName(
 }
 
 /**
- * Layout-scoped Reports page module — hub overview + Capture + Feedback + Offers KPI
- * loads + Weekly Brief slice + shared date range + export-allowed from shell lock.
+ * Layout-scoped Reports page module — hub overview + Capture + Feedback + Offers +
+ * Campaigns KPI loads + Weekly Brief slice + shared date range + export-allowed
+ * from shell lock.
  */
 export function createOperatorReportsPageModule(
   adapters: OperatorReportsPageAdapters
@@ -273,6 +288,9 @@ export function createOperatorReportsPageModule(
     offersLoadStatus: "idle",
     offersReport: null,
     offersLoadError: null,
+    campaignsLoadStatus: "idle",
+    campaignsReport: null,
+    campaignsLoadError: null,
     exportAllowed: true,
     exportDialogOpen: false,
     workspace: null,
@@ -281,6 +299,7 @@ export function createOperatorReportsPageModule(
     captureLoadGeneration: 0,
     feedbackLoadGeneration: 0,
     offersLoadGeneration: 0,
+    campaignsLoadGeneration: 0,
   }
 
   let snapshot: OperatorReportsPageSnapshot = projectSnapshot()
@@ -304,6 +323,9 @@ export function createOperatorReportsPageModule(
       offersLoadStatus: state.offersLoadStatus,
       offersReport: state.offersReport,
       offersLoadError: state.offersLoadError,
+      campaignsLoadStatus: state.campaignsLoadStatus,
+      campaignsReport: state.campaignsReport,
+      campaignsLoadError: state.campaignsLoadError,
       exportAllowed: state.exportAllowed,
       dateRange,
       dateRangeLabel: labelForHomePerformanceDateRange(dateRange),
@@ -788,6 +810,87 @@ export function createOperatorReportsPageModule(
     }
   }
 
+  const loadCampaigns = async () => {
+    const workspace = state.workspace
+    const locationId = workspace?.selectedLocationId
+    if (workspace == null || locationId == null) {
+      state = {
+        ...state,
+        campaignsLoadStatus: "idle",
+        campaignsReport: null,
+        campaignsLoadError: null,
+      }
+      publish()
+      return
+    }
+
+    const generation = state.campaignsLoadGeneration + 1
+    state = {
+      ...state,
+      campaignsLoadStatus: "loading",
+      campaignsLoadGeneration: generation,
+      campaignsLoadError: null,
+    }
+    publish()
+
+    try {
+      const window = resolveHomePerformanceWindow(
+        adapters.getReportsDateRange()
+      )
+      const response = await adapters.getCampaigns({
+        locationId,
+        from: window.from.toISOString(),
+        to: window.to.toISOString(),
+      })
+
+      if (generation !== state.campaignsLoadGeneration) {
+        return
+      }
+
+      if (!response.success) {
+        state = {
+          ...state,
+          campaignsLoadStatus: "error",
+          campaignsReport: null,
+          campaignsLoadError:
+            response.message?.trim() || CAMPAIGNS_REPORT_PAGE_COPY.loadError,
+        }
+        publish()
+        return
+      }
+
+      if (response.lifetimeEmpty) {
+        state = {
+          ...state,
+          campaignsLoadStatus: "lifetimeEmpty",
+          campaignsReport: null,
+          campaignsLoadError: null,
+        }
+        publish()
+        return
+      }
+
+      state = {
+        ...state,
+        campaignsLoadStatus: "ready",
+        campaignsReport: buildCampaignsReportViewModel(response),
+        campaignsLoadError: null,
+      }
+      publish()
+    } catch {
+      if (generation !== state.campaignsLoadGeneration) {
+        return
+      }
+      state = {
+        ...state,
+        campaignsLoadStatus: "error",
+        campaignsReport: null,
+        campaignsLoadError: CAMPAIGNS_REPORT_PAGE_COPY.loadError,
+      }
+      publish()
+    }
+  }
+
   const loadForActiveSurface = async () => {
     if (state.activeSurface === "hub") {
       await loadHubAndBrief()
@@ -807,6 +910,10 @@ export function createOperatorReportsPageModule(
     }
     if (state.activeSurface === "offers") {
       await loadOffers()
+      return
+    }
+    if (state.activeSurface === "campaigns") {
+      await loadCampaigns()
     }
   }
 
@@ -864,6 +971,10 @@ export function createOperatorReportsPageModule(
       }
       if (surface === "offers") {
         void loadOffers()
+        return
+      }
+      if (surface === "campaigns") {
+        void loadCampaigns()
       }
     },
     async reloadForReportsDateRange() {
@@ -882,6 +993,10 @@ export function createOperatorReportsPageModule(
       }
       if (state.activeSurface === "offers") {
         await loadOffers()
+        return
+      }
+      if (state.activeSurface === "campaigns") {
+        await loadCampaigns()
       }
     },
     async retryHubLoad() {
@@ -915,6 +1030,9 @@ export function createOperatorReportsPageModule(
     },
     async retryOffersLoad() {
       await loadOffers()
+    },
+    async retryCampaignsLoad() {
+      await loadCampaigns()
     },
     openExportDialog() {
       if (!state.exportAllowed) {

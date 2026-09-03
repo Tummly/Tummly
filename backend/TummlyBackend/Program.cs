@@ -404,6 +404,10 @@ builder.Services.AddScoped<
     ReportsOffersService
 >();
 builder.Services.AddScoped<
+    IReportsCampaignsService,
+    ReportsCampaignsService
+>();
+builder.Services.AddScoped<
     IOfferIssueService,
     OfferIssueService
 >();

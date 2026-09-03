@@ -1,57 +1,80 @@
 import { describe, it, expect } from "vitest"
 import {
+  buildCampaignsReportViewModel,
   CAMPAIGNS_REPORT_PAGE_COPY,
-  mockCampaignsReportData,
 } from "./campaignsReportPresentation"
+import type { ReportsCampaignsResponse } from "@/types/operatorReports"
 
 describe("campaignsReportPresentation", () => {
-  it("exports complete copy constants for Campaigns Report page", () => {
+  it("exports copy without claims, redemptions, or opt-outs", () => {
     expect(CAMPAIGNS_REPORT_PAGE_COPY.breadcrumbReports).toBe("Reports")
     expect(CAMPAIGNS_REPORT_PAGE_COPY.breadcrumbCampaignsReport).toBe(
-      "Campaigns report"
+      "Campaigns report",
     )
     expect(CAMPAIGNS_REPORT_PAGE_COPY.pageTitle).toBe("Campaigns report")
     expect(CAMPAIGNS_REPORT_PAGE_COPY.emptyTitle).toBe(
-      "No campaign reports yet"
+      "No campaign reports yet",
     )
     expect(CAMPAIGNS_REPORT_PAGE_COPY.createCampaign).toBe("Create campaign")
+    expect(CAMPAIGNS_REPORT_PAGE_COPY.pageSubtitle).not.toMatch(
+      /opt-out|claim|redemption/i,
+    )
+    expect(CAMPAIGNS_REPORT_PAGE_COPY.emptySubtitle).not.toMatch(
+      /opt-out|claim|redemption/i,
+    )
     expect(CAMPAIGNS_REPORT_PAGE_COPY.performanceSectionTitle).toBe(
-      "Campaign performance"
+      "Campaign performance",
     )
     expect(CAMPAIGNS_REPORT_PAGE_COPY.needsAttentionSectionTitle).toBe(
-      "Needs attention"
+      "Needs attention",
     )
   })
 
-  it("provides structured mock data with 6 KPIs, performance list, and attention items", () => {
-    expect(Object.keys(mockCampaignsReportData.kpis)).toHaveLength(6)
-    expect(mockCampaignsReportData.kpis.campaignsSent.label).toBe(
-      "Campaigns sent"
-    )
-    expect(mockCampaignsReportData.kpis.guestsMessaged.label).toBe(
-      "Guests messaged"
-    )
-    expect(mockCampaignsReportData.kpis.offerClaims.label).toBe("Offer claims")
-    expect(mockCampaignsReportData.kpis.offerRedemptions.label).toBe(
-      "Offer redemptions"
-    )
-    expect(mockCampaignsReportData.kpis.unsubscribes.label).toBe("Unsubscribes")
-    expect(mockCampaignsReportData.kpis.failedSends.label).toBe("Failed sends")
+  it("maps a ready campaigns payload into three KPIs and labelled rows", () => {
+    const response: Extract<
+      ReportsCampaignsResponse,
+      { lifetimeEmpty: false }
+    > = {
+      success: true,
+      lifetimeEmpty: false,
+      campaignsSent: { value: 2, valuePrevious: 1 },
+      guestsMessaged: { value: 4, valuePrevious: 2 },
+      failedSends: { value: 1, valuePrevious: 0 },
+      performance: [
+        {
+          campaignId: 9,
+          name: "Quiet Tuesday",
+          goal: "boost-quieter-time",
+          channel: "sms",
+          sent: 3,
+          status: "sent",
+        },
+      ],
+      needsAttention: [
+        {
+          campaignId: 11,
+          name: "Failed blast",
+          status: "failed",
+        },
+      ],
+    }
 
-    expect(mockCampaignsReportData.performance.length).toBeGreaterThanOrEqual(5)
-    expect(mockCampaignsReportData.performance[0].campaign).toBe(
-      "Quiet Tuesday offer"
-    )
-
-    expect(mockCampaignsReportData.attentionItems).toHaveLength(3)
-    expect(mockCampaignsReportData.attentionItems[0].title).toBe(
-      "3 feedback items need attention"
-    )
-    expect(mockCampaignsReportData.attentionItems[1].title).toBe(
-      "SMS credits are running low"
-    )
-    expect(mockCampaignsReportData.attentionItems[2].title).toBe(
-      "Offer expires in 2 days"
-    )
+    const view = buildCampaignsReportViewModel(response)
+    expect(view.kpis).toHaveLength(3)
+    expect(view.kpis[0]?.label).toBe("Campaigns sent")
+    expect(view.kpis[0]?.value).toBe("2")
+    expect(view.performance[0]).toMatchObject({
+      campaignId: 9,
+      name: "Quiet Tuesday",
+      goal: "Boost a quieter time",
+      channel: "SMS",
+      sent: 3,
+      statusLabel: "Sent",
+    })
+    expect(view.attentionItems[0]).toMatchObject({
+      campaignId: 11,
+      name: "Failed blast",
+      statusLabel: "Failed",
+    })
   })
 })

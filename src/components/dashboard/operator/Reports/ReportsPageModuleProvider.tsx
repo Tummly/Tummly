@@ -6,6 +6,7 @@ import {
   getReportsCapture,
   getReportsFeedback,
   getReportsOffers,
+  getReportsCampaigns,
   getReportsOverview,
   getWeeklyBrief,
 } from "@/api/dashboardApi"
@@ -47,6 +48,7 @@ export function ReportsPageModuleProvider({
       getCapture: getReportsCapture,
       getFeedback: getReportsFeedback,
       getOffers: getReportsOffers,
+      getCampaigns: getReportsCampaigns,
       getWeeklyBrief,
       generateWeeklyBrief,
       getReportsDateRange: () => dashboardUiStore.getState().reportsDateRange,

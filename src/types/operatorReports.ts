@@ -191,6 +191,40 @@ export type ReportsOffersResponse =
       message?: string
     }
 
+export type ReportsCampaignsPerformanceWire = {
+  campaignId: number
+  name: string
+  goal: string | null
+  channel: string | null
+  sent: number
+  status: string
+}
+
+export type ReportsCampaignsAttentionWire = {
+  campaignId: number
+  name: string
+  status: string
+}
+
+export type ReportsCampaignsResponse =
+  | {
+      success: true
+      lifetimeEmpty: true
+    }
+  | {
+      success: true
+      lifetimeEmpty: false
+      campaignsSent: ReportsMetricWire
+      guestsMessaged: ReportsMetricWire
+      failedSends: ReportsMetricWire
+      performance: ReportsCampaignsPerformanceWire[]
+      needsAttention: ReportsCampaignsAttentionWire[]
+    }
+  | {
+      success: false
+      message?: string
+    }
+
 export type ReportsSurface =
   | "hub"
   | "capture"

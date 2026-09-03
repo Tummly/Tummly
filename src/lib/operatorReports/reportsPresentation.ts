@@ -189,6 +189,7 @@ export function resolveReportsStatusBadgeVariant(
       return "neutral"
     case "invalid":
     case "failed":
+    case "partially sent":
     case "unsubscribed":
       return "negative"
     default:

@@ -18,6 +18,7 @@ export type OperatorReportsPageModuleApi = {
   retryCaptureLoad: OperatorReportsPageModule["retryCaptureLoad"]
   retryFeedbackLoad: OperatorReportsPageModule["retryFeedbackLoad"]
   retryOffersLoad: OperatorReportsPageModule["retryOffersLoad"]
+  retryCampaignsLoad: OperatorReportsPageModule["retryCampaignsLoad"]
   openExportDialog: OperatorReportsPageModule["openExportDialog"]
   closeExportDialog: OperatorReportsPageModule["closeExportDialog"]
 }
@@ -42,6 +43,7 @@ export function useReportsPageModule(): OperatorReportsPageModuleApi {
     retryCaptureLoad: pageModule.retryCaptureLoad,
     retryFeedbackLoad: pageModule.retryFeedbackLoad,
     retryOffersLoad: pageModule.retryOffersLoad,
+    retryCampaignsLoad: pageModule.retryCampaignsLoad,
     openExportDialog: pageModule.openExportDialog,
     closeExportDialog: pageModule.closeExportDialog,
   }
