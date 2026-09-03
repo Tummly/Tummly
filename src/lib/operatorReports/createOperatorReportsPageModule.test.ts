@@ -12,7 +12,10 @@ import type {
   WeeklyBriefGetResponse,
   WeeklyBriefMetrics,
 } from "@/types/operatorHome"
-import type { ReportsOverviewResponse } from "@/types/operatorReports"
+import type {
+  ReportsCaptureResponse,
+  ReportsOverviewResponse,
+} from "@/types/operatorReports"
 
 const emptySection = {
   hasData: false,
@@ -133,8 +136,39 @@ function workspace(
   }
 }
 
+function readyCapture(): Extract<
+  ReportsCaptureResponse,
+  { lifetimeEmpty: false }
+> {
+  const metric = (value: number, valuePrevious: number) => ({
+    value,
+    valuePrevious,
+  })
+  return {
+    success: true,
+    lifetimeEmpty: false,
+    funnel: {
+      qrScans: metric(12, 6),
+      feedbackSubmitted: metric(4, 2),
+      contactableGuests: metric(3, 1),
+      offerClaimed: metric(1, 0),
+    },
+    placements: [
+      {
+        qrCodeId: 9,
+        name: "Counter card",
+        status: "Active",
+        scans: 12,
+        feedback: 4,
+        contactable: 3,
+      },
+    ],
+  }
+}
+
 function createAdapters(overrides: {
   getOverview?: OperatorReportsPageAdapters["getOverview"]
+  getCapture?: OperatorReportsPageAdapters["getCapture"]
   getReportsDateRange?: OperatorReportsPageAdapters["getReportsDateRange"]
   getWeeklyBrief?: OperatorReportsPageAdapters["getWeeklyBrief"]
   generateWeeklyBrief?: OperatorReportsPageAdapters["generateWeeklyBrief"]
@@ -142,6 +176,10 @@ function createAdapters(overrides: {
   const getOverview = vi.fn(
     overrides.getOverview
       ?? (async () => readyOverview() as ReportsOverviewResponse)
+  )
+  const getCapture = vi.fn(
+    overrides.getCapture
+      ?? (async () => readyCapture() as ReportsCaptureResponse)
   )
   const getReportsDateRange = vi.fn(
     overrides.getReportsDateRange
@@ -159,6 +197,7 @@ function createAdapters(overrides: {
   )
   return {
     getOverview,
+    getCapture,
     getReportsDateRange,
     getWeeklyBrief,
     generateWeeklyBrief,
@@ -192,6 +231,7 @@ describe("createOperatorReportsPageModule", () => {
     await module.reloadForReportsDateRange()
     expect(adapters.getOverview).toHaveBeenCalledTimes(2)
     expect(adapters.getWeeklyBrief.mock.calls.length).toBe(briefCallsAfterSync)
+    expect(adapters.getCapture).not.toHaveBeenCalled()
     expect(module.getSnapshot().dateRange).toEqual({
       kind: "preset",
       presetId: "last30",
@@ -225,6 +265,53 @@ describe("createOperatorReportsPageModule", () => {
     await module.retryHubLoad()
     expect(module.getSnapshot().hubLoadStatus).toBe("ready")
     expect(module.getSnapshot().hubOverview?.funnelKpis[0]?.value).toBe("10")
+  })
+
+  it("loads capture report when capture surface is active", async () => {
+    const adapters = createAdapters()
+    const module = createOperatorReportsPageModule(adapters)
+    module.setActiveSurface("capture")
+    await module.syncWorkspace(workspace())
+
+    expect(adapters.getCapture).toHaveBeenCalledTimes(1)
+    expect(adapters.getOverview).not.toHaveBeenCalled()
+    expect(module.getSnapshot().captureLoadStatus).toBe("ready")
+    expect(module.getSnapshot().captureReport?.funnelKpis).toHaveLength(4)
+    expect(module.getSnapshot().captureReport?.funnelKpis[0]?.value).toBe("12")
+  })
+
+  it("reloads capture only when reports date range commits on capture", async () => {
+    const adapters = createAdapters()
+    const module = createOperatorReportsPageModule(adapters)
+    module.setActiveSurface("capture")
+    await module.syncWorkspace(workspace())
+    expect(adapters.getCapture).toHaveBeenCalledTimes(1)
+    expect(adapters.getOverview).not.toHaveBeenCalled()
+
+    adapters.getReportsDateRange.mockReturnValue({
+      kind: "preset",
+      presetId: "last30",
+    })
+    await module.reloadForReportsDateRange()
+    expect(adapters.getCapture).toHaveBeenCalledTimes(2)
+    expect(adapters.getOverview).not.toHaveBeenCalled()
+  })
+
+  it("retries capture load after error", async () => {
+    const getCapture = vi
+      .fn<OperatorReportsPageAdapters["getCapture"]>()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce(readyCapture())
+    const adapters = createAdapters({ getCapture })
+    const module = createOperatorReportsPageModule(adapters)
+
+    module.setActiveSurface("capture")
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().captureLoadStatus).toBe("error")
+
+    await module.retryCaptureLoad()
+    expect(module.getSnapshot().captureLoadStatus).toBe("ready")
+    expect(module.getSnapshot().captureReport?.funnelKpis[0]?.value).toBe("12")
   })
 
   it("disables export under Soft lock", async () => {

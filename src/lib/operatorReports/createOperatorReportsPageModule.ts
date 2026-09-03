@@ -5,6 +5,11 @@ import {
   type HomePerformanceDateRange,
 } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
+  buildReportsCaptureViewModel,
+  REPORTS_CAPTURE_LOAD_ERROR_MESSAGE,
+  type CaptureReportViewModel,
+} from "@/lib/operatorReports/captureReportPresentation"
+import {
   buildReportsOverviewViewModel,
   REPORTS_HUB_LOAD_ERROR_MESSAGE,
   type ReportsOverviewViewModel,
@@ -19,6 +24,7 @@ import type {
   WeeklyBriefGetResponse,
 } from "@/types/operatorHome"
 import type {
+  ReportsCaptureResponse,
   ReportsKpiLoadStatus,
   ReportsOverviewResponse,
   ReportsSurface,
@@ -61,6 +67,9 @@ export type OperatorReportsPageSnapshot = {
   hubOverview: ReportsOverviewViewModel | null
   hubLoadError: string | null
   weeklyBrief: OperatorReportsWeeklyBriefViewModel
+  captureLoadStatus: ReportsKpiLoadStatus
+  captureReport: CaptureReportViewModel | null
+  captureLoadError: string | null
   exportAllowed: boolean
   dateRange: HomePerformanceDateRange
   dateRangeLabel: string
@@ -80,12 +89,11 @@ export type OperatorReportsPageAdapters = {
   generateWeeklyBrief: (
     locationId: number
   ) => Promise<WeeklyBriefGenerateResponse>
-  /** Seams for later child report tickets. */
-  getCapture?: (input: {
+  getCapture: (input: {
     locationId: number
     from: string
     to: string
-  }) => Promise<unknown>
+  }) => Promise<ReportsCaptureResponse>
   getFeedback?: (input: {
     locationId: number
     from: string
@@ -125,6 +133,7 @@ export type OperatorReportsPageModule = {
   ensureWeeklyBriefReady: () => Promise<boolean>
   /** Page empty CTA: POST generate in place, then show body. */
   generateWeeklyBriefInPlace: () => Promise<void>
+  retryCaptureLoad: () => Promise<void>
   openExportDialog: () => void
   closeExportDialog: () => void
 }
@@ -135,11 +144,15 @@ type ModuleState = {
   hubOverview: ReportsOverviewViewModel | null
   hubLoadError: string | null
   weeklyBrief: OperatorReportsWeeklyBriefViewModel
+  captureLoadStatus: ReportsKpiLoadStatus
+  captureReport: CaptureReportViewModel | null
+  captureLoadError: string | null
   exportAllowed: boolean
   exportDialogOpen: boolean
   workspace: OperatorReportsWorkspaceInput | null
   hubLoadGeneration: number
   weeklyBriefGeneration: number
+  captureLoadGeneration: number
 }
 
 function emptyWeeklyBrief(
@@ -211,8 +224,8 @@ function selectedLocationName(
 }
 
 /**
- * Layout-scoped Reports page module — hub overview + Weekly Brief slice
- * + shared date range + export-allowed from shell billing lock.
+ * Layout-scoped Reports page module — hub overview + Capture KPI load +
+ * Weekly Brief slice + shared date range + export-allowed from shell lock.
  */
 export function createOperatorReportsPageModule(
   adapters: OperatorReportsPageAdapters
@@ -223,11 +236,15 @@ export function createOperatorReportsPageModule(
     hubOverview: null,
     hubLoadError: null,
     weeklyBrief: emptyWeeklyBrief(),
+    captureLoadStatus: "idle",
+    captureReport: null,
+    captureLoadError: null,
     exportAllowed: true,
     exportDialogOpen: false,
     workspace: null,
     hubLoadGeneration: 0,
     weeklyBriefGeneration: 0,
+    captureLoadGeneration: 0,
   }
 
   let snapshot: OperatorReportsPageSnapshot = projectSnapshot()
@@ -242,6 +259,9 @@ export function createOperatorReportsPageModule(
       hubOverview: state.hubOverview,
       hubLoadError: state.hubLoadError,
       weeklyBrief: state.weeklyBrief,
+      captureLoadStatus: state.captureLoadStatus,
+      captureReport: state.captureReport,
+      captureLoadError: state.captureLoadError,
       exportAllowed: state.exportAllowed,
       dateRange,
       dateRangeLabel: labelForHomePerformanceDateRange(dateRange),
@@ -483,6 +503,87 @@ export function createOperatorReportsPageModule(
     await Promise.all([loadHub(), loadWeeklyBriefGetOnly()])
   }
 
+  const loadCapture = async () => {
+    const workspace = state.workspace
+    const locationId = workspace?.selectedLocationId
+    if (workspace == null || locationId == null) {
+      state = {
+        ...state,
+        captureLoadStatus: "idle",
+        captureReport: null,
+        captureLoadError: null,
+      }
+      publish()
+      return
+    }
+
+    const generation = state.captureLoadGeneration + 1
+    state = {
+      ...state,
+      captureLoadStatus: "loading",
+      captureLoadGeneration: generation,
+      captureLoadError: null,
+    }
+    publish()
+
+    try {
+      const window = resolveHomePerformanceWindow(
+        adapters.getReportsDateRange()
+      )
+      const response = await adapters.getCapture({
+        locationId,
+        from: window.from.toISOString(),
+        to: window.to.toISOString(),
+      })
+
+      if (generation !== state.captureLoadGeneration) {
+        return
+      }
+
+      if (!response.success) {
+        state = {
+          ...state,
+          captureLoadStatus: "error",
+          captureReport: null,
+          captureLoadError:
+            response.message?.trim() || REPORTS_CAPTURE_LOAD_ERROR_MESSAGE,
+        }
+        publish()
+        return
+      }
+
+      if (response.lifetimeEmpty) {
+        state = {
+          ...state,
+          captureLoadStatus: "lifetimeEmpty",
+          captureReport: null,
+          captureLoadError: null,
+        }
+        publish()
+        return
+      }
+
+      state = {
+        ...state,
+        captureLoadStatus: "ready",
+        captureReport: buildReportsCaptureViewModel(response),
+        captureLoadError: null,
+      }
+      publish()
+    } catch {
+      if (generation !== state.captureLoadGeneration) {
+        return
+      }
+      state = {
+        ...state,
+        captureLoadStatus: "error",
+        captureReport: null,
+        captureLoadError: REPORTS_CAPTURE_LOAD_ERROR_MESSAGE,
+      }
+      publish()
+    }
+  }
+
   const loadForActiveSurface = async () => {
     if (state.activeSurface === "hub") {
       await loadHubAndBrief()
@@ -490,6 +591,10 @@ export function createOperatorReportsPageModule(
     }
     if (state.activeSurface === "weekly-brief") {
       await loadWeeklyBriefGetOnly()
+      return
+    }
+    if (state.activeSurface === "capture") {
+      await loadCapture()
     }
   }
 
@@ -535,12 +640,20 @@ export function createOperatorReportsPageModule(
       }
       if (surface === "weekly-brief") {
         void loadWeeklyBriefGetOnly()
+        return
+      }
+      if (surface === "capture") {
+        void loadCapture()
       }
     },
     async reloadForReportsDateRange() {
       publish()
       if (state.activeSurface === "hub") {
         await loadHub()
+        return
+      }
+      if (state.activeSurface === "capture") {
+        await loadCapture()
       }
     },
     async retryHubLoad() {
@@ -565,6 +678,9 @@ export function createOperatorReportsPageModule(
         showLoadingImmediately: true,
         markGenerateBusy: true,
       })
+    },
+    async retryCaptureLoad() {
+      await loadCapture()
     },
     openExportDialog() {
       if (!state.exportAllowed) {

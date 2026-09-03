@@ -15,6 +15,7 @@ export type OperatorReportsPageModuleApi = {
   retryWeeklyBrief: OperatorReportsPageModule["retryWeeklyBrief"]
   ensureWeeklyBriefReady: OperatorReportsPageModule["ensureWeeklyBriefReady"]
   generateWeeklyBriefInPlace: OperatorReportsPageModule["generateWeeklyBriefInPlace"]
+  retryCaptureLoad: OperatorReportsPageModule["retryCaptureLoad"]
   openExportDialog: OperatorReportsPageModule["openExportDialog"]
   closeExportDialog: OperatorReportsPageModule["closeExportDialog"]
 }
@@ -36,6 +37,7 @@ export function useReportsPageModule(): OperatorReportsPageModuleApi {
     retryWeeklyBrief: pageModule.retryWeeklyBrief,
     ensureWeeklyBriefReady: pageModule.ensureWeeklyBriefReady,
     generateWeeklyBriefInPlace: pageModule.generateWeeklyBriefInPlace,
+    retryCaptureLoad: pageModule.retryCaptureLoad,
     openExportDialog: pageModule.openExportDialog,
     closeExportDialog: pageModule.closeExportDialog,
   }

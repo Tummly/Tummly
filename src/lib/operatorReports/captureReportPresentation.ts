@@ -1,17 +1,17 @@
 /**
- * Figma Operator Reports — Capture report sub-page.
- * Node 3498 / reports-capture-flow.
+ * Operator Reports — Capture report (live GET /api/reports/capture).
  */
 
-export type DatePreset = "7d" | "30d" | "90d" | "month" | "ytd"
-
-export const DATE_PRESET_LABELS: Record<DatePreset, string> = {
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  "90d": "Last 90 days",
-  month: "This month",
-  ytd: "Year to date",
-}
+import type { ReportsKpiItem } from "@/components/dashboard/operator/Reports/ReportsKpiStrip"
+import {
+  computeKpiTrendPercent,
+  formatKpiTrendPercentValue,
+  PERFORMANCE_KPI_TREND_SUFFIX,
+} from "@/lib/operatorHome/performanceOverviewPresentation"
+import type {
+  ReportsCaptureResponse,
+  ReportsMetricWire,
+} from "@/types/operatorReports"
 
 export const CAPTURE_REPORT_PAGE_COPY = {
   breadcrumbReports: "Reports",
@@ -42,135 +42,113 @@ export const CAPTURE_REPORT_PAGE_COPY = {
   downloadQr: "Download QR code",
 } as const
 
-export type CaptureReportKpi = {
-  label: string
-  value: string | number
-  delta: string
-  positive?: boolean | null
-}
+export const REPORTS_CAPTURE_LOAD_ERROR_MESSAGE =
+  "Could not load report data. Please try again."
+
+export type CaptureReportKpi = ReportsKpiItem
 
 export type CaptureReportFunnelStep = {
   step: string
-  count: number | string
-  dropOff: number | string
+  count: number
+  dropOff: number | "—"
 }
 
 export type CaptureReportPlacementRow = {
   id: string
   qrName: string
+  /** Same as qrName — kept for placement-action modal chrome. */
   placement: string
-  status: "Active" | "Paused" | "Archived"
+  status: "Active" | "Paused"
   scans: number
   feedback: number
   contactable: number
-  claims: number
   conversion: string
 }
 
-export type CaptureReportData = {
-  kpis: {
-    qrScans: CaptureReportKpi
-    formOpened: CaptureReportKpi
-    feedbackSubmitted: CaptureReportKpi
-    contactProvided: CaptureReportKpi
-    contactableGuests: CaptureReportKpi
-    offerClaims: CaptureReportKpi
-  }
+export type CaptureReportViewModel = {
+  funnelKpis: ReportsKpiItem[]
   funnel: CaptureReportFunnelStep[]
   placements: CaptureReportPlacementRow[]
 }
 
-export const mockCaptureReportData: CaptureReportData = {
-  kpis: {
-    qrScans: {
-      label: "QR scans",
-      value: "0",
-      delta: "[X]% vs previous period",
-      positive: true,
-    },
-    formOpened: {
-      label: "Form opened",
-      value: "0",
-      delta: "[X]% vs previous period",
-      positive: true,
-    },
-    feedbackSubmitted: {
-      label: "Feedback submitted",
-      value: "0",
-      delta: "[X]% vs previous period",
-      positive: true,
-    },
-    contactProvided: {
-      label: "Contact provided",
-      value: "0",
-      delta: "[X]% vs previous period",
-      positive: true,
-    },
-    contactableGuests: {
-      label: "Contactable guests",
-      value: "0",
-      delta: "[X]% vs previous period",
-      positive: true,
-    },
-    offerClaims: {
-      label: "Offer claims",
-      value: "0",
-      delta: "[X]% vs previous period",
-      positive: true,
-    },
-  },
-  funnel: [
-    { step: "QR scans", count: 72, dropOff: "—" },
-    { step: "Form opened", count: 45, dropOff: 12 },
-    { step: "Feedback submitted", count: 33, dropOff: 15 },
-    { step: "Contact provided", count: 88, dropOff: 22 },
-    { step: "Contactable guests", count: 88, dropOff: 22 },
-    { step: "Offer claimed", count: 88, dropOff: 22 },
-  ],
-  placements: [
-    {
-      id: "delivery-insert",
-      qrName: "Delivery insert",
-      placement: "Delivery",
-      status: "Active",
-      scans: 72,
-      feedback: 18,
-      contactable: 11,
-      claims: 8,
-      conversion: "25%",
-    },
-    {
-      id: "counter-card",
-      qrName: "Counter card",
-      placement: "Delivery",
-      status: "Active",
-      scans: 72,
-      feedback: 18,
-      contactable: 11,
-      claims: 8,
-      conversion: "25%",
-    },
-    {
-      id: "receipt-qr",
-      qrName: "Receipt QR",
-      placement: "Delivery",
-      status: "Active",
-      scans: 72,
-      feedback: 18,
-      contactable: 11,
-      claims: 8,
-      conversion: "25%",
-    },
-    {
-      id: "table-card",
-      qrName: "Table card",
-      placement: "Delivery",
-      status: "Active",
-      scans: 72,
-      feedback: 18,
-      contactable: 11,
-      claims: 8,
-      conversion: "25%",
-    },
-  ],
+function metricToKpi(
+  label: string,
+  metric: ReportsMetricWire
+): ReportsKpiItem {
+  const trendPercent = computeKpiTrendPercent(
+    metric.value,
+    metric.valuePrevious
+  )
+  const positive =
+    trendPercent == null
+      ? null
+      : trendPercent > 0
+        ? true
+        : trendPercent < 0
+          ? false
+          : null
+  return {
+    label,
+    value: String(metric.value),
+    delta: `${formatKpiTrendPercentValue(trendPercent)}% ${PERFORMANCE_KPI_TREND_SUFFIX}`,
+    positive,
+  }
+}
+
+function conversionLabel(feedback: number, scans: number): string {
+  if (scans === 0) {
+    return "—"
+  }
+  return `${Math.round((feedback / scans) * 100)}%`
+}
+
+function dropOff(priorCount: number, currentCount: number): number {
+  return Math.max(0, priorCount - currentCount)
+}
+
+/** Map a ready Capture API body into KPIs, funnel steps, and placements. */
+export function buildReportsCaptureViewModel(
+  response: Extract<ReportsCaptureResponse, { lifetimeEmpty: false }>
+): CaptureReportViewModel {
+  const scans = response.funnel.qrScans.value
+  const feedback = response.funnel.feedbackSubmitted.value
+  const contactable = response.funnel.contactableGuests.value
+  const claimed = response.funnel.offerClaimed.value
+
+  return {
+    funnelKpis: [
+      metricToKpi("QR scans", response.funnel.qrScans),
+      metricToKpi("Feedback submitted", response.funnel.feedbackSubmitted),
+      metricToKpi("Contactable guests", response.funnel.contactableGuests),
+      metricToKpi("Offer claimed", response.funnel.offerClaimed),
+    ],
+    funnel: [
+      { step: "QR scans", count: scans, dropOff: "—" },
+      {
+        step: "Feedback submitted",
+        count: feedback,
+        dropOff: dropOff(scans, feedback),
+      },
+      {
+        step: "Contactable guests",
+        count: contactable,
+        dropOff: dropOff(feedback, contactable),
+      },
+      {
+        step: "Offer claimed",
+        count: claimed,
+        dropOff: dropOff(contactable, claimed),
+      },
+    ],
+    placements: response.placements.map((row) => ({
+      id: String(row.qrCodeId),
+      qrName: row.name,
+      placement: row.name,
+      status: row.status,
+      scans: row.scans,
+      feedback: row.feedback,
+      contactable: row.contactable,
+      conversion: conversionLabel(row.feedback, row.scans),
+    })),
+  }
 }

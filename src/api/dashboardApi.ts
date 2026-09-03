@@ -145,7 +145,10 @@ import type {
   WeeklyBriefGenerateResponse,
   WeeklyBriefGetResponse,
 } from "@/types/operatorHome"
-import type { ReportsOverviewResponse } from "@/types/operatorReports"
+import type {
+  ReportsCaptureResponse,
+  ReportsOverviewResponse,
+} from "@/types/operatorReports"
 
 export const getLocations = async (): Promise<LocationsResponse> => {
   const response = await axiosInstance.get<LocationsResponse>(
@@ -1239,6 +1242,24 @@ export const getReportsOverview = async (input: {
 }): Promise<ReportsOverviewResponse> => {
   const response = await axiosInstance.get<ReportsOverviewResponse>(
     "/reports/overview",
+    {
+      params: {
+        locationId: input.locationId,
+        from: input.from,
+        to: input.to,
+      },
+    }
+  )
+  return response.data
+}
+
+export const getReportsCapture = async (input: {
+  locationId: number
+  from: string
+  to: string
+}): Promise<ReportsCaptureResponse> => {
+  const response = await axiosInstance.get<ReportsCaptureResponse>(
+    "/reports/capture",
     {
       params: {
         locationId: input.locationId,

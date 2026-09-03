@@ -46,6 +46,36 @@ export type ReportsOverviewResponse =
       message?: string
     }
 
+export type ReportsCapturePlacementWire = {
+  qrCodeId: number
+  name: string
+  status: "Active" | "Paused"
+  scans: number
+  feedback: number
+  contactable: number
+}
+
+export type ReportsCaptureResponse =
+  | {
+      success: true
+      lifetimeEmpty: true
+    }
+  | {
+      success: true
+      lifetimeEmpty: false
+      funnel: {
+        qrScans: ReportsMetricWire
+        feedbackSubmitted: ReportsMetricWire
+        contactableGuests: ReportsMetricWire
+        offerClaimed: ReportsMetricWire
+      }
+      placements: ReportsCapturePlacementWire[]
+    }
+  | {
+      success: false
+      message?: string
+    }
+
 export type ReportsSurface =
   | "hub"
   | "capture"

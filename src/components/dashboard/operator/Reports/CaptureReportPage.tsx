@@ -1,5 +1,5 @@
 import { Fragment, useState } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import { MoreVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -28,11 +28,10 @@ import { ReportsPageChrome } from "@/components/dashboard/operator/Reports/Repor
 import { ReportsSection } from "@/components/dashboard/operator/Reports/ReportsSection"
 import { ReportsStandardHeaderActions } from "@/components/dashboard/operator/Reports/ReportsStandardHeaderActions"
 import { useReportsChildChrome } from "@/components/dashboard/operator/Reports/utils/useReportsChildChrome"
+import { useReportsPageModule } from "@/components/dashboard/operator/Reports/utils/useReportsPageModule"
 import { ReportsStatusBadge } from "@/components/dashboard/operator/Reports/ReportsStatusBadge"
 import {
   CAPTURE_REPORT_PAGE_COPY,
-  mockCaptureReportData,
-  type CaptureReportData,
   type CaptureReportPlacementRow,
 } from "@/lib/operatorReports/captureReportPresentation"
 import {
@@ -62,26 +61,28 @@ import {
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
 
 type CaptureReportPageProps = {
-  selectedLocationId?: number
-  selectedLocationName?: string
-  locations?: Array<{ id: number; locationName: string; address: string }>
   mode?: DashboardProps["mode"]
-  isEmpty?: boolean
-  data?: CaptureReportData
 }
 
-export function CaptureReportPage({
-  selectedLocationId = 1,
-  selectedLocationName = "Mehmet's Grill",
-  locations: _locations = [],
-  mode = "single",
-  isEmpty: propIsEmpty,
-  data = mockCaptureReportData,
-}: CaptureReportPageProps) {
+export function CaptureReportPage({ mode = "single" }: CaptureReportPageProps) {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const reportsChrome = useReportsChildChrome("capture", mode)
-  const { dateRange, exportAllowed, generateBusy, openExportDialog, commitRange, onGenerateBrief } = reportsChrome
+  const reports = useReportsPageModule()
+  const {
+    dateRange,
+    exportAllowed,
+    generateBusy,
+    openExportDialog,
+    commitRange,
+    onGenerateBrief,
+  } = reportsChrome
+  const {
+    captureLoadStatus,
+    captureReport,
+    captureLoadError,
+    selectedLocationId,
+    selectedLocationName,
+  } = reports.snapshot
   const [activePlacementModal, setActivePlacementModal] = useState<{
     actionType: CaptureReportPlacementActionType | null
     placement: CaptureReportPlacementRow | null
@@ -90,34 +91,26 @@ export function CaptureReportPage({
     placement: null,
   })
 
-  const isPageEmpty = propIsEmpty ?? searchParams.get("empty") === "true"
+  const locationId = selectedLocationId ?? 1
+  const locationName = selectedLocationName ?? "Location"
 
   const reportsBasePath = operatorDashboardNavPath(
     mode,
     "reports",
-    selectedLocationId
+    locationId
   )
 
   const handleReviewGuestForm = () => {
-    navigate(operatorDashboardNavPath(mode, "feedback", selectedLocationId))
+    navigate(operatorDashboardNavPath(mode, "feedback", locationId))
   }
 
   const handleCreatePlacement = () => {
     if (mode === "multi") {
-      navigate(operatorDashboardCaptureLocationPath(selectedLocationId))
+      navigate(operatorDashboardCaptureLocationPath(locationId))
     } else {
-      navigate(operatorDashboardNavPath(mode, "capture", selectedLocationId))
+      navigate(operatorDashboardNavPath(mode, "capture", locationId))
     }
   }
-
-  const kpisList = [
-    data.kpis.qrScans,
-    data.kpis.formOpened,
-    data.kpis.feedbackSubmitted,
-    data.kpis.contactProvided,
-    data.kpis.contactableGuests,
-    data.kpis.offerClaims,
-  ]
 
   return (
     <ReportsPageChrome
@@ -138,15 +131,49 @@ export function CaptureReportPage({
         />
       }
     >
-      {isPageEmpty ? (
+      {captureLoadStatus === "loading" || captureLoadStatus === "idle" ? (
+        <div
+          className="flex min-h-48 items-center justify-center"
+          role="status"
+          aria-live="polite"
+          aria-label="Loading capture report"
+        >
+          <div
+            className="size-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
+            aria-hidden
+          />
+        </div>
+      ) : null}
+
+      {captureLoadStatus === "error" ? (
+        <div className="flex flex-col items-start gap-3" role="alert">
+          <p className="m-0 text-sm text-destructive">
+            {captureLoadError ?? "Could not load report data."}
+          </p>
+          <Button
+            type="button"
+            variant="op-secondary"
+            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            onClick={() => {
+              void reports.retryCaptureLoad()
+            }}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
+      {captureLoadStatus === "lifetimeEmpty" ? (
         <ReportsEmptyState
           title={CAPTURE_REPORT_PAGE_COPY.emptyTitle}
           subtitle={CAPTURE_REPORT_PAGE_COPY.emptySubtitle}
         />
-      ) : (
+      ) : null}
+
+      {captureLoadStatus === "ready" && captureReport != null ? (
         <div className={REPORTS_BODY_STACK_CLASS}>
           <ReportsSection>
-            <ReportsKpiStrip items={kpisList} />
+            <ReportsKpiStrip items={captureReport.funnelKpis} />
           </ReportsSection>
 
           <ReportsSection title={CAPTURE_REPORT_PAGE_COPY.funnelSectionTitle}>
@@ -166,7 +193,7 @@ export function CaptureReportPage({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.funnel.map((row) => (
+                  {captureReport.funnel.map((row) => (
                     <TableRow
                       key={row.step}
                       className={REPORTS_TABLE_BODY_ROW_CLASS}
@@ -213,9 +240,6 @@ export function CaptureReportPage({
                       QR name
                     </TableHead>
                     <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
-                      Placement
-                    </TableHead>
-                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Status
                     </TableHead>
                     <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
@@ -228,9 +252,6 @@ export function CaptureReportPage({
                       Contactable
                     </TableHead>
                     <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
-                      Claims
-                    </TableHead>
-                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       Conversion
                     </TableHead>
                     <TableHead className={REPORTS_TABLE_HEAD_ACTIONS_CELL_CLASS}>
@@ -239,113 +260,118 @@ export function CaptureReportPage({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.placements.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      className={REPORTS_TABLE_BODY_ROW_CLASS}
-                    >
-                      <TableCell className={REPORTS_TABLE_NAME_CELL_CLASS}>
-                        {row.qrName}
-                      </TableCell>
-                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
-                        {row.placement}
-                      </TableCell>
-                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
-                        <ReportsStatusBadge status={row.status} />
-                      </TableCell>
-                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
-                        {row.scans}
-                      </TableCell>
-                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
-                        {row.feedback}
-                      </TableCell>
-                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
-                        {row.contactable}
-                      </TableCell>
-                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
-                        {row.claims}
-                      </TableCell>
-                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
-                        {row.conversion}
-                      </TableCell>
-                      <TableCell className={REPORTS_TABLE_ACTIONS_CELL_CLASS}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="op-ghost"
-                              size="icon"
-                              className={REPORTS_ROW_ACTIONS_TRIGGER_CLASS}
-                              aria-label={`Actions for ${row.qrName}`}
-                            >
-                              <MoreVertical className="size-4" aria-hidden />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent
-                            align="end"
-                            className={REPORTS_ROW_ACTIONS_MENU_CLASS}
-                          >
-                            {(
-                              [
-                                {
-                                  id: "view-qr",
-                                  label: "View QR",
-                                  actionType: "view-qr" as const,
-                                },
-                                {
-                                  id: "download-pdf",
-                                  label: "Download PDF",
-                                  actionType: "download-pdf" as const,
-                                },
-                                {
-                                  id: "pause-activate",
-                                  label:
-                                    row.status === "Active"
-                                      ? "Pause"
-                                      : "Activate",
-                                  actionType:
-                                    row.status === "Active"
-                                      ? ("pause" as const)
-                                      : ("activate" as const),
-                                },
-                                {
-                                  id: "duplicate",
-                                  label: "Duplicate",
-                                  actionType: "duplicate" as const,
-                                },
-                                {
-                                  id: "archive",
-                                  label: "Archive",
-                                  actionType: "archive" as const,
-                                },
-                              ] as const
-                            ).map((item, index) => (
-                              <Fragment key={item.id}>
-                                {index > 0 ? (
-                                  <DropdownMenuSeparator
-                                    className={
-                                      REPORTS_ROW_ACTIONS_SEPARATOR_CLASS
-                                    }
-                                  />
-                                ) : null}
-                                <DropdownMenuItem
-                                  className={REPORTS_ROW_ACTIONS_ITEM_CLASS}
-                                  onClick={() =>
-                                    setActivePlacementModal({
-                                      actionType: item.actionType,
-                                      placement: row,
-                                    })
-                                  }
-                                >
-                                  {item.label}
-                                </DropdownMenuItem>
-                              </Fragment>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                  {captureReport.placements.length === 0 ? (
+                    <TableRow className={REPORTS_TABLE_BODY_ROW_CLASS}>
+                      <TableCell
+                        className={REPORTS_TABLE_BODY_CELL_CLASS}
+                        colSpan={7}
+                      >
+                        No QR placements in this period.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    captureReport.placements.map((row) => (
+                      <TableRow
+                        key={row.id}
+                        className={REPORTS_TABLE_BODY_ROW_CLASS}
+                      >
+                        <TableCell className={REPORTS_TABLE_NAME_CELL_CLASS}>
+                          {row.qrName}
+                        </TableCell>
+                        <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                          <ReportsStatusBadge status={row.status} />
+                        </TableCell>
+                        <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                          {row.scans}
+                        </TableCell>
+                        <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                          {row.feedback}
+                        </TableCell>
+                        <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                          {row.contactable}
+                        </TableCell>
+                        <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                          {row.conversion}
+                        </TableCell>
+                        <TableCell className={REPORTS_TABLE_ACTIONS_CELL_CLASS}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="op-ghost"
+                                size="icon"
+                                className={REPORTS_ROW_ACTIONS_TRIGGER_CLASS}
+                                aria-label={`Actions for ${row.qrName}`}
+                              >
+                                <MoreVertical className="size-4" aria-hidden />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="end"
+                              className={REPORTS_ROW_ACTIONS_MENU_CLASS}
+                            >
+                              {(
+                                [
+                                  {
+                                    id: "view-qr",
+                                    label: "View QR",
+                                    actionType: "view-qr" as const,
+                                  },
+                                  {
+                                    id: "download-pdf",
+                                    label: "Download PDF",
+                                    actionType: "download-pdf" as const,
+                                  },
+                                  {
+                                    id: "pause-activate",
+                                    label:
+                                      row.status === "Active"
+                                        ? "Pause"
+                                        : "Activate",
+                                    actionType:
+                                      row.status === "Active"
+                                        ? ("pause" as const)
+                                        : ("activate" as const),
+                                  },
+                                  {
+                                    id: "duplicate",
+                                    label: "Duplicate",
+                                    actionType: "duplicate" as const,
+                                  },
+                                  {
+                                    id: "archive",
+                                    label: "Archive",
+                                    actionType: "archive" as const,
+                                  },
+                                ] as const
+                              ).map((item, index) => (
+                                <Fragment key={item.id}>
+                                  {index > 0 ? (
+                                    <DropdownMenuSeparator
+                                      className={
+                                        REPORTS_ROW_ACTIONS_SEPARATOR_CLASS
+                                      }
+                                    />
+                                  ) : null}
+                                  <DropdownMenuItem
+                                    className={REPORTS_ROW_ACTIONS_ITEM_CLASS}
+                                    onClick={() =>
+                                      setActivePlacementModal({
+                                        actionType: item.actionType,
+                                        placement: row,
+                                      })
+                                    }
+                                  >
+                                    {item.label}
+                                  </DropdownMenuItem>
+                                </Fragment>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -368,14 +394,13 @@ export function CaptureReportPage({
             </div>
           </ReportsSection>
         </div>
-      )}
-
+      ) : null}
 
       <CaptureReportPlacementActionModal
         open={activePlacementModal.actionType != null}
         actionType={activePlacementModal.actionType}
         placement={activePlacementModal.placement}
-        locationName={selectedLocationName}
+        locationName={locationName}
         onOpenChange={(open) => {
           if (!open) {
             setActivePlacementModal({ actionType: null, placement: null })
