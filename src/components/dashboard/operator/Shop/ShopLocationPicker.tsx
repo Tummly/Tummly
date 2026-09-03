@@ -78,8 +78,8 @@ export function ShopLocationPicker({
   const interactive = locations.length > 1 && onSelectLocation != null
 
   const chipStaticClass = cn(
-    "inline-flex items-center gap-1.5 rounded-md border border-op-border-default bg-op-surface-secondary px-3 text-xs font-medium text-foreground",
-    chipClassName ?? "h-8"
+    "inline-flex h-[42px] items-center gap-1.5 rounded-op-sm border border-op-button-tertiary-border bg-transparent px-op-4 py-op-3 text-op-sm font-medium text-op-button-tertiary-text",
+    chipClassName
   )
 
   if (!interactive) {
@@ -89,7 +89,7 @@ export function ShopLocationPicker({
 
     return (
       <div className={chipStaticClass}>
-        <MapPin className="size-3.5 text-muted-foreground" />
+        <MapPin className="size-3.5" />
         <span className="max-w-[140px] truncate">{selectedLocationName}</span>
       </div>
     )
@@ -105,13 +105,13 @@ export function ShopLocationPicker({
     variant === "chip" ? (
       <Button
         type="button"
-        variant="op-secondary"
-        className={cn("gap-1.5", chipClassName)}
+        variant="op-tertiary"
+        className={cn("h-[42px] gap-1.5", chipClassName)}
         aria-label="Select Owned location"
       >
-        <MapPin className="size-3.5 text-muted-foreground" />
+        <MapPin className="size-3.5" />
         <span className="max-w-[120px] truncate">{selectedLocationName}</span>
-        <ChevronDown className="size-3 text-muted-foreground" />
+        <ChevronDown className="size-3" />
       </Button>
     ) : (
       <Button
