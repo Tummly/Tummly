@@ -647,26 +647,30 @@ export function ShopPage({
             onViewOrders={handleViewOrders}
           />
 
-          <ShopBanner
-            onReviewMaterialsPack={() => setIsMaterialsPackOpen(true)}
-            onSeeWhatsIncluded={() => setIsMaterialsPackOpen(true)}
-          />
+          {searchQuery.trim() === "" ? (
+            <>
+              <ShopBanner
+                onReviewMaterialsPack={() => setIsMaterialsPackOpen(true)}
+                onSeeWhatsIncluded={() => setIsMaterialsPackOpen(true)}
+              />
 
-          <ShopRecommendationSection
-            locationName={locationName}
-            recommendations={recommendations}
-            recommendationsLoading={recommendationsLoading}
-            catalogProducts={catalogProducts}
-            paidWriteChrome={paidWriteChrome}
-            onAddLocationDetails={() => setIsLocationDetailsOpen(true)}
-            onAddRecommendedToCart={() => {
-              void handleAddRecommendedKitToCart()
-            }}
-            onOrderRecommendedLine={(skuId, quantity) => {
-              void handleOrderRecommendedLine(skuId, quantity)
-            }}
-            onSelectProduct={handleSelectProduct}
-          />
+              <ShopRecommendationSection
+                locationName={locationName}
+                recommendations={recommendations}
+                recommendationsLoading={recommendationsLoading}
+                catalogProducts={catalogProducts}
+                paidWriteChrome={paidWriteChrome}
+                onAddLocationDetails={() => setIsLocationDetailsOpen(true)}
+                onAddRecommendedToCart={() => {
+                  void handleAddRecommendedKitToCart()
+                }}
+                onOrderRecommendedLine={(skuId, quantity) => {
+                  void handleOrderRecommendedLine(skuId, quantity)
+                }}
+                onSelectProduct={handleSelectProduct}
+              />
+            </>
+          ) : null}
 
           {catalogLoading ? (
             <p className="text-sm text-muted-foreground">Loading catalog…</p>
