@@ -22,6 +22,9 @@ import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanc
 import {
   REPORTS_BODY_STACK_CLASS,
   REPORTS_HUB_PAGE_COPY,
+  REPORTS_INSIGHT_BANNER_CLASS,
+  REPORTS_INSIGHT_BODY_CLASS,
+  REPORTS_INSIGHT_TITLE_CLASS,
   REPORTS_TABLE_BODY_CELL_CLASS,
   REPORTS_TABLE_BODY_ROW_CLASS,
   REPORTS_TABLE_CLASS,
@@ -30,6 +33,10 @@ import {
   REPORTS_TABLE_HEAD_ROW_CLASS,
   REPORTS_TABLE_NAME_CELL_CLASS,
 } from "@/lib/operatorReports/reportsPresentation"
+import {
+  REPORTS_HUB_GUEST_LOOP_COPY,
+  REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE,
+} from "@/lib/operatorReports/reportsWeeklyBriefPresentation"
 import {
   GUESTS_PAGE_PRIMARY_BUTTON_CLASS,
   GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
@@ -61,6 +68,7 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
     hubLoadStatus,
     hubOverview,
     hubLoadError,
+    weeklyBrief,
     exportAllowed,
     dateRange,
     selectedLocationId,
@@ -77,6 +85,13 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
     void reports.reloadForReportsDateRange()
   }
 
+  const handleGenerateBrief = async () => {
+    const ok = await reports.ensureWeeklyBriefReady()
+    if (ok) {
+      navigate(operatorDashboardWeeklyBriefPath(mode, locationId))
+    }
+  }
+
   const navTo = (
     destination: "feedback" | "capture" | "campaigns" | "offers"
   ) => {
@@ -91,9 +106,10 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
       subtitle={REPORTS_HUB_PAGE_COPY.subtitle}
       actions={
         <ReportsStandardHeaderActions
-          onGenerateBrief={() =>
-            navigate(operatorDashboardWeeklyBriefPath(mode, locationId))
-          }
+          onGenerateBrief={() => {
+            void handleGenerateBrief()
+          }}
+          generateBusy={weeklyBrief.generateBusy}
           onExport={() => reports.openExportDialog()}
           exportDisabled={!exportAllowed}
           selectedRange={dateRange}
@@ -138,28 +154,109 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
 
       {hubLoadStatus === "ready" && hubOverview != null ? (
         <div className={REPORTS_BODY_STACK_CLASS}>
-          <ReportsSection title="This week's guest loop">
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                type="button"
-                variant="op-primary"
-                className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-                onClick={() =>
-                  navigate(operatorDashboardWeeklyBriefPath(mode, locationId))
-                }
+          <ReportsSection title={REPORTS_HUB_GUEST_LOOP_COPY.sectionTitle}>
+            {weeklyBrief.status === "loading" ? (
+              <div
+                className="flex min-h-20 items-center justify-center"
+                role="status"
+                aria-live="polite"
+                aria-label="Loading weekly brief"
               >
-                View weekly brief
-              </Button>
+                <div
+                  className="size-6 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
+                  aria-hidden
+                />
+              </div>
+            ) : null}
 
-              <Button
-                type="button"
-                variant="op-tertiary"
-                className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-                onClick={() => navTo("campaigns")}
-              >
-                Create campaign
-              </Button>
-            </div>
+            {weeklyBrief.status === "empty" ? (
+              <div className="flex flex-col gap-3">
+                <p className="m-0 text-sm text-op-text-muted">
+                  {REPORTS_HUB_GUEST_LOOP_COPY.emptyHelper}
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="op-primary"
+                    className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+                    disabled={weeklyBrief.generateBusy}
+                    onClick={() => {
+                      void handleGenerateBrief()
+                    }}
+                  >
+                    {REPORTS_HUB_GUEST_LOOP_COPY.generateBrief}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="op-tertiary"
+                    className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+                    onClick={() => navTo("campaigns")}
+                  >
+                    {REPORTS_HUB_GUEST_LOOP_COPY.createCampaign}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+            {weeklyBrief.status === "error" ? (
+              <div className="flex flex-col items-start gap-3" role="alert">
+                <p className="m-0 text-sm text-destructive">
+                  {weeklyBrief.errorMessage ??
+                    REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE}
+                </p>
+                {weeklyBrief.errorRetryable ? (
+                  <Button
+                    type="button"
+                    variant="op-secondary"
+                    className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+                    onClick={() => {
+                      void reports.retryWeeklyBrief()
+                    }}
+                  >
+                    {REPORTS_HUB_GUEST_LOOP_COPY.retry}
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+
+            {weeklyBrief.status === "ready" ? (
+              <div className="flex flex-col gap-3">
+                <div className={REPORTS_INSIGHT_BANNER_CLASS}>
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <p className={REPORTS_INSIGHT_TITLE_CLASS}>
+                      {weeklyBrief.headline}
+                    </p>
+                    {weeklyBrief.secondary ? (
+                      <p className={REPORTS_INSIGHT_BODY_CLASS}>
+                        {weeklyBrief.secondary}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="op-primary"
+                    className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+                    onClick={() =>
+                      navigate(
+                        operatorDashboardWeeklyBriefPath(mode, locationId)
+                      )
+                    }
+                  >
+                    {REPORTS_HUB_GUEST_LOOP_COPY.viewWeeklyBrief}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="op-tertiary"
+                    className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+                    onClick={() => navTo("campaigns")}
+                  >
+                    {REPORTS_HUB_GUEST_LOOP_COPY.createCampaign}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </ReportsSection>
 
           <ReportsSection

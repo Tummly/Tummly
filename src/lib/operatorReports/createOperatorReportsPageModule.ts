@@ -9,6 +9,15 @@ import {
   REPORTS_HUB_LOAD_ERROR_MESSAGE,
   type ReportsOverviewViewModel,
 } from "@/lib/operatorReports/reportsOverviewPresentation"
+import {
+  buildReportsWeeklyBriefHubSecondary,
+  REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE,
+} from "@/lib/operatorReports/reportsWeeklyBriefPresentation"
+import type {
+  WeeklyBriefBody,
+  WeeklyBriefGenerateResponse,
+  WeeklyBriefGetResponse,
+} from "@/types/operatorHome"
 import type {
   ReportsKpiLoadStatus,
   ReportsOverviewResponse,
@@ -29,11 +38,29 @@ export type OperatorReportsWorkspaceInput = {
   chargebackRestricted?: boolean
 }
 
+export type OperatorReportsWeeklyBriefStatus =
+  | "empty"
+  | "loading"
+  | "ready"
+  | "error"
+
+export type OperatorReportsWeeklyBriefViewModel = {
+  status: OperatorReportsWeeklyBriefStatus
+  week: string | null
+  body: WeeklyBriefBody | null
+  headline: string | null
+  secondary: string | null
+  errorMessage: string | null
+  errorRetryable: boolean
+  generateBusy: boolean
+}
+
 export type OperatorReportsPageSnapshot = {
   activeSurface: ReportsSurface
   hubLoadStatus: ReportsKpiLoadStatus
   hubOverview: ReportsOverviewViewModel | null
   hubLoadError: string | null
+  weeklyBrief: OperatorReportsWeeklyBriefViewModel
   exportAllowed: boolean
   dateRange: HomePerformanceDateRange
   dateRangeLabel: string
@@ -49,7 +76,11 @@ export type OperatorReportsPageAdapters = {
     to: string
   }) => Promise<ReportsOverviewResponse>
   getReportsDateRange: () => HomePerformanceDateRange
-  /** Seams for later child report tickets — unused in ticket 11 hub wire. */
+  getWeeklyBrief: (locationId: number) => Promise<WeeklyBriefGetResponse>
+  generateWeeklyBrief: (
+    locationId: number
+  ) => Promise<WeeklyBriefGenerateResponse>
+  /** Seams for later child report tickets. */
   getCapture?: (input: {
     locationId: number
     from: string
@@ -70,8 +101,6 @@ export type OperatorReportsPageAdapters = {
     from: string
     to: string
   }) => Promise<unknown>
-  getWeeklyBrief?: (locationId: number) => Promise<unknown>
-  generateWeeklyBrief?: (locationId: number) => Promise<unknown>
   downloadExport?: (input: {
     locationId: number
     from: string
@@ -87,6 +116,15 @@ export type OperatorReportsPageModule = {
   setActiveSurface: (surface: ReportsSurface) => void
   reloadForReportsDateRange: () => Promise<void>
   retryHubLoad: () => Promise<void>
+  /** GET again; generate again only if still missing (lock 10). */
+  retryWeeklyBrief: () => Promise<void>
+  /**
+   * Header Generate brief: navigate-only when ready; otherwise POST then ready.
+   * Returns true when the UI should navigate to the weekly-brief page.
+   */
+  ensureWeeklyBriefReady: () => Promise<boolean>
+  /** Page empty CTA: POST generate in place, then show body. */
+  generateWeeklyBriefInPlace: () => Promise<void>
   openExportDialog: () => void
   closeExportDialog: () => void
 }
@@ -96,10 +134,58 @@ type ModuleState = {
   hubLoadStatus: ReportsKpiLoadStatus
   hubOverview: ReportsOverviewViewModel | null
   hubLoadError: string | null
+  weeklyBrief: OperatorReportsWeeklyBriefViewModel
   exportAllowed: boolean
   exportDialogOpen: boolean
   workspace: OperatorReportsWorkspaceInput | null
   hubLoadGeneration: number
+  weeklyBriefGeneration: number
+}
+
+function emptyWeeklyBrief(
+  overrides: Partial<OperatorReportsWeeklyBriefViewModel> = {}
+): OperatorReportsWeeklyBriefViewModel {
+  return {
+    status: "empty",
+    week: null,
+    body: null,
+    headline: null,
+    secondary: null,
+    errorMessage: null,
+    errorRetryable: false,
+    generateBusy: false,
+    ...overrides,
+  }
+}
+
+function mapReadyWeeklyBrief(
+  response: Extract<WeeklyBriefGetResponse, { ready: true }>
+): OperatorReportsWeeklyBriefViewModel {
+  return {
+    status: "ready",
+    week: response.week,
+    body: response.body,
+    headline: response.body.headline,
+    secondary: buildReportsWeeklyBriefHubSecondary(
+      response.body,
+      response.metrics
+    ),
+    errorMessage: null,
+    errorRetryable: false,
+    generateBusy: false,
+  }
+}
+
+function weeklyBriefErrorFrom(
+  message: string | null | undefined,
+  retryable: boolean
+): OperatorReportsWeeklyBriefViewModel {
+  return emptyWeeklyBrief({
+    status: "error",
+    errorMessage:
+      message?.trim() || REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE,
+    errorRetryable: retryable,
+  })
 }
 
 function resolveExportAllowed(input: OperatorReportsWorkspaceInput): boolean {
@@ -125,8 +211,8 @@ function selectedLocationName(
 }
 
 /**
- * Layout-scoped Reports page module — hub overview load + shared date range
- * + export-allowed from shell billing lock. Child KPI surfaces land later.
+ * Layout-scoped Reports page module — hub overview + Weekly Brief slice
+ * + shared date range + export-allowed from shell billing lock.
  */
 export function createOperatorReportsPageModule(
   adapters: OperatorReportsPageAdapters
@@ -136,10 +222,12 @@ export function createOperatorReportsPageModule(
     hubLoadStatus: "idle",
     hubOverview: null,
     hubLoadError: null,
+    weeklyBrief: emptyWeeklyBrief(),
     exportAllowed: true,
     exportDialogOpen: false,
     workspace: null,
     hubLoadGeneration: 0,
+    weeklyBriefGeneration: 0,
   }
 
   let snapshot: OperatorReportsPageSnapshot = projectSnapshot()
@@ -153,6 +241,7 @@ export function createOperatorReportsPageModule(
       hubLoadStatus: state.hubLoadStatus,
       hubOverview: state.hubOverview,
       hubLoadError: state.hubLoadError,
+      weeklyBrief: state.weeklyBrief,
       exportAllowed: state.exportAllowed,
       dateRange,
       dateRangeLabel: labelForHomePerformanceDateRange(dateRange),
@@ -167,6 +256,13 @@ export function createOperatorReportsPageModule(
     for (const listener of listeners) {
       listener()
     }
+  }
+
+  const patchWeeklyBrief = (
+    next: OperatorReportsWeeklyBriefViewModel
+  ) => {
+    state = { ...state, weeklyBrief: next }
+    publish()
   }
 
   const loadHub = async () => {
@@ -250,6 +346,155 @@ export function createOperatorReportsPageModule(
     }
   }
 
+  /**
+   * GET-only load — no auto POST on hub / weekly-brief enter (lock 10).
+   */
+  const loadWeeklyBriefGetOnly = async (options?: {
+    showLoadingImmediately?: boolean
+  }) => {
+    const workspace = state.workspace
+    const locationId = workspace?.selectedLocationId
+    if (workspace == null || locationId == null) {
+      patchWeeklyBrief(emptyWeeklyBrief())
+      return
+    }
+
+    const generation = state.weeklyBriefGeneration + 1
+    state = { ...state, weeklyBriefGeneration: generation }
+
+    if (options?.showLoadingImmediately === true) {
+      patchWeeklyBrief(
+        emptyWeeklyBrief({
+          status: "loading",
+        })
+      )
+    }
+
+    try {
+      const response = await adapters.getWeeklyBrief(locationId)
+      if (generation !== state.weeklyBriefGeneration) {
+        return
+      }
+
+      if (response.success && response.ready) {
+        patchWeeklyBrief(mapReadyWeeklyBrief(response))
+        return
+      }
+
+      if (response.success && !response.ready) {
+        patchWeeklyBrief(
+          emptyWeeklyBrief({
+            status: "empty",
+            week: response.week,
+          })
+        )
+        return
+      }
+
+      patchWeeklyBrief(
+        weeklyBriefErrorFrom(REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE, true)
+      )
+    } catch {
+      if (generation !== state.weeklyBriefGeneration) {
+        return
+      }
+      patchWeeklyBrief(
+        weeklyBriefErrorFrom(REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE, true)
+      )
+    }
+  }
+
+  /**
+   * Retry / generate path: GET; if still missing, POST then map ready.
+   */
+  const runWeeklyBriefGetThenGenerateIfMissing = async (options?: {
+    showLoadingImmediately?: boolean
+    markGenerateBusy?: boolean
+  }) => {
+    const workspace = state.workspace
+    const locationId = workspace?.selectedLocationId
+    if (workspace == null || locationId == null) {
+      return false
+    }
+
+    const generation = state.weeklyBriefGeneration + 1
+    state = { ...state, weeklyBriefGeneration: generation }
+
+    if (options?.showLoadingImmediately === true) {
+      patchWeeklyBrief(
+        emptyWeeklyBrief({
+          status: "loading",
+          generateBusy: options.markGenerateBusy === true,
+        })
+      )
+    } else if (options?.markGenerateBusy === true) {
+      patchWeeklyBrief({
+        ...state.weeklyBrief,
+        generateBusy: true,
+      })
+    }
+
+    try {
+      const first = await adapters.getWeeklyBrief(locationId)
+      if (generation !== state.weeklyBriefGeneration) {
+        return false
+      }
+
+      if (first.success && first.ready) {
+        patchWeeklyBrief(mapReadyWeeklyBrief(first))
+        return true
+      }
+
+      if (options?.markGenerateBusy !== true) {
+        patchWeeklyBrief(
+          emptyWeeklyBrief({
+            status: "loading",
+          })
+        )
+      }
+
+      const generated = await adapters.generateWeeklyBrief(locationId)
+      if (generation !== state.weeklyBriefGeneration) {
+        return false
+      }
+
+      if (!generated.success) {
+        patchWeeklyBrief(
+          weeklyBriefErrorFrom(
+            generated.message,
+            generated.retryable !== false
+          )
+        )
+        return false
+      }
+
+      patchWeeklyBrief(mapReadyWeeklyBrief(generated))
+      return true
+    } catch {
+      if (generation !== state.weeklyBriefGeneration) {
+        return false
+      }
+      patchWeeklyBrief(
+        weeklyBriefErrorFrom(REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE, true)
+      )
+      return false
+    }
+  }
+
+  const loadHubAndBrief = async () => {
+    await Promise.all([loadHub(), loadWeeklyBriefGetOnly()])
+  }
+
+  const loadForActiveSurface = async () => {
+    if (state.activeSurface === "hub") {
+      await loadHubAndBrief()
+      return
+    }
+    if (state.activeSurface === "weekly-brief") {
+      await loadWeeklyBriefGetOnly()
+    }
+  }
+
   return {
     getSnapshot() {
       return snapshot
@@ -268,21 +513,32 @@ export function createOperatorReportsPageModule(
         workspace: input,
         exportAllowed: resolveExportAllowed(input),
         ...(locationChanged
-          ? { exportDialogOpen: false }
+          ? {
+              exportDialogOpen: false,
+              weeklyBrief: emptyWeeklyBrief(),
+              weeklyBriefGeneration: state.weeklyBriefGeneration + 1,
+            }
           : {}),
       }
       publish()
 
-      if (state.activeSurface === "hub") {
-        await loadHub()
-      }
+      await loadForActiveSurface()
     },
     setActiveSurface(surface) {
       const changed = state.activeSurface !== surface
       state = { ...state, activeSurface: surface }
       publish()
-      if (surface === "hub" && changed) {
-        void loadHub()
+      if (!changed) {
+        return
+      }
+      if (surface === "hub") {
+        void loadHubAndBrief()
+        return
+      }
+      if (surface === "weekly-brief") {
+        void loadWeeklyBriefGetOnly({
+          showLoadingImmediately: state.weeklyBrief.status !== "ready",
+        })
       }
     },
     async reloadForReportsDateRange() {
@@ -293,6 +549,26 @@ export function createOperatorReportsPageModule(
     },
     async retryHubLoad() {
       await loadHub()
+    },
+    async retryWeeklyBrief() {
+      await runWeeklyBriefGetThenGenerateIfMissing({
+        showLoadingImmediately: true,
+      })
+    },
+    async ensureWeeklyBriefReady() {
+      if (state.weeklyBrief.status === "ready") {
+        return true
+      }
+      return runWeeklyBriefGetThenGenerateIfMissing({
+        showLoadingImmediately: true,
+        markGenerateBusy: true,
+      })
+    },
+    async generateWeeklyBriefInPlace() {
+      await runWeeklyBriefGetThenGenerateIfMissing({
+        showLoadingImmediately: true,
+        markGenerateBusy: true,
+      })
     },
     openExportDialog() {
       if (!state.exportAllowed) {

@@ -12,6 +12,9 @@ export type OperatorReportsPageModuleApi = {
   setActiveSurface: OperatorReportsPageModule["setActiveSurface"]
   reloadForReportsDateRange: OperatorReportsPageModule["reloadForReportsDateRange"]
   retryHubLoad: OperatorReportsPageModule["retryHubLoad"]
+  retryWeeklyBrief: OperatorReportsPageModule["retryWeeklyBrief"]
+  ensureWeeklyBriefReady: OperatorReportsPageModule["ensureWeeklyBriefReady"]
+  generateWeeklyBriefInPlace: OperatorReportsPageModule["generateWeeklyBriefInPlace"]
   openExportDialog: OperatorReportsPageModule["openExportDialog"]
   closeExportDialog: OperatorReportsPageModule["closeExportDialog"]
 }
@@ -30,6 +33,9 @@ export function useReportsPageModule(): OperatorReportsPageModuleApi {
     setActiveSurface: pageModule.setActiveSurface,
     reloadForReportsDateRange: pageModule.reloadForReportsDateRange,
     retryHubLoad: pageModule.retryHubLoad,
+    retryWeeklyBrief: pageModule.retryWeeklyBrief,
+    ensureWeeklyBriefReady: pageModule.ensureWeeklyBriefReady,
+    generateWeeklyBriefInPlace: pageModule.generateWeeklyBriefInPlace,
     openExportDialog: pageModule.openExportDialog,
     closeExportDialog: pageModule.closeExportDialog,
   }

@@ -58,7 +58,6 @@ import {
 import {
   operatorDashboardNavPath,
   operatorDashboardCaptureLocationPath,
-  operatorDashboardWeeklyBriefPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
 
@@ -81,8 +80,8 @@ export function CaptureReportPage({
 }: CaptureReportPageProps) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const reportsChrome = useReportsChildChrome("capture")
-  const { dateRange, exportAllowed, openExportDialog, commitRange } = reportsChrome
+  const reportsChrome = useReportsChildChrome("capture", mode)
+  const { dateRange, exportAllowed, generateBusy, openExportDialog, commitRange, onGenerateBrief } = reportsChrome
   const [activePlacementModal, setActivePlacementModal] = useState<{
     actionType: CaptureReportPlacementActionType | null
     placement: CaptureReportPlacementRow | null
@@ -130,11 +129,8 @@ export function CaptureReportPage({
       }}
       actions={
         <ReportsStandardHeaderActions
-          onGenerateBrief={() =>
-            navigate(
-              operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
-            )
-          }
+          onGenerateBrief={onGenerateBrief}
+          generateBusy={generateBusy}
           onExport={openExportDialog}
           exportDisabled={!exportAllowed}
           selectedRange={dateRange}

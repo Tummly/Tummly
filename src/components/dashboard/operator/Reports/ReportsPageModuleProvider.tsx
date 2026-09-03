@@ -1,7 +1,11 @@
 import { createElement, useEffect, useState, type ReactNode } from "react"
 import { useOutletContext } from "react-router-dom"
 
-import { getReportsOverview } from "@/api/dashboardApi"
+import {
+  generateWeeklyBrief,
+  getReportsOverview,
+  getWeeklyBrief,
+} from "@/api/dashboardApi"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { ReportsExportDialog } from "@/components/dashboard/operator/Reports/ReportsExportDialog"
@@ -37,6 +41,8 @@ export function ReportsPageModuleProvider({
   const [pageModule] = useState(() =>
     createOperatorReportsPageModule({
       getOverview: getReportsOverview,
+      getWeeklyBrief,
+      generateWeeklyBrief,
       getReportsDateRange: () => dashboardUiStore.getState().reportsDateRange,
     })
   )

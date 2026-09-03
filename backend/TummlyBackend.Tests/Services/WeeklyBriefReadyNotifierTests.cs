@@ -48,7 +48,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task NotifyGeneratedAsync_ProducesWeeklyBriefReady_WithHomeCta()
+        public async Task NotifyGeneratedAsync_ProducesWeeklyBriefReady_WithReportsWeeklyBriefCta()
         {
             var seed = await SeedOwnedLocationAsync(accountType: "Single");
 
@@ -62,15 +62,15 @@ namespace TummlyBackend.Tests.Services
                 $"{seed.LocationId}:2026-W33",
                 notice.DedupeKey
             );
-            Assert.Equal("View Home", notice.CtaLabel);
+            Assert.Equal("View weekly brief", notice.CtaLabel);
             Assert.Equal(
-                $"/single-dashboard?location={seed.LocationId}",
+                $"/single-dashboard/reports/weekly-brief?location={seed.LocationId}",
                 notice.CtaHref
             );
         }
 
         [Fact]
-        public async Task NotifyGeneratedAsync_UsesMultiDashboardHomePath_WhenAccountIsMulti()
+        public async Task NotifyGeneratedAsync_UsesMultiDashboardReportsWeeklyBriefPath_WhenAccountIsMulti()
         {
             var seed = await SeedOwnedLocationAsync(accountType: "Multi");
 
@@ -78,7 +78,7 @@ namespace TummlyBackend.Tests.Services
 
             var list = await _notifications.ListAsync(seed.UserId);
             Assert.Equal(
-                $"/multi-dashboard?location={seed.LocationId}",
+                $"/multi-dashboard/reports/weekly-brief?location={seed.LocationId}",
                 Assert.Single(list).CtaHref
             );
         }

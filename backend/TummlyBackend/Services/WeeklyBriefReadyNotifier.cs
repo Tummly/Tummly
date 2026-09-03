@@ -9,23 +9,23 @@ namespace TummlyBackend.Services
     /// <summary>
     /// Produces <c>weekly-brief-ready</c> after a successful first-write generate.
     /// Preference gate and dedupe live in <see cref="IOperatorNotificationsService.ProduceAsync"/>.
-    /// CTA is Operator Home for the location — not a standalone weekly-brief page.
+    /// CTA opens the Reports Weekly Brief page for the location.
     /// </summary>
     public sealed class WeeklyBriefReadyNotifier : IWeeklyBriefReadyNotifier
     {
         public const string NotificationType = "weekly-brief-ready";
 
-        public const string CtaLabel = "View Home";
+        public const string CtaLabel = "View weekly brief";
 
         /// <summary>
-        /// Single-location Home: <c>/single-dashboard?location={id}</c>.
-        /// Multi-location Home: <c>/multi-dashboard?location={id}</c>.
-        /// Matches frontend <c>operatorDashboardNavPath(mode, "home", locationId)</c>.
+        /// Single-location: <c>/single-dashboard/reports/weekly-brief?location={id}</c>.
+        /// Multi-location: <c>/multi-dashboard/reports/weekly-brief?location={id}</c>.
+        /// Matches frontend <c>operatorDashboardWeeklyBriefPath</c>.
         /// </summary>
-        public static string HomeCtaHref(string accountType, int locationId)
+        public static string ReportsWeeklyBriefCtaHref(string accountType, int locationId)
             => string.Equals(accountType, "Multi", StringComparison.Ordinal)
-                ? $"/multi-dashboard?location={locationId}"
-                : $"/single-dashboard?location={locationId}";
+                ? $"/multi-dashboard/reports/weekly-brief?location={locationId}"
+                : $"/single-dashboard/reports/weekly-brief?location={locationId}";
 
         public static string DedupeKeyFor(int locationId, string weekKey)
             => $"{locationId}:{weekKey}";
@@ -79,7 +79,10 @@ namespace TummlyBackend.Services
                         Title = "Weekly brief ready",
                         Body = "Your weekly summary is ready.",
                         CtaLabel = CtaLabel,
-                        CtaHref = HomeCtaHref(owner.AccountType, locationId),
+                        CtaHref = ReportsWeeklyBriefCtaHref(
+                            owner.AccountType,
+                            locationId
+                        ),
                         DedupeKey = DedupeKeyFor(
                             locationId,
                             closedWeek.WeekKey

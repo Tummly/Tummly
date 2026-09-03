@@ -39,7 +39,6 @@ import {
 } from "@/lib/operatorGuests/guestsPresentation"
 import {
   operatorDashboardNavPath,
-  operatorDashboardWeeklyBriefPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
 
@@ -62,8 +61,8 @@ export function FeedbackReportPage({
 }: FeedbackReportPageProps) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const reportsChrome = useReportsChildChrome("feedback")
-  const { dateRange, exportAllowed, openExportDialog, commitRange } = reportsChrome
+  const reportsChrome = useReportsChildChrome("feedback", mode)
+  const { dateRange, exportAllowed, generateBusy, openExportDialog, commitRange, onGenerateBrief } = reportsChrome
 
   const isPageEmpty = propIsEmpty ?? searchParams.get("empty") === "true"
 
@@ -103,11 +102,8 @@ export function FeedbackReportPage({
       }}
       actions={
         <ReportsStandardHeaderActions
-          onGenerateBrief={() =>
-            navigate(
-              operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
-            )
-          }
+          onGenerateBrief={onGenerateBrief}
+          generateBusy={generateBusy}
           onExport={openExportDialog}
           exportDisabled={!exportAllowed}
           selectedRange={dateRange}

@@ -38,7 +38,6 @@ import {
 import {
   operatorDashboardNavPath,
   operatorDashboardOffersRedemptionLogPath,
-  operatorDashboardWeeklyBriefPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
 
@@ -61,8 +60,8 @@ export function OffersReportPage({
 }: OffersReportPageProps) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const reportsChrome = useReportsChildChrome("offers")
-  const { dateRange, exportAllowed, openExportDialog, commitRange } = reportsChrome
+  const reportsChrome = useReportsChildChrome("offers", mode)
+  const { dateRange, exportAllowed, generateBusy, openExportDialog, commitRange, onGenerateBrief } = reportsChrome
 
   const isPageEmpty = propIsEmpty ?? searchParams.get("empty") === "true"
 
@@ -107,11 +106,8 @@ export function OffersReportPage({
       }}
       actions={
         <ReportsStandardHeaderActions
-          onGenerateBrief={() =>
-            navigate(
-              operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
-            )
-          }
+          onGenerateBrief={onGenerateBrief}
+          generateBusy={generateBusy}
           onExport={openExportDialog}
           exportDisabled={!exportAllowed}
           selectedRange={dateRange}

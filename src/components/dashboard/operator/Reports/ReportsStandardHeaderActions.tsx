@@ -13,6 +13,7 @@ type ReportsStandardHeaderActionsProps = {
   onGenerateBrief: () => void
   onExport: () => void
   exportDisabled?: boolean
+  generateBusy?: boolean
   selectedRange: HomePerformanceDateRange
   onCommitRange: (range: HomePerformanceDateRange) => void
   showDateRange?: boolean
@@ -23,6 +24,7 @@ export function ReportsStandardHeaderActions({
   onGenerateBrief,
   onExport,
   exportDisabled = false,
+  generateBusy = false,
   selectedRange,
   onCommitRange,
   showDateRange = true,
@@ -34,6 +36,7 @@ export function ReportsStandardHeaderActions({
         variant="op-secondary"
         className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
         onClick={onGenerateBrief}
+        disabled={generateBusy}
       >
         <img
           src={aiIconPng}

@@ -6,7 +6,74 @@ import {
   type OperatorReportsPageAdapters,
   type OperatorReportsWorkspaceInput,
 } from "@/lib/operatorReports/createOperatorReportsPageModule"
+import type {
+  WeeklyBriefBody,
+  WeeklyBriefGenerateResponse,
+  WeeklyBriefGetResponse,
+  WeeklyBriefMetrics,
+} from "@/types/operatorHome"
 import type { ReportsOverviewResponse } from "@/types/operatorReports"
+
+const emptySection = {
+  hasData: false,
+  summary: "",
+  echoedCounts: null,
+}
+
+const weeklyBriefBodyFixture: WeeklyBriefBody = {
+  headline: "Loop health held steady this week.",
+  capture: {
+    hasData: true,
+    summary: "Counter cards drove most scans.",
+    echoedCounts: null,
+  },
+  feedback: emptySection,
+  offers: emptySection,
+  campaigns: emptySection,
+  watchNext: ["Follow up on delivery notes"],
+}
+
+const weeklyBriefMetricsFixture: WeeklyBriefMetrics = {
+  guestsJoined: 28,
+  qrScanEvents: 72,
+  feedbackCount: 42,
+  positiveFeedbackCount: 30,
+  neutralFeedbackCount: 8,
+  negativeFeedbackCount: 4,
+  needsAttentionCount: 2,
+  detectedTagCounts: {},
+  activeOffers: 3,
+  claimsInWeek: 10,
+  redemptionsInWeek: 4,
+  campaignsSentInWeek: 1,
+  campaignRecipientsReached: 40,
+}
+
+function readyWeeklyBriefResponse(
+  locationId: number
+): Extract<WeeklyBriefGetResponse, { ready: true }> {
+  return {
+    success: true,
+    ready: true,
+    locationId,
+    week: "2026-W33",
+    status: "succeeded",
+    generatedAtUtc: "2026-08-17T08:00:00Z",
+    body: weeklyBriefBodyFixture,
+    metrics: weeklyBriefMetricsFixture,
+  }
+}
+
+function notReadyWeeklyBriefResponse(
+  locationId: number
+): Extract<WeeklyBriefGetResponse, { ready: false }> {
+  return {
+    success: true,
+    ready: false,
+    locationId,
+    week: "2026-W33",
+  }
+}
 
 function readyOverview(): Extract<
   ReportsOverviewResponse,
@@ -69,6 +136,8 @@ function workspace(
 function createAdapters(overrides: {
   getOverview?: OperatorReportsPageAdapters["getOverview"]
   getReportsDateRange?: OperatorReportsPageAdapters["getReportsDateRange"]
+  getWeeklyBrief?: OperatorReportsPageAdapters["getWeeklyBrief"]
+  generateWeeklyBrief?: OperatorReportsPageAdapters["generateWeeklyBrief"]
 } = {}) {
   const getOverview = vi.fn(
     overrides.getOverview
@@ -78,9 +147,21 @@ function createAdapters(overrides: {
     overrides.getReportsDateRange
       ?? (() => DEFAULT_HOME_PERFORMANCE_DATE_RANGE)
   )
+  const getWeeklyBrief = vi.fn(
+    overrides.getWeeklyBrief
+      ?? (async (locationId: number) =>
+        notReadyWeeklyBriefResponse(locationId))
+  )
+  const generateWeeklyBrief = vi.fn(
+    overrides.generateWeeklyBrief
+      ?? (async (locationId: number) =>
+        readyWeeklyBriefResponse(locationId) as WeeklyBriefGenerateResponse)
+  )
   return {
     getOverview,
     getReportsDateRange,
+    getWeeklyBrief,
+    generateWeeklyBrief,
   }
 }
 
@@ -102,6 +183,7 @@ describe("createOperatorReportsPageModule", () => {
     const module = createOperatorReportsPageModule(adapters)
     await module.syncWorkspace(workspace())
     expect(adapters.getOverview).toHaveBeenCalledTimes(1)
+    const briefCallsAfterSync = adapters.getWeeklyBrief.mock.calls.length
 
     adapters.getReportsDateRange.mockReturnValue({
       kind: "preset",
@@ -109,6 +191,7 @@ describe("createOperatorReportsPageModule", () => {
     })
     await module.reloadForReportsDateRange()
     expect(adapters.getOverview).toHaveBeenCalledTimes(2)
+    expect(adapters.getWeeklyBrief.mock.calls.length).toBe(briefCallsAfterSync)
     expect(module.getSnapshot().dateRange).toEqual({
       kind: "preset",
       presetId: "last30",
@@ -153,5 +236,143 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().exportAllowed).toBe(false)
     module.openExportDialog()
     expect(module.getSnapshot().exportDialogOpen).toBe(false)
+  })
+
+  it("loads hub overview and brief GET in parallel without auto POST", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) =>
+      readyWeeklyBriefResponse(locationId)
+    )
+    const generateWeeklyBrief = vi.fn(async () => {
+      throw new Error("should not auto generate")
+    })
+    const adapters = createAdapters({ getWeeklyBrief, generateWeeklyBrief })
+    const module = createOperatorReportsPageModule(adapters)
+
+    await module.syncWorkspace(workspace())
+
+    expect(adapters.getOverview).toHaveBeenCalledTimes(1)
+    expect(getWeeklyBrief).toHaveBeenCalledTimes(1)
+    expect(generateWeeklyBrief).not.toHaveBeenCalled()
+    expect(module.getSnapshot().weeklyBrief.status).toBe("ready")
+    expect(module.getSnapshot().weeklyBrief.headline).toBe(
+      "Loop health held steady this week."
+    )
+    expect(module.getSnapshot().weeklyBrief.secondary).toBe(
+      "Counter cards drove most scans."
+    )
+  })
+
+  it("sets brief empty when GET returns not ready", async () => {
+    const adapters = createAdapters({
+      getWeeklyBrief: async (locationId) =>
+        notReadyWeeklyBriefResponse(locationId),
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().weeklyBrief.status).toBe("empty")
+    expect(adapters.generateWeeklyBrief).not.toHaveBeenCalled()
+  })
+
+  it("sets brief error when GET fails", async () => {
+    const adapters = createAdapters({
+      getWeeklyBrief: async () => {
+        throw new Error("network")
+      },
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().weeklyBrief.status).toBe("error")
+    expect(module.getSnapshot().weeklyBrief.errorRetryable).toBe(true)
+  })
+
+  it("keeps hub and brief statuses independent", async () => {
+    const adapters = createAdapters({
+      getOverview: async () => {
+        throw new Error("overview down")
+      },
+      getWeeklyBrief: async (locationId) =>
+        readyWeeklyBriefResponse(locationId),
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().hubLoadStatus).toBe("error")
+    expect(module.getSnapshot().weeklyBrief.status).toBe("ready")
+  })
+
+  it("navigates only from Generate brief when already ready", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) =>
+      readyWeeklyBriefResponse(locationId)
+    )
+    const generateWeeklyBrief = vi.fn(async () => {
+      throw new Error("should not generate")
+    })
+    const adapters = createAdapters({ getWeeklyBrief, generateWeeklyBrief })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+
+    const ok = await module.ensureWeeklyBriefReady()
+    expect(ok).toBe(true)
+    expect(generateWeeklyBrief).not.toHaveBeenCalled()
+  })
+
+  it("POSTs then succeeds from Generate brief when missing", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) =>
+      notReadyWeeklyBriefResponse(locationId)
+    )
+    const generateWeeklyBrief = vi.fn(async (locationId: number) =>
+      readyWeeklyBriefResponse(locationId)
+    )
+    const adapters = createAdapters({ getWeeklyBrief, generateWeeklyBrief })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().weeklyBrief.status).toBe("empty")
+
+    const ok = await module.ensureWeeklyBriefReady()
+    expect(ok).toBe(true)
+    expect(generateWeeklyBrief).toHaveBeenCalledTimes(1)
+    expect(module.getSnapshot().weeklyBrief.status).toBe("ready")
+  })
+
+  it("generates in place from the weekly-brief page empty CTA", async () => {
+    const getWeeklyBrief = vi.fn(async (locationId: number) =>
+      notReadyWeeklyBriefResponse(locationId)
+    )
+    const generateWeeklyBrief = vi.fn(async (locationId: number) =>
+      readyWeeklyBriefResponse(locationId)
+    )
+    const adapters = createAdapters({ getWeeklyBrief, generateWeeklyBrief })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    module.setActiveSurface("weekly-brief")
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().activeSurface).toBe("weekly-brief")
+    })
+
+    await module.generateWeeklyBriefInPlace()
+    expect(generateWeeklyBrief).toHaveBeenCalledTimes(1)
+    expect(module.getSnapshot().weeklyBrief.status).toBe("ready")
+    expect(module.getSnapshot().weeklyBrief.body?.headline).toBe(
+      "Loop health held steady this week."
+    )
+  })
+
+  it("retries weekly brief with GET then generate if still missing", async () => {
+    const getWeeklyBrief = vi
+      .fn<OperatorReportsPageAdapters["getWeeklyBrief"]>()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce(notReadyWeeklyBriefResponse(1))
+      .mockResolvedValue(readyWeeklyBriefResponse(1))
+    const generateWeeklyBrief = vi.fn(async (locationId: number) =>
+      readyWeeklyBriefResponse(locationId)
+    )
+    const adapters = createAdapters({ getWeeklyBrief, generateWeeklyBrief })
+    const module = createOperatorReportsPageModule(adapters)
+
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().weeklyBrief.status).toBe("error")
+
+    await module.retryWeeklyBrief()
+    expect(module.getSnapshot().weeklyBrief.status).toBe("ready")
+    expect(generateWeeklyBrief).toHaveBeenCalledTimes(1)
   })
 })
