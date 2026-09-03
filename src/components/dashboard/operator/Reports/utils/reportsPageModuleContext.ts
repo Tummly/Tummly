@@ -9,7 +9,7 @@ export function useReportsPageModuleApi(): OperatorReportsPageModule {
   const pageModule = useContext(reportsPageModuleContext)
   if (pageModule == null) {
     throw new Error(
-      "useReportsPageModule must be used within ReportsPageModuleProvider"
+      "useReportsPageModuleApi must be used within ReportsPageModuleProvider"
     )
   }
   return pageModule

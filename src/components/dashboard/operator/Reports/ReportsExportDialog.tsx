@@ -58,23 +58,8 @@ const EXPORT_ITEMS: ExportItem[] = [
     format: "csv",
     filenamePrefix: "campaign-report",
   },
-  {
-    id: "offer-redemption-log",
-    title: "Offer redemption log",
-    description:
-      "Download offer claims, redemptions, expired offers and invalid attempts.",
-    buttonLabel: "Download CSV",
-    format: "csv",
-    filenamePrefix: "offer-redemption-log",
-  },
-  {
-    id: "guest-consent-export",
-    title: "Guest consent export",
-    description: "Download guest contact and consent records.",
-    buttonLabel: "Download CSV",
-    format: "csv",
-    filenamePrefix: "guest-consent-export",
-  },
+  // Offer redemption log + guest consent stay out of Reports export
+  // pack (lock 09 / 10) — Offers / Privacy own those surfaces.
 ]
 
 type ReportsExportDialogProps = {
@@ -125,20 +110,6 @@ export function ReportsExportDialog({
           "Quiet Tuesday offer,Quiet-day boost,SMS,9,41,38,2,Sent",
           "Weekend Flash Deal,Saturday special,Email,15,60,45,5,Scheduled",
           "Midweek Motivation,Wednesday surprise,SMS,12,55,50,3,Sent",
-        ].join("\n")
-      } else if (item.id === "offer-redemption-log") {
-        content = [
-          "Date,Offer,Guest,Location,Status,Code",
-          "12 Jul,Free side next visit,Sarah,Mehmet's Grill,Redeemed,QR-8492",
-          "11 Jul,Buy one get one free,John,Mehmet's Grill,Redeemed,PR-1920",
-          "10 Jul,Free side next visit,Emma,Mehmet's Grill,Expired,EX-4829",
-        ].join("\n")
-      } else if (item.id === "guest-consent-export") {
-        content = [
-          "Guest ID,Name,Channel,Consent Status,Last Contacted,Opt-in Date",
-          "G-1029,Sarah M.,SMS & Email,Active,12 Jul,01 Jan",
-          "G-1030,Ahmed K.,SMS,Active,11 Jul,15 Feb",
-          "G-1031,Elena R.,Email,Unsubscribed,10 Jul,20 Mar",
         ].join("\n")
       } else {
         content = [

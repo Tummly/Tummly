@@ -206,26 +206,19 @@ namespace TummlyBackend.Services
                     )
             );
 
-            var activeOffersCurrent = await _context.CatalogOffers
-                .AsNoTracking()
-                .CountAsync(
-                    o =>
-                        o.RestaurantLocationId == locationId
-                        && o.Status == CatalogOfferStatus.Active,
-                    cancellationToken
-                );
-
-            // No StatusChangedAt — previous = currently Active and created
-            // before previous window end (honest without lifecycle history).
-            var activeOffersPrevious = await _context.CatalogOffers
-                .AsNoTracking()
-                .CountAsync(
-                    o =>
-                        o.RestaurantLocationId == locationId
-                        && o.Status == CatalogOfferStatus.Active
-                        && o.CreatedAt < previousToUtc,
-                    cancellationToken
-                );
+            // Active at end of each window. No StatusChangedAt — proxy:
+            // currently Active, created before window end, and not
+            // ChooseExpiryDate-expired before that end (UTC calendar day).
+            var activeOffersCurrent = await CountActiveOffersAtWindowEndAsync(
+                locationId,
+                toUtc,
+                cancellationToken
+            );
+            var activeOffersPrevious = await CountActiveOffersAtWindowEndAsync(
+                locationId,
+                previousToUtc,
+                cancellationToken
+            );
 
             var topCaptureSources = await BuildTopCaptureSourcesAsync(
                 locationId,
@@ -322,6 +315,36 @@ namespace TummlyBackend.Services
                 );
 
             return !hasCampaignSend;
+        }
+
+        /// <summary>
+        /// Active-at-end-of-window proxy without StatusChangedAt history.
+        /// Currently Active, created before the window end, and not
+        /// ChooseExpiryDate-expired before that end (UTC calendar day).
+        /// Misses offers that were Active then and are Paused/Archived now.
+        /// </summary>
+        private async Task<int> CountActiveOffersAtWindowEndAsync(
+            int locationId,
+            DateTime windowEndUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            var endDay = DateOnly.FromDateTime(windowEndUtc);
+
+            return await _context.CatalogOffers
+                .AsNoTracking()
+                .CountAsync(
+                    o =>
+                        o.RestaurantLocationId == locationId
+                        && o.Status == CatalogOfferStatus.Active
+                        && o.CreatedAt < windowEndUtc
+                        && !(
+                            o.Validity == CatalogOfferValidity.ChooseExpiryDate
+                            && o.CustomExpiryDate != null
+                            && o.CustomExpiryDate < endDay
+                        ),
+                    cancellationToken
+                );
         }
 
         private async Task<
