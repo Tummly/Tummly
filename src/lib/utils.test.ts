@@ -22,15 +22,3 @@ describe("cn / twMerge operator text tokens", () => {
     expect(cn("text-op-xs", "text-op-sm")).toBe("text-op-sm")
   })
 })
-
-describe("cn / twMerge operator radius tokens", () => {
-  it("lets Operator button radius replace the base pill radius", () => {
-    expect(cn("rounded-full", "rounded-op-sm")).toBe("rounded-op-sm")
-    expect(cn("rounded-full rounded-op-sm")).toBe("rounded-op-sm")
-  })
-
-  it("merges conflicting Operator radii to the last one", () => {
-    expect(cn("rounded-op-sm", "rounded-op-lg")).toBe("rounded-op-lg")
-    expect(cn("rounded-op-md", "rounded-xs")).toBe("rounded-xs")
-  })
-})

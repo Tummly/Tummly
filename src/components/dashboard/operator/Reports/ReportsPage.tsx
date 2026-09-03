@@ -24,7 +24,6 @@ import {
 import {
   REPORTS_BODY_STACK_CLASS,
   REPORTS_HUB_PAGE_COPY,
-  REPORTS_PAGE_ACTION_BUTTON_CLASS,
   REPORTS_TABLE_BODY_CELL_CLASS,
   REPORTS_TABLE_BODY_ROW_CLASS,
   REPORTS_TABLE_CLASS,
@@ -33,6 +32,10 @@ import {
   REPORTS_TABLE_HEAD_ROW_CLASS,
   REPORTS_TABLE_NAME_CELL_CLASS,
 } from "@/lib/operatorReports/reportsPresentation"
+import {
+  GUESTS_PAGE_PRIMARY_BUTTON_CLASS,
+  GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
+} from "@/lib/operatorGuests/guestsPresentation"
 import {
   operatorDashboardNavPath,
   operatorDashboardCaptureReportPath,
@@ -291,7 +294,7 @@ export function ReportsPage({
               <Button
                 type="button"
                 variant="op-primary"
-                className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+                className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
                 onClick={() =>
                   navigate(
                     operatorDashboardWeeklyBriefPath(mode, selectedLocationId)
@@ -303,8 +306,8 @@ export function ReportsPage({
 
               <Button
                 type="button"
-                variant="outline"
-                className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+                variant="op-tertiary"
+                className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
                 onClick={() => navTo("campaigns")}
               >
                 Create campaign
@@ -336,7 +339,7 @@ export function ReportsPage({
               <Button
                 type="button"
                 variant="op-primary"
-                className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+                className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
                 onClick={() =>
                   navigate(
                     operatorDashboardFeedbackReportPath(
@@ -401,7 +404,7 @@ export function ReportsPage({
               <Button
                 type="button"
                 variant="op-primary"
-                className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+                className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
                 onClick={() =>
                   navigate(
                     operatorDashboardCaptureReportPath(
@@ -432,7 +435,7 @@ export function ReportsPage({
               <Button
                 type="button"
                 variant="op-primary"
-                className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+                className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
                 onClick={() =>
                   navigate(
                     operatorDashboardOffersReportPath(
@@ -446,8 +449,8 @@ export function ReportsPage({
               </Button>
               <Button
                 type="button"
-                variant="outline"
-                className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+                variant="op-tertiary"
+                className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
                 onClick={() =>
                   navigate(
                     operatorDashboardCampaignsReportPath(
@@ -475,8 +478,8 @@ export function ReportsPage({
                 <div>
                   <Button
                     type="button"
-                    variant="outline"
-                    className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+                    variant="op-tertiary"
+                    className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
                     onClick={() => navTo("feedback")}
                   >
                     View feedback
@@ -492,8 +495,8 @@ export function ReportsPage({
                 <div>
                   <Button
                     type="button"
-                    variant="outline"
-                    className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+                    variant="op-tertiary"
+                    className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
                     onClick={() => navTo("capture")}
                   >
                     View QR codes
@@ -508,8 +511,8 @@ export function ReportsPage({
                 <div>
                   <Button
                     type="button"
-                    variant="outline"
-                    className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+                    variant="op-tertiary"
+                    className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
                     onClick={() => navTo("feedback")}
                   >
                     Open follow-up queue

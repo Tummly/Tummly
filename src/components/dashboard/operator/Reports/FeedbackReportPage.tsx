@@ -29,7 +29,6 @@ import {
 } from "@/lib/operatorReports/feedbackReportPresentation"
 import {
   REPORTS_BODY_STACK_CLASS,
-  REPORTS_PAGE_ACTION_BUTTON_CLASS,
   REPORTS_TABLE_ACTIONS_CELL_CLASS,
   REPORTS_TABLE_BODY_CELL_CLASS,
   REPORTS_TABLE_BODY_ROW_CLASS,
@@ -40,6 +39,10 @@ import {
   REPORTS_TABLE_HEAD_ROW_CLASS,
   REPORTS_TABLE_NAME_CELL_CLASS,
 } from "@/lib/operatorReports/reportsPresentation"
+import {
+  GUESTS_PAGE_PRIMARY_BUTTON_CLASS,
+  GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
+} from "@/lib/operatorGuests/guestsPresentation"
 import {
   operatorDashboardNavPath,
   operatorDashboardWeeklyBriefPath,
@@ -127,8 +130,8 @@ export function FeedbackReportPage({
           action={
             <Button
               type="button"
-              variant="op-secondary"
-              className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+              variant="op-primary"
+              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
               onClick={handleOpenFeedbackInbox}
             >
               {FEEDBACK_REPORT_PAGE_COPY.checkGuestForm}
@@ -199,7 +202,7 @@ export function FeedbackReportPage({
                   <Button
                     type="button"
                     variant="op-tertiary"
-                    className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+                    className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
                     onClick={handleOpenFeedbackInbox}
                   >
                     {FEEDBACK_REPORT_PAGE_COPY.viewSourceFeedback}
@@ -268,7 +271,7 @@ export function FeedbackReportPage({
                         <Button
                           type="button"
                           variant="op-tertiary"
-                          className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+                          className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
                           onClick={handleOpenFeedbackInbox}
                         >
                           {FEEDBACK_REPORT_PAGE_COPY.openAction}
@@ -283,7 +286,7 @@ export function FeedbackReportPage({
             <Button
               type="button"
               variant="op-primary"
-              className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
               onClick={handleOpenFeedbackInbox}
             >
               {FEEDBACK_REPORT_PAGE_COPY.openFeedbackInbox}
@@ -347,7 +350,7 @@ export function FeedbackReportPage({
             <Button
               type="button"
               variant="op-primary"
-              className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
               onClick={handleOpenFeedbackInbox}
             >
               {FEEDBACK_REPORT_PAGE_COPY.manageFeedback}

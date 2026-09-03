@@ -32,6 +32,10 @@ import {
   REPORTS_TABLE_NAME_CELL_CLASS,
 } from "@/lib/operatorReports/reportsPresentation"
 import {
+  GUESTS_PAGE_PRIMARY_BUTTON_CLASS,
+  GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
+} from "@/lib/operatorGuests/guestsPresentation"
+import {
   operatorDashboardNavPath,
   operatorDashboardFeedbackReportPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
@@ -107,7 +111,7 @@ export function WeeklyBriefPage({
           <Button
             type="button"
             variant="op-tertiary"
-            className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
             onClick={handleMarkAsReviewed}
           >
             <CheckCircle className="size-4" aria-hidden />
@@ -124,7 +128,7 @@ export function WeeklyBriefPage({
             <Button
               type="button"
               variant="op-primary"
-              className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
               onClick={() =>
                 navigate(
                   operatorDashboardFeedbackReportPath(mode, selectedLocationId)
@@ -254,7 +258,7 @@ export function WeeklyBriefPage({
               <Button
                 type="button"
                 variant="op-tertiary"
-                className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+                className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
                 onClick={() => handleActionNavigation("feedback-inbox")}
               >
                 {WEEKLY_BRIEF_PAGE_COPY.reviewFollowUpQueue}
@@ -275,7 +279,7 @@ export function WeeklyBriefPage({
                     <Button
                       type="button"
                       variant="op-tertiary"
-                      className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+                      className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
                       onClick={() => handleActionNavigation(action.target)}
                     >
                       {action.cta}
@@ -307,8 +311,8 @@ export function WeeklyBriefPage({
               <div>
                 <Button
                   type="button"
-                  variant="op-secondary"
-                  className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+                  variant="op-primary"
+                  className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
                   onClick={() => handleActionNavigation("campaigns")}
                 >
                   {data.suggestedCampaign.cta}
