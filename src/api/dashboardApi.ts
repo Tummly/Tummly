@@ -147,6 +147,7 @@ import type {
 } from "@/types/operatorHome"
 import type {
   ReportsCaptureResponse,
+  ReportsFeedbackResponse,
   ReportsOverviewResponse,
 } from "@/types/operatorReports"
 
@@ -1260,6 +1261,24 @@ export const getReportsCapture = async (input: {
 }): Promise<ReportsCaptureResponse> => {
   const response = await axiosInstance.get<ReportsCaptureResponse>(
     "/reports/capture",
+    {
+      params: {
+        locationId: input.locationId,
+        from: input.from,
+        to: input.to,
+      },
+    }
+  )
+  return response.data
+}
+
+export const getReportsFeedback = async (input: {
+  locationId: number
+  from: string
+  to: string
+}): Promise<ReportsFeedbackResponse> => {
+  const response = await axiosInstance.get<ReportsFeedbackResponse>(
+    "/reports/feedback",
     {
       params: {
         locationId: input.locationId,

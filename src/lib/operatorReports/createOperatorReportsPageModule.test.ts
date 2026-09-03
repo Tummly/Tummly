@@ -14,6 +14,7 @@ import type {
 } from "@/types/operatorHome"
 import type {
   ReportsCaptureResponse,
+  ReportsFeedbackResponse,
   ReportsOverviewResponse,
 } from "@/types/operatorReports"
 
@@ -166,9 +167,55 @@ function readyCapture(): Extract<
   }
 }
 
+function readyFeedback(): Extract<
+  ReportsFeedbackResponse,
+  { lifetimeEmpty: false }
+> {
+  const metric = (value: number, valuePrevious: number) => ({
+    value,
+    valuePrevious,
+  })
+  return {
+    success: true,
+    lifetimeEmpty: false,
+    kpis: {
+      feedbackReceived: metric(8, 1),
+      marketingOptIns: metric(6, 1),
+      followUpNeeded: metric(2, 0),
+      resolved: metric(1, 0),
+    },
+    status: {
+      new: metric(1, 0),
+      inProgress: metric(2, 0),
+      followUpNeeded: metric(2, 0),
+      resolved: metric(1, 0),
+    },
+    needsAttention: [
+      {
+        feedbackId: 42,
+        submittedAt: "2026-07-13T16:00:00.000Z",
+        guestName: "Ada",
+        source: "Counter card",
+        commentPreview: "Bag leaked",
+        workflowStatus: "In progress",
+      },
+    ],
+    bySource: [
+      {
+        qrCodeId: 9,
+        source: "Counter card",
+        feedback: 8,
+        marketingOptIns: 6,
+        followUpNeeded: 2,
+      },
+    ],
+  }
+}
+
 function createAdapters(overrides: {
   getOverview?: OperatorReportsPageAdapters["getOverview"]
   getCapture?: OperatorReportsPageAdapters["getCapture"]
+  getFeedback?: OperatorReportsPageAdapters["getFeedback"]
   getReportsDateRange?: OperatorReportsPageAdapters["getReportsDateRange"]
   getWeeklyBrief?: OperatorReportsPageAdapters["getWeeklyBrief"]
   generateWeeklyBrief?: OperatorReportsPageAdapters["generateWeeklyBrief"]
@@ -180,6 +227,10 @@ function createAdapters(overrides: {
   const getCapture = vi.fn(
     overrides.getCapture
       ?? (async () => readyCapture() as ReportsCaptureResponse)
+  )
+  const getFeedback = vi.fn(
+    overrides.getFeedback
+      ?? (async () => readyFeedback() as ReportsFeedbackResponse)
   )
   const getReportsDateRange = vi.fn(
     overrides.getReportsDateRange
@@ -198,6 +249,7 @@ function createAdapters(overrides: {
   return {
     getOverview,
     getCapture,
+    getFeedback,
     getReportsDateRange,
     getWeeklyBrief,
     generateWeeklyBrief,
@@ -232,6 +284,7 @@ describe("createOperatorReportsPageModule", () => {
     expect(adapters.getOverview).toHaveBeenCalledTimes(2)
     expect(adapters.getWeeklyBrief.mock.calls.length).toBe(briefCallsAfterSync)
     expect(adapters.getCapture).not.toHaveBeenCalled()
+    expect(adapters.getFeedback).not.toHaveBeenCalled()
     expect(module.getSnapshot().dateRange).toEqual({
       kind: "preset",
       presetId: "last30",
@@ -497,5 +550,41 @@ describe("createOperatorReportsPageModule", () => {
     await module.retryWeeklyBrief()
     expect(module.getSnapshot().weeklyBrief.status).toBe("ready")
     expect(generateWeeklyBrief).toHaveBeenCalledTimes(1)
+  })
+
+  it("loads Feedback surface and reloads on date-range commit", async () => {
+    const adapters = createAdapters()
+    const module = createOperatorReportsPageModule(adapters)
+    module.setActiveSurface("feedback")
+    await module.syncWorkspace(workspace())
+    expect(adapters.getFeedback).toHaveBeenCalledTimes(1)
+    expect(module.getSnapshot().feedbackLoadStatus).toBe("ready")
+    expect(module.getSnapshot().feedbackReport?.topKpis[0]?.value).toBe("8")
+
+    adapters.getReportsDateRange.mockReturnValue({
+      kind: "preset",
+      presetId: "last30",
+    })
+    await module.reloadForReportsDateRange()
+    expect(adapters.getFeedback).toHaveBeenCalledTimes(2)
+    expect(adapters.getOverview).not.toHaveBeenCalled()
+  })
+
+  it("retries Feedback load after error", async () => {
+    const getFeedback = vi
+      .fn<OperatorReportsPageAdapters["getFeedback"]>()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce(readyFeedback())
+    const adapters = createAdapters({ getFeedback })
+    const module = createOperatorReportsPageModule(adapters)
+    module.setActiveSurface("feedback")
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().feedbackLoadStatus).toBe("error")
+
+    await module.retryFeedbackLoad()
+    expect(module.getSnapshot().feedbackLoadStatus).toBe("ready")
+    expect(module.getSnapshot().feedbackReport?.followUpList[0]?.feedbackId).toBe(
+      42
+    )
   })
 })

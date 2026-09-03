@@ -4,6 +4,7 @@ import { useOutletContext } from "react-router-dom"
 import {
   generateWeeklyBrief,
   getReportsCapture,
+  getReportsFeedback,
   getReportsOverview,
   getWeeklyBrief,
 } from "@/api/dashboardApi"
@@ -43,6 +44,7 @@ export function ReportsPageModuleProvider({
     createOperatorReportsPageModule({
       getOverview: getReportsOverview,
       getCapture: getReportsCapture,
+      getFeedback: getReportsFeedback,
       getWeeklyBrief,
       generateWeeklyBrief,
       getReportsDateRange: () => dashboardUiStore.getState().reportsDateRange,

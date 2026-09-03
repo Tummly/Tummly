@@ -396,6 +396,10 @@ builder.Services.AddScoped<
     ReportsCaptureService
 >();
 builder.Services.AddScoped<
+    IReportsFeedbackService,
+    ReportsFeedbackService
+>();
+builder.Services.AddScoped<
     IOfferIssueService,
     OfferIssueService
 >();

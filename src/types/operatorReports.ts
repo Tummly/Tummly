@@ -76,6 +76,51 @@ export type ReportsCaptureResponse =
       message?: string
     }
 
+export type ReportsFeedbackNeedsAttentionWire = {
+  feedbackId: number
+  submittedAt: string
+  guestName: string
+  source: string
+  commentPreview: string
+  workflowStatus: string
+}
+
+export type ReportsFeedbackBySourceWire = {
+  qrCodeId: number
+  source: string
+  feedback: number
+  marketingOptIns: number
+  followUpNeeded: number
+}
+
+export type ReportsFeedbackResponse =
+  | {
+      success: true
+      lifetimeEmpty: true
+    }
+  | {
+      success: true
+      lifetimeEmpty: false
+      kpis: {
+        feedbackReceived: ReportsMetricWire
+        marketingOptIns: ReportsMetricWire
+        followUpNeeded: ReportsMetricWire
+        resolved: ReportsMetricWire
+      }
+      status: {
+        new: ReportsMetricWire
+        inProgress: ReportsMetricWire
+        followUpNeeded: ReportsMetricWire
+        resolved: ReportsMetricWire
+      }
+      needsAttention: ReportsFeedbackNeedsAttentionWire[]
+      bySource: ReportsFeedbackBySourceWire[]
+    }
+  | {
+      success: false
+      message?: string
+    }
+
 export type ReportsSurface =
   | "hub"
   | "capture"
