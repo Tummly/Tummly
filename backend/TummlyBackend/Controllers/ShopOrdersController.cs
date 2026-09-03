@@ -220,7 +220,13 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            return Ok(ShopOrderDtoMapper.MapOperatorDetail(order));
+            return Ok(
+                await ShopOrderDtoMapper.MapOperatorDetailAsync(
+                    _context,
+                    order,
+                    cancellationToken
+                )
+            );
         }
 
         [HttpPost("orders/{orderId:guid}/cancel")]

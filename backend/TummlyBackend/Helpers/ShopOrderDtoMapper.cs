@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Data;
 using TummlyBackend.DTOs.Shop;
 using TummlyBackend.Models;
 
@@ -28,7 +30,24 @@ namespace TummlyBackend.Helpers
             };
         }
 
-        public static ShopOrderOperatorDetailDto MapOperatorDetail(ShopOrder order)
+        public static async Task<ShopOrderOperatorDetailDto> MapOperatorDetailAsync(
+            ApplicationDbContext context,
+            ShopOrder order,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var invoiceDocumentNumber = await ResolveInvoiceDocumentNumberAsync(
+                context,
+                order.RevolutOrderId,
+                cancellationToken
+            );
+            return MapOperatorDetail(order, invoiceDocumentNumber);
+        }
+
+        public static ShopOrderOperatorDetailDto MapOperatorDetail(
+            ShopOrder order,
+            string? invoiceDocumentNumber = null
+        )
         {
             var trackingVisible = ShopOrderFulfilmentLabels.IsTrackingVisible(
                 order.FulfilmentStatus,
@@ -63,6 +82,7 @@ namespace TummlyBackend.Helpers
                 {
                     PaidAtUtc = order.PaidAtUtc,
                     RevolutOrderId = order.RevolutOrderId,
+                    InvoiceDocumentNumber = invoiceDocumentNumber,
                 },
                 Progress = new ShopOrderProgressDto
                 {
@@ -76,6 +96,28 @@ namespace TummlyBackend.Helpers
                 CanCancel = ShopOrderCancelRules.CanCancel(order),
                 CancelBlockReason = ShopOrderCancelRules.CancelBlockReason(order),
             };
+        }
+
+        public static async Task<string?> ResolveInvoiceDocumentNumberAsync(
+            ApplicationDbContext context,
+            string? revolutOrderId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (string.IsNullOrWhiteSpace(revolutOrderId))
+            {
+                return null;
+            }
+
+            var trimmed = revolutOrderId.Trim();
+            return await context.TummlyVatInvoices
+                .AsNoTracking()
+                .Where(row =>
+                    row.RevolutOrderId == trimmed
+                    && row.DocumentPrefix == TummlyDocumentSequence.PrefixTm
+                )
+                .Select(row => row.DocumentNumber)
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
         internal static ShopOrderShipToDto MapShipTo(ShopOrder order)

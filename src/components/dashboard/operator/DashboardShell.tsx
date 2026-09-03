@@ -38,6 +38,7 @@ import {
   OPERATOR_SHELL_GUTTER_Y,
   OPERATOR_SHELL_TOUCH_TARGET_CLASS,
 } from "@/lib/operatorHome/shellResponsivePresentation"
+import { SHOP_PAGE_BACKGROUND_CLASS } from "@/lib/operatorShop/shopSurfacePresentation"
 import {
   readSidebarCollapsed,
   writeSidebarCollapsed,
@@ -419,9 +420,11 @@ export function DashboardShell({
           className={cn(
             "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
             isShopPage
-              ? "rounded-tl-none"
-              : "rounded-tl-[var(--operator-shell-main-radius)]",
-            "bg-op-app-background-default"
+              ? cn("rounded-tl-none", SHOP_PAGE_BACKGROUND_CLASS)
+              : cn(
+                  "rounded-tl-[var(--operator-shell-main-radius)]",
+                  "bg-op-app-background-default"
+                )
           )}
         >
           {/*

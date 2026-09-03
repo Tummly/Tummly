@@ -1,4 +1,5 @@
 import { Fragment, useState } from "react"
+import { Link, useLocation } from "react-router-dom"
 import { ChevronDownIcon, XIcon } from "lucide-react"
 
 import { BrandLogoMark } from "@/components/brand/BrandLogoMark"
@@ -14,6 +15,10 @@ import {
 } from "@/components/ui/popover"
 import { filterOwnedLocations } from "@/lib/operatorHome/filterOwnedLocations"
 import {
+  operatorDashboardLocationsAddPath,
+  type OperatorDashboardMode,
+} from "@/lib/operatorHome/operatorDashboardPaths"
+import {
   OPERATOR_LOCATION_SWITCHER_COMPACT_WIDTH_CLASS,
   OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS,
 } from "@/lib/operatorHome/shellResponsivePresentation"
@@ -22,6 +27,12 @@ import type {
   OperatorHomeLocationOption,
   OperatorShellPresentation,
 } from "@/types/operatorHome"
+
+function operatorDashboardModeFromPathname(
+  pathname: string
+): OperatorDashboardMode {
+  return pathname.startsWith("/multi-dashboard") ? "multi" : "single"
+}
 
 type LocationSwitcherProps = {
   locationSwitcher: OperatorShellPresentation["locationSwitcher"]
@@ -39,7 +50,17 @@ const triggerSurfaceClass = cn(
 )
 
 /** Figma panel width (433px) — wider than the 305px navbar trigger; fluid on narrow viewports. */
-const locationPanelWidthClass = "w-[min(433px,calc(100vw-1rem))]"
+export const LOCATION_SWITCHER_PANEL_WIDTH_CLASS =
+  "w-[min(433px,calc(100vw-1rem))]"
+
+/** Popover chrome shared by navbar LocationSwitcher and Shop location picker. */
+export const LOCATION_SWITCHER_POPOVER_CONTENT_CLASS = cn(
+  LOCATION_SWITCHER_PANEL_WIDTH_CLASS,
+  "!rounded-none gap-0 p-0",
+  "bg-op-background-secondary text-op-header-location-heading shadow-[0_4px_11px_rgba(0,0,0,0.06),0_18px_20px_rgba(0,0,0,0.05)]",
+  "ring-0",
+  "animate-none data-open:animate-none data-closed:animate-none"
+)
 
 /** Figma Cards/Border-colour — location row dividers. */
 const locationDividerClass = "h-px w-full shrink-0 bg-op-border-default"
@@ -57,20 +78,24 @@ function formatLocationSwitcherStatusLine(
   return address.length > 0 ? `${address} · ${status}` : status
 }
 
-type LocationSwitcherPanelProps = {
+export type LocationSwitcherPanelProps = {
   selectedLocationName: string
   selectedLocationId: number
   brandLogoPublicUrl: string | null
   options: OperatorHomeLocationOption[]
+  addLocationPath: string
   onSelectLocation: (locationId: number) => void
+  onAddLocationNavigate: () => void
 }
 
-function LocationSwitcherPanel({
+export function LocationSwitcherPanel({
   selectedLocationName,
   selectedLocationId,
   brandLogoPublicUrl,
   options,
+  addLocationPath,
   onSelectLocation,
+  onAddLocationNavigate,
 }: LocationSwitcherPanelProps) {
   const [query, setQuery] = useState("")
   const filtered = filterOwnedLocations(options, query).filter(
@@ -114,8 +139,10 @@ function LocationSwitcherPanel({
             aria-label="Search locations"
             autoFocus
             className={cn(
-              "h-auto min-h-0 flex-1 rounded-none border-0 bg-transparent px-0 py-0",
-              "text-sm font-medium text-op-header-location-heading shadow-none",
+              "h-auto min-h-0 flex-1 rounded-none border-0 px-0 py-0 shadow-none",
+              // Same fill as the search chrome — beats Input default `dark:bg-input/30`.
+              "bg-op-action-secondary dark:bg-op-action-secondary",
+              "text-sm font-medium text-op-header-location-heading",
               "placeholder:text-op-header-search-text focus-visible:border-0 focus-visible:ring-0"
             )}
           />
@@ -186,10 +213,12 @@ function LocationSwitcherPanel({
         <Button
           type="button"
           variant="op-secondary"
-          disabled
           className="h-10 min-h-10 shrink-0 self-start"
+          asChild
         >
-          Add location
+          <Link to={addLocationPath} onClick={onAddLocationNavigate}>
+            Add location
+          </Link>
         </Button>
       </div>
     </div>
@@ -203,6 +232,11 @@ export function LocationSwitcher({
   className,
 }: LocationSwitcherProps) {
   const [open, setOpen] = useState(false)
+  const { pathname } = useLocation()
+  const addLocationPath = operatorDashboardLocationsAddPath(
+    operatorDashboardModeFromPathname(pathname),
+    locationSwitcher.selectedLocationId
+  )
   const selectedOption = locationSwitcher.options.find(
     (location) => location.id === locationSwitcher.selectedLocationId
   )
@@ -280,13 +314,7 @@ export function LocationSwitcher({
       <PopoverContent
         align="start"
         sideOffset={8}
-        className={cn(
-          locationPanelWidthClass,
-          "!rounded-none gap-0 p-0",
-          "bg-op-background-secondary text-op-header-location-heading shadow-[0_4px_11px_rgba(0,0,0,0.06),0_18px_20px_rgba(0,0,0,0.05)]",
-          "ring-0",
-          "animate-none data-open:animate-none data-closed:animate-none"
-        )}
+        className={LOCATION_SWITCHER_POPOVER_CONTENT_CLASS}
         onOpenAutoFocus={(event) => {
           // Prefer the search field over the first location control.
           event.preventDefault()
@@ -307,8 +335,12 @@ export function LocationSwitcher({
               selectedLocationId={locationSwitcher.selectedLocationId}
               brandLogoPublicUrl={locationSwitcher.brandLogoPublicUrl}
               options={locationSwitcher.options}
+              addLocationPath={addLocationPath}
               onSelectLocation={(locationId) => {
                 onSelectLocation(locationId)
+                setOpen(false)
+              }}
+              onAddLocationNavigate={() => {
                 setOpen(false)
               }}
             />

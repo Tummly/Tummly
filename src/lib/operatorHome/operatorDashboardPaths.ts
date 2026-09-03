@@ -121,6 +121,17 @@ export function operatorDashboardNavPath(
   return `${path}?location=${locationId}`
 }
 
+/**
+ * Settings → Locations with Add Location dialog intent (`add=1`).
+ * LocationsPage opens the create dialog when this query is present.
+ */
+export function operatorDashboardLocationsAddPath(
+  mode: OperatorDashboardMode,
+  locationId: number
+): string {
+  return `${operatorDashboardNavPath(mode, "locations", locationId)}&add=1`
+}
+
 /** Settings location detail — path segment + `?location=` shell sync. */
 export function operatorDashboardLocationDetailPath(
   mode: OperatorDashboardMode,

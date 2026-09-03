@@ -76,7 +76,7 @@ export async function fetchShopLocationRecommendations(
   locationId: number
 ): Promise<ShopLocationRecommendations> {
   const response = await axiosInstance.get<ShopLocationRecommendationsWire>(
-    `/api/shop/locations/${locationId}/recommendations`
+    `/shop/locations/${locationId}/recommendations`
   )
   return mapRecommendations(response.data)
 }
@@ -86,7 +86,7 @@ export async function saveShopLocationDetails(
   payload: ShopLocationDetailsPayload
 ): Promise<void> {
   await axiosInstance.put(
-    `/api/shop/locations/${locationId}/details`,
+    `/shop/locations/${locationId}/details`,
     payload
   )
 }

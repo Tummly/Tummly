@@ -8,12 +8,14 @@ export function ShopRoute() {
   const {
     selectedLocationId,
     locations,
+    brandLogoPublicUrl,
     mode,
     selectLocation,
     billingStatus,
     subscriptionPlan,
     permissionRole,
     billingCreditsAccess,
+    chargebackRestricted,
   } = useOutletContext<DashboardOutletContext>()
 
   const paidWriteChrome = useMemo(
@@ -21,6 +23,7 @@ export function ShopRoute() {
       resolveShopPaidWriteChrome({
         billingStatus,
         subscriptionPlan,
+        chargebackRestricted,
         accessLevel: billingCreditsAccess,
         permissionRole,
         mode,
@@ -29,6 +32,7 @@ export function ShopRoute() {
     [
       billingCreditsAccess,
       billingStatus,
+      chargebackRestricted,
       mode,
       permissionRole,
       selectedLocationId,
@@ -40,6 +44,7 @@ export function ShopRoute() {
     <ShopPage
       selectedLocationId={selectedLocationId}
       locations={locations}
+      brandLogoPublicUrl={brandLogoPublicUrl}
       mode={mode}
       onSelectLocation={selectLocation}
       paidWriteChrome={paidWriteChrome}

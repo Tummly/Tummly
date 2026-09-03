@@ -78,4 +78,19 @@ describe("shop out-of-scope chrome (ticket 21)", () => {
     expect(ordersScreen).toMatch(/fetchShopOrdersList/)
     expect(ordersScreen).toMatch(/mapShopOrdersListResponse/)
   })
+
+  it("removes free starter-kit entitlement copy and fake Padella invoice email", () => {
+    const cart = readShopSource("ShopCartDrawer.tsx")
+    const banner = readShopSource("ShopBanner.tsx")
+    const pack = readShopSource("ShopStarterKitDialog.tsx")
+    const detail = readShopSource("ShopOrderDetailSidebar.tsx")
+
+    expect(cart).not.toMatch(/Plan Included \(Free\)/i)
+    expect(cart).not.toMatch(/starter kits/i)
+    expect(banner).not.toMatch(/Review starter kit/i)
+    expect(pack).not.toMatch(/QR Starter Kit/i)
+    expect(pack).toMatch(/Materials pack overview/)
+    expect(detail).not.toMatch(/padella\.co\.uk/i)
+    expect(detail).not.toMatch(/Email invoice/i)
+  })
 })

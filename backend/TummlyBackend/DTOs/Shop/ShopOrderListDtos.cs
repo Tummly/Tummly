@@ -56,6 +56,9 @@ namespace TummlyBackend.DTOs.Shop
         public DateTime? PaidAtUtc { get; init; }
 
         public string? RevolutOrderId { get; init; }
+
+        /// <summary>TM document number when a VAT invoice was minted for this order.</summary>
+        public string? InvoiceDocumentNumber { get; init; }
     }
 
     public sealed class ShopOrderProgressDto

@@ -64,10 +64,8 @@ export function ShopReorderDialog({
 
           <Button
             type="button"
-            variant="ghost"
-            size="icon"
+            variant="op-collapse"
             onClick={() => onOpenChange(false)}
-            className="size-9 shrink-0 rounded-xs bg-op-surface-secondary text-op-text-muted hover:bg-op-surface-secondary/80 hover:text-op-text-primary"
             aria-label="Close dialog"
           >
             <X className="size-4" />
@@ -137,7 +135,6 @@ export function ShopReorderDialog({
           <Button
             type="button"
             variant="op-primary"
-            className="h-10 rounded-xs px-5 text-sm font-medium"
             onClick={handleReviewReorder}
           >
             Review reorder
@@ -145,8 +142,7 @@ export function ShopReorderDialog({
 
           <Button
             type="button"
-            variant="outline"
-            className="h-10 rounded-xs border-op-border-default bg-transparent px-5 text-sm font-medium text-op-text-primary hover:bg-op-surface-secondary"
+            variant="op-tertiary"
             onClick={() => onOpenChange(false)}
           >
             Cancel

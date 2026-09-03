@@ -21,7 +21,7 @@ export type ShopCartWire = {
 export async function fetchShopCart(
   locationId: number
 ): Promise<ShopCartWire> {
-  const response = await axiosInstance.get<ShopCartWire>("/api/shop/cart", {
+  const response = await axiosInstance.get<ShopCartWire>("/shop/cart", {
     params: { locationId },
   })
   return response.data
@@ -33,7 +33,7 @@ export async function upsertShopCartLine(
   quantity: number
 ): Promise<ShopCartWire> {
   const response = await axiosInstance.put<ShopCartWire>(
-    "/api/shop/cart/lines",
+    "/shop/cart/lines",
     { locationId, skuId, quantity }
   )
   return response.data
@@ -44,7 +44,7 @@ export async function deleteShopCartLine(
   skuId: string
 ): Promise<ShopCartWire> {
   const response = await axiosInstance.delete<ShopCartWire>(
-    `/api/shop/cart/lines/${encodeURIComponent(skuId)}`,
+    `/shop/cart/lines/${encodeURIComponent(skuId)}`,
     { params: { locationId } }
   )
   return response.data

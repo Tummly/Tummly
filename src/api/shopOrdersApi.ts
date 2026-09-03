@@ -76,6 +76,7 @@ export type ShopOrderProgressWire = {
 export type ShopOrderPaymentSummaryWire = {
   paidAtUtc: string | null
   revolutOrderId: string | null
+  invoiceDocumentNumber?: string | null
 }
 
 export type ShopOrderDetailWire = ShopOrderWire & {
@@ -137,7 +138,7 @@ export async function placeShopOrder(
   input: PlaceShopOrderInput
 ): Promise<ShopOrderWire> {
   const response = await axiosInstance.post<ShopOrderWire>(
-    "/api/shop/orders",
+    "/shop/orders",
     input
   )
   return response.data
@@ -148,7 +149,7 @@ export async function fetchShopOrder(
   locationId: number
 ): Promise<ShopOrderDetailWire> {
   const response = await axiosInstance.get<ShopOrderDetailWire>(
-    `/api/shop/orders/${orderId}`,
+    `/shop/orders/${orderId}`,
     { params: { locationId } }
   )
   return response.data
@@ -158,7 +159,7 @@ export async function fetchShopOrdersList(
   params: ShopOrdersListQueryParams
 ): Promise<ShopOrdersListWire> {
   const response = await axiosInstance.get<ShopOrdersListWire>(
-    "/api/shop/orders",
+    "/shop/orders",
     {
       params,
       paramsSerializer: {
@@ -194,7 +195,7 @@ export async function payShopOrder(input: {
   idempotencyKey: string
 }): Promise<ShopOrderPayWire> {
   const response = await axiosInstance.post<ShopOrderPayWire>(
-    `/api/shop/orders/${input.orderId}/pay`,
+    `/shop/orders/${input.orderId}/pay`,
     {},
     {
       params: { locationId: input.locationId },
@@ -232,7 +233,7 @@ export async function fetchShopDeliveryDefaults(
   locationId: number
 ): Promise<ShopDeliveryDefaultsWire> {
   const response = await axiosInstance.get<ShopDeliveryDefaultsWire>(
-    `/api/shop/locations/${locationId}/delivery-defaults`
+    `/shop/locations/${locationId}/delivery-defaults`
   )
   return response.data
 }
@@ -243,7 +244,7 @@ export async function cancelShopOrder(input: {
   reason: string
 }): Promise<ShopOrderDetailWire> {
   const response = await axiosInstance.post<ShopOrderDetailWire>(
-    `/api/shop/orders/${input.orderId}/cancel`,
+    `/shop/orders/${input.orderId}/cancel`,
     {
       locationId: input.locationId,
       reason: input.reason,
@@ -257,7 +258,7 @@ export async function reorderShopOrder(input: {
   locationId: number
 }): Promise<ShopReorderPrefillWire> {
   const response = await axiosInstance.post<ShopReorderPrefillWire>(
-    `/api/shop/orders/${input.orderId}/reorder`,
+    `/shop/orders/${input.orderId}/reorder`,
     {},
     { params: { locationId: input.locationId } }
   )

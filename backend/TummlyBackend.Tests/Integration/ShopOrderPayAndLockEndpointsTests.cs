@@ -92,6 +92,12 @@ namespace TummlyBackend.Tests.Integration
                 "processing",
                 orderBody.GetProperty("fulfilmentStatus").GetString()
             );
+            var invoiceDocumentNumber = orderBody
+                .GetProperty("paymentSummary")
+                .GetProperty("invoiceDocumentNumber")
+                .GetString();
+            Assert.False(string.IsNullOrWhiteSpace(invoiceDocumentNumber));
+            Assert.StartsWith("TM-", invoiceDocumentNumber);
 
             using (var scope = _factory.Services.CreateScope())
             {
@@ -115,8 +121,67 @@ namespace TummlyBackend.Tests.Integration
 
                 var invoiceExists = await context.TummlyVatInvoices
                     .AsNoTracking()
-                    .AnyAsync(row => row.RevolutOrderId == revolutOrderId);
+                    .AnyAsync(row =>
+                        row.RevolutOrderId == revolutOrderId
+                        && row.DocumentNumber == invoiceDocumentNumber
+                    );
                 Assert.True(invoiceExists);
+            }
+        }
+
+        [Fact]
+        public async Task OrderFailedWebhook_MarksAwaitingPaymentAsPaymentFailed()
+        {
+            var seeded = await SeedPaidShopWorkspaceAsync();
+            var orderId = await PlaceAwaitingPaymentOrderAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId
+            );
+
+            using var payRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/shop/orders/{orderId}/pay?locationId={seeded.InScopeLocationId}"
+            );
+            payRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.MemberJwt);
+            payRequest.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
+            var payResponse = await _client.SendAsync(payRequest);
+            Assert.Equal(HttpStatusCode.OK, payResponse.StatusCode);
+
+            string revolutOrderId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                revolutOrderId = await context.RevolutOrderIntents
+                    .Where(row => row.ShopOrderId == orderId)
+                    .Select(row => row.OrderId)
+                    .SingleAsync();
+            }
+
+            var webhookBody =
+                $$"""{"event":"ORDER_FAILED","order_id":"{{revolutOrderId}}"}""";
+            var webhook = await SendSignedWebhookAsync(webhookBody);
+            Assert.True(
+                webhook.StatusCode is HttpStatusCode.OK or HttpStatusCode.NoContent
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var order = await context.ShopOrders
+                    .AsNoTracking()
+                    .SingleAsync(row => row.Id == orderId);
+                Assert.Equal(
+                    ShopPaymentStatuses.PaymentFailed,
+                    order.PaymentStatus
+                );
+
+                var intent = await context.RevolutOrderIntents
+                    .AsNoTracking()
+                    .SingleAsync(row => row.ShopOrderId == orderId);
+                Assert.False(intent.IsOpen);
             }
         }
 

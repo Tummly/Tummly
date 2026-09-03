@@ -25,7 +25,10 @@ import {
   ShopCartDrawer,
   type CartItem,
 } from "@/components/dashboard/operator/Shop/ShopCartDrawer"
-import { ShopStarterKitDialog } from "@/components/dashboard/operator/Shop/ShopStarterKitDialog"
+import {
+  ShopMaterialsPackDialog,
+  SHOP_MATERIALS_PACK_LINES,
+} from "@/components/dashboard/operator/Shop/ShopStarterKitDialog"
 import {
   ShopLocationDetailsDialog,
   type LocationDetails,
@@ -45,10 +48,12 @@ import {
   pollShopOrderUntilPaid,
 } from "@/api/shopOrdersApi"
 import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
+import type { ShopLocationOption } from "@/components/dashboard/operator/Shop/ShopLocationPicker"
 
 type ShopPageProps = {
   selectedLocationId: number
-  locations: Array<{ id: number; locationName: string; address: string }>
+  locations: ShopLocationOption[]
+  brandLogoPublicUrl: string | null
   mode: DashboardProps["mode"]
   onSelectLocation?: (locationId: number) => void
   paidWriteChrome: ShopPaidWriteChrome
@@ -77,6 +82,8 @@ function toCheckoutLine(product: ShopProduct, quantity: number): CheckoutLine {
 export function ShopPage({
   selectedLocationId,
   locations,
+  brandLogoPublicUrl,
+  mode,
   onSelectLocation,
   paidWriteChrome,
 }: ShopPageProps) {
@@ -117,7 +124,7 @@ export function ShopPage({
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false)
-  const [isStarterKitOpen, setIsStarterKitOpen] = useState<boolean>(false)
+  const [isMaterialsPackOpen, setIsMaterialsPackOpen] = useState<boolean>(false)
   const [isLocationDetailsOpen, setIsLocationDetailsOpen] = useState<boolean>(false)
   const [checkoutFromCart, setCheckoutFromCart] = useState(false)
   const [expressCheckout, setExpressCheckout] =
@@ -415,12 +422,22 @@ export function ShopPage({
     }
   }
 
-  const handleAddStarterKitToCart = () => {
-    const starterProduct = findShopProductById(catalogProducts, "table-tents")
-    if (starterProduct) {
-      void handleAddToCart(starterProduct, 1).then(() => {
-        setIsCartOpen(true)
-      })
+  const handleAddMaterialsPackToCart = async () => {
+    if (paidWriteChrome.purchaseDisabled) {
+      return
+    }
+
+    try {
+      for (const line of SHOP_MATERIALS_PACK_LINES) {
+        if (findShopProductById(catalogProducts, line.skuId) == null) {
+          continue
+        }
+        await putAbsoluteQuantity(line.skuId, line.quantity)
+      }
+      toast.success(`Materials pack added to cart for ${locationName}`)
+      setIsCartOpen(true)
+    } catch {
+      toast.error("Could not add materials pack.")
     }
   }
 
@@ -527,7 +544,7 @@ export function ShopPage({
   }
 
   return (
-    <div className="flex flex-col gap-6 pb-20">
+    <div className="flex flex-col gap-6">
       {currentView === "checkout" && checkoutLines.length > 0 ? (
         <ShopCheckoutScreen
           locationId={selectedLocationId}
@@ -538,6 +555,8 @@ export function ShopPage({
           selectedLocationName={locationName}
           selectedLocationAddress={locationAddress}
           locations={locations}
+          brandLogoPublicUrl={brandLogoPublicUrl}
+          mode={mode}
           onSelectLocation={onSelectLocation}
           onBackToShop={handleBackToShop}
           onBackToProduct={() => {
@@ -573,6 +592,8 @@ export function ShopPage({
           selectedLocationId={selectedLocationId}
           selectedLocationName={locationName}
           locations={locations}
+          brandLogoPublicUrl={brandLogoPublicUrl}
+          mode={mode}
           onSelectLocation={onSelectLocation}
           onBackToShop={handleBackToShop}
           onReorder={({ prefill }) => {
@@ -597,8 +618,11 @@ export function ShopPage({
         <ShopProductScreen
           product={selectedProduct}
           catalogProducts={catalogProducts}
+          selectedLocationId={selectedLocationId}
           selectedLocationName={locationName}
           locations={locations}
+          brandLogoPublicUrl={brandLogoPublicUrl}
+          mode={mode}
           onSelectLocation={onSelectLocation}
           onBackToShop={handleBackToShop}
           onAddToCart={handleAddToCart}
@@ -609,8 +633,11 @@ export function ShopPage({
       ) : (
         <>
           <ShopHeader
+            selectedLocationId={selectedLocationId}
             selectedLocationName={locationName}
             locations={locations}
+            brandLogoPublicUrl={brandLogoPublicUrl}
+            mode={mode}
             onSelectLocation={onSelectLocation}
           />
 
@@ -621,8 +648,8 @@ export function ShopPage({
           />
 
           <ShopBanner
-            onReviewStarterKit={() => setIsStarterKitOpen(true)}
-            onSeeWhatsIncluded={() => setIsStarterKitOpen(true)}
+            onReviewMaterialsPack={() => setIsMaterialsPackOpen(true)}
+            onSeeWhatsIncluded={() => setIsMaterialsPackOpen(true)}
           />
 
           <ShopRecommendationSection
@@ -680,11 +707,14 @@ export function ShopPage({
         paidWriteChrome={paidWriteChrome}
       />
 
-      <ShopStarterKitDialog
-        open={isStarterKitOpen}
-        onOpenChange={setIsStarterKitOpen}
-        onAddKitToCart={handleAddStarterKitToCart}
+      <ShopMaterialsPackDialog
+        open={isMaterialsPackOpen}
+        onOpenChange={setIsMaterialsPackOpen}
+        onAddPackToCart={() => {
+          void handleAddMaterialsPackToCart()
+        }}
         selectedLocationName={locationName}
+        purchaseDisabled={paidWriteChrome.purchaseDisabled}
       />
 
       <ShopLocationDetailsDialog

@@ -2,24 +2,19 @@ import { useState, useMemo, useEffect, useCallback } from "react"
 import { isAxiosError } from "axios"
 import {
   ChevronRight,
-  MapPin,
-  ChevronDown,
   Search,
   X,
   Inbox,
-  MoreVertical,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { ShopOrderDetailSidebar } from "@/components/dashboard/operator/Shop/ShopOrderDetailSidebar"
+import {
+  ShopLocationPicker,
+  type ShopLocationOption,
+} from "@/components/dashboard/operator/Shop/ShopLocationPicker"
 import {
   shopOrdersFilterSheetSchema,
   type DetailedShopOrder,
@@ -36,7 +31,8 @@ import {
   type FilterSheetSession,
   type OperatorFilterSelection,
 } from "@/lib/operatorFilterSheet"
-import { cn } from "@/lib/utils"
+import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
+import { GUESTS_PAGINATION_BUTTON_CLASS } from "@/lib/operatorGuests/guestsPresentation"
 
 export type { DetailedShopOrder }
 
@@ -45,7 +41,9 @@ const PAGE_SIZE = 25
 type ShopOrdersScreenProps = {
   selectedLocationId: number
   selectedLocationName: string
-  locations: Array<{ id: number; locationName: string; address: string }>
+  locations: ShopLocationOption[]
+  brandLogoPublicUrl: string | null
+  mode: OperatorDashboardMode
   onSelectLocation?: (locationId: number) => void
   onBackToShop: () => void
   onReorder?: (input: {
@@ -58,6 +56,8 @@ export function ShopOrdersScreen({
   selectedLocationId,
   selectedLocationName,
   locations,
+  brandLogoPublicUrl,
+  mode,
   onSelectLocation,
   onBackToShop,
   onReorder,
@@ -267,48 +267,16 @@ export function ShopOrdersScreen({
         </div>
 
         <div className="flex items-center self-start sm:self-center">
-          {locations.length > 1 && onSelectLocation ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 gap-1.5 rounded-md border border-op-border-default bg-op-surface-secondary px-3.5 text-xs font-medium text-op-text-primary hover:bg-op-card-background"
-                >
-                  <MapPin className="size-3.5 text-op-text-muted" />
-                  <span className="max-w-[120px] truncate">
-                    {selectedLocationName}
-                  </span>
-                  <ChevronDown className="size-3 text-op-text-muted" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-48 border-op-border-default bg-op-surface-secondary text-op-text-primary"
-              >
-                {locations.map((loc) => (
-                  <DropdownMenuItem
-                    key={loc.id}
-                    onClick={() => onSelectLocation(loc.id)}
-                    className={cn(
-                      "cursor-pointer text-xs",
-                      loc.locationName === selectedLocationName &&
-                      "font-semibold text-op-action-primary"
-                    )}
-                  >
-                    {loc.locationName}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <div className="inline-flex h-9 items-center gap-1.5 rounded-md border border-op-border-default bg-op-surface-secondary px-3.5 text-xs font-medium text-op-text-primary">
-              <MapPin className="size-3.5 text-op-text-muted" />
-              <span className="max-w-[140px] truncate">
-                {selectedLocationName}
-              </span>
-            </div>
-          )}
+          <ShopLocationPicker
+            variant="chip"
+            selectedLocationId={selectedLocationId}
+            selectedLocationName={selectedLocationName}
+            locations={locations}
+            brandLogoPublicUrl={brandLogoPublicUrl}
+            mode={mode}
+            onSelectLocation={onSelectLocation}
+            chipClassName="text-op-text-primary"
+          />
         </div>
       </div>
 
@@ -373,7 +341,6 @@ export function ShopOrdersScreen({
               type="button"
               variant="op-secondary"
               onClick={handleOpenFilters}
-              className="h-10 shrink-0 rounded-[4px] px-4 text-xs font-medium"
             >
               Filters{activeFilterChips.length > 0 ? ` (${activeFilterChips.length})` : ""}
             </Button>
@@ -422,7 +389,6 @@ export function ShopOrdersScreen({
                 <Button
                   type="button"
                   variant="op-secondary"
-                  size="sm"
                   onClick={() => void loadOrders()}
                 >
                   Retry
@@ -444,8 +410,7 @@ export function ShopOrdersScreen({
                 <Button
                   type="button"
                   variant="op-secondary"
-                  size="sm"
-                  className="mt-2 rounded-[4px] text-xs"
+                  className="mt-2"
                   onClick={handleClearAllFilters}
                 >
                   Clear filters
@@ -520,9 +485,7 @@ export function ShopOrdersScreen({
                         <td className="px-4 py-3.5 text-center">
                           <Button
                             type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8.5 rounded-[4px] border-op-border-default bg-transparent px-3 text-xs text-op-text-primary hover:bg-op-surface-secondary"
+                            variant="op-tertiary"
                             disabled={viewingOrderId === order.id}
                             onClick={() => void handleViewOrder(order)}
                           >
@@ -547,9 +510,10 @@ export function ShopOrdersScreen({
                 <Button
                   type="button"
                   variant="op-secondary"
-                  size="sm"
-                  className="h-8.5 rounded-[4px] px-3.5 text-xs"
                   disabled={page <= 1 || listLoading}
+                  aria-disabled={page <= 1 || listLoading}
+                  aria-label="Previous page"
+                  className={GUESTS_PAGINATION_BUTTON_CLASS}
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                 >
                   Previous
@@ -557,9 +521,10 @@ export function ShopOrdersScreen({
                 <Button
                   type="button"
                   variant="op-secondary"
-                  size="sm"
-                  className="h-8.5 rounded-[4px] px-3.5 text-xs"
                   disabled={page >= totalPages || listLoading}
+                  aria-disabled={page >= totalPages || listLoading}
+                  aria-label="Next page"
+                  className={GUESTS_PAGINATION_BUTTON_CLASS}
                   onClick={() =>
                     setPage((current) => Math.min(totalPages, current + 1))
                   }

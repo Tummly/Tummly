@@ -280,8 +280,11 @@ namespace TummlyBackend.Services
             );
             if (!CreditTopUpPaySessionService.IsPayableOrder(order))
             {
-                intent.IsOpen = false;
-                await _context.SaveChangesAsync(cancellationToken);
+                await ShopMaterialsOrderPaymentFailure.TryMarkFailedAsync(
+                    _context,
+                    intent.OrderId,
+                    cancellationToken
+                );
                 return null;
             }
 

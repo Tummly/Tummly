@@ -2,6 +2,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ShopCatalogItemCard } from "@/components/dashboard/operator/Shop/ShopCatalogItemCard"
+import { GUESTS_PAGINATION_BUTTON_CLASS } from "@/lib/operatorGuests/guestsPresentation"
 import type { ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
 
 type ShopCatalogSectionProps = {
@@ -54,22 +55,23 @@ export function ShopCatalogSection({
       </div>
 
       <div className="flex items-center justify-between border-t border-op-border-default/60 pt-4 text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Button
             type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 rounded-md border-op-border-default bg-op-card-background px-3 text-xs text-foreground hover:bg-op-surface-secondary"
+            variant="op-secondary"
             disabled
+            aria-disabled
+            aria-label="Previous page"
+            className={GUESTS_PAGINATION_BUTTON_CLASS}
           >
             <ChevronLeft className="size-3.5" />
             Previous
           </Button>
           <Button
             type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 rounded-md border-op-border-default bg-op-card-background px-3 text-xs text-foreground hover:bg-op-surface-secondary"
+            variant="op-secondary"
+            aria-label="Next page"
+            className={GUESTS_PAGINATION_BUTTON_CLASS}
           >
             Next
             <ChevronRight className="size-3.5" />

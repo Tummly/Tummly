@@ -1,38 +1,42 @@
-import { describe, it, expect } from "vitest"
-import { generateInvoiceHtml } from "./downloadOrderInvoice"
-import type { DetailedShopOrder } from "./shopOrdersFilterSheetSchema"
+import { describe, expect, it, vi, beforeEach } from "vitest"
+import { downloadShopOrderInvoicePdf } from "./downloadOrderInvoice"
 
-describe("downloadOrderInvoice", () => {
-  const sampleOrder: DetailedShopOrder = {
-    id: "ord-10428",
-    orderNumber: "#TM-10428",
-    orderDate: "29 July 2026",
-    isoDate: "2026-07-29",
-    locationId: "1",
-    locationName: "Padella Borough",
-    materials: "Table tents · Pack of 20",
-    materialTypes: ["table-tents"],
-    placedBy: "Mohamed Mahmoud",
-    total: "£82.80",
-    totalNumeric: 82.8,
-    paymentStatus: "Paid",
-    fulfilmentStatus: "In production",
-    updatedDate: "30 July 2026",
-    items: ["20x Table tents (Matte Frosted Acrylic)"],
-  }
+const fetchBillingCreditsInvoicePdf = vi.fn()
+const downloadInvoicePdfBlob = vi.fn()
 
-  it("generates html containing invoice number, addresses, items and totals", () => {
-    const html = generateInvoiceHtml(sampleOrder)
+vi.mock("@/api/billingCreditsApi", () => ({
+  fetchBillingCreditsInvoicePdf: (...args: unknown[]) =>
+    fetchBillingCreditsInvoicePdf(...args),
+  downloadInvoicePdfBlob: (...args: unknown[]) =>
+    downloadInvoicePdfBlob(...args),
+}))
 
-    expect(html).toContain("INV-TM-10428")
-    expect(html).toContain("Invoice")
-    expect(html).toContain("Tummly Ltd")
-    expect(html).toContain("Padella Borough")
-    expect(html).toContain("Mohamed Mahmoud")
-    expect(html).toContain("£82.80 due 29 July 2026")
-    expect(html).toContain("Table tents")
-    expect(html).toContain("Standard delivery")
-    expect(html).toContain("Tax (20%")
-    expect(html).toContain("Page 1 of 1")
+describe("downloadShopOrderInvoicePdf", () => {
+  beforeEach(() => {
+    fetchBillingCreditsInvoicePdf.mockReset()
+    downloadInvoicePdfBlob.mockReset()
+  })
+
+  it("returns false when invoice document number is missing", async () => {
+    await expect(downloadShopOrderInvoicePdf(null)).resolves.toBe(false)
+    await expect(downloadShopOrderInvoicePdf("  ")).resolves.toBe(false)
+    expect(fetchBillingCreditsInvoicePdf).not.toHaveBeenCalled()
+  })
+
+  it("fetches and downloads the TM VAT invoice PDF", async () => {
+    const blob = new Blob(["pdf"], { type: "application/pdf" })
+    fetchBillingCreditsInvoicePdf.mockResolvedValue(blob)
+
+    await expect(
+      downloadShopOrderInvoicePdf("TM-2026-000042")
+    ).resolves.toBe(true)
+
+    expect(fetchBillingCreditsInvoicePdf).toHaveBeenCalledWith(
+      "TM-2026-000042"
+    )
+    expect(downloadInvoicePdfBlob).toHaveBeenCalledWith(
+      blob,
+      "TM-2026-000042"
+    )
   })
 })

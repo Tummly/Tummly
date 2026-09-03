@@ -30,7 +30,6 @@ export function ShopToolbar({
         <Button
           type="button"
           variant="op-secondary"
-          className="h-10 rounded-md px-4 text-sm font-medium"
           onClick={onViewOrders}
         >
           View orders

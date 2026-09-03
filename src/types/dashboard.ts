@@ -33,6 +33,11 @@ export interface LocationsResponse {
   subscriptionPlan?: string;
   /** Soft lock / Dormant / Active / Pilot / Past due for Lock Alert chrome. */
   billingStatus?: string;
+  /**
+   * Chargeback overlay. Omit or false keeps purchase CTAs enabled;
+   * only explicit true disables (CODING_STANDARDS chrome omit default).
+   */
+  chargebackRestricted?: boolean;
   /** Restaurant membership Permission role (Owner, Admin, Billing Admin, …). */
   permissionRole?: string;
   locations: LocationItem[];

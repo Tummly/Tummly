@@ -1,6 +1,10 @@
-import { useState, useSyncExternalStore } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 import { toast } from "sonner"
-import { useNavigate, useOutletContext } from "react-router-dom"
+import {
+  useNavigate,
+  useOutletContext,
+  useSearchParams,
+} from "react-router-dom"
 
 import { useWriteActiveTabToSearchParams } from "@/hooks/useWriteActiveTabToSearchParams"
 
@@ -62,6 +66,7 @@ export function LocationsPage() {
     pageModule.getSnapshot
   )
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { mode } = useOutletContext<DashboardOutletContext>()
   const copy = LOCATIONS_PAGE_COPY
 
@@ -70,6 +75,17 @@ export function LocationsPage() {
   const [addOpen, setAddOpen] = useState(false)
   const [addBusy, setAddBusy] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (searchParams.get("add") !== "1") {
+      return
+    }
+    setAddError(null)
+    setAddOpen(true)
+    const next = new URLSearchParams(searchParams)
+    next.delete("add")
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const [importOpen, setImportOpen] = useState(false)
   const [importBusy, setImportBusy] = useState(false)

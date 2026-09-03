@@ -130,6 +130,22 @@ namespace TummlyBackend.Services
                     CreditNoteNo = creditNote.DocumentNumber,
                 }
             );
+
+            // ADR 0046: admin reconcile after manual Revolut refund → paymentStatus=refunded.
+            var shopOrder = await _context.ShopOrders
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.RestaurantId == restaurantId.Value
+                        && row.RevolutOrderId == sourcePaymentRef
+                        && row.PaymentStatus == ShopPaymentStatuses.Paid,
+                    cancellationToken
+                );
+            if (shopOrder != null)
+            {
+                shopOrder.PaymentStatus = ShopPaymentStatuses.Refunded;
+                shopOrder.UpdatedAtUtc = _clock.GetUtcNow().UtcDateTime;
+            }
+
             await _context.SaveChangesAsync(cancellationToken);
 
             if (adminIntent == null)

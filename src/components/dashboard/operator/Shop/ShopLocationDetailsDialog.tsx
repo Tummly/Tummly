@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Check, ChevronDown } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -22,6 +23,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  FILTER_SELECT_CONTENT_CLASS,
+  FILTER_SELECT_ITEM_CLASS,
+  FILTER_SELECT_LIST_CLASS,
+  FILTER_SELECT_MENU_CLASS,
+  FILTER_SELECT_PLACEHOLDER_CLASS,
+  FILTER_SELECT_TRIGGER_CLASS,
+} from "@/lib/operatorFilterSheet/filterSelectPresentation"
 import { cn } from "@/lib/utils"
 
 export type LocationDetails = {
@@ -286,13 +295,24 @@ export function ShopLocationDetailsDialog({
               >
                 <SelectTrigger
                   id="takeawayVolume"
-                  className="h-11 w-full rounded-[4px] border border-op-border-default bg-op-background-primary px-4 text-xs text-foreground data-placeholder:text-muted-foreground"
+                  className={cn(
+                    FILTER_SELECT_TRIGGER_CLASS,
+                    !takeawayVolume && FILTER_SELECT_PLACEHOLDER_CLASS
+                  )}
                 >
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
-                <SelectContent className="z-[130] rounded-[4px] border border-op-border-default bg-op-card-background text-xs text-foreground">
+                <SelectContent
+                  position="popper"
+                  align="start"
+                  className={cn(FILTER_SELECT_CONTENT_CLASS, "z-[130]")}
+                >
                   {TAKEAWAY_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
+                    <SelectItem
+                      key={opt.value}
+                      value={opt.value}
+                      className={FILTER_SELECT_ITEM_CLASS}
+                    >
                       {opt.label}
                     </SelectItem>
                   ))}
@@ -310,51 +330,53 @@ export function ShopLocationDetailsDialog({
               </Label>
               <Popover open={isPromptsOpen} onOpenChange={setIsPromptsOpen}>
                 <PopoverTrigger asChild>
-                  <button
+                  <Button
                     type="button"
                     id="promptLocations"
-                    className="flex h-11 w-full items-center justify-between rounded-[4px] border border-op-border-default bg-op-background-primary px-4 text-left text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-op-action-primary"
+                    variant="op-ghost"
+                    className={cn(
+                      FILTER_SELECT_TRIGGER_CLASS,
+                      !promptTriggerLabel() && FILTER_SELECT_PLACEHOLDER_CLASS
+                    )}
                   >
-                    <span
-                      className={cn(
-                        "truncate",
-                        !promptTriggerLabel() && "text-muted-foreground"
-                      )}
-                    >
+                    <span className="truncate">
                       {promptTriggerLabel() ?? "Select all that apply"}
                     </span>
-                    <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-                  </button>
+                    <ChevronDown className="size-4 shrink-0 opacity-60" />
+                  </Button>
                 </PopoverTrigger>
                 <PopoverContent
                   align="start"
-                  className="z-[140] w-(--radix-popover-trigger-width) min-w-[280px] rounded-[4px] border border-op-border-default bg-op-card-background p-1.5 text-xs text-foreground shadow-xl"
+                  className={cn(FILTER_SELECT_MENU_CLASS, "z-[140] min-w-[280px]")}
                 >
-                  <div className="flex flex-col gap-1">
+                  <ul className={FILTER_SELECT_LIST_CLASS} role="listbox">
                     {SHOP_PROMPT_OPTIONS.map((opt) => {
                       const isChecked = selectedPrompts.includes(opt.id)
                       return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => handleTogglePrompt(opt.id)}
-                          className="flex w-full items-center gap-2.5 rounded-[4px] px-2.5 py-2 text-left text-xs text-foreground transition-colors hover:bg-op-surface-secondary"
-                        >
-                          <div
+                        <li key={opt.id}>
+                          <label
                             className={cn(
-                              "flex size-4 shrink-0 items-center justify-center rounded-[3px] border border-op-border-default transition-colors",
-                              isChecked
-                                ? "border-op-action-primary bg-op-action-primary text-white"
-                                : "bg-op-background-primary"
+                              "flex cursor-pointer items-center gap-2.5",
+                              FILTER_SELECT_ITEM_CLASS
                             )}
                           >
-                            {isChecked && <Check className="size-3" />}
-                          </div>
-                          <span className="flex-1">{opt.label}</span>
-                        </button>
+                            <Checkbox
+                              checked={isChecked}
+                              onCheckedChange={(value) => {
+                                if (value === true && !isChecked) {
+                                  handleTogglePrompt(opt.id)
+                                } else if (value !== true && isChecked) {
+                                  handleTogglePrompt(opt.id)
+                                }
+                              }}
+                              className="size-4 shrink-0 rounded-[3px]"
+                            />
+                            <span className="flex-1">{opt.label}</span>
+                          </label>
+                        </li>
                       )
                     })}
-                  </div>
+                  </ul>
                 </PopoverContent>
               </Popover>
             </div>
@@ -373,13 +395,24 @@ export function ShopLocationDetailsDialog({
               >
                 <SelectTrigger
                   id="existingMaterials"
-                  className="h-11 w-full rounded-[4px] border border-op-border-default bg-op-background-primary px-4 text-xs text-foreground data-placeholder:text-muted-foreground"
+                  className={cn(
+                    FILTER_SELECT_TRIGGER_CLASS,
+                    !existingMaterials && FILTER_SELECT_PLACEHOLDER_CLASS
+                  )}
                 >
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
-                <SelectContent className="z-[130] rounded-[4px] border border-op-border-default bg-op-card-background text-xs text-foreground">
+                <SelectContent
+                  position="popper"
+                  align="start"
+                  className={cn(FILTER_SELECT_CONTENT_CLASS, "z-[130]")}
+                >
                   {EXISTING_MATERIALS_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
+                    <SelectItem
+                      key={opt.value}
+                      value={opt.value}
+                      className={FILTER_SELECT_ITEM_CLASS}
+                    >
                       {opt.label}
                     </SelectItem>
                   ))}
@@ -399,14 +432,12 @@ export function ShopLocationDetailsDialog({
               type="submit"
               variant="op-primary"
               disabled={isSaving}
-              className="h-10 rounded-[4px] bg-op-action-primary px-5 text-xs font-semibold text-white hover:opacity-90"
             >
               {isSaving ? "Saving…" : "Generate recommendation"}
             </Button>
             <Button
               type="button"
               variant="op-secondary"
-              className="h-10 rounded-[4px] bg-op-surface-secondary px-5 text-xs font-medium text-foreground hover:bg-op-action-secondary-hover"
               onClick={() => onOpenChange(false)}
             >
               Cancel

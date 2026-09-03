@@ -85,7 +85,7 @@ export function ShopCartDrawer({
               <ShoppingBag className="size-12 text-muted-foreground/40" />
               <p className="mt-3 text-sm font-medium text-foreground">Your cart is empty</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Add starter kits or custom QR materials from the shop catalog.
+                Add QR materials from the shop catalog.
               </p>
             </div>
           ) : (
@@ -100,9 +100,7 @@ export function ShopCartDrawer({
                       {item.product.title}
                     </span>
                     <span className="text-[11px] text-muted-foreground">
-                      {item.product.price === 0
-                        ? "Plan Included (Free)"
-                        : `£${item.product.price.toFixed(2)} each`}
+                      {`£${item.product.price.toFixed(2)} each`}
                     </span>
                   </div>
 
@@ -172,7 +170,7 @@ export function ShopCartDrawer({
               type="button"
               variant="op-primary"
               disabled={isSubmitting || purchaseBlocked}
-              className="h-11 w-full rounded-md text-sm font-medium"
+              className="w-full"
               onClick={onCheckout}
             >
               {isSubmitting ? "Loading…" : "Proceed to checkout"}

@@ -18,11 +18,16 @@ import {
 import { ShopReorderDialog } from "@/components/dashboard/operator/Shop/ShopReorderDialog"
 import { ShopCancelOrderDialog } from "@/components/dashboard/operator/Shop/ShopCancelOrderDialog"
 import {
+  FILTER_SELECT_ITEM_CLASS,
+  FILTER_SELECT_MENU_CHROME_CLASS,
+} from "@/lib/operatorFilterSheet/filterSelectPresentation"
+import {
   formatShopGbpFromPence,
   formatShopProgressTimestamp,
 } from "@/lib/operatorShop/formatShopMoney"
-import { downloadOrderInvoice } from "@/lib/operatorShop/downloadOrderInvoice"
+import { downloadShopOrderInvoicePdf } from "@/lib/operatorShop/downloadOrderInvoice"
 import type { DetailedShopOrder } from "@/lib/operatorShop/shopOrdersFilterSheetSchema"
+import { cn } from "@/lib/utils"
 
 function formatShipToAddress(input: {
   contactName: string
@@ -95,7 +100,8 @@ export function ShopOrderDetailSidebar({
   const deliveredAt = formatShopProgressTimestamp(progress?.deliveredAtUtc)
   const trackingUrl = progress?.trackingUrl ?? null
 
-  const invoiceNumber = `INV-${order.orderNumber.replace("#", "")}`
+  const invoiceDocumentNumber =
+    detail?.paymentSummary?.invoiceDocumentNumber?.trim() || null
   const canCancel = order.canCancel === true
   const cancelBlockMessage =
     order.cancelBlockReason === "in_transit"
@@ -105,8 +111,20 @@ export function ShopOrderDetailSidebar({
         : null
 
   const handleDownloadInvoice = () => {
-    downloadOrderInvoice(order)
-    toast.success(`Downloaded invoice ${invoiceNumber}`)
+    void (async () => {
+      try {
+        const downloaded = await downloadShopOrderInvoicePdf(
+          invoiceDocumentNumber
+        )
+        if (!downloaded) {
+          toast.error("Invoice is not ready yet. Try again after payment clears.")
+          return
+        }
+        toast.success(`Downloaded invoice ${invoiceDocumentNumber}`)
+      } catch {
+        toast.error("Could not download invoice.")
+      }
+    })()
   }
 
   const handleConfirmReorder = (ord: DetailedShopOrder) => {
@@ -162,7 +180,6 @@ export function ShopOrderDetailSidebar({
                   <Button
                     type="button"
                     variant="op-secondary"
-                    className="h-9.5 rounded-xs px-4 text-sm font-medium"
                     onClick={() => setIsReorderOpen(true)}
                   >
                     Reorder
@@ -172,9 +189,7 @@ export function ShopOrderDetailSidebar({
                     <DropdownMenuTrigger asChild>
                       <Button
                         type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-9.5 rounded-xs text-op-text-muted hover:bg-op-surface-secondary hover:text-op-text-primary"
+                        variant="op-collapse"
                         aria-label="More order actions"
                       >
                         <MoreVertical className="size-4" />
@@ -182,32 +197,31 @@ export function ShopOrderDetailSidebar({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align="start"
-                      className="z-[150] w-48 border-op-border-default bg-op-background-primary text-op-text-primary"
+                      className={cn(
+                        FILTER_SELECT_MENU_CHROME_CLASS,
+                        "z-[150] w-48"
+                      )}
                     >
                       <DropdownMenuItem
                         onClick={handleDownloadInvoice}
-                        className="cursor-pointer text-xs"
+                        disabled={invoiceDocumentNumber == null}
+                        className={cn(FILTER_SELECT_ITEM_CLASS, "cursor-pointer")}
                       >
                         Download invoice
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() =>
-                          toast.success(`Invoice emailed to ${order.placedBy}`)
-                        }
-                        className="cursor-pointer text-xs"
-                      >
-                        Email invoice
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
                         onClick={() => toast.info("Opening support chat...")}
-                        className="cursor-pointer text-xs"
+                        className={cn(FILTER_SELECT_ITEM_CLASS, "cursor-pointer")}
                       >
                         Contact support
                       </DropdownMenuItem>
                       {canCancel ? (
                         <DropdownMenuItem
                           onClick={() => setIsCancelOrderOpen(true)}
-                          className="cursor-pointer text-xs text-red-500 hover:text-red-500 focus:bg-red-500/10 focus:text-red-500"
+                          className={cn(
+                            FILTER_SELECT_ITEM_CLASS,
+                            "cursor-pointer text-red-500 hover:text-red-500 focus:bg-red-500/10 focus:text-red-500"
+                          )}
                         >
                           Cancel order
                         </DropdownMenuItem>
@@ -227,9 +241,7 @@ export function ShopOrderDetailSidebar({
               <SheetClose asChild>
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-9 shrink-0 rounded-xs bg-op-surface-secondary text-op-text-muted hover:bg-op-surface-secondary/80 hover:text-op-text-primary"
+                  variant="op-collapse"
                   aria-label="Close panel"
                 >
                   <X className="size-4" />
@@ -509,37 +521,28 @@ export function ShopOrderDetailSidebar({
               <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-2.5">
                   <span className="text-lg font-medium text-op-text-primary">
-                    {invoiceNumber}
+                    {invoiceDocumentNumber ?? "Invoice pending"}
                   </span>
                   <span className="rounded-xs bg-green-600/20 px-2 py-0.5 text-xs font-medium text-green-500">
-                    Paid
+                    {order.paymentStatus}
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1.5 text-sm">
-                  <span className="font-medium text-op-text-primary">Invoice email:</span>
-                  <span className="text-op-text-muted">
-                    Sent to {order.placedBy.toLowerCase().replace(/\s+/g, ".")}@padella.co.uk
-                  </span>
-                </div>
+                {invoiceDocumentNumber == null ? (
+                  <p className="text-sm text-op-text-muted">
+                    The VAT invoice appears here after payment clears.
+                  </p>
+                ) : null}
               </div>
 
               <div className="flex items-center gap-3 pt-1">
                 <Button
                   type="button"
                   variant="op-secondary"
-                  className="h-10 rounded-xs px-4 text-sm font-medium"
+                  disabled={invoiceDocumentNumber == null}
                   onClick={handleDownloadInvoice}
                 >
                   Download invoice
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-10 rounded-xs border-op-border-default bg-transparent px-4 text-sm font-medium text-op-text-primary hover:bg-op-surface-secondary"
-                  onClick={() => toast.success(`Invoice emailed again to ${order.placedBy}`)}
-                >
-                  Email invoice again
                 </Button>
               </div>
             </div>

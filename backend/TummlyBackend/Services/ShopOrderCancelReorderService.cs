@@ -56,7 +56,11 @@ namespace TummlyBackend.Services
             )
             {
                 return ShopOrderCancelResult.Ok(
-                    ShopOrderDtoMapper.MapOperatorDetail(order)
+                    await ShopOrderDtoMapper.MapOperatorDetailAsync(
+                        _context,
+                        order,
+                        cancellationToken
+                    )
                 );
             }
 
@@ -86,7 +90,11 @@ namespace TummlyBackend.Services
             await _context.SaveChangesAsync(cancellationToken);
 
             return ShopOrderCancelResult.Ok(
-                ShopOrderDtoMapper.MapOperatorDetail(order)
+                await ShopOrderDtoMapper.MapOperatorDetailAsync(
+                    _context,
+                    order,
+                    cancellationToken
+                )
             );
         }
 

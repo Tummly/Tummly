@@ -1,22 +1,24 @@
-import { MapPin, ChevronDown } from "lucide-react"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+  ShopLocationPicker,
+  type ShopLocationOption,
+} from "@/components/dashboard/operator/Shop/ShopLocationPicker"
+import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
 
 type ShopHeaderProps = {
+  selectedLocationId: number
   selectedLocationName: string
-  locations: Array<{ id: number; locationName: string; address: string }>
+  locations: ShopLocationOption[]
+  brandLogoPublicUrl: string | null
+  mode: OperatorDashboardMode
   onSelectLocation?: (locationId: number) => void
 }
 
 export function ShopHeader({
+  selectedLocationId,
   selectedLocationName,
   locations,
+  brandLogoPublicUrl,
+  mode,
   onSelectLocation,
 }: ShopHeaderProps) {
   return (
@@ -31,40 +33,15 @@ export function ShopHeader({
       </div>
 
       <div className="flex items-center self-start sm:self-center">
-        {locations.length > 1 && onSelectLocation ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1.5 rounded-md border border-op-border-default bg-op-surface-secondary px-3 text-xs font-medium text-foreground hover:bg-op-card-background"
-              >
-                <MapPin className="size-3.5 text-muted-foreground" />
-                <span className="max-w-[120px] truncate">{selectedLocationName}</span>
-                <ChevronDown className="size-3 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 bg-op-surface-secondary">
-              {locations.map((loc) => (
-                <DropdownMenuItem
-                  key={loc.id}
-                  onClick={() => onSelectLocation(loc.id)}
-                  className={cn(
-                    "cursor-pointer text-xs",
-                    loc.locationName === selectedLocationName && "font-semibold text-op-action-primary"
-                  )}
-                >
-                  {loc.locationName}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <div className="inline-flex h-8 items-center gap-1.5 rounded-md border border-op-border-default bg-op-surface-secondary px-3 text-xs font-medium text-foreground">
-            <MapPin className="size-3.5 text-muted-foreground" />
-            <span className="max-w-[140px] truncate">{selectedLocationName}</span>
-          </div>
-        )}
+        <ShopLocationPicker
+          variant="chip"
+          selectedLocationId={selectedLocationId}
+          selectedLocationName={selectedLocationName}
+          locations={locations}
+          brandLogoPublicUrl={brandLogoPublicUrl}
+          mode={mode}
+          onSelectLocation={onSelectLocation}
+        />
       </div>
     </div>
   )

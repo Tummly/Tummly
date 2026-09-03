@@ -24,7 +24,7 @@ export async function fetchShopCatalog(
   locationId: number
 ): Promise<{ catalogVersion: string; products: ShopProduct[] }> {
   const response = await axiosInstance.get<ShopCatalogListResponse>(
-    "/api/shop/catalog",
+    "/shop/catalog",
     { params: { locationId } }
   )
 
@@ -42,7 +42,7 @@ export async function fetchShopCatalogItem(
   skuId: string
 ): Promise<ShopProduct> {
   const response = await axiosInstance.get<ShopCatalogDetailResponse>(
-    `/api/shop/catalog/${encodeURIComponent(skuId)}`,
+    `/shop/catalog/${encodeURIComponent(skuId)}`,
     { params: { locationId } }
   )
 

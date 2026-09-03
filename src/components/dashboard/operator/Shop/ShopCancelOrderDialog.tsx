@@ -16,6 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  FILTER_SELECT_CONTENT_CLASS,
+  FILTER_SELECT_ITEM_CLASS,
+  FILTER_SELECT_PLACEHOLDER_CLASS,
+  FILTER_SELECT_TRIGGER_CLASS,
+} from "@/lib/operatorFilterSheet/filterSelectPresentation"
+import { cn } from "@/lib/utils"
 import type { DetailedShopOrder } from "@/lib/operatorShop/shopOrdersFilterSheetSchema"
 
 export const SHOP_CANCEL_REASONS = [
@@ -79,10 +86,8 @@ export function ShopCancelOrderDialog({
 
           <Button
             type="button"
-            variant="ghost"
-            size="icon"
+            variant="op-collapse"
             onClick={() => onOpenChange(false)}
-            className="size-9 shrink-0 rounded-xs bg-op-surface-secondary text-op-text-muted hover:bg-op-surface-secondary/80 hover:text-op-text-primary"
             aria-label="Close dialog"
           >
             <X className="size-4" />
@@ -98,18 +103,24 @@ export function ShopCancelOrderDialog({
             Why are you cancelling this order?
           </label>
           <Select value={reasonSlug} onValueChange={setReasonSlug}>
-            <SelectTrigger className="h-11 w-full rounded-sm border-op-border-default bg-op-background-primary px-3.5 text-sm text-op-text-primary">
+            <SelectTrigger
+              className={cn(
+                FILTER_SELECT_TRIGGER_CLASS,
+                !reasonSlug && FILTER_SELECT_PLACEHOLDER_CLASS
+              )}
+            >
               <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent
               position="popper"
-              className="z-[250] border-op-border-default bg-op-card-background text-op-text-primary"
+              align="start"
+              className={cn(FILTER_SELECT_CONTENT_CLASS, "z-[250]")}
             >
               {SHOP_CANCEL_REASONS.map((reason) => (
                 <SelectItem
                   key={reason.slug}
                   value={reason.slug}
-                  className="cursor-pointer text-sm focus:bg-op-surface-secondary focus:text-op-text-primary"
+                  className={cn(FILTER_SELECT_ITEM_CLASS, "cursor-pointer")}
                 >
                   {reason.label}
                 </SelectItem>
@@ -126,7 +137,6 @@ export function ShopCancelOrderDialog({
           <Button
             type="button"
             variant="op-primary"
-            className="h-10 rounded-xs px-5 text-sm font-medium"
             onClick={handleConfirm}
           >
             Cancel order
@@ -134,8 +144,7 @@ export function ShopCancelOrderDialog({
 
           <Button
             type="button"
-            variant="outline"
-            className="h-10 rounded-xs border-op-border-default bg-transparent px-5 text-sm font-medium text-op-text-primary hover:bg-op-surface-secondary"
+            variant="op-tertiary"
             onClick={() => onOpenChange(false)}
           >
             Keep order

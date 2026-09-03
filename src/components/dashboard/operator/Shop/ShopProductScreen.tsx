@@ -10,19 +10,22 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
   ShopCatalogItemCard,
 } from "@/components/dashboard/operator/Shop/ShopCatalogItemCard"
+import {
+  ShopLocationPicker,
+  type ShopLocationOption,
+} from "@/components/dashboard/operator/Shop/ShopLocationPicker"
 import type { ShopProduct } from "@/lib/operatorShop/shopCatalogTypes"
 import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
 import { ShopPaidWriteHelperNote } from "@/components/dashboard/operator/Shop/ShopPaidWriteHelperNote"
+import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
 import tummlyStickerImg from "@/assets/images/shop/tummly-sticker.png"
 import tummlyBagImg from "@/assets/images/shop/tummly-bag.png"
+import {
+  SHOP_PRODUCT_DETAIL_CARD_CLASS,
+  SHOP_PRODUCT_SPEC_DIVIDER_CLASS,
+} from "@/lib/operatorShop/shopSurfacePresentation"
 import { cn } from "@/lib/utils"
 
 export function scrollShopPaneToTop() {
@@ -60,8 +63,11 @@ const PACKAGE_OPTIONS: PackageOption[] = [
 type ShopProductScreenProps = {
   product: ShopProduct
   catalogProducts: ShopProduct[]
+  selectedLocationId: number
   selectedLocationName: string
-  locations: Array<{ id: number; locationName: string; address: string }>
+  locations: ShopLocationOption[]
+  brandLogoPublicUrl: string | null
+  mode: OperatorDashboardMode
   onSelectLocation?: (locationId: number) => void
   onBackToShop: () => void
   onAddToCart: (product: ShopProduct, quantity: number) => void
@@ -73,8 +79,11 @@ type ShopProductScreenProps = {
 export function ShopProductScreen({
   product,
   catalogProducts,
+  selectedLocationId,
   selectedLocationName,
   locations,
+  brandLogoPublicUrl,
+  mode,
   onSelectLocation,
   onBackToShop,
   onAddToCart,
@@ -167,7 +176,7 @@ export function ShopProductScreen({
         <div className="flex flex-col gap-8 lg:col-span-6">
           {/* Main Showcase Image */}
           <div className="flex flex-col gap-3">
-            <div className="flex h-[420px] w-full items-center justify-center overflow-hidden rounded-md border border-op-border-default bg-op-background-primary/80 p-6 sm:h-[520px]">
+            <div className="flex h-[420px] w-full items-center justify-center overflow-hidden rounded-op-lg border border-op-border-default bg-op-color-gray-60 p-6 dark:bg-[var(--op-color-gray-990)] sm:h-[520px]">
               <img
                 src={thumbnails[activeImageIdx]}
                 alt={product.title}
@@ -183,7 +192,7 @@ export function ShopProductScreen({
                   type="button"
                   onClick={() => setActiveImageIdx(idx)}
                   className={cn(
-                    "flex h-24 items-center justify-center overflow-hidden rounded-md border bg-op-background-primary/80 p-2 transition-colors sm:h-28",
+                    "flex h-24 items-center justify-center overflow-hidden rounded-op-lg border bg-op-color-gray-60 p-2 transition-colors dark:bg-[var(--op-color-gray-990)] sm:h-28",
                     activeImageIdx === idx
                       ? "border-op-action-primary ring-1 ring-op-action-primary"
                       : "border-op-border-default hover:border-op-action-tertiary"
@@ -199,12 +208,12 @@ export function ShopProductScreen({
             </div>
           </div>
 
-          {/* About Section */}
-          <div className="flex flex-col gap-3 rounded-md border border-op-border-default bg-op-card-background p-6">
-            <h3 className="text-lg font-semibold text-op-text-primary">
+          {/* About Section — flat on page (not a card) */}
+          <div className="flex flex-col gap-3">
+            <h3 className="text-lg font-medium text-op-text-primary">
               About the {product.title.toLowerCase()}
             </h3>
-            <p className="text-sm font-normal leading-relaxed text-op-text-secondary">
+            <p className="text-sm font-medium leading-[19px] text-[var(--op-color-gray-550)]">
               The Tummly {product.title.toLowerCase()} gives dine-in guests a clear opportunity to share private feedback while their experience is still recent. Each order uses a location-specific QR placement, allowing Tummly to measure scans, form starts and completed feedback submissions from table-based prompts.
             </p>
           </div>
@@ -223,7 +232,7 @@ export function ShopProductScreen({
           </div>
 
           {/* Box 1: Prepared for */}
-          <div className="flex flex-col gap-4 rounded-md border border-op-border-default bg-op-card-background p-5">
+          <div className={cn(SHOP_PRODUCT_DETAIL_CARD_CLASS, "flex flex-col gap-4 p-5")}>
             <div className="flex flex-col gap-1">
               <h3 className="text-base font-semibold text-op-text-primary">
                 Prepared for
@@ -241,42 +250,22 @@ export function ShopProductScreen({
               <ChevronDown className="size-4 text-op-text-muted" />
             </div>
 
-            {locations.length > 1 && onSelectLocation && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="self-start rounded-[4px] border-op-border-default bg-transparent text-xs text-op-text-primary hover:bg-op-surface-secondary"
-                  >
-                    Change location
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="start"
-                  className="w-56 border-op-border-default bg-op-surface-secondary text-op-text-primary"
-                >
-                  {locations.map((loc) => (
-                    <DropdownMenuItem
-                      key={loc.id}
-                      onClick={() => onSelectLocation(loc.id)}
-                      className={cn(
-                        "cursor-pointer text-xs",
-                        loc.locationName === selectedLocationName &&
-                          "font-semibold text-op-action-primary"
-                      )}
-                    >
-                      {loc.locationName}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+            {locations.length > 1 && onSelectLocation ? (
+              <ShopLocationPicker
+                variant="change"
+                selectedLocationId={selectedLocationId}
+                selectedLocationName={selectedLocationName}
+                locations={locations}
+                brandLogoPublicUrl={brandLogoPublicUrl}
+                mode={mode}
+                onSelectLocation={onSelectLocation}
+                changeClassName="self-start"
+              />
+            ) : null}
           </div>
 
           {/* Box 2: Choose a quantity */}
-          <div className="flex flex-col gap-4 rounded-md border border-op-border-default bg-op-card-background p-5">
+          <div className={cn(SHOP_PRODUCT_DETAIL_CARD_CLASS, "flex flex-col gap-4 p-5")}>
             <div className="flex flex-col gap-1">
               <h3 className="text-base font-semibold text-op-text-primary">
                 Choose a quantity
@@ -345,7 +334,7 @@ export function ShopProductScreen({
           </div>
 
           {/* Box 3: Order summary */}
-          <div className="flex flex-col gap-4 rounded-md border border-op-border-default bg-op-card-background p-5">
+          <div className={cn(SHOP_PRODUCT_DETAIL_CARD_CLASS, "flex flex-col gap-4 p-5")}>
             <h3 className="text-base font-semibold text-op-text-primary">
               Order summary
             </h3>
@@ -399,7 +388,6 @@ export function ShopProductScreen({
                   type="button"
                   variant="op-primary"
                   disabled={purchaseBlocked}
-                  className="h-10 gap-1.5 rounded-md px-5 text-xs font-semibold"
                   onClick={() => onOrderNow(product, customQuantity)}
                 >
                   <ShoppingBag className="size-3.5" />
@@ -407,9 +395,8 @@ export function ShopProductScreen({
                 </Button>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="op-secondary"
                   disabled={purchaseBlocked}
-                  className="h-10 rounded-md border-op-border-default bg-transparent px-4 text-xs font-medium text-op-text-primary hover:bg-op-surface-secondary"
                   onClick={() => onAddToCart(product, customQuantity)}
                 >
                   Add to cart
@@ -424,78 +411,61 @@ export function ShopProductScreen({
         </div>
       </div>
 
-      {/* Specifications & QR Tracking Section */}
+      {/* Specifications & QR Tracking — flat on page (Figma 4405:52884) */}
       <div className="border-t border-op-border-default/80 pt-8">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
-          {/* Specifications */}
-          <div className="flex flex-col gap-4 lg:col-span-6">
-            <h3 className="text-lg font-semibold text-op-text-primary">
+        <div className="grid grid-cols-1 gap-[34px] lg:grid-cols-12 lg:gap-[34px]">
+          <div className="flex flex-col gap-8 lg:col-span-6">
+            <h3 className="text-lg font-medium text-op-text-primary">
               Product specifications
             </h3>
-            <div className="flex flex-col gap-2.5 rounded-md border border-op-border-default bg-op-card-background p-5 text-xs text-op-text-secondary">
-              <div className="flex justify-between">
-                <span>Finished size</span>
-                <span className="font-medium text-op-text-primary">A5</span>
-              </div>
-              <div className="h-px bg-op-border-default/60" />
-              <div className="flex justify-between">
-                <span>Construction</span>
-                <span className="font-medium text-op-text-primary">Folded A-frame</span>
-              </div>
-              <div className="h-px bg-op-border-default/60" />
-              <div className="flex justify-between">
-                <span>Print</span>
-                <span className="font-medium text-op-text-primary">Double-sided</span>
-              </div>
-              <div className="h-px bg-op-border-default/60" />
-              <div className="flex justify-between">
-                <span>Finish</span>
-                <span className="font-medium text-op-text-primary">Matte</span>
-              </div>
-              <div className="h-px bg-op-border-default/60" />
-              <div className="flex justify-between">
-                <span>Material</span>
-                <span className="font-medium text-op-text-primary">{product.material}</span>
-              </div>
-              <div className="h-px bg-op-border-default/60" />
-              <div className="flex justify-between">
-                <span>QR connection</span>
-                <span className="font-medium text-op-text-primary">Location and placement-specific</span>
-              </div>
-              <div className="h-px bg-op-border-default/60" />
-              <div className="flex justify-between">
-                <span>Recommended use</span>
-                <span className="font-medium text-op-text-primary">Dine-in tables</span>
-              </div>
-              <div className="h-px bg-op-border-default/60" />
-              <div className="flex justify-between">
-                <span>Minimum quantity</span>
-                <span className="font-medium text-op-text-primary">Pack of 5</span>
-              </div>
-              <div className="h-px bg-op-border-default/60" />
-              <div className="flex justify-between">
-                <span>Production</span>
-                <span className="font-medium text-op-text-primary">Made to order</span>
-              </div>
+            <div className="flex flex-col gap-3.5 text-base">
+              {(
+                [
+                  ["Finished size", "A5"],
+                  ["Construction", "Folded A-frame"],
+                  ["Print", "Double-sided"],
+                  ["Finish", "Matte"],
+                  ["Material", product.material],
+                  ["QR connection", "Location and placement-specific"],
+                  ["Recommended use", "Dine-in tables"],
+                  ["Minimum quantity", "Pack of 5"],
+                  ["Production", "Made to order"],
+                ] as const
+              ).map(([label, value], index, rows) => (
+                <div key={label} className="flex flex-col gap-3.5">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="font-semibold text-[var(--op-color-gray-550)]">
+                      {label}
+                    </span>
+                    <span className="font-medium text-op-text-primary text-right">
+                      {value}
+                    </span>
+                  </div>
+                  {index < rows.length - 1 ? (
+                    <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
+                  ) : null}
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* QR Tracking & Delivery info */}
-          <div className="flex flex-col gap-6 lg:col-span-6">
-            <div className="flex flex-col gap-3 rounded-md border border-op-border-default bg-op-card-background p-5">
-              <h3 className="text-lg font-semibold text-op-text-primary">
+          <div className="flex flex-col gap-[34px] lg:col-span-6 lg:border-l lg:border-op-border-default lg:pl-[34px]">
+            <div className="flex flex-col gap-3">
+              <h3 className="text-lg font-medium text-op-text-primary">
                 Connected QR tracking
               </h3>
-              <p className="text-xs leading-relaxed text-op-text-secondary">
+              <p className="text-sm font-medium leading-[19px] text-[var(--op-color-gray-550)]">
                 The QR code printed on this material is connected to one location and one QR placement. Tummly records scans, form starts and completed submissions against that placement.
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 rounded-md border border-op-border-default bg-op-card-background p-5">
-              <h3 className="text-lg font-semibold text-op-text-primary">
+            <div className={SHOP_PRODUCT_SPEC_DIVIDER_CLASS} />
+
+            <div className="flex flex-col gap-3">
+              <h3 className="text-lg font-medium text-op-text-primary">
                 Production and delivery
               </h3>
-              <p className="text-xs leading-relaxed text-op-text-secondary">
+              <p className="text-sm font-medium leading-[19px] text-[var(--op-color-gray-550)]">
                 Materials enter production after the order, artwork and location connection have been confirmed. Delivery estimates are shown at checkout and may vary by quantity and delivery address.
               </p>
             </div>
@@ -518,6 +488,7 @@ export function ShopProductScreen({
           {relatedProducts.map((relProduct) => (
             <ShopCatalogItemCard
               key={relProduct.id}
+              variant="secondary"
               title={relProduct.title}
               description={relProduct.description}
               price={relProduct.price}

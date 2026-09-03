@@ -60,10 +60,16 @@ import {
   PERFORMANCE_DATE_CUSTOM_HINT_CLASS,
 } from "@/lib/operatorHome/performanceOverviewPresentation"
 import {
-  OPERATOR_SHELL_MENU_ITEM_CLASS,
-  OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS,
-  OPERATOR_SHELL_MENU_PANEL_CLASS,
-} from "@/lib/operatorHome/shellResponsivePresentation"
+  FILTER_SELECT_ITEM_ACTIVE_CLASS,
+  FILTER_SELECT_ITEM_CLASS,
+  FILTER_SELECT_ITEM_MUTED_CLASS,
+  FILTER_SELECT_ITEM_NAV_CLASS,
+  FILTER_SELECT_LIST_CLASS,
+  FILTER_SELECT_MENU_CLASS,
+  FILTER_SELECT_PLACEHOLDER_CLASS,
+  FILTER_SELECT_TRIGGER_CLASS,
+} from "@/lib/operatorFilterSheet/filterSelectPresentation"
+import { OPERATOR_SHELL_MENU_PANEL_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 
 export type OperatorFilterSheetDialogProps = {
@@ -76,34 +82,6 @@ export type OperatorFilterSheetDialogProps = {
   onOpenChange: (open: boolean) => void
   onApply: (filters: OperatorFilterSelection) => void
 }
-
-/**
- * Transparent fill so the field matches dialog #1B1B1B / white — not outline’s muted wash.
- * `!h-[50px]` beats `op-ghost`’s compound `!h-auto` so horizontal padding still reads correctly.
- */
-const SELECT_TRIGGER_CLASS =
-  "!h-[50px] !min-h-[50px] w-full justify-between rounded border border-input bg-transparent px-[15px] text-left text-sm font-normal shadow-none hover:bg-transparent aria-expanded:bg-transparent dark:bg-transparent dark:hover:bg-transparent dark:aria-expanded:bg-transparent"
-/** Select field menus — light `#EDEFEE` ≈ `--op-background-primary`; dark keeps panel `#202020`. */
-const SELECT_MENU_CLASS = cn(
-  "z-[140] w-[var(--radix-popover-trigger-width)] gap-0 p-0",
-  OPERATOR_SHELL_MENU_PANEL_CLASS,
-  "bg-op-background-primary"
-)
-const SELECT_LIST_CLASS =
-  "flex flex-col divide-y divide-op-border-default"
-const SELECT_ITEM_CLASS = cn(
-  "h-auto w-full justify-start text-left text-sm font-normal text-foreground",
-  OPERATOR_SHELL_MENU_ITEM_CLASS
-)
-const SELECT_ITEM_ACTIVE_CLASS = OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS
-const SELECT_ITEM_MUTED_CLASS = cn(
-  "h-auto w-full justify-start text-left text-sm text-muted-foreground",
-  OPERATOR_SHELL_MENU_ITEM_CLASS
-)
-const SELECT_ITEM_NAV_CLASS = cn(
-  "h-auto w-full justify-start text-left text-xs font-medium text-muted-foreground",
-  OPERATOR_SHELL_MENU_ITEM_CLASS
-)
 
 function FieldLabel({ children }: { children: ReactNode }) {
   return (
@@ -178,14 +156,14 @@ function MultiSelectControl({
           <Button
             type="button"
             variant="op-ghost"
-            className={cn(SELECT_TRIGGER_CLASS, ids.length === 0 && "text-[#7d7d7d]")}
+            className={cn(FILTER_SELECT_TRIGGER_CLASS, ids.length === 0 && FILTER_SELECT_PLACEHOLDER_CLASS)}
           >
             <span>{ids.length > 0 ? `${ids.length} selected` : "Select"}</span>
             <ChevronDownIcon className="size-4 shrink-0 opacity-60" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className={SELECT_MENU_CLASS}>
-          <ul className={SELECT_LIST_CLASS} role="listbox">
+        <PopoverContent align="start" className={FILTER_SELECT_MENU_CLASS}>
+          <ul className={FILTER_SELECT_LIST_CLASS} role="listbox">
             {field.options.map((option) => (
               <li key={option.id}>
                 <Button
@@ -194,8 +172,8 @@ function MultiSelectControl({
                   role="option"
                   aria-selected={ids.includes(option.id)}
                   className={cn(
-                    SELECT_ITEM_CLASS,
-                    ids.includes(option.id) && SELECT_ITEM_ACTIVE_CLASS
+                    FILTER_SELECT_ITEM_CLASS,
+                    ids.includes(option.id) && FILTER_SELECT_ITEM_ACTIVE_CLASS
                   )}
                   onClick={() => {
                     onSessionChange(toggleMultiSelect(session, field.id, option.id))
@@ -269,20 +247,20 @@ function LocationScopeControl({
           <Button
             type="button"
             variant="op-ghost"
-            className={cn(SELECT_TRIGGER_CLASS, location.kind === "none" && "text-[#7d7d7d]")}
+            className={cn(FILTER_SELECT_TRIGGER_CLASS, location.kind === "none" && FILTER_SELECT_PLACEHOLDER_CLASS)}
           >
             <span className="truncate">{triggerLabel()}</span>
             <ChevronDownIcon className="size-4 shrink-0 opacity-60" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className={SELECT_MENU_CLASS}>
+        <PopoverContent align="start" className={FILTER_SELECT_MENU_CLASS}>
           {session.locationStep !== "individual" ? (
-            <ul className={SELECT_LIST_CLASS} role="listbox">
+            <ul className={FILTER_SELECT_LIST_CLASS} role="listbox">
               <li>
                 <Button
                   type="button"
                   variant="op-ghost"
-                  className={SELECT_ITEM_CLASS}
+                  className={FILTER_SELECT_ITEM_CLASS}
                   onClick={() => {
                     onSessionChange(setLocationAll(session, field.id))
                     onOpenChange(false)
@@ -295,7 +273,7 @@ function LocationScopeControl({
                 <Button
                   type="button"
                   variant="op-ghost"
-                  className={SELECT_ITEM_CLASS}
+                  className={FILTER_SELECT_ITEM_CLASS}
                   onClick={() => {
                     onSessionChange(beginLocationIndividual(session, field.id))
                   }}
@@ -308,7 +286,7 @@ function LocationScopeControl({
                   <Button
                     type="button"
                     variant="op-ghost"
-                    className={SELECT_ITEM_MUTED_CLASS}
+                    className={FILTER_SELECT_ITEM_MUTED_CLASS}
                     onClick={() => {
                       onSessionChange(clearLocation(session, field.id))
                       onOpenChange(false)
@@ -320,12 +298,12 @@ function LocationScopeControl({
               ) : null}
             </ul>
           ) : (
-            <ul className={SELECT_LIST_CLASS} role="listbox">
+            <ul className={FILTER_SELECT_LIST_CLASS} role="listbox">
               <li>
                 <Button
                   type="button"
                   variant="op-ghost"
-                  className={SELECT_ITEM_NAV_CLASS}
+                  className={FILTER_SELECT_ITEM_NAV_CLASS}
                   onClick={() => {
                     onSessionChange(backToLocationMode(session))
                   }}
@@ -344,7 +322,7 @@ function LocationScopeControl({
                       variant="op-ghost"
                       role="option"
                       aria-selected={selected}
-                      className={cn(SELECT_ITEM_CLASS, selected && SELECT_ITEM_ACTIVE_CLASS)}
+                      className={cn(FILTER_SELECT_ITEM_CLASS, selected && FILTER_SELECT_ITEM_ACTIVE_CLASS)}
                       onClick={() => {
                         onSessionChange(
                           toggleLocationId(session, field.id, locationOption.id)
@@ -440,11 +418,11 @@ function DateControl({
             type="button"
             variant="op-ghost"
             className={cn(
-              SELECT_TRIGGER_CLASS,
+              FILTER_SELECT_TRIGGER_CLASS,
               dateValue.kind === "none" &&
                 session.dateStep == null &&
                 !dateCustomStep &&
-                "text-[#7d7d7d]"
+                FILTER_SELECT_PLACEHOLDER_CLASS
             )}
           >
             <span className="truncate">{triggerLabel()}</span>
@@ -456,7 +434,7 @@ function DateControl({
           className={
             dateCustomStep
               ? cn("gap-0 w-auto p-0", OPERATOR_SHELL_MENU_PANEL_CLASS)
-              : SELECT_MENU_CLASS
+              : FILTER_SELECT_MENU_CLASS
           }
         >
           {dateCustomStep ? (
@@ -525,13 +503,13 @@ function DateControl({
               </div>
             </div>
           ) : field.hasAxis && session.dateStep !== "preset" ? (
-            <ul className={SELECT_LIST_CLASS} role="listbox">
+            <ul className={FILTER_SELECT_LIST_CLASS} role="listbox">
               {Object.entries(field.axisLabels ?? {}).map(([id, label]) => (
                 <li key={id}>
                   <Button
                     type="button"
                     variant="op-ghost"
-                    className={SELECT_ITEM_CLASS}
+                    className={FILTER_SELECT_ITEM_CLASS}
                     onClick={() => {
                       onSessionChange(
                         pickDateAxis(session, field.id, id as DateAxisId)
@@ -547,7 +525,7 @@ function DateControl({
                   <Button
                     type="button"
                     variant="op-ghost"
-                    className={SELECT_ITEM_MUTED_CLASS}
+                    className={FILTER_SELECT_ITEM_MUTED_CLASS}
                     onClick={() => {
                       onSessionChange(clearDate(session, field.id))
                       onOpenChange(false)
@@ -559,13 +537,13 @@ function DateControl({
               ) : null}
             </ul>
           ) : (
-            <ul className={SELECT_LIST_CLASS} role="listbox">
+            <ul className={FILTER_SELECT_LIST_CLASS} role="listbox">
               {field.hasAxis ? (
                 <li>
                   <Button
                     type="button"
                     variant="op-ghost"
-                    className={SELECT_ITEM_NAV_CLASS}
+                    className={FILTER_SELECT_ITEM_NAV_CLASS}
                     onClick={() => {
                       onSessionChange(changeDateAxis(session))
                     }}
@@ -578,7 +556,7 @@ function DateControl({
                 <Button
                   type="button"
                   variant="op-ghost"
-                  className={SELECT_ITEM_CLASS}
+                  className={FILTER_SELECT_ITEM_CLASS}
                   onClick={() => {
                     onSessionChange(pickDatePreset(session, fieldRef, "any-time"))
                     onOpenChange(false)
@@ -592,7 +570,7 @@ function DateControl({
                   <Button
                     type="button"
                     variant="op-ghost"
-                    className={SELECT_ITEM_CLASS}
+                    className={FILTER_SELECT_ITEM_CLASS}
                     onClick={() => {
                       onSessionChange(
                         pickDatePreset(
@@ -612,7 +590,7 @@ function DateControl({
                 <Button
                   type="button"
                   variant="op-ghost"
-                  className={SELECT_ITEM_CLASS}
+                  className={FILTER_SELECT_ITEM_CLASS}
                   onClick={() => {
                     const existing =
                       dateValue.kind === "custom"
@@ -633,7 +611,7 @@ function DateControl({
                   <Button
                     type="button"
                     variant="op-ghost"
-                    className={SELECT_ITEM_MUTED_CLASS}
+                    className={FILTER_SELECT_ITEM_MUTED_CLASS}
                     onClick={() => {
                       onSessionChange(clearDate(session, field.id))
                       onOpenChange(false)

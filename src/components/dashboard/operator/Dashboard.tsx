@@ -419,8 +419,10 @@ function DashboardContent({ mode }: DashboardProps) {
           billingStatus: workspace.snapshot.billingStatus,
           subscriptionPlan: workspace.snapshot.subscriptionPlan,
           permissionRole: workspace.snapshot.permissionRole,
+          chargebackRestricted: workspace.snapshot.chargebackRestricted,
           selectedLocationId,
           locations: workspace.snapshot.locations,
+          brandLogoPublicUrl: workspace.snapshot.brandLogoPublicUrl ?? null,
           mode,
           selectLocation: handleSelectLocation,
           applyRestaurantIdentity: workspace.applyRestaurantIdentity,
@@ -464,8 +466,16 @@ export type DashboardOutletContext = {
   billingStatus: string
   subscriptionPlan: string
   permissionRole: string
+  /** Omit / false keeps purchase CTAs enabled. */
+  chargebackRestricted: boolean
   selectedLocationId: number
-  locations: Array<{ id: number; locationName: string; address: string }>
+  locations: Array<{
+    id: number
+    locationName: string
+    address: string
+    lifecycleStatus?: "active" | "paused"
+  }>
+  brandLogoPublicUrl: string | null
   mode: DashboardProps["mode"]
   selectLocation: (locationId: number) => void
   applyRestaurantIdentity: (input: {
