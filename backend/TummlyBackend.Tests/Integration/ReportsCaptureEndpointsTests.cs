@@ -58,6 +58,26 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetCapture_ReturnsLifetimeEmpty_WhenLocationHasNoQr()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerAsync("reports-cap-no-qr");
+
+            using var request = AuthorizedGet(
+                CaptureUrl(seeded.LocationId, from, to),
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.True(body.GetProperty("lifetimeEmpty").GetBoolean());
+            Assert.False(body.TryGetProperty("funnel", out _));
+        }
+
+        [Fact]
         public async Task GetCapture_ReturnsLifetimeEmpty_WhenNeverScannedActiveOrPausedQr()
         {
             var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);

@@ -280,6 +280,20 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().captureReport?.funnelKpis[0]?.value).toBe("12")
   })
 
+  it("sets lifetimeEmpty capture status from capture API", async () => {
+    const adapters = createAdapters({
+      getCapture: async () => ({
+        success: true,
+        lifetimeEmpty: true,
+      }),
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    module.setActiveSurface("capture")
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().captureLoadStatus).toBe("lifetimeEmpty")
+    expect(module.getSnapshot().captureReport).toBeNull()
+  })
+
   it("reloads capture only when reports date range commits on capture", async () => {
     const adapters = createAdapters()
     const module = createOperatorReportsPageModule(adapters)

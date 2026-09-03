@@ -2,6 +2,7 @@ import { Fragment, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { MoreVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,6 +33,7 @@ import { useReportsPageModule } from "@/components/dashboard/operator/Reports/ut
 import { ReportsStatusBadge } from "@/components/dashboard/operator/Reports/ReportsStatusBadge"
 import {
   CAPTURE_REPORT_PAGE_COPY,
+  REPORTS_CAPTURE_LOAD_ERROR_MESSAGE,
   type CaptureReportPlacementRow,
 } from "@/lib/operatorReports/captureReportPresentation"
 import {
@@ -138,17 +140,14 @@ export function CaptureReportPage({ mode = "single" }: CaptureReportPageProps) {
           aria-live="polite"
           aria-label="Loading capture report"
         >
-          <div
-            className="size-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
-            aria-hidden
-          />
+          <Spinner />
         </div>
       ) : null}
 
       {captureLoadStatus === "error" ? (
         <div className="flex flex-col items-start gap-3" role="alert">
           <p className="m-0 text-sm text-destructive">
-            {captureLoadError ?? "Could not load report data."}
+            {captureLoadError ?? REPORTS_CAPTURE_LOAD_ERROR_MESSAGE}
           </p>
           <Button
             type="button"

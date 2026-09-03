@@ -29,7 +29,7 @@ export const CAPTURE_REPORT_PAGE_COPY = {
     "Reports will appear once guests start scanning your QR codes or Smart Guest Links.",
   funnelSectionTitle: "Scan-to-guest funnel",
   funnelInsight:
-    "Most drop-off happened between opening the form and submitting feedback. Review the form length, offer wording and page load speed.",
+    "Most drop-off happened between QR scans and submitted feedback. Review the form length, offer wording and page load speed.",
   reviewGuestForm: "Review guest form",
   placementSectionTitle: "QR placement performance",
   placementInsightTitle: "Placement insight",
