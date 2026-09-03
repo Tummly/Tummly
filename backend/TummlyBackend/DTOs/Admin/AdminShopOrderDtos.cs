@@ -43,6 +43,9 @@ namespace TummlyBackend.DTOs.Admin
 
         public string PaymentStatus { get; set; } = string.Empty;
 
+        /// <summary>Revolut payment order UUID used for admin refunds.</summary>
+        public string? RevolutOrderId { get; set; }
+
         public string? TrackingUrl { get; set; }
 
         public string? OpsNotes { get; set; }

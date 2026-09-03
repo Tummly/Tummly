@@ -55,6 +55,9 @@ namespace TummlyBackend.Tests.Integration
                 body.GetProperty("items")[0].GetProperty("fulfilmentStatus").GetString()
             );
             Assert.True(body.GetProperty("items")[0].TryGetProperty("opsNotes", out _));
+            Assert.True(
+                body.GetProperty("items")[0].TryGetProperty("revolutOrderId", out _)
+            );
         }
 
         [Fact]

@@ -1603,105 +1603,145 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            await using var transaction =
-                await _context.Database.BeginTransactionAsync(
+            // Join an ambient webhook/claim transaction when present (shop/top-up
+            // refunds run inside RevolutWebhookService.ClaimAndApplyCompletedAsync).
+            var ambient = _context.Database.CurrentTransaction;
+            IDbContextTransaction? owned = null;
+            if (ambient is null)
+            {
+                owned = await _context.Database.BeginTransactionAsync(
                     IsolationLevel.ReadCommitted,
                     cancellationToken
                 );
-
-            var locked = await LockBillingAccountAsync(
-                request.RestaurantId,
-                cancellationToken
-            );
-            if (!locked)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-                return CreditLedgerDrainTopupResult.Fail("restaurant_not_found");
             }
 
-            var now = _clock.GetUtcNow().UtcDateTime;
-            var entries = await LoadRestaurantEntriesAsync(
-                request.RestaurantId,
-                cancellationToken: cancellationToken
-            );
-            var grants = CreditLedgerCalculator.TopupGrantsForPaymentRef(
-                entries,
-                request.SourcePaymentRef
-            );
-            if (grants.Count == 0)
+            try
             {
-                await transaction.RollbackAsync(cancellationToken);
-                return CreditLedgerDrainTopupResult.Fail("source_payment_ref_not_found");
-            }
-
-            var inserted = DrainBindableRefunds(
-                request.RestaurantId,
-                request.SourcePaymentRef,
-                request.CorrectionSource,
-                entries,
-                now
-            );
-            foreach (var row in inserted)
-            {
-                _context.CreditLedgerEntries.Add(row);
-            }
-
-            var working = entries.Concat(inserted).ToList();
-            var postState = CreditLedgerCalculator.Project(working, now);
-            if (!CreditLedgerCalculator.InvariantsHold(postState))
-            {
-                foreach (var row in inserted)
+                var locked = await LockBillingAccountAsync(
+                    request.RestaurantId,
+                    cancellationToken
+                );
+                if (!locked)
                 {
-                    _context.CreditLedgerEntries.Remove(row);
+                    if (owned is not null)
+                    {
+                        await owned.RollbackAsync(cancellationToken);
+                    }
+
+                    return CreditLedgerDrainTopupResult.Fail("restaurant_not_found");
                 }
 
-                await transaction.RollbackAsync(cancellationToken);
-                return CreditLedgerDrainTopupResult.Fail("negative_remaining_refused");
-            }
-
-            var refundedThisCommit = inserted
-                .GroupBy(row => row.Channel)
-                .ToDictionary(group => group.Key, group => group.Sum(row => row.Quantity));
-            foreach (var (channel, qty) in refundedThisCommit.Where(pair => pair.Value > 0))
-            {
-                BillingActivityWriter.TryAppend(
-                    _context,
-                    new BillingActivityAppendRequest
-                    {
-                        RestaurantId = request.RestaurantId,
-                        Kind = BillingActivityKinds.TopupRefunded,
-                        OccurredAtUtc = now,
-                        Channel = channel,
-                        Qty = qty,
-                    }
+                var now = _clock.GetUtcNow().UtcDateTime;
+                var entries = await LoadRestaurantEntriesAsync(
+                    request.RestaurantId,
+                    cancellationToken: cancellationToken
                 );
-            }
-
-            await SaveCommitAndNotifyThresholdsAsync(
-                transaction,
-                request.RestaurantId,
-                working,
-                refundedThisCommit.Keys,
-                cancellationToken
-            );
-
-            var channels = CreditLedgerCalculator
-                .SummarizePaymentRef(
-                    working,
-                    request.SourcePaymentRef,
-                    now,
-                    refundedThisCommit
-                )
-                .Select(row => new TopupPaymentChannelSnapshot
+                var grants = CreditLedgerCalculator.TopupGrantsForPaymentRef(
+                    entries,
+                    request.SourcePaymentRef
+                );
+                if (grants.Count == 0)
                 {
-                    Channel = row.Channel,
-                    Refunded = row.Refunded,
-                    Held = row.Held,
-                    Consumed = row.Consumed,
-                })
-                .ToList();
+                    if (owned is not null)
+                    {
+                        await owned.RollbackAsync(cancellationToken);
+                    }
 
-            return CreditLedgerDrainTopupResult.Ok(channels);
+                    return CreditLedgerDrainTopupResult.Fail("source_payment_ref_not_found");
+                }
+
+                var inserted = DrainBindableRefunds(
+                    request.RestaurantId,
+                    request.SourcePaymentRef,
+                    request.CorrectionSource,
+                    entries,
+                    now
+                );
+                foreach (var row in inserted)
+                {
+                    _context.CreditLedgerEntries.Add(row);
+                }
+
+                var working = entries.Concat(inserted).ToList();
+                var postState = CreditLedgerCalculator.Project(working, now);
+                if (!CreditLedgerCalculator.InvariantsHold(postState))
+                {
+                    foreach (var row in inserted)
+                    {
+                        _context.CreditLedgerEntries.Remove(row);
+                    }
+
+                    if (owned is not null)
+                    {
+                        await owned.RollbackAsync(cancellationToken);
+                    }
+
+                    return CreditLedgerDrainTopupResult.Fail("negative_remaining_refused");
+                }
+
+                var refundedThisCommit = inserted
+                    .GroupBy(row => row.Channel)
+                    .ToDictionary(group => group.Key, group => group.Sum(row => row.Quantity));
+                foreach (var (channel, qty) in refundedThisCommit.Where(pair => pair.Value > 0))
+                {
+                    BillingActivityWriter.TryAppend(
+                        _context,
+                        new BillingActivityAppendRequest
+                        {
+                            RestaurantId = request.RestaurantId,
+                            Kind = BillingActivityKinds.TopupRefunded,
+                            OccurredAtUtc = now,
+                            Channel = channel,
+                            Qty = qty,
+                        }
+                    );
+                }
+
+                if (owned is not null)
+                {
+                    await SaveCommitAndNotifyThresholdsAsync(
+                        owned,
+                        request.RestaurantId,
+                        working,
+                        refundedThisCommit.Keys,
+                        cancellationToken
+                    );
+                }
+                else
+                {
+                    await SaveJoinAmbientAndNotifyThresholdsAsync(
+                        request.RestaurantId,
+                        working,
+                        refundedThisCommit.Keys,
+                        cancellationToken
+                    );
+                }
+
+                var channels = CreditLedgerCalculator
+                    .SummarizePaymentRef(
+                        working,
+                        request.SourcePaymentRef,
+                        now,
+                        refundedThisCommit
+                    )
+                    .Select(row => new TopupPaymentChannelSnapshot
+                    {
+                        Channel = row.Channel,
+                        Refunded = row.Refunded,
+                        Held = row.Held,
+                        Consumed = row.Consumed,
+                    })
+                    .ToList();
+
+                return CreditLedgerDrainTopupResult.Ok(channels);
+            }
+            finally
+            {
+                if (owned is not null)
+                {
+                    await owned.DisposeAsync();
+                }
+            }
         }
 
         private async Task<CreditLedgerRestoreTopupResult> RestoreUnusedTopupLockedAsync(
@@ -2155,6 +2195,43 @@ namespace TummlyBackend.Services
 
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+            foreach (var apply in applies)
+            {
+                await _thresholdEvaluator.NotifyAfterCommitAsync(
+                    apply,
+                    cancellationToken
+                );
+            }
+        }
+
+        /// <summary>
+        /// Same threshold + SaveChanges path as
+        /// <see cref="SaveCommitAndNotifyThresholdsAsync"/> but does not commit —
+        /// the ambient outer transaction owns commit.
+        /// </summary>
+        private async Task SaveJoinAmbientAndNotifyThresholdsAsync(
+            int restaurantId,
+            IReadOnlyList<CreditLedgerEntry> allEntriesIncludingPending,
+            IEnumerable<string> channels,
+            CancellationToken cancellationToken
+        )
+        {
+            var applies = new List<CreditThresholdApplyResult>();
+            foreach (var channel in channels.Distinct())
+            {
+                applies.Add(
+                    await _thresholdEvaluator.ApplyInTransactionAsync(
+                        restaurantId,
+                        channel,
+                        allEntriesIncludingPending
+                            .Where(row => row.Channel == channel)
+                            .ToList(),
+                        cancellationToken
+                    )
+                );
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
             foreach (var apply in applies)
             {
                 await _thresholdEvaluator.NotifyAfterCommitAsync(
