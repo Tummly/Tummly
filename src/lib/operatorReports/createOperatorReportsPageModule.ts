@@ -349,9 +349,7 @@ export function createOperatorReportsPageModule(
   /**
    * GET-only load — no auto POST on hub / weekly-brief enter (lock 10).
    */
-  const loadWeeklyBriefGetOnly = async (options?: {
-    showLoadingImmediately?: boolean
-  }) => {
+  const loadWeeklyBriefGetOnly = async () => {
     const workspace = state.workspace
     const locationId = workspace?.selectedLocationId
     if (workspace == null || locationId == null) {
@@ -362,7 +360,7 @@ export function createOperatorReportsPageModule(
     const generation = state.weeklyBriefGeneration + 1
     state = { ...state, weeklyBriefGeneration: generation }
 
-    if (options?.showLoadingImmediately === true) {
+    if (state.weeklyBrief.status !== "ready") {
       patchWeeklyBrief(
         emptyWeeklyBrief({
           status: "loading",
@@ -536,9 +534,7 @@ export function createOperatorReportsPageModule(
         return
       }
       if (surface === "weekly-brief") {
-        void loadWeeklyBriefGetOnly({
-          showLoadingImmediately: state.weeklyBrief.status !== "ready",
-        })
+        void loadWeeklyBriefGetOnly()
       }
     },
     async reloadForReportsDateRange() {

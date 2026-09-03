@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import {
   Table,
   TableBody,
@@ -53,6 +54,112 @@ import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
 
 type ReportsPageProps = {
   mode?: DashboardProps["mode"]
+}
+
+function HubGuestLoopSection(props: {
+  weeklyBrief: ReturnType<typeof useReportsPageModule>["snapshot"]["weeklyBrief"]
+  generateBusy: boolean
+  onGenerateBrief: () => void
+  onRetry: () => void
+  onViewWeeklyBrief: () => void
+  onCreateCampaign: () => void
+}) {
+  const { weeklyBrief } = props
+  return (
+    <ReportsSection title={REPORTS_HUB_GUEST_LOOP_COPY.sectionTitle}>
+      {weeklyBrief.status === "loading" ? (
+        <div
+          className="flex min-h-20 items-center justify-center"
+          role="status"
+          aria-live="polite"
+          aria-label="Loading weekly brief"
+        >
+          <Spinner />
+        </div>
+      ) : null}
+
+      {weeklyBrief.status === "empty" ? (
+        <div className="flex flex-col gap-3">
+          <p className="m-0 text-sm text-op-text-muted">
+            {REPORTS_HUB_GUEST_LOOP_COPY.emptyHelper}
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              variant="op-primary"
+              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+              disabled={props.generateBusy}
+              onClick={props.onGenerateBrief}
+            >
+              {REPORTS_HUB_GUEST_LOOP_COPY.generateBrief}
+            </Button>
+            <Button
+              type="button"
+              variant="op-tertiary"
+              className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+              onClick={props.onCreateCampaign}
+            >
+              {REPORTS_HUB_GUEST_LOOP_COPY.createCampaign}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {weeklyBrief.status === "error" ? (
+        <div className="flex flex-col items-start gap-3" role="alert">
+          <p className="m-0 text-sm text-destructive">
+            {weeklyBrief.errorMessage ??
+              REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE}
+          </p>
+          {weeklyBrief.errorRetryable ? (
+            <Button
+              type="button"
+              variant="op-secondary"
+              className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+              onClick={props.onRetry}
+            >
+              {REPORTS_HUB_GUEST_LOOP_COPY.retry}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {weeklyBrief.status === "ready" ? (
+        <div className="flex flex-col gap-3">
+          <div className={REPORTS_INSIGHT_BANNER_CLASS}>
+            <div className="flex min-w-0 flex-col gap-1">
+              <p className={REPORTS_INSIGHT_TITLE_CLASS}>
+                {weeklyBrief.headline}
+              </p>
+              {weeklyBrief.secondary ? (
+                <p className={REPORTS_INSIGHT_BODY_CLASS}>
+                  {weeklyBrief.secondary}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              variant="op-primary"
+              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+              onClick={props.onViewWeeklyBrief}
+            >
+              {REPORTS_HUB_GUEST_LOOP_COPY.viewWeeklyBrief}
+            </Button>
+            <Button
+              type="button"
+              variant="op-tertiary"
+              className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+              onClick={props.onCreateCampaign}
+            >
+              {REPORTS_HUB_GUEST_LOOP_COPY.createCampaign}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </ReportsSection>
+  )
 }
 
 export function ReportsPage({ mode = "single" }: ReportsPageProps) {
@@ -118,147 +225,55 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
         />
       }
     >
-      {hubLoadStatus === "loading" || hubLoadStatus === "idle" ? (
-        <div
-          className="flex min-h-48 items-center justify-center"
-          role="status"
-          aria-live="polite"
-          aria-label="Loading reports"
-        >
+      <div className={REPORTS_BODY_STACK_CLASS}>
+        <HubGuestLoopSection
+          weeklyBrief={weeklyBrief}
+          generateBusy={weeklyBrief.generateBusy}
+          onGenerateBrief={() => {
+            void handleGenerateBrief()
+          }}
+          onRetry={() => {
+            void reports.retryWeeklyBrief()
+          }}
+          onViewWeeklyBrief={() =>
+            navigate(operatorDashboardWeeklyBriefPath(mode, locationId))
+          }
+          onCreateCampaign={() => navTo("campaigns")}
+        />
+
+        {hubLoadStatus === "loading" || hubLoadStatus === "idle" ? (
           <div
-            className="size-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
-            aria-hidden
-          />
-        </div>
-      ) : null}
-
-      {hubLoadStatus === "error" ? (
-        <div className="flex flex-col items-start gap-3" role="alert">
-          <p className="m-0 text-sm text-destructive">
-            {hubLoadError ?? "Could not load report data."}
-          </p>
-          <Button
-            type="button"
-            variant="op-secondary"
-            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-            onClick={() => {
-              void reports.retryHubLoad()
-            }}
+            className="flex min-h-48 items-center justify-center"
+            role="status"
+            aria-live="polite"
+            aria-label="Loading reports"
           >
-            Retry
-          </Button>
-        </div>
-      ) : null}
+            <Spinner />
+          </div>
+        ) : null}
 
-      {hubLoadStatus === "lifetimeEmpty" ? <ReportsEmptyState /> : null}
+        {hubLoadStatus === "error" ? (
+          <div className="flex flex-col items-start gap-3" role="alert">
+            <p className="m-0 text-sm text-destructive">
+              {hubLoadError ?? "Could not load report data."}
+            </p>
+            <Button
+              type="button"
+              variant="op-secondary"
+              className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+              onClick={() => {
+                void reports.retryHubLoad()
+              }}
+            >
+              Retry
+            </Button>
+          </div>
+        ) : null}
 
-      {hubLoadStatus === "ready" && hubOverview != null ? (
-        <div className={REPORTS_BODY_STACK_CLASS}>
-          <ReportsSection title={REPORTS_HUB_GUEST_LOOP_COPY.sectionTitle}>
-            {weeklyBrief.status === "loading" ? (
-              <div
-                className="flex min-h-20 items-center justify-center"
-                role="status"
-                aria-live="polite"
-                aria-label="Loading weekly brief"
-              >
-                <div
-                  className="size-6 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
-                  aria-hidden
-                />
-              </div>
-            ) : null}
+        {hubLoadStatus === "lifetimeEmpty" ? <ReportsEmptyState /> : null}
 
-            {weeklyBrief.status === "empty" ? (
-              <div className="flex flex-col gap-3">
-                <p className="m-0 text-sm text-op-text-muted">
-                  {REPORTS_HUB_GUEST_LOOP_COPY.emptyHelper}
-                </p>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="op-primary"
-                    className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-                    disabled={weeklyBrief.generateBusy}
-                    onClick={() => {
-                      void handleGenerateBrief()
-                    }}
-                  >
-                    {REPORTS_HUB_GUEST_LOOP_COPY.generateBrief}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="op-tertiary"
-                    className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-                    onClick={() => navTo("campaigns")}
-                  >
-                    {REPORTS_HUB_GUEST_LOOP_COPY.createCampaign}
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-
-            {weeklyBrief.status === "error" ? (
-              <div className="flex flex-col items-start gap-3" role="alert">
-                <p className="m-0 text-sm text-destructive">
-                  {weeklyBrief.errorMessage ??
-                    REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE}
-                </p>
-                {weeklyBrief.errorRetryable ? (
-                  <Button
-                    type="button"
-                    variant="op-secondary"
-                    className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-                    onClick={() => {
-                      void reports.retryWeeklyBrief()
-                    }}
-                  >
-                    {REPORTS_HUB_GUEST_LOOP_COPY.retry}
-                  </Button>
-                ) : null}
-              </div>
-            ) : null}
-
-            {weeklyBrief.status === "ready" ? (
-              <div className="flex flex-col gap-3">
-                <div className={REPORTS_INSIGHT_BANNER_CLASS}>
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <p className={REPORTS_INSIGHT_TITLE_CLASS}>
-                      {weeklyBrief.headline}
-                    </p>
-                    {weeklyBrief.secondary ? (
-                      <p className={REPORTS_INSIGHT_BODY_CLASS}>
-                        {weeklyBrief.secondary}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="op-primary"
-                    className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-                    onClick={() =>
-                      navigate(
-                        operatorDashboardWeeklyBriefPath(mode, locationId)
-                      )
-                    }
-                  >
-                    {REPORTS_HUB_GUEST_LOOP_COPY.viewWeeklyBrief}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="op-tertiary"
-                    className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-                    onClick={() => navTo("campaigns")}
-                  >
-                    {REPORTS_HUB_GUEST_LOOP_COPY.createCampaign}
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-          </ReportsSection>
-
+        {hubLoadStatus === "ready" && hubOverview != null ? (
+          <>
           <ReportsSection
             title="Guest Loop funnel"
             subtitle="See where guests move from scan to feedback, contact and offer use."
@@ -394,8 +409,9 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
               </Button>
             </div>
           </ReportsSection>
-        </div>
-      ) : null}
+          </>
+        ) : null}
+      </div>
     </ReportsPageChrome>
   )
 }

@@ -262,6 +262,28 @@ describe("createOperatorReportsPageModule", () => {
     )
   })
 
+  it("sets brief loading on hub GET before the response", async () => {
+    let releaseGet: () => void = () => {}
+    const getWeeklyBrief = vi.fn(
+      () =>
+        new Promise<WeeklyBriefGetResponse>((resolve) => {
+          releaseGet = () => resolve(notReadyWeeklyBriefResponse(1))
+        })
+    )
+    const adapters = createAdapters({ getWeeklyBrief })
+    const module = createOperatorReportsPageModule(adapters)
+
+    const sync = module.syncWorkspace(workspace())
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().weeklyBrief.status).toBe("loading")
+    })
+    expect(adapters.generateWeeklyBrief).not.toHaveBeenCalled()
+
+    releaseGet()
+    await sync
+    expect(module.getSnapshot().weeklyBrief.status).toBe("empty")
+  })
+
   it("sets brief empty when GET returns not ready", async () => {
     const adapters = createAdapters({
       getWeeklyBrief: async (locationId) =>
