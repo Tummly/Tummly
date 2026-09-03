@@ -8,6 +8,7 @@ import {
   operatorDashboardGuestEditPath,
   operatorDashboardGuestProfilePath,
   operatorDashboardLocationDetailPath,
+  operatorDashboardLocationsAddPath,
   operatorDashboardModeForAccountType,
   operatorDashboardNavPath,
   operatorDashboardCampaignDetailsPath,
@@ -169,6 +170,15 @@ describe("operatorDashboardNavPath", () => {
     )
     expect(operatorDashboardNavPath("multi", "locations", 7)).toBe(
       "/multi-dashboard/settings/locations?location=7"
+    )
+  })
+
+  it("builds Locations Add Location path with add intent", () => {
+    expect(operatorDashboardLocationsAddPath("single", 42)).toBe(
+      "/single-dashboard/settings/locations?location=42&add=1"
+    )
+    expect(operatorDashboardLocationsAddPath("multi", 7)).toBe(
+      "/multi-dashboard/settings/locations?location=7&add=1"
     )
   })
 

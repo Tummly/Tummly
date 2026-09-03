@@ -79,6 +79,18 @@ namespace TummlyBackend.Data
 
         public DbSet<TummlyVatInvoice> TummlyVatInvoices { get; set; }
 
+        public DbSet<ShopCart> ShopCarts { get; set; }
+
+        public DbSet<ShopCartLine> ShopCartLines { get; set; }
+
+        public DbSet<ShopOrder> ShopOrders { get; set; }
+
+        public DbSet<ShopOrderLine> ShopOrderLines { get; set; }
+
+        public DbSet<ShopOrderSequence> ShopOrderSequences { get; set; }
+
+        public DbSet<ShopLocationDetails> ShopLocationDetails { get; set; }
+
         public DbSet<RevolutPendingPaySession> RevolutPendingPaySessions
         {
             get;
@@ -912,6 +924,9 @@ namespace TummlyBackend.Data
                 .Property(row => row.PackLookupKey)
                 .HasMaxLength(128);
 
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .HasIndex(row => row.ShopOrderId);
+
             /*
              =========================================
              TUMMLY VAT INVOICES / DOCUMENT SEQUENCES (ticket 17)
@@ -1002,6 +1017,26 @@ namespace TummlyBackend.Data
                 .Property(row => row.SellerVatRegistrationNumber)
                 .HasMaxLength(64)
                 .IsRequired();
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.CustomerBillingEmail)
+                .HasMaxLength(320);
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.SellerBillingEmail)
+                .HasMaxLength(320);
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.DeliverToSnapshot)
+                .HasMaxLength(2000);
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.PaymentMethodSummary)
+                .HasMaxLength(128);
+
+            modelBuilder.Entity<TummlyVatInvoice>()
+                .Property(row => row.LineItemsJson)
+                .HasColumnType("nvarchar(max)");
 
             /*
              =========================================
@@ -2135,6 +2170,146 @@ namespace TummlyBackend.Data
                     v => WeeklyBriefStatusExtensions.FromWireString(v)
                 )
                 .HasMaxLength(32);
+
+            /*
+             =========================================
+             TUMMLY SHOP CART / ORDER (ticket 14)
+             =========================================
+            */
+
+            modelBuilder.Entity<ShopCart>()
+                .HasOne(row => row.Restaurant)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ShopCart>()
+                .HasOne(row => row.Location)
+                .WithMany()
+                .HasForeignKey(row => row.LocationId)
+                // NoAction: Restaurant→Location Cascade + ShopCart→Restaurant
+                // Cascade would otherwise make a second path (1785).
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<ShopCart>()
+                .HasOne(row => row.User)
+                .WithMany()
+                .HasForeignKey(row => row.UserId)
+                // NoAction: Restaurants→Users Cascade + ShopCart→Restaurant
+                // Cascade would otherwise make a second path (1785).
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<ShopCart>()
+                .HasIndex(row => new
+                {
+                    row.RestaurantId,
+                    row.LocationId,
+                    row.UserId,
+                })
+                .IsUnique();
+
+            modelBuilder.Entity<ShopCartLine>()
+                .HasOne(row => row.ShopCart)
+                .WithMany(row => row.Lines)
+                .HasForeignKey(row => row.ShopCartId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ShopCartLine>()
+                .HasIndex(row => new { row.ShopCartId, row.SkuId })
+                .IsUnique();
+
+            modelBuilder.Entity<ShopCartLine>()
+                .Property(row => row.SkuId)
+                .HasMaxLength(80)
+                .IsRequired();
+
+            modelBuilder.Entity<ShopOrder>()
+                .HasOne(row => row.Restaurant)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ShopOrder>()
+                .HasOne(row => row.Location)
+                .WithMany()
+                .HasForeignKey(row => row.LocationId)
+                // NoAction: Restaurant→Location Cascade + ShopOrder→Restaurant
+                // Cascade would otherwise make a second path (1785).
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<ShopOrder>()
+                .HasOne(row => row.PlacedByUser)
+                .WithMany()
+                .HasForeignKey(row => row.PlacedByUserId)
+                // NoAction: Restaurants→Users Cascade + ShopOrder→Restaurant (1785).
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<ShopOrder>()
+                .HasOne(row => row.CancelledByUser)
+                .WithMany()
+                .HasForeignKey(row => row.CancelledByUserId)
+                // NoAction: Restaurants→Users Cascade + ShopOrder→Restaurant (1785).
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<ShopOrder>()
+                .HasIndex(row => new { row.RestaurantId, row.OrderNumber })
+                .IsUnique();
+
+            modelBuilder.Entity<ShopOrder>()
+                .HasIndex(row => new { row.RestaurantId, row.LocationId, row.CreatedAtUtc });
+
+            modelBuilder.Entity<ShopOrder>()
+                .Property(row => row.OrderNumber)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<ShopOrder>()
+                .Property(row => row.OpsNotes)
+                .HasMaxLength(2000);
+
+            modelBuilder.Entity<ShopOrderLine>()
+                .HasOne(row => row.ShopOrder)
+                .WithMany(row => row.Lines)
+                .HasForeignKey(row => row.ShopOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ShopOrderLine>()
+                .Property(row => row.CatalogSkuId)
+                .HasMaxLength(80)
+                .IsRequired();
+
+            modelBuilder.Entity<ShopOrderSequence>()
+                .HasKey(row => row.RestaurantId);
+
+            modelBuilder.Entity<ShopOrderSequence>()
+                .HasOne(row => row.Restaurant)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ShopLocationDetails>()
+                .HasKey(row => row.LocationId);
+
+            modelBuilder.Entity<ShopLocationDetails>()
+                .HasOne(row => row.Location)
+                .WithOne()
+                .HasForeignKey<ShopLocationDetails>(row => row.LocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ShopLocationDetails>()
+                .Property(row => row.TakeawayVolume)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<ShopLocationDetails>()
+                .Property(row => row.PromptLocations)
+                .HasMaxLength(256)
+                .IsRequired();
+
+            modelBuilder.Entity<ShopLocationDetails>()
+                .Property(row => row.ExistingMaterials)
+                .HasMaxLength(16)
+                .IsRequired();
         }
 
         public override int SaveChanges()

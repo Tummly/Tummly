@@ -109,6 +109,14 @@ namespace TummlyBackend.Services
                 ? FormatLineDescription(request.Plan, request.BillingCycle)
                 : request.LineDescriptionOverride.Trim();
 
+            var lineItems = ResolveLineItems(
+                request.LineItems,
+                lineDescription,
+                quantity: 1,
+                netPence,
+                vatRateBps
+            );
+
             var invoice = new TummlyVatInvoice
             {
                 Id = Guid.NewGuid(),
@@ -141,6 +149,17 @@ namespace TummlyBackend.Services
                     _sellerVat.RegisteredAddress?.Trim() ?? string.Empty,
                 SellerVatRegistrationNumber =
                     _sellerVat.RegistrationNumber?.Trim() ?? string.Empty,
+                CustomerBillingEmail = ResolveOptionalEmail(
+                    request.CustomerBillingEmail,
+                    billingAccount.BillingEmail
+                ),
+                SellerBillingEmail = ResolveOptionalEmail(
+                    request.SellerBillingEmail,
+                    null
+                ),
+                DeliverToSnapshot = TrimOrNull(request.DeliverToSnapshot),
+                PaymentMethodSummary = TrimOrNull(request.PaymentMethodSummary),
+                LineItemsJson = TummlyVatInvoiceLineItems.Serialize(lineItems),
             };
 
             _context.TummlyVatInvoices.Add(invoice);
@@ -253,6 +272,14 @@ namespace TummlyBackend.Services
                 )
                 : request.LineDescriptionOverride.Trim();
 
+            var lineItems = ResolveLineItems(
+                request.LineItems,
+                lineDescription,
+                quantity: 1,
+                netPence,
+                vatRateBps
+            );
+
             var creditNote = new TummlyVatInvoice
             {
                 Id = Guid.NewGuid(),
@@ -282,6 +309,24 @@ namespace TummlyBackend.Services
                     _sellerVat.RegisteredAddress?.Trim() ?? string.Empty,
                 SellerVatRegistrationNumber =
                     _sellerVat.RegistrationNumber?.Trim() ?? string.Empty,
+                CustomerBillingEmail = ResolveOptionalEmail(
+                    request.CustomerBillingEmail,
+                    billingAccount.BillingEmail
+                        ?? originalInvoice?.CustomerBillingEmail
+                ),
+                SellerBillingEmail = ResolveOptionalEmail(
+                    request.SellerBillingEmail,
+                    originalInvoice?.SellerBillingEmail
+                ),
+                DeliverToSnapshot = TrimOrNull(
+                    request.DeliverToSnapshot
+                        ?? originalInvoice?.DeliverToSnapshot
+                ),
+                PaymentMethodSummary = TrimOrNull(
+                    request.PaymentMethodSummary
+                        ?? originalInvoice?.PaymentMethodSummary
+                ),
+                LineItemsJson = TummlyVatInvoiceLineItems.Serialize(lineItems),
             };
 
             _context.TummlyVatInvoices.Add(creditNote);
@@ -502,6 +547,50 @@ namespace TummlyBackend.Services
                 DateTimeKind.Local => value.ToUniversalTime(),
                 _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
             };
+        }
+
+        private static IReadOnlyList<TummlyVatInvoiceLineItemDto> ResolveLineItems(
+            IReadOnlyList<TummlyVatInvoiceLineItemDto>? requested,
+            string fallbackTitle,
+            int quantity,
+            int netPence,
+            int vatRateBps
+        )
+        {
+            if (requested is { Count: > 0 })
+            {
+                return requested;
+            }
+
+            return
+            [
+                new TummlyVatInvoiceLineItemDto(
+                    Title: fallbackTitle,
+                    Subtitle: null,
+                    Quantity: quantity,
+                    UnitNetPence: netPence,
+                    VatRateBps: vatRateBps,
+                    AmountNetPence: netPence
+                ),
+            ];
+        }
+
+        private static string? ResolveOptionalEmail(
+            string? preferred,
+            string? fallback
+        )
+        {
+            return TrimOrNull(preferred) ?? TrimOrNull(fallback);
+        }
+
+        private static string? TrimOrNull(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            return value.Trim();
         }
     }
 }

@@ -7,6 +7,40 @@ import type {
   ExtendActivationPayload,
 } from "../types/admin";
 
+export type AdminPaymentRefundRequest = {
+  restaurantId: number
+  /** Original Revolut payment order UUID. */
+  orderId: string
+  /** Omit for full refund. Amount in minor units (pence). */
+  amountMinor?: number
+}
+
+export type AdminPaymentRefundResponse = {
+  success: boolean
+  refundOrderId?: string | null
+  code?: string | null
+}
+
+export async function postAdminPaymentRefund(
+  request: AdminPaymentRefundRequest,
+  idempotencyKey: string
+): Promise<AdminPaymentRefundResponse> {
+  const response = await axiosInstance.post<AdminPaymentRefundResponse>(
+    "/admin/payment-refunds",
+    {
+      restaurantId: request.restaurantId,
+      orderId: request.orderId,
+      amountMinor: request.amountMinor,
+    },
+    {
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    }
+  )
+  return response.data
+}
+
 function normalizeOperatorLocations(
   value: unknown
 ): AdminOperatorLocation[] {

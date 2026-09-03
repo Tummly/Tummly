@@ -87,6 +87,80 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task RefundCompleted_MarksPaidShopOrderRefunded()
+        {
+            await using var context = CreateContext();
+            var seeded = await SeedRestaurantWithTopupAsync(context);
+            var now = DateTime.UtcNow;
+            var ownerId = await context.Restaurants
+                .Where(row => row.Id == seeded.RestaurantId)
+                .Select(row => row.OwnerUserId)
+                .SingleAsync();
+            var location = new RestaurantLocation
+            {
+                RestaurantId = seeded.RestaurantId,
+                LocationName = "Shop Location",
+                Address = "1 High Street",
+                City = "London",
+                Postcode = "SE1 1TQ",
+                CreatedAt = now,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            var shopOrder = new ShopOrder
+            {
+                Id = Guid.NewGuid(),
+                OrderNumber = "ORD-1",
+                RestaurantId = seeded.RestaurantId,
+                LocationId = location.Id,
+                LocationNameSnapshot = location.LocationName,
+                PlacedByUserId = ownerId,
+                PlacedByNameSnapshot = "Owner",
+                PaymentStatus = ShopPaymentStatuses.Paid,
+                FulfilmentStatus = ShopFulfilmentStatuses.Processing,
+                RevolutOrderId = seeded.PaymentOrderId,
+                MaterialsNetPence = 2400,
+                VatPence = 480,
+                DeliveryNetPence = 0,
+                GrossPence = 2880,
+                DeliveryMethod = ShopDeliveryMethods.Standard,
+                ShipToContactName = "Owner",
+                ShipToAddressLine1 = "1 High Street",
+                ShipToPostcode = "SE1 1TQ",
+                ShipToCountry = "United Kingdom",
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now,
+                PaidAtUtc = now,
+                ProcessingStartedAtUtc = now,
+            };
+            context.ShopOrders.Add(shopOrder);
+            await context.SaveChangesAsync();
+
+            var refundHandler = new RevolutPaymentRefundCompletedHandler(
+                context,
+                new RecordingLedger(),
+                new RecordingVatInvoiceService(),
+                TimeProvider.System
+            );
+
+            await refundHandler.HandleAsync(
+                new RevolutPaymentRefundCompletedRequest(
+                    RefundOrderId: "ord_shop_refund_1",
+                    RelatedOrderId: seeded.PaymentOrderId,
+                    OrderType: RevolutOrderTypes.Refund,
+                    AmountMinor: 2880,
+                    RawOrderBody: "{}"
+                )
+            );
+
+            var updated = await context.ShopOrders
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == shopOrder.Id);
+            Assert.Equal(ShopPaymentStatuses.Refunded, updated.PaymentStatus);
+        }
+
+        [Fact]
         public async Task RefundCompleted_DoesNotSetChargebackRestriction()
         {
             await using var context = CreateContext();

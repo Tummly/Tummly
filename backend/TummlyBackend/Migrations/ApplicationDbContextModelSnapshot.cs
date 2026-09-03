@@ -3194,6 +3194,9 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<Guid?>("ShopOrderId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("TargetCadence")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -3214,6 +3217,8 @@ namespace TummlyBackend.Migrations
 
                     b.HasIndex("OrderId")
                         .IsUnique();
+
+                    b.HasIndex("ShopOrderId");
 
                     b.HasIndex("RestaurantId", "IdempotencyKey");
 
@@ -3306,6 +3311,303 @@ namespace TummlyBackend.Migrations
                         .IsUnique();
 
                     b.ToTable("RevolutWebhookEventClaims");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopCart", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("RestaurantId", "LocationId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("ShopCarts");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopCartLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ShopCartId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SkuId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopCartId", "SkuId")
+                        .IsUnique();
+
+                    b.ToTable("ShopCartLines");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopLocationDetails", b =>
+                {
+                    b.Property<int>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CounterCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EntranceCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExistingMaterials")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("PromptLocations")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<int>("SecondaryEntranceCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TableCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TakeawayVolume")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("LocationId");
+
+                    b.ToTable("ShopLocationDetails");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("CancelledAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CancelledByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeliveredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeliveryInstructions")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("DeliveryMethod")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int>("DeliveryNetPence")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DispatchedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FulfilmentStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("GrossPence")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("LocationNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("MaterialsNetPence")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OpsNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("OrderNumber")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime?>("PaidAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PaymentStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("PlacedByNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("PlacedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ProcessingStartedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RevolutOrderId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ShipToAddressLine1")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ShipToAddressLine2")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ShipToContactName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ShipToContactPhone")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ShipToCountry")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ShipToPostcode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("TrackingUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("VatPence")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CancelledByUserId");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("PlacedByUserId");
+
+                    b.HasIndex("RestaurantId", "OrderNumber")
+                        .IsUnique();
+
+                    b.HasIndex("RestaurantId", "LocationId", "CreatedAtUtc");
+
+                    b.ToTable("ShopOrders");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopOrderLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CatalogSkuId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<int>("LineNetPence")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MaterialType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ShopOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TitleSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("UnitNetPence")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShopOrderId");
+
+                    b.ToTable("ShopOrderLines");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopOrderSequence", b =>
+                {
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("NextNumber")
+                        .HasColumnType("int");
+
+                    b.HasKey("RestaurantId");
+
+                    b.ToTable("ShopOrderSequences");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.TeamInvitation", b =>
@@ -3581,10 +3883,18 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<string>("CustomerBillingEmail")
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
                     b.Property<string>("CustomerBusinessName")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("DeliverToSnapshot")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<string>("DocumentNumber")
                         .IsRequired()
@@ -3607,8 +3917,15 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<string>("LineItemsJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("NetPence")
                         .HasColumnType("int");
+
+                    b.Property<string>("PaymentMethodSummary")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<string>("PaymentStatus")
                         .IsRequired()
@@ -3633,6 +3950,10 @@ namespace TummlyBackend.Migrations
                     b.Property<string>("RevolutSubscriptionId")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("SellerBillingEmail")
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
 
                     b.Property<string>("SellerLegalName")
                         .IsRequired()
@@ -4798,6 +5119,111 @@ namespace TummlyBackend.Migrations
                     b.Navigation("BillingAccount");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.ShopCart", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Location");
+
+                    b.Navigation("Restaurant");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopCartLine", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.ShopCart", "ShopCart")
+                        .WithMany("Lines")
+                        .HasForeignKey("ShopCartId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ShopCart");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopLocationDetails", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "Location")
+                        .WithOne()
+                        .HasForeignKey("TummlyBackend.Models.ShopLocationDetails", "LocationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Location");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopOrder", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.User", "CancelledByUser")
+                        .WithMany()
+                        .HasForeignKey("CancelledByUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.User", "PlacedByUser")
+                        .WithMany()
+                        .HasForeignKey("PlacedByUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CancelledByUser");
+
+                    b.Navigation("Location");
+
+                    b.Navigation("PlacedByUser");
+
+                    b.Navigation("Restaurant");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopOrderLine", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.ShopOrder", "ShopOrder")
+                        .WithMany("Lines")
+                        .HasForeignKey("ShopOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ShopOrder");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopOrderSequence", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Restaurant");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.TeamInvitation", b =>
                 {
                     b.HasOne("TummlyBackend.Models.User", "InviterUser")
@@ -4900,6 +5326,16 @@ namespace TummlyBackend.Migrations
                     b.Navigation("GuestLoopSetup");
 
                     b.Navigation("Locations");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopCart", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.ShopOrder", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.User", b =>

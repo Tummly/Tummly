@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -407,6 +408,7 @@ namespace TummlyBackend.Services
             string? orderType = null;
             string? relatedOrderId = null;
             int? amountMinor = null;
+            string? paymentMethodSummary = null;
             if (!string.IsNullOrWhiteSpace(raw))
             {
                 using var doc = JsonDocument.Parse(raw);
@@ -503,6 +505,8 @@ namespace TummlyBackend.Services
                 {
                     subscriptionId = channelSubId.GetString();
                 }
+
+                paymentMethodSummary = TryReadPaymentMethodSummary(root);
             }
 
             return new RevolutOrderRetrieveResult(
@@ -515,7 +519,8 @@ namespace TummlyBackend.Services
                 CheckoutUrl: checkoutUrl,
                 OrderType: orderType,
                 RelatedOrderId: relatedOrderId,
-                AmountMinor: amountMinor
+                AmountMinor: amountMinor,
+                PaymentMethodSummary: paymentMethodSummary
             );
         }
 
@@ -1107,6 +1112,58 @@ namespace TummlyBackend.Services
             )
             {
                 return nested;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Builds "Paid via Visa ending in 4242" when Merchant order payments
+        /// expose card brand + last four. Returns null when unknown.
+        /// </summary>
+        private static string? TryReadPaymentMethodSummary(JsonElement root)
+        {
+            if (
+                !root.TryGetProperty("payments", out var payments)
+                || payments.ValueKind != JsonValueKind.Array
+            )
+            {
+                return null;
+            }
+
+            foreach (var payment in payments.EnumerateArray())
+            {
+                if (
+                    !payment.TryGetProperty(
+                        "payment_method",
+                        out var method
+                    )
+                    || method.ValueKind != JsonValueKind.Object
+                )
+                {
+                    continue;
+                }
+
+                var brand =
+                    ReadStringProp(method, "card_brand")
+                    ?? ReadStringProp(method, "brand");
+                var lastFour =
+                    ReadStringProp(method, "card_last_four")
+                    ?? ReadStringProp(method, "last_four")
+                    ?? ReadStringProp(method, "card_last4");
+
+                if (
+                    string.IsNullOrWhiteSpace(brand)
+                    || string.IsNullOrWhiteSpace(lastFour)
+                )
+                {
+                    continue;
+                }
+
+                var brandLabel = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(
+                    brand.Trim().ToLowerInvariant()
+                );
+                return $"Paid via {brandLabel} ending in {lastFour.Trim()}";
             }
 
             return null;

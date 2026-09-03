@@ -18,6 +18,8 @@ export type OperatorWorkspaceSnapshot = {
   billingCreditsAccess: BillingCreditsAccess
   subscriptionPlan: string
   billingStatus: string
+  /** Omit / false = not restricted (chrome stays available). */
+  chargebackRestricted: boolean
   permissionRole: string
   aiAssistantAccess: boolean
   locationSwitcherInteractive: boolean
@@ -62,6 +64,7 @@ type WorkspaceAction =
       billingCreditsAccess: BillingCreditsAccess
       subscriptionPlan: string
       billingStatus: string
+      chargebackRestricted: boolean
       permissionRole: string
       aiAssistantAccess: boolean
       queryLocationId: number | null
@@ -107,6 +110,7 @@ function reduce(
         billingCreditsAccess: action.billingCreditsAccess,
         subscriptionPlan: action.subscriptionPlan,
         billingStatus: action.billingStatus,
+        chargebackRestricted: action.chargebackRestricted,
         permissionRole: action.permissionRole,
         aiAssistantAccess: action.aiAssistantAccess,
         lastQueryLocationId: action.queryLocationId,
@@ -146,6 +150,7 @@ export function createOperatorWorkspaceSession(
     billingCreditsAccess: "none",
     subscriptionPlan: "Pilot",
     billingStatus: "Pilot",
+    chargebackRestricted: false,
     permissionRole: "",
     aiAssistantAccess: true,
     locationSwitcherInteractive: config.mode === "multi",
@@ -166,6 +171,7 @@ export function createOperatorWorkspaceSession(
     billingCreditsAccess: state.billingCreditsAccess,
     subscriptionPlan: state.subscriptionPlan,
     billingStatus: state.billingStatus,
+    chargebackRestricted: state.chargebackRestricted,
     permissionRole: state.permissionRole,
     aiAssistantAccess: state.aiAssistantAccess,
     locationSwitcherInteractive: state.locationSwitcherInteractive,
@@ -194,6 +200,7 @@ export function createOperatorWorkspaceSession(
       billingCreditsAccess: state.billingCreditsAccess,
       subscriptionPlan: state.subscriptionPlan,
       billingStatus: state.billingStatus,
+      chargebackRestricted: state.chargebackRestricted,
       permissionRole: state.permissionRole,
       aiAssistantAccess: state.aiAssistantAccess,
       locationSwitcherInteractive: state.locationSwitcherInteractive,
@@ -257,6 +264,7 @@ export function createOperatorWorkspaceSession(
           ?? "manage",
         subscriptionPlan: locationsResult.subscriptionPlan ?? "Pilot",
         billingStatus: locationsResult.billingStatus ?? "Pilot",
+        chargebackRestricted: locationsResult.chargebackRestricted === true,
         permissionRole: locationsResult.permissionRole?.trim() ?? "",
         aiAssistantAccess: locationsResult.aiAssistantAccess !== false,
         queryLocationId,

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Billing;
 using TummlyBackend.Billing.Pricebook;
+using TummlyBackend.Shop.MaterialsCatalog;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -517,6 +518,17 @@ builder.Services.AddScoped<IPlanEntitlementsSnapshot, PlanEntitlementsSnapshotSe
 builder.Services.AddSingleton<IPricebookCatalog>(sp =>
     PricebookCatalog.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
 );
+builder.Services.AddSingleton<IMaterialsCatalog>(sp =>
+    MaterialsCatalog.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
+);
+builder.Services.AddScoped<IShopCartService, ShopCartService>();
+builder.Services.AddScoped<IShopLocationRecommendationsService, ShopLocationRecommendationsService>();
+builder.Services.AddScoped<IShopOrderNumberAllocator, ShopOrderNumberAllocator>();
+builder.Services.AddScoped<IShopOrderPlaceService, ShopOrderPlaceService>();
+builder.Services.AddScoped<IShopMaterialsOrderPaySession, ShopMaterialsOrderPaySessionService>();
+builder.Services.AddScoped<IShopOrdersListService, ShopOrdersListService>();
+builder.Services.AddScoped<IShopOrderCancelReorderService, ShopOrderCancelReorderService>();
+builder.Services.AddScoped<IAdminShopOrderFulfilmentService, AdminShopOrderFulfilmentService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ICreditLedger, CreditLedgerService>();
 builder.Services.AddScoped<ICreditThresholdEvaluator, CreditThresholdEvaluator>();

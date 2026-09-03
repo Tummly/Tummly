@@ -1,4 +1,5 @@
 import type {
+  OperatorSidebarFooterNavId,
   OperatorSidebarPrimaryNavId,
   OperatorSidebarSettingsChildId,
 } from "@/lib/operatorHome/sidebarNav"
@@ -36,9 +37,15 @@ export type NavigableOperatorSidebarSettingsChildId = Extract<
   | "privacy-consent"
 >
 
+export type NavigableOperatorSidebarFooterNavId = Extract<
+  OperatorSidebarFooterNavId,
+  "tummly-shop"
+>
+
 export type NavigableOperatorSidebarNavId =
   | NavigableOperatorSidebarPrimaryNavId
   | NavigableOperatorSidebarSettingsChildId
+  | NavigableOperatorSidebarFooterNavId
 
 export function operatorDashboardRootPath(
   mode: OperatorDashboardMode
@@ -108,8 +115,21 @@ export function operatorDashboardNavPath(
               ? `${root}/settings/billing-credits`
               : navId === "privacy-consent"
                 ? `${root}/settings/privacy-consent`
-                : `${root}/${navId}`
+                : navId === "tummly-shop"
+                  ? `${root}/shop`
+                  : `${root}/${navId}`
   return `${path}?location=${locationId}`
+}
+
+/**
+ * Settings → Locations with Add Location dialog intent (`add=1`).
+ * LocationsPage opens the create dialog when this query is present.
+ */
+export function operatorDashboardLocationsAddPath(
+  mode: OperatorDashboardMode,
+  locationId: number
+): string {
+  return `${operatorDashboardNavPath(mode, "locations", locationId)}&add=1`
 }
 
 /** Settings location detail — path segment + `?location=` shell sync. */
@@ -308,6 +328,9 @@ export function resolveOperatorSidebarActiveId(
   }
   if (segments.includes("offers")) {
     return "offers"
+  }
+  if (segments.includes("shop")) {
+    return "tummly-shop"
   }
 
   return "home"

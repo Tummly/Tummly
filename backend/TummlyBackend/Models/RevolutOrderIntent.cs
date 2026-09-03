@@ -66,6 +66,9 @@ namespace TummlyBackend.Models
         [MaxLength(128)]
         public string? PackLookupKey { get; set; }
 
+        /// <summary>Shop materials order FK for <c>shop_materials_order</c> intents.</summary>
+        public Guid? ShopOrderId { get; set; }
+
         public DateTime CreatedAtUtc { get; set; }
     }
 
@@ -76,5 +79,7 @@ namespace TummlyBackend.Models
         public const string ExtraLocation = "extra_location";
 
         public const string Topup = "topup";
+
+        public const string ShopMaterialsOrder = "shop_materials_order";
     }
 }

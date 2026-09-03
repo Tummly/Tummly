@@ -1,18 +1,21 @@
 import { useState, type ReactNode } from "react"
 import { Link, useLocation } from "react-router-dom"
+import { MenuIcon } from "lucide-react"
 
+import logoMark from "@/assets/svg/logo-mark.svg"
+import logo from "@/assets/svg/logo.svg"
 import { AiAssistantDrawer } from "@/components/dashboard/operator/AiAssistantDrawer"
 import { DashboardNavbar } from "@/components/dashboard/operator/DashboardNavbar"
 import { DashboardSidebar } from "@/components/dashboard/operator/DashboardSidebar"
 import { MobileNavSheetHeader } from "@/components/dashboard/operator/MobileNavSheetHeader"
 import { NotificationsDrawer } from "@/components/dashboard/operator/NotificationsDrawer"
+import { Button } from "@/components/ui/button"
 import {
   Alert,
   AlertAction,
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
 import {
   Sheet,
   SheetContent,
@@ -33,7 +36,9 @@ import {
   OPERATOR_MOBILE_NAV_SHEET_CLASS,
   OPERATOR_SHELL_GUTTER_X,
   OPERATOR_SHELL_GUTTER_Y,
+  OPERATOR_SHELL_TOUCH_TARGET_CLASS,
 } from "@/lib/operatorHome/shellResponsivePresentation"
+import { SHOP_PAGE_BACKGROUND_CLASS } from "@/lib/operatorShop/shopSurfacePresentation"
 import {
   readSidebarCollapsed,
   writeSidebarCollapsed,
@@ -54,6 +59,7 @@ type DashboardShellProps = {
   presentation: OperatorShellPresentation
   onSelectLocation: (locationId: number) => void
   onSignOut: () => void
+  hideNavbar?: boolean
   notifications?: {
     snapshot: OperatorNotificationsSnapshot
     onOpen: () => void
@@ -133,6 +139,14 @@ export function DashboardShell({
   children,
 }: DashboardShellProps) {
   const location = useLocation()
+  const { pathname } = location
+  const isShopPage =
+    pathname.endsWith("/shop") ||
+    pathname.includes("/shop/") ||
+    pathname.includes("/shop?") ||
+    presentation.sidebarNav.footer.some(
+      (item) => item.id === "tummly-shop" && item.active
+    )
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed)
   const [settingsExpanded, setSettingsExpanded] = useState(
@@ -181,30 +195,66 @@ export function DashboardShell({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-op-header-background">
-      <DashboardNavbar
-        locationSwitcher={presentation.locationSwitcher}
-        profileDisplayName={presentation.profileDisplayName}
-        profileInitials={presentation.profileInitials}
-        profileSelfRoleSubtitle={presentation.profileSelfRoleSubtitle}
-        compactLogo={effectiveSidebarCollapsed}
-        notificationsUnreadCount={notifications?.snapshot.unreadCount}
-        onOpenNotifications={notifications?.onOpen}
-        onOpenNotificationPreferences={
-          notifications
-            ? () => {
+      {!isShopPage && (
+        <DashboardNavbar
+          locationSwitcher={presentation.locationSwitcher}
+          profileDisplayName={presentation.profileDisplayName}
+          profileInitials={presentation.profileInitials}
+          profileSelfRoleSubtitle={presentation.profileSelfRoleSubtitle}
+          compactLogo={effectiveSidebarCollapsed}
+          notificationsUnreadCount={notifications?.snapshot.unreadCount}
+          onOpenNotifications={notifications?.onOpen}
+          onOpenNotificationPreferences={
+            notifications
+              ? () => {
                 notifications.onOpen()
                 notifications.onOpenSettings()
               }
-            : undefined
-        }
-        onOpenAiAssistant={
-          aiAssistant ? handleOpenAiAssistant : undefined
-        }
-        onRouteDestination={aiAssistant?.onRouteDestination}
-        onSelectLocation={handleSelectLocation}
-        onSignOut={onSignOut}
-        onOpenSidebar={() => setMobileNavOpen(true)}
-      />
+              : undefined
+          }
+          onOpenAiAssistant={
+            aiAssistant ? handleOpenAiAssistant : undefined
+          }
+          onRouteDestination={aiAssistant?.onRouteDestination}
+          onSelectLocation={handleSelectLocation}
+          onSignOut={onSignOut}
+          onOpenSidebar={() => setMobileNavOpen(true)}
+        />
+      )}
+
+      {isShopPage && (
+        <div className="flex h-[52px] w-full shrink-0 items-center justify-between border-b border-op-border-default px-3 lg:hidden">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className={cn(
+                "shrink-0 text-op-text-primary",
+                OPERATOR_SHELL_TOUCH_TARGET_CLASS
+              )}
+              aria-label="Open navigation"
+              onClick={() => setMobileNavOpen(true)}
+            >
+              <MenuIcon />
+            </Button>
+            <Link
+              to="."
+              aria-label="tummly"
+              className="shrink-0 rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              onClick={aiAssistant?.onRouteDestination}
+            >
+              <img
+                src={logo}
+                alt=""
+                width={124}
+                height={30}
+                className="h-6 w-auto max-w-[7.75rem] object-contain brightness-0 dark:brightness-100"
+              />
+            </Link>
+          </div>
+        </div>
+      )}
 
       {notifications ? (
         <NotificationsDrawer
@@ -274,6 +324,48 @@ export function DashboardShell({
               : SIDEBAR_EXPANDED_WIDTH
           )}
         >
+          {isShopPage && (
+            <div
+              className={cn(
+                "flex h-[60px] shrink-0 items-center",
+                effectiveSidebarCollapsed
+                  ? "justify-center"
+                  : "pl-[17px]"
+              )}
+            >
+              <Link
+                to="."
+                aria-label="tummly"
+                className="shrink-0 rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                onClick={aiAssistant?.onRouteDestination}
+              >
+                <img
+                  src={logoMark}
+                  alt=""
+                  width={21}
+                  height={31}
+                  className={cn(
+                    "h-[31px] w-[21px] object-contain brightness-0 dark:brightness-100",
+                    effectiveSidebarCollapsed
+                      ? "block"
+                      : "hidden"
+                  )}
+                />
+                <img
+                  src={logo}
+                  alt=""
+                  width={124}
+                  height={30}
+                  className={cn(
+                    "h-6 w-auto max-w-[7.75rem] object-contain brightness-0 sm:h-7 dark:brightness-100",
+                    effectiveSidebarCollapsed
+                      ? "hidden"
+                      : "block"
+                  )}
+                />
+              </Link>
+            </div>
+          )}
           <DashboardSidebar
             sidebarNav={presentation.sidebarNav}
             collapsed={effectiveSidebarCollapsed}
@@ -327,8 +419,12 @@ export function DashboardShell({
         <main
           className={cn(
             "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
-            "rounded-tl-[var(--operator-shell-main-radius)]",
-            "bg-op-app-background-default"
+            isShopPage
+              ? cn("rounded-tl-none", SHOP_PAGE_BACKGROUND_CLASS)
+              : cn(
+                  "rounded-tl-[var(--operator-shell-main-radius)]",
+                  "bg-op-app-background-default"
+                )
           )}
         >
           {/*
@@ -341,7 +437,9 @@ export function DashboardShell({
             <div
               className={cn(
                 OPERATOR_SHELL_GUTTER_X,
-                OPERATOR_SHELL_GUTTER_Y,
+                isShopPage
+                  ? "pt-4 pb-10 md:pt-5 lg:pt-5 lg:pb-[70px]"
+                  : OPERATOR_SHELL_GUTTER_Y,
                 "box-border flex min-h-full flex-col gap-4"
               )}
             >

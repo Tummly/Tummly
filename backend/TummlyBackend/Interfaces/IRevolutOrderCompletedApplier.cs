@@ -21,6 +21,7 @@ namespace TummlyBackend.Interfaces
         string? BillingReason,
         string? SubscriptionId,
         string RawWebhookBody,
-        string RawOrderBody
+        string RawOrderBody,
+        string? PaymentMethodSummary = null
     );
 }

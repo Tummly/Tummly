@@ -19,6 +19,11 @@ namespace TummlyBackend.Models
         SmartGuest = 4,
 
         DigitalGuestLink = 5,
+
+        /// <summary>
+        /// Receipt sticker placement minted on Shop fulfilment (ticket 20).
+        /// </summary>
+        ReceiptSticker = 6,
     }
 }
 

@@ -80,5 +80,30 @@ namespace TummlyBackend.Models
 
         [MaxLength(64)]
         public string SellerVatRegistrationNumber { get; set; } = string.Empty;
+
+        [MaxLength(320)]
+        public string? CustomerBillingEmail { get; set; }
+
+        [MaxLength(320)]
+        public string? SellerBillingEmail { get; set; }
+
+        /// <summary>
+        /// Newline-separated Deliver-to party lines (Shop ship-to snapshot).
+        /// Null on billing-only invoices.
+        /// </summary>
+        [MaxLength(2000)]
+        public string? DeliverToSnapshot { get; set; }
+
+        /// <summary>
+        /// e.g. <c>Paid via Visa ending in 4242</c>. Null when unknown.
+        /// </summary>
+        [MaxLength(128)]
+        public string? PaymentMethodSummary { get; set; }
+
+        /// <summary>
+        /// JSON array of <see cref="Helpers.TummlyVatInvoiceLineItemDto"/>.
+        /// Null falls back to single <see cref="LineDescription"/> row.
+        /// </summary>
+        public string? LineItemsJson { get; set; }
     }
 }

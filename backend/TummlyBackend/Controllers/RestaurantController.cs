@@ -140,12 +140,32 @@ namespace TummlyBackend.Controllers
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row => row.Id == restaurant.OwnerUserId);
 
-            var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
-                restaurant.Name,
-                owner?.ActivationExpiresAt
-            );
-            var subscriptionPlan = lifecycle.SubscriptionPlan;
-            var billingStatus = lifecycle.BillingStatus;
+            // Prefer live BillingAccount when present. ResolveLifecycle is a
+            // name/activation stub used only when no billing row exists yet.
+            // chargebackRestricted: omit / false must not disable purchase CTAs
+            // (CODING_STANDARDS Operator chrome access — only explicit true denies).
+            var billingAccount = await _context.BillingAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(row => row.RestaurantId == restaurant.Id);
+
+            string subscriptionPlan;
+            string billingStatus;
+            var chargebackRestricted = false;
+            if (billingAccount != null)
+            {
+                subscriptionPlan = billingAccount.SubscriptionPlan;
+                billingStatus = billingAccount.BillingStatus;
+                chargebackRestricted = billingAccount.ChargebackRestricted;
+            }
+            else
+            {
+                var lifecycle = BillingPlanSnapshotHelper.ResolveLifecycle(
+                    restaurant.Name,
+                    owner?.ActivationExpiresAt
+                );
+                subscriptionPlan = lifecycle.SubscriptionPlan;
+                billingStatus = lifecycle.BillingStatus;
+            }
 
             return Ok(new
             {
@@ -154,6 +174,7 @@ namespace TummlyBackend.Controllers
                 brandLogoPublicUrl,
                 subscriptionPlan,
                 billingStatus,
+                chargebackRestricted,
                 permissionRole,
                 aiAssistantAccess =
                     assistant.Status == RestaurantPermissionStatus.Allowed,

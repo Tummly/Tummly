@@ -56,6 +56,7 @@
   --color-op-background-secondary: var(--op-background-secondary);
   --color-op-surface-primary: var(--op-surface-primary);
   --color-op-surface-secondary: var(--op-surface-secondary);
+  --color-op-shop-banner-wash: var(--op-shop-banner-wash);
   --color-op-shell-chrome: var(--op-shell-chrome);
   --color-op-border-default: var(--op-border-default);
   --color-op-divider: var(--op-divider);
@@ -341,6 +342,8 @@ html.op {
   /* Figma Operator right-Drawer Close fill (light) */
   --op-color-gray-70: #f1f1f1;
   --op-color-gray-85: #e8e8e8;
+  /* Shop banner wash (Figma materials hero) */
+  --op-shop-banner-wash: #ece6de;
   --op-color-gray-100: #edefee;
   --op-color-gray-150: #ebebeb;
   --op-color-gray-200: #e5e5e5;
@@ -593,6 +596,7 @@ html.op.dark {
   --op-needs-attention-row-background: var(--op-color-gray-993);
   --op-surface-primary: var(--op-color-gray-1000);
   --op-surface-secondary: var(--op-color-black);
+  --op-shop-banner-wash: #ece6de;
   /* Header + SideNav chrome — was #141414 before token migration. */
   --op-shell-chrome: var(--op-color-black);
   --op-border-default: var(--op-color-gray-980);

@@ -925,8 +925,20 @@ The Restaurant append-only log of successful **Team invitation**, **Restaurant m
 _Avoid_: audit log (as the glossary noun; Figma button copy only); security log; session history
 
 **Tummly Shop**:
-Operator surface for purchasing physical QR stickers and related materials. SideNav footer chrome exists today; full shop/fulfillment is not part of every product slice. Physical **QR code** stickers are obtained here — operators do not download QR PNGs from the dashboard.
+Operator surface for purchasing physical QR stickers and related materials (paid reorders). Physical **QR code** stickers are obtained here — operators do not download QR PNGs from the dashboard (ADR 0020). Catalog is server seed in v1; pay is Revolut HPP. Distinct from lifetime **Starter kit** and per-location **Starter QR materials**. Product lock: `.scratch/tummly-shop-backend/PRD.md`.
 _Avoid_: Store, marketplace (when meaning the SideNav footer item)
+
+**Shop order**:
+A paid **Restaurant** purchase of physical QR materials through **Tummly Shop**. Belongs to one Restaurant, ships to one **Owned location**, and records the placing User. Public number `ORD-{n}` (per Restaurant). Payment status and fulfilment status are separate axes. Distinct from Subscription plan changes, credit top-ups, **Starter kit**, and **Activation fulfillment**. Product lock: `.scratch/tummly-shop-backend/issues/01-shop-order-domain-model-and-lifecycle.md`.
+_Avoid_: TM invoice number (as the operator order id); materials order (as a second glossary noun)
+
+**Shop order line**:
+One catalog SKU row on a **Shop order** with quantity and unit price captured at order time.
+_Avoid_: cart line (when meaning a placed order line)
+
+**Shop cart**:
+Server-persisted staging of catalog skuId + quantity for one operator User at one **Owned location** until cart-path checkout places a **Shop order** and clears those lines. Order Now express does not use the cart.
+_Avoid_: draft order (v1 has no server checkout drafts)
 
 **Brand logo**:
 The operator-uploaded mark for the Restaurant, managed on **Account & workspace** (blob-backed). One Restaurant mark is shown on the Owned-location switcher, the **Private feedback form** header, and guest email chrome for every location under that restaurant. Until that upload exists, those surfaces use one shared placeholder — not per-location art, not scraped favicons.

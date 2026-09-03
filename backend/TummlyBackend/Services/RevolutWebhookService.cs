@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.BillingCredits;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -162,12 +163,112 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (
+                OrderEvents.Contains(envelope.Event)
+                && !string.Equals(
+                    envelope.Event,
+                    "ORDER_COMPLETED",
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return await HandleShopOrderTerminalEventAsync(
+                    envelope.Event,
+                    objectId,
+                    cancellationToken
+                );
+            }
+
             return await ClaimRecordOnlyAsync(
                 envelope.Event,
                 objectId,
                 RevolutWebhookClaimDispositions.Recorded,
                 cancellationToken
             );
+        }
+
+        private async Task<RevolutWebhookHandleResult> HandleShopOrderTerminalEventAsync(
+            string eventName,
+            string orderId,
+            CancellationToken cancellationToken
+        )
+        {
+            var shopIntentExists = await _context.RevolutOrderIntents
+                .AsNoTracking()
+                .AnyAsync(
+                    row =>
+                        row.OrderId == orderId
+                        && row.Purpose
+                            == RevolutOrderIntentPurposes.ShopMaterialsOrder,
+                    cancellationToken
+                );
+            if (!shopIntentExists)
+            {
+                return await ClaimRecordOnlyAsync(
+                    eventName,
+                    orderId,
+                    RevolutWebhookClaimDispositions.Recorded,
+                    cancellationToken
+                );
+            }
+
+            var existing = await FindClaimAsync(
+                eventName,
+                orderId,
+                cancellationToken
+            );
+            if (existing != null)
+            {
+                return new RevolutWebhookHandleResult(
+                    RevolutWebhookHandleStatus.Replay
+                );
+            }
+
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                var again = await FindClaimAsync(
+                    eventName,
+                    orderId,
+                    cancellationToken
+                );
+                if (again != null)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    return new RevolutWebhookHandleResult(
+                        RevolutWebhookHandleStatus.Replay
+                    );
+                }
+
+                _context.RevolutWebhookEventClaims.Add(
+                    new RevolutWebhookEventClaim
+                    {
+                        Id = Guid.NewGuid(),
+                        Event = eventName,
+                        ObjectId = orderId,
+                        Disposition = RevolutWebhookClaimDispositions.Applied,
+                        CreatedAtUtc = DateTime.UtcNow,
+                    }
+                );
+                await _context.SaveChangesAsync(cancellationToken);
+
+                await ShopMaterialsOrderPaymentFailure.TryMarkFailedAsync(
+                    _context,
+                    orderId,
+                    cancellationToken
+                );
+
+                await transaction.CommitAsync(cancellationToken);
+                return new RevolutWebhookHandleResult(
+                    RevolutWebhookHandleStatus.Accepted
+                );
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
         }
 
         private async Task<RevolutWebhookHandleResult> HandleDisputeAsync(
@@ -693,6 +794,11 @@ namespace TummlyBackend.Services
                         RevolutOrderIntentPurposes.Topup,
                         StringComparison.Ordinal
                     )
+                    || string.Equals(
+                        intent.Purpose,
+                        RevolutOrderIntentPurposes.ShopMaterialsOrder,
+                        StringComparison.Ordinal
+                    )
                 );
 
             var reason = retrieved.BillingReason?.Trim() ?? string.Empty;
@@ -776,7 +882,8 @@ namespace TummlyBackend.Services
                             SubscriptionId: retrieved.SubscriptionId
                                 ?? intent?.RevolutSubscriptionId,
                             RawWebhookBody: rawBody,
-                            RawOrderBody: retrieved.RawBody ?? string.Empty
+                            RawOrderBody: retrieved.RawBody ?? string.Empty,
+                            PaymentMethodSummary: retrieved.PaymentMethodSummary
                         ),
                         cancellationToken
                     );

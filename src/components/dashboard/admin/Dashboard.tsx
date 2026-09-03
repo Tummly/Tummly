@@ -17,11 +17,13 @@ import {
   TrialRequestStatusBadge,
 } from "@/components/dashboard/admin/adminTrialRequestStatus"
 import { TrialRequestActionsMenu } from "@/components/dashboard/admin/TrialRequestActionsMenu"
+import { AdminShopOrdersPanel } from "@/components/dashboard/admin/AdminShopOrdersPanel"
 import { OperatorDetailsDrawer } from "@/components/dashboard/admin/OperatorDetailsDrawer"
 import {
   TrialRequestFeedbackDialog,
   type TrialRequestFeedbackKind,
 } from "@/components/dashboard/admin/TrialRequestFeedbackDialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   applyTrialRequestApprove,
   applyTrialRequestDecline,
@@ -126,7 +128,11 @@ function buildPageNumbers(current: number, total: number) {
     .sort((a, b) => a - b)
 }
 
+type AdminDashboardTab = "trial-requests" | "shop-orders"
+
 function Dashboard() {
+  const [activeTab, setActiveTab] =
+    useState<AdminDashboardTab>("trial-requests")
   const [requests, setRequests] = useState<AdminTrialRequest[]>([])
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
@@ -368,13 +374,39 @@ function Dashboard() {
             Tummly admin
           </p>
           <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground">
-            Trial request review
+            Admin dashboard
           </h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Review incoming trial requests, approve operators, and manage
-            Operator Setup invitations.
+            Review trial requests and manage Tummly Shop order fulfilment.
           </p>
         </header>
+
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) =>
+            setActiveTab(value as AdminDashboardTab)
+          }
+          className="gap-6"
+        >
+          <TabsList variant="line" className="h-auto w-full justify-start gap-4">
+            <TabsTrigger value="trial-requests" className="px-1 pb-2 text-base">
+              Trial requests
+            </TabsTrigger>
+            <TabsTrigger value="shop-orders" className="px-1 pb-2 text-base">
+              Shop orders
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="trial-requests" className="mt-0 flex flex-col gap-8">
+            <header className="flex flex-col gap-2">
+              <h2 className="font-heading text-3xl font-semibold tracking-tight text-foreground">
+                Trial request review
+              </h2>
+              <p className="max-w-2xl text-sm text-muted-foreground">
+                Review incoming trial requests, approve operators, and manage
+                Operator Setup invitations.
+              </p>
+            </header>
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((item) => (
@@ -574,6 +606,12 @@ function Dashboard() {
             </div>
           )}
         </Card>
+          </TabsContent>
+
+          <TabsContent value="shop-orders" className="mt-0">
+            <AdminShopOrdersPanel />
+          </TabsContent>
+        </Tabs>
       </div>
 
       <OperatorDetailsDrawer
