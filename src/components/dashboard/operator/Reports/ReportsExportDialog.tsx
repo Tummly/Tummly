@@ -172,7 +172,9 @@ export function ReportsExportDialog({
 
     const blob = new Blob([content], { type: mimeType })
     triggerBrowserDownload(blob, filename)
-    toast.success(`Exported ${filename}`)
+    toast.success("Your file has been downloaded")
+    setPendingExportItem(null)
+    onOpenChange(false)
   }
 
   const handleItemClick = (item: ExportItem) => {
@@ -187,14 +189,21 @@ export function ReportsExportDialog({
   const handleConfirmExport = () => {
     if (pendingExportItem) {
       executeDownload(pendingExportItem)
-      setPendingExportItem(null)
     }
   }
 
   return (
     <>
-      {/* 1. Main Exports Dialog */}
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* 1. Main Exports Dialog (hidden while confirmation dialog is active) */}
+      <Dialog
+        open={open && !pendingExportItem}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setPendingExportItem(null)
+          }
+          onOpenChange(nextOpen)
+        }}
+      >
         <DialogContent
           showCloseButton={false}
           className="z-[200] w-full max-w-[1000px] sm:max-w-[1000px] md:max-w-[1000px] gap-4 rounded-op-lg border border-op-border-default bg-op-card-background p-6 text-op-text-primary shadow-2xl [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
