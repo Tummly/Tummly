@@ -16,6 +16,7 @@ import {
 } from "@/lib/operatorReports/feedbackReportPresentation"
 import {
   buildOffersReportViewModel,
+  OFFERS_REPORT_PAGE_COPY,
   type OffersReportData,
 } from "@/lib/operatorReports/offersReportPresentation"
 import {
@@ -749,7 +750,7 @@ export function createOperatorReportsPageModule(
           offersLoadStatus: "error",
           offersReport: null,
           offersLoadError:
-            response.message?.trim() || REPORTS_HUB_LOAD_ERROR_MESSAGE,
+            response.message?.trim() || OFFERS_REPORT_PAGE_COPY.loadError,
         }
         publish()
         return
@@ -781,7 +782,7 @@ export function createOperatorReportsPageModule(
         ...state,
         offersLoadStatus: "error",
         offersReport: null,
-        offersLoadError: REPORTS_HUB_LOAD_ERROR_MESSAGE,
+        offersLoadError: OFFERS_REPORT_PAGE_COPY.loadError,
       }
       publish()
     }

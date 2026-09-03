@@ -132,7 +132,7 @@ export function OffersReportPage({
       {offersLoadStatus === "error" ? (
         <div className="flex flex-col items-start gap-3" role="alert">
           <p className="m-0 text-sm text-destructive">
-            {offersLoadError ?? "Could not load report data."}
+            {offersLoadError ?? OFFERS_REPORT_PAGE_COPY.loadError}
           </p>
           <Button
             type="button"
@@ -142,7 +142,7 @@ export function OffersReportPage({
               void reports.retryOffersLoad()
             }}
           >
-            Retry
+              {OFFERS_REPORT_PAGE_COPY.retry}
           </Button>
         </div>
       ) : null}

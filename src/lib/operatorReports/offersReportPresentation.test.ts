@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest"
 import {
   OFFERS_REPORT_PAGE_COPY,
-  mockOffersReportData,
   buildOffersReportViewModel,
 } from "./offersReportPresentation"
 
@@ -21,26 +20,8 @@ describe("offersReportPresentation", () => {
     expect(OFFERS_REPORT_PAGE_COPY.controlSignalsSectionTitle).toBe(
       "Offer control signals"
     )
-  })
-
-  it("provides structured mock data with 6 KPIs, performance list, redemptions and control signals", () => {
-    expect(Object.keys(mockOffersReportData.kpis)).toHaveLength(6)
-    expect(mockOffersReportData.kpis.activeOffers.label).toBe("Active offers")
-    expect(mockOffersReportData.kpis.offerClaims.label).toBe("Offer claims")
-    expect(mockOffersReportData.kpis.redemptions.label).toBe("Redemptions")
-    expect(mockOffersReportData.kpis.redemptionRate.label).toBe("Redemption rate")
-    expect(mockOffersReportData.kpis.expiredClaims.label).toBe("Expired claims")
-    expect(mockOffersReportData.kpis.invalidAttempts.label).toBe("Invalid attempts")
-
-    expect(mockOffersReportData.performance.length).toBeGreaterThanOrEqual(4)
-    expect(mockOffersReportData.performance[0].offer).toBe("Free side next visit")
-
-    expect(mockOffersReportData.redemptionsList.length).toBeGreaterThanOrEqual(5)
-    expect(mockOffersReportData.redemptionsList[0].status).toBe("Redeemed")
-
-    expect(mockOffersReportData.controlSignals).toHaveLength(2)
-    expect(mockOffersReportData.controlSignals[0].title).toBe(
-      "Repeated invalid attempts"
+    expect(OFFERS_REPORT_PAGE_COPY.loadError).toBe(
+      "Could not load offers report. Please try again."
     )
   })
 
