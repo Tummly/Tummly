@@ -15,6 +15,7 @@ import {
   operatorDashboardNavPath,
   operatorDashboardCaptureReportPath,
   operatorDashboardFeedbackReportPath,
+  operatorDashboardOffersReportPath,
   operatorDashboardWeeklyBriefPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
@@ -472,11 +473,23 @@ export function ReportsPage({
               </p>
             </div>
 
-            <div>
+            <div className="flex flex-wrap items-center gap-3">
               <Button
                 type="button"
                 variant="op-primary"
                 className="h-9 rounded-xs px-4 text-xs font-medium"
+                onClick={() =>
+                  navigate(
+                    operatorDashboardOffersReportPath(mode, selectedLocationId)
+                  )
+                }
+              >
+                View offers report
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 rounded-xs border-op-border-default bg-transparent px-4 text-xs font-medium text-op-text-primary hover:bg-op-surface-secondary"
                 onClick={() => navTo("campaigns")}
               >
                 View campaign reports

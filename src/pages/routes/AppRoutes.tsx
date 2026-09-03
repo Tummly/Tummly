@@ -62,6 +62,7 @@ import { ShopRoute } from "@/components/dashboard/operator/Shop/ShopRoute";
 import { ReportsRoute } from "@/components/dashboard/operator/Reports/ReportsRoute";
 import { CaptureReportRoute } from "@/components/dashboard/operator/Reports/CaptureReportRoute";
 import { FeedbackReportRoute } from "@/components/dashboard/operator/Reports/FeedbackReportRoute";
+import { OffersReportRoute } from "@/components/dashboard/operator/Reports/OffersReportRoute";
 import { WeeklyBriefRoute } from "@/components/dashboard/operator/Reports/WeeklyBriefRoute";
 import AdminDashboard from "../../components/dashboard/admin/Dashboard";
 import SupportDashboard from "../../components/dashboard/support/Dashboard";
@@ -269,6 +270,7 @@ function AppRoutes() {
                 <Route path="reports" element={<ReportsRoute />} />
                 <Route path="reports/capture" element={<CaptureReportRoute />} />
                 <Route path="reports/feedback" element={<FeedbackReportRoute />} />
+                <Route path="reports/offers" element={<OffersReportRoute />} />
                 <Route path="reports/weekly-brief" element={<WeeklyBriefRoute />} />
                 <Route path="shop" element={<ShopRoute />} />
               </Route>
@@ -385,6 +387,7 @@ function AppRoutes() {
                 <Route path="reports" element={<ReportsRoute />} />
                 <Route path="reports/capture" element={<CaptureReportRoute />} />
                 <Route path="reports/feedback" element={<FeedbackReportRoute />} />
+                <Route path="reports/offers" element={<OffersReportRoute />} />
                 <Route path="reports/weekly-brief" element={<WeeklyBriefRoute />} />
                 <Route path="shop" element={<ShopRoute />} />
               </Route>
