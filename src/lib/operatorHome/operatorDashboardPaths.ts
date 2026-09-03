@@ -217,6 +217,14 @@ export function operatorDashboardFeedbackReportPath(
   return `${root}/reports/feedback?location=${locationId}`
 }
 
+export function operatorDashboardOffersReportPath(
+  mode: OperatorDashboardMode,
+  locationId: number
+): string {
+  const root = operatorDashboardRootPath(mode)
+  return `${root}/reports/offers?location=${locationId}`
+}
+
 export function operatorDashboardWeeklyBriefPath(
   mode: OperatorDashboardMode,
   locationId: number
