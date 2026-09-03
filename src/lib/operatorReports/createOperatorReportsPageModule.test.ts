@@ -15,6 +15,7 @@ import type {
 import type {
   ReportsCaptureResponse,
   ReportsFeedbackResponse,
+  ReportsOffersResponse,
   ReportsOverviewResponse,
 } from "@/types/operatorReports"
 
@@ -212,10 +213,62 @@ function readyFeedback(): Extract<
   }
 }
 
+function readyOffers(): Extract<
+  ReportsOffersResponse,
+  { lifetimeEmpty: false }
+> {
+  const metric = (value: number, valuePrevious: number) => ({
+    value,
+    valuePrevious,
+  })
+  return {
+    success: true,
+    lifetimeEmpty: false,
+    kpis: {
+      activeOffers: metric(2, 1),
+      offerClaims: metric(5, 3),
+      redemptions: metric(2, 1),
+      redemptionRate: { value: 0.4, valuePrevious: 0.33 },
+      expiredClaims: metric(1, 0),
+      invalidAttempts: metric(2, 0),
+    },
+    performance: [
+      {
+        offerId: 11,
+        offer: "Free side",
+        status: "active",
+        claims: 5,
+        redemptions: 2,
+        rate: 0.4,
+        expired: 1,
+        invalid: 2,
+      },
+    ],
+    recentRedemptions: [
+      {
+        id: 91,
+        dateTimeUtc: "2026-07-15T12:00:00.000Z",
+        offerTitle: "Free side",
+        guestName: "Maya",
+        locationName: "Main",
+        outcome: "redeemed",
+      },
+    ],
+    controlSignals: [
+      {
+        kind: "repeated-invalid",
+        count: 2,
+        target: "redemption-log",
+      },
+    ],
+  }
+}
+
 function createAdapters(overrides: {
   getOverview?: OperatorReportsPageAdapters["getOverview"]
   getCapture?: OperatorReportsPageAdapters["getCapture"]
   getFeedback?: OperatorReportsPageAdapters["getFeedback"]
+  getOffers?: OperatorReportsPageAdapters["getOffers"]
   getReportsDateRange?: OperatorReportsPageAdapters["getReportsDateRange"]
   getWeeklyBrief?: OperatorReportsPageAdapters["getWeeklyBrief"]
   generateWeeklyBrief?: OperatorReportsPageAdapters["generateWeeklyBrief"]
@@ -231,6 +284,10 @@ function createAdapters(overrides: {
   const getFeedback = vi.fn(
     overrides.getFeedback
       ?? (async () => readyFeedback() as ReportsFeedbackResponse)
+  )
+  const getOffers = vi.fn(
+    overrides.getOffers
+      ?? (async () => readyOffers() as ReportsOffersResponse)
   )
   const getReportsDateRange = vi.fn(
     overrides.getReportsDateRange
@@ -250,6 +307,7 @@ function createAdapters(overrides: {
     getOverview,
     getCapture,
     getFeedback,
+    getOffers,
     getReportsDateRange,
     getWeeklyBrief,
     generateWeeklyBrief,
@@ -285,6 +343,7 @@ describe("createOperatorReportsPageModule", () => {
     expect(adapters.getWeeklyBrief.mock.calls.length).toBe(briefCallsAfterSync)
     expect(adapters.getCapture).not.toHaveBeenCalled()
     expect(adapters.getFeedback).not.toHaveBeenCalled()
+    expect(adapters.getOffers).not.toHaveBeenCalled()
     expect(module.getSnapshot().dateRange).toEqual({
       kind: "preset",
       presetId: "last30",
@@ -600,5 +659,50 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().feedbackReport?.followUpList[0]?.feedbackId).toBe(
       42
     )
+  })
+
+  it("loads Offers report when the Offers surface is active", async () => {
+    const adapters = createAdapters()
+    const module = createOperatorReportsPageModule(adapters)
+    module.setActiveSurface("offers")
+    await module.syncWorkspace(workspace())
+    expect(adapters.getOffers).toHaveBeenCalledTimes(1)
+    expect(adapters.getOverview).not.toHaveBeenCalled()
+    expect(module.getSnapshot().offersLoadStatus).toBe("ready")
+    expect(module.getSnapshot().offersReport?.kpis.offerClaims.value).toBe("5")
+  })
+
+  it("reloads Offers report when date range commits on the Offers surface", async () => {
+    const adapters = createAdapters()
+    const module = createOperatorReportsPageModule(adapters)
+    module.setActiveSurface("offers")
+    await module.syncWorkspace(workspace())
+    expect(adapters.getOffers).toHaveBeenCalledTimes(1)
+    expect(adapters.getOverview).not.toHaveBeenCalled()
+
+    adapters.getReportsDateRange.mockReturnValue({
+      kind: "preset",
+      presetId: "last30",
+    })
+    await module.reloadForReportsDateRange()
+    expect(adapters.getOffers).toHaveBeenCalledTimes(2)
+    expect(adapters.getOverview).not.toHaveBeenCalled()
+  })
+
+  it("retries Offers load after error", async () => {
+    const getOffers = vi
+      .fn<OperatorReportsPageAdapters["getOffers"]>()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce(readyOffers())
+    const adapters = createAdapters({ getOffers })
+    const module = createOperatorReportsPageModule(adapters)
+    module.setActiveSurface("offers")
+
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().offersLoadStatus).toBe("error")
+
+    await module.retryOffersLoad()
+    expect(module.getSnapshot().offersLoadStatus).toBe("ready")
+    expect(module.getSnapshot().offersReport?.kpis.activeOffers.value).toBe("2")
   })
 })

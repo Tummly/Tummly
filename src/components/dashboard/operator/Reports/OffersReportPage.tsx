@@ -1,5 +1,6 @@
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import {
   Table,
   TableBody,
@@ -15,12 +16,9 @@ import { ReportsPageChrome } from "@/components/dashboard/operator/Reports/Repor
 import { ReportsSection } from "@/components/dashboard/operator/Reports/ReportsSection"
 import { ReportsStandardHeaderActions } from "@/components/dashboard/operator/Reports/ReportsStandardHeaderActions"
 import { useReportsChildChrome } from "@/components/dashboard/operator/Reports/utils/useReportsChildChrome"
+import { useReportsPageModule } from "@/components/dashboard/operator/Reports/utils/useReportsPageModule"
 import { ReportsStatusBadge } from "@/components/dashboard/operator/Reports/ReportsStatusBadge"
-import {
-  OFFERS_REPORT_PAGE_COPY,
-  mockOffersReportData,
-  type OffersReportData,
-} from "@/lib/operatorReports/offersReportPresentation"
+import { OFFERS_REPORT_PAGE_COPY } from "@/lib/operatorReports/offersReportPresentation"
 import {
   REPORTS_BODY_STACK_CLASS,
   REPORTS_TABLE_BODY_CELL_CLASS,
@@ -46,24 +44,26 @@ type OffersReportPageProps = {
   selectedLocationName?: string
   locations?: Array<{ id: number; locationName: string; address: string }>
   mode?: DashboardProps["mode"]
-  isEmpty?: boolean
-  data?: OffersReportData
 }
 
 export function OffersReportPage({
   selectedLocationId = 1,
-  selectedLocationName = "Mehmet's Grill",
+  selectedLocationName: _selectedLocationName = "Mehmet's Grill",
   locations: _locations = [],
   mode = "single",
-  isEmpty: propIsEmpty,
-  data = mockOffersReportData,
 }: OffersReportPageProps) {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const reportsChrome = useReportsChildChrome("offers", mode)
-  const { dateRange, exportAllowed, generateBusy, openExportDialog, commitRange, onGenerateBrief } = reportsChrome
-
-  const isPageEmpty = propIsEmpty ?? searchParams.get("empty") === "true"
+  const reports = useReportsPageModule()
+  const {
+    dateRange,
+    exportAllowed,
+    generateBusy,
+    openExportDialog,
+    commitRange,
+    onGenerateBrief,
+  } = reportsChrome
+  const { offersLoadStatus, offersReport, offersLoadError } = reports.snapshot
 
   const reportsBasePath = operatorDashboardNavPath(
     mode,
@@ -75,26 +75,28 @@ export function OffersReportPage({
     navigate(operatorDashboardNavPath(mode, "offers", selectedLocationId))
   }
 
-  const handleControlSignalAction = (
-    target: "redemption-log" | "offers" | "overrides"
-  ) => {
-    if (target === "redemption-log" || target === "overrides") {
+  const handleControlSignalAction = (target: "redemption-log" | "offers") => {
+    if (target === "redemption-log") {
       navigate(
         operatorDashboardOffersRedemptionLogPath(mode, selectedLocationId)
       )
-    } else {
-      navigate(operatorDashboardNavPath(mode, "offers", selectedLocationId))
+      return
     }
+    navigate(operatorDashboardNavPath(mode, "offers", selectedLocationId))
   }
 
-  const kpisList = [
-    data.kpis.activeOffers,
-    data.kpis.offerClaims,
-    data.kpis.redemptions,
-    data.kpis.redemptionRate,
-    data.kpis.expiredClaims,
-    data.kpis.invalidAttempts,
-  ]
+  const showDateRange = offersLoadStatus !== "lifetimeEmpty"
+  const kpisList =
+    offersReport == null
+      ? []
+      : [
+          offersReport.kpis.activeOffers,
+          offersReport.kpis.offerClaims,
+          offersReport.kpis.redemptions,
+          offersReport.kpis.redemptionRate,
+          offersReport.kpis.expiredClaims,
+          offersReport.kpis.invalidAttempts,
+        ]
 
   return (
     <ReportsPageChrome
@@ -112,10 +114,40 @@ export function OffersReportPage({
           exportDisabled={!exportAllowed}
           selectedRange={dateRange}
           onCommitRange={commitRange}
+          showDateRange={showDateRange}
         />
       }
     >
-      {isPageEmpty ? (
+      {offersLoadStatus === "loading" || offersLoadStatus === "idle" ? (
+        <div
+          className="flex min-h-48 items-center justify-center"
+          role="status"
+          aria-live="polite"
+          aria-label="Loading offers report"
+        >
+          <Spinner />
+        </div>
+      ) : null}
+
+      {offersLoadStatus === "error" ? (
+        <div className="flex flex-col items-start gap-3" role="alert">
+          <p className="m-0 text-sm text-destructive">
+            {offersLoadError ?? "Could not load report data."}
+          </p>
+          <Button
+            type="button"
+            variant="op-secondary"
+            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            onClick={() => {
+              void reports.retryOffersLoad()
+            }}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
+      {offersLoadStatus === "lifetimeEmpty" ? (
         <ReportsEmptyState
           title={OFFERS_REPORT_PAGE_COPY.emptyTitle}
           subtitle={OFFERS_REPORT_PAGE_COPY.emptySubtitle}
@@ -130,7 +162,9 @@ export function OffersReportPage({
             </Button>
           }
         />
-      ) : (
+      ) : null}
+
+      {offersLoadStatus === "ready" && offersReport != null ? (
         <div className={REPORTS_BODY_STACK_CLASS}>
           <ReportsSection>
             <ReportsKpiStrip items={kpisList} />
@@ -145,9 +179,6 @@ export function OffersReportPage({
                   <TableRow className={REPORTS_TABLE_HEAD_ROW_CLASS}>
                     <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       {OFFERS_REPORT_PAGE_COPY.offerHeader}
-                    </TableHead>
-                    <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
-                      {OFFERS_REPORT_PAGE_COPY.sourceHeader}
                     </TableHead>
                     <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
                       {OFFERS_REPORT_PAGE_COPY.statusHeader}
@@ -170,16 +201,13 @@ export function OffersReportPage({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.performance.map((row) => (
+                  {offersReport.performance.map((row) => (
                     <TableRow
                       key={row.id}
                       className={REPORTS_TABLE_BODY_ROW_CLASS}
                     >
                       <TableCell className={REPORTS_TABLE_NAME_CELL_CLASS}>
                         {row.offer}
-                      </TableCell>
-                      <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
-                        {row.source}
                       </TableCell>
                       <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
                         <ReportsStatusBadge status={row.status} />
@@ -231,7 +259,7 @@ export function OffersReportPage({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.redemptionsList.map((row) => (
+                  {offersReport.redemptionsList.map((row) => (
                     <TableRow
                       key={row.id}
                       className={REPORTS_TABLE_BODY_ROW_CLASS}
@@ -262,7 +290,7 @@ export function OffersReportPage({
             title={OFFERS_REPORT_PAGE_COPY.controlSignalsSectionTitle}
           >
             <div className="flex flex-col gap-4">
-              {data.controlSignals.map((signal) => (
+              {offersReport.controlSignals.map((signal) => (
                 <div key={signal.id} className="flex flex-col gap-4">
                   <ReportsInsightBanner title={signal.title}>
                     {signal.subtitle}
@@ -282,8 +310,7 @@ export function OffersReportPage({
             </div>
           </ReportsSection>
         </div>
-      )}
-
+      ) : null}
     </ReportsPageChrome>
   )
 }

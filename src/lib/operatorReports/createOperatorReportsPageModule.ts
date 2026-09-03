@@ -15,6 +15,10 @@ import {
   type FeedbackReportViewModel,
 } from "@/lib/operatorReports/feedbackReportPresentation"
 import {
+  buildOffersReportViewModel,
+  type OffersReportData,
+} from "@/lib/operatorReports/offersReportPresentation"
+import {
   buildReportsOverviewViewModel,
   REPORTS_HUB_LOAD_ERROR_MESSAGE,
   type ReportsOverviewViewModel,
@@ -32,6 +36,7 @@ import type {
   ReportsCaptureResponse,
   ReportsFeedbackResponse,
   ReportsKpiLoadStatus,
+  ReportsOffersResponse,
   ReportsOverviewResponse,
   ReportsSurface,
 } from "@/types/operatorReports"
@@ -79,6 +84,9 @@ export type OperatorReportsPageSnapshot = {
   feedbackLoadStatus: ReportsKpiLoadStatus
   feedbackReport: FeedbackReportViewModel | null
   feedbackLoadError: string | null
+  offersLoadStatus: ReportsKpiLoadStatus
+  offersReport: OffersReportData | null
+  offersLoadError: string | null
   exportAllowed: boolean
   dateRange: HomePerformanceDateRange
   dateRangeLabel: string
@@ -108,11 +116,11 @@ export type OperatorReportsPageAdapters = {
     from: string
     to: string
   }) => Promise<ReportsFeedbackResponse>
-  getOffers?: (input: {
+  getOffers: (input: {
     locationId: number
     from: string
     to: string
-  }) => Promise<unknown>
+  }) => Promise<ReportsOffersResponse>
   getCampaigns?: (input: {
     locationId: number
     from: string
@@ -144,6 +152,7 @@ export type OperatorReportsPageModule = {
   generateWeeklyBriefInPlace: () => Promise<void>
   retryCaptureLoad: () => Promise<void>
   retryFeedbackLoad: () => Promise<void>
+  retryOffersLoad: () => Promise<void>
   openExportDialog: () => void
   closeExportDialog: () => void
 }
@@ -160,6 +169,9 @@ type ModuleState = {
   feedbackLoadStatus: ReportsKpiLoadStatus
   feedbackReport: FeedbackReportViewModel | null
   feedbackLoadError: string | null
+  offersLoadStatus: ReportsKpiLoadStatus
+  offersReport: OffersReportData | null
+  offersLoadError: string | null
   exportAllowed: boolean
   exportDialogOpen: boolean
   workspace: OperatorReportsWorkspaceInput | null
@@ -167,6 +179,7 @@ type ModuleState = {
   weeklyBriefGeneration: number
   captureLoadGeneration: number
   feedbackLoadGeneration: number
+  offersLoadGeneration: number
 }
 
 function emptyWeeklyBrief(
@@ -238,7 +251,7 @@ function selectedLocationName(
 }
 
 /**
- * Layout-scoped Reports page module — hub overview + Capture + Feedback KPI
+ * Layout-scoped Reports page module — hub overview + Capture + Feedback + Offers KPI
  * loads + Weekly Brief slice + shared date range + export-allowed from shell lock.
  */
 export function createOperatorReportsPageModule(
@@ -256,6 +269,9 @@ export function createOperatorReportsPageModule(
     feedbackLoadStatus: "idle",
     feedbackReport: null,
     feedbackLoadError: null,
+    offersLoadStatus: "idle",
+    offersReport: null,
+    offersLoadError: null,
     exportAllowed: true,
     exportDialogOpen: false,
     workspace: null,
@@ -263,6 +279,7 @@ export function createOperatorReportsPageModule(
     weeklyBriefGeneration: 0,
     captureLoadGeneration: 0,
     feedbackLoadGeneration: 0,
+    offersLoadGeneration: 0,
   }
 
   let snapshot: OperatorReportsPageSnapshot = projectSnapshot()
@@ -283,6 +300,9 @@ export function createOperatorReportsPageModule(
       feedbackLoadStatus: state.feedbackLoadStatus,
       feedbackReport: state.feedbackReport,
       feedbackLoadError: state.feedbackLoadError,
+      offersLoadStatus: state.offersLoadStatus,
+      offersReport: state.offersReport,
+      offersLoadError: state.offersLoadError,
       exportAllowed: state.exportAllowed,
       dateRange,
       dateRangeLabel: labelForHomePerformanceDateRange(dateRange),
@@ -686,6 +706,87 @@ export function createOperatorReportsPageModule(
     }
   }
 
+  const loadOffers = async () => {
+    const workspace = state.workspace
+    const locationId = workspace?.selectedLocationId
+    if (workspace == null || locationId == null) {
+      state = {
+        ...state,
+        offersLoadStatus: "idle",
+        offersReport: null,
+        offersLoadError: null,
+      }
+      publish()
+      return
+    }
+
+    const generation = state.offersLoadGeneration + 1
+    state = {
+      ...state,
+      offersLoadStatus: "loading",
+      offersLoadGeneration: generation,
+      offersLoadError: null,
+    }
+    publish()
+
+    try {
+      const window = resolveHomePerformanceWindow(
+        adapters.getReportsDateRange()
+      )
+      const response = await adapters.getOffers({
+        locationId,
+        from: window.from.toISOString(),
+        to: window.to.toISOString(),
+      })
+
+      if (generation !== state.offersLoadGeneration) {
+        return
+      }
+
+      if (!response.success) {
+        state = {
+          ...state,
+          offersLoadStatus: "error",
+          offersReport: null,
+          offersLoadError:
+            response.message?.trim() || REPORTS_HUB_LOAD_ERROR_MESSAGE,
+        }
+        publish()
+        return
+      }
+
+      if (response.lifetimeEmpty) {
+        state = {
+          ...state,
+          offersLoadStatus: "lifetimeEmpty",
+          offersReport: null,
+          offersLoadError: null,
+        }
+        publish()
+        return
+      }
+
+      state = {
+        ...state,
+        offersLoadStatus: "ready",
+        offersReport: buildOffersReportViewModel(response),
+        offersLoadError: null,
+      }
+      publish()
+    } catch {
+      if (generation !== state.offersLoadGeneration) {
+        return
+      }
+      state = {
+        ...state,
+        offersLoadStatus: "error",
+        offersReport: null,
+        offersLoadError: REPORTS_HUB_LOAD_ERROR_MESSAGE,
+      }
+      publish()
+    }
+  }
+
   const loadForActiveSurface = async () => {
     if (state.activeSurface === "hub") {
       await loadHubAndBrief()
@@ -701,6 +802,10 @@ export function createOperatorReportsPageModule(
     }
     if (state.activeSurface === "feedback") {
       await loadFeedback()
+      return
+    }
+    if (state.activeSurface === "offers") {
+      await loadOffers()
     }
   }
 
@@ -754,6 +859,10 @@ export function createOperatorReportsPageModule(
       }
       if (surface === "feedback") {
         void loadFeedback()
+        return
+      }
+      if (surface === "offers") {
+        void loadOffers()
       }
     },
     async reloadForReportsDateRange() {
@@ -768,6 +877,10 @@ export function createOperatorReportsPageModule(
       }
       if (state.activeSurface === "feedback") {
         await loadFeedback()
+        return
+      }
+      if (state.activeSurface === "offers") {
+        await loadOffers()
       }
     },
     async retryHubLoad() {
@@ -798,6 +911,9 @@ export function createOperatorReportsPageModule(
     },
     async retryFeedbackLoad() {
       await loadFeedback()
+    },
+    async retryOffersLoad() {
+      await loadOffers()
     },
     openExportDialog() {
       if (!state.exportAllowed) {

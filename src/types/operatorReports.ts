@@ -121,6 +121,76 @@ export type ReportsFeedbackResponse =
       message?: string
     }
 
+export type ReportsRateMetricWire = {
+  value: number | null
+  valuePrevious: number | null
+}
+
+export type ReportsOffersPerformanceRowWire = {
+  offerId: number
+  offer: string
+  status: string
+  claims: number
+  redemptions: number
+  rate: number | null
+  expired: number
+  invalid: number
+}
+
+export type ReportsOffersRecentRedemptionWire = {
+  id: number
+  dateTimeUtc: string
+  offerTitle: string
+  guestName: string
+  locationName: string
+  outcome: "redeemed"
+}
+
+export type ReportsOffersRepeatedInvalidSignalWire = {
+  kind: "repeated-invalid"
+  count: number
+  target: "redemption-log"
+}
+
+export type ReportsOffersLowRedemptionSignalWire = {
+  kind: "low-redemption"
+  offerId: number
+  offerTitle: string
+  claims: number
+  redemptions: number
+  rate: number
+  target: "offers"
+}
+
+export type ReportsOffersControlSignalWire =
+  | ReportsOffersRepeatedInvalidSignalWire
+  | ReportsOffersLowRedemptionSignalWire
+
+export type ReportsOffersResponse =
+  | {
+      success: true
+      lifetimeEmpty: true
+    }
+  | {
+      success: true
+      lifetimeEmpty: false
+      kpis: {
+        activeOffers: ReportsMetricWire
+        offerClaims: ReportsMetricWire
+        redemptions: ReportsMetricWire
+        redemptionRate: ReportsRateMetricWire
+        expiredClaims: ReportsMetricWire
+        invalidAttempts: ReportsMetricWire
+      }
+      performance: ReportsOffersPerformanceRowWire[]
+      recentRedemptions: ReportsOffersRecentRedemptionWire[]
+      controlSignals: ReportsOffersControlSignalWire[]
+    }
+  | {
+      success: false
+      message?: string
+    }
+
 export type ReportsSurface =
   | "hub"
   | "capture"

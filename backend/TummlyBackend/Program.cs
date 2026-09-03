@@ -400,6 +400,10 @@ builder.Services.AddScoped<
     ReportsFeedbackService
 >();
 builder.Services.AddScoped<
+    IReportsOffersService,
+    ReportsOffersService
+>();
+builder.Services.AddScoped<
     IOfferIssueService,
     OfferIssueService
 >();
