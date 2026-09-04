@@ -1395,6 +1395,60 @@ export const downloadWeeklyBriefPdf = async (
   return { blob: response.data, filename }
 }
 
+export type ReportsExportKind =
+  | "overview"
+  | "capture"
+  | "feedback"
+  | "campaigns"
+
+export const downloadReportsExport = async (input: {
+  kind: ReportsExportKind
+  locationId: number
+  from: string
+  to: string
+}): Promise<{ blob: Blob; filename: string }> => {
+  const extension = input.kind === "overview" ? "pdf" : "csv"
+  try {
+    const response = await axiosInstance.get<Blob>(
+      `/reports/export/${input.kind}`,
+      {
+        params: {
+          locationId: input.locationId,
+          from: input.from,
+          to: input.to,
+        },
+        responseType: "blob",
+      }
+    )
+    const filename =
+      parseContentDispositionFilename(
+        response.headers["content-disposition"] as string | undefined
+      ) ?? `tummly-reports-${input.kind}-${input.locationId}.${extension}`
+    return { blob: response.data, filename }
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data instanceof Blob) {
+      try {
+        const text = await error.response.data.text()
+        const parsed = JSON.parse(text) as {
+          message?: unknown
+          code?: unknown
+        }
+        if (typeof parsed.message === "string" && parsed.message.length > 0) {
+          throw new Error(parsed.message)
+        }
+        if (typeof parsed.code === "string" && parsed.code.length > 0) {
+          throw new Error(parsed.code)
+        }
+      } catch (inner) {
+        if (inner instanceof Error && !(inner instanceof SyntaxError)) {
+          throw inner
+        }
+      }
+    }
+    throw error
+  }
+}
+
 export const getCaptureLocationSnapshot = async (
   locationId: number,
   from: string,

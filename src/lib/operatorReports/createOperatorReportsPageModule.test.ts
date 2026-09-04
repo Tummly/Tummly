@@ -335,6 +335,7 @@ function createAdapters(overrides: {
   generateWeeklyBrief?: OperatorReportsPageAdapters["generateWeeklyBrief"]
   markWeeklyBriefReviewed?: OperatorReportsPageAdapters["markWeeklyBriefReviewed"]
   downloadWeeklyBriefPdf?: OperatorReportsPageAdapters["downloadWeeklyBriefPdf"]
+  downloadReportsExport?: OperatorReportsPageAdapters["downloadReportsExport"]
   triggerBrowserDownload?: OperatorReportsPageAdapters["triggerBrowserDownload"]
 } = {}) {
   const getOverview = vi.fn(
@@ -387,6 +388,21 @@ function createAdapters(overrides: {
         filename: "tummly-weekly-brief-1-20260818-120000Z.pdf",
       }))
   )
+  const downloadReportsExport = vi.fn(
+    overrides.downloadReportsExport
+      ?? (async (input) => ({
+        blob: new Blob(
+          [input.kind === "overview" ? "%PDF-1.4" : "Source,Scans\n"],
+          {
+            type:
+              input.kind === "overview"
+                ? "application/pdf"
+                : "text/csv;charset=utf-8",
+          }
+        ),
+        filename: `tummly-reports-${input.kind}-${input.locationId}-20260717-120000Z.${input.kind === "overview" ? "pdf" : "csv"}`,
+      }))
+  )
   const triggerBrowserDownload = vi.fn(
     overrides.triggerBrowserDownload ?? (() => undefined)
   )
@@ -401,6 +417,7 @@ function createAdapters(overrides: {
     generateWeeklyBrief,
     markWeeklyBriefReviewed,
     downloadWeeklyBriefPdf,
+    downloadReportsExport,
     triggerBrowserDownload,
   }
 }
@@ -541,6 +558,90 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().markAsReviewedAllowed).toBe(true)
     module.openExportDialog()
     expect(module.getSnapshot().exportDialogOpen).toBe(false)
+  })
+
+  it("opens export dialog when export is allowed", async () => {
+    const adapters = createAdapters()
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().exportAllowed).toBe(true)
+    module.openExportDialog()
+    expect(module.getSnapshot().exportDialogOpen).toBe(true)
+  })
+
+  it("gates CSV export behind client consent before download", async () => {
+    const downloadReportsExport = vi.fn(async () => ({
+      blob: new Blob(["Source,Scans\n"], { type: "text/csv" }),
+      filename: "tummly-reports-capture-1-20260717-120000Z.csv",
+    }))
+    const triggerBrowserDownload = vi.fn()
+    const adapters = createAdapters({
+      downloadReportsExport,
+      triggerBrowserDownload,
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    module.openExportDialog()
+
+    await module.requestExport("capture")
+    expect(module.getSnapshot().pendingCsvExportKind).toBe("capture")
+    expect(module.getSnapshot().csvConsentChecked).toBe(false)
+
+    const blocked = await module.confirmCsvExport()
+    expect(blocked).toBe(false)
+    expect(downloadReportsExport).not.toHaveBeenCalled()
+
+    module.setCsvConsentChecked(true)
+    const ok = await module.confirmCsvExport()
+    expect(ok).toBe(true)
+    expect(downloadReportsExport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "capture",
+        locationId: 1,
+      })
+    )
+    expect(triggerBrowserDownload).toHaveBeenCalled()
+    expect(module.getSnapshot().exportDialogOpen).toBe(false)
+    expect(module.getSnapshot().pendingCsvExportKind).toBeNull()
+  })
+
+  it("downloads overview PDF without CSV consent", async () => {
+    const downloadReportsExport = vi.fn(async () => ({
+      blob: new Blob(["%PDF-1.4"], { type: "application/pdf" }),
+      filename: "tummly-reports-overview-1-20260717-120000Z.pdf",
+    }))
+    const triggerBrowserDownload = vi.fn()
+    const adapters = createAdapters({
+      downloadReportsExport,
+      triggerBrowserDownload,
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    module.openExportDialog()
+
+    const ok = await module.requestExport("overview")
+    expect(ok).toBe(true)
+    expect(module.getSnapshot().pendingCsvExportKind).toBeNull()
+    expect(downloadReportsExport).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "overview", locationId: 1 })
+    )
+    expect(triggerBrowserDownload).toHaveBeenCalled()
+  })
+
+  it("records export download error without closing the dialog", async () => {
+    const downloadReportsExport = vi.fn(async () => {
+      throw new Error("soft_lock")
+    })
+    const adapters = createAdapters({ downloadReportsExport })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    module.openExportDialog()
+
+    const ok = await module.requestExport("overview")
+    expect(ok).toBe(false)
+    expect(module.getSnapshot().exportDialogOpen).toBe(true)
+    expect(module.getSnapshot().exportDownloadError).toBe("soft_lock")
+    expect(module.getSnapshot().exportDownloadBusyKind).toBeNull()
   })
 
   it("markWeeklyBriefAsReviewed updates snapshot from adapter ready envelope", async () => {

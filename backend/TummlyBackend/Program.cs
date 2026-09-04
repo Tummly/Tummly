@@ -408,6 +408,10 @@ builder.Services.AddScoped<
     ReportsCampaignsService
 >();
 builder.Services.AddScoped<
+    IReportsExportService,
+    ReportsExportService
+>();
+builder.Services.AddScoped<
     IOfferIssueService,
     OfferIssueService
 >();

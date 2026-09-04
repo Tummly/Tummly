@@ -23,6 +23,10 @@ export type OperatorReportsPageModuleApi = {
   retryCampaignsLoad: OperatorReportsPageModule["retryCampaignsLoad"]
   openExportDialog: OperatorReportsPageModule["openExportDialog"]
   closeExportDialog: OperatorReportsPageModule["closeExportDialog"]
+  requestExport: OperatorReportsPageModule["requestExport"]
+  setCsvConsentChecked: OperatorReportsPageModule["setCsvConsentChecked"]
+  confirmCsvExport: OperatorReportsPageModule["confirmCsvExport"]
+  cancelCsvConsent: OperatorReportsPageModule["cancelCsvConsent"]
 }
 
 export function useReportsPageModule(): OperatorReportsPageModuleApi {
@@ -50,5 +54,9 @@ export function useReportsPageModule(): OperatorReportsPageModuleApi {
     retryCampaignsLoad: pageModule.retryCampaignsLoad,
     openExportDialog: pageModule.openExportDialog,
     closeExportDialog: pageModule.closeExportDialog,
+    requestExport: pageModule.requestExport,
+    setCsvConsentChecked: pageModule.setCsvConsentChecked,
+    confirmCsvExport: pageModule.confirmCsvExport,
+    cancelCsvConsent: pageModule.cancelCsvConsent,
   }
 }

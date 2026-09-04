@@ -2,6 +2,7 @@ import { createElement, useEffect, useState, type ReactNode } from "react"
 import { useOutletContext } from "react-router-dom"
 
 import {
+  downloadReportsExport,
   downloadWeeklyBriefPdf,
   generateWeeklyBrief,
   getReportsCapture,
@@ -34,6 +35,14 @@ function ReportsExportDialogHost() {
       }}
       locationName={reports.snapshot.selectedLocationName ?? "Location"}
       dateRangeLabel={reports.snapshot.dateRangeLabel}
+      pendingCsvExportKind={reports.snapshot.pendingCsvExportKind}
+      csvConsentChecked={reports.snapshot.csvConsentChecked}
+      exportDownloadBusyKind={reports.snapshot.exportDownloadBusyKind}
+      exportDownloadError={reports.snapshot.exportDownloadError}
+      onRequestExport={reports.requestExport}
+      onSetCsvConsentChecked={reports.setCsvConsentChecked}
+      onConfirmCsvExport={reports.confirmCsvExport}
+      onCancelCsvConsent={reports.cancelCsvConsent}
     />
   )
 }
@@ -56,6 +65,7 @@ export function ReportsPageModuleProvider({
       generateWeeklyBrief,
       markWeeklyBriefReviewed,
       downloadWeeklyBriefPdf,
+      downloadReportsExport,
       triggerBrowserDownload,
       getReportsDateRange: () => dashboardUiStore.getState().reportsDateRange,
     })

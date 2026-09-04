@@ -73,6 +73,12 @@ export type OperatorReportsWeeklyBriefStatus =
   | "ready"
   | "error"
 
+export type ReportsExportKind =
+  | "overview"
+  | "capture"
+  | "feedback"
+  | "campaigns"
+
 export type OperatorReportsWeeklyBriefMeta = {
   period: string
   dataSources: string[]
@@ -132,6 +138,11 @@ export type OperatorReportsPageSnapshot = {
   dateRange: HomePerformanceDateRange
   dateRangeLabel: string
   exportDialogOpen: boolean
+  /** CSV consent step — client-only; null when idle or after PDF path. */
+  pendingCsvExportKind: ReportsExportKind | null
+  csvConsentChecked: boolean
+  exportDownloadBusyKind: ReportsExportKind | null
+  exportDownloadError: string | null
   selectedLocationId: number | null
   selectedLocationName: string | null
 }
@@ -155,6 +166,12 @@ export type OperatorReportsPageAdapters = {
     locationId: number,
     week?: string | null
   ) => Promise<{ blob: Blob; filename: string }>
+  downloadReportsExport: (input: {
+    kind: ReportsExportKind
+    locationId: number
+    from: string
+    to: string
+  }) => Promise<{ blob: Blob; filename: string }>
   triggerBrowserDownload: (blob: Blob, filename: string) => void
   getCapture: (input: {
     locationId: number
@@ -210,6 +227,15 @@ export type OperatorReportsPageModule = {
   retryCampaignsLoad: () => Promise<void>
   openExportDialog: () => void
   closeExportDialog: () => void
+  /**
+   * PDF downloads immediately (returns success). CSV opens the client-only
+   * consent step and returns false until confirmCsvExport.
+   * No-op when export is not allowed.
+   */
+  requestExport: (kind: ReportsExportKind) => Promise<boolean>
+  setCsvConsentChecked: (checked: boolean) => void
+  confirmCsvExport: () => Promise<boolean>
+  cancelCsvConsent: () => void
 }
 
 type ModuleState = {
@@ -232,6 +258,10 @@ type ModuleState = {
   campaignsLoadError: string | null
   exportAllowed: boolean
   exportDialogOpen: boolean
+  pendingCsvExportKind: ReportsExportKind | null
+  csvConsentChecked: boolean
+  exportDownloadBusyKind: ReportsExportKind | null
+  exportDownloadError: string | null
   workspace: OperatorReportsWorkspaceInput | null
   hubLoadGeneration: number
   weeklyBriefGeneration: number
@@ -360,6 +390,10 @@ export function createOperatorReportsPageModule(
     campaignsLoadError: null,
     exportAllowed: true,
     exportDialogOpen: false,
+    pendingCsvExportKind: null,
+    csvConsentChecked: false,
+    exportDownloadBusyKind: null,
+    exportDownloadError: null,
     workspace: null,
     hubLoadGeneration: 0,
     weeklyBriefGeneration: 0,
@@ -398,6 +432,10 @@ export function createOperatorReportsPageModule(
       dateRange,
       dateRangeLabel: labelForHomePerformanceDateRange(dateRange),
       exportDialogOpen: state.exportDialogOpen,
+      pendingCsvExportKind: state.pendingCsvExportKind,
+      csvConsentChecked: state.csvConsentChecked,
+      exportDownloadBusyKind: state.exportDownloadBusyKind,
+      exportDownloadError: state.exportDownloadError,
       selectedLocationId: state.workspace?.selectedLocationId ?? null,
       selectedLocationName: selectedLocationName(state.workspace),
     }
@@ -893,6 +931,10 @@ export function createOperatorReportsPageModule(
         ...(locationChanged
           ? {
               exportDialogOpen: false,
+              pendingCsvExportKind: null,
+              csvConsentChecked: false,
+              exportDownloadBusyKind: null,
+              exportDownloadError: null,
               weeklyBrief: emptyWeeklyBrief(),
               weeklyBriefGeneration: state.weeklyBriefGeneration + 1,
             }
@@ -1055,13 +1097,111 @@ export function createOperatorReportsPageModule(
       if (!state.exportAllowed) {
         return
       }
-      state = { ...state, exportDialogOpen: true }
+      state = {
+        ...state,
+        exportDialogOpen: true,
+        exportDownloadError: null,
+      }
       publish()
     },
     closeExportDialog() {
-      state = { ...state, exportDialogOpen: false }
+      state = {
+        ...state,
+        exportDialogOpen: false,
+        pendingCsvExportKind: null,
+        csvConsentChecked: false,
+      }
       publish()
     },
+    async requestExport(kind) {
+      if (!state.exportAllowed) {
+        return false
+      }
+      if (kind === "overview") {
+        return runExportDownload(kind)
+      }
+      state = {
+        ...state,
+        pendingCsvExportKind: kind,
+        csvConsentChecked: false,
+        exportDownloadError: null,
+      }
+      publish()
+      return false
+    },
+    setCsvConsentChecked(checked) {
+      state = { ...state, csvConsentChecked: checked }
+      publish()
+    },
+    async confirmCsvExport() {
+      const kind = state.pendingCsvExportKind
+      if (
+        kind == null
+        || !state.csvConsentChecked
+        || !state.exportAllowed
+      ) {
+        return false
+      }
+      return runExportDownload(kind)
+    },
+    cancelCsvConsent() {
+      state = {
+        ...state,
+        pendingCsvExportKind: null,
+        csvConsentChecked: false,
+      }
+      publish()
+    },
+  }
+
+  async function runExportDownload(kind: ReportsExportKind): Promise<boolean> {
+    const workspace = state.workspace
+    const locationId = workspace?.selectedLocationId
+    if (workspace == null || locationId == null || !state.exportAllowed) {
+      return false
+    }
+
+    state = {
+      ...state,
+      exportDownloadBusyKind: kind,
+      exportDownloadError: null,
+      pendingCsvExportKind: null,
+      csvConsentChecked: false,
+    }
+    publish()
+
+    try {
+      const window = resolveHomePerformanceWindow(
+        adapters.getReportsDateRange()
+      )
+      const result = await adapters.downloadReportsExport({
+        kind,
+        locationId,
+        from: window.from.toISOString(),
+        to: window.to.toISOString(),
+      })
+      adapters.triggerBrowserDownload(result.blob, result.filename)
+      state = {
+        ...state,
+        exportDownloadBusyKind: null,
+        exportDownloadError: null,
+        exportDialogOpen: false,
+      }
+      publish()
+      return true
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim().length > 0
+          ? error.message
+          : "Could not download this export. Please try again."
+      state = {
+        ...state,
+        exportDownloadBusyKind: null,
+        exportDownloadError: message,
+      }
+      publish()
+      return false
+    }
   }
 }
 
