@@ -276,7 +276,7 @@ function SuggestedCampaignSection(props: {
 
 /**
  * Reports Weekly Brief page — Figma ready chrome (meta through Suggested campaign).
- * PDF stays a toast stub until 09.
+ * Download PDF is a sync file download gated by exportAllowed (Soft lock / Dormant / chargeback).
  */
 export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
   const navigate = useNavigate()

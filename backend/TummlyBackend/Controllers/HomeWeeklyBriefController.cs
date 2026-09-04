@@ -60,7 +60,11 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var reports = await GateReportsViewAsync(locationId);
+            var reports = await ReportsQueryGate.AuthorizeReportsViewAsync(
+                _permissions,
+                User,
+                locationId
+            );
             var denied = reports.ToHttpResult();
 
             if (denied != null)
@@ -136,7 +140,11 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var reports = await GateReportsViewAsync(locationId);
+            var reports = await ReportsQueryGate.AuthorizeReportsViewAsync(
+                _permissions,
+                User,
+                locationId
+            );
             var denied = reports.ToHttpResult();
 
             if (denied != null)
@@ -236,7 +244,11 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var reports = await GateReportsViewAsync(locationId);
+            var reports = await ReportsQueryGate.AuthorizeReportsViewAsync(
+                _permissions,
+                User,
+                locationId
+            );
             var denied = reports.ToHttpResult();
 
             if (denied != null)
@@ -315,7 +327,11 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var reports = await GateReportsViewAsync(locationId);
+            var reports = await ReportsQueryGate.AuthorizeReportsViewAsync(
+                _permissions,
+                User,
+                locationId
+            );
             var denied = reports.ToHttpResult();
 
             if (denied != null)
@@ -517,7 +533,7 @@ namespace TummlyBackend.Controllers
                         WeeklyBriefRecommendedActions.RepeatedInvalidFactDto repeated
                             => $"Repeated invalid attempts ({repeated.Count})",
                         WeeklyBriefRecommendedActions.LowRedemptionFactDto low
-                            => $"High claims, lower redemptions — {low.OfferTitle} ({low.Claims} claims, {low.Redemptions} redemptions)",
+                            => $"High claims, lower redemptions - {low.OfferTitle} ({low.Claims} claims, {low.Redemptions} redemptions)",
                         _ => "Recommended action",
                     }
                 );
@@ -732,16 +748,5 @@ namespace TummlyBackend.Controllers
             }
         }
 
-        private Task<RestaurantPermissionDecision> GateReportsViewAsync(
-            int locationId
-        )
-        {
-            return _permissions.AuthorizeLocationAsync(
-                User,
-                OperatorAreaIds.Reports,
-                PermissionLevel.View,
-                locationId
-            );
-        }
     }
 }

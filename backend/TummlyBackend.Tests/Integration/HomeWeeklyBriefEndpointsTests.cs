@@ -1043,6 +1043,15 @@ namespace TummlyBackend.Tests.Integration
                 metrics,
                 DateTime.Parse("2026-08-18T09:00:00Z").ToUniversalTime()
             );
+            // ExplicitWeek = 2026-W33 → Mon 2026-08-10 … Mon 2026-08-17 (London)
+            await SeedCampaignAsync(
+                seeded.LocationId,
+                CampaignDraftService.DraftStatus,
+                "Quiet-day boost",
+                audienceKey: "all-eligible-guests",
+                createdAt: new DateTime(2026, 8, 12, 10, 0, 0, DateTimeKind.Utc),
+                updatedAt: new DateTime(2026, 8, 14, 15, 0, 0, DateTimeKind.Utc)
+            );
 
             using var request = AuthorizedGet(
                 $"/api/home/weekly-brief/pdf?locationId={seeded.LocationId}&week={ExplicitWeek}",
@@ -1072,6 +1081,10 @@ namespace TummlyBackend.Tests.Integration
             Assert.Contains("Executive summary", ascii);
             Assert.Contains("What changed", ascii);
             Assert.Contains("Feedback summary", ascii);
+            Assert.Contains("Recommended actions", ascii);
+            Assert.Contains("Follow up with 2 guests", ascii);
+            Assert.Contains("Suggested campaign", ascii);
+            Assert.Contains("Draft: Quiet-day boost", ascii);
         }
 
         [Fact]
