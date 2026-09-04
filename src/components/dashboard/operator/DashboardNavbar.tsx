@@ -190,6 +190,9 @@ export function DashboardNavbar({
                   >
                     <AiIcon />
                   </Button>
+                  <div className="hidden h-10 items-center justify-center rounded-op-sm border border-op-border-default px-3.5 text-xs font-medium text-neutral-400 lg:inline-flex">
+                    100 AI credits
+                  </div>
                   <Button
                     type="button"
                     variant="ghost"

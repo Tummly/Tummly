@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 type AiAssistantCreditsBarProps = {
   remainingLine: string
@@ -8,6 +9,7 @@ type AiAssistantCreditsBarProps = {
   showAddCredits: boolean
   onViewUsage: () => void
   onAddCredits: () => void
+  className?: string
 }
 
 /** Composer credits strip — Figma 3454:56050. Live Billing AI balances. */
@@ -19,10 +21,16 @@ export function AiAssistantCreditsBar({
   showAddCredits,
   onViewUsage,
   onAddCredits,
+  className,
 }: AiAssistantCreditsBarProps) {
   return (
-    <div className="flex items-center justify-between gap-3 px-1 pb-2">
-      <p className="min-w-0 truncate text-xs font-normal text-neutral-500">
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 border-b border-op-border-default bg-[#141414] px-5 py-3.5",
+        className
+      )}
+    >
+      <p className="min-w-0 truncate text-xs font-medium text-neutral-400">
         {remainingLine}
       </p>
       <div className="flex shrink-0 items-center gap-4">
@@ -30,7 +38,7 @@ export function AiAssistantCreditsBar({
           <Button
             type="button"
             variant="op-ghost"
-            className="h-auto min-h-0 p-0 text-xs font-normal text-neutral-400 hover:bg-transparent hover:text-white transition-colors"
+            className="h-auto min-h-0 p-0 text-xs font-medium text-neutral-400 hover:bg-transparent hover:text-white transition-colors cursor-pointer"
             onClick={onViewUsage}
           >
             {viewUsageLabel}
@@ -40,7 +48,7 @@ export function AiAssistantCreditsBar({
           <Button
             type="button"
             variant="op-ghost"
-            className="h-auto min-h-0 p-0 text-xs font-normal text-neutral-400 hover:bg-transparent hover:text-white transition-colors"
+            className="h-auto min-h-0 p-0 text-xs font-medium text-neutral-400 hover:bg-transparent hover:text-white transition-colors cursor-pointer"
             onClick={onAddCredits}
           >
             {addCreditsLabel}

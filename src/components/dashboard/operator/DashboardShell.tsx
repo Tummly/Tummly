@@ -399,7 +399,10 @@ export function DashboardShell({
                 ),
             Boolean(aiAssistant?.snapshot.drawerOpen) &&
               !isShopPage &&
-              "my-2 ml-2 h-[calc(100%-1rem)] rounded-tl-[20px] rounded-tr-[20px] rounded-bl-[10px] rounded-br-[10px] border border-op-border-default"
+              "my-2 ml-2 h-[calc(100%-1rem)] rounded-tl-[20px] rounded-tr-[20px] rounded-bl-[10px] rounded-br-[10px] border border-op-border-default",
+            Boolean(aiAssistant?.snapshot.drawerOpen) &&
+              aiAssistant?.snapshot.widthMode === "expanded" &&
+              "lg:hidden"
           )}
         >
           {/*
