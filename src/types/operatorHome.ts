@@ -301,6 +301,41 @@ export type WeeklyBriefFeedbackSummary = {
   needsAttentionCount: number;
 };
 
+/** Phase-1 recommended-action facts (client owns title / subtitle / CTA). */
+export type WeeklyBriefFeedbackNeedsAttentionFact = {
+  kind: "feedback-needs-attention";
+  count: number;
+  target: "feedback-needs-attention";
+};
+
+export type WeeklyBriefRepeatedInvalidFact = {
+  kind: "repeated-invalid";
+  count: number;
+  target: "redemption-log";
+};
+
+export type WeeklyBriefLowRedemptionFact = {
+  kind: "low-redemption";
+  offerId: number;
+  offerTitle: string;
+  claims: number;
+  redemptions: number;
+  rate: number;
+  target: "offers";
+};
+
+export type WeeklyBriefRecommendedActionFact =
+  | WeeklyBriefFeedbackNeedsAttentionFact
+  | WeeklyBriefRepeatedInvalidFact
+  | WeeklyBriefLowRedemptionFact;
+
+/** Suggested Draft campaign on the ready envelope when one qualifies. */
+export type WeeklyBriefSuggestedCampaignWire = {
+  campaignId: number;
+  name: string;
+  audienceKey: string | null;
+};
+
 export type WeeklyBriefReadyResponse = {
   success: true;
   ready: true;
@@ -314,6 +349,8 @@ export type WeeklyBriefReadyResponse = {
   executiveSummary: string;
   whatChanged: WeeklyBriefWhatChangedRow[];
   feedbackSummary: WeeklyBriefFeedbackSummary | null;
+  recommendedActions: WeeklyBriefRecommendedActionFact[];
+  suggestedCampaign: WeeklyBriefSuggestedCampaignWire | null;
   /** Present when marked; null/omitted until first mark. */
   reviewedAtUtc?: string | null;
   reviewedByUserId?: number | null;

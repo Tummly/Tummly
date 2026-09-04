@@ -88,6 +88,8 @@ function readyWeeklyBriefResponse(
       subtitle: "Based on private feedback submitted between Week 33, 2026.",
       needsAttentionCount: 2,
     },
+    recommendedActions: [],
+    suggestedCampaign: null,
     reviewedAtUtc: null,
     reviewedByUserId: null,
   }
@@ -624,6 +626,53 @@ describe("createOperatorReportsPageModule", () => {
       text: "42 private feedback messages this week. 2 may need follow-up.",
       subtitle: "Based on private feedback submitted between Week 33, 2026.",
       needsAttentionCount: 2,
+    })
+    expect(module.getSnapshot().weeklyBrief.recommendedActions).toEqual([])
+    expect(module.getSnapshot().weeklyBrief.suggestedCampaign).toBeNull()
+  })
+
+  it("maps ready recommended actions and suggested campaign into the view model", async () => {
+    const getWeeklyBrief = vi.fn(async () => ({
+      ...readyWeeklyBriefResponse(11),
+      recommendedActions: [
+        {
+          kind: "feedback-needs-attention" as const,
+          count: 3,
+          target: "feedback-needs-attention" as const,
+        },
+        {
+          kind: "repeated-invalid" as const,
+          count: 2,
+          target: "redemption-log" as const,
+        },
+      ],
+      suggestedCampaign: {
+        campaignId: 41,
+        name: "Quiet-day boost",
+        audienceKey: "all-eligible-guests",
+      },
+    }))
+    const adapters = createAdapters({ getWeeklyBrief })
+    const module = createOperatorReportsPageModule(adapters)
+
+    await module.syncWorkspace(workspace())
+
+    expect(module.getSnapshot().weeklyBrief.recommendedActions).toEqual([
+      {
+        kind: "feedback-needs-attention",
+        count: 3,
+        target: "feedback-needs-attention",
+      },
+      {
+        kind: "repeated-invalid",
+        count: 2,
+        target: "redemption-log",
+      },
+    ])
+    expect(module.getSnapshot().weeklyBrief.suggestedCampaign).toEqual({
+      campaignId: 41,
+      name: "Quiet-day boost",
+      audienceKey: "all-eligible-guests",
     })
   })
 

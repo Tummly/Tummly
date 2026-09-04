@@ -4,6 +4,7 @@ import { Download, CheckCircle } from "lucide-react"
 import { toast } from "sonner"
 
 import { AiIcon } from "@/components/ui/ai-icon"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -15,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
+import { ReportsInsightBanner } from "@/components/dashboard/operator/Reports/ReportsInsightBanner"
 import { ReportsPageChrome } from "@/components/dashboard/operator/Reports/ReportsPageChrome"
 import { ReportsSection } from "@/components/dashboard/operator/Reports/ReportsSection"
 import { useReportsPageModuleApi } from "@/components/dashboard/operator/Reports/utils/reportsPageModuleContext"
@@ -47,11 +49,19 @@ import { REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE } from "@/lib/operatorReports/r
 import {
   formatWeeklyBriefDataSources,
   formatWeeklyBriefGeneratedAt,
+  mapWeeklyBriefRecommendedActionFact,
+  mapWeeklyBriefSuggestedCampaign,
   planWeeklyBriefFeedbackFollowUpCta,
+  planWeeklyBriefRecommendedActionCta,
+  planWeeklyBriefSuggestedCampaignCta,
   shouldShowWeeklyBriefFeedbackSummary,
+  shouldShowWeeklyBriefRecommendedActions,
+  shouldShowWeeklyBriefSuggestedCampaign,
   shouldShowWeeklyBriefWhatChanged,
   weeklyBriefMarkAsReviewedLabel,
   WEEKLY_BRIEF_PAGE_COPY,
+  type WeeklyBriefRecommendedActionCard,
+  type WeeklyBriefSuggestedCampaignCard,
 } from "@/lib/operatorReports/weeklyBriefPresentation"
 import type { OperatorReportsWeeklyBriefMeta } from "@/lib/operatorReports/createOperatorReportsPageModule"
 import type {
@@ -73,6 +83,8 @@ const EXEC_SUMMARY_BODY_CLASS =
   "m-0 rounded-op-md bg-op-background-secondary p-4 text-sm font-medium leading-6 text-op-card-title-color"
 const FEEDBACK_SUMMARY_BODY_CLASS =
   "m-0 text-sm font-medium leading-6 text-op-card-title-color"
+const SUGGESTED_CAMPAIGN_TITLE_CLASS =
+  "m-0 text-base font-semibold leading-6 text-op-card-title-color"
 
 function MetaField(props: { label: string; value: string }) {
   return (
@@ -206,14 +218,73 @@ function WeeklyBriefFeedbackSummarySection(props: {
   )
 }
 
+function RecommendedActionsSection(props: {
+  cards: readonly WeeklyBriefRecommendedActionCard[]
+  onAction: (card: WeeklyBriefRecommendedActionCard) => void
+}) {
+  return (
+    <ReportsSection title={WEEKLY_BRIEF_PAGE_COPY.recommendedActionsTitle}>
+      <div className="flex flex-col gap-4">
+        {props.cards.map((card) => (
+          <div key={card.id} className="flex flex-col gap-4">
+            <ReportsInsightBanner title={card.title}>
+              {card.subtitle}
+            </ReportsInsightBanner>
+            <div>
+              <Button
+                type="button"
+                variant="op-tertiary"
+                className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+                onClick={() => props.onAction(card)}
+              >
+                {card.cta}
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </ReportsSection>
+  )
+}
+
+function SuggestedCampaignSection(props: {
+  card: WeeklyBriefSuggestedCampaignCard
+  onReview: () => void
+}) {
+  return (
+    <ReportsSection title={WEEKLY_BRIEF_PAGE_COPY.suggestedCampaignTitle}>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <Badge variant="soft">{props.card.status}</Badge>
+          <p className={SUGGESTED_CAMPAIGN_TITLE_CLASS}>{props.card.title}</p>
+          <p className={REPORTS_SECTION_SUBTITLE_CLASS}>{props.card.subtitle}</p>
+        </div>
+        <div>
+          <Button
+            type="button"
+            variant="op-secondary"
+            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            onClick={props.onReview}
+          >
+            {props.card.cta}
+          </Button>
+        </div>
+      </div>
+    </ReportsSection>
+  )
+}
+
 /**
- * Reports Weekly Brief page — Figma ready chrome (meta, executive summary,
- * What changed, Feedback summary). PDF stays a toast stub until 09.
+ * Reports Weekly Brief page — Figma ready chrome (meta through Suggested campaign).
+ * PDF stays a toast stub until 09.
  */
 export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
   const navigate = useNavigate()
   const setFeedbackInboxIntent = useDashboardUiStore(
     (state) => state.setFeedbackInboxIntent
+  )
+  const setCampaignsIntent = useDashboardUiStore(
+    (state) => state.setCampaignsIntent
   )
   const reports = useReportsPageModule()
   const pageModule = useReportsPageModuleApi()
@@ -231,6 +302,14 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
     "reports",
     locationId
   )
+
+  const recommendedActionCards =
+    weeklyBrief.recommendedActions.map(mapWeeklyBriefRecommendedActionFact)
+
+  const suggestedCampaignCard =
+    weeklyBrief.suggestedCampaign == null
+      ? null
+      : mapWeeklyBriefSuggestedCampaign(weeklyBrief.suggestedCampaign)
 
   const handleDownloadPdf = () => {
     toast.success(WEEKLY_BRIEF_PAGE_COPY.pdfDownloadedToast)
@@ -254,6 +333,31 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
     navigate(plan.path)
   }
 
+  const handleRecommendedAction = (card: WeeklyBriefRecommendedActionCard) => {
+    const plan = planWeeklyBriefRecommendedActionCta({
+      mode,
+      locationId,
+      target: card.target,
+    })
+    if (plan.feedbackInbox != null) {
+      setFeedbackInboxIntent(plan.feedbackInbox)
+    }
+    navigate(plan.path)
+  }
+
+  const handleReviewSuggestedCampaign = () => {
+    if (suggestedCampaignCard == null) {
+      return
+    }
+    const plan = planWeeklyBriefSuggestedCampaignCta({
+      mode,
+      locationId,
+      campaignId: suggestedCampaignCard.campaignId,
+    })
+    setCampaignsIntent(plan.campaigns)
+    navigate(plan.path)
+  }
+
   const readyMeta = weeklyBrief.meta
   const readySummary = weeklyBrief.executiveSummary
   const showWhatChanged = shouldShowWeeklyBriefWhatChanged(
@@ -264,6 +368,12 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
   )
   const markReviewedLabel = weeklyBriefMarkAsReviewedLabel(
     weeklyBrief.reviewedAtUtc
+  )
+  const showRecommendedActions = shouldShowWeeklyBriefRecommendedActions(
+    weeklyBrief.recommendedActions
+  )
+  const showSuggestedCampaign = shouldShowWeeklyBriefSuggestedCampaign(
+    weeklyBrief.suggestedCampaign
   )
 
   return (
@@ -368,6 +478,18 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
             <WeeklyBriefFeedbackSummarySection
               summary={weeklyBrief.feedbackSummary}
               onReviewFollowUp={handleReviewFollowUp}
+            />
+          ) : null}
+          {showRecommendedActions ? (
+            <RecommendedActionsSection
+              cards={recommendedActionCards}
+              onAction={handleRecommendedAction}
+            />
+          ) : null}
+          {showSuggestedCampaign && suggestedCampaignCard != null ? (
+            <SuggestedCampaignSection
+              card={suggestedCampaignCard}
+              onReview={handleReviewSuggestedCampaign}
             />
           ) : null}
         </div>

@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Offers;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -220,6 +221,395 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(
                 "Based on private feedback submitted between 6–12 July.",
                 feedbackSummary.GetProperty("subtitle").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetWeeklyBrief_ReadyRow_EmitsFeedbackNeedsAttentionRecommendedAction()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-ready-ra-feedback");
+            var weekKey = "monday:2026-07-06";
+            var metrics = EmptyMetrics() with { NeedsAttentionCount = 6 };
+            var body = FakeWeeklyBriefProvider.FixtureFor(metrics);
+            var generatedAt = DateTime.Parse("2026-07-13T08:30:00Z").ToUniversalTime();
+
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                weekKey,
+                body,
+                metrics,
+                generatedAt
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&week={weekKey}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            var actions = json.GetProperty("recommendedActions").EnumerateArray().ToList();
+            Assert.Single(actions);
+            Assert.Equal(
+                "feedback-needs-attention",
+                actions[0].GetProperty("kind").GetString()
+            );
+            Assert.Equal(6, actions[0].GetProperty("count").GetInt32());
+            Assert.Equal(
+                "feedback-needs-attention",
+                actions[0].GetProperty("target").GetString()
+            );
+            Assert.Equal(
+                JsonValueKind.Null,
+                json.GetProperty("suggestedCampaign").ValueKind
+            );
+        }
+
+        [Fact]
+        public async Task GetWeeklyBrief_ReadyRow_OmitsEmptyRecommendedActionsAndSuggestedCampaign()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-ready-ra-empty");
+            var weekKey = "monday:2026-07-06";
+            var metrics = EmptyMetrics();
+            var body = new WeeklyBriefBody(
+                Headline: "Quiet week.",
+                Capture: new WeeklyBriefSection(false, "", null),
+                Feedback: new WeeklyBriefSection(false, "", null),
+                Offers: new WeeklyBriefSection(false, "", null),
+                Campaigns: new WeeklyBriefSection(false, "", null),
+                WatchNext: []
+            );
+            var generatedAt = DateTime.Parse("2026-07-13T08:30:00Z").ToUniversalTime();
+
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                weekKey,
+                body,
+                metrics,
+                generatedAt
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&week={weekKey}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.Empty(json.GetProperty("recommendedActions").EnumerateArray());
+            Assert.Equal(
+                JsonValueKind.Null,
+                json.GetProperty("suggestedCampaign").ValueKind
+            );
+        }
+
+        [Fact]
+        public async Task GetWeeklyBrief_ReadyRow_EmitsRepeatedInvalidAndLowRedemptionFacts()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-ready-ra-offers");
+            var weekKey = "monday:2026-07-06";
+            var metrics = EmptyMetrics();
+            var body = FakeWeeklyBriefProvider.FixtureFor(metrics);
+            var generatedAt = DateTime.Parse("2026-07-13T08:30:00Z").ToUniversalTime();
+
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                weekKey,
+                body,
+                metrics,
+                generatedAt
+            );
+
+            var offerId = await SeedCatalogOfferAsync(
+                seeded.LocationId,
+                "Quiet-day treat"
+            );
+            var guestId = await SeedLocationGuestAsync(seeded.LocationId, "Lee");
+            // Coverage window for monday:2026-07-06 Europe/London:
+            // 2026-07-05T23:00:00Z .. 2026-07-12T23:00:00Z
+            for (var i = 0; i < 5; i++)
+            {
+                await SeedOfferIssueAsync(
+                    offerId,
+                    guestId,
+                    $"TUM-WB{i:D2}",
+                    issuedAt: new DateTime(2026, 7, 7, 10, 0, 0, DateTimeKind.Utc),
+                    claimedAt: new DateTime(2026, 7, 8, 12, i, 0, DateTimeKind.Utc),
+                    redeemedAt: i == 0
+                        ? new DateTime(2026, 7, 9, 12, 0, 0, DateTimeKind.Utc)
+                        : null
+                );
+            }
+
+            await SeedFailedAttemptAsync(
+                offerId,
+                seeded.LocationId,
+                new DateTime(2026, 7, 10, 12, 0, 0, DateTimeKind.Utc),
+                OfferRedeemFailureReasons.AlreadyUsed
+            );
+            await SeedFailedAttemptAsync(
+                offerId,
+                seeded.LocationId,
+                new DateTime(2026, 7, 11, 12, 0, 0, DateTimeKind.Utc),
+                OfferRedeemFailureReasons.Expired
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&week={weekKey}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            var actions = json.GetProperty("recommendedActions").EnumerateArray().ToList();
+            Assert.Equal(2, actions.Count);
+            Assert.Equal(
+                "repeated-invalid",
+                actions[0].GetProperty("kind").GetString()
+            );
+            Assert.Equal(2, actions[0].GetProperty("count").GetInt32());
+            Assert.Equal(
+                "redemption-log",
+                actions[0].GetProperty("target").GetString()
+            );
+            Assert.Equal(
+                "low-redemption",
+                actions[1].GetProperty("kind").GetString()
+            );
+            Assert.Equal(offerId, actions[1].GetProperty("offerId").GetInt32());
+            Assert.Equal(
+                "Quiet-day treat",
+                actions[1].GetProperty("offerTitle").GetString()
+            );
+            Assert.Equal(5, actions[1].GetProperty("claims").GetInt32());
+            Assert.Equal(1, actions[1].GetProperty("redemptions").GetInt32());
+            Assert.Equal(
+                "offers",
+                actions[1].GetProperty("target").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetWeeklyBrief_ReadyRow_CapsRecommendedActionsAtThree()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-ready-ra-cap");
+            var weekKey = "monday:2026-07-06";
+            var metrics = EmptyMetrics() with { NeedsAttentionCount = 3 };
+            var body = FakeWeeklyBriefProvider.FixtureFor(metrics);
+            var generatedAt = DateTime.Parse("2026-07-13T08:30:00Z").ToUniversalTime();
+
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                weekKey,
+                body,
+                metrics,
+                generatedAt
+            );
+
+            var offerId = await SeedCatalogOfferAsync(
+                seeded.LocationId,
+                "Cap offer"
+            );
+            var guestId = await SeedLocationGuestAsync(seeded.LocationId, "Pat");
+            for (var i = 0; i < 5; i++)
+            {
+                await SeedOfferIssueAsync(
+                    offerId,
+                    guestId,
+                    $"TUM-CAP{i:D2}",
+                    issuedAt: new DateTime(2026, 7, 7, 10, 0, 0, DateTimeKind.Utc),
+                    claimedAt: new DateTime(2026, 7, 8, 12, i, 0, DateTimeKind.Utc)
+                );
+            }
+
+            await SeedFailedAttemptAsync(
+                offerId,
+                seeded.LocationId,
+                new DateTime(2026, 7, 10, 12, 0, 0, DateTimeKind.Utc),
+                OfferRedeemFailureReasons.AlreadyUsed
+            );
+            await SeedFailedAttemptAsync(
+                offerId,
+                seeded.LocationId,
+                new DateTime(2026, 7, 11, 12, 0, 0, DateTimeKind.Utc),
+                OfferRedeemFailureReasons.Expired
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&week={weekKey}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            var actions = json.GetProperty("recommendedActions").EnumerateArray().ToList();
+            Assert.Equal(3, actions.Count);
+            Assert.Equal(
+                "feedback-needs-attention",
+                actions[0].GetProperty("kind").GetString()
+            );
+            Assert.Equal(
+                "repeated-invalid",
+                actions[1].GetProperty("kind").GetString()
+            );
+            Assert.Equal(
+                "low-redemption",
+                actions[2].GetProperty("kind").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetWeeklyBrief_ReadyRow_PicksNewestSuggestedDraftInWeek()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-ready-sc-pick");
+            var weekKey = "monday:2026-07-06";
+            var metrics = EmptyMetrics();
+            var body = FakeWeeklyBriefProvider.FixtureFor(metrics);
+            var generatedAt = DateTime.Parse("2026-07-13T08:30:00Z").ToUniversalTime();
+
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                weekKey,
+                body,
+                metrics,
+                generatedAt
+            );
+
+            await SeedCampaignAsync(
+                seeded.LocationId,
+                CampaignDraftService.DraftStatus,
+                "Older draft",
+                audienceKey: "new-guests",
+                createdAt: new DateTime(2026, 7, 7, 10, 0, 0, DateTimeKind.Utc),
+                updatedAt: new DateTime(2026, 7, 7, 10, 0, 0, DateTimeKind.Utc)
+            );
+            var newestId = await SeedCampaignAsync(
+                seeded.LocationId,
+                CampaignDraftService.DraftStatus,
+                "Quiet-day boost",
+                audienceKey: "all-eligible-guests",
+                createdAt: new DateTime(2026, 7, 8, 10, 0, 0, DateTimeKind.Utc),
+                updatedAt: new DateTime(2026, 7, 11, 15, 0, 0, DateTimeKind.Utc)
+            );
+            await SeedCampaignAsync(
+                seeded.LocationId,
+                CampaignDraftService.DraftStatus,
+                "Outside week",
+                audienceKey: "new-guests",
+                createdAt: new DateTime(2026, 6, 1, 10, 0, 0, DateTimeKind.Utc),
+                updatedAt: new DateTime(2026, 6, 2, 10, 0, 0, DateTimeKind.Utc)
+            );
+            await SeedCampaignAsync(
+                seeded.LocationId,
+                "scheduled",
+                "Not a draft",
+                audienceKey: "new-guests",
+                createdAt: new DateTime(2026, 7, 9, 10, 0, 0, DateTimeKind.Utc),
+                updatedAt: new DateTime(2026, 7, 9, 10, 0, 0, DateTimeKind.Utc)
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&week={weekKey}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            var suggested = json.GetProperty("suggestedCampaign");
+            Assert.Equal(JsonValueKind.Object, suggested.ValueKind);
+            Assert.Equal(newestId, suggested.GetProperty("campaignId").GetInt32());
+            Assert.Equal(
+                "Quiet-day boost",
+                suggested.GetProperty("name").GetString()
+            );
+            Assert.Equal(
+                "all-eligible-guests",
+                suggested.GetProperty("audienceKey").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetWeeklyBrief_ReadyRow_OmitsSuggestedCampaignWhenNoQualifyingDraft()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-ready-sc-omit");
+            var weekKey = "monday:2026-07-06";
+            var metrics = EmptyMetrics();
+            var body = FakeWeeklyBriefProvider.FixtureFor(metrics);
+            var generatedAt = DateTime.Parse("2026-07-13T08:30:00Z").ToUniversalTime();
+
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                weekKey,
+                body,
+                metrics,
+                generatedAt
+            );
+
+            await SeedCampaignAsync(
+                seeded.LocationId,
+                CampaignDraftService.DraftStatus,
+                "Outside week",
+                audienceKey: "new-guests",
+                createdAt: new DateTime(2026, 6, 1, 10, 0, 0, DateTimeKind.Utc),
+                updatedAt: new DateTime(2026, 6, 2, 10, 0, 0, DateTimeKind.Utc)
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&week={weekKey}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.Equal(
+                JsonValueKind.Null,
+                json.GetProperty("suggestedCampaign").ValueKind
+            );
+        }
+
+        [Fact]
+        public async Task GenerateWeeklyBrief_DoesNotInsertCampaignRows()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-gen-no-campaign");
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                Assert.Equal(
+                    0,
+                    context.Campaigns.Count(c =>
+                        c.RestaurantLocationId == seeded.LocationId
+                    )
+                );
+            }
+
+            using var genScope = _factory.Services.CreateScope();
+            var fake = genScope.ServiceProvider
+                .GetRequiredService<FakeWeeklyBriefProvider>();
+            fake.UseDefaultFixtures();
+
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/generate?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var afterScope = _factory.Services.CreateScope();
+            var afterContext = afterScope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                0,
+                afterContext.Campaigns.Count(c =>
+                    c.RestaurantLocationId == seeded.LocationId
+                )
             );
         }
 
@@ -620,6 +1010,153 @@ namespace TummlyBackend.Tests.Integration
                 }
             );
             await context.SaveChangesAsync();
+        }
+
+        private async Task<int> SeedCatalogOfferAsync(
+            int locationId,
+            string title
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var now = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);
+            var entity = new CatalogOffer
+            {
+                RestaurantLocationId = locationId,
+                Status = CatalogOfferStatus.Active,
+                OfferType = CatalogOfferType.FixedDiscount,
+                Title = title,
+                Description = "Seeded for weekly brief tests.",
+                Validity = CatalogOfferValidity.Days14AfterIssue,
+                DiscountAmount = 5m,
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+            context.CatalogOffers.Add(entity);
+            await context.SaveChangesAsync();
+            return entity.Id;
+        }
+
+        private async Task<int> SeedLocationGuestAsync(
+            int locationId,
+            string name
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var now = DateTime.UtcNow;
+
+            var location = await context.RestaurantLocations.FindAsync(locationId);
+            Assert.NotNull(location);
+
+            var master = new MasterGuest
+            {
+                RestaurantId = location!.RestaurantId,
+                Email = $"wb-guest-{Guid.NewGuid():N}@example.com",
+                CreatedAt = now,
+            };
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
+
+            var lg = new LocationGuest
+            {
+                RestaurantLocationId = locationId,
+                MasterGuestId = master.Id,
+                Name = name,
+                CreatedAt = now,
+            };
+            context.LocationGuests.Add(lg);
+            await context.SaveChangesAsync();
+            return lg.Id;
+        }
+
+        private async Task SeedOfferIssueAsync(
+            int catalogOfferId,
+            int locationGuestId,
+            string claimCode,
+            DateTime issuedAt,
+            DateTime? claimedAt,
+            DateTime? redeemedAt = null
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            context.OfferIssues.Add(
+                new OfferIssue
+                {
+                    CatalogOfferId = catalogOfferId,
+                    LocationGuestId = locationGuestId,
+                    ClaimCode = claimCode,
+                    IssuedAtUtc = issuedAt,
+                    ClaimedAtUtc = claimedAt,
+                    RedeemedAtUtc = redeemedAt,
+                    Source = OfferIssueSources.Campaign,
+                    ExpiryAtUtc = issuedAt.AddDays(14),
+                    OfferType = CatalogOfferType.FixedDiscount,
+                    Title = "Weekly brief seed",
+                    Description = "Seeded issue",
+                    Validity = CatalogOfferValidity.Days14AfterIssue,
+                    DiscountAmount = 5m,
+                }
+            );
+            await context.SaveChangesAsync();
+        }
+
+        private async Task SeedFailedAttemptAsync(
+            int catalogOfferId,
+            int locationId,
+            DateTime attemptedAt,
+            string reason
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            context.OfferRedeemFailedAttempts.Add(
+                new OfferRedeemFailedAttempt
+                {
+                    CatalogOfferId = catalogOfferId,
+                    RestaurantLocationId = locationId,
+                    AttemptedAtUtc = attemptedAt,
+                    ClaimCode = "TUM-XXXXXX",
+                    Reason = reason,
+                }
+            );
+            await context.SaveChangesAsync();
+        }
+
+        private async Task<int> SeedCampaignAsync(
+            int locationId,
+            string status,
+            string name,
+            string? audienceKey,
+            DateTime createdAt,
+            DateTime updatedAt
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var campaign = new Campaign
+            {
+                RestaurantLocationId = locationId,
+                Status = status,
+                Name = name,
+                AudienceKey = audienceKey,
+                GoalId = "thank-recent-guests",
+                RowVersion = [0, 0, 0, 0, 0, 0, 0, 1],
+                CreatedAt = createdAt,
+                UpdatedAt = updatedAt,
+            };
+            context.Campaigns.Add(campaign);
+            await context.SaveChangesAsync();
+            return campaign.Id;
         }
 
         private static WeeklyBriefMetrics EmptyMetrics()

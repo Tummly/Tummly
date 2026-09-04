@@ -394,6 +394,45 @@ namespace TummlyBackend.Controllers
                 priorMetrics
             );
 
+            DateTime? coverageFromUtc = null;
+            DateTime? coverageToUtc = null;
+            if (
+                WeeklyBriefWeekKey.TryCoverageWindow(
+                    weekKey,
+                    WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                    out var fromUtc,
+                    out var toUtc
+                )
+            )
+            {
+                coverageFromUtc = fromUtc;
+                coverageToUtc = toUtc;
+            }
+
+            var recommendedActions =
+                await WeeklyBriefRecommendedActions.BuildFactsAsync(
+                    _context,
+                    locationId,
+                    metrics,
+                    coverageFromUtc,
+                    coverageToUtc,
+                    cancellationToken
+                );
+
+            WeeklyBriefRecommendedActions.SuggestedCampaignDto? suggestedCampaign =
+                null;
+            if (coverageFromUtc is DateTime windowFrom && coverageToUtc is DateTime windowTo)
+            {
+                suggestedCampaign =
+                    await WeeklyBriefRecommendedActions.FindSuggestedCampaignAsync(
+                        _context,
+                        locationId,
+                        windowFrom,
+                        windowTo,
+                        cancellationToken
+                    );
+            }
+
             return Ok(new
             {
                 success = true,
@@ -408,6 +447,8 @@ namespace TummlyBackend.Controllers
                 executiveSummary = phase1.ExecutiveSummary,
                 whatChanged = phase1.WhatChanged,
                 feedbackSummary = phase1.FeedbackSummary,
+                recommendedActions,
+                suggestedCampaign,
                 reviewedAtUtc = row.ReviewedAtUtc,
                 reviewedByUserId = row.ReviewedByUserId,
             });

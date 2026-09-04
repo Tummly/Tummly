@@ -1,10 +1,18 @@
-import type { AssistantFeedbackInboxIntent } from "@/lib/operatorAiAssistant/assistantActionNavigate"
+import type {
+  AssistantCampaignsIntent,
+  AssistantFeedbackInboxIntent,
+} from "@/lib/operatorAiAssistant/assistantActionNavigate"
+import { CAMPAIGN_AUDIENCE_OPTIONS } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import {
   operatorDashboardNavPath,
+  operatorDashboardOffersRedemptionLogPath,
   type OperatorDashboardMode,
 } from "@/lib/operatorHome/operatorDashboardPaths"
+import { OFFERS_REPORT_PAGE_COPY } from "@/lib/operatorReports/offersReportPresentation"
 import type {
   WeeklyBriefFeedbackSummary,
+  WeeklyBriefRecommendedActionFact,
+  WeeklyBriefSuggestedCampaignWire,
   WeeklyBriefWhatChangedRow,
 } from "@/types/operatorHome"
 
@@ -48,7 +56,11 @@ export const WEEKLY_BRIEF_PAGE_COPY = {
   // Feedback summary
   reviewFollowUpQueue: "Review follow-up queue",
 
+  // Recommended actions
+  openFollowUpQueue: "Open follow-up queue",
+
   // Suggested campaign
+  draftBadge: "Draft",
   reviewCampaign: "Review campaign",
 } as const
 
@@ -104,6 +116,20 @@ export function shouldShowWeeklyBriefFeedbackSummary(
   return summary != null && summary.text.trim().length > 0
 }
 
+/** Whether the Recommended actions section should render. */
+export function shouldShowWeeklyBriefRecommendedActions(
+  facts: readonly WeeklyBriefRecommendedActionFact[] | null | undefined
+): boolean {
+  return (facts?.length ?? 0) > 0
+}
+
+/** Whether the Suggested campaign section should render. */
+export function shouldShowWeeklyBriefSuggestedCampaign(
+  campaign: WeeklyBriefSuggestedCampaignWire | null | undefined
+): boolean {
+  return campaign != null
+}
+
 export type WeeklyBriefFeedbackFollowUpNavigatePlan = {
   path: string
   feedbackInbox: AssistantFeedbackInboxIntent
@@ -120,6 +146,131 @@ export function planWeeklyBriefFeedbackFollowUpCta(input: {
   return {
     path: operatorDashboardNavPath(input.mode, "feedback", input.locationId),
     feedbackInbox: { tab: "needs-attention" },
+  }
+}
+
+export type WeeklyBriefRecommendedActionCard = {
+  id: string
+  title: string
+  subtitle: string
+  cta: string
+  target: "feedback-needs-attention" | "redemption-log" | "offers"
+}
+
+/** Map a ready-envelope recommended-action fact to card copy (Offers control-signal pattern). */
+export function mapWeeklyBriefRecommendedActionFact(
+  fact: WeeklyBriefRecommendedActionFact
+): WeeklyBriefRecommendedActionCard {
+  if (fact.kind === "feedback-needs-attention") {
+    return {
+      id: fact.kind,
+      title: `Follow up with ${fact.count} guests`,
+      subtitle:
+        "These guests shared contact details and may need a response.",
+      cta: WEEKLY_BRIEF_PAGE_COPY.openFollowUpQueue,
+      target: "feedback-needs-attention",
+    }
+  }
+
+  if (fact.kind === "repeated-invalid") {
+    return {
+      id: fact.kind,
+      title: "Repeated invalid attempts",
+      subtitle: `${fact.count} attempts this period were already-used or expired offers.`,
+      cta: OFFERS_REPORT_PAGE_COPY.viewRedemptionLog,
+      target: "redemption-log",
+    }
+  }
+
+  return {
+    id: fact.kind,
+    title: "High claims, lower redemptions",
+    subtitle: `The ${fact.offerTitle} offer had ${fact.claims} claims and ${fact.redemptions} redemptions.`,
+    cta: OFFERS_REPORT_PAGE_COPY.reviewOffer,
+    target: "offers",
+  }
+}
+
+export type WeeklyBriefRecommendedActionNavigatePlan = {
+  path: string
+  feedbackInbox?: AssistantFeedbackInboxIntent
+}
+
+/** Plan CTA navigation for a recommended-action card target. */
+export function planWeeklyBriefRecommendedActionCta(input: {
+  mode: OperatorDashboardMode
+  locationId: number
+  target: WeeklyBriefRecommendedActionCard["target"]
+}): WeeklyBriefRecommendedActionNavigatePlan {
+  if (input.target === "feedback-needs-attention") {
+    return planWeeklyBriefFeedbackFollowUpCta({
+      mode: input.mode,
+      locationId: input.locationId,
+    })
+  }
+
+  if (input.target === "redemption-log") {
+    return {
+      path: operatorDashboardOffersRedemptionLogPath(
+        input.mode,
+        input.locationId
+      ),
+    }
+  }
+
+  return {
+    path: operatorDashboardNavPath(input.mode, "offers", input.locationId),
+  }
+}
+
+export type WeeklyBriefSuggestedCampaignCard = {
+  status: string
+  title: string
+  subtitle: string
+  cta: string
+  campaignId: number
+}
+
+/** Map suggested-campaign wire to section card copy. */
+export function mapWeeklyBriefSuggestedCampaign(
+  campaign: WeeklyBriefSuggestedCampaignWire
+): WeeklyBriefSuggestedCampaignCard {
+  const audienceTitle =
+    campaign.audienceKey == null || campaign.audienceKey.trim().length === 0
+      ? null
+      : (CAMPAIGN_AUDIENCE_OPTIONS.find(
+          (option) => option.id === campaign.audienceKey
+        )?.title ?? campaign.audienceKey)
+
+  return {
+    status: WEEKLY_BRIEF_PAGE_COPY.draftBadge,
+    title: campaign.name,
+    subtitle: audienceTitle ?? "Draft campaign ready to review.",
+    cta: WEEKLY_BRIEF_PAGE_COPY.reviewCampaign,
+    campaignId: campaign.campaignId,
+  }
+}
+
+export type WeeklyBriefSuggestedCampaignNavigatePlan = {
+  path: string
+  campaigns: AssistantCampaignsIntent
+}
+
+/**
+ * Open the suggested Draft on Campaigns at the review step
+ * (same continue-editing intent as Home draft continue).
+ */
+export function planWeeklyBriefSuggestedCampaignCta(input: {
+  mode: OperatorDashboardMode
+  locationId: number
+  campaignId: number
+}): WeeklyBriefSuggestedCampaignNavigatePlan {
+  return {
+    path: operatorDashboardNavPath(input.mode, "campaigns", input.locationId),
+    campaigns: {
+      continueEditingCampaignId: input.campaignId,
+      continueEditingStep: "review",
+    },
   }
 }
 

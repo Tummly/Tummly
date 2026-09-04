@@ -181,6 +181,50 @@ namespace TummlyBackend.Helpers
         }
 
         /// <summary>
+        /// Reconstruct inclusive-start / exclusive-end UTC coverage from a
+        /// workspace <c>weekday:yyyy-MM-dd</c> week key in
+        /// <paramref name="ianaTimeZoneId"/>. Legacy ISO keys are not supported.
+        /// </summary>
+        public static bool TryCoverageWindow(
+            string weekKey,
+            string ianaTimeZoneId,
+            out DateTime coverageStartUtc,
+            out DateTime coverageEndUtcExclusive
+        )
+        {
+            coverageStartUtc = default;
+            coverageEndUtcExclusive = default;
+
+            if (
+                string.IsNullOrWhiteSpace(ianaTimeZoneId)
+                || !TryNormalizeWeekKey(weekKey, out var normalized)
+            )
+            {
+                return false;
+            }
+
+            var colon = normalized.IndexOf(':');
+            if (
+                colon <= 0
+                || !DateOnly.TryParseExact(
+                    normalized[(colon + 1)..],
+                    "yyyy-MM-dd",
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
+                    out var start
+                )
+            )
+            {
+                return false;
+            }
+
+            var timeZone = ResolveTimeZone(ianaTimeZoneId.Trim());
+            coverageStartUtc = LocalDateStartToUtc(start, timeZone);
+            coverageEndUtcExclusive = LocalDateStartToUtc(start.AddDays(7), timeZone);
+            return true;
+        }
+
+        /// <summary>
         /// Whether <paramref name="utcNow"/> is the configured generate day
         /// (start weekday) in the location timezone.
         /// </summary>

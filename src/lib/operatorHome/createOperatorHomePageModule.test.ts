@@ -70,6 +70,8 @@ function readyWeeklyBriefResponse(
     executiveSummary: "Loop health held steady this week.",
     whatChanged: [],
     feedbackSummary: null,
+    recommendedActions: [],
+    suggestedCampaign: null,
   }
 }
 

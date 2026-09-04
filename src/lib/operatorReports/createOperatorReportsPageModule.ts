@@ -39,6 +39,8 @@ import type {
   WeeklyBriefGenerateResponse,
   WeeklyBriefGetResponse,
   WeeklyBriefMarkReviewedResponse,
+  WeeklyBriefRecommendedActionFact,
+  WeeklyBriefSuggestedCampaignWire,
   WeeklyBriefWhatChangedRow,
 } from "@/types/operatorHome"
 import type {
@@ -90,6 +92,10 @@ export type OperatorReportsWeeklyBriefViewModel = {
   whatChanged: WeeklyBriefWhatChangedRow[]
   /** Ready Feedback summary facts; null → hide section. */
   feedbackSummary: WeeklyBriefFeedbackSummary | null
+  /** Ready recommended-action facts; empty → hide section. */
+  recommendedActions: WeeklyBriefRecommendedActionFact[]
+  /** Suggested Draft campaign; null → hide section. */
+  suggestedCampaign: WeeklyBriefSuggestedCampaignWire | null
   /** Durable mark-reviewed timestamp from the ready envelope; null until marked. */
   reviewedAtUtc: string | null
   reviewedByUserId: number | null
@@ -244,6 +250,8 @@ function emptyWeeklyBrief(
     executiveSummary: null,
     whatChanged: [],
     feedbackSummary: null,
+    recommendedActions: [],
+    suggestedCampaign: null,
     reviewedAtUtc: null,
     reviewedByUserId: null,
     markReviewedBusy: false,
@@ -275,6 +283,8 @@ function mapReadyWeeklyBrief(
     executiveSummary: response.executiveSummary,
     whatChanged: response.whatChanged ?? [],
     feedbackSummary: response.feedbackSummary ?? null,
+    recommendedActions: response.recommendedActions ?? [],
+    suggestedCampaign: response.suggestedCampaign ?? null,
     reviewedAtUtc: response.reviewedAtUtc ?? null,
     reviewedByUserId: response.reviewedByUserId ?? null,
     markReviewedBusy: false,
