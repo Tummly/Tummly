@@ -79,6 +79,71 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetWeeklyBrief_ReadyRow_ReturnsPhase1MetaAndExecutiveSummary()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-ready-meta");
+            var weekKey = "monday:2026-07-06";
+            var metrics = EmptyMetrics() with
+            {
+                GuestsJoined = 10,
+                QrScanEvents = 8,
+                FeedbackCount = 5,
+                ClaimsInWeek = 2,
+                CampaignsSentInWeek = 1,
+            };
+            var body = FakeWeeklyBriefProvider.FixtureFor(metrics);
+            var generatedAt = DateTime.Parse("2026-07-13T08:30:00Z").ToUniversalTime();
+
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                weekKey,
+                body,
+                metrics,
+                generatedAt
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&week={weekKey}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(
+                "Steady week across capture and feedback.",
+                json.GetProperty("body").GetProperty("headline").GetString()
+            );
+
+            var meta = json.GetProperty("meta");
+            Assert.Equal("6–12 July", meta.GetProperty("period").GetString());
+            Assert.Equal(
+                "Based on enough activity to show useful patterns.",
+                meta.GetProperty("confidence").GetString()
+            );
+            Assert.Equal("high", meta.GetProperty("confidenceLevel").GetString());
+
+            var dataSources = meta.GetProperty("dataSources")
+                .EnumerateArray()
+                .Select(el => el.GetString())
+                .ToArray();
+            Assert.Equal(
+                new[] { "Capture", "Feedback", "Offers", "Campaigns" },
+                dataSources
+            );
+
+            Assert.Equal(
+                "Steady week across capture and feedback. "
+                    + "10 guests joined; 8 QR scans. "
+                    + "5 feedback submissions this week. "
+                    + "2 claims and 0 redemptions. "
+                    + "1 campaigns reached 0 recipients.",
+                json.GetProperty("executiveSummary").GetString()
+            );
+        }
+
+        [Fact]
         public async Task GetWeeklyBrief_MissingRow_ReturnsNotReadyEnvelope()
         {
             var seeded = await SeedOwnerWithLocationAsync("wb-missing");

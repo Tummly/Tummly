@@ -68,12 +68,21 @@ export type OperatorReportsWeeklyBriefStatus =
   | "ready"
   | "error"
 
+export type OperatorReportsWeeklyBriefMeta = {
+  period: string
+  dataSources: string[]
+  confidence: string
+  generatedAtUtc: string
+}
+
 export type OperatorReportsWeeklyBriefViewModel = {
   status: OperatorReportsWeeklyBriefStatus
   week: string | null
   body: WeeklyBriefBody | null
   headline: string | null
   secondary: string | null
+  meta: OperatorReportsWeeklyBriefMeta | null
+  executiveSummary: string | null
   errorMessage: string | null
   errorRetryable: boolean
   generateBusy: boolean
@@ -206,6 +215,8 @@ function emptyWeeklyBrief(
     body: null,
     headline: null,
     secondary: null,
+    meta: null,
+    executiveSummary: null,
     errorMessage: null,
     errorRetryable: false,
     generateBusy: false,
@@ -225,6 +236,13 @@ function mapReadyWeeklyBrief(
       response.body,
       response.metrics
     ),
+    meta: {
+      period: response.meta.period,
+      dataSources: response.meta.dataSources,
+      confidence: response.meta.confidence,
+      generatedAtUtc: response.generatedAtUtc,
+    },
+    executiveSummary: response.executiveSummary,
     errorMessage: null,
     errorRetryable: false,
     generateBusy: false,

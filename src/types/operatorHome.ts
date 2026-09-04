@@ -279,6 +279,14 @@ export type WeeklyBriefNotReadyResponse = {
   week: string;
 };
 
+/** Phase-1 Figma meta on the shared ready envelope (Home ignores unused fields). */
+export type WeeklyBriefReadyMeta = {
+  period: string;
+  dataSources: string[];
+  confidence: string;
+  confidenceLevel?: "high" | "medium" | "low";
+};
+
 export type WeeklyBriefReadyResponse = {
   success: true;
   ready: true;
@@ -288,6 +296,8 @@ export type WeeklyBriefReadyResponse = {
   generatedAtUtc: string;
   body: WeeklyBriefBody;
   metrics: WeeklyBriefMetrics;
+  meta: WeeklyBriefReadyMeta;
+  executiveSummary: string;
 };
 
 export type WeeklyBriefGetResponse =

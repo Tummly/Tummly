@@ -61,6 +61,13 @@ function readyWeeklyBriefResponse(
     generatedAtUtc: "2026-08-18T09:00:00.000Z",
     body: weeklyBriefBodyFixture,
     metrics: weeklyBriefMetricsFixture,
+    meta: {
+      period: "Week 33, 2026",
+      dataSources: ["Capture", "Feedback"],
+      confidence: "Based on moderate activity; patterns may be early.",
+      confidenceLevel: "medium",
+    },
+    executiveSummary: "Loop health held steady this week.",
   }
 }
 

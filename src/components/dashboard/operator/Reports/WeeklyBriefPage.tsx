@@ -2,6 +2,7 @@ import { useEffect } from "react"
 import { Download, CheckCircle } from "lucide-react"
 import { toast } from "sonner"
 
+import aiIconPng from "@/assets/svg/ui-icons/ai-icon.png"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
@@ -11,14 +12,8 @@ import { useReportsPageModuleApi } from "@/components/dashboard/operator/Reports
 import { useReportsPageModule } from "@/components/dashboard/operator/Reports/utils/useReportsPageModule"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
 import {
-  WEEKLY_BRIEF_BODY_CLASS,
-  WEEKLY_BRIEF_DOMAIN_BLOCK_CLASS,
-  WEEKLY_BRIEF_DOMAIN_LABEL_CLASS,
-  WEEKLY_BRIEF_DOMAIN_SUMMARY_CLASS,
-  WEEKLY_BRIEF_HEADLINE_CLASS,
   WEEKLY_BRIEF_RETRY_LABEL,
   WEEKLY_BRIEF_STATUS_SHELL_CLASS,
-  WEEKLY_BRIEF_WATCH_LIST_CLASS,
 } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import { operatorDashboardNavPath } from "@/lib/operatorHome/operatorDashboardPaths"
 import {
@@ -28,63 +23,101 @@ import {
 import {
   REPORTS_BODY_STACK_CLASS,
   REPORTS_PAGE_ACTION_BUTTON_CLASS,
+  REPORTS_SECTION_TITLE_CLASS,
 } from "@/lib/operatorReports/reportsPresentation"
+import { REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE } from "@/lib/operatorReports/reportsWeeklyBriefPresentation"
 import {
-  REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE,
-} from "@/lib/operatorReports/reportsWeeklyBriefPresentation"
-import { WEEKLY_BRIEF_PAGE_COPY } from "@/lib/operatorReports/weeklyBriefPresentation"
-import type { WeeklyBriefBody, WeeklyBriefSection } from "@/types/operatorHome"
+  formatWeeklyBriefDataSources,
+  formatWeeklyBriefGeneratedAt,
+  WEEKLY_BRIEF_PAGE_COPY,
+} from "@/lib/operatorReports/weeklyBriefPresentation"
+import type { OperatorReportsWeeklyBriefMeta } from "@/lib/operatorReports/createOperatorReportsPageModule"
 
 type WeeklyBriefPageProps = {
   mode?: DashboardProps["mode"]
 }
 
-function DomainBlock(props: {
-  label: string
-  section: WeeklyBriefSection
-}) {
+const META_LABEL_CLASS =
+  "m-0 text-sm font-medium leading-5 text-op-text-muted"
+const META_VALUE_CLASS =
+  "m-0 text-sm font-medium leading-5 text-op-card-title-color"
+const META_FIELD_CLASS = "flex min-w-0 flex-col gap-1"
+const EXEC_SUMMARY_BODY_CLASS =
+  "m-0 rounded-op-md bg-op-background-secondary p-4 text-sm font-medium leading-6 text-op-card-title-color"
+
+function MetaField(props: { label: string; value: string }) {
   return (
-    <div className={WEEKLY_BRIEF_DOMAIN_BLOCK_CLASS}>
-      <p className={WEEKLY_BRIEF_DOMAIN_LABEL_CLASS}>{props.label}</p>
-      <p className={WEEKLY_BRIEF_DOMAIN_SUMMARY_CLASS}>
-        {props.section.summary}
-      </p>
+    <div className={META_FIELD_CLASS}>
+      <p className={META_LABEL_CLASS}>{props.label}</p>
+      <p className={META_VALUE_CLASS}>{props.value}</p>
     </div>
   )
 }
 
-function ReadyBody(props: { body: WeeklyBriefBody }) {
-  const { body } = props
+function WeeklyBriefMetaCard(props: {
+  meta: OperatorReportsWeeklyBriefMeta
+  locationName: string
+}) {
+  const { meta, locationName } = props
   return (
-    <div className={WEEKLY_BRIEF_BODY_CLASS}>
-      <p className={WEEKLY_BRIEF_HEADLINE_CLASS}>{body.headline}</p>
-      <DomainBlock label="Capture" section={body.capture} />
-      <DomainBlock label="Feedback" section={body.feedback} />
-      <DomainBlock label="Offers" section={body.offers} />
-      <DomainBlock label="Campaigns" section={body.campaigns} />
-      {body.watchNext.length > 0 ? (
-        <div className={WEEKLY_BRIEF_DOMAIN_BLOCK_CLASS}>
-          <p className={WEEKLY_BRIEF_DOMAIN_LABEL_CLASS}>Watch next</p>
-          <ul className={WEEKLY_BRIEF_WATCH_LIST_CLASS}>
-            {body.watchNext.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+    <ReportsSection>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-x-16 sm:gap-y-6">
+        <MetaField
+          label={WEEKLY_BRIEF_PAGE_COPY.periodLabel}
+          value={meta.period}
+        />
+        <MetaField
+          label={WEEKLY_BRIEF_PAGE_COPY.dataSourcesLabel}
+          value={formatWeeklyBriefDataSources(meta.dataSources)}
+        />
+        <MetaField
+          label={WEEKLY_BRIEF_PAGE_COPY.locationLabel}
+          value={locationName}
+        />
+        <MetaField
+          label={WEEKLY_BRIEF_PAGE_COPY.confidenceLabel}
+          value={meta.confidence}
+        />
+        <MetaField
+          label={WEEKLY_BRIEF_PAGE_COPY.generatedLabel}
+          value={formatWeeklyBriefGeneratedAt(meta.generatedAtUtc)}
+        />
+      </div>
+    </ReportsSection>
+  )
+}
+
+function ExecutiveSummarySection(props: { summary: string }) {
+  return (
+    <ReportsSection>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <img
+            src={aiIconPng}
+            alt=""
+            className="size-4 shrink-0 brightness-0 invert"
+          />
+          <h2 className={REPORTS_SECTION_TITLE_CLASS}>
+            {WEEKLY_BRIEF_PAGE_COPY.executiveSummaryTitle}
+          </h2>
         </div>
-      ) : null}
-    </div>
+        <p className={EXEC_SUMMARY_BODY_CLASS}>{props.summary}</p>
+      </div>
+    </ReportsSection>
   )
 }
 
 /**
- * Reports Weekly Brief page — same durable body as Home; Reports chrome only.
- * PDF / Mark as reviewed stay presentational stubs (lock 02 out).
+ * Reports Weekly Brief page — Figma ready chrome (meta + executive summary).
+ * PDF / Mark as reviewed stay presentational stubs until tickets 08–09.
  */
 export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
   const reports = useReportsPageModule()
   const pageModule = useReportsPageModuleApi()
-  const { weeklyBrief, selectedLocationId } = reports.snapshot
+  const { weeklyBrief, selectedLocationId, selectedLocationName } =
+    reports.snapshot
   const locationId = selectedLocationId ?? 1
+  const locationName = selectedLocationName ?? "Location"
 
   useEffect(() => {
     pageModule.setActiveSurface("weekly-brief")
@@ -103,6 +136,9 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
   const handleMarkAsReviewed = () => {
     toast.success(WEEKLY_BRIEF_PAGE_COPY.reviewedToast)
   }
+
+  const readyMeta = weeklyBrief.meta
+  const readySummary = weeklyBrief.executiveSummary
 
   return (
     <ReportsPageChrome
@@ -188,11 +224,12 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
         </div>
       ) : null}
 
-      {weeklyBrief.status === "ready" && weeklyBrief.body != null ? (
+      {weeklyBrief.status === "ready" &&
+      readyMeta != null &&
+      readySummary != null ? (
         <div className={REPORTS_BODY_STACK_CLASS}>
-          <ReportsSection>
-            <ReadyBody body={weeklyBrief.body} />
-          </ReportsSection>
+          <WeeklyBriefMetaCard meta={readyMeta} locationName={locationName} />
+          <ExecutiveSummarySection summary={readySummary} />
         </div>
       ) : null}
     </ReportsPageChrome>

@@ -15,6 +15,13 @@ export const WEEKLY_BRIEF_PAGE_COPY = {
     "Generate a weekly brief once you have guest feedback, QR activity, offers or campaign results.",
   generateBrief: "Generate brief",
 
+  // Meta card labels
+  periodLabel: "Period",
+  locationLabel: "Location",
+  dataSourcesLabel: "Data sources",
+  confidenceLabel: "Confidence",
+  generatedLabel: "Generated",
+
   // Section titles
   executiveSummaryTitle: "Executive summary",
   whatChangedTitle: "What changed",
@@ -33,6 +40,35 @@ export const WEEKLY_BRIEF_PAGE_COPY = {
   // Suggested campaign
   reviewCampaign: "Review campaign",
 } as const
+
+/**
+ * Format ready-envelope `generatedAtUtc` for the meta card (operator-local en-GB).
+ * Example: "13 July, 08:30".
+ */
+export function formatWeeklyBriefGeneratedAt(generatedAtUtc: string): string {
+  const date = new Date(generatedAtUtc)
+  if (Number.isNaN(date.getTime())) {
+    return generatedAtUtc
+  }
+
+  const datePart = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+  }).format(date)
+
+  const timePart = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date)
+
+  return `${datePart}, ${timePart}`
+}
+
+/** Join phase-1 data-source labels for the meta card value. */
+export function formatWeeklyBriefDataSources(dataSources: string[]): string {
+  return dataSources.join(", ")
+}
 
 export type WeeklyBriefChangeRow = {
   id: string

@@ -67,6 +67,14 @@ function readyWeeklyBriefResponse(
     generatedAtUtc: "2026-08-17T08:00:00Z",
     body: weeklyBriefBodyFixture,
     metrics: weeklyBriefMetricsFixture,
+    meta: {
+      period: "Week 33, 2026",
+      dataSources: ["Capture"],
+      confidence: "Based on enough activity to show useful patterns.",
+      confidenceLevel: "high",
+    },
+    executiveSummary:
+      "Loop health held steady this week. Counter cards drove most scans.",
   }
 }
 
@@ -514,6 +522,38 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().weeklyBrief.secondary).toBe(
       "Counter cards drove most scans."
     )
+    expect(module.getSnapshot().weeklyBrief.meta).toEqual({
+      period: "Week 33, 2026",
+      dataSources: ["Capture"],
+      confidence: "Based on enough activity to show useful patterns.",
+      generatedAtUtc: "2026-08-17T08:00:00Z",
+    })
+    expect(module.getSnapshot().weeklyBrief.executiveSummary).toBe(
+      "Loop health held steady this week. Counter cards drove most scans."
+    )
+  })
+
+  it("clears meta and executive summary on empty and error paths", async () => {
+    const adapters = createAdapters({
+      getWeeklyBrief: async (locationId) =>
+        notReadyWeeklyBriefResponse(locationId),
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().weeklyBrief.status).toBe("empty")
+    expect(module.getSnapshot().weeklyBrief.meta).toBeNull()
+    expect(module.getSnapshot().weeklyBrief.executiveSummary).toBeNull()
+
+    const errorAdapters = createAdapters({
+      getWeeklyBrief: async () => {
+        throw new Error("network")
+      },
+    })
+    const errorModule = createOperatorReportsPageModule(errorAdapters)
+    await errorModule.syncWorkspace(workspace())
+    expect(errorModule.getSnapshot().weeklyBrief.status).toBe("error")
+    expect(errorModule.getSnapshot().weeklyBrief.meta).toBeNull()
+    expect(errorModule.getSnapshot().weeklyBrief.executiveSummary).toBeNull()
   })
 
   it("sets brief loading on hub GET before the response", async () => {

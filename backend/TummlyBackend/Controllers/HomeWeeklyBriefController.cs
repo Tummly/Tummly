@@ -296,6 +296,8 @@ namespace TummlyBackend.Controllers
                 );
             }
 
+            var phase1 = WeeklyBriefPhase1Meta.Build(body, metrics, weekKey);
+
             return Ok(new
             {
                 success = true,
@@ -306,6 +308,8 @@ namespace TummlyBackend.Controllers
                 generatedAtUtc = row.GeneratedAtUtc,
                 body,
                 metrics,
+                meta = phase1.Meta,
+                executiveSummary = phase1.ExecutiveSummary,
             });
         }
 
