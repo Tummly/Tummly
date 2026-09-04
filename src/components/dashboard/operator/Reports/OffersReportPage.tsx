@@ -21,6 +21,7 @@ import { ReportsStatusBadge } from "@/components/dashboard/operator/Reports/Repo
 import { OFFERS_REPORT_PAGE_COPY } from "@/lib/operatorReports/offersReportPresentation"
 import {
   REPORTS_BODY_STACK_CLASS,
+  REPORTS_INSIGHT_BODY_CLASS,
   REPORTS_TABLE_BODY_CELL_CLASS,
   REPORTS_TABLE_BODY_ROW_CLASS,
   REPORTS_TABLE_CLASS,
@@ -289,25 +290,31 @@ export function OffersReportPage({
           <ReportsSection
             title={OFFERS_REPORT_PAGE_COPY.controlSignalsSectionTitle}
           >
-            <div className="flex flex-col gap-4">
-              {offersReport.controlSignals.map((signal) => (
-                <div key={signal.id} className="flex flex-col gap-4">
-                  <ReportsInsightBanner title={signal.title}>
-                    {signal.subtitle}
-                  </ReportsInsightBanner>
-                  <div>
-                    <Button
-                      type="button"
-                      variant="op-tertiary"
-                      className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-                      onClick={() => handleControlSignalAction(signal.target)}
-                    >
-                      {signal.cta}
-                    </Button>
+            {offersReport.controlSignals.length === 0 ? (
+              <p className={REPORTS_INSIGHT_BODY_CLASS}>
+                {OFFERS_REPORT_PAGE_COPY.controlSignalsEmpty}
+              </p>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {offersReport.controlSignals.map((signal) => (
+                  <div key={signal.id} className="flex flex-col gap-4">
+                    <ReportsInsightBanner title={signal.title}>
+                      {signal.subtitle}
+                    </ReportsInsightBanner>
+                    <div>
+                      <Button
+                        type="button"
+                        variant="op-tertiary"
+                        className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+                        onClick={() => handleControlSignalAction(signal.target)}
+                      >
+                        {signal.cta}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </ReportsSection>
         </div>
       ) : null}

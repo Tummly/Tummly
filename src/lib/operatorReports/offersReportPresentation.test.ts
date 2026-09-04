@@ -20,8 +20,34 @@ describe("offersReportPresentation", () => {
     expect(OFFERS_REPORT_PAGE_COPY.controlSignalsSectionTitle).toBe(
       "Offer control signals"
     )
+    expect(OFFERS_REPORT_PAGE_COPY.controlSignalsEmpty).toBe(
+      "No control signals for this period."
+    )
     expect(OFFERS_REPORT_PAGE_COPY.loadError).toBe(
       "Could not load offers report. Please try again."
+    )
+  })
+
+  it("keeps an empty controlSignals list when the API returns none", () => {
+    const view = buildOffersReportViewModel({
+      success: true,
+      lifetimeEmpty: false,
+      kpis: {
+        activeOffers: { value: 1, valuePrevious: 1 },
+        offerClaims: { value: 0, valuePrevious: 0 },
+        redemptions: { value: 0, valuePrevious: 0 },
+        redemptionRate: { value: null, valuePrevious: null },
+        expiredClaims: { value: 0, valuePrevious: 0 },
+        invalidAttempts: { value: 0, valuePrevious: 0 },
+      },
+      performance: [],
+      recentRedemptions: [],
+      controlSignals: [],
+    })
+
+    expect(view.controlSignals).toEqual([])
+    expect(OFFERS_REPORT_PAGE_COPY.controlSignalsEmpty).toBe(
+      "No control signals for this period."
     )
   })
 

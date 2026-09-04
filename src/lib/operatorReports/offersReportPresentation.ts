@@ -35,6 +35,7 @@ export const OFFERS_REPORT_PAGE_COPY = {
   performanceSectionTitle: "Offer performance",
   recentRedemptionsSectionTitle: "Recent redemptions",
   controlSignalsSectionTitle: "Offer control signals",
+  controlSignalsEmpty: "No control signals for this period.",
 
   // Table headers
   offerHeader: "Offer",
