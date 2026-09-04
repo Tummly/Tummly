@@ -1130,6 +1130,13 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             var json = await ReadJsonAsync(response);
             Assert.Equal("dormant", json.GetProperty("code").GetString());
+
+            using var getRequest = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&week={ExplicitWeek}",
+                seeded.Jwt
+            );
+            var getResponse = await _client.SendAsync(getRequest);
+            Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
         }
 
         [Fact]
@@ -1156,6 +1163,13 @@ namespace TummlyBackend.Tests.Integration
                 "chargeback_restricted",
                 json.GetProperty("code").GetString()
             );
+
+            using var getRequest = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&week={ExplicitWeek}",
+                seeded.Jwt
+            );
+            var getResponse = await _client.SendAsync(getRequest);
+            Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
         }
 
         private async Task SeedSucceededBriefAsync(

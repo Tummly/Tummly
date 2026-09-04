@@ -5,7 +5,7 @@ namespace TummlyBackend.Helpers
 {
     /// <summary>
     /// Coarse sync Weekly brief PDF — section parity with the Figma ready page,
-    /// not visual polish (ticket 09).
+    /// not visual polish (ticket 09). Multi-page so later sections are not dropped.
     /// </summary>
     public static class WeeklyBriefPdfWriter
     {
@@ -13,8 +13,10 @@ namespace TummlyBackend.Helpers
 
         private const float PageHeight = 842f;
         private const float MarginLeft = 40f;
+        private const float MarginBottom = 48f;
         private const float LineHeight = 14f;
         private const float SectionGap = 18f;
+        private const float TopY = PageHeight - 48f;
 
         public sealed record WhatChangedRow(
             string Area,
@@ -53,83 +55,86 @@ namespace TummlyBackend.Helpers
         {
             var stamp = utcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
             var fileName = $"tummly-weekly-brief-{locationId}-{stamp}Z.pdf";
-            return (BuildPdf(BuildContentStream(document)), fileName);
+            return (BuildPdf(BuildPages(document)), fileName);
         }
 
-        private static string BuildContentStream(Document document)
+        private static IReadOnlyList<string> BuildPages(Document document)
         {
-            var sb = new StringBuilder(4096);
-            var y = PageHeight - 48f;
+            var pages = new List<StringBuilder>();
+            var sb = NewPage(pages);
+            var y = TopY;
 
+            (sb, y) = EnsureSpace(pages, sb, y, LineHeight * 2 + SectionGap);
             SetFillBlack(sb);
             TextAt(sb, "F2", 18, MarginLeft, y, "Weekly Brief");
             y -= 22f;
             SetFillMuted(sb);
-            TextAt(
+            (sb, y) = WriteWrapped(
+                pages,
                 sb,
-                "F1",
-                10,
-                MarginLeft,
                 y,
-                "A plain-English summary of what happened, what changed and what to do next."
+                "A plain-English summary of what happened, what changed and what to do next.",
+                maxChars: 90
             );
-            y -= SectionGap;
+            y -= SectionGap - LineHeight;
 
+            (sb, y) = EnsureSpace(pages, sb, y, LineHeight * 6);
             SetFillBlack(sb);
             TextAt(sb, "F2", 12, MarginLeft, y, "Meta");
             y -= LineHeight;
             SetFillMuted(sb);
-            y = WriteWrapped(
+            (sb, y) = WriteWrapped(pages, sb, y, $"Period: {document.Period}", 90);
+            (sb, y) = WriteWrapped(
+                pages,
                 sb,
-                $"Period: {document.Period}",
                 y,
-                maxChars: 90
-            );
-            y = WriteWrapped(
-                sb,
                 $"Location: {document.LocationName}",
-                y,
-                maxChars: 90
+                90
             );
             var sources =
                 document.DataSources.Count == 0
                     ? "None"
                     : string.Join(", ", document.DataSources);
-            y = WriteWrapped(sb, $"Data sources: {sources}", y, maxChars: 90);
-            y = WriteWrapped(
+            (sb, y) = WriteWrapped(pages, sb, y, $"Data sources: {sources}", 90);
+            (sb, y) = WriteWrapped(
+                pages,
                 sb,
+                y,
                 $"Confidence: {document.Confidence}",
-                y,
-                maxChars: 90
+                90
             );
-            y = WriteWrapped(
+            (sb, y) = WriteWrapped(
+                pages,
                 sb,
-                $"Generated: {document.GeneratedAtLabel}",
                 y,
-                maxChars: 90
+                $"Generated: {document.GeneratedAtLabel}",
+                90
             );
             y -= SectionGap - 6f;
 
+            (sb, y) = EnsureSpace(pages, sb, y, LineHeight * 3);
             SetFillBlack(sb);
             TextAt(sb, "F2", 12, MarginLeft, y, "Executive summary");
             y -= LineHeight;
             SetFillMuted(sb);
-            y = WriteWrapped(sb, document.ExecutiveSummary, y, maxChars: 90);
+            (sb, y) = WriteWrapped(pages, sb, y, document.ExecutiveSummary, 90);
             y -= SectionGap - 6f;
 
             if (document.WhatChanged.Count > 0)
             {
+                (sb, y) = EnsureSpace(pages, sb, y, LineHeight * 2);
                 SetFillBlack(sb);
                 TextAt(sb, "F2", 12, MarginLeft, y, "What changed");
                 y -= LineHeight;
                 foreach (var row in document.WhatChanged)
                 {
                     SetFillMuted(sb);
-                    y = WriteWrapped(
+                    (sb, y) = WriteWrapped(
+                        pages,
                         sb,
-                        $"{row.Area} | {row.Change} | {row.Meaning}",
                         y,
-                        maxChars: 90
+                        $"{row.Area} | {row.Change} | {row.Meaning}",
+                        90
                     );
                 }
 
@@ -138,17 +143,19 @@ namespace TummlyBackend.Helpers
 
             if (document.FeedbackSummary is FeedbackSummary feedback)
             {
+                (sb, y) = EnsureSpace(pages, sb, y, LineHeight * 3);
                 SetFillBlack(sb);
                 TextAt(sb, "F2", 12, MarginLeft, y, "Feedback summary");
                 y -= LineHeight;
                 SetFillMuted(sb);
-                y = WriteWrapped(sb, feedback.Text, y, maxChars: 90);
-                y = WriteWrapped(sb, feedback.Subtitle, y, maxChars: 90);
+                (sb, y) = WriteWrapped(pages, sb, y, feedback.Text, 90);
+                (sb, y) = WriteWrapped(pages, sb, y, feedback.Subtitle, 90);
                 y -= SectionGap - 6f;
             }
 
             if (document.RecommendedActionLines.Count > 0)
             {
+                (sb, y) = EnsureSpace(pages, sb, y, LineHeight * 2);
                 SetFillBlack(sb);
                 TextAt(sb, "F2", 12, MarginLeft, y, "Recommended actions");
                 y -= LineHeight;
@@ -156,11 +163,12 @@ namespace TummlyBackend.Helpers
                 foreach (var line in document.RecommendedActionLines)
                 {
                     SetFillMuted(sb);
-                    y = WriteWrapped(
+                    (sb, y) = WriteWrapped(
+                        pages,
                         sb,
-                        $"{index}. {line}",
                         y,
-                        maxChars: 90
+                        $"{index}. {line}",
+                        90
                     );
                     index++;
                 }
@@ -170,45 +178,70 @@ namespace TummlyBackend.Helpers
 
             if (document.SuggestedCampaign is SuggestedCampaign campaign)
             {
+                (sb, y) = EnsureSpace(pages, sb, y, LineHeight * 3);
                 SetFillBlack(sb);
                 TextAt(sb, "F2", 12, MarginLeft, y, "Suggested campaign");
                 y -= LineHeight;
                 SetFillMuted(sb);
-                y = WriteWrapped(sb, $"Draft: {campaign.Name}", y, maxChars: 90);
+                (sb, y) = WriteWrapped(pages, sb, y, $"Draft: {campaign.Name}", 90);
                 if (!string.IsNullOrWhiteSpace(campaign.AudienceKey))
                 {
-                    y = WriteWrapped(
+                    (sb, y) = WriteWrapped(
+                        pages,
                         sb,
-                        $"Audience: {campaign.AudienceKey}",
                         y,
-                        maxChars: 90
+                        $"Audience: {campaign.AudienceKey}",
+                        90
                     );
                 }
             }
 
             _ = y;
-            return sb.ToString().Replace("\r\n", "\n", StringComparison.Ordinal);
+            return pages
+                .Select(page =>
+                    page.ToString().Replace("\r\n", "\n", StringComparison.Ordinal)
+                )
+                .ToList();
         }
 
-        private static float WriteWrapped(
+        private static StringBuilder NewPage(List<StringBuilder> pages)
+        {
+            var sb = new StringBuilder(2048);
+            pages.Add(sb);
+            return sb;
+        }
+
+        private static (StringBuilder Sb, float Y) EnsureSpace(
+            List<StringBuilder> pages,
             StringBuilder sb,
-            string text,
             float y,
+            float needed
+        )
+        {
+            if (y - needed >= MarginBottom)
+            {
+                return (sb, y);
+            }
+
+            return (NewPage(pages), TopY);
+        }
+
+        private static (StringBuilder Sb, float Y) WriteWrapped(
+            List<StringBuilder> pages,
+            StringBuilder sb,
+            float y,
+            string text,
             int maxChars
         )
         {
             foreach (var line in WrapText(text, maxChars))
             {
-                if (y < 48f)
-                {
-                    break;
-                }
-
+                (sb, y) = EnsureSpace(pages, sb, y, LineHeight);
                 TextAt(sb, "F1", 10, MarginLeft, y, line);
                 y -= LineHeight;
             }
 
-            return y;
+            return (sb, y);
         }
 
         private static IReadOnlyList<string> WrapText(string text, int maxChars)
@@ -319,35 +352,77 @@ namespace TummlyBackend.Helpers
                 .Replace(")", "\\)", StringComparison.Ordinal);
         }
 
-        private static byte[] BuildPdf(string contentStream)
+        private static byte[] BuildPdf(IReadOnlyList<string> pageContents)
         {
-            var contentBytes = Encoding.ASCII.GetBytes(contentStream);
+            if (pageContents.Count == 0)
+            {
+                pageContents = [""];
+            }
+
+            var contentBytesList = pageContents
+                .Select(content => Encoding.ASCII.GetBytes(content))
+                .ToList();
+
+            // Object layout:
+            // 1 Catalog, 2 Pages, 3..N page dicts, then content streams, then F1/F2 fonts.
+            var pageCount = contentBytesList.Count;
+            var firstPageObj = 3;
+            var firstContentObj = firstPageObj + pageCount;
+            var font1Obj = firstContentObj + pageCount;
+            var font2Obj = font1Obj + 1;
+
+            var pageKids = string.Join(
+                " ",
+                Enumerable.Range(0, pageCount).Select(i => $"{firstPageObj + i} 0 R")
+            );
+
             var objects = new List<byte[]>
             {
                 Encoding.ASCII.GetBytes(
                     "1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj\n"
                 ),
                 Encoding.ASCII.GetBytes(
-                    "2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj\n"
-                ),
-                Encoding.ASCII.GetBytes(
-                    "3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
-                        + "/Contents 4 0 R /Resources<< /Font<< /F1 5 0 R /F2 6 0 R >> >> >>endobj\n"
-                ),
-                Concat(
-                    Encoding.ASCII.GetBytes(
-                        $"4 0 obj<< /Length {contentBytes.Length} >>stream\n"
-                    ),
-                    contentBytes,
-                    Encoding.ASCII.GetBytes("\nendstream\nendobj\n")
-                ),
-                Encoding.ASCII.GetBytes(
-                    "5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj\n"
-                ),
-                Encoding.ASCII.GetBytes(
-                    "6 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>endobj\n"
+                    $"2 0 obj<< /Type /Pages /Kids [{pageKids}] /Count {pageCount} >>endobj\n"
                 ),
             };
+
+            for (var i = 0; i < pageCount; i++)
+            {
+                var contentObj = firstContentObj + i;
+                objects.Add(
+                    Encoding.ASCII.GetBytes(
+                        $"{firstPageObj + i} 0 obj<< /Type /Page /Parent 2 0 R "
+                            + "/MediaBox [0 0 595 842] "
+                            + $"/Contents {contentObj} 0 R "
+                            + $"/Resources<< /Font<< /F1 {font1Obj} 0 R /F2 {font2Obj} 0 R >> >> >>endobj\n"
+                    )
+                );
+            }
+
+            for (var i = 0; i < pageCount; i++)
+            {
+                var bytes = contentBytesList[i];
+                objects.Add(
+                    Concat(
+                        Encoding.ASCII.GetBytes(
+                            $"{firstContentObj + i} 0 obj<< /Length {bytes.Length} >>stream\n"
+                        ),
+                        bytes,
+                        Encoding.ASCII.GetBytes("\nendstream\nendobj\n")
+                    )
+                );
+            }
+
+            objects.Add(
+                Encoding.ASCII.GetBytes(
+                    $"{font1Obj} 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj\n"
+                )
+            );
+            objects.Add(
+                Encoding.ASCII.GetBytes(
+                    $"{font2Obj} 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>endobj\n"
+                )
+            );
 
             using var output = new MemoryStream();
             output.Write(Encoding.ASCII.GetBytes("%PDF-1.4\n"));
