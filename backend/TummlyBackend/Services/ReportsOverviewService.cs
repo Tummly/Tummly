@@ -310,7 +310,12 @@ namespace TummlyBackend.Services
                 .AnyAsync(
                     c =>
                         c.RestaurantLocationId == locationId
-                        && c.Status == CampaignLifecycleService.SentStatus,
+                        && (
+                            c.Status == CampaignLifecycleService.SentStatus
+                            || c.Status
+                                == CampaignLifecycleService.PartiallySentStatus
+                            || c.Status == CampaignLifecycleService.FailedStatus
+                        ),
                     cancellationToken
                 );
 
@@ -542,7 +547,12 @@ namespace TummlyBackend.Services
                 .CountAsync(
                     c =>
                         c.RestaurantLocationId == locationId
-                        && c.Status == CampaignLifecycleService.SentStatus
+                        && (
+                            c.Status == CampaignLifecycleService.SentStatus
+                            || c.Status
+                                == CampaignLifecycleService.PartiallySentStatus
+                            || c.Status == CampaignLifecycleService.FailedStatus
+                        )
                         && c.UpdatedAt >= fromUtc
                         && c.UpdatedAt < toUtc,
                     cancellationToken

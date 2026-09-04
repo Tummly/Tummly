@@ -4,9 +4,6 @@
  */
 
 import {
-  CAPTURE_EMPTY_HELPER_CLASS,
-  CAPTURE_EMPTY_SHELL_CLASS,
-  CAPTURE_EMPTY_TITLE_CLASS,
   CAPTURE_KPI_CELL_CLASS,
   CAPTURE_KPI_CONTENT_CLASS,
   CAPTURE_KPI_DIVIDER_CLASS,
@@ -116,12 +113,19 @@ export const REPORTS_ROW_ACTIONS_ITEM_CLASS =
 export const REPORTS_ROW_ACTIONS_SEPARATOR_CLASS =
   CAPTURE_PLACEMENT_ROW_ACTIONS_SEPARATOR_CLASS
 
-/** Page-level empty — Capture empty shell. */
-export const REPORTS_EMPTY_SHELL_CLASS = CAPTURE_EMPTY_SHELL_CLASS
+/** Page-level empty — Figma 3663:32710 (nested Reports empty, no card chrome). */
+export const REPORTS_EMPTY_SHELL_CLASS =
+  "flex min-h-[291px] w-full flex-col items-center justify-center gap-[30px]"
 
-export const REPORTS_EMPTY_TITLE_CLASS = CAPTURE_EMPTY_TITLE_CLASS
+export const REPORTS_EMPTY_COPY_STACK_CLASS =
+  "flex flex-col items-center gap-2.5 text-center"
 
-export const REPORTS_EMPTY_HELPER_CLASS = CAPTURE_EMPTY_HELPER_CLASS
+export const REPORTS_EMPTY_TITLE_CLASS =
+  "m-0 text-base font-medium leading-normal text-op-empty-title-color"
+
+/** Figma Main Bg / Subtitle — Operator gray-550 (#7c7c7c), max width 450. */
+export const REPORTS_EMPTY_HELPER_CLASS =
+  "m-0 max-w-[450px] text-center text-sm font-medium leading-[18px] text-[var(--op-color-gray-550)]"
 
 export const REPORTS_EMPTY_ACTIONS_CLASS =
   "flex flex-wrap items-center justify-center gap-3"
@@ -170,11 +174,10 @@ export function resolveReportsStatusBadgeVariant(
   const normalized = status.trim().toLowerCase()
 
   switch (normalized) {
-    case "active":
-    case "redeemed":
     case "resolved":
     case "followed up":
       return "ready"
+    case "active":
     case "paused":
     case "archived":
     case "draft":
@@ -182,6 +185,7 @@ export function resolveReportsStatusBadgeVariant(
     case "reviewed":
     case "new":
     case "expired":
+    case "redeemed":
       return "soft"
     case "follow-up needed":
     case "needs follow-up":

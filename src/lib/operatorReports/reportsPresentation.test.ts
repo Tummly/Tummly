@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
   REPORTS_BREADCRUMB_COPY,
+  REPORTS_EMPTY_HELPER_CLASS,
+  REPORTS_EMPTY_SHELL_CLASS,
   REPORTS_HUB_PAGE_COPY,
   REPORTS_PAGE_STACK_CLASS,
   REPORTS_PAGE_TITLE_CLASS,
@@ -28,10 +30,21 @@ describe("reportsPresentation", () => {
     expect(REPORTS_TABLE_FRAME_CLASS).toContain("border")
   })
 
+  it("exports nested Reports empty tokens aligned with Figma 3663:32710", () => {
+    expect(REPORTS_EMPTY_SHELL_CLASS).toContain("min-h-[291px]")
+    expect(REPORTS_EMPTY_SHELL_CLASS).toContain("gap-[30px]")
+    expect(REPORTS_EMPTY_SHELL_CLASS).not.toContain("border")
+    expect(REPORTS_EMPTY_SHELL_CLASS).not.toContain("bg-op-card-background")
+    expect(REPORTS_EMPTY_HELPER_CLASS).toContain("max-w-[450px]")
+    expect(REPORTS_EMPTY_HELPER_CLASS).toContain(
+      "text-[var(--op-color-gray-550)]"
+    )
+  })
+
   it("maps report status labels to Badge variants", () => {
-    expect(resolveReportsStatusBadgeVariant("Active")).toBe("ready")
+    expect(resolveReportsStatusBadgeVariant("Active")).toBe("soft")
     expect(resolveReportsStatusBadgeVariant("Paused")).toBe("soft")
-    expect(resolveReportsStatusBadgeVariant("Redeemed")).toBe("ready")
+    expect(resolveReportsStatusBadgeVariant("Redeemed")).toBe("soft")
     expect(resolveReportsStatusBadgeVariant("Follow-up needed")).toBe("neutral")
     expect(resolveReportsStatusBadgeVariant("Invalid")).toBe("negative")
     expect(resolveReportsStatusBadgeVariant("Partially sent")).toBe("negative")

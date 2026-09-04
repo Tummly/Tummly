@@ -175,6 +175,97 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task GetOverview_CountsTerminalCampaignSends_AndClearsLifetimeEmpty()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerAsync("reports-ov-terminal-send");
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                context.Campaigns.Add(
+                    new Campaign
+                    {
+                        RestaurantLocationId = seeded.LocationId,
+                        Status = CampaignLifecycleService.PartiallySentStatus,
+                        Name = "Partial send",
+                        GoalId = "bring-back",
+                        Channel = "email",
+                        CreatedAt = new DateTime(
+                            2026,
+                            7,
+                            12,
+                            10,
+                            0,
+                            0,
+                            DateTimeKind.Utc
+                        ),
+                        UpdatedAt = new DateTime(
+                            2026,
+                            7,
+                            12,
+                            10,
+                            0,
+                            0,
+                            DateTimeKind.Utc
+                        ),
+                    }
+                );
+                context.Campaigns.Add(
+                    new Campaign
+                    {
+                        RestaurantLocationId = seeded.LocationId,
+                        Status = CampaignLifecycleService.FailedStatus,
+                        Name = "Failed send",
+                        GoalId = "bring-back",
+                        Channel = "email",
+                        CreatedAt = new DateTime(
+                            2026,
+                            7,
+                            5,
+                            10,
+                            0,
+                            0,
+                            DateTimeKind.Utc
+                        ),
+                        UpdatedAt = new DateTime(
+                            2026,
+                            7,
+                            5,
+                            10,
+                            0,
+                            0,
+                            DateTimeKind.Utc
+                        ),
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedGet(
+                OverviewUrl(seeded.LocationId, from, to),
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.False(body.GetProperty("lifetimeEmpty").GetBoolean());
+
+            var campaignsSent = body
+                .GetProperty("funnel")
+                .GetProperty("campaignsSent");
+            Assert.Equal(1, campaignsSent.GetProperty("value").GetInt32());
+            Assert.Equal(
+                1,
+                campaignsSent.GetProperty("valuePrevious").GetInt32()
+            );
+        }
+
         private static string OverviewUrl(
             int locationId,
             DateTime from,

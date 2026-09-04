@@ -216,7 +216,7 @@ export function CaptureReportPage({ mode = "single" }: CaptureReportPageProps) {
               {CAPTURE_REPORT_PAGE_COPY.funnelInsight}
             </ReportsInsightBanner>
 
-            <div>
+            <div className="flex flex-wrap items-center gap-3">
               <Button
                 type="button"
                 variant="op-primary"

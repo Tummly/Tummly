@@ -28,8 +28,6 @@ export function useReportsChildChrome(
     pageModule.setActiveSurface(surface)
   }, [pageModule, surface])
 
-  const locationId = reports.snapshot.selectedLocationId ?? 1
-
   return {
     dateRange: reports.snapshot.dateRange,
     exportAllowed: reports.snapshot.exportAllowed,
@@ -41,6 +39,10 @@ export function useReportsChildChrome(
     },
     onGenerateBrief: () => {
       void (async () => {
+        const locationId = reports.snapshot.selectedLocationId
+        if (locationId == null) {
+          return
+        }
         const ok = await reports.ensureWeeklyBriefReady()
         if (ok) {
           navigate(operatorDashboardWeeklyBriefPath(mode, locationId))

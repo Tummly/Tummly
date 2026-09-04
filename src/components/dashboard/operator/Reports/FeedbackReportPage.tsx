@@ -235,14 +235,16 @@ export function FeedbackReportPage({
               </Table>
             </div>
 
-            <Button
-              type="button"
-              variant="op-primary"
-              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-              onClick={() => handleOpenFeedbackInbox()}
-            >
-              {FEEDBACK_REPORT_PAGE_COPY.openFeedbackInbox}
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                variant="op-primary"
+                className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+                onClick={() => handleOpenFeedbackInbox()}
+              >
+                {FEEDBACK_REPORT_PAGE_COPY.openFeedbackInbox}
+              </Button>
+            </div>
           </ReportsSection>
 
           <ReportsSection
@@ -306,14 +308,16 @@ export function FeedbackReportPage({
           <ReportsSection title={FEEDBACK_REPORT_PAGE_COPY.feedbackStatusTitle}>
             <ReportsKpiStrip items={feedbackReport.statusKpis} />
 
-            <Button
-              type="button"
-              variant="op-primary"
-              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-              onClick={() => handleOpenFeedbackInbox()}
-            >
-              {FEEDBACK_REPORT_PAGE_COPY.manageFeedback}
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                variant="op-primary"
+                className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+                onClick={() => handleOpenFeedbackInbox()}
+              >
+                {FEEDBACK_REPORT_PAGE_COPY.manageFeedback}
+              </Button>
+            </div>
           </ReportsSection>
         </div>
       ) : null}

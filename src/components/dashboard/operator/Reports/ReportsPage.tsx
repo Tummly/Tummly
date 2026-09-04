@@ -34,6 +34,7 @@ import {
   REPORTS_TABLE_HEAD_ROW_CLASS,
   REPORTS_TABLE_NAME_CELL_CLASS,
 } from "@/lib/operatorReports/reportsPresentation"
+import { REPORTS_HUB_LOAD_ERROR_MESSAGE } from "@/lib/operatorReports/reportsOverviewPresentation"
 import {
   REPORTS_HUB_GUEST_LOOP_COPY,
   REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE,
@@ -185,24 +186,36 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
     pageModule.setActiveSurface("hub")
   }, [pageModule])
 
-  const locationId = selectedLocationId ?? 1
-
   const handleCommitRange = (range: HomePerformanceDateRange) => {
     setReportsDateRange(range)
     void reports.reloadForReportsDateRange()
   }
 
+  const navigateWithLocation = (
+    buildPath: (locationId: number) => string
+  ) => {
+    if (selectedLocationId == null) {
+      return
+    }
+    navigate(buildPath(selectedLocationId))
+  }
+
   const handleGenerateBrief = async () => {
+    if (selectedLocationId == null) {
+      return
+    }
     const ok = await reports.ensureWeeklyBriefReady()
     if (ok) {
-      navigate(operatorDashboardWeeklyBriefPath(mode, locationId))
+      navigate(operatorDashboardWeeklyBriefPath(mode, selectedLocationId))
     }
   }
 
   const navTo = (
     destination: "feedback" | "capture" | "campaigns" | "offers"
   ) => {
-    navigate(operatorDashboardNavPath(mode, destination, locationId))
+    navigateWithLocation((locationId) =>
+      operatorDashboardNavPath(mode, destination, locationId)
+    )
   }
 
   const showDateRange = hubLoadStatus !== "lifetimeEmpty"
@@ -236,7 +249,9 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
             void reports.retryWeeklyBrief()
           }}
           onViewWeeklyBrief={() =>
-            navigate(operatorDashboardWeeklyBriefPath(mode, locationId))
+            navigateWithLocation((locationId) =>
+              operatorDashboardWeeklyBriefPath(mode, locationId)
+            )
           }
           onCreateCampaign={() => navTo("campaigns")}
         />
@@ -255,7 +270,7 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
         {hubLoadStatus === "error" ? (
           <div className="flex flex-col items-start gap-3" role="alert">
             <p className="m-0 text-sm text-destructive">
-              {hubLoadError ?? "Could not load report data."}
+              {hubLoadError ?? REPORTS_HUB_LOAD_ERROR_MESSAGE}
             </p>
             <Button
               type="button"
@@ -287,14 +302,14 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
           >
             <ReportsKpiStrip items={hubOverview.privateFeedbackKpis} />
 
-            <div>
+            <div className="flex flex-wrap items-center gap-3">
               <Button
                 type="button"
                 variant="op-primary"
                 className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
                 onClick={() =>
-                  navigate(
-                    operatorDashboardFeedbackReportPath(mode, locationId)
+                  navigateWithLocation((id) =>
+                    operatorDashboardFeedbackReportPath(mode, id)
                   )
                 }
               >
@@ -360,14 +375,14 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
               </Table>
             </div>
 
-            <div>
+            <div className="flex flex-wrap items-center gap-3">
               <Button
                 type="button"
                 variant="op-primary"
                 className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
                 onClick={() =>
-                  navigate(
-                    operatorDashboardCaptureReportPath(mode, locationId)
+                  navigateWithLocation((id) =>
+                    operatorDashboardCaptureReportPath(mode, id)
                   )
                 }
               >
@@ -388,8 +403,8 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
                 variant="op-primary"
                 className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
                 onClick={() =>
-                  navigate(
-                    operatorDashboardOffersReportPath(mode, locationId)
+                  navigateWithLocation((id) =>
+                    operatorDashboardOffersReportPath(mode, id)
                   )
                 }
               >
@@ -400,8 +415,8 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
                 variant="op-tertiary"
                 className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
                 onClick={() =>
-                  navigate(
-                    operatorDashboardCampaignsReportPath(mode, locationId)
+                  navigateWithLocation((id) =>
+                    operatorDashboardCampaignsReportPath(mode, id)
                   )
                 }
               >

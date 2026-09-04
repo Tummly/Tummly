@@ -13,8 +13,6 @@ namespace TummlyBackend.Controllers
     [Authorize]
     public class ReportsCampaignsController : ControllerBase
     {
-        private const int MaxInclusiveCalendarDays = 180;
-
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IReportsCampaignsService _campaigns;
 
@@ -43,47 +41,24 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            if (locationId <= 0)
+            var windowError = ReportsQueryGate.TryValidateLocationAndWindow(
+                this,
+                locationId,
+                from,
+                to,
+                out var fromUtc,
+                out var toUtc
+            );
+            if (windowError != null)
             {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "locationId is required.",
-                });
+                return windowError;
             }
 
-            if (from == null || to == null)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "from and to are required.",
-                });
-            }
-
-            var fromUtc = EnsureUtc(from.Value);
-            var toUtc = EnsureUtc(to.Value);
-
-            if (fromUtc >= toUtc)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "from must be before to.",
-                });
-            }
-
-            var inclusiveCalendarDays = (toUtc.Date - fromUtc.Date).Days;
-            if (inclusiveCalendarDays > MaxInclusiveCalendarDays)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Date range cannot exceed 180 days.",
-                });
-            }
-
-            var reports = await GateReportsViewAsync(locationId);
+            var reports = await ReportsQueryGate.AuthorizeReportsViewAsync(
+                _permissions,
+                User,
+                locationId
+            );
             var denied = reports.ToHttpResult();
             if (denied != null)
             {
@@ -110,9 +85,11 @@ namespace TummlyBackend.Controllers
             {
                 success = true,
                 lifetimeEmpty = false,
-                campaignsSent = WireMetric(dto.CampaignsSent!),
-                guestsMessaged = WireMetric(dto.GuestsMessaged!),
-                failedSends = WireMetric(dto.FailedSends!),
+                campaignsSent = ReportsQueryGate.WireMetric(dto.CampaignsSent!),
+                guestsMessaged = ReportsQueryGate.WireMetric(
+                    dto.GuestsMessaged!
+                ),
+                failedSends = ReportsQueryGate.WireMetric(dto.FailedSends!),
                 performance = (dto.Performance ?? []).Select(row => new
                 {
                     campaignId = row.CampaignId,
@@ -129,37 +106,6 @@ namespace TummlyBackend.Controllers
                     status = row.Status,
                 }),
             });
-        }
-
-        private Task<RestaurantPermissionDecision> GateReportsViewAsync(
-            int locationId
-        )
-        {
-            return _permissions.AuthorizeLocationAsync(
-                User,
-                OperatorAreaIds.Reports,
-                PermissionLevel.View,
-                locationId
-            );
-        }
-
-        private static object WireMetric(DTOs.Reports.ReportsMetricDto metric)
-        {
-            return new
-            {
-                value = metric.Value,
-                valuePrevious = metric.ValuePrevious,
-            };
-        }
-
-        private static DateTime EnsureUtc(DateTime value)
-        {
-            return value.Kind switch
-            {
-                DateTimeKind.Utc => value,
-                DateTimeKind.Local => value.ToUniversalTime(),
-                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
-            };
         }
     }
 }

@@ -14,8 +14,6 @@ namespace TummlyBackend.Controllers
     [Authorize]
     public class ReportsOffersController : ControllerBase
     {
-        private const int MaxInclusiveCalendarDays = 180;
-
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IReportsOffersService _offers;
 
@@ -44,47 +42,24 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            if (locationId <= 0)
+            var windowError = ReportsQueryGate.TryValidateLocationAndWindow(
+                this,
+                locationId,
+                from,
+                to,
+                out var fromUtc,
+                out var toUtc
+            );
+            if (windowError != null)
             {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "locationId is required.",
-                });
+                return windowError;
             }
 
-            if (from == null || to == null)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "from and to are required.",
-                });
-            }
-
-            var fromUtc = EnsureUtc(from.Value);
-            var toUtc = EnsureUtc(to.Value);
-
-            if (fromUtc >= toUtc)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "from must be before to.",
-                });
-            }
-
-            var inclusiveCalendarDays = (toUtc.Date - fromUtc.Date).Days;
-            if (inclusiveCalendarDays > MaxInclusiveCalendarDays)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Date range cannot exceed 180 days.",
-                });
-            }
-
-            var reports = await GateReportsViewAsync(locationId);
+            var reports = await ReportsQueryGate.AuthorizeReportsViewAsync(
+                _permissions,
+                User,
+                locationId
+            );
             var denied = reports.ToHttpResult();
             if (denied != null)
             {
@@ -113,12 +88,22 @@ namespace TummlyBackend.Controllers
                 lifetimeEmpty = false,
                 kpis = new
                 {
-                    activeOffers = WireMetric(dto.Kpis!.ActiveOffers),
-                    offerClaims = WireMetric(dto.Kpis.OfferClaims),
-                    redemptions = WireMetric(dto.Kpis.Redemptions),
+                    activeOffers = ReportsQueryGate.WireMetric(
+                        dto.Kpis!.ActiveOffers
+                    ),
+                    offerClaims = ReportsQueryGate.WireMetric(
+                        dto.Kpis.OfferClaims
+                    ),
+                    redemptions = ReportsQueryGate.WireMetric(
+                        dto.Kpis.Redemptions
+                    ),
                     redemptionRate = WireRateMetric(dto.Kpis.RedemptionRate),
-                    expiredClaims = WireMetric(dto.Kpis.ExpiredClaims),
-                    invalidAttempts = WireMetric(dto.Kpis.InvalidAttempts),
+                    expiredClaims = ReportsQueryGate.WireMetric(
+                        dto.Kpis.ExpiredClaims
+                    ),
+                    invalidAttempts = ReportsQueryGate.WireMetric(
+                        dto.Kpis.InvalidAttempts
+                    ),
                 },
                 performance = (dto.Performance ?? []).Select(
                     row => new
@@ -144,29 +129,10 @@ namespace TummlyBackend.Controllers
                         outcome = row.Outcome,
                     }
                 ),
-                controlSignals = (dto.ControlSignals ?? []).Select(WireControlSignal),
+                controlSignals = (dto.ControlSignals ?? []).Select(
+                    WireControlSignal
+                ),
             });
-        }
-
-        private Task<RestaurantPermissionDecision> GateReportsViewAsync(
-            int locationId
-        )
-        {
-            return _permissions.AuthorizeLocationAsync(
-                User,
-                OperatorAreaIds.Reports,
-                PermissionLevel.View,
-                locationId
-            );
-        }
-
-        private static object WireMetric(ReportsMetricDto metric)
-        {
-            return new
-            {
-                value = metric.Value,
-                valuePrevious = metric.ValuePrevious,
-            };
         }
 
         private static object WireRateMetric(ReportsRateMetricDto metric)
@@ -205,16 +171,6 @@ namespace TummlyBackend.Controllers
             }
 
             return signal;
-        }
-
-        private static DateTime EnsureUtc(DateTime value)
-        {
-            return value.Kind switch
-            {
-                DateTimeKind.Utc => value,
-                DateTimeKind.Local => value.ToUniversalTime(),
-                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
-            };
         }
     }
 }

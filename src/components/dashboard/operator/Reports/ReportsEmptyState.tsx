@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 
 import {
   REPORTS_EMPTY_ACTIONS_CLASS,
+  REPORTS_EMPTY_COPY_STACK_CLASS,
   REPORTS_EMPTY_HELPER_CLASS,
   REPORTS_EMPTY_SHELL_CLASS,
   REPORTS_EMPTY_TITLE_CLASS,
@@ -16,7 +17,7 @@ type ReportsEmptyStateProps = {
   className?: string
 }
 
-/** Shared Reports empty shell — Capture empty chrome. */
+/** Shared Reports empty shell — Figma 3663:32710 nested Reports empty. */
 export function ReportsEmptyState({
   title = REPORTS_HUB_PAGE_COPY.emptyTitle,
   subtitle = REPORTS_HUB_PAGE_COPY.emptySubtitle,
@@ -25,7 +26,7 @@ export function ReportsEmptyState({
 }: ReportsEmptyStateProps) {
   return (
     <div className={cn(REPORTS_EMPTY_SHELL_CLASS, className)}>
-      <div className="flex flex-col items-center gap-2.5 text-center">
+      <div className={REPORTS_EMPTY_COPY_STACK_CLASS}>
         <p className={REPORTS_EMPTY_TITLE_CLASS}>{title}</p>
         <p className={REPORTS_EMPTY_HELPER_CLASS}>{subtitle}</p>
       </div>

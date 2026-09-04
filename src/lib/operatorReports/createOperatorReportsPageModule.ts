@@ -171,12 +171,6 @@ export type OperatorReportsPageAdapters = {
     from: string
     to: string
   }) => Promise<ReportsCampaignsResponse>
-  downloadExport?: (input: {
-    locationId: number
-    from: string
-    to: string
-    kind: string
-  }) => Promise<unknown>
 }
 
 export type OperatorReportsPageModule = {
@@ -631,329 +625,217 @@ export function createOperatorReportsPageModule(
     await Promise.all([loadHub(), loadWeeklyBriefGetOnly()])
   }
 
-  const loadCapture = async () => {
-    const workspace = state.workspace
-    const locationId = workspace?.selectedLocationId
-    if (workspace == null || locationId == null) {
-      state = {
-        ...state,
-        captureLoadStatus: "idle",
-        captureReport: null,
-        captureLoadError: null,
-      }
-      publish()
-      return
-    }
-
-    const generation = state.captureLoadGeneration + 1
-    state = {
-      ...state,
-      captureLoadStatus: "loading",
-      captureLoadGeneration: generation,
-      captureLoadError: null,
-    }
-    publish()
-
-    try {
-      const window = resolveHomePerformanceWindow(
-        adapters.getReportsDateRange()
-      )
-      const response = await adapters.getCapture({
-        locationId,
-        from: window.from.toISOString(),
-        to: window.to.toISOString(),
-      })
-
-      if (generation !== state.captureLoadGeneration) {
-        return
-      }
-
-      if (!response.success) {
+  const loadCapture = () =>
+    loadChildKpiSurface({
+      selectedLocationId: state.workspace?.selectedLocationId,
+      hasWorkspace: state.workspace != null,
+      getGeneration: () => state.captureLoadGeneration,
+      isStale: (generation) => generation !== state.captureLoadGeneration,
+      applyIdle: () => {
+        state = {
+          ...state,
+          captureLoadStatus: "idle",
+          captureReport: null,
+          captureLoadError: null,
+        }
+      },
+      applyLoading: (generation) => {
+        state = {
+          ...state,
+          captureLoadStatus: "loading",
+          captureLoadGeneration: generation,
+          captureLoadError: null,
+        }
+      },
+      applyError: (message) => {
         state = {
           ...state,
           captureLoadStatus: "error",
           captureReport: null,
-          captureLoadError:
-            response.message?.trim() || REPORTS_CAPTURE_LOAD_ERROR_MESSAGE,
+          captureLoadError: message,
         }
-        publish()
-        return
-      }
-
-      if (response.lifetimeEmpty) {
+      },
+      applyLifetimeEmpty: () => {
         state = {
           ...state,
           captureLoadStatus: "lifetimeEmpty",
           captureReport: null,
           captureLoadError: null,
         }
-        publish()
-        return
-      }
+      },
+      applyReady: (report) => {
+        state = {
+          ...state,
+          captureLoadStatus: "ready",
+          captureReport: report,
+          captureLoadError: null,
+        }
+      },
+      fetch: adapters.getCapture,
+      build: buildReportsCaptureViewModel,
+      fallbackError: REPORTS_CAPTURE_LOAD_ERROR_MESSAGE,
+      getReportsDateRange: adapters.getReportsDateRange,
+      publish,
+    })
 
-      state = {
-        ...state,
-        captureLoadStatus: "ready",
-        captureReport: buildReportsCaptureViewModel(response),
-        captureLoadError: null,
-      }
-      publish()
-    } catch {
-      if (generation !== state.captureLoadGeneration) {
-        return
-      }
-      state = {
-        ...state,
-        captureLoadStatus: "error",
-        captureReport: null,
-        captureLoadError: REPORTS_CAPTURE_LOAD_ERROR_MESSAGE,
-      }
-      publish()
-    }
-  }
-
-  const loadFeedback = async () => {
-    const workspace = state.workspace
-    const locationId = workspace?.selectedLocationId
-    if (workspace == null || locationId == null) {
-      state = {
-        ...state,
-        feedbackLoadStatus: "idle",
-        feedbackReport: null,
-        feedbackLoadError: null,
-      }
-      publish()
-      return
-    }
-
-    const generation = state.feedbackLoadGeneration + 1
-    state = {
-      ...state,
-      feedbackLoadStatus: "loading",
-      feedbackLoadGeneration: generation,
-      feedbackLoadError: null,
-    }
-    publish()
-
-    try {
-      const window = resolveHomePerformanceWindow(
-        adapters.getReportsDateRange()
-      )
-      const response = await adapters.getFeedback({
-        locationId,
-        from: window.from.toISOString(),
-        to: window.to.toISOString(),
-      })
-
-      if (generation !== state.feedbackLoadGeneration) {
-        return
-      }
-
-      if (!response.success) {
+  const loadFeedback = () =>
+    loadChildKpiSurface({
+      selectedLocationId: state.workspace?.selectedLocationId,
+      hasWorkspace: state.workspace != null,
+      getGeneration: () => state.feedbackLoadGeneration,
+      isStale: (generation) => generation !== state.feedbackLoadGeneration,
+      applyIdle: () => {
+        state = {
+          ...state,
+          feedbackLoadStatus: "idle",
+          feedbackReport: null,
+          feedbackLoadError: null,
+        }
+      },
+      applyLoading: (generation) => {
+        state = {
+          ...state,
+          feedbackLoadStatus: "loading",
+          feedbackLoadGeneration: generation,
+          feedbackLoadError: null,
+        }
+      },
+      applyError: (message) => {
         state = {
           ...state,
           feedbackLoadStatus: "error",
           feedbackReport: null,
-          feedbackLoadError:
-            response.message?.trim() || FEEDBACK_REPORT_PAGE_COPY.loadError,
+          feedbackLoadError: message,
         }
-        publish()
-        return
-      }
-
-      if (response.lifetimeEmpty) {
+      },
+      applyLifetimeEmpty: () => {
         state = {
           ...state,
           feedbackLoadStatus: "lifetimeEmpty",
           feedbackReport: null,
           feedbackLoadError: null,
         }
-        publish()
-        return
-      }
+      },
+      applyReady: (report) => {
+        state = {
+          ...state,
+          feedbackLoadStatus: "ready",
+          feedbackReport: report,
+          feedbackLoadError: null,
+        }
+      },
+      fetch: adapters.getFeedback,
+      build: buildFeedbackReportViewModel,
+      fallbackError: FEEDBACK_REPORT_PAGE_COPY.loadError,
+      getReportsDateRange: adapters.getReportsDateRange,
+      publish,
+    })
 
-      state = {
-        ...state,
-        feedbackLoadStatus: "ready",
-        feedbackReport: buildFeedbackReportViewModel(response),
-        feedbackLoadError: null,
-      }
-      publish()
-    } catch {
-      if (generation !== state.feedbackLoadGeneration) {
-        return
-      }
-      state = {
-        ...state,
-        feedbackLoadStatus: "error",
-        feedbackReport: null,
-        feedbackLoadError: FEEDBACK_REPORT_PAGE_COPY.loadError,
-      }
-      publish()
-    }
-  }
-
-  const loadOffers = async () => {
-    const workspace = state.workspace
-    const locationId = workspace?.selectedLocationId
-    if (workspace == null || locationId == null) {
-      state = {
-        ...state,
-        offersLoadStatus: "idle",
-        offersReport: null,
-        offersLoadError: null,
-      }
-      publish()
-      return
-    }
-
-    const generation = state.offersLoadGeneration + 1
-    state = {
-      ...state,
-      offersLoadStatus: "loading",
-      offersLoadGeneration: generation,
-      offersLoadError: null,
-    }
-    publish()
-
-    try {
-      const window = resolveHomePerformanceWindow(
-        adapters.getReportsDateRange()
-      )
-      const response = await adapters.getOffers({
-        locationId,
-        from: window.from.toISOString(),
-        to: window.to.toISOString(),
-      })
-
-      if (generation !== state.offersLoadGeneration) {
-        return
-      }
-
-      if (!response.success) {
+  const loadOffers = () =>
+    loadChildKpiSurface({
+      selectedLocationId: state.workspace?.selectedLocationId,
+      hasWorkspace: state.workspace != null,
+      getGeneration: () => state.offersLoadGeneration,
+      isStale: (generation) => generation !== state.offersLoadGeneration,
+      applyIdle: () => {
+        state = {
+          ...state,
+          offersLoadStatus: "idle",
+          offersReport: null,
+          offersLoadError: null,
+        }
+      },
+      applyLoading: (generation) => {
+        state = {
+          ...state,
+          offersLoadStatus: "loading",
+          offersLoadGeneration: generation,
+          offersLoadError: null,
+        }
+      },
+      applyError: (message) => {
         state = {
           ...state,
           offersLoadStatus: "error",
           offersReport: null,
-          offersLoadError:
-            response.message?.trim() || OFFERS_REPORT_PAGE_COPY.loadError,
+          offersLoadError: message,
         }
-        publish()
-        return
-      }
-
-      if (response.lifetimeEmpty) {
+      },
+      applyLifetimeEmpty: () => {
         state = {
           ...state,
           offersLoadStatus: "lifetimeEmpty",
           offersReport: null,
           offersLoadError: null,
         }
-        publish()
-        return
-      }
+      },
+      applyReady: (report) => {
+        state = {
+          ...state,
+          offersLoadStatus: "ready",
+          offersReport: report,
+          offersLoadError: null,
+        }
+      },
+      fetch: adapters.getOffers,
+      build: buildOffersReportViewModel,
+      fallbackError: OFFERS_REPORT_PAGE_COPY.loadError,
+      getReportsDateRange: adapters.getReportsDateRange,
+      publish,
+    })
 
-      state = {
-        ...state,
-        offersLoadStatus: "ready",
-        offersReport: buildOffersReportViewModel(response),
-        offersLoadError: null,
-      }
-      publish()
-    } catch {
-      if (generation !== state.offersLoadGeneration) {
-        return
-      }
-      state = {
-        ...state,
-        offersLoadStatus: "error",
-        offersReport: null,
-        offersLoadError: OFFERS_REPORT_PAGE_COPY.loadError,
-      }
-      publish()
-    }
-  }
-
-  const loadCampaigns = async () => {
-    const workspace = state.workspace
-    const locationId = workspace?.selectedLocationId
-    if (workspace == null || locationId == null) {
-      state = {
-        ...state,
-        campaignsLoadStatus: "idle",
-        campaignsReport: null,
-        campaignsLoadError: null,
-      }
-      publish()
-      return
-    }
-
-    const generation = state.campaignsLoadGeneration + 1
-    state = {
-      ...state,
-      campaignsLoadStatus: "loading",
-      campaignsLoadGeneration: generation,
-      campaignsLoadError: null,
-    }
-    publish()
-
-    try {
-      const window = resolveHomePerformanceWindow(
-        adapters.getReportsDateRange()
-      )
-      const response = await adapters.getCampaigns({
-        locationId,
-        from: window.from.toISOString(),
-        to: window.to.toISOString(),
-      })
-
-      if (generation !== state.campaignsLoadGeneration) {
-        return
-      }
-
-      if (!response.success) {
+  const loadCampaigns = () =>
+    loadChildKpiSurface({
+      selectedLocationId: state.workspace?.selectedLocationId,
+      hasWorkspace: state.workspace != null,
+      getGeneration: () => state.campaignsLoadGeneration,
+      isStale: (generation) => generation !== state.campaignsLoadGeneration,
+      applyIdle: () => {
+        state = {
+          ...state,
+          campaignsLoadStatus: "idle",
+          campaignsReport: null,
+          campaignsLoadError: null,
+        }
+      },
+      applyLoading: (generation) => {
+        state = {
+          ...state,
+          campaignsLoadStatus: "loading",
+          campaignsLoadGeneration: generation,
+          campaignsLoadError: null,
+        }
+      },
+      applyError: (message) => {
         state = {
           ...state,
           campaignsLoadStatus: "error",
           campaignsReport: null,
-          campaignsLoadError:
-            response.message?.trim() || CAMPAIGNS_REPORT_PAGE_COPY.loadError,
+          campaignsLoadError: message,
         }
-        publish()
-        return
-      }
-
-      if (response.lifetimeEmpty) {
+      },
+      applyLifetimeEmpty: () => {
         state = {
           ...state,
           campaignsLoadStatus: "lifetimeEmpty",
           campaignsReport: null,
           campaignsLoadError: null,
         }
-        publish()
-        return
-      }
-
-      state = {
-        ...state,
-        campaignsLoadStatus: "ready",
-        campaignsReport: buildCampaignsReportViewModel(response),
-        campaignsLoadError: null,
-      }
-      publish()
-    } catch {
-      if (generation !== state.campaignsLoadGeneration) {
-        return
-      }
-      state = {
-        ...state,
-        campaignsLoadStatus: "error",
-        campaignsReport: null,
-        campaignsLoadError: CAMPAIGNS_REPORT_PAGE_COPY.loadError,
-      }
-      publish()
-    }
-  }
+      },
+      applyReady: (report) => {
+        state = {
+          ...state,
+          campaignsLoadStatus: "ready",
+          campaignsReport: report,
+          campaignsLoadError: null,
+        }
+      },
+      fetch: adapters.getCampaigns,
+      build: buildCampaignsReportViewModel,
+      fallbackError: CAMPAIGNS_REPORT_PAGE_COPY.loadError,
+      getReportsDateRange: adapters.getReportsDateRange,
+      publish,
+    })
 
   const loadForActiveSurface = async () => {
     if (state.activeSurface === "hub") {
@@ -1147,5 +1029,88 @@ export function createOperatorReportsPageModule(
       state = { ...state, exportDialogOpen: false }
       publish()
     },
+  }
+}
+
+type ChildKpiApiResponse =
+  | { success: true; lifetimeEmpty: true }
+  | { success: true; lifetimeEmpty: false }
+  | { success: false; message?: string }
+
+async function loadChildKpiSurface<
+  TResponse extends ChildKpiApiResponse,
+  TView,
+>(args: {
+  selectedLocationId: number | null | undefined
+  hasWorkspace: boolean
+  getGeneration: () => number
+  isStale: (generation: number) => boolean
+  applyIdle: () => void
+  applyLoading: (generation: number) => void
+  applyError: (message: string) => void
+  applyLifetimeEmpty: () => void
+  applyReady: (view: TView) => void
+  fetch: (input: {
+    locationId: number
+    from: string
+    to: string
+  }) => Promise<TResponse>
+  build: (
+    response: Extract<TResponse, { success: true; lifetimeEmpty: false }>
+  ) => TView
+  fallbackError: string
+  getReportsDateRange: () => HomePerformanceDateRange
+  publish: () => void
+}): Promise<void> {
+  const locationId = args.selectedLocationId
+  if (!args.hasWorkspace || locationId == null) {
+    args.applyIdle()
+    args.publish()
+    return
+  }
+
+  const generation = args.getGeneration() + 1
+  args.applyLoading(generation)
+  args.publish()
+
+  try {
+    const window = resolveHomePerformanceWindow(args.getReportsDateRange())
+    const response = await args.fetch({
+      locationId,
+      from: window.from.toISOString(),
+      to: window.to.toISOString(),
+    })
+
+    if (args.isStale(generation)) {
+      return
+    }
+
+    if (!response.success) {
+      args.applyError(response.message?.trim() || args.fallbackError)
+      args.publish()
+      return
+    }
+
+    if (response.lifetimeEmpty) {
+      args.applyLifetimeEmpty()
+      args.publish()
+      return
+    }
+
+    args.applyReady(
+      args.build(
+        response as Extract<
+          TResponse,
+          { success: true; lifetimeEmpty: false }
+        >
+      )
+    )
+    args.publish()
+  } catch {
+    if (args.isStale(generation)) {
+      return
+    }
+    args.applyError(args.fallbackError)
+    args.publish()
   }
 }

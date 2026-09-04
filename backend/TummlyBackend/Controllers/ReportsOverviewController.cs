@@ -13,8 +13,6 @@ namespace TummlyBackend.Controllers
     [Authorize]
     public class ReportsOverviewController : ControllerBase
     {
-        private const int MaxInclusiveCalendarDays = 180;
-
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly IReportsOverviewService _overview;
 
@@ -43,47 +41,24 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            if (locationId <= 0)
+            var windowError = ReportsQueryGate.TryValidateLocationAndWindow(
+                this,
+                locationId,
+                from,
+                to,
+                out var fromUtc,
+                out var toUtc
+            );
+            if (windowError != null)
             {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "locationId is required.",
-                });
+                return windowError;
             }
 
-            if (from == null || to == null)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "from and to are required.",
-                });
-            }
-
-            var fromUtc = EnsureUtc(from.Value);
-            var toUtc = EnsureUtc(to.Value);
-
-            if (fromUtc >= toUtc)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "from must be before to.",
-                });
-            }
-
-            var inclusiveCalendarDays = (toUtc.Date - fromUtc.Date).Days;
-            if (inclusiveCalendarDays > MaxInclusiveCalendarDays)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Date range cannot exceed 180 days.",
-                });
-            }
-
-            var reports = await GateReportsViewAsync(locationId);
+            var reports = await ReportsQueryGate.AuthorizeReportsViewAsync(
+                _permissions,
+                User,
+                locationId
+            );
             var denied = reports.ToHttpResult();
             if (denied != null)
             {
@@ -112,40 +87,50 @@ namespace TummlyBackend.Controllers
                 lifetimeEmpty = false,
                 funnel = new
                 {
-                    qrScans = WireMetric(dto.Funnel!.QrScans),
-                    feedbackReceived = WireMetric(dto.Funnel.FeedbackReceived),
-                    marketingOptIns = WireMetric(dto.Funnel.MarketingOptIns),
-                    offerRedemptions = WireMetric(dto.Funnel.OfferRedemptions),
-                    campaignsSent = WireMetric(dto.Funnel.CampaignsSent),
+                    qrScans = ReportsQueryGate.WireMetric(dto.Funnel!.QrScans),
+                    feedbackReceived = ReportsQueryGate.WireMetric(
+                        dto.Funnel.FeedbackReceived
+                    ),
+                    marketingOptIns = ReportsQueryGate.WireMetric(
+                        dto.Funnel.MarketingOptIns
+                    ),
+                    offerRedemptions = ReportsQueryGate.WireMetric(
+                        dto.Funnel.OfferRedemptions
+                    ),
+                    campaignsSent = ReportsQueryGate.WireMetric(
+                        dto.Funnel.CampaignsSent
+                    ),
                 },
                 privateFeedback = new
                 {
-                    feedbackMessages = WireMetric(
+                    feedbackMessages = ReportsQueryGate.WireMetric(
                         dto.PrivateFeedback!.FeedbackMessages
                     ),
-                    marketingOptIns = WireMetric(
+                    marketingOptIns = ReportsQueryGate.WireMetric(
                         dto.PrivateFeedback.MarketingOptIns
                     ),
-                    followUpNeeded = WireMetric(
+                    followUpNeeded = ReportsQueryGate.WireMetric(
                         dto.PrivateFeedback.FollowUpNeeded
                     ),
-                    followedUp = WireMetric(dto.PrivateFeedback.FollowedUp),
+                    followedUp = ReportsQueryGate.WireMetric(
+                        dto.PrivateFeedback.FollowedUp
+                    ),
                 },
                 offersAndCampaigns = new
                 {
-                    activeOffers = WireMetric(
+                    activeOffers = ReportsQueryGate.WireMetric(
                         dto.OffersAndCampaigns!.ActiveOffers
                     ),
-                    offerClaims = WireMetric(
+                    offerClaims = ReportsQueryGate.WireMetric(
                         dto.OffersAndCampaigns.OfferClaims
                     ),
-                    offerRedemptions = WireMetric(
+                    offerRedemptions = ReportsQueryGate.WireMetric(
                         dto.OffersAndCampaigns.OfferRedemptions
                     ),
-                    campaignsSent = WireMetric(
+                    campaignsSent = ReportsQueryGate.WireMetric(
                         dto.OffersAndCampaigns.CampaignsSent
                     ),
-                    unsubscribes = WireMetric(
+                    unsubscribes = ReportsQueryGate.WireMetric(
                         dto.OffersAndCampaigns.Unsubscribes
                     ),
                 },
@@ -160,37 +145,6 @@ namespace TummlyBackend.Controllers
                     }
                 ),
             });
-        }
-
-        private Task<RestaurantPermissionDecision> GateReportsViewAsync(
-            int locationId
-        )
-        {
-            return _permissions.AuthorizeLocationAsync(
-                User,
-                OperatorAreaIds.Reports,
-                PermissionLevel.View,
-                locationId
-            );
-        }
-
-        private static object WireMetric(DTOs.Reports.ReportsMetricDto metric)
-        {
-            return new
-            {
-                value = metric.Value,
-                valuePrevious = metric.ValuePrevious,
-            };
-        }
-
-        private static DateTime EnsureUtc(DateTime value)
-        {
-            return value.Kind switch
-            {
-                DateTimeKind.Utc => value,
-                DateTimeKind.Local => value.ToUniversalTime(),
-                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
-            };
         }
     }
 }
