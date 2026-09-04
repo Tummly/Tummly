@@ -424,6 +424,10 @@ builder.Services.AddScoped<
     OffersRedemptionsExportService
 >();
 builder.Services.AddScoped<
+    IPrivacyConsentPermissionRecordsExportService,
+    PrivacyConsentPermissionRecordsExportService
+>();
+builder.Services.AddScoped<
     IOfferVoidRequestService,
     OfferVoidRequestService
 >();
