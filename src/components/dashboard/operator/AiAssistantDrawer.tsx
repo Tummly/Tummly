@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import {
+  ArrowRight,
   ArrowUpIcon,
   HistoryIcon,
   Maximize2Icon,
   Minimize2Icon,
   PlusCircleIcon,
+  Settings,
   ThumbsDownIcon,
   ThumbsUpIcon,
   XIcon,
@@ -21,7 +23,6 @@ import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
-  DrawerClose,
   DrawerContent,
   DrawerDescription,
   DrawerTitle,
@@ -41,8 +42,6 @@ import {
   stickAssistantThreadToBottom,
 } from "@/lib/operatorAiAssistant/assistantDrawerPresentation"
 import {
-  ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS,
-  ASSISTANT_COMPOSER_SEND_ICON_CLASS,
   assistantComposerFieldClass,
   assistantComposerShellClass,
   assistantComposerTextareaClass,
@@ -106,15 +105,6 @@ type AiAssistantDrawerProps = {
   onFollowRestorationHelper: () => void
 }
 
-const HEADER_TEXT_ACTION_CLASS =
-  "h-auto min-h-11 gap-1.5 rounded-op-sm px-0 py-0 text-sm font-normal text-op-text-primary hover:bg-transparent md:min-h-0"
-
-const CHIP_CLASS = [
-  "h-auto !min-h-11 flex-[1_1_calc(50%-6px)] justify-start gap-2 rounded-[8px]",
-  "border border-op-border-default bg-transparent px-[18px] py-[18px]",
-  "text-left text-sm font-normal whitespace-normal text-[var(--op-color-gray-550)]",
-  "shadow-none hover:bg-transparent md:!min-h-0",
-].join(" ")
 
 const ACTION_CARD_CLASS = [
   "h-auto min-h-11 justify-start gap-2 rounded-[8px]",
@@ -417,7 +407,6 @@ export function AiAssistantDrawer({
   useEffect(() => {
     if (
       !snapshot.drawerOpen
-      || !paintExpanded
       || snapshot.changeScopeDialog.open
       || snapshot.deleteConfirm.open
     ) {
@@ -436,7 +425,6 @@ export function AiAssistantDrawer({
     }
   }, [
     onDismissFromEscape,
-    paintExpanded,
     snapshot.changeScopeDialog.open,
     snapshot.deleteConfirm.open,
     snapshot.drawerOpen,
@@ -463,92 +451,78 @@ export function AiAssistantDrawer({
     stickAssistantThreadToBottom(body)
   }, [showGreeting, showList, snapshot.messages])
 
-  return (
-    <>
-      <Drawer
-        open={snapshot.drawerOpen}
-        onOpenChange={onOpenChange}
-        direction="right"
-        modal={!paintExpanded}
-        dismissible={!paintExpanded}
-        // Vaul captures the pointer on content press for right drawers.
-        // That traps selection inside one block. Drag only from a handle.
-        handleOnly
+  const panelContent = (
+    <div className="flex min-h-0 flex-1" data-vaul-no-drag>
+      {paintExpanded ? (
+        <AiAssistantConversationList
+          snapshot={snapshot}
+          expandedSidebar
+          onBackToConversation={onBackToConversation}
+          onSearchQueryChange={onSearchQueryChange}
+          onOpenConversation={onOpenConversation}
+          onArchive={onArchiveConversation}
+          onUnarchive={onUnarchiveConversation}
+          onRequestDelete={onRequestDelete}
+          onOpenArchive={onOpenArchive}
+          onStartConversation={onStartNewChat}
+          onRetry={
+            snapshot.listChromeKind === "body-error"
+              ? onRetryBody
+              : onRetryList
+          }
+        />
+      ) : null}
+      <div
+        className={cn(
+          "flex min-h-0 min-w-0 flex-1 flex-col",
+          showList ? "" : "pt-[22px]"
+        )}
       >
-        <DrawerContent
-          className={assistantDrawerContentClass({
-            widthMode: snapshot.widthMode,
-            viewportAtLeastLg,
-            sidebarCollapsed,
-          })}
-          showOverlay={showOverlay}
-          overlayClassName={assistantDrawerOverlayClass()}
-          onOpenAutoFocus={(event) => {
-            event.preventDefault()
-          }}
-          data-assistant-width={paintExpanded ? "expanded" : "collapsed"}
-        >
-          <div className="flex min-h-0 flex-1" data-vaul-no-drag>
-            {paintExpanded ? (
-              <AiAssistantConversationList
-                snapshot={snapshot}
-                expandedSidebar
-                onBackToConversation={onBackToConversation}
-                onSearchQueryChange={onSearchQueryChange}
-                onOpenConversation={onOpenConversation}
-                onArchive={onArchiveConversation}
-                onUnarchive={onUnarchiveConversation}
-                onRequestDelete={onRequestDelete}
-                onOpenArchive={onOpenArchive}
-                onStartConversation={onStartNewChat}
-                onRetry={
-                  snapshot.listChromeKind === "body-error"
-                    ? onRetryBody
-                    : onRetryList
-                }
-              />
-            ) : null}
-          <div
-            className={cn(
-              "flex min-h-0 min-w-0 flex-1 flex-col",
-              showList ? "" : "pt-[22px]"
-            )}
-          >
-            {showList ? (
-              <AiAssistantConversationList
-                snapshot={snapshot}
-                onBackToConversation={onBackToConversation}
-                onSearchQueryChange={onSearchQueryChange}
-                onOpenConversation={onOpenConversation}
-                onArchive={onArchiveConversation}
-                onUnarchive={onUnarchiveConversation}
-                onRequestDelete={onRequestDelete}
-                onOpenArchive={onOpenArchive}
-                onStartConversation={onStartNewChat}
-                onRetry={
-                  snapshot.listChromeKind === "body-error"
-                    ? onRetryBody
-                    : onRetryList
-                }
-              />
-            ) : (
-              <>
-            <div className="flex shrink-0 flex-col gap-1.5 px-[22px] pb-[22px]">
-              <div className="flex items-start justify-between gap-[22px]">
+        {showList ? (
+          <AiAssistantConversationList
+            snapshot={snapshot}
+            onBackToConversation={onBackToConversation}
+            onSearchQueryChange={onSearchQueryChange}
+            onOpenConversation={onOpenConversation}
+            onArchive={onArchiveConversation}
+            onUnarchive={onUnarchiveConversation}
+            onRequestDelete={onRequestDelete}
+            onOpenArchive={onOpenArchive}
+            onStartConversation={onStartNewChat}
+            onRetry={
+              snapshot.listChromeKind === "body-error"
+                ? onRetryBody
+                : onRetryList
+            }
+          />
+        ) : (
+          <>
+            <div className="flex shrink-0 flex-col gap-1.5 px-5 pb-5">
+              <div className="flex items-center justify-between">
                 <div
                   className={cn(
-                    "min-w-0 flex-wrap items-center gap-[22px]",
+                    "flex items-center gap-5",
                     paintExpanded ? "hidden" : "flex"
                   )}
                 >
                   <Button
                     type="button"
                     variant="op-ghost"
-                    className={HEADER_TEXT_ACTION_CLASS}
+                    size="icon"
+                    className="size-4 min-h-0 min-w-0 p-0 text-white hover:bg-transparent"
+                    aria-label="Change analysis scope"
+                    onClick={onOpenChangeScope}
+                  >
+                    <Settings className="size-4 text-white" aria-hidden />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="op-ghost"
+                    className="h-auto min-h-0 gap-1.5 p-0 text-sm font-normal text-white hover:bg-transparent"
                     onClick={onStartNewChat}
                   >
                     <PlusCircleIcon
-                      className="size-[18px] text-op-text-primary"
+                      className="size-3.5 text-white"
                       aria-hidden
                     />
                     New chat
@@ -556,22 +530,22 @@ export function AiAssistantDrawer({
                   <Button
                     type="button"
                     variant="op-ghost"
-                    className={HEADER_TEXT_ACTION_CLASS}
+                    className="h-auto min-h-0 gap-1.5 p-0 text-sm font-normal text-white hover:bg-transparent"
                     onClick={onOpenRecent}
                   >
                     <HistoryIcon
-                      className="size-[18px] text-op-text-primary"
+                      className="size-3 text-white"
                       aria-hidden
                     />
                     Recent
                   </Button>
                 </div>
-                <div className="ml-auto flex shrink-0 items-center gap-[22px]">
+                <div className="ml-auto flex shrink-0 items-center gap-5">
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="hidden size-7 rounded-[8px] text-op-text-primary hover:bg-transparent lg:inline-flex"
+                    className="hidden size-4 min-h-0 min-w-0 p-0 text-zinc-400 hover:text-white hover:bg-transparent lg:inline-flex"
                     aria-label={
                       paintExpanded
                         ? "Collapse AI Assistant"
@@ -581,97 +555,122 @@ export function AiAssistantDrawer({
                   >
                     {paintExpanded ? (
                       <Minimize2Icon
-                        className="size-6 text-op-text-primary"
+                        className="size-4 text-zinc-400"
                         aria-hidden
                       />
                     ) : (
                       <Maximize2Icon
-                        className="size-6 text-op-text-primary"
+                        className="size-4 text-zinc-400"
                         aria-hidden
                       />
                     )}
                   </Button>
-                  <DrawerClose asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-11 shrink-0 rounded-[2px] bg-op-color-gray-70 text-op-text-primary hover:bg-op-color-gray-85 md:size-[42px] dark:bg-op-color-gray-950 dark:hover:bg-op-color-gray-950"
-                      aria-label="Close AI Assistant"
-                    >
-                      <XIcon className="size-[18px] text-op-text-primary" aria-hidden />
-                    </Button>
-                  </DrawerClose>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 min-h-0 min-w-0 rounded-md bg-[#222222] text-neutral-300 hover:bg-[#2c2c2c] hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+                    aria-label="Close AI Assistant"
+                    onClick={() => onOpenChange(false)}
+                  >
+                    <XIcon className="size-4" aria-hidden />
+                  </Button>
                 </div>
               </div>
 
-              <div className="flex flex-col items-start gap-[18px]">
-                <p
-                  className="min-w-0 max-w-full truncate text-sm leading-5 font-normal text-[var(--op-color-gray-550)]"
+              <div className="flex flex-col items-start">
+                <button
+                  type="button"
+                  onClick={onOpenChangeScope}
+                  className="text-left text-xs font-normal text-neutral-500 hover:text-neutral-300 transition-colors cursor-pointer mt-1"
                   title={snapshot.headerStatusLine}
                   aria-label={snapshot.headerStatusLine}
                 >
                   {snapshot.headerStatusLine}
-                </p>
-                <Button
-                  type="button"
-                  variant="op-tertiary"
-                  className="h-auto min-h-11 shrink-0 whitespace-nowrap px-[17px] md:h-[42px] md:min-h-[42px]"
-                  onClick={onOpenChangeScope}
-                >
-                  Change Scope
-                </Button>
+                </button>
               </div>
             </div>
 
-            <DrawerTitle className="sr-only">AI Assistant</DrawerTitle>
-            <DrawerDescription className="sr-only">
+            <h2 className="sr-only">AI Assistant</h2>
+            <p className="sr-only">
               Ask about feedback, guests, offers, campaigns or performance.
-            </DrawerDescription>
+            </p>
 
             <div className={assistantConversationStageClass(paintExpanded)}>
-            <div
-              ref={threadBodyRef}
-              className={assistantThreadBodyClass(paintExpanded)}
-            >
-              <div className={assistantThreadRailClass(paintExpanded)}>
-              {showGreeting ? (
-                <div className="mt-auto flex flex-col items-center gap-4 pb-[60px]">
-                  <AiIcon size={48} />
-                  <div className="flex flex-col items-center gap-3 text-center">
-                    <p className="text-lg font-medium text-[var(--op-color-gray-625)]">
-                      {snapshot.greeting.hello}
-                    </p>
-                    <p className="bg-gradient-to-r from-[var(--op-color-green-600)] to-[var(--op-color-blue-600)] bg-clip-text text-[26px] leading-8 font-medium text-transparent dark:text-transparent">
-                      {snapshot.greeting.headline}
-                    </p>
-                  </div>
-                  <p className="max-w-[365px] text-center text-base leading-[22px] font-normal text-[var(--op-color-gray-550)]">
-                    {snapshot.greeting.body}
-                  </p>
-                </div>
-              ) : (
-                <div className="flex flex-1 flex-col gap-[30px] pt-2">
-                  {snapshot.messages.map((message) => (
-                    <ThreadMessage
-                      key={message.id}
-                      message={message}
-                      retryVisible={snapshot.retryVisible}
-                      helpfulFill={snapshot.helpfulFills[message.id]}
-                      onRetry={onRetry}
-                      onToggleHelpful={onToggleHelpful}
-                      onActivateAction={onActivateAction}
-                    />
-                  ))}
-                </div>
-              )}
-              </div>
-            </div>
+              <div
+                ref={threadBodyRef}
+                className={cn(assistantThreadBodyClass(paintExpanded), !paintExpanded && "!px-5 !pb-4")}
+              >
+                <div className={assistantThreadRailClass(paintExpanded)}>
+                  {showGreeting ? (
+                    <div className="flex flex-1 flex-col justify-center gap-7 pb-4">
+                      <div className="flex flex-col gap-4">
+                        <div className="inline-flex items-center gap-3">
+                          <AiIcon size={26} className="size-6 shrink-0 text-white" />
+                          <span className="text-base font-normal text-neutral-400">
+                            {snapshot.greeting.hello}
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-2.5">
+                          <h2 className="text-2xl font-medium tracking-tight text-white">
+                            {snapshot.greeting.headline}
+                          </h2>
+                          <p className="max-w-[380px] text-sm font-normal leading-relaxed text-neutral-400">
+                            {snapshot.greeting.body}
+                          </p>
+                        </div>
+                      </div>
 
-            <div className={assistantComposerDockClass(paintExpanded)}>
-              <div className={assistantComposerRailClass(paintExpanded)}>
-              <div className={assistantComposerShellClass(composerFocused)}>
-                <div className="overflow-hidden rounded-[8px]">
+                      {snapshot.suggestionChips.length > 0 ? (
+                        <div className="flex flex-col gap-3.5 pt-1">
+                          {snapshot.suggestionChips.map((label) => (
+                            <button
+                              key={label}
+                              type="button"
+                              disabled={snapshot.chipsLocked}
+                              onClick={() => {
+                                onFillComposerFromChip(label)
+                                composerRef.current?.focus()
+                              }}
+                              className="group inline-flex items-center gap-2.5 text-left transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 py-0.5"
+                            >
+                              <ArrowRight
+                                className="size-3.5 shrink-0 text-white transition-transform group-hover:translate-x-0.5"
+                                aria-hidden
+                              />
+                              <span className="text-sm font-normal text-white group-hover:text-neutral-300">
+                                {label}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="flex flex-1 flex-col gap-[30px] pt-2">
+                      {snapshot.messages.map((message) => (
+                        <ThreadMessage
+                          key={message.id}
+                          message={message}
+                          retryVisible={snapshot.retryVisible}
+                          helpfulFill={snapshot.helpfulFills[message.id]}
+                          onRetry={onRetry}
+                          onToggleHelpful={onToggleHelpful}
+                          onActivateAction={onActivateAction}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div
+                className={cn(
+                  assistantComposerDockClass(paintExpanded),
+                  !paintExpanded && "!px-5 !pb-5 !gap-0"
+                )}
+              >
+                <div className={assistantComposerRailClass(paintExpanded)}>
                   <AiAssistantCreditsBar
                     remainingLine={snapshot.creditsRemainingLine}
                     viewUsageLabel={snapshot.viewUsageLabel}
@@ -681,125 +680,167 @@ export function AiAssistantDrawer({
                     onViewUsage={onViewUsage}
                     onAddCredits={onAddCredits}
                   />
-                  <div className={assistantComposerFieldClass(snapshot.micChrome)}>
-                  <Textarea
-                    ref={composerRef}
-                    id="ai-assistant-composer"
-                    value={snapshot.composerDraft}
-                    placeholder={placeholder}
-                    disabled={snapshot.composerLocked}
-                    onChange={(event) => {
-                      onSetComposerDraft(event.target.value)
-                    }}
-                    onFocus={() => {
-                      setComposerFocused(true)
-                    }}
-                    onBlur={() => {
-                      setComposerFocused(false)
-                    }}
-                    onKeyDown={handleComposerKeyDown}
-                    className={assistantComposerTextareaClass()}
-                    aria-label="Ask AI Assistant"
-                  />
-                  {snapshot.micError ? (
-                    <div
-                      role="alert"
-                      className="flex items-start justify-between gap-2"
-                    >
-                      <p className="text-sm text-destructive">
-                        {snapshot.micError.message}
-                      </p>
-                      <Button
-                        type="button"
-                        variant="op-ghost"
-                        size="icon"
-                        aria-label="Dismiss"
-                        onClick={onDismissMicError}
-                        className="size-6 min-h-6 min-w-6 shrink-0 text-[var(--op-color-gray-550)] hover:bg-transparent"
-                      >
-                        <XIcon className="size-4" aria-hidden />
-                      </Button>
-                    </div>
-                  ) : null}
                   <div
                     className={cn(
-                      "flex items-center",
-                      snapshot.micChrome === "tick_cancel"
-                        ? "w-full"
-                        : "justify-end gap-4"
+                      assistantComposerShellClass(composerFocused),
+                      "rounded-[10px] border-[#262626] bg-[#141414] overflow-hidden"
                     )}
                   >
-                    <AiAssistantMicChrome
-                      chrome={snapshot.micChrome}
-                      micAvailable={snapshot.micAvailable}
-                      micLocked={snapshot.micLocked || snapshot.sendBlocked}
-                      levelSource={micAudioLevelSource}
-                      onStart={onStartMic}
-                      onConfirm={onConfirmMic}
-                      onCancel={onCancelMic}
-                    />
-                    {snapshot.micChrome === "tick_cancel" ? null : (
-                      <div className="flex items-center gap-3">
-                        {snapshot.restorationHelper != null ? (
+                    <div className={assistantComposerFieldClass(snapshot.micChrome)}>
+                      <Textarea
+                        ref={composerRef}
+                        id="ai-assistant-composer"
+                        value={snapshot.composerDraft}
+                        placeholder={placeholder}
+                        disabled={snapshot.composerLocked}
+                        onChange={(event) => {
+                          onSetComposerDraft(event.target.value)
+                        }}
+                        onFocus={() => {
+                          setComposerFocused(true)
+                        }}
+                        onBlur={() => {
+                          setComposerFocused(false)
+                        }}
+                        onKeyDown={handleComposerKeyDown}
+                        className={assistantComposerTextareaClass()}
+                        aria-label="Ask AI Assistant"
+                      />
+                      {snapshot.micError ? (
+                        <div
+                          role="alert"
+                          className="flex items-start justify-between gap-2"
+                        >
+                          <p className="text-sm text-destructive">
+                            {snapshot.micError.message}
+                          </p>
                           <Button
                             type="button"
                             variant="op-ghost"
-                            className="h-auto min-h-0 px-0 py-0 text-xs font-medium text-op-text-primary hover:bg-transparent hover:text-op-text-primary"
-                            onClick={onFollowRestorationHelper}
+                            size="icon"
+                            aria-label="Dismiss"
+                            onClick={onDismissMicError}
+                            className="size-6 min-h-6 min-w-6 shrink-0 text-[var(--op-color-gray-550)] hover:bg-transparent"
                           >
-                            {snapshot.restorationHelper.label}
+                            <XIcon className="size-4" aria-hidden />
                           </Button>
-                        ) : null}
-                        <Button
-                          type="button"
-                          variant="op-ghost"
-                          size="icon"
-                          disabled={!canSend}
-                          aria-label="Send"
-                          onClick={onSend}
-                          className={ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS}
-                        >
-                          <ArrowUpIcon
-                            className={ASSISTANT_COMPOSER_SEND_ICON_CLASS}
-                            aria-hidden
-                          />
-                        </Button>
+                        </div>
+                      ) : null}
+                      <div
+                        className={cn(
+                          "flex items-center",
+                          snapshot.micChrome === "tick_cancel"
+                            ? "w-full"
+                            : "justify-end gap-3"
+                        )}
+                      >
+                        <AiAssistantMicChrome
+                          chrome={snapshot.micChrome}
+                          micAvailable={snapshot.micAvailable}
+                          micLocked={snapshot.micLocked || snapshot.sendBlocked}
+                          levelSource={micAudioLevelSource}
+                          onStart={onStartMic}
+                          onConfirm={onConfirmMic}
+                          onCancel={onCancelMic}
+                        />
+                        {snapshot.micChrome === "tick_cancel" ? null : (
+                          <div className="flex items-center gap-3">
+                            {snapshot.restorationHelper != null ? (
+                              <Button
+                                type="button"
+                                variant="op-ghost"
+                                className="h-auto min-h-0 p-0 text-xs font-normal text-neutral-400 hover:bg-transparent hover:text-white transition-colors"
+                                onClick={onFollowRestorationHelper}
+                              >
+                                {snapshot.restorationHelper.label}
+                              </Button>
+                            ) : null}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              disabled={!canSend}
+                              aria-label="Send"
+                              onClick={onSend}
+                              className={cn(
+                                "size-8 min-h-8 min-w-8 p-0 text-neutral-400 hover:text-white hover:bg-transparent transition-colors",
+                                canSend
+                                  ? "text-white cursor-pointer"
+                                  : "opacity-40 cursor-not-allowed text-neutral-500"
+                              )}
+                            >
+                              <ArrowUpIcon
+                                className="size-4"
+                                aria-hidden
+                              />
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
-                </div>
               </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
 
-              {snapshot.suggestionChips.length > 0 ? (
-                <div className="flex flex-wrap gap-3 overflow-x-hidden">
-                  {snapshot.suggestionChips.map((label) => (
-                    <Button
-                      key={label}
-                      type="button"
-                      variant="op-ghost"
-                      className={CHIP_CLASS}
-                      disabled={snapshot.chipsLocked}
-                      onClick={() => {
-                        onFillComposerFromChip(label)
-                        composerRef.current?.focus()
-                      }}
-                    >
-                      <AiIcon size={16} />
-                      {label}
-                    </Button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            </div>
-            </div>
-              </>
+  return (
+    <>
+      {viewportAtLeastLg ? (
+        snapshot.drawerOpen ? (
+          <aside
+            className={cn(
+              "relative flex min-h-0 shrink-0 flex-col overflow-hidden",
+              "bg-op-assistant-list-background text-op-text-primary",
+              "my-2 mr-2 ml-2 h-[calc(100%-1rem)]",
+              "rounded-tl-[20px] rounded-tr-[20px] rounded-bl-[10px] rounded-br-[10px]",
+              "border border-op-border-default shadow-2xl",
+              paintExpanded
+                ? "w-[800px] max-w-[calc(100vw-350px)]"
+                : "w-[480px]"
             )}
-          </div>
-          </div>
-        </DrawerContent>
-      </Drawer>
+            data-assistant-width={paintExpanded ? "expanded" : "collapsed"}
+            aria-label="AI Assistant"
+          >
+            {panelContent}
+          </aside>
+        ) : null
+      ) : (
+        <Drawer
+          open={snapshot.drawerOpen}
+          onOpenChange={onOpenChange}
+          direction="right"
+          modal
+          handleOnly
+        >
+          <DrawerContent
+            className={cn(
+              assistantDrawerContentClass({
+                widthMode: snapshot.widthMode,
+                viewportAtLeastLg,
+                sidebarCollapsed,
+              }),
+              "bg-op-assistant-list-background text-op-text-primary"
+            )}
+            showOverlay={showOverlay}
+            overlayClassName={assistantDrawerOverlayClass()}
+            onOpenAutoFocus={(event) => {
+              event.preventDefault()
+            }}
+            data-assistant-width="collapsed"
+          >
+            <DrawerTitle className="sr-only">AI Assistant</DrawerTitle>
+            <DrawerDescription className="sr-only">
+              Ask about feedback, guests, offers, campaigns or performance.
+            </DrawerDescription>
+            {panelContent}
+          </DrawerContent>
+        </Drawer>
+      )}
       {snapshot.changeScopeDialog.open ? (
         <AiAssistantChangeScopeDialog
           dialog={snapshot.changeScopeDialog}

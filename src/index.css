@@ -677,6 +677,10 @@ html.op [data-slot="sheet-overlay"] {
   -webkit-backdrop-filter: none;
 }
 
+html.op [data-slot="drawer-overlay"].bg-op-assistant-overlay {
+  background: transparent;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

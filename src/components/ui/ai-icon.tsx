@@ -9,7 +9,7 @@ type AiIconProps = {
    * 16 / 24 — compact UI; 18 — navbar / AI actions; 32 — section headers;
    * 48 — overlays.
    */
-  size?: 16 | 18 | 22 | 24 | 26 | 32 | 38 | 48
+  size?: 16 | 18 | 22 | 24 | 26 | 28 | 32 | 38 | 48
 }
 
 /** Brand AI glyph — green-to-blue petal ring (`assets/svg/ui-icons/ai-icon.svg`). */

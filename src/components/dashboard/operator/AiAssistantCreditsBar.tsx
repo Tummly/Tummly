@@ -21,16 +21,16 @@ export function AiAssistantCreditsBar({
   onAddCredits,
 }: AiAssistantCreditsBarProps) {
   return (
-    <div className="-mb-[5px] flex items-center justify-between gap-3 bg-op-assistant-credits-background px-5 py-4">
-      <p className="min-w-0 truncate text-xs font-medium text-[var(--op-color-gray-550)]">
+    <div className="flex items-center justify-between gap-3 px-1 pb-2">
+      <p className="min-w-0 truncate text-xs font-normal text-neutral-500">
         {remainingLine}
       </p>
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex shrink-0 items-center gap-4">
         {showViewUsage ? (
           <Button
             type="button"
             variant="op-ghost"
-            className="h-auto min-h-0 px-0 py-0 text-xs font-medium text-op-text-primary hover:bg-transparent hover:text-op-text-primary"
+            className="h-auto min-h-0 p-0 text-xs font-normal text-neutral-400 hover:bg-transparent hover:text-white transition-colors"
             onClick={onViewUsage}
           >
             {viewUsageLabel}
@@ -40,7 +40,7 @@ export function AiAssistantCreditsBar({
           <Button
             type="button"
             variant="op-ghost"
-            className="h-auto min-h-0 px-0 py-0 text-xs font-medium text-op-text-primary hover:bg-transparent hover:text-op-text-primary"
+            className="h-auto min-h-0 p-0 text-xs font-normal text-neutral-400 hover:bg-transparent hover:text-white transition-colors"
             onClick={onAddCredits}
           >
             {addCreditsLabel}
