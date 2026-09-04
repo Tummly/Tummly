@@ -148,6 +148,121 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetWeeklyBrief_ReadyRow_ReturnsWhatChangedAndFeedbackSummary()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-ready-sections");
+            var weekKey = "monday:2026-07-06";
+            var priorWeekKey = "monday:2026-06-29";
+            var current = EmptyMetrics() with
+            {
+                GuestsJoined = 46,
+                QrScanEvents = 112,
+                FeedbackCount = 54,
+                PositiveFeedbackCount = 40,
+                NeutralFeedbackCount = 8,
+                NegativeFeedbackCount = 6,
+                NeedsAttentionCount = 6,
+                RedemptionsInWeek = 24,
+                CampaignsSentInWeek = 2,
+            };
+            var prior = EmptyMetrics() with
+            {
+                GuestsJoined = 40,
+                QrScanEvents = 100,
+                FeedbackCount = 50,
+                RedemptionsInWeek = 25,
+                CampaignsSentInWeek = 2,
+            };
+            var body = FakeWeeklyBriefProvider.FixtureFor(current);
+            var generatedAt = DateTime.Parse("2026-07-13T08:30:00Z").ToUniversalTime();
+
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                priorWeekKey,
+                FakeWeeklyBriefProvider.FixtureFor(prior),
+                prior,
+                generatedAt.AddDays(-7)
+            );
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                weekKey,
+                body,
+                current,
+                generatedAt
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&week={weekKey}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("ready").GetBoolean());
+
+            var whatChanged = json.GetProperty("whatChanged").EnumerateArray().ToList();
+            Assert.Equal(4, whatChanged.Count);
+            Assert.Equal("QR scans", whatChanged[0].GetProperty("area").GetString());
+            Assert.Equal("+12%", whatChanged[0].GetProperty("change").GetString());
+
+            var feedbackSummary = json.GetProperty("feedbackSummary");
+            Assert.Equal(
+                JsonValueKind.Object,
+                feedbackSummary.ValueKind
+            );
+            Assert.Equal(6, feedbackSummary.GetProperty("needsAttentionCount").GetInt32());
+            Assert.Contains(
+                "54 private feedback messages",
+                feedbackSummary.GetProperty("text").GetString()
+            );
+            Assert.Equal(
+                "Based on private feedback submitted between 6–12 July.",
+                feedbackSummary.GetProperty("subtitle").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetWeeklyBrief_ReadyRow_OmitsEmptyWhatChangedAndFeedbackSummary()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-ready-empty-sections");
+            var weekKey = "monday:2026-07-06";
+            var metrics = EmptyMetrics();
+            var body = new WeeklyBriefBody(
+                Headline: "Quiet week.",
+                Capture: new WeeklyBriefSection(false, "", null),
+                Feedback: new WeeklyBriefSection(false, "", null),
+                Offers: new WeeklyBriefSection(false, "", null),
+                Campaigns: new WeeklyBriefSection(false, "", null),
+                WatchNext: []
+            );
+            var generatedAt = DateTime.Parse("2026-07-13T08:30:00Z").ToUniversalTime();
+
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                weekKey,
+                body,
+                metrics,
+                generatedAt
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&week={weekKey}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("ready").GetBoolean());
+            Assert.Empty(json.GetProperty("whatChanged").EnumerateArray());
+            Assert.Equal(
+                JsonValueKind.Null,
+                json.GetProperty("feedbackSummary").ValueKind
+            );
+        }
+
+        [Fact]
         public async Task GetWeeklyBrief_MissingRow_ReturnsNotReadyEnvelope()
         {
             var seeded = await SeedOwnerWithLocationAsync("wb-missing");

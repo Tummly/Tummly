@@ -53,18 +53,27 @@ namespace TummlyBackend.Helpers
 
         public sealed record Phase1ReadyFields(
             MetaDto Meta,
-            string ExecutiveSummary
+            string ExecutiveSummary,
+            IReadOnlyList<WeeklyBriefPhase1Sections.WhatChangedRowDto> WhatChanged,
+            WeeklyBriefPhase1Sections.FeedbackSummaryDto? FeedbackSummary
         );
 
         public static Phase1ReadyFields Build(
             WeeklyBriefBody body,
             WeeklyBriefMetrics metrics,
-            string weekKey
+            string weekKey,
+            WeeklyBriefMetrics? priorMetrics = null
         )
         {
+            var meta = BuildMeta(body, metrics, weekKey);
             return new Phase1ReadyFields(
-                BuildMeta(body, metrics, weekKey),
-                BuildExecutiveSummary(body)
+                meta,
+                BuildExecutiveSummary(body),
+                WeeklyBriefPhase1Sections.BuildWhatChanged(metrics, priorMetrics),
+                WeeklyBriefPhase1Sections.BuildFeedbackSummary(
+                    metrics,
+                    meta.Period
+                )
             );
         }
 

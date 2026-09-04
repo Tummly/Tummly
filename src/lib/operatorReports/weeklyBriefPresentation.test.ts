@@ -4,6 +4,9 @@ import {
   formatWeeklyBriefDataSources,
   formatWeeklyBriefGeneratedAt,
   mockWeeklyBriefData,
+  planWeeklyBriefFeedbackFollowUpCta,
+  shouldShowWeeklyBriefFeedbackSummary,
+  shouldShowWeeklyBriefWhatChanged,
 } from "@/lib/operatorReports/weeklyBriefPresentation"
 
 describe("weeklyBriefPresentation", () => {
@@ -15,6 +18,13 @@ describe("weeklyBriefPresentation", () => {
     expect(WEEKLY_BRIEF_PAGE_COPY.periodLabel).toBe("Period")
     expect(WEEKLY_BRIEF_PAGE_COPY.executiveSummaryTitle).toBe(
       "Executive summary"
+    )
+    expect(WEEKLY_BRIEF_PAGE_COPY.whatChangedTitle).toBe("What changed")
+    expect(WEEKLY_BRIEF_PAGE_COPY.feedbackSummaryTitle).toBe(
+      "Feedback summary"
+    )
+    expect(WEEKLY_BRIEF_PAGE_COPY.reviewFollowUpQueue).toBe(
+      "Review follow-up queue"
     )
   })
 
@@ -35,5 +45,52 @@ describe("weeklyBriefPresentation", () => {
     expect(
       formatWeeklyBriefDataSources(["Capture", "Feedback", "Offers"])
     ).toBe("Capture, Feedback, Offers")
+  })
+
+  it("shows What changed only when rows exist", () => {
+    expect(shouldShowWeeklyBriefWhatChanged([])).toBe(false)
+    expect(shouldShowWeeklyBriefWhatChanged(null)).toBe(false)
+    expect(
+      shouldShowWeeklyBriefWhatChanged([
+        {
+          area: "QR scans",
+          change: "+12%",
+          meaning: "More guests are engaging with your QR placements.",
+        },
+      ])
+    ).toBe(true)
+  })
+
+  it("shows Feedback summary only when facts exist", () => {
+    expect(shouldShowWeeklyBriefFeedbackSummary(null)).toBe(false)
+    expect(
+      shouldShowWeeklyBriefFeedbackSummary({
+        text: "   ",
+        subtitle: "Based on private feedback submitted between 6–12 July.",
+        needsAttentionCount: 0,
+      })
+    ).toBe(false)
+    expect(
+      shouldShowWeeklyBriefFeedbackSummary({
+        text: "42 private feedback messages this week.",
+        subtitle: "Based on private feedback submitted between 6–12 July.",
+        needsAttentionCount: 6,
+      })
+    ).toBe(true)
+  })
+
+  it("plans Review follow-up queue to Feedback needs-attention", () => {
+    expect(
+      planWeeklyBriefFeedbackFollowUpCta({ mode: "single", locationId: 42 })
+    ).toEqual({
+      path: "/single-dashboard/feedback?location=42",
+      feedbackInbox: { tab: "needs-attention" },
+    })
+    expect(
+      planWeeklyBriefFeedbackFollowUpCta({ mode: "multi", locationId: 7 })
+    ).toEqual({
+      path: "/multi-dashboard/feedback?location=7",
+      feedbackInbox: { tab: "needs-attention" },
+    })
   })
 })

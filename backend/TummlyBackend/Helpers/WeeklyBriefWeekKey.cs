@@ -73,6 +73,75 @@ namespace TummlyBackend.Helpers
         }
 
         /// <summary>
+        /// Prior closed week key for week-over-week What changed derive.
+        /// Workspace <c>weekday:yyyy-MM-dd</c> shifts coverage start −7 days;
+        /// legacy ISO <c>yyyy-Www</c> uses the prior ISO week.
+        /// </summary>
+        public static bool TryPriorWeekKey(string weekKey, out string priorWeekKey)
+        {
+            priorWeekKey = string.Empty;
+            if (!TryNormalizeWeekKey(weekKey, out var normalized))
+            {
+                return false;
+            }
+
+            var colon = normalized.IndexOf(':');
+            if (
+                colon > 0
+                && DateOnly.TryParseExact(
+                    normalized[(colon + 1)..],
+                    "yyyy-MM-dd",
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
+                    out var start
+                )
+            )
+            {
+                var priorStart = start.AddDays(-7);
+                priorWeekKey =
+                    $"{normalized[..colon]}:{priorStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}";
+                return true;
+            }
+
+            if (
+                normalized.Length == 8
+                && normalized[4] == '-'
+                && normalized[5] == 'W'
+                && int.TryParse(
+                    normalized.AsSpan(0, 4),
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out var year
+                )
+                && int.TryParse(
+                    normalized.AsSpan(6, 2),
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out var week
+                )
+                && week >= 1
+                && week <= 53
+            )
+            {
+                if (week > 1)
+                {
+                    priorWeekKey =
+                        $"{year.ToString(CultureInfo.InvariantCulture)}-W{(week - 1).ToString("00", CultureInfo.InvariantCulture)}";
+                    return true;
+                }
+
+                // ISO week 1 → last ISO week of prior year (52 or 53).
+                var priorYear = year - 1;
+                var lastWeek = ISOWeek.GetWeeksInYear(priorYear);
+                priorWeekKey =
+                    $"{priorYear.ToString(CultureInfo.InvariantCulture)}-W{lastWeek.ToString("00", CultureInfo.InvariantCulture)}";
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Resolve the closed prior week for <paramref name="utcNow"/> in
         /// <paramref name="ianaTimeZoneId"/> using <paramref name="weekStartsOn"/>.
         /// At start-weekday local midnight the week that just ended becomes the
