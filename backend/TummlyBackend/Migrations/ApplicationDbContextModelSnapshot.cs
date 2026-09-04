@@ -5294,7 +5294,7 @@ namespace TummlyBackend.Migrations
                     b.HasOne("TummlyBackend.Models.User", "ReviewedByUser")
                         .WithMany()
                         .HasForeignKey("ReviewedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Location");
 

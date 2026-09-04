@@ -33,8 +33,7 @@ namespace TummlyBackend.Migrations
                 table: "WeeklyBriefs",
                 column: "ReviewedByUserId",
                 principalTable: "Users",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
+                principalColumn: "Id");
         }
 
         /// <inheritdoc />

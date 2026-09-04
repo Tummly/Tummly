@@ -12,7 +12,7 @@ using TummlyBackend.Data;
 namespace TummlyBackend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260904135023_AddWeeklyBriefReviewedFields")]
+    [Migration("20260904140140_AddWeeklyBriefReviewedFields")]
     partial class AddWeeklyBriefReviewedFields
     {
         /// <inheritdoc />
@@ -5297,7 +5297,7 @@ namespace TummlyBackend.Migrations
                     b.HasOne("TummlyBackend.Models.User", "ReviewedByUser")
                         .WithMany()
                         .HasForeignKey("ReviewedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Location");
 

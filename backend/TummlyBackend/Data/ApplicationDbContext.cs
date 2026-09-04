@@ -2175,7 +2175,9 @@ namespace TummlyBackend.Data
                 .HasOne(row => row.ReviewedByUser)
                 .WithMany()
                 .HasForeignKey(row => row.ReviewedByUserId)
-                .OnDelete(DeleteBehavior.SetNull);
+                // NoAction: SQL Server rejects ReviewedByUser SET NULL alongside
+                // other Users cascade paths (error 1785). Annotation id only.
+                .OnDelete(DeleteBehavior.NoAction);
 
             /*
              =========================================
