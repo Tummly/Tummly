@@ -1,3 +1,13 @@
+import type { AssistantFeedbackInboxIntent } from "@/lib/operatorAiAssistant/assistantActionNavigate"
+import {
+  operatorDashboardNavPath,
+  type OperatorDashboardMode,
+} from "@/lib/operatorHome/operatorDashboardPaths"
+import type {
+  WeeklyBriefFeedbackSummary,
+  WeeklyBriefWhatChangedRow,
+} from "@/types/operatorHome"
+
 export const WEEKLY_BRIEF_PAGE_COPY = {
   breadcrumbReports: "Reports",
   breadcrumbWeeklyBrief: "Weekly Brief",
@@ -68,6 +78,39 @@ export function formatWeeklyBriefGeneratedAt(generatedAtUtc: string): string {
 /** Join phase-1 data-source labels for the meta card value. */
 export function formatWeeklyBriefDataSources(dataSources: string[]): string {
   return dataSources.join(", ")
+}
+
+/** Whether the What changed section should render. */
+export function shouldShowWeeklyBriefWhatChanged(
+  rows: readonly WeeklyBriefWhatChangedRow[] | null | undefined
+): boolean {
+  return (rows?.length ?? 0) > 0
+}
+
+/** Whether the Feedback summary section should render. */
+export function shouldShowWeeklyBriefFeedbackSummary(
+  summary: WeeklyBriefFeedbackSummary | null | undefined
+): boolean {
+  return summary != null && summary.text.trim().length > 0
+}
+
+export type WeeklyBriefFeedbackFollowUpNavigatePlan = {
+  path: string
+  feedbackInbox: AssistantFeedbackInboxIntent
+}
+
+/**
+ * Navigate to Feedback inbox Needs attention for the selected Owned location
+ * (same intent shape as Home Needs attention review-feedback).
+ */
+export function planWeeklyBriefFeedbackFollowUpCta(input: {
+  mode: OperatorDashboardMode
+  locationId: number
+}): WeeklyBriefFeedbackFollowUpNavigatePlan {
+  return {
+    path: operatorDashboardNavPath(input.mode, "feedback", input.locationId),
+    feedbackInbox: { tab: "needs-attention" },
+  }
 }
 
 export type WeeklyBriefChangeRow = {

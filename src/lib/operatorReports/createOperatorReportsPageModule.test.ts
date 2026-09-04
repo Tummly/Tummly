@@ -75,6 +75,18 @@ function readyWeeklyBriefResponse(
     },
     executiveSummary:
       "Loop health held steady this week. Counter cards drove most scans.",
+    whatChanged: [
+      {
+        area: "QR scans",
+        change: "+12%",
+        meaning: "More guests are engaging with your QR placements.",
+      },
+    ],
+    feedbackSummary: {
+      text: "42 private feedback messages this week. 2 may need follow-up.",
+      subtitle: "Based on private feedback submitted between Week 33, 2026.",
+      needsAttentionCount: 2,
+    },
   }
 }
 
@@ -531,6 +543,34 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().weeklyBrief.executiveSummary).toBe(
       "Loop health held steady this week. Counter cards drove most scans."
     )
+    expect(module.getSnapshot().weeklyBrief.whatChanged).toEqual([
+      {
+        area: "QR scans",
+        change: "+12%",
+        meaning: "More guests are engaging with your QR placements.",
+      },
+    ])
+    expect(module.getSnapshot().weeklyBrief.feedbackSummary).toEqual({
+      text: "42 private feedback messages this week. 2 may need follow-up.",
+      subtitle: "Based on private feedback submitted between Week 33, 2026.",
+      needsAttentionCount: 2,
+    })
+  })
+
+  it("maps empty What changed and null Feedback summary for hide intent", async () => {
+    const adapters = createAdapters({
+      getWeeklyBrief: async (locationId) => ({
+        ...readyWeeklyBriefResponse(locationId),
+        whatChanged: [],
+        feedbackSummary: null,
+      }),
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+
+    expect(module.getSnapshot().weeklyBrief.status).toBe("ready")
+    expect(module.getSnapshot().weeklyBrief.whatChanged).toEqual([])
+    expect(module.getSnapshot().weeklyBrief.feedbackSummary).toBeNull()
   })
 
   it("clears meta and executive summary on empty and error paths", async () => {
@@ -543,6 +583,8 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().weeklyBrief.status).toBe("empty")
     expect(module.getSnapshot().weeklyBrief.meta).toBeNull()
     expect(module.getSnapshot().weeklyBrief.executiveSummary).toBeNull()
+    expect(module.getSnapshot().weeklyBrief.whatChanged).toEqual([])
+    expect(module.getSnapshot().weeklyBrief.feedbackSummary).toBeNull()
 
     const errorAdapters = createAdapters({
       getWeeklyBrief: async () => {
@@ -554,6 +596,8 @@ describe("createOperatorReportsPageModule", () => {
     expect(errorModule.getSnapshot().weeklyBrief.status).toBe("error")
     expect(errorModule.getSnapshot().weeklyBrief.meta).toBeNull()
     expect(errorModule.getSnapshot().weeklyBrief.executiveSummary).toBeNull()
+    expect(errorModule.getSnapshot().weeklyBrief.whatChanged).toEqual([])
+    expect(errorModule.getSnapshot().weeklyBrief.feedbackSummary).toBeNull()
   })
 
   it("sets brief loading on hub GET before the response", async () => {

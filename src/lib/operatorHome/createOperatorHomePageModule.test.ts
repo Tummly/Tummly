@@ -68,6 +68,8 @@ function readyWeeklyBriefResponse(
       confidenceLevel: "medium",
     },
     executiveSummary: "Loop health held steady this week.",
+    whatChanged: [],
+    feedbackSummary: null,
   }
 }
 

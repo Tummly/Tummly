@@ -287,6 +287,20 @@ export type WeeklyBriefReadyMeta = {
   confidenceLevel?: "high" | "medium" | "low";
 };
 
+/** Phase-1 What changed row on the ready envelope. */
+export type WeeklyBriefWhatChangedRow = {
+  area: string;
+  change: string;
+  meaning: string;
+};
+
+/** Phase-1 Feedback summary facts on the ready envelope (no theme AI). */
+export type WeeklyBriefFeedbackSummary = {
+  text: string;
+  subtitle: string;
+  needsAttentionCount: number;
+};
+
 export type WeeklyBriefReadyResponse = {
   success: true;
   ready: true;
@@ -298,6 +312,8 @@ export type WeeklyBriefReadyResponse = {
   metrics: WeeklyBriefMetrics;
   meta: WeeklyBriefReadyMeta;
   executiveSummary: string;
+  whatChanged: WeeklyBriefWhatChangedRow[];
+  feedbackSummary: WeeklyBriefFeedbackSummary | null;
 };
 
 export type WeeklyBriefGetResponse =

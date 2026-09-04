@@ -102,7 +102,12 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            return ReadyEnvelopeOrStoreError(locationId, weekKey, row);
+            return await ReadyEnvelopeOrStoreErrorAsync(
+                locationId,
+                weekKey,
+                row,
+                cancellationToken
+            );
         }
 
         /// <summary>
@@ -195,10 +200,11 @@ namespace TummlyBackend.Controllers
                 );
             }
 
-            return ReadyEnvelopeOrStoreError(
+            return await ReadyEnvelopeOrStoreErrorAsync(
                 locationId,
                 closedWeek.WeekKey,
-                succeeded.Brief
+                succeeded.Brief,
+                cancellationToken
             );
         }
 
@@ -253,10 +259,11 @@ namespace TummlyBackend.Controllers
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
-        private IActionResult ReadyEnvelopeOrStoreError(
+        private async Task<IActionResult> ReadyEnvelopeOrStoreErrorAsync(
             int locationId,
             string weekKey,
-            WeeklyBrief row
+            WeeklyBrief row,
+            CancellationToken cancellationToken
         )
         {
             WeeklyBriefBody? body;
@@ -296,7 +303,17 @@ namespace TummlyBackend.Controllers
                 );
             }
 
-            var phase1 = WeeklyBriefPhase1Meta.Build(body, metrics, weekKey);
+            var priorMetrics = await TryLoadPriorMetricsAsync(
+                locationId,
+                weekKey,
+                cancellationToken
+            );
+            var phase1 = WeeklyBriefPhase1Meta.Build(
+                body,
+                metrics,
+                weekKey,
+                priorMetrics
+            );
 
             return Ok(new
             {
@@ -310,7 +327,48 @@ namespace TummlyBackend.Controllers
                 metrics,
                 meta = phase1.Meta,
                 executiveSummary = phase1.ExecutiveSummary,
+                whatChanged = phase1.WhatChanged,
+                feedbackSummary = phase1.FeedbackSummary,
             });
+        }
+
+        private async Task<WeeklyBriefMetrics?> TryLoadPriorMetricsAsync(
+            int locationId,
+            string weekKey,
+            CancellationToken cancellationToken
+        )
+        {
+            if (!WeeklyBriefWeekKey.TryPriorWeekKey(weekKey, out var priorKey))
+            {
+                return null;
+            }
+
+            var priorRow = await _context.WeeklyBriefs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    brief =>
+                        brief.LocationId == locationId
+                        && brief.WeekKey == priorKey
+                        && brief.Status == WeeklyBriefStatus.Succeeded,
+                    cancellationToken
+                );
+
+            if (priorRow is null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<WeeklyBriefMetrics>(
+                    priorRow.MetricsJson,
+                    WeeklyBriefStoreJson.Options
+                );
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
         }
 
         private Task<RestaurantPermissionDecision> GateReportsViewAsync(

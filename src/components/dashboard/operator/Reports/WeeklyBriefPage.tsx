@@ -1,16 +1,26 @@
 import { useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { Download, CheckCircle } from "lucide-react"
 import { toast } from "sonner"
 
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
 import { ReportsPageChrome } from "@/components/dashboard/operator/Reports/ReportsPageChrome"
 import { ReportsSection } from "@/components/dashboard/operator/Reports/ReportsSection"
 import { useReportsPageModuleApi } from "@/components/dashboard/operator/Reports/utils/reportsPageModuleContext"
 import { useReportsPageModule } from "@/components/dashboard/operator/Reports/utils/useReportsPageModule"
 import type { DashboardProps } from "@/components/dashboard/operator/Dashboard"
+import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import {
   WEEKLY_BRIEF_RETRY_LABEL,
   WEEKLY_BRIEF_STATUS_SHELL_CLASS,
@@ -23,15 +33,30 @@ import {
 import {
   REPORTS_BODY_STACK_CLASS,
   REPORTS_PAGE_ACTION_BUTTON_CLASS,
+  REPORTS_SECTION_SUBTITLE_CLASS,
   REPORTS_SECTION_TITLE_CLASS,
+  REPORTS_TABLE_BODY_CELL_CLASS,
+  REPORTS_TABLE_BODY_ROW_CLASS,
+  REPORTS_TABLE_CLASS,
+  REPORTS_TABLE_FRAME_CLASS,
+  REPORTS_TABLE_HEAD_CELL_CLASS,
+  REPORTS_TABLE_HEAD_ROW_CLASS,
+  REPORTS_TABLE_NAME_CELL_CLASS,
 } from "@/lib/operatorReports/reportsPresentation"
 import { REPORTS_WEEKLY_BRIEF_LOAD_ERROR_MESSAGE } from "@/lib/operatorReports/reportsWeeklyBriefPresentation"
 import {
   formatWeeklyBriefDataSources,
   formatWeeklyBriefGeneratedAt,
+  planWeeklyBriefFeedbackFollowUpCta,
+  shouldShowWeeklyBriefFeedbackSummary,
+  shouldShowWeeklyBriefWhatChanged,
   WEEKLY_BRIEF_PAGE_COPY,
 } from "@/lib/operatorReports/weeklyBriefPresentation"
 import type { OperatorReportsWeeklyBriefMeta } from "@/lib/operatorReports/createOperatorReportsPageModule"
+import type {
+  WeeklyBriefFeedbackSummary,
+  WeeklyBriefWhatChangedRow,
+} from "@/types/operatorHome"
 
 type WeeklyBriefPageProps = {
   mode?: DashboardProps["mode"]
@@ -45,6 +70,8 @@ const META_FIELD_CLASS =
   "flex min-w-0 items-start justify-between gap-4 text-sm leading-5"
 const EXEC_SUMMARY_BODY_CLASS =
   "m-0 rounded-op-md bg-op-background-secondary p-4 text-sm font-medium leading-6 text-op-card-title-color"
+const FEEDBACK_SUMMARY_BODY_CLASS =
+  "m-0 text-sm font-medium leading-6 text-op-card-title-color"
 
 function MetaField(props: { label: string; value: string }) {
   return (
@@ -104,11 +131,89 @@ function ExecutiveSummarySection(props: { summary: string }) {
   )
 }
 
+function WhatChangedSection(props: {
+  rows: readonly WeeklyBriefWhatChangedRow[]
+}) {
+  return (
+    <ReportsSection title={WEEKLY_BRIEF_PAGE_COPY.whatChangedTitle}>
+      <div className={REPORTS_TABLE_FRAME_CLASS}>
+        <Table className={REPORTS_TABLE_CLASS}>
+          <TableHeader>
+            <TableRow className={REPORTS_TABLE_HEAD_ROW_CLASS}>
+              <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
+                {WEEKLY_BRIEF_PAGE_COPY.areaHeader}
+              </TableHead>
+              <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
+                {WEEKLY_BRIEF_PAGE_COPY.changeHeader}
+              </TableHead>
+              <TableHead className={REPORTS_TABLE_HEAD_CELL_CLASS}>
+                {WEEKLY_BRIEF_PAGE_COPY.meaningHeader}
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {props.rows.map((row) => (
+              <TableRow
+                key={`${row.area}-${row.change}`}
+                className={REPORTS_TABLE_BODY_ROW_CLASS}
+              >
+                <TableCell className={REPORTS_TABLE_NAME_CELL_CLASS}>
+                  {row.area}
+                </TableCell>
+                <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                  {row.change}
+                </TableCell>
+                <TableCell className={REPORTS_TABLE_BODY_CELL_CLASS}>
+                  {row.meaning}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </ReportsSection>
+  )
+}
+
+function FeedbackSummarySection(props: {
+  summary: WeeklyBriefFeedbackSummary
+  onReviewFollowUp: () => void
+}) {
+  return (
+    <ReportsSection>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <AiIcon size={22} />
+          <h2 className={REPORTS_SECTION_TITLE_CLASS}>
+            {WEEKLY_BRIEF_PAGE_COPY.feedbackSummaryTitle}
+          </h2>
+        </div>
+        <p className={FEEDBACK_SUMMARY_BODY_CLASS}>{props.summary.text}</p>
+        <p className={REPORTS_SECTION_SUBTITLE_CLASS}>{props.summary.subtitle}</p>
+        <div>
+          <Button
+            type="button"
+            variant="op-secondary"
+            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            onClick={props.onReviewFollowUp}
+          >
+            {WEEKLY_BRIEF_PAGE_COPY.reviewFollowUpQueue}
+          </Button>
+        </div>
+      </div>
+    </ReportsSection>
+  )
+}
+
 /**
- * Reports Weekly Brief page — Figma ready chrome (meta + executive summary).
- * PDF / Mark as reviewed stay presentational stubs until tickets 08–09.
+ * Reports Weekly Brief page — Figma ready chrome (meta, executive summary,
+ * What changed, Feedback summary). PDF / Mark as reviewed stay stubs until 08–09.
  */
 export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
+  const navigate = useNavigate()
+  const setFeedbackInboxIntent = useDashboardUiStore(
+    (state) => state.setFeedbackInboxIntent
+  )
   const reports = useReportsPageModule()
   const pageModule = useReportsPageModuleApi()
   const { weeklyBrief, selectedLocationId, selectedLocationName } =
@@ -134,8 +239,20 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
     toast.success(WEEKLY_BRIEF_PAGE_COPY.reviewedToast)
   }
 
+  const handleReviewFollowUp = () => {
+    const plan = planWeeklyBriefFeedbackFollowUpCta({ mode, locationId })
+    setFeedbackInboxIntent(plan.feedbackInbox)
+    navigate(plan.path)
+  }
+
   const readyMeta = weeklyBrief.meta
   const readySummary = weeklyBrief.executiveSummary
+  const showWhatChanged = shouldShowWeeklyBriefWhatChanged(
+    weeklyBrief.whatChanged
+  )
+  const showFeedbackSummary = shouldShowWeeklyBriefFeedbackSummary(
+    weeklyBrief.feedbackSummary
+  )
 
   return (
     <ReportsPageChrome
@@ -227,6 +344,15 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
         <div className={REPORTS_BODY_STACK_CLASS}>
           <WeeklyBriefMetaCard meta={readyMeta} locationName={locationName} />
           <ExecutiveSummarySection summary={readySummary} />
+          {showWhatChanged ? (
+            <WhatChangedSection rows={weeklyBrief.whatChanged} />
+          ) : null}
+          {showFeedbackSummary && weeklyBrief.feedbackSummary != null ? (
+            <FeedbackSummarySection
+              summary={weeklyBrief.feedbackSummary}
+              onReviewFollowUp={handleReviewFollowUp}
+            />
+          ) : null}
         </div>
       ) : null}
     </ReportsPageChrome>

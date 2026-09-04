@@ -35,8 +35,10 @@ import {
 } from "@/lib/operatorReports/reportsWeeklyBriefPresentation"
 import type {
   WeeklyBriefBody,
+  WeeklyBriefFeedbackSummary,
   WeeklyBriefGenerateResponse,
   WeeklyBriefGetResponse,
+  WeeklyBriefWhatChangedRow,
 } from "@/types/operatorHome"
 import type {
   ReportsCampaignsResponse,
@@ -83,6 +85,10 @@ export type OperatorReportsWeeklyBriefViewModel = {
   secondary: string | null
   meta: OperatorReportsWeeklyBriefMeta | null
   executiveSummary: string | null
+  /** Ready What changed rows; empty → hide section. */
+  whatChanged: WeeklyBriefWhatChangedRow[]
+  /** Ready Feedback summary facts; null → hide section. */
+  feedbackSummary: WeeklyBriefFeedbackSummary | null
   errorMessage: string | null
   errorRetryable: boolean
   generateBusy: boolean
@@ -217,6 +223,8 @@ function emptyWeeklyBrief(
     secondary: null,
     meta: null,
     executiveSummary: null,
+    whatChanged: [],
+    feedbackSummary: null,
     errorMessage: null,
     errorRetryable: false,
     generateBusy: false,
@@ -243,6 +251,8 @@ function mapReadyWeeklyBrief(
       generatedAtUtc: response.generatedAtUtc,
     },
     executiveSummary: response.executiveSummary,
+    whatChanged: response.whatChanged ?? [],
+    feedbackSummary: response.feedbackSummary ?? null,
     errorMessage: null,
     errorRetryable: false,
     generateBusy: false,
