@@ -144,6 +144,7 @@ import type {
   HomeRecommendationResponse,
   WeeklyBriefGenerateResponse,
   WeeklyBriefGetResponse,
+  WeeklyBriefMarkReviewedResponse,
 } from "@/types/operatorHome"
 import type {
   ReportsCampaignsResponse,
@@ -1341,6 +1342,33 @@ export const generateWeeklyBrief = async (
   } catch (error) {
     if (isAxiosError(error) && error.response?.data != null) {
       const data = error.response.data as WeeklyBriefGenerateResponse
+      if (typeof data.success === "boolean") {
+        return data
+      }
+    }
+    throw error
+  }
+}
+
+export const markWeeklyBriefReviewed = async (
+  locationId: number,
+  week?: string | null
+): Promise<WeeklyBriefMarkReviewedResponse> => {
+  try {
+    const response = await axiosInstance.post<WeeklyBriefMarkReviewedResponse>(
+      "/home/weekly-brief/mark-reviewed",
+      null,
+      {
+        params: {
+          locationId,
+          ...(week != null && week !== "" ? { week } : {}),
+        },
+      }
+    )
+    return response.data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data != null) {
+      const data = error.response.data as WeeklyBriefMarkReviewedResponse
       if (typeof data.success === "boolean") {
         return data
       }

@@ -2171,6 +2171,12 @@ namespace TummlyBackend.Data
                 )
                 .HasMaxLength(32);
 
+            modelBuilder.Entity<WeeklyBrief>()
+                .HasOne(row => row.ReviewedByUser)
+                .WithMany()
+                .HasForeignKey(row => row.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
             /*
              =========================================
              TUMMLY SHOP CART / ORDER (ticket 14)
