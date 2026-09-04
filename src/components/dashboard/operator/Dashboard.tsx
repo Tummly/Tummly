@@ -420,6 +420,7 @@ function DashboardContent({ mode }: DashboardProps) {
           subscriptionPlan: workspace.snapshot.subscriptionPlan,
           permissionRole: workspace.snapshot.permissionRole,
           chargebackRestricted: workspace.snapshot.chargebackRestricted,
+          offersAccess: workspace.snapshot.offersAccess,
           selectedLocationId,
           locations: workspace.snapshot.locations,
           brandLogoPublicUrl: workspace.snapshot.brandLogoPublicUrl ?? null,
@@ -468,6 +469,8 @@ export type DashboardOutletContext = {
   permissionRole: string
   /** Omit / false keeps purchase CTAs enabled. */
   chargebackRestricted: boolean
+  /** Offers Area chrome — omit/manage keeps redemption log export visible. */
+  offersAccess: "none" | "view" | "manage"
   selectedLocationId: number
   locations: Array<{
     id: number

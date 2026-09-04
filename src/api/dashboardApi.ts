@@ -1405,22 +1405,27 @@ export const downloadReportsExport = async (input: {
   to: string
 }): Promise<{ blob: Blob; filename: string }> => {
   const extension = input.kind === "overview" ? "pdf" : "csv"
+  const path =
+    input.kind === "offers-redemptions"
+      ? "/offers/redemptions/export"
+      : `/reports/export/${input.kind}`
+  const fallbackFilename =
+    input.kind === "offers-redemptions"
+      ? `tummly-offers-redemptions-${input.locationId}.${extension}`
+      : `tummly-reports-${input.kind}-${input.locationId}.${extension}`
   try {
-    const response = await axiosInstance.get<Blob>(
-      `/reports/export/${input.kind}`,
-      {
-        params: {
-          locationId: input.locationId,
-          from: input.from,
-          to: input.to,
-        },
-        responseType: "blob",
-      }
-    )
+    const response = await axiosInstance.get<Blob>(path, {
+      params: {
+        locationId: input.locationId,
+        from: input.from,
+        to: input.to,
+      },
+      responseType: "blob",
+    })
     const filename =
       parseContentDispositionFilename(
         response.headers["content-disposition"] as string | undefined
-      ) ?? `tummly-reports-${input.kind}-${input.locationId}.${extension}`
+      ) ?? fallbackFilename
     return { blob: response.data, filename }
   } catch (error) {
     if (isAxiosError(error) && error.response?.data instanceof Blob) {

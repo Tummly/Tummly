@@ -609,6 +609,77 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().pendingCsvExportKind).toBeNull()
   })
 
+  it("shows Offer redemption log export row when offersView is omitted or true", async () => {
+    const adapters = createAdapters()
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().exportOffersRedemptionLogVisible).toBe(true)
+
+    await module.syncWorkspace(workspace({ offersView: true }))
+    expect(module.getSnapshot().exportOffersRedemptionLogVisible).toBe(true)
+  })
+
+  it("hides Offer redemption log export row when offersView is false", async () => {
+    const adapters = createAdapters()
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace({ offersView: false }))
+    expect(module.getSnapshot().exportOffersRedemptionLogVisible).toBe(false)
+  })
+
+  it("gates offers-redemptions CSV behind client consent before download", async () => {
+    const downloadReportsExport = vi.fn(async () => ({
+      blob: new Blob(["Date/time,Guest\n"], { type: "text/csv" }),
+      filename: "tummly-offers-redemptions-1-20260717-120000Z.csv",
+    }))
+    const triggerBrowserDownload = vi.fn()
+    const adapters = createAdapters({
+      downloadReportsExport,
+      triggerBrowserDownload,
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    module.openExportDialog()
+
+    await module.requestExport("offers-redemptions")
+    expect(module.getSnapshot().pendingCsvExportKind).toBe(
+      "offers-redemptions"
+    )
+    expect(module.getSnapshot().csvConsentChecked).toBe(false)
+
+    const blocked = await module.confirmCsvExport()
+    expect(blocked).toBe(false)
+    expect(downloadReportsExport).not.toHaveBeenCalled()
+
+    module.setCsvConsentChecked(true)
+    const ok = await module.confirmCsvExport()
+    expect(ok).toBe(true)
+    expect(downloadReportsExport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "offers-redemptions",
+        locationId: 1,
+      })
+    )
+    expect(triggerBrowserDownload).toHaveBeenCalled()
+  })
+
+  it("does not download offers-redemptions when export is not allowed", async () => {
+    const downloadReportsExport = vi.fn(async () => ({
+      blob: new Blob(["Date/time\n"], { type: "text/csv" }),
+      filename: "tummly-offers-redemptions-1.csv",
+    }))
+    const adapters = createAdapters({ downloadReportsExport })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(
+      workspace({ billingStatus: "Soft lock" })
+    )
+    expect(module.getSnapshot().exportAllowed).toBe(false)
+
+    const ok = await module.requestExport("offers-redemptions")
+    expect(ok).toBe(false)
+    expect(module.getSnapshot().pendingCsvExportKind).toBeNull()
+    expect(downloadReportsExport).not.toHaveBeenCalled()
+  })
+
   it("downloads overview PDF without CSV consent", async () => {
     const downloadReportsExport = vi.fn(async () => ({
       blob: new Blob(["%PDF-1.4"], { type: "application/pdf" }),

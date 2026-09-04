@@ -27,6 +27,7 @@ function createAdapters(overrides: {
     restaurantName?: string
     aiAssistantAccess?: boolean
     teamPermissionsAccess?: "none" | "view" | "manage"
+    offersAccess?: "none" | "view" | "manage"
   }>
   fetchCurrentUser?: () => Promise<unknown>
   getPersistedLocationId?: () => number | null
@@ -115,6 +116,34 @@ describe("createOperatorWorkspaceSession", () => {
     await session.load({ queryLocationId: null })
 
     expect(session.getSnapshot().teamPermissionsAccess).toBe("none")
+  })
+
+  it("defaults offersAccess to manage when locations payload omits it", async () => {
+    const session = createOperatorWorkspaceSession(
+      { mode: "multi" },
+      createAdapters()
+    )
+
+    await session.load({ queryLocationId: null })
+
+    expect(session.getSnapshot().offersAccess).toBe("manage")
+  })
+
+  it("sets offersAccess none when locations payload sets offersAccess none", async () => {
+    const session = createOperatorWorkspaceSession(
+      { mode: "multi" },
+      createAdapters({
+        getLocations: async () => ({
+          success: true,
+          locations,
+          offersAccess: "none",
+        }),
+      })
+    )
+
+    await session.load({ queryLocationId: null })
+
+    expect(session.getSnapshot().offersAccess).toBe("none")
   })
 
   it("carries Self role from /auth/me into the workspace snapshot", async () => {

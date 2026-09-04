@@ -53,8 +53,15 @@ const EXPORT_ITEMS: ExportItem[] = [
     buttonLabel: "Download CSV",
     format: "csv",
   },
-  // Offer redemption log + guest consent stay out of Reports export
-  // pack (lock 09 / 10) — Offers / Privacy own those surfaces.
+  {
+    kind: "offers-redemptions",
+    title: "Offer redemption log",
+    description:
+      "Download staff redemptions across offers for the selected period.",
+    buttonLabel: "Download CSV",
+    format: "csv",
+  },
+  // Guest consent stays out of Reports export pack — Privacy owns that surface.
 ]
 
 type ReportsExportDialogProps = {
@@ -62,6 +69,8 @@ type ReportsExportDialogProps = {
   onOpenChange: (open: boolean) => void
   locationName?: string
   dateRangeLabel?: string
+  /** When false, hide the Offer redemption log CSV card. Omit/true shows it. */
+  showOfferRedemptionLog?: boolean
   pendingCsvExportKind: ReportsExportKind | null
   csvConsentChecked: boolean
   exportDownloadBusyKind: ReportsExportKind | null
@@ -77,6 +86,7 @@ export function ReportsExportDialog({
   onOpenChange,
   locationName = "Location",
   dateRangeLabel = "Last 7 days",
+  showOfferRedemptionLog = true,
   pendingCsvExportKind,
   csvConsentChecked,
   exportDownloadBusyKind,
@@ -86,6 +96,11 @@ export function ReportsExportDialog({
   onConfirmCsvExport,
   onCancelCsvConsent,
 }: ReportsExportDialogProps) {
+  const visibleItems = EXPORT_ITEMS.filter(
+    (item) =>
+      item.kind !== "offers-redemptions" || showOfferRedemptionLog
+  )
+
   const handleItemClick = async (item: ExportItem) => {
     const ok = await onRequestExport(item.kind)
     if (item.format === "pdf" && ok) {
@@ -145,7 +160,7 @@ export function ReportsExportDialog({
           ) : null}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {EXPORT_ITEMS.map((item) => {
+            {visibleItems.map((item) => {
               const busy = exportDownloadBusyKind === item.kind
               return (
                 <div

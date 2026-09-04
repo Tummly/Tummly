@@ -238,6 +238,7 @@ export type ReportsExportKind =
   | "capture"
   | "feedback"
   | "campaigns"
+  | "offers-redemptions"
 
 export type ReportsKpiLoadStatus =
   | "idle"

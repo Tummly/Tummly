@@ -35,6 +35,9 @@ function ReportsExportDialogHost() {
       }}
       locationName={reports.snapshot.selectedLocationName ?? "Location"}
       dateRangeLabel={reports.snapshot.dateRangeLabel}
+      showOfferRedemptionLog={
+        reports.snapshot.exportOffersRedemptionLogVisible
+      }
       pendingCsvExportKind={reports.snapshot.pendingCsvExportKind}
       csvConsentChecked={reports.snapshot.csvConsentChecked}
       exportDownloadBusyKind={reports.snapshot.exportDownloadBusyKind}
@@ -80,12 +83,14 @@ export function ReportsPageModuleProvider({
       locations: dashboardContext.locations,
       billingStatus: dashboardContext.billingStatus,
       chargebackRestricted: dashboardContext.chargebackRestricted,
+      offersView: dashboardContext.offersAccess !== "none",
     })
   }, [
     dashboardContext,
     dashboardContext?.selectedLocationId,
     dashboardContext?.billingStatus,
     dashboardContext?.chargebackRestricted,
+    dashboardContext?.offersAccess,
     dashboardContext?.locations,
     pageModule,
   ])

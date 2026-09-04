@@ -1,5 +1,5 @@
 import { resolveInitialLocationId } from "@/lib/operatorHome/buildHomeViewModel"
-import { parseOperatorProfile, parseTeamPermissionsAccess, parseBillingCreditsAccess, type BillingCreditsAccess, type TeamPermissionsAccess } from "@/lib/operatorHome/parseOperatorProfile"
+import { parseOperatorProfile, parseTeamPermissionsAccess, parseBillingCreditsAccess, parseOffersAccess, type BillingCreditsAccess, type OffersAccess, type TeamPermissionsAccess } from "@/lib/operatorHome/parseOperatorProfile"
 import type { LocationItem, LocationsResponse } from "@/types/dashboard"
 
 export type OperatorWorkspaceMode = "single" | "multi"
@@ -16,6 +16,7 @@ export type OperatorWorkspaceSnapshot = {
   selfRole: string | null
   teamPermissionsAccess: TeamPermissionsAccess
   billingCreditsAccess: BillingCreditsAccess
+  offersAccess: OffersAccess
   subscriptionPlan: string
   billingStatus: string
   /** Omit / false = not restricted (chrome stays available). */
@@ -62,6 +63,7 @@ type WorkspaceAction =
       selfRole: string | null
       teamPermissionsAccess: TeamPermissionsAccess
       billingCreditsAccess: BillingCreditsAccess
+      offersAccess: OffersAccess
       subscriptionPlan: string
       billingStatus: string
       chargebackRestricted: boolean
@@ -108,6 +110,7 @@ function reduce(
         selfRole: action.selfRole,
         teamPermissionsAccess: action.teamPermissionsAccess,
         billingCreditsAccess: action.billingCreditsAccess,
+        offersAccess: action.offersAccess,
         subscriptionPlan: action.subscriptionPlan,
         billingStatus: action.billingStatus,
         chargebackRestricted: action.chargebackRestricted,
@@ -148,6 +151,7 @@ export function createOperatorWorkspaceSession(
     selfRole: null,
     teamPermissionsAccess: "none",
     billingCreditsAccess: "none",
+    offersAccess: "none",
     subscriptionPlan: "Pilot",
     billingStatus: "Pilot",
     chargebackRestricted: false,
@@ -169,6 +173,7 @@ export function createOperatorWorkspaceSession(
     selfRole: state.selfRole,
     teamPermissionsAccess: state.teamPermissionsAccess,
     billingCreditsAccess: state.billingCreditsAccess,
+    offersAccess: state.offersAccess,
     subscriptionPlan: state.subscriptionPlan,
     billingStatus: state.billingStatus,
     chargebackRestricted: state.chargebackRestricted,
@@ -198,6 +203,7 @@ export function createOperatorWorkspaceSession(
       selfRole: state.selfRole,
       teamPermissionsAccess: state.teamPermissionsAccess,
       billingCreditsAccess: state.billingCreditsAccess,
+      offersAccess: state.offersAccess,
       subscriptionPlan: state.subscriptionPlan,
       billingStatus: state.billingStatus,
       chargebackRestricted: state.chargebackRestricted,
@@ -262,6 +268,8 @@ export function createOperatorWorkspaceSession(
           parseBillingCreditsAccess(locationsResult.billingCreditsAccess)
           ?? profile?.billingCreditsAccess
           ?? "manage",
+        offersAccess:
+          parseOffersAccess(locationsResult.offersAccess) ?? "manage",
         subscriptionPlan: locationsResult.subscriptionPlan ?? "Pilot",
         billingStatus: locationsResult.billingStatus ?? "Pilot",
         chargebackRestricted: locationsResult.chargebackRestricted === true,

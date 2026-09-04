@@ -66,6 +66,11 @@ export type OperatorReportsWorkspaceInput = {
   billingStatus: string
   /** Chargeback overlay — omit / false keeps Export enabled. */
   chargebackRestricted?: boolean
+  /**
+   * Offers Area ≥ View. Omit defaults to true (CODING_STANDARDS chrome access
+   * omit must not hide the Offer redemption log export row).
+   */
+  offersView?: boolean
 }
 
 export type OperatorReportsWeeklyBriefStatus =
@@ -132,6 +137,11 @@ export type OperatorReportsPageSnapshot = {
    * Always true while workspace is present (gate is Area reports View on the API).
    */
   markAsReviewedAllowed: boolean
+  /**
+   * Offer redemption log CSV card in Export dialog. Omit/true offersView keeps
+   * visible; explicit false hides.
+   */
+  exportOffersRedemptionLogVisible: boolean
   dateRange: HomePerformanceDateRange
   dateRangeLabel: string
   exportDialogOpen: boolean
@@ -347,6 +357,15 @@ function resolveExportAllowed(input: OperatorReportsWorkspaceInput): boolean {
   return true
 }
 
+function resolveExportOffersRedemptionLogVisible(
+  input: OperatorReportsWorkspaceInput | null
+): boolean {
+  if (input == null) {
+    return true
+  }
+  return input.offersView !== false
+}
+
 function selectedLocationName(
   workspace: OperatorReportsWorkspaceInput | null
 ): string | null {
@@ -426,6 +445,9 @@ export function createOperatorReportsPageModule(
       campaignsLoadError: state.campaignsLoadError,
       exportAllowed: state.exportAllowed,
       markAsReviewedAllowed: state.workspace != null,
+      exportOffersRedemptionLogVisible: resolveExportOffersRedemptionLogVisible(
+        state.workspace
+      ),
       dateRange,
       dateRangeLabel: labelForHomePerformanceDateRange(dateRange),
       exportDialogOpen: state.exportDialogOpen,

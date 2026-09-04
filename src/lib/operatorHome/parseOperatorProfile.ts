@@ -8,6 +8,8 @@ export type TeamPermissionsAccess = "none" | "view" | "manage"
 
 export type BillingCreditsAccess = TeamPermissionsAccess
 
+export type OffersAccess = TeamPermissionsAccess
+
 export function parseTeamPermissionsAccess(
   raw: string | null | undefined
 ): TeamPermissionsAccess | null {
@@ -18,6 +20,8 @@ export function parseTeamPermissionsAccess(
 }
 
 export const parseBillingCreditsAccess = parseTeamPermissionsAccess
+
+export const parseOffersAccess = parseTeamPermissionsAccess
 
 export interface OperatorProfile {
   fullName: string
