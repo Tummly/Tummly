@@ -574,6 +574,49 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetWeeklyBrief_ReadyRow_LegacyIsoWeek_PicksSuggestedDraftInCoverage()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-ready-sc-iso");
+            // ExplicitWeek = 2026-W33 → Mon 2026-08-10 … Mon 2026-08-17 (London)
+            var metrics = EmptyMetrics();
+            var body = FakeWeeklyBriefProvider.FixtureFor(metrics);
+            var generatedAt = DateTime.Parse("2026-08-18T08:30:00Z").ToUniversalTime();
+
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                ExplicitWeek,
+                body,
+                metrics,
+                generatedAt
+            );
+
+            var draftId = await SeedCampaignAsync(
+                seeded.LocationId,
+                CampaignDraftService.DraftStatus,
+                "ISO-week draft",
+                audienceKey: "new-guests",
+                createdAt: new DateTime(2026, 8, 12, 10, 0, 0, DateTimeKind.Utc),
+                updatedAt: new DateTime(2026, 8, 12, 10, 0, 0, DateTimeKind.Utc)
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&week={ExplicitWeek}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            var suggested = json.GetProperty("suggestedCampaign");
+            Assert.Equal(JsonValueKind.Object, suggested.ValueKind);
+            Assert.Equal(draftId, suggested.GetProperty("campaignId").GetInt32());
+            Assert.Equal(
+                "ISO-week draft",
+                suggested.GetProperty("name").GetString()
+            );
+        }
+
+        [Fact]
         public async Task GenerateWeeklyBrief_DoesNotInsertCampaignRows()
         {
             var seeded = await SeedOwnerWithLocationAsync("wb-gen-no-campaign");

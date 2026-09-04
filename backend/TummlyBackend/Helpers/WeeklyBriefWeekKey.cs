@@ -182,8 +182,9 @@ namespace TummlyBackend.Helpers
 
         /// <summary>
         /// Reconstruct inclusive-start / exclusive-end UTC coverage from a
-        /// workspace <c>weekday:yyyy-MM-dd</c> week key in
-        /// <paramref name="ianaTimeZoneId"/>. Legacy ISO keys are not supported.
+        /// workspace <c>weekday:yyyy-MM-dd</c> or legacy ISO <c>yyyy-Www</c>
+        /// week key in <paramref name="ianaTimeZoneId"/>.
+        /// Legacy ISO weeks use Monday as the coverage start (ISO 8601).
         /// </summary>
         public static bool TryCoverageWindow(
             string weekKey,
@@ -203,17 +204,46 @@ namespace TummlyBackend.Helpers
                 return false;
             }
 
+            DateOnly start;
             var colon = normalized.IndexOf(':');
             if (
-                colon <= 0
-                || !DateOnly.TryParseExact(
+                colon > 0
+                && DateOnly.TryParseExact(
                     normalized[(colon + 1)..],
                     "yyyy-MM-dd",
                     CultureInfo.InvariantCulture,
                     DateTimeStyles.None,
-                    out var start
+                    out start
                 )
             )
+            {
+                // workspace weekday:yyyy-MM-dd
+            }
+            else if (
+                normalized.Length == 8
+                && normalized[4] == '-'
+                && normalized[5] == 'W'
+                && int.TryParse(
+                    normalized.AsSpan(0, 4),
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out var year
+                )
+                && int.TryParse(
+                    normalized.AsSpan(6, 2),
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out var week
+                )
+                && week >= 1
+                && week <= ISOWeek.GetWeeksInYear(year)
+            )
+            {
+                start = DateOnly.FromDateTime(
+                    ISOWeek.ToDateTime(year, week, DayOfWeek.Monday)
+                );
+            }
+            else
             {
                 return false;
             }
