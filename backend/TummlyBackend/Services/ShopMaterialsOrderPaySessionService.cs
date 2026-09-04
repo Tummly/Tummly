@@ -247,7 +247,8 @@ namespace TummlyBackend.Services
                                 Amount: lineVat
                             ),
                         ],
-                        ExternalId: line.CatalogSkuId
+                        ExternalId: line.CatalogSkuId,
+                        Type: "physical"
                     )
                 );
             }

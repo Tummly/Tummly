@@ -181,12 +181,17 @@ namespace TummlyBackend.Services
             object? lineItems = null;
             if (request.LineItems is { Count: > 0 })
             {
+                // Merchant API /api/orders (not 1.0): quantity is { value }, and
+                // redirect_url is honoured for Hosted Checkout return (1.0 drops it).
                 lineItems = request.LineItems
                     .Select(item => new
                     {
                         name = item.Name,
+                        type = string.IsNullOrWhiteSpace(item.Type)
+                            ? "service"
+                            : item.Type.Trim(),
                         unit_price_amount = item.UnitPriceAmount,
-                        quantity = item.Quantity,
+                        quantity = new { value = item.Quantity },
                         total_amount = item.TotalAmount,
                         external_id = string.IsNullOrWhiteSpace(item.ExternalId)
                             ? null
@@ -204,7 +209,7 @@ namespace TummlyBackend.Services
             }
 
             return await PostCreateAsync(
-                "api/1.0/orders",
+                "api/orders",
                 new
                 {
                     amount = request.AmountMinor,

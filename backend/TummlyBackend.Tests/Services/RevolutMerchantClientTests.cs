@@ -82,6 +82,72 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task CreateOrderAsync_PostsModernOrdersApi_WithRedirectAndQuantityObject()
+        {
+            HttpRequestMessage? captured = null;
+            string? body = null;
+            var handler = new CountingHandler
+            {
+                ResponseFactory = () =>
+                    new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(
+                            """{"id":"ord_topup","redirect_url":"https://qa.tummly.com/return","checkout_url":"https://checkout.example/x"}"""
+                        ),
+                    },
+                OnSend = request =>
+                {
+                    captured = request;
+                    body = request.Content is null
+                        ? null
+                        : request.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                },
+            };
+            var revolut = FullRevolut();
+            revolut.PlanVariations.Clear();
+            var client = CreateClient(handler, FullVat(), revolut);
+
+            var result = await client.CreateOrderAsync(
+                new RevolutCreateOrderRequest(
+                    AmountMinor: 1800,
+                    Currency: "GBP",
+                    RedirectUrl: "https://qa.tummly.com/single-dashboard/settings/billing-credits?tab=credits-usage&topUpOutcome=success",
+                    Description: "AI credit pack (500)",
+                    LineItems:
+                    [
+                        new RevolutOrderLineItem(
+                            Name: "AI credit pack (500)",
+                            UnitPriceAmount: 1500,
+                            Quantity: 1,
+                            TotalAmount: 1800,
+                            Taxes:
+                            [
+                                new RevolutOrderLineItemTax(
+                                    Name: "VAT",
+                                    Percentage: "20.00",
+                                    Amount: 300
+                                ),
+                            ],
+                            ExternalId: "tummly_ai_500_gbp_v3"
+                        ),
+                    ]
+                )
+            );
+
+            Assert.True(result.Succeeded);
+            Assert.NotNull(captured);
+            Assert.EndsWith(
+                "/api/orders",
+                captured!.RequestUri!.AbsolutePath
+            );
+            Assert.DoesNotContain("/api/1.0/orders", captured.RequestUri!.AbsolutePath);
+            Assert.Contains("redirect_url", body);
+            Assert.Contains("topUpOutcome=success", body);
+            Assert.Contains("\"quantity\":{\"value\":1}", body!.Replace(" ", ""));
+            Assert.Contains("\"type\":\"service\"", body.Replace(" ", ""));
+        }
+
+        [Fact]
         public async Task GetOrderAsync_UsesOrdersApi_AndParsesSubscriptionData()
         {
             HttpRequestMessage? captured = null;
