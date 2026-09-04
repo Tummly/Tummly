@@ -76,6 +76,25 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task Export_Returns403_WhenCallerLacksOffersView()
+        {
+            var seeded = await SeedOwnerAsync("orex-no-offers-view");
+            var memberJwt = await SeedMemberJwtAsync(
+                seeded.RestaurantId,
+                "orex-billing-admin",
+                PermissionRoles.BillingAdmin
+            );
+
+            using var request = AuthorizedGet(
+                ExportUrl(seeded.LocationId, WindowFrom, WindowTo),
+                memberJwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
         public async Task Export_EmptyWindow_Returns200WithHeadersAndDisposition()
         {
             var seeded = await SeedOwnerAsync("orex-empty");
@@ -271,8 +290,11 @@ namespace TummlyBackend.Tests.Integration
                 .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries)
                 .Skip(1)
                 .ToList();
-            Assert.True(dataRows.Count <= 10_000);
             Assert.Equal(10_000, dataRows.Count);
+            // Newest first: keep TUM-SM10000, drop oldest TUM-SM00000.
+            Assert.Contains("TUM-SM10000", csv);
+            Assert.DoesNotContain("TUM-SM00000", csv);
+            Assert.Contains("TUM-SM10000", dataRows[0], StringComparison.Ordinal);
         }
 
         private static string ExportUrl(
@@ -315,10 +337,11 @@ namespace TummlyBackend.Tests.Integration
             return JsonDocument.Parse(json).RootElement.Clone();
         }
 
-        private async Task<(string Jwt, int LocationId)> SeedOwnerAsync(
-            string emailLocalPart,
-            bool softLock = false
-        )
+        private async Task<(
+            string Jwt,
+            int LocationId,
+            int RestaurantId
+        )> SeedOwnerAsync(string emailLocalPart, bool softLock = false)
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -382,7 +405,55 @@ namespace TummlyBackend.Tests.Integration
                 user.Role
             );
 
-            return (jwt, location.Id);
+            return (jwt, location.Id, restaurant.Id);
+        }
+
+        private async Task<string> SeedMemberJwtAsync(
+            int restaurantId,
+            string emailLocalPart,
+            string permissionRole
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var member = new User
+            {
+                FullName = "Offers Export Member",
+                Email = $"{emailLocalPart}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900999",
+                Role = "Owner",
+                AccountType = "Single",
+                SelectedRestaurantId = restaurantId,
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(member);
+            await context.SaveChangesAsync();
+
+            context.RestaurantMemberships.Add(
+                new RestaurantMembership
+                {
+                    UserId = member.Id,
+                    RestaurantId = restaurantId,
+                    PermissionRole = permissionRole,
+                    LocationScope = LocationScopeKind.AllLocations,
+                    NamedLocationIdsJson = "[]",
+                    Status = MembershipStatus.Active,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            return jwtService.GenerateToken(
+                member.Id.ToString(),
+                member.Email,
+                member.Role
+            );
         }
 
         private async Task SetBillingStatusAsync(
