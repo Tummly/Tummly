@@ -14,7 +14,7 @@ namespace TummlyBackend.Tests.Helpers
                 FeedbackCount = 54,
                 GuestsJoined = 46,
                 RedemptionsInWeek = 24,
-                CampaignsSentInWeek = 2,
+                UnsubscribesInWeek = 4,
             };
             var prior = EmptyMetrics() with
             {
@@ -22,12 +22,12 @@ namespace TummlyBackend.Tests.Helpers
                 FeedbackCount = 50,
                 GuestsJoined = 40,
                 RedemptionsInWeek = 25,
-                CampaignsSentInWeek = 2,
+                UnsubscribesInWeek = 5,
             };
 
             var rows = WeeklyBriefPhase1Sections.BuildWhatChanged(current, prior);
 
-            Assert.Equal(4, rows.Count);
+            Assert.Equal(5, rows.Count);
             Assert.Equal("QR scans", rows[0].Area);
             Assert.Equal("+12%", rows[0].Change);
             Assert.Equal(
@@ -43,6 +43,28 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal(
                 "Claimed offers may need clearer staff visibility.",
                 rows[3].Meaning
+            );
+            Assert.Equal("Unsubscribes", rows[4].Area);
+            Assert.Equal("-20%", rows[4].Change);
+            Assert.Equal(
+                "Fewer guests opted out of marketing.",
+                rows[4].Meaning
+            );
+        }
+
+        [Fact]
+        public void BuildWhatChanged_UnsubscribesWithoutPrior_UsesAbsoluteTotal()
+        {
+            var current = EmptyMetrics() with { UnsubscribesInWeek = 4 };
+
+            var rows = WeeklyBriefPhase1Sections.BuildWhatChanged(current, prior: null);
+
+            Assert.Single(rows);
+            Assert.Equal("Unsubscribes", rows[0].Area);
+            Assert.Equal("4 total", rows[0].Change);
+            Assert.Equal(
+                "Review message frequency and audience relevance.",
+                rows[0].Meaning
             );
         }
 
@@ -148,7 +170,8 @@ namespace TummlyBackend.Tests.Helpers
                 ClaimsInWeek: 0,
                 RedemptionsInWeek: 0,
                 CampaignsSentInWeek: 0,
-                CampaignRecipientsReached: 0
+                CampaignRecipientsReached: 0,
+                UnsubscribesInWeek: 0
             );
     }
 }

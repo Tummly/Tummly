@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
@@ -61,6 +62,13 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("2026-W33", ok.Brief.WeekKey);
             Assert.False(string.IsNullOrWhiteSpace(ok.Brief.BodyJson));
             Assert.False(string.IsNullOrWhiteSpace(ok.Brief.MetricsJson));
+            Assert.False(string.IsNullOrWhiteSpace(ok.Brief.EnrichmentJson));
+            var enrichment = JsonSerializer.Deserialize<WeeklyBriefEnrichment>(
+                ok.Brief.EnrichmentJson!,
+                WeeklyBriefStoreJson.Options
+            );
+            Assert.NotNull(enrichment);
+            Assert.False(string.IsNullOrWhiteSpace(enrichment!.ExecutiveSummary));
             Assert.Equal(1, _provider.CallCount);
             Assert.Equal(
                 1,

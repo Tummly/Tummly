@@ -32,7 +32,7 @@ namespace TummlyBackend.Models
 
         /// <summary>
         /// Structured brief body JSON (
-        /// <see cref="WeeklyBriefBody"/> / <c>WeeklyBriefStructuredOutput</c> schema v1).
+        /// <see cref="WeeklyBriefBody"/> / body schema v1 for Home).
         /// </summary>
         [Required]
         public string BodyJson { get; set; } = string.Empty;
@@ -43,6 +43,12 @@ namespace TummlyBackend.Models
         /// </summary>
         [Required]
         public string MetricsJson { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Optional phase-2 Reports enrichment JSON (
+        /// <see cref="WeeklyBriefEnrichment"/>). Null on pre-phase-2 rows.
+        /// </summary>
+        public string? EnrichmentJson { get; set; }
 
         /// <summary>
         /// Optional error payload when a failed attempt is retained.

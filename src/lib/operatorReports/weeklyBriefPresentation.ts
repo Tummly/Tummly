@@ -163,8 +163,10 @@ export function mapWeeklyBriefRecommendedActionFact(
   if (fact.kind === "feedback-needs-attention") {
     return {
       id: fact.kind,
-      title: `Follow up with ${fact.count} guests`,
+      title:
+        fact.title?.trim() || `Follow up with ${fact.count} guests`,
       subtitle:
+        fact.subtitle?.trim() ||
         "These guests shared contact details and may need a response.",
       cta: WEEKLY_BRIEF_PAGE_COPY.openFollowUpQueue,
       target: "feedback-needs-attention",
@@ -174,8 +176,10 @@ export function mapWeeklyBriefRecommendedActionFact(
   if (fact.kind === "repeated-invalid") {
     return {
       id: fact.kind,
-      title: "Repeated invalid attempts",
-      subtitle: `${fact.count} attempts this period were already-used or expired offers.`,
+      title: fact.title?.trim() || "Repeated invalid attempts",
+      subtitle:
+        fact.subtitle?.trim() ||
+        `${fact.count} attempts this period were already-used or expired offers.`,
       cta: OFFERS_REPORT_PAGE_COPY.viewRedemptionLog,
       target: "redemption-log",
     }
@@ -183,8 +187,10 @@ export function mapWeeklyBriefRecommendedActionFact(
 
   return {
     id: fact.kind,
-    title: "High claims, lower redemptions",
-    subtitle: `The ${fact.offerTitle} offer had ${fact.claims} claims and ${fact.redemptions} redemptions.`,
+    title: fact.title?.trim() || "High claims, lower redemptions",
+    subtitle:
+      fact.subtitle?.trim() ||
+      `The ${fact.offerTitle} offer had ${fact.claims} claims and ${fact.redemptions} redemptions.`,
     cta: OFFERS_REPORT_PAGE_COPY.reviewOffer,
     target: "offers",
   }

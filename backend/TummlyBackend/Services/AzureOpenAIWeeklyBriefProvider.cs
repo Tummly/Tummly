@@ -171,6 +171,7 @@ namespace TummlyBackend.Services
             if (!WeeklyBriefStructuredOutput.TryParseModelContent(
                     content,
                     out var output,
+                    out var enrichment,
                     out var invalidOutput
                 ))
             {
@@ -182,7 +183,7 @@ namespace TummlyBackend.Services
             }
 
             return AttemptResult.Succeeded(
-                new WeeklyBriefProviderResult.Succeeded(output!)
+                new WeeklyBriefProviderResult.Succeeded(output!, enrichment)
             );
         }
 

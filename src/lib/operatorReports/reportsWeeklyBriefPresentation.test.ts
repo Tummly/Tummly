@@ -17,6 +17,7 @@ const metrics: WeeklyBriefMetrics = {
   redemptionsInWeek: 4,
   campaignsSentInWeek: 1,
   campaignRecipientsReached: 40,
+  unsubscribesInWeek: 0,
 }
 
 describe("buildReportsWeeklyBriefHubSecondary", () => {

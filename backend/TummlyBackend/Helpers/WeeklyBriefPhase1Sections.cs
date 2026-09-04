@@ -11,12 +11,12 @@ namespace TummlyBackend.Helpers
     /// <remarks>
     /// <para>
     /// What changed candidate areas (fixed order): QR scans, Feedback received,
-    /// Contactable guests, Offer redemptions, Campaigns sent — mapped to
+    /// Contactable guests, Offer redemptions, Unsubscribes — mapped to
     /// <see cref="WeeklyBriefMetrics.QrScanEvents"/>,
     /// <see cref="WeeklyBriefMetrics.FeedbackCount"/>,
     /// <see cref="WeeklyBriefMetrics.GuestsJoined"/>,
     /// <see cref="WeeklyBriefMetrics.RedemptionsInWeek"/>,
-    /// <see cref="WeeklyBriefMetrics.CampaignsSentInWeek"/>.
+    /// <see cref="WeeklyBriefMetrics.UnsubscribesInWeek"/>.
     /// </para>
     /// <para>
     /// When prior-week metrics exist and prior &gt; 0:
@@ -89,12 +89,12 @@ namespace TummlyBackend.Helpers
             );
             TryAddRow(
                 rows,
-                "Campaigns sent",
-                current.CampaignsSentInWeek,
-                prior?.CampaignsSentInWeek,
-                up: "You sent more campaigns this week.",
-                down: "You sent fewer campaigns this week.",
-                absolute: "Campaigns were sent this week."
+                "Unsubscribes",
+                current.UnsubscribesInWeek,
+                prior?.UnsubscribesInWeek,
+                up: "Review message frequency and audience relevance.",
+                down: "Fewer guests opted out of marketing.",
+                absolute: "Review message frequency and audience relevance."
             );
             return rows;
         }

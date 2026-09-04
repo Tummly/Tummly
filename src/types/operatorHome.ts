@@ -270,6 +270,7 @@ export type WeeklyBriefMetrics = {
   redemptionsInWeek: number;
   campaignsSentInWeek: number;
   campaignRecipientsReached: number;
+  unsubscribesInWeek: number;
 };
 
 export type WeeklyBriefNotReadyResponse = {
@@ -301,17 +302,21 @@ export type WeeklyBriefFeedbackSummary = {
   needsAttentionCount: number;
 };
 
-/** Phase-1 recommended-action facts (client owns title / subtitle / CTA). */
+/** Recommended-action facts (client owns default title / subtitle / CTA; server may enrich). */
 export type WeeklyBriefFeedbackNeedsAttentionFact = {
   kind: "feedback-needs-attention";
   count: number;
   target: "feedback-needs-attention";
+  title?: string | null;
+  subtitle?: string | null;
 };
 
 export type WeeklyBriefRepeatedInvalidFact = {
   kind: "repeated-invalid";
   count: number;
   target: "redemption-log";
+  title?: string | null;
+  subtitle?: string | null;
 };
 
 export type WeeklyBriefLowRedemptionFact = {
@@ -322,6 +327,8 @@ export type WeeklyBriefLowRedemptionFact = {
   redemptions: number;
   rate: number;
   target: "offers";
+  title?: string | null;
+  subtitle?: string | null;
 };
 
 export type WeeklyBriefRecommendedActionFact =

@@ -8,6 +8,7 @@ namespace TummlyBackend.Helpers
     /// Azure OpenAI Structured Outputs contract for Weekly brief generation.
     /// Schema is Weekly-brief-owned — not Home recommendation or Campaigns schemas.
     /// Prompt inputs are aggregate metrics only (no guest PII, no raw feedback text).
+    /// Wrapper v2: <c>{ body, enrichment }</c> — Home stores only <see cref="WeeklyBriefBody"/>.
     /// </summary>
     public static class WeeklyBriefStructuredOutput
     {
@@ -16,11 +17,15 @@ namespace TummlyBackend.Helpers
         public const string HttpClientName = "AzureOpenAIWeeklyBrief";
 
         /// <summary>
-        /// Shared schema version for store + API + Azure Structured Outputs.
+        /// Azure Structured Outputs wrapper schema version (body + enrichment).
+        /// Home durable <see cref="WeeklyBriefBody"/> remains the v1 body shape.
         /// </summary>
-        public const string SchemaVersion = "v1";
+        public const string SchemaVersion = "v2";
 
-        public const string PromptSchemaRevision = "2026-08-21b";
+        /// <summary>Body object schema version nested under the wrapper.</summary>
+        public const string BodySchemaVersion = "v1";
+
+        public const string PromptSchemaRevision = "2026-09-04a";
 
         public const int WatchNextMinLength = 1;
 
@@ -46,10 +51,12 @@ namespace TummlyBackend.Helpers
         public static bool TryParseModelContent(
             string? content,
             out WeeklyBriefBody? body,
+            out WeeklyBriefEnrichment? enrichment,
             out bool invalidOutput
         )
         {
             body = null;
+            enrichment = null;
             invalidOutput = false;
 
             if (string.IsNullOrWhiteSpace(content))
@@ -73,53 +80,35 @@ namespace TummlyBackend.Helpers
             {
                 var root = document.RootElement;
 
-                var headline = ReadRequiredString(root, "headline");
-                if (headline is null)
+                if (!root.TryGetProperty("body", out var bodyElement)
+                    || bodyElement.ValueKind != JsonValueKind.Object)
                 {
                     invalidOutput = true;
                     return false;
                 }
 
-                if (!TryReadSection(root, "capture", out var capture)
-                    || !TryReadSection(root, "feedback", out var feedback)
-                    || !TryReadSection(root, "offers", out var offers)
-                    || !TryReadSection(root, "campaigns", out var campaigns))
+                if (!TryParseBodyElement(bodyElement, out body, out invalidOutput))
                 {
-                    invalidOutput = true;
+                    body = null;
                     return false;
                 }
 
-                if (!TryReadWatchNext(root, out var watchNext))
-                {
-                    invalidOutput = true;
-                    return false;
-                }
-
-                body = new WeeklyBriefBody(
-                    Headline: FeedbackRecoveryDraftStructuredOutput
-                        .SanitizeGuestProse(headline)
-                        .Trim(),
-                    Capture: SanitizeSection(capture!),
-                    Feedback: SanitizeSection(feedback!),
-                    Offers: SanitizeSection(offers!),
-                    Campaigns: SanitizeSection(campaigns!),
-                    WatchNext: watchNext!
-                        .Select(line =>
-                            FeedbackRecoveryDraftStructuredOutput
-                                .SanitizeGuestProse(line)
-                                .Trim()
-                        )
-                        .Where(line => line.Length > 0)
-                        .ToArray()
-                );
-
-                // Re-check after sanitize: empty lines may drop the list below bounds.
-                if (body.Headline.Length == 0
-                    || body.WatchNext.Count < WatchNextMinLength
-                    || body.WatchNext.Count > WatchNextMaxLength)
+                if (!root.TryGetProperty("enrichment", out var enrichmentElement)
+                    || enrichmentElement.ValueKind != JsonValueKind.Object)
                 {
                     body = null;
                     invalidOutput = true;
+                    return false;
+                }
+
+                if (!TryParseEnrichmentElement(
+                        enrichmentElement,
+                        out enrichment,
+                        out invalidOutput
+                    ))
+                {
+                    body = null;
+                    enrichment = null;
                     return false;
                 }
 
@@ -132,46 +121,29 @@ namespace TummlyBackend.Helpers
             {
                 ["type"] = "object",
                 ["additionalProperties"] = false,
-                ["required"] = new JsonArray
-                {
-                    "headline",
-                    "capture",
-                    "feedback",
-                    "offers",
-                    "campaigns",
-                    "watchNext",
-                },
+                ["required"] = new JsonArray { "body", "enrichment" },
                 ["properties"] = new JsonObject
                 {
-                    ["headline"] = new JsonObject { ["type"] = "string" },
-                    ["capture"] = SectionSchema(),
-                    ["feedback"] = SectionSchema(),
-                    ["offers"] = SectionSchema(),
-                    ["campaigns"] = SectionSchema(),
-                    ["watchNext"] = new JsonObject
-                    {
-                        ["type"] = "array",
-                        ["minItems"] = WatchNextMinLength,
-                        ["maxItems"] = WatchNextMaxLength,
-                        ["items"] = new JsonObject { ["type"] = "string" },
-                    },
+                    ["body"] = BuildBodySchema(),
+                    ["enrichment"] = EnrichmentSchema(),
                 },
             };
 
         public static string BuildSystemPrompt(string promptSchemaVersion)
             => $"""
-                You write one Weekly brief for a UK hospitality operator Home page.
+                You write one Weekly brief for a UK hospitality operator.
                 Prompt/schema version: {promptSchemaVersion}.
-                Schema version: {SchemaVersion}.
+                Schema version: {SchemaVersion} (wrapper). Body schema: {BodySchemaVersion}.
                 Revision: {PromptSchemaRevision}.
 
-                Return Structured Outputs only.
+                Return Structured Outputs only as an object with body and enrichment.
                 Use only the fed aggregate metrics and Detected Tag rollups — never invent counts.
                 Do not include guest names, emails, phones, or feedback comment bodies.
                 Do not include Home Recommended next-step types.
-                watchNext must have {WatchNextMinLength} to {WatchNextMaxLength} short
+
+                body.watchNext must have {WatchNextMinLength} to {WatchNextMaxLength} short
                 advisory lines (text only).
-                For each section with no signal: set hasData false and use that section's
+                For each body section with no signal: set hasData false and use that section's
                 empty summary exactly:
                 capture → "{EmptyCaptureSummary}"
                 feedback → "{EmptyFeedbackSummary}"
@@ -179,6 +151,14 @@ namespace TummlyBackend.Helpers
                 campaigns → "{EmptyCampaignsSummary}"
                 When hasData is true, summarise that domain from the metrics bag.
                 Set echoedCounts to null; the server attaches echoed counts from metrics.
+
+                enrichment.executiveSummary: one plain-English paragraph for Reports
+                (what happened this week from the metrics and tags).
+                enrichment.feedbackSummary: narrative text + subtitle for private feedback;
+                when feedbackCount and needsAttentionCount are both 0, use empty strings.
+                enrichment.actionWording: optional title/subtitle for known action kinds only
+                (feedback-needs-attention, repeated-invalid, low-redemption). Omit kinds
+                that do not apply; never invent other kinds. Empty array is allowed.
                 """;
 
         public static string BuildRequestJson(
@@ -197,6 +177,7 @@ namespace TummlyBackend.Helpers
             var userPayload = new JsonObject
             {
                 ["schemaVersion"] = SchemaVersion,
+                ["bodySchemaVersion"] = BodySchemaVersion,
                 ["locationName"] = input.LocationName,
                 ["weekKey"] = input.WeekKey,
                 ["coverageStartUtc"] = input.CoverageStartUtc.ToString("O"),
@@ -218,6 +199,7 @@ namespace TummlyBackend.Helpers
                     ["campaignsSentInWeek"] = metrics.CampaignsSentInWeek,
                     ["campaignRecipientsReached"] =
                         metrics.CampaignRecipientsReached,
+                    ["unsubscribesInWeek"] = metrics.UnsubscribesInWeek,
                 },
             };
 
@@ -288,6 +270,276 @@ namespace TummlyBackend.Helpers
                     StringComparison.Ordinal
                 ),
                 _ => false,
+            };
+
+        private static bool TryParseBodyElement(
+            JsonElement root,
+            out WeeklyBriefBody? body,
+            out bool invalidOutput
+        )
+        {
+            body = null;
+            invalidOutput = false;
+
+            var headline = ReadRequiredString(root, "headline");
+            if (headline is null)
+            {
+                invalidOutput = true;
+                return false;
+            }
+
+            if (!TryReadSection(root, "capture", out var capture)
+                || !TryReadSection(root, "feedback", out var feedback)
+                || !TryReadSection(root, "offers", out var offers)
+                || !TryReadSection(root, "campaigns", out var campaigns))
+            {
+                invalidOutput = true;
+                return false;
+            }
+
+            if (!TryReadWatchNext(root, out var watchNext))
+            {
+                invalidOutput = true;
+                return false;
+            }
+
+            body = new WeeklyBriefBody(
+                Headline: FeedbackRecoveryDraftStructuredOutput
+                    .SanitizeGuestProse(headline)
+                    .Trim(),
+                Capture: SanitizeSection(capture!),
+                Feedback: SanitizeSection(feedback!),
+                Offers: SanitizeSection(offers!),
+                Campaigns: SanitizeSection(campaigns!),
+                WatchNext: watchNext!
+                    .Select(line =>
+                        FeedbackRecoveryDraftStructuredOutput
+                            .SanitizeGuestProse(line)
+                            .Trim()
+                    )
+                    .Where(line => line.Length > 0)
+                    .ToArray()
+            );
+
+            if (body.Headline.Length == 0
+                || body.WatchNext.Count < WatchNextMinLength
+                || body.WatchNext.Count > WatchNextMaxLength)
+            {
+                body = null;
+                invalidOutput = true;
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool TryParseEnrichmentElement(
+            JsonElement root,
+            out WeeklyBriefEnrichment? enrichment,
+            out bool invalidOutput
+        )
+        {
+            enrichment = null;
+            invalidOutput = false;
+
+            if (!root.TryGetProperty("executiveSummary", out var execElement)
+                || execElement.ValueKind != JsonValueKind.String)
+            {
+                invalidOutput = true;
+                return false;
+            }
+
+            if (!root.TryGetProperty("feedbackSummary", out var feedbackElement)
+                || feedbackElement.ValueKind != JsonValueKind.Object)
+            {
+                invalidOutput = true;
+                return false;
+            }
+
+            if (!feedbackElement.TryGetProperty("text", out var textElement)
+                || textElement.ValueKind != JsonValueKind.String
+                || !feedbackElement.TryGetProperty("subtitle", out var subtitleElement)
+                || subtitleElement.ValueKind != JsonValueKind.String)
+            {
+                invalidOutput = true;
+                return false;
+            }
+
+            if (!root.TryGetProperty("actionWording", out var actionsElement)
+                || actionsElement.ValueKind != JsonValueKind.Array)
+            {
+                invalidOutput = true;
+                return false;
+            }
+
+            var actionWording = new List<WeeklyBriefEnrichmentActionWording>();
+            foreach (var item in actionsElement.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object)
+                {
+                    invalidOutput = true;
+                    return false;
+                }
+
+                if (!item.TryGetProperty("kind", out var kindElement)
+                    || kindElement.ValueKind != JsonValueKind.String
+                    || !item.TryGetProperty("title", out var titleElement)
+                    || titleElement.ValueKind != JsonValueKind.String
+                    || !item.TryGetProperty("subtitle", out var actionSubtitleElement)
+                    || actionSubtitleElement.ValueKind != JsonValueKind.String)
+                {
+                    invalidOutput = true;
+                    return false;
+                }
+
+                var kind = kindElement.GetString()?.Trim() ?? string.Empty;
+                if (!WeeklyBriefEnrichmentActionKinds.IsAllowed(kind))
+                {
+                    invalidOutput = true;
+                    return false;
+                }
+
+                var title = FeedbackRecoveryDraftStructuredOutput
+                    .SanitizeGuestProse(titleElement.GetString() ?? string.Empty)
+                    .Trim();
+                var subtitle = FeedbackRecoveryDraftStructuredOutput
+                    .SanitizeGuestProse(
+                        actionSubtitleElement.GetString() ?? string.Empty
+                    )
+                    .Trim();
+                if (title.Length == 0 || subtitle.Length == 0)
+                {
+                    invalidOutput = true;
+                    return false;
+                }
+
+                actionWording.Add(
+                    new WeeklyBriefEnrichmentActionWording(kind, title, subtitle)
+                );
+            }
+
+            var executiveSummary = FeedbackRecoveryDraftStructuredOutput
+                .SanitizeGuestProse(execElement.GetString() ?? string.Empty)
+                .Trim();
+            var feedbackText = FeedbackRecoveryDraftStructuredOutput
+                .SanitizeGuestProse(textElement.GetString() ?? string.Empty)
+                .Trim();
+            var feedbackSubtitle = FeedbackRecoveryDraftStructuredOutput
+                .SanitizeGuestProse(subtitleElement.GetString() ?? string.Empty)
+                .Trim();
+
+            WeeklyBriefEnrichmentFeedbackSummary? feedbackSummary = null;
+            if (feedbackText.Length > 0)
+            {
+                feedbackSummary = new WeeklyBriefEnrichmentFeedbackSummary(
+                    feedbackText,
+                    feedbackSubtitle
+                );
+            }
+
+            enrichment = new WeeklyBriefEnrichment(
+                ExecutiveSummary: string.IsNullOrWhiteSpace(executiveSummary)
+                    ? null
+                    : executiveSummary,
+                FeedbackSummary: feedbackSummary,
+                ActionWording: actionWording
+            );
+            return true;
+        }
+
+        private static JsonObject BuildBodySchema()
+            => new()
+            {
+                ["type"] = "object",
+                ["additionalProperties"] = false,
+                ["required"] = new JsonArray
+                {
+                    "headline",
+                    "capture",
+                    "feedback",
+                    "offers",
+                    "campaigns",
+                    "watchNext",
+                },
+                ["properties"] = new JsonObject
+                {
+                    ["headline"] = new JsonObject { ["type"] = "string" },
+                    ["capture"] = SectionSchema(),
+                    ["feedback"] = SectionSchema(),
+                    ["offers"] = SectionSchema(),
+                    ["campaigns"] = SectionSchema(),
+                    ["watchNext"] = new JsonObject
+                    {
+                        ["type"] = "array",
+                        ["minItems"] = WatchNextMinLength,
+                        ["maxItems"] = WatchNextMaxLength,
+                        ["items"] = new JsonObject { ["type"] = "string" },
+                    },
+                },
+            };
+
+        private static JsonObject EnrichmentSchema()
+            => new()
+            {
+                ["type"] = "object",
+                ["additionalProperties"] = false,
+                ["required"] = new JsonArray
+                {
+                    "executiveSummary",
+                    "feedbackSummary",
+                    "actionWording",
+                },
+                ["properties"] = new JsonObject
+                {
+                    ["executiveSummary"] = new JsonObject { ["type"] = "string" },
+                    ["feedbackSummary"] = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["additionalProperties"] = false,
+                        ["required"] = new JsonArray { "text", "subtitle" },
+                        ["properties"] = new JsonObject
+                        {
+                            ["text"] = new JsonObject { ["type"] = "string" },
+                            ["subtitle"] = new JsonObject { ["type"] = "string" },
+                        },
+                    },
+                    ["actionWording"] = new JsonObject
+                    {
+                        ["type"] = "array",
+                        ["items"] = new JsonObject
+                        {
+                            ["type"] = "object",
+                            ["additionalProperties"] = false,
+                            ["required"] = new JsonArray
+                            {
+                                "kind",
+                                "title",
+                                "subtitle",
+                            },
+                            ["properties"] = new JsonObject
+                            {
+                                ["kind"] = new JsonObject
+                                {
+                                    ["type"] = "string",
+                                    ["enum"] = new JsonArray
+                                    {
+                                        WeeklyBriefEnrichmentActionKinds
+                                            .FeedbackNeedsAttention,
+                                        WeeklyBriefEnrichmentActionKinds
+                                            .RepeatedInvalid,
+                                        WeeklyBriefEnrichmentActionKinds
+                                            .LowRedemption,
+                                    },
+                                },
+                                ["title"] = new JsonObject { ["type"] = "string" },
+                                ["subtitle"] = new JsonObject
+                                {
+                                    ["type"] = "string",
+                                },
+                            },
+                        },
+                    },
+                },
             };
 
         private static WeeklyBriefSection SanitizeSection(WeeklyBriefSection section)

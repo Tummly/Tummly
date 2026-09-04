@@ -10,19 +10,25 @@ namespace TummlyBackend.Tests.Helpers
         [Fact]
         public void TryParseModelContent_AcceptsWatchNextWithOneToThreeLines()
         {
-            var content = ValidBodyJson(watchNext: ["Watch service wait times."]);
+            var content = ValidWrapperJson(watchNext: ["Watch service wait times."]);
 
             var ok = WeeklyBriefStructuredOutput.TryParseModelContent(
                 content,
                 out var body,
+                out var enrichment,
                 out var invalid
             );
 
             Assert.True(ok);
             Assert.False(invalid);
             Assert.NotNull(body);
+            Assert.NotNull(enrichment);
             Assert.Single(body!.WatchNext);
             Assert.Equal("Watch service wait times.", body.WatchNext[0]);
+            Assert.Equal(
+                "Steady guest activity this week across capture and offers.",
+                enrichment!.ExecutiveSummary
+            );
         }
 
         [Theory]
@@ -36,23 +42,25 @@ namespace TummlyBackend.Tests.Helpers
                 .Range(0, lineCount)
                 .Select(i => $"Advisory line {i + 1}.")
                 .ToArray();
-            var content = ValidBodyJson(watchNext: lines);
+            var content = ValidWrapperJson(watchNext: lines);
 
             var ok = WeeklyBriefStructuredOutput.TryParseModelContent(
                 content,
                 out var body,
+                out var enrichment,
                 out var invalid
             );
 
             Assert.False(ok);
             Assert.True(invalid);
             Assert.Null(body);
+            Assert.Null(enrichment);
         }
 
         [Fact]
         public void TryParseModelContent_RejectsEmptySectionOutsideAllowList()
         {
-            var content = ValidBodyJson(
+            var content = ValidWrapperJson(
                 watchNext: ["Watch wait times."],
                 feedbackSummary: "Guest Jane said the soup was cold."
             );
@@ -60,18 +68,20 @@ namespace TummlyBackend.Tests.Helpers
             var ok = WeeklyBriefStructuredOutput.TryParseModelContent(
                 content,
                 out var body,
+                out var enrichment,
                 out var invalid
             );
 
             Assert.False(ok);
             Assert.True(invalid);
             Assert.Null(body);
+            Assert.Null(enrichment);
         }
 
         [Fact]
         public void TryParseModelContent_RejectsCrossSectionEmptySummary()
         {
-            var content = ValidBodyJson(
+            var content = ValidWrapperJson(
                 watchNext: ["Watch wait times."],
                 feedbackSummary: WeeklyBriefStructuredOutput.EmptyCaptureSummary
             );
@@ -79,12 +89,43 @@ namespace TummlyBackend.Tests.Helpers
             var ok = WeeklyBriefStructuredOutput.TryParseModelContent(
                 content,
                 out var body,
+                out var enrichment,
                 out var invalid
             );
 
             Assert.False(ok);
             Assert.True(invalid);
             Assert.Null(body);
+            Assert.Null(enrichment);
+        }
+
+        [Fact]
+        public void TryParseModelContent_RejectsUnknownActionKind()
+        {
+            var content = ValidWrapperJson(
+                watchNext: ["Watch wait times."],
+                actionWording:
+                [
+                    new
+                    {
+                        kind = "theme-packaging",
+                        title = "Review packaging",
+                        subtitle = "Guests mentioned packaging.",
+                    },
+                ]
+            );
+
+            var ok = WeeklyBriefStructuredOutput.TryParseModelContent(
+                content,
+                out var body,
+                out var enrichment,
+                out var invalid
+            );
+
+            Assert.False(ok);
+            Assert.True(invalid);
+            Assert.Null(body);
+            Assert.Null(enrichment);
         }
 
         [Fact]
@@ -108,7 +149,7 @@ namespace TummlyBackend.Tests.Helpers
                 StringComparison.Ordinal
             );
             Assert.Contains(
-                $"watchNext must have {WeeklyBriefStructuredOutput.WatchNextMinLength} to {WeeklyBriefStructuredOutput.WatchNextMaxLength}",
+                $"body.watchNext must have {WeeklyBriefStructuredOutput.WatchNextMinLength} to {WeeklyBriefStructuredOutput.WatchNextMaxLength}",
                 prompt,
                 StringComparison.Ordinal
             );
@@ -139,7 +180,8 @@ namespace TummlyBackend.Tests.Helpers
                 ClaimsInWeek: 4,
                 RedemptionsInWeek: 1,
                 CampaignsSentInWeek: 1,
-                CampaignRecipientsReached: 40
+                CampaignRecipientsReached: 40,
+                UnsubscribesInWeek: 4
             );
             var input = new WeeklyBriefProviderInput(
                 LocationName: "Harbour Kitchen",
@@ -178,6 +220,7 @@ namespace TummlyBackend.Tests.Helpers
                 metricsNode["detectedTagCounts"]!["Service"]!.GetValue<int>()
             );
             Assert.Equal(40, metricsNode["campaignRecipientsReached"]!.GetValue<int>());
+            Assert.Equal(4, metricsNode["unsubscribesInWeek"]!.GetValue<int>());
 
             Assert.False(metricsNode.ContainsKey("guestName"));
             Assert.False(metricsNode.ContainsKey("email"));
@@ -194,7 +237,8 @@ namespace TummlyBackend.Tests.Helpers
         public void BuildSchema_RequiresWatchNextLengthBounds()
         {
             var schema = WeeklyBriefStructuredOutput.BuildSchema();
-            var watchNext = schema["properties"]!["watchNext"]!.AsObject();
+            var watchNext = schema["properties"]!["body"]!["properties"]!["watchNext"]!
+                .AsObject();
 
             Assert.Equal(
                 WeeklyBriefStructuredOutput.WatchNextMinLength,
@@ -204,43 +248,60 @@ namespace TummlyBackend.Tests.Helpers
                 WeeklyBriefStructuredOutput.WatchNextMaxLength,
                 watchNext["maxItems"]!.GetValue<int>()
             );
+            Assert.True(schema["properties"]!.AsObject().ContainsKey("enrichment"));
         }
 
-        private static string ValidBodyJson(
+        private static string ValidWrapperJson(
             string[] watchNext,
-            string? feedbackSummary = null
+            string? feedbackSummary = null,
+            object[]? actionWording = null
         )
         {
             return JsonSerializer.Serialize(
                 new
                 {
-                    headline = "Quiet week with steady capture.",
-                    capture = new
+                    body = new
                     {
-                        hasData = true,
-                        summary = "Twelve guests joined.",
-                        echoedCounts = new Dictionary<string, int>
+                        headline = "Quiet week with steady capture.",
+                        capture = new
                         {
-                            ["guestsJoined"] = 12,
+                            hasData = true,
+                            summary = "Twelve guests joined.",
+                            echoedCounts = new Dictionary<string, int>
+                            {
+                                ["guestsJoined"] = 12,
+                            },
                         },
+                        feedback = new
+                        {
+                            hasData = false,
+                            summary = feedbackSummary
+                                ?? WeeklyBriefStructuredOutput.EmptyFeedbackSummary,
+                        },
+                        offers = new
+                        {
+                            hasData = false,
+                            summary = WeeklyBriefStructuredOutput.EmptyOffersSummary,
+                        },
+                        campaigns = new
+                        {
+                            hasData = false,
+                            summary =
+                                WeeklyBriefStructuredOutput.EmptyCampaignsSummary,
+                        },
+                        watchNext,
                     },
-                    feedback = new
+                    enrichment = new
                     {
-                        hasData = false,
-                        summary = feedbackSummary
-                            ?? WeeklyBriefStructuredOutput.EmptyFeedbackSummary,
+                        executiveSummary =
+                            "Steady guest activity this week across capture and offers.",
+                        feedbackSummary = new
+                        {
+                            text = "",
+                            subtitle = "",
+                        },
+                        actionWording = actionWording ?? Array.Empty<object>(),
                     },
-                    offers = new
-                    {
-                        hasData = false,
-                        summary = WeeklyBriefStructuredOutput.EmptyOffersSummary,
-                    },
-                    campaigns = new
-                    {
-                        hasData = false,
-                        summary = WeeklyBriefStructuredOutput.EmptyCampaignsSummary,
-                    },
-                    watchNext,
                 }
             );
         }

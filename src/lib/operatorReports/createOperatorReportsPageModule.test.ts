@@ -54,6 +54,7 @@ const weeklyBriefMetricsFixture: WeeklyBriefMetrics = {
   redemptionsInWeek: 4,
   campaignsSentInWeek: 1,
   campaignRecipientsReached: 40,
+  unsubscribesInWeek: 0,
 }
 
 function readyWeeklyBriefResponse(

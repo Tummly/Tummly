@@ -138,6 +138,22 @@ describe("weeklyBriefPresentation", () => {
 
     expect(
       mapWeeklyBriefRecommendedActionFact({
+        kind: "feedback-needs-attention",
+        count: 6,
+        target: "feedback-needs-attention",
+        title: "Follow up with six guests this week",
+        subtitle: "AI enriched subtitle for needs attention.",
+      })
+    ).toEqual({
+      id: "feedback-needs-attention",
+      title: "Follow up with six guests this week",
+      subtitle: "AI enriched subtitle for needs attention.",
+      cta: "Open follow-up queue",
+      target: "feedback-needs-attention",
+    })
+
+    expect(
+      mapWeeklyBriefRecommendedActionFact({
         kind: "repeated-invalid",
         count: 4,
         target: "redemption-log",

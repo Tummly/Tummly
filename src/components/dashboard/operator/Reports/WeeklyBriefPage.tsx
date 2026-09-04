@@ -223,8 +223,14 @@ function RecommendedActionsSection(props: {
   onAction: (card: WeeklyBriefRecommendedActionCard) => void
 }) {
   return (
-    <ReportsSection title={WEEKLY_BRIEF_PAGE_COPY.recommendedActionsTitle}>
+    <ReportsSection>
       <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <AiIcon size={22} />
+          <h2 className={REPORTS_SECTION_TITLE_CLASS}>
+            {WEEKLY_BRIEF_PAGE_COPY.recommendedActionsTitle}
+          </h2>
+        </div>
         {props.cards.map((card) => (
           <div key={card.id} className="flex flex-col gap-4">
             <ReportsInsightBanner title={card.title}>
@@ -253,7 +259,7 @@ function SuggestedCampaignSection(props: {
 }) {
   return (
     <ReportsSection title={WEEKLY_BRIEF_PAGE_COPY.suggestedCampaignTitle}>
-      <div className="flex flex-col gap-4">
+      <div className="flex max-w-sm flex-col gap-4 rounded-op-md border border-op-border-default bg-op-card-background p-3.5">
         <div className="flex flex-col gap-2">
           <Badge variant="soft">{props.card.status}</Badge>
           <p className={SUGGESTED_CAMPAIGN_TITLE_CLASS}>{props.card.title}</p>

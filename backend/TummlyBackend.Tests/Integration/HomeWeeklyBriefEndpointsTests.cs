@@ -150,6 +150,140 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetWeeklyBrief_ReadyRow_PrefersEnrichmentOverPhase1()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-ready-enrich");
+            var weekKey = "monday:2026-07-06";
+            var metrics = EmptyMetrics() with
+            {
+                GuestsJoined = 10,
+                FeedbackCount = 5,
+                NeedsAttentionCount = 6,
+            };
+            var body = FakeWeeklyBriefProvider.FixtureFor(metrics);
+            var enrichment = new WeeklyBriefEnrichment(
+                ExecutiveSummary:
+                    "You received more guest activity this week from delivery inserts.",
+                FeedbackSummary: new WeeklyBriefEnrichmentFeedbackSummary(
+                    "Several guests mentioned packaging and wait time.",
+                    "Based on private feedback submitted between 6–12 July."
+                ),
+                ActionWording:
+                [
+                    new WeeklyBriefEnrichmentActionWording(
+                        WeeklyBriefEnrichmentActionKinds.FeedbackNeedsAttention,
+                        "Follow up with six guests this week",
+                        "AI enriched needs-attention subtitle."
+                    ),
+                ]
+            );
+
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                weekKey,
+                body,
+                metrics,
+                DateTime.Parse("2026-07-13T08:30:00Z").ToUniversalTime(),
+                enrichment: enrichment
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&week={weekKey}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.Equal(
+                "You received more guest activity this week from delivery inserts.",
+                json.GetProperty("executiveSummary").GetString()
+            );
+
+            var feedbackSummary = json.GetProperty("feedbackSummary");
+            Assert.Equal(
+                "Several guests mentioned packaging and wait time.",
+                feedbackSummary.GetProperty("text").GetString()
+            );
+            Assert.Equal(
+                "Based on private feedback submitted between 6–12 July.",
+                feedbackSummary.GetProperty("subtitle").GetString()
+            );
+            Assert.Equal(6, feedbackSummary.GetProperty("needsAttentionCount").GetInt32());
+
+            var actions = json.GetProperty("recommendedActions").EnumerateArray().ToList();
+            Assert.Single(actions);
+            Assert.Equal(
+                "feedback-needs-attention",
+                actions[0].GetProperty("kind").GetString()
+            );
+            Assert.Equal(
+                "Follow up with six guests this week",
+                actions[0].GetProperty("title").GetString()
+            );
+            Assert.Equal(
+                "AI enriched needs-attention subtitle.",
+                actions[0].GetProperty("subtitle").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetWeeklyBrief_ReadyRow_DeserializesLegacyMetricsWithoutUnsubscribes()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-ready-legacy-metrics");
+            var weekKey = "monday:2026-07-06";
+            var body = FakeWeeklyBriefProvider.FixtureFor(EmptyMetrics() with
+            {
+                GuestsJoined = 3,
+            });
+            // Pre-phase-2 MetricsJson shape (no unsubscribesInWeek).
+            var legacyMetricsJson =
+                """
+                {"guestsJoined":3,"qrScanEvents":0,"feedbackCount":0,"positiveFeedbackCount":0,"neutralFeedbackCount":0,"negativeFeedbackCount":0,"needsAttentionCount":0,"detectedTagCounts":{},"activeOffers":0,"claimsInWeek":0,"redemptionsInWeek":0,"campaignsSentInWeek":0,"campaignRecipientsReached":0}
+                """;
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                context.WeeklyBriefs.Add(
+                    new WeeklyBrief
+                    {
+                        LocationId = seeded.LocationId,
+                        WeekKey = weekKey,
+                        Status = WeeklyBriefStatus.Succeeded,
+                        GeneratedAtUtc = DateTime.UtcNow,
+                        BodyJson = JsonSerializer.Serialize(
+                            body,
+                            WeeklyBriefStoreJson.Options
+                        ),
+                        MetricsJson = legacyMetricsJson,
+                        EnrichmentJson = null,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&week={weekKey}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(
+                3,
+                json.GetProperty("metrics").GetProperty("guestsJoined").GetInt32()
+            );
+            Assert.Equal(
+                0,
+                json.GetProperty("metrics").GetProperty("unsubscribesInWeek").GetInt32()
+            );
+        }
+
+        [Fact]
         public async Task GetWeeklyBrief_ReadyRow_ReturnsWhatChangedAndFeedbackSummary()
         {
             var seeded = await SeedOwnerWithLocationAsync("wb-ready-sections");
@@ -165,7 +299,7 @@ namespace TummlyBackend.Tests.Integration
                 NegativeFeedbackCount = 6,
                 NeedsAttentionCount = 6,
                 RedemptionsInWeek = 24,
-                CampaignsSentInWeek = 2,
+                UnsubscribesInWeek = 4,
             };
             var prior = EmptyMetrics() with
             {
@@ -173,7 +307,7 @@ namespace TummlyBackend.Tests.Integration
                 QrScanEvents = 100,
                 FeedbackCount = 50,
                 RedemptionsInWeek = 25,
-                CampaignsSentInWeek = 2,
+                UnsubscribesInWeek = 5,
             };
             var body = FakeWeeklyBriefProvider.FixtureFor(current);
             var generatedAt = DateTime.Parse("2026-07-13T08:30:00Z").ToUniversalTime();
@@ -204,10 +338,15 @@ namespace TummlyBackend.Tests.Integration
             Assert.True(json.GetProperty("ready").GetBoolean());
 
             var whatChanged = json.GetProperty("whatChanged").EnumerateArray().ToList();
-            Assert.Equal(4, whatChanged.Count);
+            Assert.Equal(5, whatChanged.Count);
             Assert.Equal("QR scans", whatChanged[0].GetProperty("area").GetString());
             Assert.Equal("+12%", whatChanged[0].GetProperty("change").GetString());
-
+            Assert.Equal("Unsubscribes", whatChanged[4].GetProperty("area").GetString());
+            Assert.Equal("-20%", whatChanged[4].GetProperty("change").GetString());
+            Assert.Equal(
+                "Fewer guests opted out of marketing.",
+                whatChanged[4].GetProperty("meaning").GetString()
+            );
             var feedbackSummary = json.GetProperty("feedbackSummary");
             Assert.Equal(
                 JsonValueKind.Object,
@@ -1088,6 +1227,59 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task DownloadWeeklyBriefPdf_ReadyWithEnrichment_UsesEnrichedCopy()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-pdf-enrich");
+            var metrics = EmptyMetrics() with
+            {
+                GuestsJoined = 10,
+                FeedbackCount = 5,
+                NeedsAttentionCount = 2,
+            };
+            var body = FakeWeeklyBriefProvider.FixtureFor(metrics);
+            var enrichment = new WeeklyBriefEnrichment(
+                ExecutiveSummary: "Enriched PDF executive summary for shipping audit.",
+                FeedbackSummary: new WeeklyBriefEnrichmentFeedbackSummary(
+                    "Enriched PDF feedback narrative about packaging.",
+                    "Based on private feedback submitted this week."
+                ),
+                ActionWording:
+                [
+                    new WeeklyBriefEnrichmentActionWording(
+                        WeeklyBriefEnrichmentActionKinds.FeedbackNeedsAttention,
+                        "Follow up with two enriched guests",
+                        "PDF action subtitle"
+                    ),
+                ]
+            );
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                ExplicitWeek,
+                body,
+                metrics,
+                DateTime.Parse("2026-08-18T09:00:00Z").ToUniversalTime(),
+                enrichment: enrichment
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief/pdf?locationId={seeded.LocationId}&week={ExplicitWeek}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            var ascii = System.Text.Encoding.ASCII.GetString(bytes);
+            Assert.Contains("%PDF", ascii);
+            Assert.Contains("Enriched PDF executive summary for shipping audit.", ascii);
+            Assert.Contains(
+                "Enriched PDF feedback narrative about packaging.",
+                ascii
+            );
+            Assert.Contains("Follow up with two enriched guests", ascii);
+        }
+
+        [Fact]
         public async Task DownloadWeeklyBriefPdf_SoftLock_Returns403()
         {
             var seeded = await SeedOwnerWithLocationAsync(
@@ -1192,7 +1384,8 @@ namespace TummlyBackend.Tests.Integration
             WeeklyBriefMetrics metrics,
             DateTime generatedAtUtc,
             DateTime? reviewedAtUtc = null,
-            int? reviewedByUserId = null
+            int? reviewedByUserId = null,
+            WeeklyBriefEnrichment? enrichment = null
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -1208,6 +1401,9 @@ namespace TummlyBackend.Tests.Integration
                     GeneratedAtUtc = generatedAtUtc,
                     BodyJson = JsonSerializer.Serialize(body, WeeklyBriefStoreJson.Options),
                     MetricsJson = JsonSerializer.Serialize(metrics, WeeklyBriefStoreJson.Options),
+                    EnrichmentJson = enrichment is null
+                        ? null
+                        : JsonSerializer.Serialize(enrichment, WeeklyBriefStoreJson.Options),
                     ErrorInfo = null,
                     ReviewedAtUtc = reviewedAtUtc,
                     ReviewedByUserId = reviewedByUserId,
@@ -1377,7 +1573,8 @@ namespace TummlyBackend.Tests.Integration
                 ClaimsInWeek: 0,
                 RedemptionsInWeek: 0,
                 CampaignsSentInWeek: 0,
-                CampaignRecipientsReached: 0
+                CampaignRecipientsReached: 0,
+                UnsubscribesInWeek: 0
             );
 
         private static HttpRequestMessage AuthorizedGet(string url, string jwt)

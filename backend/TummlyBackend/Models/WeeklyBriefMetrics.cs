@@ -21,6 +21,7 @@ namespace TummlyBackend.Models
     /// <item><description><see cref="RedemptionsInWeek"/> — offers: redemptions in the closed week.</description></item>
     /// <item><description><see cref="CampaignsSentInWeek"/> — campaigns: campaigns sent in the closed week.</description></item>
     /// <item><description><see cref="CampaignRecipientsReached"/> — campaigns: recipients reached in the closed week.</description></item>
+    /// <item><description><see cref="UnsubscribesInWeek"/> — campaigns/privacy: Guest marketing unsubscribed activity in the closed week.</description></item>
     /// </list>
     /// </remarks>
     public sealed record WeeklyBriefMetrics(
@@ -36,7 +37,8 @@ namespace TummlyBackend.Models
         int ClaimsInWeek,
         int RedemptionsInWeek,
         int CampaignsSentInWeek,
-        int CampaignRecipientsReached
+        int CampaignRecipientsReached,
+        int UnsubscribesInWeek
     );
 
     /// <summary>
@@ -60,8 +62,10 @@ namespace TummlyBackend.Models
         {
         }
 
-        public sealed record Succeeded(WeeklyBriefBody Body)
-            : WeeklyBriefProviderResult;
+        public sealed record Succeeded(
+            WeeklyBriefBody Body,
+            WeeklyBriefEnrichment? Enrichment
+        ) : WeeklyBriefProviderResult;
 
         public sealed record Failed(bool Retryable = true)
             : WeeklyBriefProviderResult;

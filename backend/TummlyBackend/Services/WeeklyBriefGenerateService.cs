@@ -141,6 +141,12 @@ namespace TummlyBackend.Services
                 GeneratedAtUtc = generatedAtUtc,
                 BodyJson = JsonSerializer.Serialize(body, WeeklyBriefStoreJson.Options),
                 MetricsJson = JsonSerializer.Serialize(metrics, WeeklyBriefStoreJson.Options),
+                EnrichmentJson = succeeded.Enrichment is null
+                    ? null
+                    : JsonSerializer.Serialize(
+                        succeeded.Enrichment,
+                        WeeklyBriefStoreJson.Options
+                    ),
                 ErrorInfo = null,
             };
 
@@ -312,6 +318,18 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
 
+            var unsubscribesInWeek = await _context.LocationActivities
+                .AsNoTracking()
+                .CountAsync(
+                    activity =>
+                        activity.LocationId == locationId
+                        && activity.Kind
+                            == LocationActivityKinds.GuestMarketingUnsubscribed
+                        && activity.OccurredAt >= fromUtc
+                        && activity.OccurredAt < toUtc,
+                    cancellationToken
+                );
+
             return new WeeklyBriefMetrics(
                 GuestsJoined: guestsJoined,
                 QrScanEvents: qrScanEvents,
@@ -325,7 +343,8 @@ namespace TummlyBackend.Services
                 ClaimsInWeek: claimsInWeek,
                 RedemptionsInWeek: redemptionsInWeek,
                 CampaignsSentInWeek: campaignsSentInWeek,
-                CampaignRecipientsReached: campaignRecipientsReached
+                CampaignRecipientsReached: campaignRecipientsReached,
+                UnsubscribesInWeek: unsubscribesInWeek
             );
         }
 

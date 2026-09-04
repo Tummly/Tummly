@@ -465,6 +465,23 @@ namespace TummlyBackend.Controllers
                     cancellationToken
                 );
 
+            var enrichment = WeeklyBriefEnrichmentApply.TryDeserialize(
+                row.EnrichmentJson
+            );
+            var executiveSummary = WeeklyBriefEnrichmentApply.ResolveExecutiveSummary(
+                phase1.ExecutiveSummary,
+                enrichment
+            );
+            var feedbackSummary = WeeklyBriefEnrichmentApply.ResolveFeedbackSummary(
+                phase1.FeedbackSummary,
+                metrics,
+                enrichment
+            );
+            recommendedActions = WeeklyBriefEnrichmentApply.ApplyActionWording(
+                recommendedActions,
+                enrichment
+            );
+
             WeeklyBriefRecommendedActions.SuggestedCampaignDto? suggestedCampaign =
                 null;
             if (coverageFromUtc is DateTime windowFrom && coverageToUtc is DateTime windowTo)
@@ -485,7 +502,7 @@ namespace TummlyBackend.Controllers
                 DataSources: phase1.Meta.DataSources,
                 Confidence: phase1.Meta.Confidence,
                 GeneratedAtLabel: LondonDateFormat.DMmmYyyy(row.GeneratedAtUtc),
-                ExecutiveSummary: phase1.ExecutiveSummary,
+                ExecutiveSummary: executiveSummary,
                 WhatChanged: phase1.WhatChanged
                     .Select(change => new WeeklyBriefPdfWriter.WhatChangedRow(
                         change.Area,
@@ -493,11 +510,11 @@ namespace TummlyBackend.Controllers
                         change.Meaning
                     ))
                     .ToList(),
-                FeedbackSummary: phase1.FeedbackSummary is null
+                FeedbackSummary: feedbackSummary is null
                     ? null
                     : new WeeklyBriefPdfWriter.FeedbackSummary(
-                        phase1.FeedbackSummary.Text,
-                        phase1.FeedbackSummary.Subtitle
+                        feedbackSummary.Text,
+                        feedbackSummary.Subtitle
                     ),
                 RecommendedActionLines: FormatRecommendedActionLines(
                     recommendedActions
@@ -525,18 +542,7 @@ namespace TummlyBackend.Controllers
             var lines = new List<string>(facts.Count);
             foreach (var fact in facts)
             {
-                lines.Add(
-                    fact switch
-                    {
-                        WeeklyBriefRecommendedActions.FeedbackNeedsAttentionFactDto feedback
-                            => $"Follow up with {feedback.Count} guests",
-                        WeeklyBriefRecommendedActions.RepeatedInvalidFactDto repeated
-                            => $"Repeated invalid attempts ({repeated.Count})",
-                        WeeklyBriefRecommendedActions.LowRedemptionFactDto low
-                            => $"High claims, lower redemptions - {low.OfferTitle} ({low.Claims} claims, {low.Redemptions} redemptions)",
-                        _ => "Recommended action",
-                    }
-                );
+                lines.Add(WeeklyBriefEnrichmentApply.FormatRecommendedActionLine(fact));
             }
 
             return lines;
@@ -674,6 +680,23 @@ namespace TummlyBackend.Controllers
                     cancellationToken
                 );
 
+            var enrichment = WeeklyBriefEnrichmentApply.TryDeserialize(
+                row.EnrichmentJson
+            );
+            var executiveSummary = WeeklyBriefEnrichmentApply.ResolveExecutiveSummary(
+                phase1.ExecutiveSummary,
+                enrichment
+            );
+            var feedbackSummary = WeeklyBriefEnrichmentApply.ResolveFeedbackSummary(
+                phase1.FeedbackSummary,
+                metrics,
+                enrichment
+            );
+            recommendedActions = WeeklyBriefEnrichmentApply.ApplyActionWording(
+                recommendedActions,
+                enrichment
+            );
+
             WeeklyBriefRecommendedActions.SuggestedCampaignDto? suggestedCampaign =
                 null;
             if (coverageFromUtc is DateTime windowFrom && coverageToUtc is DateTime windowTo)
@@ -699,9 +722,9 @@ namespace TummlyBackend.Controllers
                 body,
                 metrics,
                 meta = phase1.Meta,
-                executiveSummary = phase1.ExecutiveSummary,
+                executiveSummary,
                 whatChanged = phase1.WhatChanged,
-                feedbackSummary = phase1.FeedbackSummary,
+                feedbackSummary,
                 recommendedActions,
                 suggestedCampaign,
                 reviewedAtUtc = row.ReviewedAtUtc,

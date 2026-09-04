@@ -106,7 +106,8 @@ namespace TummlyBackend.Tests.Helpers
                 ClaimsInWeek: 0,
                 RedemptionsInWeek: 0,
                 CampaignsSentInWeek: 0,
-                CampaignRecipientsReached: 0
+                CampaignRecipientsReached: 0,
+                UnsubscribesInWeek: 0
             );
     }
 }

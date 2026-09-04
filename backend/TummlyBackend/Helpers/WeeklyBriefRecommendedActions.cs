@@ -27,13 +27,17 @@ namespace TummlyBackend.Helpers
         public sealed record FeedbackNeedsAttentionFactDto(
             string Kind,
             int Count,
-            string Target
+            string Target,
+            string? Title = null,
+            string? Subtitle = null
         );
 
         public sealed record RepeatedInvalidFactDto(
             string Kind,
             int Count,
-            string Target
+            string Target,
+            string? Title = null,
+            string? Subtitle = null
         );
 
         public sealed record LowRedemptionFactDto(
@@ -43,7 +47,9 @@ namespace TummlyBackend.Helpers
             int Claims,
             int Redemptions,
             double Rate,
-            string Target
+            string Target,
+            string? Title = null,
+            string? Subtitle = null
         );
 
         public sealed record SuggestedCampaignDto(

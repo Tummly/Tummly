@@ -20,6 +20,7 @@ namespace TummlyBackend.Services
 
         private Mode _mode = Mode.DefaultFixtures;
         private WeeklyBriefBody? _nextBody;
+        private WeeklyBriefEnrichment? _nextEnrichment;
         private bool _failRetryable = true;
         private Exception? _throwOnGenerate;
         private WeeklyBriefProviderInput? _lastInput;
@@ -40,13 +41,18 @@ namespace TummlyBackend.Services
             _mode = Mode.DefaultFixtures;
             _throwOnGenerate = null;
             _nextBody = null;
+            _nextEnrichment = null;
         }
 
-        public void SucceedWith(WeeklyBriefBody body)
+        public void SucceedWith(
+            WeeklyBriefBody body,
+            WeeklyBriefEnrichment? enrichment = null
+        )
         {
             _mode = Mode.SucceedWith;
             _throwOnGenerate = null;
             _nextBody = body;
+            _nextEnrichment = enrichment;
         }
 
         public void Fail(bool retryable = true)
@@ -55,6 +61,7 @@ namespace TummlyBackend.Services
             _throwOnGenerate = null;
             _failRetryable = retryable;
             _nextBody = null;
+            _nextEnrichment = null;
         }
 
         public void ThrowOnGenerate(Exception? exception = null)
@@ -90,9 +97,13 @@ namespace TummlyBackend.Services
                 _mode == Mode.SucceedWith && _nextBody is not null
                     ? _nextBody
                     : FixtureFor(input.Metrics);
+            var enrichment =
+                _mode == Mode.SucceedWith
+                    ? _nextEnrichment ?? FixtureEnrichmentFor(input.Metrics, body)
+                    : FixtureEnrichmentFor(input.Metrics, body);
 
             return Task.FromResult<WeeklyBriefProviderResult>(
-                new WeeklyBriefProviderResult.Succeeded(body)
+                new WeeklyBriefProviderResult.Succeeded(body, enrichment)
             );
         }
 
@@ -149,6 +160,55 @@ namespace TummlyBackend.Services
                     "Watch feedback Needs attention volume next week.",
                     "Keep an eye on offer claim-to-redemption rate.",
                 ]
+            );
+        }
+
+        /// <summary>
+        /// Deterministic phase-2 enrichment fixture from metrics + body headline.
+        /// </summary>
+        public static WeeklyBriefEnrichment FixtureEnrichmentFor(
+            WeeklyBriefMetrics metrics,
+            WeeklyBriefBody body
+        )
+        {
+            var executiveSummary =
+                $"{body.Headline} Guests joined: {metrics.GuestsJoined}; "
+                + $"feedback: {metrics.FeedbackCount}; "
+                + $"unsubscribes: {metrics.UnsubscribesInWeek}.";
+
+            WeeklyBriefEnrichmentFeedbackSummary? feedbackSummary = null;
+            if (metrics.FeedbackCount > 0 || metrics.NeedsAttentionCount > 0)
+            {
+                var tagBit = metrics.DetectedTagCounts.Count > 0
+                    ? $" Top themes: {string.Join(", ", metrics.DetectedTagCounts.Keys.Take(2))}."
+                    : string.Empty;
+                feedbackSummary = new WeeklyBriefEnrichmentFeedbackSummary(
+                    Text:
+                        $"{metrics.FeedbackCount} private feedback messages this week."
+                        + (metrics.NeedsAttentionCount > 0
+                            ? $" {metrics.NeedsAttentionCount} may need follow-up."
+                            : string.Empty)
+                        + tagBit,
+                    Subtitle: "Based on private feedback submitted this week."
+                );
+            }
+
+            var actionWording = new List<WeeklyBriefEnrichmentActionWording>();
+            if (metrics.NeedsAttentionCount > 0)
+            {
+                actionWording.Add(
+                    new WeeklyBriefEnrichmentActionWording(
+                        WeeklyBriefEnrichmentActionKinds.FeedbackNeedsAttention,
+                        $"Follow up with {metrics.NeedsAttentionCount} guests",
+                        "These guests shared contact details and may need a response."
+                    )
+                );
+            }
+
+            return new WeeklyBriefEnrichment(
+                ExecutiveSummary: executiveSummary,
+                FeedbackSummary: feedbackSummary,
+                ActionWording: actionWording
             );
         }
     }
