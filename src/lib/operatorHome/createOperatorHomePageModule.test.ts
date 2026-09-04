@@ -3056,6 +3056,11 @@ describe("createOperatorHomePageModule", () => {
       "Steady week across capture and feedback."
     )
     expect(home.getSnapshot().weeklyBrief.week).toBe("2026-W33")
+    // Home ignores Figma-oriented ready fields on the shared envelope.
+    expect(home.getSnapshot().weeklyBrief).not.toHaveProperty("meta")
+    expect(home.getSnapshot().weeklyBrief).not.toHaveProperty(
+      "executiveSummary"
+    )
     expect(home.getSnapshot().viewModel).not.toHaveProperty("weeklyBrief")
   })
 

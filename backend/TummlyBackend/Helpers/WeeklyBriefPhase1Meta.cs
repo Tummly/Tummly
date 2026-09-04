@@ -166,30 +166,7 @@ namespace TummlyBackend.Helpers
                 + metrics.CampaignsSentInWeek;
 
         public static int CountDomainsWithData(WeeklyBriefBody body)
-        {
-            var count = 0;
-            if (body.Capture.HasData)
-            {
-                count++;
-            }
-
-            if (body.Feedback.HasData)
-            {
-                count++;
-            }
-
-            if (body.Offers.HasData)
-            {
-                count++;
-            }
-
-            if (body.Campaigns.HasData)
-            {
-                count++;
-            }
-
-            return count;
-        }
+            => BuildDataSources(body).Count;
 
         /// <summary>
         /// Format period label from workspace or legacy week key.

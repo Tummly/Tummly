@@ -2,7 +2,7 @@ import { useEffect } from "react"
 import { Download, CheckCircle } from "lucide-react"
 import { toast } from "sonner"
 
-import aiIconPng from "@/assets/svg/ui-icons/ai-icon.png"
+import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
@@ -41,7 +41,8 @@ const META_LABEL_CLASS =
   "m-0 text-sm font-medium leading-5 text-op-text-muted"
 const META_VALUE_CLASS =
   "m-0 text-sm font-medium leading-5 text-op-card-title-color"
-const META_FIELD_CLASS = "flex min-w-0 flex-col gap-1"
+const META_FIELD_CLASS =
+  "flex min-w-0 items-start justify-between gap-4 text-sm leading-5"
 const EXEC_SUMMARY_BODY_CLASS =
   "m-0 rounded-op-md bg-op-background-secondary p-4 text-sm font-medium leading-6 text-op-card-title-color"
 
@@ -49,7 +50,7 @@ function MetaField(props: { label: string; value: string }) {
   return (
     <div className={META_FIELD_CLASS}>
       <p className={META_LABEL_CLASS}>{props.label}</p>
-      <p className={META_VALUE_CLASS}>{props.value}</p>
+      <p className={`${META_VALUE_CLASS} text-right`}>{props.value}</p>
     </div>
   )
 }
@@ -92,11 +93,7 @@ function ExecutiveSummarySection(props: { summary: string }) {
     <ReportsSection>
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
-          <img
-            src={aiIconPng}
-            alt=""
-            className="size-4 shrink-0 brightness-0 invert"
-          />
+          <AiIcon size={22} />
           <h2 className={REPORTS_SECTION_TITLE_CLASS}>
             {WEEKLY_BRIEF_PAGE_COPY.executiveSummaryTitle}
           </h2>

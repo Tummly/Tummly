@@ -670,6 +670,15 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().weeklyBrief.body?.headline).toBe(
       "Loop health held steady this week."
     )
+    expect(module.getSnapshot().weeklyBrief.meta).toEqual({
+      period: "Week 33, 2026",
+      dataSources: ["Capture"],
+      confidence: "Based on enough activity to show useful patterns.",
+      generatedAtUtc: "2026-08-17T08:00:00Z",
+    })
+    expect(module.getSnapshot().weeklyBrief.executiveSummary).toBe(
+      "Loop health held steady this week. Counter cards drove most scans."
+    )
   })
 
   it("retries weekly brief with GET then generate if still missing", async () => {

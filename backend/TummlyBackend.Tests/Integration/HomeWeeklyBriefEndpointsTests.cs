@@ -115,6 +115,10 @@ namespace TummlyBackend.Tests.Integration
                 "Steady week across capture and feedback.",
                 json.GetProperty("body").GetProperty("headline").GetString()
             );
+            Assert.Equal(
+                10,
+                json.GetProperty("metrics").GetProperty("guestsJoined").GetInt32()
+            );
 
             var meta = json.GetProperty("meta");
             Assert.Equal("6–12 July", meta.GetProperty("period").GetString());
