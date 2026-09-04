@@ -48,7 +48,11 @@ import {
   ASSISTANT_ADD_CREDITS_LABEL,
   ASSISTANT_CREDITS_STUB_ALLOWANCE,
   ASSISTANT_CREDITS_STUB_REMAINING,
+  ASSISTANT_CREDITS_STUB_USED,
   ASSISTANT_VIEW_USAGE_LABEL,
+  SHELL_AI_ADD_CREDITS_LABEL,
+  SHELL_AI_CREDITS_TITLE,
+  SHELL_AI_VIEW_USAGE_LABEL,
   assistantCreditsAddCreditsHref,
   assistantCreditsDepleted,
   assistantCreditsRemainingLine,
@@ -58,6 +62,11 @@ import {
   assistantCreditsViewUsageHref,
   isAssistantAccountLocked,
   resolveAssistantAccountLockCause,
+  resolveShellAiCreditsUsed,
+  shellAiCreditsButtonLabel,
+  shellAiCreditsFillRatio,
+  shellAiCreditsLeftLine,
+  shellAiCreditsUsedLine,
   type AssistantCreditsRestorationHelper,
 } from "./assistantCreditsPresentation"
 import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCatalogPresentation"
@@ -298,6 +307,8 @@ export type OperatorAiAssistantSnapshot = {
   addCreditsLabel: string
   showViewUsage: boolean
   showAddCredits: boolean
+  /** Navbar AI credits button + popover (Figma 5216:26967). */
+  shellAiCredits: OperatorShellAiCreditsViewModel
   restorationHelper: AssistantCreditsRestorationHelper | null
   deleteConfirm: OperatorAiAssistantDeleteConfirmSnapshot
 }
@@ -305,12 +316,27 @@ export type OperatorAiAssistantSnapshot = {
 export type OperatorAiAssistantCreditsChrome = {
   remaining: number
   allowance: number
+  /** Cycle usage for the shell popover meter; omit → derive from allowance − remaining. */
+  usedThisCycle?: number
   accessLevel: BillingCreditsAccessLevel
   permissionRole: string
   billingStatus: string
   isPilot: boolean
   mode: "single" | "multi"
   locationId: number
+}
+
+/** Navbar AI credits trigger + popover — Figma 5216:26967. */
+export type OperatorShellAiCreditsViewModel = {
+  buttonLabel: string
+  title: string
+  usedLine: string
+  leftLine: string
+  fillRatio: number
+  viewUsageLabel: string
+  addCreditsLabel: string
+  showViewUsage: boolean
+  showAddCredits: boolean
 }
 
 export type OperatorAiAssistantSendTurnInput = {
@@ -459,6 +485,8 @@ export type OperatorAiAssistantModule = {
   ) => void
   clickAction: (action: OperatorAiAssistantAction) => void
   dismissFromEscape: () => void
+  /** Reload AI remaining / allowance for the composer bar and shell popover. */
+  refreshCreditsChrome: () => void
   viewUsage: () => void
   addCredits: () => void
   followRestorationHelper: () => void
@@ -747,6 +775,7 @@ export function createInMemoryOperatorAiAssistantAdapters(
     getCreditsChrome: async () => ({
       remaining: ASSISTANT_CREDITS_STUB_REMAINING,
       allowance: ASSISTANT_CREDITS_STUB_ALLOWANCE,
+      usedThisCycle: ASSISTANT_CREDITS_STUB_USED,
       accessLevel: "manage",
       permissionRole: "Owner",
       billingStatus: "Active",
@@ -1419,6 +1448,7 @@ function toSnapshot(
       accessLevel: credits.accessLevel,
       permissionRole: credits.permissionRole,
     }),
+    shellAiCredits: buildShellAiCreditsViewModel(credits),
     restorationHelper: assistantCreditsRestorationHelper({
       lockCause: resolveAssistantAccountLockCause({
         billingStatus: credits.billingStatus,
@@ -1433,6 +1463,30 @@ function toSnapshot(
       open: state.deleteConfirmConversationId != null,
       conversationId: state.deleteConfirmConversationId,
     },
+  }
+}
+
+function buildShellAiCreditsViewModel(
+  credits: OperatorAiAssistantCreditsChrome
+): OperatorShellAiCreditsViewModel {
+  const used = resolveShellAiCreditsUsed({
+    remaining: credits.remaining,
+    allowance: credits.allowance,
+    usedThisCycle: credits.usedThisCycle,
+  })
+  return {
+    buttonLabel: shellAiCreditsButtonLabel(credits.remaining),
+    title: SHELL_AI_CREDITS_TITLE,
+    usedLine: shellAiCreditsUsedLine(used, credits.allowance),
+    leftLine: shellAiCreditsLeftLine(credits.remaining),
+    fillRatio: shellAiCreditsFillRatio(credits.remaining, used),
+    viewUsageLabel: SHELL_AI_VIEW_USAGE_LABEL,
+    addCreditsLabel: SHELL_AI_ADD_CREDITS_LABEL,
+    showViewUsage: assistantCreditsShowViewUsage(credits.accessLevel),
+    showAddCredits: assistantCreditsShowAddCredits({
+      accessLevel: credits.accessLevel,
+      permissionRole: credits.permissionRole,
+    }),
   }
 }
 
@@ -1550,6 +1604,7 @@ export function createOperatorAiAssistantModule(
   let creditsChrome: OperatorAiAssistantCreditsChrome = {
     remaining: ASSISTANT_CREDITS_STUB_REMAINING,
     allowance: ASSISTANT_CREDITS_STUB_ALLOWANCE,
+    usedThisCycle: ASSISTANT_CREDITS_STUB_USED,
     accessLevel: adapters.getBillingCreditsAccess(),
     permissionRole: "",
     billingStatus: "Active",
@@ -2065,7 +2120,7 @@ export function createOperatorAiAssistantModule(
     runTurn(prompt, false)
   }
 
-  return {
+  const api: OperatorAiAssistantModule = {
     getSnapshot: () => snapshot,
     subscribe: (listener) => {
       listeners.add(listener)
@@ -2704,6 +2759,7 @@ export function createOperatorAiAssistantModule(
       }
       closeDrawer()
     },
+    refreshCreditsChrome,
     viewUsage: () => {
       if (!assistantCreditsShowViewUsage(creditsChrome.accessLevel)) {
         return
@@ -2740,4 +2796,8 @@ export function createOperatorAiAssistantModule(
       adapters.navigateBillingHref(helper.href)
     },
   }
+
+  refreshCreditsChrome()
+
+  return api
 }

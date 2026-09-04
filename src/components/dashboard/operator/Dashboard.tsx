@@ -405,6 +405,7 @@ function DashboardContent({ mode }: DashboardProps) {
             onToggleHelpful: aiAssistant.toggleHelpful,
             onActivateAction: aiAssistant.clickAction,
             onDismissFromEscape: aiAssistant.dismissFromEscape,
+            onRefreshCreditsChrome: aiAssistant.refreshCreditsChrome,
             onViewUsage: aiAssistant.viewUsage,
             onAddCredits: aiAssistant.addCredits,
             onFollowRestorationHelper: aiAssistant.followRestorationHelper,

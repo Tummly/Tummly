@@ -1,4 +1,3 @@
-import aiIconPng from "@/assets/svg/ui-icons/ai-icon.png"
 import { ArrowRight, CheckCircle2, TrendingUp, Users, MessageSquare, Gift } from "lucide-react"
 import {
   Dialog,
@@ -7,6 +6,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 
 type ReportsWeeklyBriefDialogProps = {
@@ -36,7 +36,7 @@ export function ReportsWeeklyBriefDialog({
       >
         <DialogHeader className="text-left">
           <div className="flex items-center gap-2 text-xs font-semibold text-op-action-primary uppercase tracking-wider">
-            <img src={aiIconPng} alt="" className="size-4 shrink-0 brightness-0 invert" />
+            <AiIcon size={16} />
             <span>AI Weekly Brief — {dateRangeLabel}</span>
           </div>
           <DialogTitle className="text-xl font-bold text-op-text-primary">

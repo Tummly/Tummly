@@ -7,15 +7,54 @@ import {
   operatorDashboardBillingCreditsManagePlanPath,
   operatorDashboardBillingCreditsPath,
 } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
-import { formatCreditCount } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
+import {
+  creditChannelFillRatio,
+  formatCreditCount,
+} from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
 
 export const ASSISTANT_CREDITS_STUB_REMAINING = 20
 export const ASSISTANT_CREDITS_STUB_ALLOWANCE = 20
+export const ASSISTANT_CREDITS_STUB_USED = 0
 export const ASSISTANT_VIEW_USAGE_LABEL = "View usage"
 export const ASSISTANT_ADD_CREDITS_LABEL = "Add credits"
 export const ASSISTANT_CHOOSE_PLAN_LABEL = "Choose a plan"
 export const ASSISTANT_UPDATE_PAYMENT_LABEL = "Update payment method"
+
+/** Shell navbar AI credits popover — Figma 5216:26967. */
+export const SHELL_AI_CREDITS_TITLE = "AI credit usage"
+export const SHELL_AI_VIEW_USAGE_LABEL = "View AI usage"
+export const SHELL_AI_ADD_CREDITS_LABEL = "Add AI credits"
+
+export function shellAiCreditsButtonLabel(remaining: number): string {
+  return `${formatCreditCount(remaining)} AI credits`
+}
+
+export function shellAiCreditsUsedLine(used: number, allowance: number): string {
+  return `${formatCreditCount(used)} of ${formatCreditCount(allowance)} AI credits used`
+}
+
+export function shellAiCreditsLeftLine(remaining: number): string {
+  return `${formatCreditCount(remaining)} AI credits left`
+}
+
+export function shellAiCreditsFillRatio(
+  remaining: number,
+  used: number
+): number {
+  return creditChannelFillRatio(remaining, used)
+}
+
+export function resolveShellAiCreditsUsed(options: {
+  remaining: number
+  allowance: number
+  usedThisCycle?: number
+}): number {
+  if (options.usedThisCycle != null) {
+    return Math.max(0, options.usedThisCycle)
+  }
+  return Math.max(0, options.allowance - options.remaining)
+}
 
 export type AssistantAccountLockCause = "unpaid-pilot" | "dunning"
 

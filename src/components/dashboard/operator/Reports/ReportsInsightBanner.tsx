@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 
-import aiIconPng from "@/assets/svg/ui-icons/ai-icon.png"
+import { AiIcon } from "@/components/ui/ai-icon"
 import {
   REPORTS_INSIGHT_BANNER_CLASS,
   REPORTS_INSIGHT_BODY_CLASS,
@@ -22,11 +22,7 @@ export function ReportsInsightBanner({
 }: ReportsInsightBannerProps) {
   return (
     <div className={cn(REPORTS_INSIGHT_BANNER_CLASS, className)}>
-      <img
-        src={aiIconPng}
-        alt=""
-        className="mt-0.5 size-4 shrink-0 brightness-0 invert"
-      />
+      <AiIcon size={16} className="mt-0.5" />
       <div className="flex min-w-0 flex-col gap-1">
         {title != null ? (
           <p className={REPORTS_INSIGHT_TITLE_CLASS}>{title}</p>

@@ -963,8 +963,9 @@ export function createOperatorReportsPageModule(
       }
     },
     async syncWorkspace(input) {
+      const previous = state.workspace
       const locationChanged =
-        state.workspace?.selectedLocationId !== input.selectedLocationId
+        previous?.selectedLocationId !== input.selectedLocationId
       state = {
         ...state,
         workspace: input,
@@ -982,6 +983,12 @@ export function createOperatorReportsPageModule(
           : {}),
       }
       publish()
+
+      // Same Owned location — update export chrome only. Do not reload KPIs
+      // (Dashboard re-renders from shell chrome such as AI credits refresh).
+      if (previous != null && !locationChanged) {
+        return
+      }
 
       await loadForActiveSurface()
     },

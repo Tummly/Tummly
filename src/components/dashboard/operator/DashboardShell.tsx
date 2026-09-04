@@ -115,6 +115,7 @@ type DashboardShellProps = {
     ) => void
     onActivateAction: (action: OperatorAiAssistantAction) => void
     onDismissFromEscape: () => void
+    onRefreshCreditsChrome: () => void
     onViewUsage: () => void
     onAddCredits: () => void
     onFollowRestorationHelper: () => void
@@ -212,6 +213,20 @@ export function DashboardShell({
               }
               : undefined
           }
+          shellAiCredits={
+            aiAssistant ? aiAssistant.snapshot.shellAiCredits : undefined
+          }
+          onShellAiCreditsOpenChange={
+            aiAssistant
+              ? (open) => {
+                  if (open) {
+                    aiAssistant.onRefreshCreditsChrome()
+                  }
+                }
+              : undefined
+          }
+          onViewAiCreditsUsage={aiAssistant?.onViewUsage}
+          onAddAiCredits={aiAssistant?.onAddCredits}
           onOpenAiAssistant={
             aiAssistant ? handleOpenAiAssistant : undefined
           }

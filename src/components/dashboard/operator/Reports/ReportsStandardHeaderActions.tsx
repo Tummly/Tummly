@@ -1,7 +1,7 @@
 import { Download } from "lucide-react"
 
-import aiIconPng from "@/assets/svg/ui-icons/ai-icon.png"
 import { ReportsDateRangeControl } from "@/components/dashboard/operator/Reports/ReportsDateRangeControl"
+import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
@@ -38,11 +38,7 @@ export function ReportsStandardHeaderActions({
         onClick={onGenerateBrief}
         disabled={generateBusy}
       >
-        <img
-          src={aiIconPng}
-          alt=""
-          className="size-4 shrink-0 brightness-0 invert"
-        />
+        <AiIcon size={16} />
         <span>{REPORTS_STANDARD_ACTIONS_COPY.generateBrief}</span>
       </Button>
 

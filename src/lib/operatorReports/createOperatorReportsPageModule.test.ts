@@ -459,6 +459,19 @@ describe("createOperatorReportsPageModule", () => {
     })
   })
 
+  it("does not reload hub when syncWorkspace repeats the same location", async () => {
+    const adapters = createAdapters()
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    expect(adapters.getOverview).toHaveBeenCalledTimes(1)
+    expect(adapters.getWeeklyBrief).toHaveBeenCalledTimes(1)
+
+    await module.syncWorkspace(workspace({ offersView: false }))
+    expect(adapters.getOverview).toHaveBeenCalledTimes(1)
+    expect(adapters.getWeeklyBrief).toHaveBeenCalledTimes(1)
+    expect(module.getSnapshot().exportOffersRedemptionLogVisible).toBe(false)
+  })
+
   it("sets lifetimeEmpty hub status from overview API", async () => {
     const adapters = createAdapters({
       getOverview: async () => ({

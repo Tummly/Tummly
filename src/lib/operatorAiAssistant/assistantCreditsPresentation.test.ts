@@ -11,6 +11,9 @@ import {
   ASSISTANT_CREDITS_STUB_REMAINING_LINE,
   ASSISTANT_UPDATE_PAYMENT_LABEL,
   ASSISTANT_VIEW_USAGE_LABEL,
+  SHELL_AI_ADD_CREDITS_LABEL,
+  SHELL_AI_CREDITS_TITLE,
+  SHELL_AI_VIEW_USAGE_LABEL,
   assistantComposerBorderClass,
   assistantComposerFieldClass,
   assistantComposerMicActive,
@@ -25,6 +28,11 @@ import {
   assistantCreditsViewUsageHref,
   isAssistantAccountLocked,
   resolveAssistantAccountLockCause,
+  resolveShellAiCreditsUsed,
+  shellAiCreditsButtonLabel,
+  shellAiCreditsFillRatio,
+  shellAiCreditsLeftLine,
+  shellAiCreditsUsedLine,
 } from "./assistantCreditsPresentation"
 
 describe("assistantCreditsPresentation", () => {
@@ -42,6 +50,28 @@ describe("assistantCreditsPresentation", () => {
     )
     expect(ASSISTANT_VIEW_USAGE_LABEL).toBe("View usage")
     expect(ASSISTANT_ADD_CREDITS_LABEL).toBe("Add credits")
+  })
+
+  it("formats shell AI credits button and popover copy", () => {
+    expect(shellAiCreditsButtonLabel(100)).toBe("100 AI credits")
+    expect(shellAiCreditsButtonLabel(0)).toBe("0 AI credits")
+    expect(shellAiCreditsUsedLine(0, 100)).toBe("0 of 100 AI credits used")
+    expect(shellAiCreditsLeftLine(100)).toBe("100 AI credits left")
+    expect(shellAiCreditsFillRatio(100, 0)).toBe(0)
+    expect(shellAiCreditsFillRatio(70, 30)).toBe(0.3)
+    expect(resolveShellAiCreditsUsed({ remaining: 80, allowance: 100 })).toBe(
+      20
+    )
+    expect(
+      resolveShellAiCreditsUsed({
+        remaining: 80,
+        allowance: 100,
+        usedThisCycle: 12,
+      })
+    ).toBe(12)
+    expect(SHELL_AI_CREDITS_TITLE).toBe("AI credit usage")
+    expect(SHELL_AI_VIEW_USAGE_LABEL).toBe("View AI usage")
+    expect(SHELL_AI_ADD_CREDITS_LABEL).toBe("Add AI credits")
   })
 
   it("treats remaining at or below 0 as depleted", () => {

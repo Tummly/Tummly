@@ -85,8 +85,10 @@ export function ReportsPageModuleProvider({
       offersView: dashboardContext.offersAccess !== "none",
       privacyConsentView: dashboardContext.privacyConsentAccess !== "none",
     })
+    // Depend on primitive / stable fields only — Outlet context is a new object
+    // on every Dashboard render (e.g. AI credits refresh), which must not
+    // re-sync and flash Reports loading chrome.
   }, [
-    dashboardContext,
     dashboardContext?.selectedLocationId,
     dashboardContext?.billingStatus,
     dashboardContext?.chargebackRestricted,
