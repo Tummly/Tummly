@@ -38,6 +38,7 @@ import type {
   WeeklyBriefFeedbackSummary,
   WeeklyBriefGenerateResponse,
   WeeklyBriefGetResponse,
+  WeeklyBriefMarkReviewedResponse,
   WeeklyBriefWhatChangedRow,
 } from "@/types/operatorHome"
 import type {
@@ -89,6 +90,10 @@ export type OperatorReportsWeeklyBriefViewModel = {
   whatChanged: WeeklyBriefWhatChangedRow[]
   /** Ready Feedback summary facts; null → hide section. */
   feedbackSummary: WeeklyBriefFeedbackSummary | null
+  /** Durable mark-reviewed timestamp from the ready envelope; null until marked. */
+  reviewedAtUtc: string | null
+  reviewedByUserId: number | null
+  markReviewedBusy: boolean
   errorMessage: string | null
   errorRetryable: boolean
   generateBusy: boolean
@@ -113,6 +118,11 @@ export type OperatorReportsPageSnapshot = {
   campaignsReport: CampaignsReportViewModel | null
   campaignsLoadError: string | null
   exportAllowed: boolean
+  /**
+   * Mark as reviewed is an annotation write — allowed under Soft lock.
+   * Always true while workspace is present (gate is Area reports View on the API).
+   */
+  markAsReviewedAllowed: boolean
   dateRange: HomePerformanceDateRange
   dateRangeLabel: string
   exportDialogOpen: boolean
@@ -131,6 +141,10 @@ export type OperatorReportsPageAdapters = {
   generateWeeklyBrief: (
     locationId: number
   ) => Promise<WeeklyBriefGenerateResponse>
+  markWeeklyBriefReviewed: (
+    locationId: number,
+    week?: string | null
+  ) => Promise<WeeklyBriefMarkReviewedResponse>
   getCapture: (input: {
     locationId: number
     from: string
@@ -175,6 +189,11 @@ export type OperatorReportsPageModule = {
   ensureWeeklyBriefReady: () => Promise<boolean>
   /** Page empty CTA: POST generate in place, then show body. */
   generateWeeklyBriefInPlace: () => Promise<void>
+  /**
+   * Persist Mark as reviewed on the ready location+week row; updates snapshot from
+   * the ready envelope. Soft lock does not block (annotation).
+   */
+  markWeeklyBriefAsReviewed: () => Promise<boolean>
   retryCaptureLoad: () => Promise<void>
   retryFeedbackLoad: () => Promise<void>
   retryOffersLoad: () => Promise<void>
@@ -225,6 +244,9 @@ function emptyWeeklyBrief(
     executiveSummary: null,
     whatChanged: [],
     feedbackSummary: null,
+    reviewedAtUtc: null,
+    reviewedByUserId: null,
+    markReviewedBusy: false,
     errorMessage: null,
     errorRetryable: false,
     generateBusy: false,
@@ -253,6 +275,9 @@ function mapReadyWeeklyBrief(
     executiveSummary: response.executiveSummary,
     whatChanged: response.whatChanged ?? [],
     feedbackSummary: response.feedbackSummary ?? null,
+    reviewedAtUtc: response.reviewedAtUtc ?? null,
+    reviewedByUserId: response.reviewedByUserId ?? null,
+    markReviewedBusy: false,
     errorMessage: null,
     errorRetryable: false,
     generateBusy: false,
@@ -355,6 +380,7 @@ export function createOperatorReportsPageModule(
       campaignsReport: state.campaignsReport,
       campaignsLoadError: state.campaignsLoadError,
       exportAllowed: state.exportAllowed,
+      markAsReviewedAllowed: state.workspace != null,
       dateRange,
       dateRangeLabel: labelForHomePerformanceDateRange(dateRange),
       exportDialogOpen: state.exportDialogOpen,
@@ -1049,6 +1075,44 @@ export function createOperatorReportsPageModule(
         showLoadingImmediately: true,
         markGenerateBusy: true,
       })
+    },
+    async markWeeklyBriefAsReviewed() {
+      const workspace = state.workspace
+      const locationId = workspace?.selectedLocationId
+      if (
+        workspace == null
+        || locationId == null
+        || state.weeklyBrief.status !== "ready"
+      ) {
+        return false
+      }
+
+      patchWeeklyBrief({
+        ...state.weeklyBrief,
+        markReviewedBusy: true,
+      })
+
+      try {
+        const response = await adapters.markWeeklyBriefReviewed(
+          locationId,
+          state.weeklyBrief.week
+        )
+        if (response.success && response.ready) {
+          patchWeeklyBrief(mapReadyWeeklyBrief(response))
+          return true
+        }
+        patchWeeklyBrief({
+          ...state.weeklyBrief,
+          markReviewedBusy: false,
+        })
+        return false
+      } catch {
+        patchWeeklyBrief({
+          ...state.weeklyBrief,
+          markReviewedBusy: false,
+        })
+        return false
+      }
     },
     async retryCaptureLoad() {
       await loadCapture()

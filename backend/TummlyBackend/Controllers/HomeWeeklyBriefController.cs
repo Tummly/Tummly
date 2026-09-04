@@ -209,6 +209,85 @@ namespace TummlyBackend.Controllers
         }
 
         /// <summary>
+        /// Mark the location+week Weekly brief as reviewed (annotation; Soft lock allowed).
+        /// Re-mark refreshes <c>reviewedAtUtc</c> / <c>reviewedByUserId</c>.
+        /// </summary>
+        [HttpPost("mark-reviewed")]
+        public async Task<IActionResult> MarkWeeklyBriefReviewed(
+            [FromQuery] int locationId,
+            [FromQuery] string? week = null,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (locationId <= 0)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "locationId is required.",
+                });
+            }
+
+            var reports = await GateReportsViewAsync(locationId);
+            var denied = reports.ToHttpResult();
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            if (!TryResolveWeekKey(
+                    week,
+                    weekStartsOn: await ResolveWeekStartsOnAsync(
+                        locationId,
+                        cancellationToken
+                    ),
+                    out var weekKey,
+                    out var weekError
+                ))
+            {
+                return weekError!;
+            }
+
+            var row = await _context.WeeklyBriefs
+                .FirstOrDefaultAsync(
+                    brief =>
+                        brief.LocationId == locationId
+                        && brief.WeekKey == weekKey
+                        && brief.Status == WeeklyBriefStatus.Succeeded,
+                    cancellationToken
+                );
+
+            if (row is null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Weekly brief is not ready for this location and week.",
+                });
+            }
+
+            row.ReviewedAtUtc = DateTime.UtcNow;
+            row.ReviewedByUserId = userId;
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return await ReadyEnvelopeOrStoreErrorAsync(
+                locationId,
+                weekKey,
+                row,
+                cancellationToken
+            );
+        }
+
+        /// <summary>
         /// Resolve workspace-week key for GET — any valid key, or closed prior when omitted.
         /// </summary>
         private static bool TryResolveWeekKey(
@@ -329,6 +408,8 @@ namespace TummlyBackend.Controllers
                 executiveSummary = phase1.ExecutiveSummary,
                 whatChanged = phase1.WhatChanged,
                 feedbackSummary = phase1.FeedbackSummary,
+                reviewedAtUtc = row.ReviewedAtUtc,
+                reviewedByUserId = row.ReviewedByUserId,
             });
         }
 

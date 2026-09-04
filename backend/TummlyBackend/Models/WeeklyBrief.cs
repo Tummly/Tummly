@@ -49,6 +49,19 @@ namespace TummlyBackend.Models
         /// Prefer omitting the row until success instead.
         /// </summary>
         public string? ErrorInfo { get; set; }
+
+        /// <summary>
+        /// When an operator marked this location+week brief as reviewed (annotation).
+        /// Null until first mark. Re-mark refreshes this timestamp.
+        /// </summary>
+        public DateTime? ReviewedAtUtc { get; set; }
+
+        /// <summary>
+        /// User who last marked this brief as reviewed. Null until first mark.
+        /// </summary>
+        public int? ReviewedByUserId { get; set; }
+
+        public User? ReviewedByUser { get; set; }
     }
 
     public enum WeeklyBriefStatus

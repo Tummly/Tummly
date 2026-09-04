@@ -9,6 +9,7 @@ import {
   getReportsCampaigns,
   getReportsOverview,
   getWeeklyBrief,
+  markWeeklyBriefReviewed,
 } from "@/api/dashboardApi"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -51,6 +52,7 @@ export function ReportsPageModuleProvider({
       getCampaigns: getReportsCampaigns,
       getWeeklyBrief,
       generateWeeklyBrief,
+      markWeeklyBriefReviewed,
       getReportsDateRange: () => dashboardUiStore.getState().reportsDateRange,
     })
   )

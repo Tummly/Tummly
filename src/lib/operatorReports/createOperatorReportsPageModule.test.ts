@@ -10,6 +10,7 @@ import type {
   WeeklyBriefBody,
   WeeklyBriefGenerateResponse,
   WeeklyBriefGetResponse,
+  WeeklyBriefMarkReviewedResponse,
   WeeklyBriefMetrics,
 } from "@/types/operatorHome"
 import type {
@@ -87,6 +88,8 @@ function readyWeeklyBriefResponse(
       subtitle: "Based on private feedback submitted between Week 33, 2026.",
       needsAttentionCount: 2,
     },
+    reviewedAtUtc: null,
+    reviewedByUserId: null,
   }
 }
 
@@ -328,6 +331,7 @@ function createAdapters(overrides: {
   getReportsDateRange?: OperatorReportsPageAdapters["getReportsDateRange"]
   getWeeklyBrief?: OperatorReportsPageAdapters["getWeeklyBrief"]
   generateWeeklyBrief?: OperatorReportsPageAdapters["generateWeeklyBrief"]
+  markWeeklyBriefReviewed?: OperatorReportsPageAdapters["markWeeklyBriefReviewed"]
 } = {}) {
   const getOverview = vi.fn(
     overrides.getOverview
@@ -363,6 +367,15 @@ function createAdapters(overrides: {
       ?? (async (locationId: number) =>
         readyWeeklyBriefResponse(locationId) as WeeklyBriefGenerateResponse)
   )
+  const markWeeklyBriefReviewed = vi.fn(
+    overrides.markWeeklyBriefReviewed
+      ?? (async (locationId: number) =>
+        ({
+          ...readyWeeklyBriefResponse(locationId),
+          reviewedAtUtc: "2026-08-18T12:00:00Z",
+          reviewedByUserId: 7,
+        }) as WeeklyBriefMarkReviewedResponse)
+  )
   return {
     getOverview,
     getCapture,
@@ -372,6 +385,7 @@ function createAdapters(overrides: {
     getReportsDateRange,
     getWeeklyBrief,
     generateWeeklyBrief,
+    markWeeklyBriefReviewed,
   }
 }
 
@@ -508,8 +522,64 @@ describe("createOperatorReportsPageModule", () => {
       workspace({ billingStatus: "Soft lock" })
     )
     expect(module.getSnapshot().exportAllowed).toBe(false)
+    expect(module.getSnapshot().markAsReviewedAllowed).toBe(true)
     module.openExportDialog()
     expect(module.getSnapshot().exportDialogOpen).toBe(false)
+  })
+
+  it("markWeeklyBriefAsReviewed updates snapshot from adapter ready envelope", async () => {
+    const markWeeklyBriefReviewed = vi.fn(
+      async (locationId: number, week?: string | null) =>
+        ({
+          ...readyWeeklyBriefResponse(locationId),
+          week: week ?? "2026-W33",
+          reviewedAtUtc: "2026-08-19T09:15:00Z",
+          reviewedByUserId: 42,
+        }) as WeeklyBriefMarkReviewedResponse
+    )
+    const adapters = createAdapters({
+      getWeeklyBrief: async (locationId) => readyWeeklyBriefResponse(locationId),
+      markWeeklyBriefReviewed,
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().weeklyBrief.reviewedAtUtc).toBeNull()
+
+    const ok = await module.markWeeklyBriefAsReviewed()
+    expect(ok).toBe(true)
+    expect(markWeeklyBriefReviewed).toHaveBeenCalledWith(1, "2026-W33")
+    expect(module.getSnapshot().weeklyBrief.reviewedAtUtc).toBe(
+      "2026-08-19T09:15:00Z"
+    )
+    expect(module.getSnapshot().weeklyBrief.reviewedByUserId).toBe(42)
+    expect(module.getSnapshot().weeklyBrief.markReviewedBusy).toBe(false)
+  })
+
+  it("allows mark as reviewed under Soft lock", async () => {
+    const markWeeklyBriefReviewed = vi.fn(
+      async (locationId: number) =>
+        ({
+          ...readyWeeklyBriefResponse(locationId),
+          reviewedAtUtc: "2026-08-19T10:00:00Z",
+          reviewedByUserId: 3,
+        }) as WeeklyBriefMarkReviewedResponse
+    )
+    const adapters = createAdapters({
+      getWeeklyBrief: async (locationId) => readyWeeklyBriefResponse(locationId),
+      markWeeklyBriefReviewed,
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace({ billingStatus: "Soft lock" }))
+
+    expect(module.getSnapshot().exportAllowed).toBe(false)
+    expect(module.getSnapshot().markAsReviewedAllowed).toBe(true)
+
+    const ok = await module.markWeeklyBriefAsReviewed()
+    expect(ok).toBe(true)
+    expect(markWeeklyBriefReviewed).toHaveBeenCalledTimes(1)
+    expect(module.getSnapshot().weeklyBrief.reviewedAtUtc).toBe(
+      "2026-08-19T10:00:00Z"
+    )
   })
 
   it("loads hub overview and brief GET in parallel without auto POST", async () => {

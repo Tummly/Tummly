@@ -314,6 +314,9 @@ export type WeeklyBriefReadyResponse = {
   executiveSummary: string;
   whatChanged: WeeklyBriefWhatChangedRow[];
   feedbackSummary: WeeklyBriefFeedbackSummary | null;
+  /** Present when marked; null/omitted until first mark. */
+  reviewedAtUtc?: string | null;
+  reviewedByUserId?: number | null;
 };
 
 export type WeeklyBriefGetResponse =
@@ -329,3 +332,12 @@ export type WeeklyBriefGenerateFailureResponse = {
 export type WeeklyBriefGenerateResponse =
   | WeeklyBriefReadyResponse
   | WeeklyBriefGenerateFailureResponse;
+
+export type WeeklyBriefMarkReviewedFailureResponse = {
+  success: false;
+  message: string;
+};
+
+export type WeeklyBriefMarkReviewedResponse =
+  | WeeklyBriefReadyResponse
+  | WeeklyBriefMarkReviewedFailureResponse;

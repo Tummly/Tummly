@@ -16,6 +16,7 @@ export const WEEKLY_BRIEF_PAGE_COPY = {
     "A plain-English summary of what happened, what changed and what to do next.",
   downloadPdf: "Download PDF",
   markAsReviewed: "Mark as reviewed",
+  reviewed: "Reviewed",
   reviewedToast: "Weekly brief marked as reviewed.",
   pdfDownloadedToast: "Weekly brief PDF downloaded.",
 
@@ -78,6 +79,15 @@ export function formatWeeklyBriefGeneratedAt(generatedAtUtc: string): string {
 /** Join phase-1 data-source labels for the meta card value. */
 export function formatWeeklyBriefDataSources(dataSources: string[]): string {
   return dataSources.join(", ")
+}
+
+/** Chrome label for Mark as reviewed — reflects durable reviewed state. */
+export function weeklyBriefMarkAsReviewedLabel(
+  reviewedAtUtc: string | null | undefined
+): string {
+  return reviewedAtUtc != null && reviewedAtUtc !== ""
+    ? WEEKLY_BRIEF_PAGE_COPY.reviewed
+    : WEEKLY_BRIEF_PAGE_COPY.markAsReviewed
 }
 
 /** Whether the What changed section should render. */

@@ -7,6 +7,7 @@ import {
   planWeeklyBriefFeedbackFollowUpCta,
   shouldShowWeeklyBriefFeedbackSummary,
   shouldShowWeeklyBriefWhatChanged,
+  weeklyBriefMarkAsReviewedLabel,
 } from "@/lib/operatorReports/weeklyBriefPresentation"
 
 describe("weeklyBriefPresentation", () => {
@@ -15,6 +16,7 @@ describe("weeklyBriefPresentation", () => {
     expect(WEEKLY_BRIEF_PAGE_COPY.emptyTitle).toBe("No weekly brief yet")
     expect(WEEKLY_BRIEF_PAGE_COPY.downloadPdf).toBe("Download PDF")
     expect(WEEKLY_BRIEF_PAGE_COPY.markAsReviewed).toBe("Mark as reviewed")
+    expect(WEEKLY_BRIEF_PAGE_COPY.reviewed).toBe("Reviewed")
     expect(WEEKLY_BRIEF_PAGE_COPY.periodLabel).toBe("Period")
     expect(WEEKLY_BRIEF_PAGE_COPY.executiveSummaryTitle).toBe(
       "Executive summary"
@@ -45,6 +47,14 @@ describe("weeklyBriefPresentation", () => {
     expect(
       formatWeeklyBriefDataSources(["Capture", "Feedback", "Offers"])
     ).toBe("Capture, Feedback, Offers")
+  })
+
+  it("switches Mark as reviewed label when durable reviewedAtUtc is set", () => {
+    expect(weeklyBriefMarkAsReviewedLabel(null)).toBe("Mark as reviewed")
+    expect(weeklyBriefMarkAsReviewedLabel("")).toBe("Mark as reviewed")
+    expect(weeklyBriefMarkAsReviewedLabel("2026-08-19T09:15:00Z")).toBe(
+      "Reviewed"
+    )
   })
 
   it("shows What changed only when rows exist", () => {

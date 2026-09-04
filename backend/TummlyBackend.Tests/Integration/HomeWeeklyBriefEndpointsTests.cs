@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -450,12 +451,154 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(0, fake.CallCount);
         }
 
+        [Fact]
+        public async Task MarkWeeklyBriefReviewed_Returns401_WhenUnauthenticated()
+        {
+            var response = await _client.PostAsync(
+                $"/api/home/weekly-brief/mark-reviewed?locationId=1&week={ExplicitWeek}",
+                null
+            );
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task MarkWeeklyBriefReviewed_Returns403_ForNonOwnedLocation()
+        {
+            var owner = await SeedOwnerWithLocationAsync("wb-mark-owner-a");
+            var other = await SeedOwnerWithLocationAsync("wb-mark-owner-b");
+            var body = FakeWeeklyBriefProvider.FixtureFor(EmptyMetrics());
+
+            await SeedSucceededBriefAsync(
+                other.LocationId,
+                ExplicitWeek,
+                body,
+                EmptyMetrics(),
+                DateTime.UtcNow
+            );
+
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/mark-reviewed?locationId={other.LocationId}&week={ExplicitWeek}",
+                owner.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task MarkWeeklyBriefReviewed_FirstMark_PersistsReviewedFields()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-mark-first");
+            var body = FakeWeeklyBriefProvider.FixtureFor(EmptyMetrics());
+            var generatedAt = DateTime.Parse("2026-08-18T09:00:00Z").ToUniversalTime();
+
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                ExplicitWeek,
+                body,
+                EmptyMetrics(),
+                generatedAt
+            );
+
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/mark-reviewed?locationId={seeded.LocationId}&week={ExplicitWeek}",
+                seeded.Jwt
+            );
+            var before = DateTime.UtcNow;
+            var response = await _client.SendAsync(request);
+            var after = DateTime.UtcNow;
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("success").GetBoolean());
+            Assert.True(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(seeded.UserId, json.GetProperty("reviewedByUserId").GetInt32());
+            var reviewedAt = json.GetProperty("reviewedAtUtc").GetDateTime().ToUniversalTime();
+            Assert.InRange(reviewedAt, before.AddSeconds(-2), after.AddSeconds(2));
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var row = await context.WeeklyBriefs.SingleAsync(brief =>
+                brief.LocationId == seeded.LocationId
+                && brief.WeekKey == ExplicitWeek
+            );
+            Assert.Equal(seeded.UserId, row.ReviewedByUserId);
+            Assert.NotNull(row.ReviewedAtUtc);
+        }
+
+        [Fact]
+        public async Task MarkWeeklyBriefReviewed_AllowsSoftLock()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "wb-mark-softlock",
+                softLock: true
+            );
+            var body = FakeWeeklyBriefProvider.FixtureFor(EmptyMetrics());
+
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                ExplicitWeek,
+                body,
+                EmptyMetrics(),
+                DateTime.UtcNow
+            );
+
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/mark-reviewed?locationId={seeded.LocationId}&week={ExplicitWeek}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(seeded.UserId, json.GetProperty("reviewedByUserId").GetInt32());
+            Assert.True(json.TryGetProperty("reviewedAtUtc", out var reviewedAt));
+            Assert.NotEqual(JsonValueKind.Null, reviewedAt.ValueKind);
+        }
+
+        [Fact]
+        public async Task MarkWeeklyBriefReviewed_ReMark_RefreshesTimestampAndReviewer()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-mark-idem");
+            var body = FakeWeeklyBriefProvider.FixtureFor(EmptyMetrics());
+            var firstReviewedAt = DateTime.Parse("2026-08-10T10:00:00Z").ToUniversalTime();
+
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                ExplicitWeek,
+                body,
+                EmptyMetrics(),
+                DateTime.UtcNow,
+                reviewedAtUtc: firstReviewedAt,
+                reviewedByUserId: seeded.UserId
+            );
+
+            using var request = AuthorizedPost(
+                $"/api/home/weekly-brief/mark-reviewed?locationId={seeded.LocationId}&week={ExplicitWeek}",
+                seeded.Jwt
+            );
+            var before = DateTime.UtcNow;
+            var response = await _client.SendAsync(request);
+            var after = DateTime.UtcNow;
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var json = await ReadJsonAsync(response);
+            Assert.True(json.GetProperty("ready").GetBoolean());
+            Assert.Equal(seeded.UserId, json.GetProperty("reviewedByUserId").GetInt32());
+            var reviewedAt = json.GetProperty("reviewedAtUtc").GetDateTime().ToUniversalTime();
+            Assert.True(reviewedAt > firstReviewedAt);
+            Assert.InRange(reviewedAt, before.AddSeconds(-2), after.AddSeconds(2));
+        }
+
         private async Task SeedSucceededBriefAsync(
             int locationId,
             string weekKey,
             WeeklyBriefBody body,
             WeeklyBriefMetrics metrics,
-            DateTime generatedAtUtc
+            DateTime generatedAtUtc,
+            DateTime? reviewedAtUtc = null,
+            int? reviewedByUserId = null
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -472,6 +615,8 @@ namespace TummlyBackend.Tests.Integration
                     BodyJson = JsonSerializer.Serialize(body, WeeklyBriefStoreJson.Options),
                     MetricsJson = JsonSerializer.Serialize(metrics, WeeklyBriefStoreJson.Options),
                     ErrorInfo = null,
+                    ReviewedAtUtc = reviewedAtUtc,
+                    ReviewedByUserId = reviewedByUserId,
                 }
             );
             await context.SaveChangesAsync();
@@ -520,8 +665,12 @@ namespace TummlyBackend.Tests.Integration
 
         private async Task<(
             string Jwt,
-            int LocationId
-        )> SeedOwnerWithLocationAsync(string emailLocalPart)
+            int LocationId,
+            int UserId
+        )> SeedOwnerWithLocationAsync(
+            string emailLocalPart,
+            bool softLock = false
+        )
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -556,6 +705,18 @@ namespace TummlyBackend.Tests.Integration
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
 
+            var billing = BillingCreditsService.CreateDefaultBillingAccount(
+                restaurant.Id,
+                "TUMMLY-UK-GBP-2026-08-V3"
+            );
+            if (softLock)
+            {
+                billing.BillingStatus = BillingStatuses.SoftLock;
+                billing.SoftLockEnteredAt = DateTime.UtcNow.AddDays(-1);
+            }
+
+            context.BillingAccounts.Add(billing);
+
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
@@ -573,7 +734,7 @@ namespace TummlyBackend.Tests.Integration
                 user.Role
             );
 
-            return (jwt, location.Id);
+            return (jwt, location.Id, user.Id);
         }
     }
 }

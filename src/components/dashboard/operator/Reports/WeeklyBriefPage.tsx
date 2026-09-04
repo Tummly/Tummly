@@ -50,6 +50,7 @@ import {
   planWeeklyBriefFeedbackFollowUpCta,
   shouldShowWeeklyBriefFeedbackSummary,
   shouldShowWeeklyBriefWhatChanged,
+  weeklyBriefMarkAsReviewedLabel,
   WEEKLY_BRIEF_PAGE_COPY,
 } from "@/lib/operatorReports/weeklyBriefPresentation"
 import type { OperatorReportsWeeklyBriefMeta } from "@/lib/operatorReports/createOperatorReportsPageModule"
@@ -207,7 +208,7 @@ function WeeklyBriefFeedbackSummarySection(props: {
 
 /**
  * Reports Weekly Brief page — Figma ready chrome (meta, executive summary,
- * What changed, Feedback summary). PDF / Mark as reviewed stay stubs until 08–09.
+ * What changed, Feedback summary). PDF stays a toast stub until 09.
  */
 export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
   const navigate = useNavigate()
@@ -216,7 +217,7 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
   )
   const reports = useReportsPageModule()
   const pageModule = useReportsPageModuleApi()
-  const { weeklyBrief, selectedLocationId, selectedLocationName } =
+  const { weeklyBrief, selectedLocationId, selectedLocationName, markAsReviewedAllowed } =
     reports.snapshot
   const locationId = selectedLocationId ?? 1
   const locationName = selectedLocationName ?? "Location"
@@ -236,7 +237,15 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
   }
 
   const handleMarkAsReviewed = () => {
-    toast.success(WEEKLY_BRIEF_PAGE_COPY.reviewedToast)
+    if (!markAsReviewedAllowed || weeklyBrief.status !== "ready") {
+      return
+    }
+    void (async () => {
+      const ok = await reports.markWeeklyBriefAsReviewed()
+      if (ok) {
+        toast.success(WEEKLY_BRIEF_PAGE_COPY.reviewedToast)
+      }
+    })()
   }
 
   const handleReviewFollowUp = () => {
@@ -252,6 +261,9 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
   )
   const showFeedbackSummary = shouldShowWeeklyBriefFeedbackSummary(
     weeklyBrief.feedbackSummary
+  )
+  const markReviewedLabel = weeklyBriefMarkAsReviewedLabel(
+    weeklyBrief.reviewedAtUtc
   )
 
   return (
@@ -278,10 +290,15 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
             type="button"
             variant="op-tertiary"
             className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            disabled={
+              !markAsReviewedAllowed
+              || weeklyBrief.status !== "ready"
+              || weeklyBrief.markReviewedBusy
+            }
             onClick={handleMarkAsReviewed}
           >
             <CheckCircle className="size-4" aria-hidden />
-            <span>{WEEKLY_BRIEF_PAGE_COPY.markAsReviewed}</span>
+            <span>{markReviewedLabel}</span>
           </Button>
         </>
       }
