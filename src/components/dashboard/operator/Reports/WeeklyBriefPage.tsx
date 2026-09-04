@@ -175,7 +175,7 @@ function WhatChangedSection(props: {
   )
 }
 
-function FeedbackSummarySection(props: {
+function WeeklyBriefFeedbackSummarySection(props: {
   summary: WeeklyBriefFeedbackSummary
   onReviewFollowUp: () => void
 }) {
@@ -348,7 +348,7 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
             <WhatChangedSection rows={weeklyBrief.whatChanged} />
           ) : null}
           {showFeedbackSummary && weeklyBrief.feedbackSummary != null ? (
-            <FeedbackSummarySection
+            <WeeklyBriefFeedbackSummarySection
               summary={weeklyBrief.feedbackSummary}
               onReviewFollowUp={handleReviewFollowUp}
             />
