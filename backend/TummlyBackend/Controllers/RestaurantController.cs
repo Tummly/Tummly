@@ -62,6 +62,7 @@ namespace TummlyBackend.Controllers
                     restaurantName = "",
                     aiAssistantAccess = false,
                     teamPermissionsAccess = "none",
+                    offersAccess = "none",
                     locations = Array.Empty<object>()
                 });
             }
@@ -126,6 +127,11 @@ namespace TummlyBackend.Controllers
                     User
                 );
 
+            var offersAccess = await OperatorChromeAccess.OffersAsync(
+                _permissions,
+                User
+            );
+
             var actorMembership = await _context.RestaurantMemberships
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row =>
@@ -180,6 +186,7 @@ namespace TummlyBackend.Controllers
                     assistant.Status == RestaurantPermissionStatus.Allowed,
                 teamPermissionsAccess,
                 billingCreditsAccess,
+                offersAccess,
                 locations = locations.Select(row => new
                 {
                     row.Id,

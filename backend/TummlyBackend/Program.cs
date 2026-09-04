@@ -420,6 +420,10 @@ builder.Services.AddScoped<
     OfferLifecycleService
 >();
 builder.Services.AddScoped<
+    IOffersRedemptionsExportService,
+    OffersRedemptionsExportService
+>();
+builder.Services.AddScoped<
     IOfferVoidRequestService,
     OfferVoidRequestService
 >();
