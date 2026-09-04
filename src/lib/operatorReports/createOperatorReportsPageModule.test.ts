@@ -626,6 +626,23 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().exportOffersRedemptionLogVisible).toBe(false)
   })
 
+  it("shows Guest consent export row when privacyConsentView is omitted or true", async () => {
+    const adapters = createAdapters()
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    expect(module.getSnapshot().exportGuestConsentVisible).toBe(true)
+
+    await module.syncWorkspace(workspace({ privacyConsentView: true }))
+    expect(module.getSnapshot().exportGuestConsentVisible).toBe(true)
+  })
+
+  it("hides Guest consent export row when privacyConsentView is false", async () => {
+    const adapters = createAdapters()
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace({ privacyConsentView: false }))
+    expect(module.getSnapshot().exportGuestConsentVisible).toBe(false)
+  })
+
   it("gates offers-redemptions CSV behind client consent before download", async () => {
     const downloadReportsExport = vi.fn(async () => ({
       blob: new Blob(["Date/time,Guest\n"], { type: "text/csv" }),
@@ -675,6 +692,58 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().exportAllowed).toBe(false)
 
     const ok = await module.requestExport("offers-redemptions")
+    expect(ok).toBe(false)
+    expect(module.getSnapshot().pendingCsvExportKind).toBeNull()
+    expect(downloadReportsExport).not.toHaveBeenCalled()
+  })
+
+  it("gates guest-consent CSV behind client consent before download", async () => {
+    const downloadReportsExport = vi.fn(async () => ({
+      blob: new Blob(["Guest,Permission\n"], { type: "text/csv" }),
+      filename: "tummly-consent-permission-records-1-20260717-120000Z.csv",
+    }))
+    const triggerBrowserDownload = vi.fn()
+    const adapters = createAdapters({
+      downloadReportsExport,
+      triggerBrowserDownload,
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+    module.openExportDialog()
+
+    await module.requestExport("guest-consent")
+    expect(module.getSnapshot().pendingCsvExportKind).toBe("guest-consent")
+    expect(module.getSnapshot().csvConsentChecked).toBe(false)
+
+    const blocked = await module.confirmCsvExport()
+    expect(blocked).toBe(false)
+    expect(downloadReportsExport).not.toHaveBeenCalled()
+
+    module.setCsvConsentChecked(true)
+    const ok = await module.confirmCsvExport()
+    expect(ok).toBe(true)
+    expect(downloadReportsExport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "guest-consent",
+        locationId: 1,
+      })
+    )
+    expect(triggerBrowserDownload).toHaveBeenCalled()
+  })
+
+  it("does not download guest-consent when export is not allowed", async () => {
+    const downloadReportsExport = vi.fn(async () => ({
+      blob: new Blob(["Guest\n"], { type: "text/csv" }),
+      filename: "tummly-consent-permission-records-1.csv",
+    }))
+    const adapters = createAdapters({ downloadReportsExport })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(
+      workspace({ billingStatus: "Soft lock" })
+    )
+    expect(module.getSnapshot().exportAllowed).toBe(false)
+
+    const ok = await module.requestExport("guest-consent")
     expect(ok).toBe(false)
     expect(module.getSnapshot().pendingCsvExportKind).toBeNull()
     expect(downloadReportsExport).not.toHaveBeenCalled()

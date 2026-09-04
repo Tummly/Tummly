@@ -421,6 +421,7 @@ function DashboardContent({ mode }: DashboardProps) {
           permissionRole: workspace.snapshot.permissionRole,
           chargebackRestricted: workspace.snapshot.chargebackRestricted,
           offersAccess: workspace.snapshot.offersAccess,
+          privacyConsentAccess: workspace.snapshot.privacyConsentAccess,
           selectedLocationId,
           locations: workspace.snapshot.locations,
           brandLogoPublicUrl: workspace.snapshot.brandLogoPublicUrl ?? null,
@@ -471,6 +472,8 @@ export type DashboardOutletContext = {
   chargebackRestricted: boolean
   /** Offers Area chrome — omit/manage keeps redemption log export visible. */
   offersAccess: "none" | "view" | "manage"
+  /** Privacy consent Area chrome — omit/manage keeps Guest consent export visible. */
+  privacyConsentAccess: "none" | "view" | "manage"
   selectedLocationId: number
   locations: Array<{
     id: number

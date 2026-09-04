@@ -71,6 +71,11 @@ export type OperatorReportsWorkspaceInput = {
    * omit must not hide the Offer redemption log export row).
    */
   offersView?: boolean
+  /**
+   * Privacy consent Area ≥ View. Omit defaults to true (CODING_STANDARDS chrome
+   * access omit must not hide the Guest consent export row).
+   */
+  privacyConsentView?: boolean
 }
 
 export type OperatorReportsWeeklyBriefStatus =
@@ -142,6 +147,11 @@ export type OperatorReportsPageSnapshot = {
    * visible; explicit false hides.
    */
   exportOffersRedemptionLogVisible: boolean
+  /**
+   * Guest consent (Permission records) CSV card in Export dialog. Omit/true
+   * privacyConsentView keeps visible; explicit false hides.
+   */
+  exportGuestConsentVisible: boolean
   dateRange: HomePerformanceDateRange
   dateRangeLabel: string
   exportDialogOpen: boolean
@@ -366,6 +376,15 @@ function resolveExportOffersRedemptionLogVisible(
   return input.offersView !== false
 }
 
+function resolveExportGuestConsentVisible(
+  input: OperatorReportsWorkspaceInput | null
+): boolean {
+  if (input == null) {
+    return true
+  }
+  return input.privacyConsentView !== false
+}
+
 function selectedLocationName(
   workspace: OperatorReportsWorkspaceInput | null
 ): string | null {
@@ -446,6 +465,9 @@ export function createOperatorReportsPageModule(
       exportAllowed: state.exportAllowed,
       markAsReviewedAllowed: state.workspace != null,
       exportOffersRedemptionLogVisible: resolveExportOffersRedemptionLogVisible(
+        state.workspace
+      ),
+      exportGuestConsentVisible: resolveExportGuestConsentVisible(
         state.workspace
       ),
       dateRange,

@@ -1,5 +1,5 @@
 import { resolveInitialLocationId } from "@/lib/operatorHome/buildHomeViewModel"
-import { parseOperatorProfile, parseTeamPermissionsAccess, parseBillingCreditsAccess, parseOffersAccess, type BillingCreditsAccess, type OffersAccess, type TeamPermissionsAccess } from "@/lib/operatorHome/parseOperatorProfile"
+import { parseOperatorProfile, parseTeamPermissionsAccess, parseBillingCreditsAccess, parseOffersAccess, parsePrivacyConsentAccess, type BillingCreditsAccess, type OffersAccess, type PrivacyConsentAccess, type TeamPermissionsAccess } from "@/lib/operatorHome/parseOperatorProfile"
 import type { LocationItem, LocationsResponse } from "@/types/dashboard"
 
 export type OperatorWorkspaceMode = "single" | "multi"
@@ -17,6 +17,7 @@ export type OperatorWorkspaceSnapshot = {
   teamPermissionsAccess: TeamPermissionsAccess
   billingCreditsAccess: BillingCreditsAccess
   offersAccess: OffersAccess
+  privacyConsentAccess: PrivacyConsentAccess
   subscriptionPlan: string
   billingStatus: string
   /** Omit / false = not restricted (chrome stays available). */
@@ -64,6 +65,7 @@ type WorkspaceAction =
       teamPermissionsAccess: TeamPermissionsAccess
       billingCreditsAccess: BillingCreditsAccess
       offersAccess: OffersAccess
+      privacyConsentAccess: PrivacyConsentAccess
       subscriptionPlan: string
       billingStatus: string
       chargebackRestricted: boolean
@@ -111,6 +113,7 @@ function reduce(
         teamPermissionsAccess: action.teamPermissionsAccess,
         billingCreditsAccess: action.billingCreditsAccess,
         offersAccess: action.offersAccess,
+        privacyConsentAccess: action.privacyConsentAccess,
         subscriptionPlan: action.subscriptionPlan,
         billingStatus: action.billingStatus,
         chargebackRestricted: action.chargebackRestricted,
@@ -152,6 +155,7 @@ export function createOperatorWorkspaceSession(
     teamPermissionsAccess: "none",
     billingCreditsAccess: "none",
     offersAccess: "none",
+    privacyConsentAccess: "none",
     subscriptionPlan: "Pilot",
     billingStatus: "Pilot",
     chargebackRestricted: false,
@@ -174,6 +178,7 @@ export function createOperatorWorkspaceSession(
     teamPermissionsAccess: state.teamPermissionsAccess,
     billingCreditsAccess: state.billingCreditsAccess,
     offersAccess: state.offersAccess,
+    privacyConsentAccess: state.privacyConsentAccess,
     subscriptionPlan: state.subscriptionPlan,
     billingStatus: state.billingStatus,
     chargebackRestricted: state.chargebackRestricted,
@@ -204,6 +209,7 @@ export function createOperatorWorkspaceSession(
       teamPermissionsAccess: state.teamPermissionsAccess,
       billingCreditsAccess: state.billingCreditsAccess,
       offersAccess: state.offersAccess,
+      privacyConsentAccess: state.privacyConsentAccess,
       subscriptionPlan: state.subscriptionPlan,
       billingStatus: state.billingStatus,
       chargebackRestricted: state.chargebackRestricted,
@@ -270,6 +276,9 @@ export function createOperatorWorkspaceSession(
           ?? "manage",
         offersAccess:
           parseOffersAccess(locationsResult.offersAccess) ?? "manage",
+        privacyConsentAccess:
+          parsePrivacyConsentAccess(locationsResult.privacyConsentAccess)
+          ?? "manage",
         subscriptionPlan: locationsResult.subscriptionPlan ?? "Pilot",
         billingStatus: locationsResult.billingStatus ?? "Pilot",
         chargebackRestricted: locationsResult.chargebackRestricted === true,

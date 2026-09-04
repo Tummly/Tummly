@@ -61,7 +61,14 @@ const EXPORT_ITEMS: ExportItem[] = [
     buttonLabel: "Download CSV",
     format: "csv",
   },
-  // Guest consent stays out of Reports export pack — Privacy owns that surface.
+  {
+    kind: "guest-consent",
+    title: "Guest consent",
+    description:
+      "Download permission records for the selected location.",
+    buttonLabel: "Download CSV",
+    format: "csv",
+  },
 ]
 
 type ReportsExportDialogProps = {
@@ -71,6 +78,8 @@ type ReportsExportDialogProps = {
   dateRangeLabel?: string
   /** When false, hide the Offer redemption log CSV card. Omit/true shows it. */
   showOfferRedemptionLog?: boolean
+  /** When false, hide the Guest consent CSV card. Omit/true shows it. */
+  showGuestConsent?: boolean
   pendingCsvExportKind: ReportsExportKind | null
   csvConsentChecked: boolean
   exportDownloadBusyKind: ReportsExportKind | null
@@ -87,6 +96,7 @@ export function ReportsExportDialog({
   locationName = "Location",
   dateRangeLabel = "Last 7 days",
   showOfferRedemptionLog = true,
+  showGuestConsent = true,
   pendingCsvExportKind,
   csvConsentChecked,
   exportDownloadBusyKind,
@@ -96,10 +106,15 @@ export function ReportsExportDialog({
   onConfirmCsvExport,
   onCancelCsvConsent,
 }: ReportsExportDialogProps) {
-  const visibleItems = EXPORT_ITEMS.filter(
-    (item) =>
-      item.kind !== "offers-redemptions" || showOfferRedemptionLog
-  )
+  const visibleItems = EXPORT_ITEMS.filter((item) => {
+    if (item.kind === "offers-redemptions") {
+      return showOfferRedemptionLog
+    }
+    if (item.kind === "guest-consent") {
+      return showGuestConsent
+    }
+    return true
+  })
 
   const handleItemClick = async (item: ExportItem) => {
     const ok = await onRequestExport(item.kind)

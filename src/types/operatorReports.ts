@@ -239,6 +239,7 @@ export type ReportsExportKind =
   | "feedback"
   | "campaigns"
   | "offers-redemptions"
+  | "guest-consent"
 
 export type ReportsKpiLoadStatus =
   | "idle"

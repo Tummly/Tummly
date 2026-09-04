@@ -10,6 +10,8 @@ export type BillingCreditsAccess = TeamPermissionsAccess
 
 export type OffersAccess = TeamPermissionsAccess
 
+export type PrivacyConsentAccess = TeamPermissionsAccess
+
 export function parseTeamPermissionsAccess(
   raw: string | null | undefined
 ): TeamPermissionsAccess | null {
@@ -22,6 +24,8 @@ export function parseTeamPermissionsAccess(
 export const parseBillingCreditsAccess = parseTeamPermissionsAccess
 
 export const parseOffersAccess = parseTeamPermissionsAccess
+
+export const parsePrivacyConsentAccess = parseTeamPermissionsAccess
 
 export interface OperatorProfile {
   fullName: string

@@ -1408,18 +1408,26 @@ export const downloadReportsExport = async (input: {
   const path =
     input.kind === "offers-redemptions"
       ? "/offers/redemptions/export"
-      : `/reports/export/${input.kind}`
+      : input.kind === "guest-consent"
+        ? "/privacy-consent/permission-records/export"
+        : `/reports/export/${input.kind}`
   const fallbackFilename =
     input.kind === "offers-redemptions"
       ? `tummly-offers-redemptions-${input.locationId}.${extension}`
-      : `tummly-reports-${input.kind}-${input.locationId}.${extension}`
+      : input.kind === "guest-consent"
+        ? `tummly-consent-permission-records-${input.locationId}.${extension}`
+        : `tummly-reports-${input.kind}-${input.locationId}.${extension}`
   try {
+    const params =
+      input.kind === "guest-consent"
+        ? { locationId: input.locationId }
+        : {
+            locationId: input.locationId,
+            from: input.from,
+            to: input.to,
+          }
     const response = await axiosInstance.get<Blob>(path, {
-      params: {
-        locationId: input.locationId,
-        from: input.from,
-        to: input.to,
-      },
+      params,
       responseType: "blob",
     })
     const filename =

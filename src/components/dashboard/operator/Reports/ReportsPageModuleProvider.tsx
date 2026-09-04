@@ -38,6 +38,7 @@ function ReportsExportDialogHost() {
       showOfferRedemptionLog={
         reports.snapshot.exportOffersRedemptionLogVisible
       }
+      showGuestConsent={reports.snapshot.exportGuestConsentVisible}
       pendingCsvExportKind={reports.snapshot.pendingCsvExportKind}
       csvConsentChecked={reports.snapshot.csvConsentChecked}
       exportDownloadBusyKind={reports.snapshot.exportDownloadBusyKind}
@@ -84,6 +85,7 @@ export function ReportsPageModuleProvider({
       billingStatus: dashboardContext.billingStatus,
       chargebackRestricted: dashboardContext.chargebackRestricted,
       offersView: dashboardContext.offersAccess !== "none",
+      privacyConsentView: dashboardContext.privacyConsentAccess !== "none",
     })
   }, [
     dashboardContext,
@@ -91,6 +93,7 @@ export function ReportsPageModuleProvider({
     dashboardContext?.billingStatus,
     dashboardContext?.chargebackRestricted,
     dashboardContext?.offersAccess,
+    dashboardContext?.privacyConsentAccess,
     dashboardContext?.locations,
     pageModule,
   ])

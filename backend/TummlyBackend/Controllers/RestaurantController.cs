@@ -63,6 +63,7 @@ namespace TummlyBackend.Controllers
                     aiAssistantAccess = false,
                     teamPermissionsAccess = "none",
                     offersAccess = "none",
+                    privacyConsentAccess = "none",
                     locations = Array.Empty<object>()
                 });
             }
@@ -132,6 +133,12 @@ namespace TummlyBackend.Controllers
                 User
             );
 
+            var privacyConsentAccess =
+                await OperatorChromeAccess.PrivacyConsentAsync(
+                    _permissions,
+                    User
+                );
+
             var actorMembership = await _context.RestaurantMemberships
                 .AsNoTracking()
                 .FirstOrDefaultAsync(row =>
@@ -187,6 +194,7 @@ namespace TummlyBackend.Controllers
                 teamPermissionsAccess,
                 billingCreditsAccess,
                 offersAccess,
+                privacyConsentAccess,
                 locations = locations.Select(row => new
                 {
                     row.Id,
