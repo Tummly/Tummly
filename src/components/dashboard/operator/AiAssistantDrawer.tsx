@@ -503,6 +503,7 @@ export function AiAssistantDrawer({
           onOpenAutoFocus={(event) => {
             event.preventDefault()
           }}
+          data-vaul-custom-container="true"
           data-assistant-width="expanded"
         >
           <div className="flex min-h-0 flex-1" data-vaul-no-drag>

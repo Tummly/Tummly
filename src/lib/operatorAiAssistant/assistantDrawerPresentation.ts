@@ -28,6 +28,9 @@ export const OPERATOR_AI_ASSISTANT_LEFT_DRAWER_CLASS = [
   "data-[vaul-drawer-direction=left]:border-op-border-default",
   "data-[vaul-drawer-direction=right]:w-[calc(100vw-52px)]",
   "data-[vaul-drawer-direction=right]:sm:max-w-none",
+  "lg:left-[52px]",
+  "lg:w-[calc(100vw-52px)]",
+  "[&::after]:!hidden [&::after]:!pointer-events-none [&::after]:!w-0",
 ].join(" ")
 
 /** Viewport minus 52px collapsed SideNav. */
@@ -51,12 +54,15 @@ export function paintsAssistantExpand(_input?: {
 }
 
 /**
- * Mount Overlay for left drawer.
+ * Mount Overlay for left drawer only when not expanded on desktop.
  */
-export function assistantDrawerMountsOverlay(_input?: {
+export function assistantDrawerMountsOverlay(input?: {
   widthMode?: OperatorAiAssistantWidthMode
   viewportAtLeastLg?: boolean
 }): boolean {
+  if (input?.widthMode === "expanded" && input.viewportAtLeastLg) {
+    return false
+  }
   return true
 }
 

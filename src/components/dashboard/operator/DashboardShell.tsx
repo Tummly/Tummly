@@ -311,7 +311,7 @@ export function DashboardShell({
       <div className="flex min-h-0 flex-1">
         <div
           className={cn(
-            "relative z-[120] hidden min-h-0 shrink-0 lg:flex lg:flex-col",
+            "relative z-[120] pointer-events-auto hidden min-h-0 shrink-0 lg:flex lg:flex-col",
             "transition-[width] duration-200 ease-out motion-reduce:transition-none",
             effectiveSidebarCollapsed
               ? SIDEBAR_COLLAPSED_WIDTH
