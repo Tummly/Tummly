@@ -170,6 +170,10 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
     dashboardUiStore,
     (state) => state.setReportsDateRange
   )
+  const setCampaignsIntent = useStore(
+    dashboardUiStore,
+    (state) => state.setCampaignsIntent
+  )
   const reports = useReportsPageModule()
   const pageModule = useReportsPageModuleApi()
   const {
@@ -253,7 +257,10 @@ export function ReportsPage({ mode = "single" }: ReportsPageProps) {
               operatorDashboardWeeklyBriefPath(mode, locationId)
             )
           }
-          onCreateCampaign={() => navTo("campaigns")}
+          onCreateCampaign={() => {
+            setCampaignsIntent({ openBlankCreate: true })
+            navTo("campaigns")
+          }}
         />
 
         {hubLoadStatus === "loading" || hubLoadStatus === "idle" ? (

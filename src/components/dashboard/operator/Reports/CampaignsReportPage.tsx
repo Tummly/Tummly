@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { ReportsEmptyState } from "@/components/dashboard/operator/Reports/ReportsEmptyState"
 import { ReportsKpiStrip } from "@/components/dashboard/operator/Reports/ReportsKpiStrip"
 import { ReportsPageChrome } from "@/components/dashboard/operator/Reports/ReportsPageChrome"
@@ -50,6 +51,9 @@ export function CampaignsReportPage({
   mode = "single",
 }: CampaignsReportPageProps) {
   const navigate = useNavigate()
+  const setCampaignsIntent = useDashboardUiStore(
+    (state) => state.setCampaignsIntent
+  )
   const reportsChrome = useReportsChildChrome("campaigns", mode)
   const reports = useReportsPageModule()
   const {
@@ -70,6 +74,7 @@ export function CampaignsReportPage({
   )
 
   const handleCreateCampaign = () => {
+    setCampaignsIntent({ openBlankCreate: true })
     navigate(operatorDashboardNavPath(mode, "campaigns", selectedLocationId))
   }
 
