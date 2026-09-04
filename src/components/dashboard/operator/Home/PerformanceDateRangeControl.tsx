@@ -51,6 +51,12 @@ export type PerformanceDateRangeControlProps = {
   contentClassName?: string
   /** Extra classes for the trigger. Merges after Family A chrome. */
   triggerClassName?: string
+  /** Initial step when opening popover (presets or custom). */
+  defaultStep?: PopoverStep
+  /** Controlled open state for popover. */
+  open?: boolean
+  /** Controlled open change callback. */
+  onOpenChange?: (open: boolean) => void
 }
 
 function parseCommittedCustomDraft(
@@ -75,18 +81,36 @@ export function PerformanceDateRangeControl({
   onCommitLeadingOption,
   contentClassName,
   triggerClassName,
+  defaultStep = "presets",
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: PerformanceDateRangeControlProps) {
-  const [open, setOpen] = useState(false)
-  const [step, setStep] = useState<PopoverStep>("presets")
-  const [draftRange, setDraftRange] = useState<DateRange | undefined>()
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : uncontrolledOpen
+
+  const [step, setStep] = useState<PopoverStep>(defaultStep)
+  const [draftRange, setDraftRange] = useState<DateRange | undefined>(() =>
+    defaultStep === "custom" ? parseCommittedCustomDraft(selectedRange) : undefined
+  )
 
   const resetTransientState = () => {
-    setStep("presets")
-    setDraftRange(undefined)
+    setStep(defaultStep)
+    setDraftRange(
+      defaultStep === "custom" ? parseCommittedCustomDraft(selectedRange) : undefined
+    )
   }
 
   const handleOpenChange = (nextOpen: boolean) => {
-    setOpen(nextOpen)
+    if (isControlled) {
+      controlledOnOpenChange?.(nextOpen)
+    } else {
+      setUncontrolledOpen(nextOpen)
+    }
+    if (nextOpen && defaultStep === "custom") {
+      setStep("custom")
+      setDraftRange(parseCommittedCustomDraft(selectedRange))
+    }
     if (!nextOpen) {
       resetTransientState()
     }
@@ -257,10 +281,14 @@ export function PerformanceDateRangeControl({
                 size="sm"
                 onClick={() => {
                   setDraftRange(undefined)
-                  setStep("presets")
+                  if (defaultStep === "custom") {
+                    handleOpenChange(false)
+                  } else {
+                    setStep("presets")
+                  }
                 }}
               >
-                Back
+                {defaultStep === "custom" ? "Close" : "Back"}
               </Button>
               <div className="flex items-center gap-1">
                 <Button

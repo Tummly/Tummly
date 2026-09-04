@@ -675,11 +675,11 @@ html.op [data-slot="sheet-overlay"] {
  * Operator toast — Figma Success message (3462:60099).
  * Scoped to html.op so Admin / marketing keep Sonner defaults.
  * Maps Sonner richColors vars onto --op-toast-* (all types = light/dark chrome).
- * Stack: Drawer overlay (110) < toast (112) < Drawer content (115) < Dialog (120).
- * Toast stays visible over the dim, but does not cover the drawer panel.
+ * Toast sits on top of all drawers (115), dialogs (120), and overlays (110).
  */
-html.op [data-sonner-toaster].toaster {
-  z-index: 112 !important;
+html.op [data-sonner-toaster].toaster,
+html.op [data-sonner-toaster] {
+  z-index: 9999 !important;
 }
 
 html.op [data-sonner-toaster][data-sonner-theme="light"].toaster,

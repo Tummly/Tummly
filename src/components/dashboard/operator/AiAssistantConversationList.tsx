@@ -1,6 +1,6 @@
 import {
   ChevronRightIcon,
-  MoreVerticalIcon,
+  MoreHorizontalIcon,
   PlusCircleIcon,
 } from "lucide-react"
 
@@ -100,7 +100,7 @@ function ConversationRow({
               event.stopPropagation()
             }}
           >
-            <MoreVerticalIcon className="size-4" aria-hidden />
+            <MoreHorizontalIcon className="size-4" aria-hidden />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className={ASSISTANT_LIST_MENU_CLASS}>
@@ -163,7 +163,7 @@ export function AiAssistantConversationList({
       className={cn(
         ASSISTANT_LIST_PAGE_CLASS,
         expandedSidebar
-          && "w-[332px] flex-none border-x border-op-assistant-list-border px-0"
+          && "w-80 flex-none border-r border-op-assistant-list-border px-0"
       )}
     >
       <div
@@ -345,7 +345,7 @@ export function AiAssistantConversationList({
             <Button
               type="button"
               variant="op-tertiary"
-              className="h-[42px] self-start px-[17px]"
+              className="h-10 self-start px-4 py-2.5 rounded-xs"
               onClick={onOpenArchive}
             >
               Archive

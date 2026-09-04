@@ -4,6 +4,7 @@ export const HOME_PERFORMANCE_PRESET_IDS = [
   "last7",
   "last30",
   "thisMonth",
+  "previousMonth",
 ] as const
 
 export type HomePerformancePresetId =
@@ -31,6 +32,7 @@ const PRESET_LABELS: Record<HomePerformancePresetId, string> = {
   last7: "Last 7 days",
   last30: "Last 30 days",
   thisMonth: "This month",
+  previousMonth: "Previous month",
 }
 
 /** Label for the default Performance overview preset. */
@@ -137,6 +139,13 @@ export function resolveHomePerformanceWindow(
     return {
       from: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29),
       to: now,
+    }
+  }
+
+  if (range.presetId === "previousMonth") {
+    return {
+      from: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+      to: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999),
     }
   }
 

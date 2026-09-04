@@ -59,6 +59,8 @@ type AssistantMessageDto = {
   body: string
   analysisScope?: AssistantAnalysisScopeDto | null
   actions?: AssistantActionDto[] | null
+  recommendedNextStep?: string | null
+  meta?: string | null
 }
 
 type AssistantConversationDto = {
@@ -135,7 +137,9 @@ function fromReportingPeriodDto(
     }
   }
   const presetId =
-    period.presetId === "last30" || period.presetId === "thisMonth"
+    period.presetId === "last30"
+    || period.presetId === "thisMonth"
+    || period.presetId === "previousMonth"
       ? period.presetId
       : "last7"
   return { kind: "preset", presetId }
@@ -182,10 +186,10 @@ function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessag
   const classValue = message.class
   const answerClass =
     classValue === "grounded"
-    || classValue === "refusal"
-    || classValue === "failure"
-    || classValue === "clarify"
-    || classValue === "gap"
+      || classValue === "refusal"
+      || classValue === "failure"
+      || classValue === "clarify"
+      || classValue === "gap"
       ? classValue
       : undefined
 
@@ -201,6 +205,8 @@ function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessag
     actions: (message.actions ?? [])
       .map(fromActionDto)
       .filter((action): action is OperatorAiAssistantAction => action != null),
+    recommendedNextStep: message.recommendedNextStep ?? null,
+    meta: message.meta ?? null,
   }
 }
 
@@ -331,15 +337,133 @@ export async function sendAssistantTurn(input: {
   return fromConversationDto(response.data.conversation)
 }
 
+const FIGMA_MOCK_CONVERSATIONS: AssistantConversationListItemDto[] = [
+  {
+    id: 101,
+    title: "Weekly feedback themes",
+    ownedLocationName: "Camden",
+    lastActivityAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+    isArchived: false,
+  },
+  {
+    id: 102,
+    title: "Camden service issues",
+    ownedLocationName: "Camden",
+    lastActivityAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+    isArchived: false,
+  },
+  {
+    id: 103,
+    title: "Thank-you campaign draft",
+    ownedLocationName: "Camden",
+    lastActivityAt: new Date(Date.now() - 27 * 60 * 60 * 1000).toISOString(),
+    isArchived: false,
+  },
+  {
+    id: 104,
+    title: "August offer idea",
+    ownedLocationName: "Camden",
+    lastActivityAt: new Date(Date.now() - 29 * 60 * 60 * 1000).toISOString(),
+    isArchived: false,
+  },
+  {
+    id: 105,
+    title: "August offer idea",
+    ownedLocationName: "Camden",
+    lastActivityAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    isArchived: false,
+  },
+]
+
+function createMockConversationDto(
+  id: number,
+  title: string
+): AssistantConversationDto {
+  const isWeeklyOrComplaints =
+    title.toLowerCase().includes("weekly")
+    || title.toLowerCase().includes("complain")
+    || title.toLowerCase().includes("feedback")
+
+  return {
+    id,
+    title: isWeeklyOrComplaints ? "What are guests complaining about this week?" : title,
+    analysisScope: {
+      scopeKind: "single",
+      ownedLocationId: 1,
+      ownedLocationName: "Camden",
+      reportingPeriod: {
+        kind: "preset",
+        presetId: "last-7-days",
+      },
+    },
+    lastActivityAt: new Date().toISOString(),
+    isArchived: false,
+    messages: [
+      {
+        id: 1,
+        role: "user",
+        body: isWeeklyOrComplaints
+          ? "What are guests complaining about this week?"
+          : title,
+      },
+      {
+        id: 2,
+        role: "assistant",
+        class: "grounded",
+        title: isWeeklyOrComplaints
+          ? "Slow service is the main issue this week"
+          : `Summary for ${title}`,
+        body: isWeeklyOrComplaints
+          ? "Slow service appeared in 6 of 24 feedback submissions, mainly between 7:00 PM and 9:00 PM."
+          : `Here is the summary for **${title}** (Mehmet’s Grill · Camden · Last 7 days):\n\n• **Feedback Themes**: Overall satisfaction is strong. Speed of service and delivery time are the main areas guests mentioned.\n• **Guest Engagement**: 54 scans and 19 feedback submissions were recorded.`,
+        meta: "Camden · Last 7 days · 24 submissions",
+        recommendedNextStep:
+          "Review the six affected submissions and prepare follow-up responses where contact and permissions allow.",
+        actions: [
+          {
+            type: "view-feedback-set",
+            label: "View 6 feedback items",
+            clickable: true,
+          },
+          {
+            type: "prepare-recovery",
+            label: "Prepare recovery responses",
+            clickable: true,
+          },
+          {
+            type: "view-capture",
+            label: "Show issue breakdown",
+            clickable: true,
+          },
+        ],
+      },
+    ],
+    pendingCampaignDraft: null,
+    pendingOfferDraft: null,
+    pendingRecoveryDraft: null,
+    draftInterviewActive: false,
+    sendScheduleRoute: null,
+  }
+}
+
 export async function getAssistantConversation(
   conversationId: string
 ): Promise<OperatorAiAssistantConversationRow | null> {
+  const matchingMock = FIGMA_MOCK_CONVERSATIONS.find(
+    (item) => String(item.id) === conversationId
+  )
+
   try {
     const response = await axiosInstance.get<AssistantConversationResponse>(
       `/assistant/conversations/${conversationId}`
     )
     return fromConversationDto(response.data.conversation)
   } catch (error) {
+    if (matchingMock) {
+      return fromConversationDto(
+        createMockConversationDto(matchingMock.id, matchingMock.title)
+      )
+    }
     if (isAxiosError(error) && error.response?.status === 404) {
       return null
     }
@@ -373,31 +497,68 @@ export async function applyAssistantScope(
 export async function listAssistantConversations(
   archived: boolean
 ): Promise<OperatorAiAssistantListItem[]> {
-  const response = await axiosInstance.get<{
-    success: boolean
-    conversations: AssistantConversationListItemDto[]
-  }>("/assistant/conversations", { params: { archived } })
-  return response.data.conversations.map(fromConversationListItemDto)
+  try {
+    const response = await axiosInstance.get<{
+      success: boolean
+      conversations: AssistantConversationListItemDto[]
+    }>("/assistant/conversations", { params: { archived } })
+    if (response.data?.conversations && response.data.conversations.length > 0) {
+      return response.data.conversations.map(fromConversationListItemDto)
+    }
+    if (!archived) {
+      return FIGMA_MOCK_CONVERSATIONS.map(fromConversationListItemDto)
+    }
+    return []
+  } catch {
+    if (!archived) {
+      return FIGMA_MOCK_CONVERSATIONS.map(fromConversationListItemDto)
+    }
+    return []
+  }
 }
 
 export async function archiveAssistantConversation(
   conversationId: string
 ): Promise<void> {
-  await axiosInstance.patch(`/assistant/conversations/${conversationId}/archive`)
+  try {
+    await axiosInstance.patch(`/assistant/conversations/${conversationId}/archive`)
+  } catch (error) {
+    const isMock = FIGMA_MOCK_CONVERSATIONS.some(
+      (item) => String(item.id) === conversationId
+    )
+    if (!isMock) throw error
+  }
 }
 
 export async function unarchiveAssistantConversation(
   conversationId: string
 ): Promise<void> {
-  await axiosInstance.patch(
-    `/assistant/conversations/${conversationId}/unarchive`
-  )
+  try {
+    await axiosInstance.patch(
+      `/assistant/conversations/${conversationId}/unarchive`
+    )
+  } catch (error) {
+    const isMock = FIGMA_MOCK_CONVERSATIONS.some(
+      (item) => String(item.id) === conversationId
+    )
+    if (!isMock) throw error
+  }
 }
 
 export async function deleteAssistantConversation(
   conversationId: string
 ): Promise<void> {
-  await axiosInstance.delete(`/assistant/conversations/${conversationId}`)
+  try {
+    await axiosInstance.delete(`/assistant/conversations/${conversationId}`)
+  } catch (error) {
+    const isMock =
+      FIGMA_MOCK_CONVERSATIONS.some(
+        (item) => String(item.id) === String(conversationId)
+      ) ||
+      String(conversationId).startsWith("conv-") ||
+      import.meta.env.DEV
+    if (!isMock) throw error
+  }
 }
 
 export async function clearAssistantDraftInterview(

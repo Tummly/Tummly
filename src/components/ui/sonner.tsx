@@ -32,6 +32,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--toast-close-button-start": "auto",
           "--toast-close-button-end": "var(--op-toast-padding-x, 18px)",
           "--toast-close-button-transform": "translateY(-50%)",
+          zIndex: 9999,
         } as CSSProperties
       }
       toastOptions={{

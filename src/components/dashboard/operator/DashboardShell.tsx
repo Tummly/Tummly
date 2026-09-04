@@ -181,7 +181,11 @@ export function DashboardShell({
 
   const handleOpenAiAssistant = () => {
     setMobileNavOpen(false)
-    aiAssistant?.onOpen()
+    if (aiAssistant?.snapshot.drawerOpen) {
+      aiAssistant.onOpenChange(false)
+    } else {
+      aiAssistant?.onOpen()
+    }
   }
 
   return (
@@ -307,7 +311,7 @@ export function DashboardShell({
       <div className="flex min-h-0 flex-1">
         <div
           className={cn(
-            "hidden min-h-0 shrink-0 lg:flex lg:flex-col",
+            "relative z-[120] hidden min-h-0 shrink-0 lg:flex lg:flex-col",
             "transition-[width] duration-200 ease-out motion-reduce:transition-none",
             effectiveSidebarCollapsed
               ? SIDEBAR_COLLAPSED_WIDTH

@@ -191,7 +191,10 @@ export function useAiAssistantModule(
         listConversations: listAssistantConversations,
         archiveConversation: archiveAssistantConversation,
         unarchiveConversation: unarchiveAssistantConversation,
-        deleteConversation: deleteAssistantConversation,
+        deleteConversation: async (conversationId: string) => {
+          await deleteAssistantConversation(conversationId)
+          toast.success("Conversation deleted")
+        },
         nowMs: () => Date.now(),
         getDashboardOwnedLocation: () => {
           const current = contextRef.current

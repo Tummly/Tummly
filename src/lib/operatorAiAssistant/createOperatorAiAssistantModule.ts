@@ -126,6 +126,8 @@ export type OperatorAiAssistantMessage = {
   body: string
   analysisScope?: OperatorAiAssistantAnalysisScope
   actions?: OperatorAiAssistantAction[]
+  recommendedNextStep?: string | null
+  meta?: string | null
 }
 
 export type OperatorAiAssistantConversationRow = {
@@ -220,6 +222,7 @@ export const EMPTY_SUGGESTION_CHIPS = [
   "Draft an offer",
   "Explain performance",
   "Help with guest recovery",
+  "Compare locations",
 ] as const
 
 export type OperatorAiAssistantPresentedRow = OperatorAiAssistantListItem & {
@@ -898,7 +901,7 @@ const CLOSED_CHANGE_SCOPE_DIALOG: ChangeScopeDialogState = {
 
 const INITIAL_STATE: AssistantState = {
   drawerOpen: false,
-  widthMode: "collapsed",
+  widthMode: "expanded",
   view: "empty",
   listPanel: "recent",
   conversationId: null,
@@ -1600,22 +1603,24 @@ export function createOperatorAiAssistantModule(
       state = {
         ...emptyGreetingState(state, adapters, operatorFirstName),
         drawerOpen: true,
-        widthMode: "collapsed",
+        widthMode: "expanded",
       }
       publish()
+      loadList(false)
       return
     }
 
     state = {
       ...state,
       drawerOpen: true,
-      widthMode: "collapsed",
+      widthMode: "expanded",
       operatorFirstName,
       restaurantName: adapters.getRestaurantName(),
       changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
       composerDraft: "",
     }
     publish()
+    loadList(false)
 
     void adapters.getConversation(resumeId).then((row) => {
       if (!state.drawerOpen) {
@@ -1626,14 +1631,14 @@ export function createOperatorAiAssistantModule(
       }
       if (row == null) {
         showEmptyGreeting(operatorFirstName)
-        state = { ...state, drawerOpen: true, widthMode: "collapsed" }
+        state = { ...state, drawerOpen: true, widthMode: "expanded" }
         publish()
         return
       }
       state = {
         ...applyConversation(state, row),
         drawerOpen: true,
-        widthMode: "collapsed",
+        widthMode: "expanded",
         operatorFirstName,
         restaurantName: adapters.getRestaurantName(),
         composerDraft: "",
@@ -2108,19 +2113,28 @@ export function createOperatorAiAssistantModule(
       if (conversationId == null) {
         return
       }
-      void adapters.deleteConversation(conversationId).then(() => {
-        const deletedOpen = state.conversationId === conversationId
-        if (deletedOpen) {
-          showEmptyGreeting()
-          return
-        }
-        state = {
-          ...state,
-          listItems: state.listItems.filter((row) => row.id !== conversationId),
-          deleteConfirmConversationId: null,
-        }
-        publish()
-      })
+      void adapters
+        .deleteConversation(conversationId)
+        .then(() => {
+          const deletedOpen = state.conversationId === conversationId
+          state = {
+            ...state,
+            listItems: state.listItems.filter((row) => row.id !== conversationId),
+            deleteConfirmConversationId: null,
+          }
+          if (deletedOpen) {
+            showEmptyGreeting()
+            return
+          }
+          publish()
+        })
+        .catch(() => {
+          state = {
+            ...state,
+            deleteConfirmConversationId: null,
+          }
+          publish()
+        })
     },
     retryList: () => {
       if (state.view === "archive") {

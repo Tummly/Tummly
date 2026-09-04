@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { XIcon } from "lucide-react"
 
 import { PerformanceDateRangeControl } from "@/components/dashboard/operator/Home/PerformanceDateRangeControl"
@@ -17,12 +18,12 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
 import {
   labelForHomePerformanceDateRange,
+  toLocalDateKey,
   type HomePerformanceDateRange,
 } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
@@ -32,9 +33,9 @@ import {
 import {
   ALL_OWNED_LOCATIONS_PICKER_LABEL,
   ALL_OWNED_LOCATIONS_SELECT_VALUE,
-  changeScopeLocationSelectValue,
   type OperatorAiAssistantChangeScopeDialogSnapshot,
   type OperatorAiAssistantDraftLocation,
+  type OperatorAiAssistantOwnedLocationOption,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import { cn } from "@/lib/utils"
 
@@ -47,28 +48,38 @@ type AiAssistantChangeScopeDialogProps = {
 }
 
 /** Portaled menus inside Change analysis scope — above Dialog (`z-[120]`). */
-const DIALOG_MENU_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CLASS} min-w-40 gap-0 px-0 py-1 z-[130] p-0`
+const DIALOG_MENU_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CLASS} min-w-[var(--radix-select-trigger-width)] gap-0 px-0 py-1 z-[140] p-0`
 
 const SELECT_TRIGGER_CLASS =
-  "h-auto min-h-[50px] w-full justify-between rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm font-normal text-[var(--op-color-gray-550)] shadow-none dark:bg-transparent dark:hover:bg-transparent"
+  "h-auto min-h-[50px] w-full justify-between rounded border border-op-input-border bg-transparent px-[15px] py-[15px] text-sm font-normal text-op-text-primary shadow-none data-placeholder:text-[var(--op-color-gray-550)] dark:bg-transparent dark:hover:bg-transparent"
 
-/** Full-width period field — label left, chevron right (not centered). */
-const PERIOD_TRIGGER_CLASS = cn(
+const CUSTOM_DATE_TRIGGER_CLASS = cn(
   SELECT_TRIGGER_CLASS,
-  "justify-start text-left [&_svg:last-child]:ml-auto"
+  "justify-start text-left [&_svg:last-child]:ml-auto cursor-pointer"
 )
 
 const SELECT_ITEM_CLASS = [
   OPERATOR_SHELL_MENU_ITEM_CLASS,
-  "pr-3 focus:bg-black/5 focus:text-inherit dark:focus:bg-white/5",
-  "data-[state=checked]:bg-transparent data-[state=checked]:font-medium data-[state=checked]:text-primary",
-  "data-[state=checked]:focus:bg-transparent data-[state=checked]:focus:text-primary",
-  "data-[state=checked]:hover:bg-transparent data-[state=checked]:hover:text-primary",
+  "cursor-pointer px-3 py-2 text-sm text-foreground focus:bg-white/10 focus:text-white dark:focus:bg-white/10",
+  "data-[state=checked]:font-medium data-[state=checked]:text-primary",
   "[&>span.absolute]:hidden",
 ].join(" ")
 
 const FIELD_LABEL_CLASS =
   "text-sm font-semibold leading-5 text-op-text-primary"
+
+const DEFAULT_LOCATIONS: readonly OperatorAiAssistantOwnedLocationOption[] = [
+  { id: 11, name: "Camden" },
+  { id: 12, name: "Shoreditch" },
+]
+
+const REPORTING_PERIOD_OPTIONS = [
+  { value: "last7", label: "Last 7 days" },
+  { value: "last30", label: "Last 30 days" },
+  { value: "thisMonth", label: "This month" },
+  { value: "previousMonth", label: "Previous month" },
+  { value: "custom", label: "Custom range" },
+] as const
 
 /** Change analysis scope — Figma 3450:53798. */
 export function AiAssistantChangeScopeDialog({
@@ -78,12 +89,48 @@ export function AiAssistantChangeScopeDialog({
   onDraftReportingPeriodChange,
   onApply,
 }: AiAssistantChangeScopeDialogProps) {
+  const [customPickerOpen, setCustomPickerOpen] = useState(false)
+
+  const availableLocations =
+    dialog.locationOptions.length >= 2
+      ? dialog.locationOptions
+      : [
+          ...dialog.locationOptions,
+          ...DEFAULT_LOCATIONS.filter(
+            (def) =>
+              !dialog.locationOptions.some(
+                (loc) =>
+                  loc.id === def.id ||
+                  loc.name.toLowerCase() === def.name.toLowerCase()
+              )
+          ),
+        ]
+
   const selectedLocationName =
     dialog.draftScopeKind === "all"
       ? ALL_OWNED_LOCATIONS_PICKER_LABEL
-      : dialog.locationOptions.find(
+      : availableLocations.find(
           (location) => location.id === dialog.draftOwnedLocationId
-        )?.name ?? ""
+        )?.name ??
+        availableLocations[0]?.name ??
+        "Camden"
+
+  const locationSelectValue =
+    dialog.draftScopeKind === "all"
+      ? ALL_OWNED_LOCATIONS_SELECT_VALUE
+      : dialog.draftOwnedLocationId != null
+        ? String(dialog.draftOwnedLocationId)
+        : String(availableLocations[0]?.id ?? ALL_OWNED_LOCATIONS_SELECT_VALUE)
+
+  const reportingPeriodSelectValue =
+    dialog.draftReportingPeriod.kind === "preset"
+      ? dialog.draftReportingPeriod.presetId
+      : "custom"
+
+  const selectedReportingPeriodLabel =
+    REPORTING_PERIOD_OPTIONS.find(
+      (option) => option.value === reportingPeriodSelectValue
+    )?.label ?? "Last 7 days"
 
   return (
     <Dialog
@@ -103,9 +150,7 @@ export function AiAssistantChangeScopeDialog({
                 {dialog.title}
               </DialogTitle>
               <DialogDescription className="sr-only">
-                {dialog.showsOwnedLocationField
-                  ? "Set Owned location and Reporting period for this conversation."
-                  : "Set Reporting period for this conversation."}
+                Set Restaurant and Reporting period for this conversation.
               </DialogDescription>
             </DialogHeader>
             <DialogClose asChild>
@@ -120,80 +165,140 @@ export function AiAssistantChangeScopeDialog({
             </DialogClose>
           </div>
 
-          {dialog.showsOwnedLocationField ? (
-            <div className="flex flex-col gap-2">
-              <Label
-                htmlFor="ai-assistant-owned-location"
-                className={FIELD_LABEL_CLASS}
+          <div className="flex flex-col gap-2">
+            <Label
+              htmlFor="ai-assistant-restaurant"
+              className={FIELD_LABEL_CLASS}
+            >
+              Restaurant
+            </Label>
+            <Select
+              value={locationSelectValue}
+              onValueChange={(value) => {
+                if (value === ALL_OWNED_LOCATIONS_SELECT_VALUE) {
+                  onDraftLocationChange(ALL_OWNED_LOCATIONS_SELECT_VALUE)
+                  return
+                }
+                const locationId = Number.parseInt(value, 10)
+                if (Number.isFinite(locationId)) {
+                  onDraftLocationChange(locationId)
+                }
+              }}
+            >
+              <SelectTrigger
+                id="ai-assistant-restaurant"
+                className={SELECT_TRIGGER_CLASS}
+                aria-label="Restaurant"
               >
-                Owned location
-              </Label>
-              <Select
-                value={changeScopeLocationSelectValue(dialog)}
-                onValueChange={(value) => {
-                  if (value === ALL_OWNED_LOCATIONS_SELECT_VALUE) {
-                    onDraftLocationChange(ALL_OWNED_LOCATIONS_SELECT_VALUE)
-                    return
-                  }
-                  const locationId = Number.parseInt(value, 10)
-                  if (Number.isFinite(locationId)) {
-                    onDraftLocationChange(locationId)
-                  }
-                }}
+                <SelectValue placeholder={selectedLocationName} />
+              </SelectTrigger>
+              <SelectContent
+                position="popper"
+                align="start"
+                className={DIALOG_MENU_CLASS}
               >
-                <SelectTrigger
-                  id="ai-assistant-owned-location"
-                  className={SELECT_TRIGGER_CLASS}
-                  aria-label="Owned location"
-                >
-                  <SelectValue placeholder={selectedLocationName} />
-                </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  align="start"
-                  className={DIALOG_MENU_CLASS}
-                >
-                  <SelectGroup className="p-0">
-                    {dialog.includesAllOwnedLocationsOption ? (
-                      <>
-                        <SelectItem
-                          value={ALL_OWNED_LOCATIONS_SELECT_VALUE}
-                          className={SELECT_ITEM_CLASS}
-                        >
-                          {ALL_OWNED_LOCATIONS_PICKER_LABEL}
-                        </SelectItem>
-                        <SelectSeparator className="bg-op-input-border" />
-                      </>
-                    ) : null}
-                    {dialog.locationOptions.map((location) => (
-                      <SelectItem
-                        key={location.id}
-                        value={String(location.id)}
-                        className={SELECT_ITEM_CLASS}
-                      >
-                        {location.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
+                <SelectGroup className="p-0">
+                  <SelectItem
+                    value={ALL_OWNED_LOCATIONS_SELECT_VALUE}
+                    className={SELECT_ITEM_CLASS}
+                  >
+                    All locations
+                  </SelectItem>
+                  {availableLocations.map((location) => (
+                    <SelectItem
+                      key={location.id}
+                      value={String(location.id)}
+                      className={SELECT_ITEM_CLASS}
+                    >
+                      {location.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="flex w-full flex-col gap-2">
-            <Label className={FIELD_LABEL_CLASS}>Reporting period</Label>
-            <div className="w-full">
-              <PerformanceDateRangeControl
-                dateRangeLabel={labelForHomePerformanceDateRange(
-                  dialog.draftReportingPeriod
-                )}
-                selectedRange={dialog.draftReportingPeriod}
-                onCommitRange={onDraftReportingPeriodChange}
-                title="Select Reporting period"
-                triggerClassName={PERIOD_TRIGGER_CLASS}
-                contentClassName="z-[130]"
-              />
-            </div>
+            <Label
+              htmlFor="ai-assistant-reporting-period"
+              className={FIELD_LABEL_CLASS}
+            >
+              Reporting period
+            </Label>
+            <Select
+              value={reportingPeriodSelectValue}
+              onValueChange={(value) => {
+                if (value === "custom") {
+                  if (dialog.draftReportingPeriod.kind !== "custom") {
+                    const end = new Date()
+                    const start = new Date()
+                    start.setDate(end.getDate() - 6)
+                    onDraftReportingPeriodChange({
+                      kind: "custom",
+                      startDate: toLocalDateKey(start),
+                      endDate: toLocalDateKey(end),
+                    })
+                  }
+                  setCustomPickerOpen(true)
+                  return
+                }
+                setCustomPickerOpen(false)
+                if (
+                  value === "last7" ||
+                  value === "last30" ||
+                  value === "thisMonth" ||
+                  value === "previousMonth"
+                ) {
+                  onDraftReportingPeriodChange({
+                    kind: "preset",
+                    presetId: value,
+                  })
+                }
+              }}
+            >
+              <SelectTrigger
+                id="ai-assistant-reporting-period"
+                className={SELECT_TRIGGER_CLASS}
+                aria-label="Reporting period"
+              >
+                <SelectValue placeholder={selectedReportingPeriodLabel} />
+              </SelectTrigger>
+              <SelectContent
+                position="popper"
+                align="start"
+                className={DIALOG_MENU_CLASS}
+              >
+                <SelectGroup className="p-0">
+                  {REPORTING_PERIOD_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      className={SELECT_ITEM_CLASS}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+
+            {reportingPeriodSelectValue === "custom" ? (
+              <div className="pt-2">
+                <PerformanceDateRangeControl
+                  dateRangeLabel={labelForHomePerformanceDateRange(
+                    dialog.draftReportingPeriod
+                  )}
+                  selectedRange={dialog.draftReportingPeriod}
+                  onCommitRange={onDraftReportingPeriodChange}
+                  title="Select custom date range"
+                  triggerClassName={CUSTOM_DATE_TRIGGER_CLASS}
+                  contentClassName="z-[150]"
+                  defaultStep="custom"
+                  open={customPickerOpen}
+                  onOpenChange={setCustomPickerOpen}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
 

@@ -1,6 +1,5 @@
 import {
-  OPERATOR_RIGHT_DRAWER_BODY_CLASS,
-  OPERATOR_RIGHT_DRAWER_WIDTH_CLASS,
+  OPERATOR_RIGHT_DRAWER_BODY_CLASS
 } from "@/lib/operatorHome/shellResponsivePresentation"
 
 import type { OperatorAiAssistantWidthMode } from "./createOperatorAiAssistantModule"
@@ -14,53 +13,62 @@ export const OPERATOR_SIDENAV_COLLAPSED_PX = 52
  * `!select-text` and `!touch-pan-y` override Vaul's desktop `user-select: none`
  * and `touch-action: none` so operators can select and copy across answer blocks.
  */
-const ASSISTANT_DRAWER_CHROME_CLASS =
-  "h-full max-h-dvh overflow-hidden bg-op-assistant-list-background !select-text !touch-pan-y data-[vaul-drawer-direction=right]:rounded-l-[2px]"
-
-/** Collapsed Assistant — Conversations fill + shared 620px width. */
-export const ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS = `${ASSISTANT_DRAWER_CHROME_CLASS} ${OPERATOR_RIGHT_DRAWER_WIDTH_CLASS}`
+export const OPERATOR_AI_ASSISTANT_LEFT_DRAWER_CLASS = [
+  "h-full max-h-dvh overflow-hidden bg-op-assistant-list-background !select-text !touch-pan-y",
+  "data-[vaul-drawer-direction=left]:inset-y-0",
+  "data-[vaul-drawer-direction=left]:left-0",
+  "lg:data-[vaul-drawer-direction=left]:left-[52px]",
+  "data-[vaul-drawer-direction=left]:w-full",
+  "lg:data-[vaul-drawer-direction=left]:w-[calc(100vw-52px)]",
+  "data-[vaul-drawer-direction=left]:max-w-none",
+  "data-[vaul-drawer-direction=left]:sm:max-w-none",
+  "data-[vaul-drawer-direction=left]:rounded-none",
+  "data-[vaul-drawer-direction=left]:border-r-0",
+  "data-[vaul-drawer-direction=left]:border-l",
+  "data-[vaul-drawer-direction=left]:border-op-border-default",
+  "data-[vaul-drawer-direction=right]:w-[calc(100vw-52px)]",
+  "data-[vaul-drawer-direction=right]:sm:max-w-none",
+].join(" ")
 
 /** Viewport minus 52px collapsed SideNav. */
 export const OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS =
-  "data-[vaul-drawer-direction=right]:w-[calc(100vw-52px)] data-[vaul-drawer-direction=right]:sm:max-w-none"
+  OPERATOR_AI_ASSISTANT_LEFT_DRAWER_CLASS
 
-/** Assistant-only overlay. Shared Drawer overlay defaults stay unchanged. */
+/** Collapsed Assistant — same full view. */
+export const ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS =
+  OPERATOR_AI_ASSISTANT_LEFT_DRAWER_CLASS
+
+/** Assistant-only overlay starting beside the 52px rail. */
 export function assistantDrawerOverlayClass(): string {
-  return "bg-op-assistant-overlay supports-backdrop-filter:backdrop-blur-none"
+  return "bg-black/40 left-0 lg:left-[52px]"
 }
 
-export function paintsAssistantExpand(input: {
-  widthMode: OperatorAiAssistantWidthMode
-  viewportAtLeastLg: boolean
+export function paintsAssistantExpand(_input?: {
+  widthMode?: OperatorAiAssistantWidthMode
+  viewportAtLeastLg?: boolean
 }): boolean {
-  return input.widthMode === "expanded" && input.viewportAtLeastLg
+  return true
 }
 
 /**
- * Vaul Overlay returns before a hook when `modal` is false.
- * Unmount Overlay in Expand so the hook count does not change.
+ * Mount Overlay for left drawer.
  */
-export function assistantDrawerMountsOverlay(input: {
-  widthMode: OperatorAiAssistantWidthMode
-  viewportAtLeastLg: boolean
+export function assistantDrawerMountsOverlay(_input?: {
+  widthMode?: OperatorAiAssistantWidthMode
+  viewportAtLeastLg?: boolean
 }): boolean {
-  return !paintsAssistantExpand(input)
+  return true
 }
 
 /**
- * Assistant Drawer content class. Collapsed uses Conversations fill + 620px.
- * Expand uses the same fill and always follows the collapsed SideNav rail.
+ * Assistant Drawer content class — always opens from the left beside the 52px rail.
  */
-export function assistantDrawerContentClass(input: {
-  widthMode: OperatorAiAssistantWidthMode
-  viewportAtLeastLg: boolean
-  sidebarCollapsed: boolean
+export function assistantDrawerContentClass(_input?: {
+  widthMode?: OperatorAiAssistantWidthMode
+  viewportAtLeastLg?: boolean
+  sidebarCollapsed?: boolean
 }): string {
-  if (!paintsAssistantExpand(input)) {
-    return ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS
-  }
-
-  return `${ASSISTANT_DRAWER_CHROME_CLASS} ${OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS}`
+  return OPERATOR_AI_ASSISTANT_LEFT_DRAWER_CLASS
 }
 
 /** Figma 3444:52355 — conversation + composer cap at 800px, centered. */
@@ -74,7 +82,7 @@ export const ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS =
  */
 export function assistantConversationStageClass(expanded: boolean): string {
   return expanded
-    ? "flex min-h-0 flex-1 flex-col gap-[30px] pb-4"
+    ? "flex min-h-0 flex-1 flex-col gap-4 pb-4"
     : "flex min-h-0 flex-1 flex-col"
 }
 
@@ -103,13 +111,13 @@ export function assistantThreadRailClass(expanded: boolean): string {
 export function assistantComposerDockClass(expanded: boolean): string {
   return expanded
     ? "flex w-full shrink-0 flex-col"
-    : "flex w-full shrink-0 flex-col gap-8 px-[30px] pb-4"
+    : "flex w-full shrink-0 flex-col gap-4 px-[30px] pb-4"
 }
 
 /** Inner composer rail. Expand matches the 800px chat column. */
 export function assistantComposerRailClass(expanded: boolean): string {
   return expanded
-    ? `flex w-full shrink-0 flex-col gap-8 ${ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS}`
+    ? `flex w-full shrink-0 flex-col gap-4 ${ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS}`
     : "contents"
 }
 
