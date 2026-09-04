@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import {
   ArrowRight,
   ArrowUpIcon,
@@ -64,6 +65,7 @@ import { cn } from "@/lib/utils"
 type AiAssistantDrawerProps = {
   snapshot: OperatorAiAssistantSnapshot
   sidebarCollapsed: boolean
+  isClosing?: boolean
   onOpenChange: (open: boolean) => void
   onStartNewChat: () => void
   onOpenRecent: () => void
@@ -345,6 +347,8 @@ export function AiAssistantDrawer({
   onFollowRestorationHelper,
 }: AiAssistantDrawerProps) {
   const [viewportAtLeastLg, setViewportAtLeastLg] = useState(readViewportAtLeastLg)
+  const shouldReduceMotion = useReducedMotion()
+
   const paintExpanded = paintsAssistantExpand({
     widthMode: snapshot.widthMode,
     viewportAtLeastLg,
@@ -976,24 +980,51 @@ export function AiAssistantDrawer({
   return (
     <>
       {viewportAtLeastLg ? (
-        snapshot.drawerOpen ? (
-          <aside
-            className={cn(
-              "relative flex min-h-0 flex-col overflow-hidden",
-              "bg-op-assistant-list-background text-op-text-primary",
-              "my-2 mr-2.5 ml-2 h-[calc(100%-1rem)]",
-              "rounded-tl-[20px] rounded-tr-[20px] rounded-bl-[10px] rounded-br-[10px]",
-              "border border-op-border-default shadow-2xl",
-              paintExpanded
-                ? "flex-1 min-w-0 shrink"
-                : "w-[480px] shrink-0"
-            )}
-            data-assistant-width={paintExpanded ? "expanded" : "collapsed"}
-            aria-label="AI Assistant"
-          >
-            {panelContent}
-          </aside>
-        ) : null
+        <AnimatePresence>
+          {snapshot.drawerOpen && (
+            <motion.aside
+              key="ai-assistant-drawer"
+              initial={
+                paintExpanded
+                  ? { opacity: 0, x: "100%" }
+                  : { opacity: 0, x: 480, width: 0, marginLeft: 0, marginRight: 0 }
+              }
+              animate={
+                paintExpanded
+                  ? { opacity: 1, x: 0, width: "100%", marginLeft: 8, marginRight: 10 }
+                  : { opacity: 1, x: 0, width: 480, marginLeft: 8, marginRight: 10 }
+              }
+              exit={
+                paintExpanded
+                  ? { opacity: 0, x: "100%" }
+                  : { opacity: 0, x: 480, width: 0, marginLeft: 0, marginRight: 0 }
+              }
+              transition={{
+                duration: shouldReduceMotion ? 0 : 0.28,
+                ease: [0.32, 0.72, 0, 1],
+              }}
+              className={cn(
+                "relative flex min-h-0 flex-col overflow-hidden",
+                "bg-op-assistant-list-background text-op-text-primary",
+                "my-2 h-[calc(100%-1rem)]",
+                "rounded-tl-[20px] rounded-tr-[20px] rounded-bl-[10px] rounded-br-[10px]",
+                "border border-op-border-default shadow-2xl",
+                paintExpanded ? "flex-1 min-w-0 shrink" : "shrink-0"
+              )}
+              data-assistant-width={paintExpanded ? "expanded" : "collapsed"}
+              aria-label="AI Assistant"
+            >
+              <div
+                className={cn(
+                  "flex min-h-0 flex-1 flex-col",
+                  !paintExpanded && "w-[480px] shrink-0"
+                )}
+              >
+                {panelContent}
+              </div>
+            </motion.aside>
+          )}
+        </AnimatePresence>
       ) : (
         <Drawer
           open={snapshot.drawerOpen}

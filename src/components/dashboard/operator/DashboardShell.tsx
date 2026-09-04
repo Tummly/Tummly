@@ -153,11 +153,13 @@ export function DashboardShell({
   const [settingsExpanded, setSettingsExpanded] = useState(
     readSidebarSettingsExpanded
   )
+  const isAiDrawerOpen = Boolean(aiAssistant?.snapshot.drawerOpen)
+  const isAssistantExpanded =
+    isAiDrawerOpen && aiAssistant?.snapshot.widthMode === "expanded"
+
   const sideNavExpandLock = assistantSideNavExpandLock({
     priorCollapsed: sidebarCollapsed,
-    assistantExpanded:
-      aiAssistant?.snapshot.drawerOpen === true
-      && aiAssistant.snapshot.widthMode === "expanded",
+    assistantExpanded: isAssistantExpanded,
   })
   const effectiveSidebarCollapsed = sideNavExpandLock.effectiveCollapsed
 
@@ -286,7 +288,7 @@ export function DashboardShell({
         />
       ) : null}
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <div
           className={cn(
             "hidden min-h-0 shrink-0 lg:flex lg:flex-col",
@@ -390,19 +392,20 @@ export function DashboardShell({
 
         <main
           className={cn(
-            "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+            "flex min-h-0 min-w-0 flex-col overflow-hidden",
+            "transition-[width,flex,margin,opacity,border-radius] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
             isShopPage
               ? cn("rounded-tl-none", SHOP_PAGE_BACKGROUND_CLASS)
               : cn(
                   "rounded-tl-[var(--operator-shell-main-radius)]",
                   "bg-op-app-background-default"
                 ),
-            Boolean(aiAssistant?.snapshot.drawerOpen) &&
+            isAiDrawerOpen &&
               !isShopPage &&
               "my-2 ml-2 h-[calc(100%-1rem)] rounded-tl-[20px] rounded-tr-[20px] rounded-bl-[10px] rounded-br-[10px] border border-op-border-default",
-            Boolean(aiAssistant?.snapshot.drawerOpen) &&
-              aiAssistant?.snapshot.widthMode === "expanded" &&
-              "lg:hidden"
+            isAssistantExpanded
+              ? "w-0 min-w-0 flex-none opacity-0 pointer-events-none p-0 m-0 border-0 overflow-hidden"
+              : "flex-1 min-w-0 opacity-100"
           )}
         >
           {/*
