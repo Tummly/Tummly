@@ -149,10 +149,13 @@ import type {
 import type {
   ReportsCampaignsResponse,
   ReportsCaptureResponse,
+  ReportsExportKind,
   ReportsFeedbackResponse,
   ReportsOffersResponse,
   ReportsOverviewResponse,
 } from "@/types/operatorReports"
+
+export type { ReportsExportKind }
 
 export const getLocations = async (): Promise<LocationsResponse> => {
   const response = await axiosInstance.get<LocationsResponse>(
@@ -1394,12 +1397,6 @@ export const downloadWeeklyBriefPdf = async (
     ) ?? `tummly-weekly-brief-${locationId}.pdf`
   return { blob: response.data, filename }
 }
-
-export type ReportsExportKind =
-  | "overview"
-  | "capture"
-  | "feedback"
-  | "campaigns"
 
 export const downloadReportsExport = async (input: {
   kind: ReportsExportKind

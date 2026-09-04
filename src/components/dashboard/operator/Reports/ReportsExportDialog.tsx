@@ -7,7 +7,7 @@ import {
   DialogDescription,
   DialogClose,
 } from "@/components/ui/dialog"
-import { Checkbox } from "@/components/ui/checkbox"
+import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -214,19 +214,15 @@ export function ReportsExportDialog({
             </DialogClose>
           </div>
 
-          <label className="flex items-center gap-3 cursor-pointer py-3 select-none">
-            <Checkbox
-              checked={csvConsentChecked}
-              onCheckedChange={(checked) =>
-                onSetCsvConsentChecked(Boolean(checked))
-              }
-              className="size-4 rounded-op-sm border-op-checkbox-border data-[state=checked]:bg-op-action-primary data-[state=checked]:border-op-action-primary"
-            />
-            <span className="text-xs text-op-text-secondary font-normal leading-relaxed">
-              I understand this export may contain guest data and should be
-              handled securely.
-            </span>
-          </label>
+          <CheckboxLabel
+            checked={csvConsentChecked}
+            onCheckedChange={onSetCsvConsentChecked}
+            className="py-3"
+            labelClassName="text-xs text-op-text-secondary font-normal leading-relaxed"
+          >
+            I understand this export may contain guest data and should be
+            handled securely.
+          </CheckboxLabel>
 
           <div className="flex items-center gap-2.5 pt-1">
             <Button

@@ -233,6 +233,12 @@ export type ReportsSurface =
   | "campaigns"
   | "weekly-brief"
 
+export type ReportsExportKind =
+  | "overview"
+  | "capture"
+  | "feedback"
+  | "campaigns"
+
 export type ReportsKpiLoadStatus =
   | "idle"
   | "loading"

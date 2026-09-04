@@ -46,6 +46,7 @@ import type {
 import type {
   ReportsCampaignsResponse,
   ReportsCaptureResponse,
+  ReportsExportKind,
   ReportsFeedbackResponse,
   ReportsKpiLoadStatus,
   ReportsOffersResponse,
@@ -73,11 +74,7 @@ export type OperatorReportsWeeklyBriefStatus =
   | "ready"
   | "error"
 
-export type ReportsExportKind =
-  | "overview"
-  | "capture"
-  | "feedback"
-  | "campaigns"
+export type { ReportsExportKind }
 
 export type OperatorReportsWeeklyBriefMeta = {
   period: string

@@ -558,6 +558,10 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().markAsReviewedAllowed).toBe(true)
     module.openExportDialog()
     expect(module.getSnapshot().exportDialogOpen).toBe(false)
+
+    const ok = await module.requestExport("overview")
+    expect(ok).toBe(false)
+    expect(adapters.downloadReportsExport).not.toHaveBeenCalled()
   })
 
   it("opens export dialog when export is allowed", async () => {
