@@ -334,6 +334,8 @@ function createAdapters(overrides: {
   getWeeklyBrief?: OperatorReportsPageAdapters["getWeeklyBrief"]
   generateWeeklyBrief?: OperatorReportsPageAdapters["generateWeeklyBrief"]
   markWeeklyBriefReviewed?: OperatorReportsPageAdapters["markWeeklyBriefReviewed"]
+  downloadWeeklyBriefPdf?: OperatorReportsPageAdapters["downloadWeeklyBriefPdf"]
+  triggerBrowserDownload?: OperatorReportsPageAdapters["triggerBrowserDownload"]
 } = {}) {
   const getOverview = vi.fn(
     overrides.getOverview
@@ -378,6 +380,16 @@ function createAdapters(overrides: {
           reviewedByUserId: 7,
         }) as WeeklyBriefMarkReviewedResponse)
   )
+  const downloadWeeklyBriefPdf = vi.fn(
+    overrides.downloadWeeklyBriefPdf
+      ?? (async () => ({
+        blob: new Blob(["%PDF-1.4"], { type: "application/pdf" }),
+        filename: "tummly-weekly-brief-1-20260818-120000Z.pdf",
+      }))
+  )
+  const triggerBrowserDownload = vi.fn(
+    overrides.triggerBrowserDownload ?? (() => undefined)
+  )
   return {
     getOverview,
     getCapture,
@@ -388,6 +400,8 @@ function createAdapters(overrides: {
     getWeeklyBrief,
     generateWeeklyBrief,
     markWeeklyBriefReviewed,
+    downloadWeeklyBriefPdf,
+    triggerBrowserDownload,
   }
 }
 
@@ -582,6 +596,50 @@ describe("createOperatorReportsPageModule", () => {
     expect(module.getSnapshot().weeklyBrief.reviewedAtUtc).toBe(
       "2026-08-19T10:00:00Z"
     )
+  })
+
+  it("downloadWeeklyBriefPdf invokes adapter when export allowed", async () => {
+    const downloadWeeklyBriefPdf = vi.fn(async () => ({
+      blob: new Blob(["%PDF-1.4 brief"], { type: "application/pdf" }),
+      filename: "tummly-weekly-brief-1-20260819-090000Z.pdf",
+    }))
+    const triggerBrowserDownload = vi.fn()
+    const adapters = createAdapters({
+      getWeeklyBrief: async (locationId) => readyWeeklyBriefResponse(locationId),
+      downloadWeeklyBriefPdf,
+      triggerBrowserDownload,
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace())
+
+    const ok = await module.downloadWeeklyBriefPdf()
+    expect(ok).toBe(true)
+    expect(downloadWeeklyBriefPdf).toHaveBeenCalledWith(1, "2026-W33")
+    expect(triggerBrowserDownload).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "tummly-weekly-brief-1-20260819-090000Z.pdf"
+    )
+  })
+
+  it("downloadWeeklyBriefPdf is a no-op when export is not allowed", async () => {
+    const downloadWeeklyBriefPdf = vi.fn(async () => ({
+      blob: new Blob(["%PDF"], { type: "application/pdf" }),
+      filename: "should-not-download.pdf",
+    }))
+    const triggerBrowserDownload = vi.fn()
+    const adapters = createAdapters({
+      getWeeklyBrief: async (locationId) => readyWeeklyBriefResponse(locationId),
+      downloadWeeklyBriefPdf,
+      triggerBrowserDownload,
+    })
+    const module = createOperatorReportsPageModule(adapters)
+    await module.syncWorkspace(workspace({ billingStatus: "Soft lock" }))
+
+    expect(module.getSnapshot().exportAllowed).toBe(false)
+    const ok = await module.downloadWeeklyBriefPdf()
+    expect(ok).toBe(false)
+    expect(downloadWeeklyBriefPdf).not.toHaveBeenCalled()
+    expect(triggerBrowserDownload).not.toHaveBeenCalled()
   })
 
   it("loads hub overview and brief GET in parallel without auto POST", async () => {

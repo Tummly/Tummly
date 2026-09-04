@@ -26,7 +26,6 @@ export const WEEKLY_BRIEF_PAGE_COPY = {
   markAsReviewed: "Mark as reviewed",
   reviewed: "Reviewed",
   reviewedToast: "Weekly brief marked as reviewed.",
-  pdfDownloadedToast: "Weekly brief PDF downloaded.",
 
   // Empty state copy
   emptyTitle: "No weekly brief yet",

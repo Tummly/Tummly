@@ -1377,6 +1377,24 @@ export const markWeeklyBriefReviewed = async (
   }
 }
 
+export const downloadWeeklyBriefPdf = async (
+  locationId: number,
+  week?: string | null
+): Promise<{ blob: Blob; filename: string }> => {
+  const response = await axiosInstance.get<Blob>("/home/weekly-brief/pdf", {
+    params: {
+      locationId,
+      ...(week != null && week !== "" ? { week } : {}),
+    },
+    responseType: "blob",
+  })
+  const filename =
+    parseContentDispositionFilename(
+      response.headers["content-disposition"] as string | undefined
+    ) ?? `tummly-weekly-brief-${locationId}.pdf`
+  return { blob: response.data, filename }
+}
+
 export const getCaptureLocationSnapshot = async (
   locationId: number,
   from: string,

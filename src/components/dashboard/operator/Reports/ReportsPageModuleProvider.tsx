@@ -2,6 +2,7 @@ import { createElement, useEffect, useState, type ReactNode } from "react"
 import { useOutletContext } from "react-router-dom"
 
 import {
+  downloadWeeklyBriefPdf,
   generateWeeklyBrief,
   getReportsCapture,
   getReportsFeedback,
@@ -10,6 +11,7 @@ import {
   getReportsOverview,
   getWeeklyBrief,
   markWeeklyBriefReviewed,
+  triggerBrowserDownload,
 } from "@/api/dashboardApi"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -53,6 +55,8 @@ export function ReportsPageModuleProvider({
       getWeeklyBrief,
       generateWeeklyBrief,
       markWeeklyBriefReviewed,
+      downloadWeeklyBriefPdf,
+      triggerBrowserDownload,
       getReportsDateRange: () => dashboardUiStore.getState().reportsDateRange,
     })
   )

@@ -1024,6 +1024,140 @@ namespace TummlyBackend.Tests.Integration
             Assert.InRange(reviewedAt, before.AddSeconds(-2), after.AddSeconds(2));
         }
 
+        [Fact]
+        public async Task DownloadWeeklyBriefPdf_ReadyUnlocked_ReturnsPdfWithSections()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-pdf-ok");
+            var metrics = EmptyMetrics() with
+            {
+                GuestsJoined = 10,
+                QrScanEvents = 20,
+                FeedbackCount = 5,
+                NeedsAttentionCount = 2,
+            };
+            var body = FakeWeeklyBriefProvider.FixtureFor(metrics);
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                ExplicitWeek,
+                body,
+                metrics,
+                DateTime.Parse("2026-08-18T09:00:00Z").ToUniversalTime()
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief/pdf?locationId={seeded.LocationId}&week={ExplicitWeek}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                "application/pdf",
+                response.Content.Headers.ContentType?.MediaType
+            );
+            var fileName =
+                response.Content.Headers.ContentDisposition?.FileName
+                    ?.Trim('"');
+            Assert.NotNull(fileName);
+            Assert.StartsWith(
+                $"tummly-weekly-brief-{seeded.LocationId}-",
+                fileName
+            );
+            Assert.EndsWith("Z.pdf", fileName);
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            Assert.True(bytes.Length > 100);
+            var ascii = System.Text.Encoding.ASCII.GetString(bytes);
+            Assert.Contains("%PDF", ascii);
+            Assert.Contains("Weekly Brief", ascii);
+            Assert.Contains("Executive summary", ascii);
+            Assert.Contains("What changed", ascii);
+            Assert.Contains("Feedback summary", ascii);
+        }
+
+        [Fact]
+        public async Task DownloadWeeklyBriefPdf_SoftLock_Returns403()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "wb-pdf-soft",
+                softLock: true
+            );
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                ExplicitWeek,
+                FakeWeeklyBriefProvider.FixtureFor(EmptyMetrics()),
+                EmptyMetrics(),
+                DateTime.UtcNow
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief/pdf?locationId={seeded.LocationId}&week={ExplicitWeek}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var json = await ReadJsonAsync(response);
+            Assert.Equal("soft_lock", json.GetProperty("code").GetString());
+
+            using var getRequest = AuthorizedGet(
+                $"/api/home/weekly-brief?locationId={seeded.LocationId}&week={ExplicitWeek}",
+                seeded.Jwt
+            );
+            var getResponse = await _client.SendAsync(getRequest);
+            Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        }
+
+        [Fact]
+        public async Task DownloadWeeklyBriefPdf_Dormant_Returns403()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-pdf-dormant");
+            await SetBillingStatusAsync(
+                seeded.LocationId,
+                BillingStatuses.Dormant
+            );
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                ExplicitWeek,
+                FakeWeeklyBriefProvider.FixtureFor(EmptyMetrics()),
+                EmptyMetrics(),
+                DateTime.UtcNow
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief/pdf?locationId={seeded.LocationId}&week={ExplicitWeek}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var json = await ReadJsonAsync(response);
+            Assert.Equal("dormant", json.GetProperty("code").GetString());
+        }
+
+        [Fact]
+        public async Task DownloadWeeklyBriefPdf_ChargebackRestricted_Returns403()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("wb-pdf-cb");
+            await SetChargebackRestrictedAsync(seeded.LocationId, restricted: true);
+            await SeedSucceededBriefAsync(
+                seeded.LocationId,
+                ExplicitWeek,
+                FakeWeeklyBriefProvider.FixtureFor(EmptyMetrics()),
+                EmptyMetrics(),
+                DateTime.UtcNow
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/home/weekly-brief/pdf?locationId={seeded.LocationId}&week={ExplicitWeek}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var json = await ReadJsonAsync(response);
+            Assert.Equal(
+                "chargeback_restricted",
+                json.GetProperty("code").GetString()
+            );
+        }
+
         private async Task SeedSucceededBriefAsync(
             int locationId,
             string weekKey,
@@ -1315,6 +1449,49 @@ namespace TummlyBackend.Tests.Integration
             );
 
             return (jwt, location.Id, user.Id);
+        }
+
+        private async Task SetBillingStatusAsync(
+            int locationId,
+            string billingStatus
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(l => l.Id == locationId)
+                .Select(l => l.RestaurantId)
+                .FirstAsync();
+            var account = await context.BillingAccounts
+                .FirstAsync(a => a.RestaurantId == restaurantId);
+            account.BillingStatus = billingStatus;
+            if (billingStatus == BillingStatuses.Dormant)
+            {
+                account.DormantEnteredAt = DateTime.UtcNow.AddDays(-1);
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        private async Task SetChargebackRestrictedAsync(
+            int locationId,
+            bool restricted
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(l => l.Id == locationId)
+                .Select(l => l.RestaurantId)
+                .FirstAsync();
+            var account = await context.BillingAccounts
+                .FirstAsync(a => a.RestaurantId == restaurantId);
+            account.ChargebackRestricted = restricted;
+            await context.SaveChangesAsync();
         }
     }
 }

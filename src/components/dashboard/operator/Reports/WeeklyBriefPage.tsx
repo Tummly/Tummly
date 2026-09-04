@@ -288,7 +288,7 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
   )
   const reports = useReportsPageModule()
   const pageModule = useReportsPageModuleApi()
-  const { weeklyBrief, selectedLocationId, selectedLocationName, markAsReviewedAllowed } =
+  const { weeklyBrief, selectedLocationId, selectedLocationName, markAsReviewedAllowed, exportAllowed } =
     reports.snapshot
   const locationId = selectedLocationId ?? 1
   const locationName = selectedLocationName ?? "Location"
@@ -312,7 +312,10 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
       : mapWeeklyBriefSuggestedCampaign(weeklyBrief.suggestedCampaign)
 
   const handleDownloadPdf = () => {
-    toast.success(WEEKLY_BRIEF_PAGE_COPY.pdfDownloadedToast)
+    if (!exportAllowed || weeklyBrief.status !== "ready") {
+      return
+    }
+    void reports.downloadWeeklyBriefPdf()
   }
 
   const handleMarkAsReviewed = () => {
@@ -390,6 +393,7 @@ export function WeeklyBriefPage({ mode = "single" }: WeeklyBriefPageProps) {
             type="button"
             variant="op-secondary"
             className={REPORTS_PAGE_ACTION_BUTTON_CLASS}
+            disabled={!exportAllowed || weeklyBrief.status !== "ready"}
             onClick={handleDownloadPdf}
           >
             <Download className="size-4" aria-hidden />

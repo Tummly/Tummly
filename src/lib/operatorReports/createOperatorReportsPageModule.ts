@@ -151,6 +151,11 @@ export type OperatorReportsPageAdapters = {
     locationId: number,
     week?: string | null
   ) => Promise<WeeklyBriefMarkReviewedResponse>
+  downloadWeeklyBriefPdf: (
+    locationId: number,
+    week?: string | null
+  ) => Promise<{ blob: Blob; filename: string }>
+  triggerBrowserDownload: (blob: Blob, filename: string) => void
   getCapture: (input: {
     locationId: number
     from: string
@@ -194,6 +199,11 @@ export type OperatorReportsPageModule = {
    * the ready envelope. Soft lock does not block (annotation).
    */
   markWeeklyBriefAsReviewed: () => Promise<boolean>
+  /**
+   * Sync Weekly brief PDF download. No-op when export is not allowed or brief
+   * is not ready. Soft-lock UI relies on Lock Alert; server still gates.
+   */
+  downloadWeeklyBriefPdf: () => Promise<boolean>
   retryCaptureLoad: () => Promise<void>
   retryFeedbackLoad: () => Promise<void>
   retryOffersLoad: () => Promise<void>
@@ -1003,6 +1013,29 @@ export function createOperatorReportsPageModule(
           ...state.weeklyBrief,
           markReviewedBusy: false,
         })
+        return false
+      }
+    },
+    async downloadWeeklyBriefPdf() {
+      const workspace = state.workspace
+      const locationId = workspace?.selectedLocationId
+      if (
+        workspace == null
+        || locationId == null
+        || !state.exportAllowed
+        || state.weeklyBrief.status !== "ready"
+      ) {
+        return false
+      }
+
+      try {
+        const result = await adapters.downloadWeeklyBriefPdf(
+          locationId,
+          state.weeklyBrief.week
+        )
+        adapters.triggerBrowserDownload(result.blob, result.filename)
+        return true
+      } catch {
         return false
       }
     },

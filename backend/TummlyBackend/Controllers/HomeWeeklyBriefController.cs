@@ -288,6 +288,245 @@ namespace TummlyBackend.Controllers
         }
 
         /// <summary>
+        /// Sync Weekly brief PDF download (same sections as ready Figma page).
+        /// Soft lock / Dormant / chargeback → 403 (paid-write gate).
+        /// </summary>
+        [HttpGet("pdf")]
+        public async Task<IActionResult> DownloadWeeklyBriefPdf(
+            [FromQuery] int locationId,
+            [FromQuery] string? week = null,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out _);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (locationId <= 0)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "locationId is required.",
+                });
+            }
+
+            var reports = await GateReportsViewAsync(locationId);
+            var denied = reports.ToHttpResult();
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+                    _context,
+                    locationId,
+                    cancellationToken
+                );
+            }
+            catch (OperatorBillingLockedException ex)
+            {
+                return OperatorBillingLockGate.Forbidden(ex.Code);
+            }
+
+            if (!TryResolveWeekKey(
+                    week,
+                    weekStartsOn: await ResolveWeekStartsOnAsync(
+                        locationId,
+                        cancellationToken
+                    ),
+                    out var weekKey,
+                    out var weekError
+                ))
+            {
+                return weekError!;
+            }
+
+            var row = await _context.WeeklyBriefs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    brief =>
+                        brief.LocationId == locationId
+                        && brief.WeekKey == weekKey
+                        && brief.Status == WeeklyBriefStatus.Succeeded,
+                    cancellationToken
+                );
+
+            if (row is null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Weekly brief is not ready for this location and week.",
+                });
+            }
+
+            WeeklyBriefBody? body;
+            WeeklyBriefMetrics? metrics;
+            try
+            {
+                body = JsonSerializer.Deserialize<WeeklyBriefBody>(
+                    row.BodyJson,
+                    WeeklyBriefStoreJson.Options
+                );
+                metrics = JsonSerializer.Deserialize<WeeklyBriefMetrics>(
+                    row.MetricsJson,
+                    WeeklyBriefStoreJson.Options
+                );
+            }
+            catch (JsonException)
+            {
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "Stored weekly brief could not be read.",
+                    }
+                );
+            }
+
+            if (body is null || metrics is null)
+            {
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "Stored weekly brief could not be read.",
+                    }
+                );
+            }
+
+            var locationName = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(l => l.Id == locationId)
+                .Select(l => l.LocationName)
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? "Location";
+
+            var priorMetrics = await TryLoadPriorMetricsAsync(
+                locationId,
+                weekKey,
+                cancellationToken
+            );
+            var phase1 = WeeklyBriefPhase1Meta.Build(
+                body,
+                metrics,
+                weekKey,
+                priorMetrics
+            );
+
+            DateTime? coverageFromUtc = null;
+            DateTime? coverageToUtc = null;
+            if (
+                WeeklyBriefWeekKey.TryCoverageWindow(
+                    weekKey,
+                    WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                    out var fromUtc,
+                    out var toUtc
+                )
+            )
+            {
+                coverageFromUtc = fromUtc;
+                coverageToUtc = toUtc;
+            }
+
+            var recommendedActions =
+                await WeeklyBriefRecommendedActions.BuildFactsAsync(
+                    _context,
+                    locationId,
+                    metrics,
+                    coverageFromUtc,
+                    coverageToUtc,
+                    cancellationToken
+                );
+
+            WeeklyBriefRecommendedActions.SuggestedCampaignDto? suggestedCampaign =
+                null;
+            if (coverageFromUtc is DateTime windowFrom && coverageToUtc is DateTime windowTo)
+            {
+                suggestedCampaign =
+                    await WeeklyBriefRecommendedActions.FindSuggestedCampaignAsync(
+                        _context,
+                        locationId,
+                        windowFrom,
+                        windowTo,
+                        cancellationToken
+                    );
+            }
+
+            var document = new WeeklyBriefPdfWriter.Document(
+                LocationName: locationName,
+                Period: phase1.Meta.Period,
+                DataSources: phase1.Meta.DataSources,
+                Confidence: phase1.Meta.Confidence,
+                GeneratedAtLabel: LondonDateFormat.DMmmYyyy(row.GeneratedAtUtc),
+                ExecutiveSummary: phase1.ExecutiveSummary,
+                WhatChanged: phase1.WhatChanged
+                    .Select(change => new WeeklyBriefPdfWriter.WhatChangedRow(
+                        change.Area,
+                        change.Change,
+                        change.Meaning
+                    ))
+                    .ToList(),
+                FeedbackSummary: phase1.FeedbackSummary is null
+                    ? null
+                    : new WeeklyBriefPdfWriter.FeedbackSummary(
+                        phase1.FeedbackSummary.Text,
+                        phase1.FeedbackSummary.Subtitle
+                    ),
+                RecommendedActionLines: FormatRecommendedActionLines(
+                    recommendedActions
+                ),
+                SuggestedCampaign: suggestedCampaign is null
+                    ? null
+                    : new WeeklyBriefPdfWriter.SuggestedCampaign(
+                        suggestedCampaign.Name,
+                        suggestedCampaign.AudienceKey
+                    )
+            );
+
+            var (content, fileName) = WeeklyBriefPdfWriter.Render(
+                document,
+                locationId,
+                DateTime.UtcNow
+            );
+            return File(content, WeeklyBriefPdfWriter.ContentType, fileName);
+        }
+
+        private static IReadOnlyList<string> FormatRecommendedActionLines(
+            IReadOnlyList<object> facts
+        )
+        {
+            var lines = new List<string>(facts.Count);
+            foreach (var fact in facts)
+            {
+                lines.Add(
+                    fact switch
+                    {
+                        WeeklyBriefRecommendedActions.FeedbackNeedsAttentionFactDto feedback
+                            => $"Follow up with {feedback.Count} guests",
+                        WeeklyBriefRecommendedActions.RepeatedInvalidFactDto repeated
+                            => $"Repeated invalid attempts ({repeated.Count})",
+                        WeeklyBriefRecommendedActions.LowRedemptionFactDto low
+                            => $"High claims, lower redemptions — {low.OfferTitle} ({low.Claims} claims, {low.Redemptions} redemptions)",
+                        _ => "Recommended action",
+                    }
+                );
+            }
+
+            return lines;
+        }
+
+        /// <summary>
         /// Resolve workspace-week key for GET — any valid key, or closed prior when omitted.
         /// </summary>
         private static bool TryResolveWeekKey(
