@@ -1,16 +1,25 @@
 import { toast } from "sonner"
+import { XIcon } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
-  DialogClose,
 } from "@/components/ui/dialog"
-import { CheckboxLabel } from "@/components/ui/checkbox-label"
-import { Button } from "@/components/ui/button"
-import { X } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { Spinner } from "@/components/ui/spinner"
+import {
+  FEEDBACK_DIALOG_BODY_CLASS,
+  FEEDBACK_DIALOG_CONTENT_CLASS,
+  FEEDBACK_DIALOG_DESCRIPTION_CLASS,
+  FEEDBACK_DIALOG_FOOTER_CLASS,
+  FEEDBACK_DIALOG_HEADER_ROW_CLASS,
+} from "@/lib/operatorFeedback/feedbackPresentation"
 import type { ReportsExportKind } from "@/lib/operatorReports/createOperatorReportsPageModule"
 
 type ExportItem = {
@@ -21,6 +30,7 @@ type ExportItem = {
   format: "pdf" | "csv"
 }
 
+/** Export picker — Figma `3674:36723`. */
 const EXPORT_ITEMS: ExportItem[] = [
   {
     kind: "overview",
@@ -33,7 +43,8 @@ const EXPORT_ITEMS: ExportItem[] = [
   {
     kind: "capture",
     title: "Capture report",
-    description: "Download QR performance by placement and source.",
+    description:
+      "Download QR performance by location, placement and source.",
     buttonLabel: "Download CSV",
     format: "csv",
   },
@@ -41,7 +52,7 @@ const EXPORT_ITEMS: ExportItem[] = [
     kind: "feedback",
     title: "Feedback report",
     description:
-      "Download feedback aggregates and by-source rows for the selected period.",
+      "Download private feedback records for the selected period.",
     buttonLabel: "Download CSV",
     format: "csv",
   },
@@ -49,7 +60,7 @@ const EXPORT_ITEMS: ExportItem[] = [
     kind: "campaigns",
     title: "Campaign report",
     description:
-      "Download campaign performance — name, goal, channel, sent and status.",
+      "Download campaign sends, claims, redemptions and opt-outs.",
     buttonLabel: "Download CSV",
     format: "csv",
   },
@@ -57,25 +68,38 @@ const EXPORT_ITEMS: ExportItem[] = [
     kind: "offers-redemptions",
     title: "Offer redemption log",
     description:
-      "Download staff redemptions across offers for the selected period.",
+      "Download offer claims, redemptions, expired offers and invalid attempts.",
     buttonLabel: "Download CSV",
     format: "csv",
   },
   {
     kind: "guest-consent",
-    title: "Guest consent",
-    description:
-      "Download permission records for the selected location.",
+    title: "Guest consent export",
+    description: "Download guest contact and consent records.",
     buttonLabel: "Download CSV",
     format: "csv",
   },
 ]
 
+/** Wide shell for the 2-column export grid — same chrome as Feedback dialogs. */
+const EXPORTS_DIALOG_CONTENT_CLASS =
+  "max-h-[min(90vh,900px)] gap-0 overflow-hidden border-0 bg-op-surface-secondary p-0 text-op-text-primary shadow-lg sm:max-w-[1000px] dark:bg-[var(--op-color-gray-1000)]"
+
+const EXPORTS_DIALOG_BODY_CLASS =
+  "flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-8 pt-5 pb-8"
+
+const EXPORT_CARD_CLASS =
+  "flex flex-col justify-between gap-6 rounded-op-lg border border-op-border-default bg-op-card-background p-6"
+
+const EXPORT_CARD_TITLE_CLASS =
+  "m-0 text-lg font-semibold leading-normal text-op-text-primary"
+
+const EXPORT_CARD_DESCRIPTION_CLASS =
+  "m-0 text-sm font-medium leading-normal text-[var(--op-color-gray-550)]"
+
 type ReportsExportDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  locationName?: string
-  dateRangeLabel?: string
   /** When false, hide the Offer redemption log CSV card. Omit/true shows it. */
   showOfferRedemptionLog?: boolean
   /** When false, hide the Guest consent CSV card. Omit/true shows it. */
@@ -93,8 +117,6 @@ type ReportsExportDialogProps = {
 export function ReportsExportDialog({
   open,
   onOpenChange,
-  locationName = "Location",
-  dateRangeLabel = "Last 7 days",
   showOfferRedemptionLog = true,
   showGuestConsent = true,
   pendingCsvExportKind,
@@ -115,6 +137,8 @@ export function ReportsExportDialog({
     }
     return true
   })
+
+  const downloadBusy = exportDownloadBusyKind != null
 
   const handleItemClick = async (item: ExportItem) => {
     const ok = await onRequestExport(item.kind)
@@ -143,68 +167,73 @@ export function ReportsExportDialog({
       >
         <DialogContent
           showCloseButton={false}
-          className="z-[200] w-full max-w-[1000px] sm:max-w-[1000px] md:max-w-[1000px] gap-4 rounded-op-lg border border-op-border-default bg-op-card-background p-6 text-op-text-primary shadow-2xl [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-          overlayClassName="z-[190] bg-black/75 backdrop-blur-xs"
+          className={EXPORTS_DIALOG_CONTENT_CLASS}
         >
-          <div className="flex items-start justify-between">
-            <DialogHeader className="text-left gap-0.5">
-              <DialogTitle className="text-xl font-bold tracking-tight text-op-text-primary">
+          <div className={FEEDBACK_DIALOG_HEADER_ROW_CLASS}>
+            <DialogHeader className="min-w-0 flex-1 gap-3 text-left">
+              <DialogTitle className="pr-0 text-2xl font-bold tracking-normal text-op-text-primary">
                 Exports
               </DialogTitle>
-              <DialogDescription className="text-xs font-normal text-op-text-muted">
-                Download reports for {locationName} · {dateRangeLabel}.
+              <DialogDescription className="max-w-none text-base font-medium leading-normal text-[var(--op-color-gray-550)] dark:text-[var(--op-color-gray-550)]">
+                Download reports and consent-safe data for your records.
               </DialogDescription>
             </DialogHeader>
-
             <DialogClose asChild>
               <Button
                 type="button"
-                variant="op-secondary"
-                className="size-7 rounded-op-sm border border-op-border-default bg-op-button-collapse-background hover:bg-op-button-collapse-hover text-op-text-muted hover:text-op-text-primary flex items-center justify-center transition-colors shrink-0 p-0"
+                variant="op-collapse"
                 aria-label="Close"
+                className="shrink-0"
+                disabled={downloadBusy}
               >
-                <X className="size-3.5" />
+                <XIcon aria-hidden />
               </Button>
             </DialogClose>
           </div>
 
-          {exportDownloadError != null ? (
-            <p className="text-xs text-destructive" role="alert">
-              {exportDownloadError}
-            </p>
-          ) : null}
+          <div className={EXPORTS_DIALOG_BODY_CLASS}>
+            {exportDownloadError != null ? (
+              <p
+                className="m-0 text-sm font-medium text-[var(--op-color-red-550)]"
+                role="alert"
+              >
+                {exportDownloadError}
+              </p>
+            ) : null}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {visibleItems.map((item) => {
-              const busy = exportDownloadBusyKind === item.kind
-              return (
-                <div
-                  key={item.kind}
-                  className="flex flex-col justify-between gap-4 rounded-op-md border border-op-border-default bg-op-background-primary px-5 py-4 shadow-sm"
-                >
-                  <div className="flex flex-col gap-1">
-                    <h3 className="text-sm font-semibold text-op-text-primary">
-                      {item.title}
-                    </h3>
-                    <p className="text-xs text-op-text-muted font-normal leading-normal whitespace-normal">
-                      {item.description}
-                    </p>
-                  </div>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              {visibleItems.map((item) => {
+                const busy = exportDownloadBusyKind === item.kind
+                return (
+                  <div key={item.kind} className={EXPORT_CARD_CLASS}>
+                    <div className="flex flex-col gap-2">
+                      <h3 className={EXPORT_CARD_TITLE_CLASS}>{item.title}</h3>
+                      <p className={EXPORT_CARD_DESCRIPTION_CLASS}>
+                        {item.description}
+                      </p>
+                    </div>
 
-                  <div>
-                    <Button
-                      type="button"
-                      variant="op-secondary"
-                      disabled={exportDownloadBusyKind != null}
-                      className="h-7.5 px-3 rounded-op-sm text-xs font-medium self-start border border-op-border-default"
-                      onClick={() => void handleItemClick(item)}
-                    >
-                      {busy ? "Downloading…" : item.buttonLabel}
-                    </Button>
+                    <div>
+                      <Button
+                        type="button"
+                        variant="op-tertiary"
+                        disabled={downloadBusy}
+                        onClick={() => void handleItemClick(item)}
+                      >
+                        {busy ? (
+                          <>
+                            <Spinner size="sm" data-icon="inline-start" />
+                            Downloading…
+                          </>
+                        ) : (
+                          item.buttonLabel
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -217,70 +246,70 @@ export function ReportsExportDialog({
       >
         <DialogContent
           showCloseButton={false}
-          className="z-[220] w-full max-w-[500px] gap-5 rounded-op-lg border border-op-border-default bg-op-card-background p-6 text-op-text-primary shadow-2xl"
-          overlayClassName="z-[210] bg-black/80 backdrop-blur-xs"
+          className={FEEDBACK_DIALOG_CONTENT_CLASS}
         >
-          <div className="flex items-start justify-between">
-            <DialogHeader className="text-left gap-1">
-              <DialogTitle className="text-xl font-bold tracking-tight text-op-text-primary">
+          <div className={FEEDBACK_DIALOG_HEADER_ROW_CLASS}>
+            <DialogHeader className="min-w-0 flex-1 gap-3 text-left">
+              <DialogTitle className="pr-0 text-2xl font-bold tracking-normal text-op-text-primary">
                 Export report?
               </DialogTitle>
-              <DialogDescription className="text-xs sm:text-[13px] font-normal text-op-text-muted leading-relaxed">
+              <DialogDescription className={FEEDBACK_DIALOG_DESCRIPTION_CLASS}>
                 This export may include guest data. Only download it if you are
                 authorised to use it for this restaurant.
               </DialogDescription>
             </DialogHeader>
-
             <DialogClose asChild>
               <Button
                 type="button"
-                variant="op-secondary"
-                className="size-7 rounded-op-sm border border-op-border-default bg-op-button-collapse-background hover:bg-op-button-collapse-hover text-op-text-muted hover:text-op-text-primary flex items-center justify-center transition-colors shrink-0 p-0"
+                variant="op-collapse"
                 aria-label="Close"
+                className="shrink-0"
+                disabled={downloadBusy}
                 onClick={onCancelCsvConsent}
               >
-                <X className="size-3.5" />
+                <XIcon aria-hidden />
               </Button>
             </DialogClose>
           </div>
 
-          <CheckboxLabel
-            checked={csvConsentChecked}
-            onCheckedChange={onSetCsvConsentChecked}
-            className="py-3"
-            labelClassName="text-xs text-op-text-secondary font-normal leading-relaxed"
-          >
-            I understand this export may contain guest data and should be
-            handled securely.
-          </CheckboxLabel>
+          <div className={FEEDBACK_DIALOG_BODY_CLASS}>
+            <CheckboxLabel
+              checked={csvConsentChecked}
+              disabled={downloadBusy}
+              onCheckedChange={onSetCsvConsentChecked}
+              labelClassName="text-op-text-primary dark:text-op-text-primary"
+            >
+              I understand this export may contain guest data and should be
+              handled securely.
+            </CheckboxLabel>
+          </div>
 
-          <div className="flex items-center gap-2.5 pt-1">
+          <DialogFooter className={FEEDBACK_DIALOG_FOOTER_CLASS}>
             <Button
               type="button"
-              variant={csvConsentChecked ? "op-primary" : "op-secondary"}
-              disabled={
-                !csvConsentChecked || exportDownloadBusyKind != null
-              }
-              className={cn(
-                "h-9 px-4 rounded-op-sm text-xs font-medium transition-colors",
-                !csvConsentChecked
-                  && "opacity-50 cursor-not-allowed border border-op-border-default"
-              )}
+              variant="op-primary"
+              disabled={!csvConsentChecked || downloadBusy}
+              aria-disabled={!csvConsentChecked || downloadBusy}
               onClick={() => void handleConfirmExport()}
             >
-              {exportDownloadBusyKind != null
-                ? "Downloading…"
-                : "Download export"}
+              {downloadBusy ? (
+                <>
+                  <Spinner size="sm" data-icon="inline-start" />
+                  Downloading…
+                </>
+              ) : (
+                "Download export"
+              )}
             </Button>
             <Button
               type="button"
-              variant="op-secondary"
-              className="h-9 px-4 rounded-op-sm text-xs font-medium border border-op-border-default"
+              variant="op-tertiary"
+              disabled={downloadBusy}
               onClick={onCancelCsvConsent}
             >
               Cancel
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

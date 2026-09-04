@@ -33,8 +33,6 @@ function ReportsExportDialogHost() {
           reports.closeExportDialog()
         }
       }}
-      locationName={reports.snapshot.selectedLocationName ?? "Location"}
-      dateRangeLabel={reports.snapshot.dateRangeLabel}
       showOfferRedemptionLog={
         reports.snapshot.exportOffersRedemptionLogVisible
       }
