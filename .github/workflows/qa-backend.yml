@@ -6,6 +6,7 @@ on:
     paths:
       - "backend/TummlyBackend/**"
       - "docs/product/billing-pack-v3.0/**"
+      - "docs/product/materials-catalog-v1/**"
       - ".github/workflows/qa-backend.yml"
   workflow_dispatch:
 
@@ -63,7 +64,8 @@ jobs:
           IMAGE="${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
           IMAGE_LATEST="${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:qa"
           # Repo-root context so csproj Content links to
-          # docs/product/billing-pack-v3.0 resolve during publish.
+          # docs/product/billing-pack-v3.0 and materials-catalog-v1
+          # resolve during publish.
           docker build \
             -f backend/TummlyBackend/Dockerfile \
             -t "$IMAGE" \
