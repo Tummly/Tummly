@@ -187,7 +187,7 @@ namespace TummlyBackend.Services
                 comparisonRange.ToUtc,
                 cancellationToken
             );
-            _ = await MergeGuestsAsync(locationIds, cancellationToken);
+            var guestsEvidence = await MergeGuestsAsync(locationIds, cancellationToken);
 
             var historyDays = await ComputeHistoryDaysAsync(locationIds, utcNow, cancellationToken);
             var allowTrends = historyDays >= _settings.MinDaysForTrendClaim;
@@ -234,7 +234,13 @@ namespace TummlyBackend.Services
                 allowTrends,
                 insufficient
             );
-            var guests = BuildGuests(currentHome, comparisonHome, allowTrends, insufficient);
+            var guests = BuildGuests(
+                currentHome,
+                comparisonHome,
+                guestsEvidence,
+                allowTrends,
+                insufficient
+            );
             var capture = BuildCapture(
                 currentCapture,
                 comparisonCapture,
@@ -499,7 +505,7 @@ namespace TummlyBackend.Services
                 .Select(row => new FlaggedFeedbackItem(
                     row.Id.ToString(CultureInfo.InvariantCulture),
                     DateOnly.FromDateTime(row.CreatedAt),
-                    Truncate(row.Excerpt, 120),
+                    FeedbackShortSummary(row),
                     RecoverySent: false
                 ))
                 .ToList();
@@ -563,18 +569,30 @@ namespace TummlyBackend.Services
         private static GuestsSection BuildGuests(
             AssistantHomeKpiEvidence current,
             AssistantHomeKpiEvidence comparison,
+            AssistantGuestsEvidence guests,
             bool allowTrends,
             List<string> insufficient
         )
         {
-            if (current.GuestsJoined == 0 && comparison.GuestsJoined == 0)
+            if (current.GuestsJoined == 0
+                && comparison.GuestsJoined == 0
+                && guests.IsEmpty)
             {
                 insufficient.Add("Guests");
             }
 
+            // Aggregate-only: dormant smart-group tags count as lapsed.
+            // Never surface guest identifiers. VIP-at-risk needs spend history
+            // the retrieve path does not expose yet.
+            var lapsed = guests.Rows.Count(row =>
+                row.GuestTags.Any(tag =>
+                    tag.Contains("dormant", StringComparison.OrdinalIgnoreCase)
+                )
+            );
+
             return new GuestsSection(
                 Metric(current.GuestsJoined, comparison.GuestsJoined, allowTrends),
-                UnsupportedMetric(),
+                Metric(lapsed, null, allowTrends: false),
                 UnsupportedMetric(),
                 []
             );
@@ -618,13 +636,33 @@ namespace TummlyBackend.Services
                 allowTrends ? PctDelta(dropCurrent ?? 0m, dropPrior) : null
             );
             string? stage = null;
+            var flags = new List<Flag>();
             if (current.QrScans > 0
                 && current.FeedbackSubmitted * 2 < current.QrScans)
             {
                 stage = "scan-to-feedback";
+                flags.Add(
+                    new Flag(
+                        "CAPTURE_DROPOFF_DOMINANT_STAGE",
+                        "Most drop-off is between QR scan and feedback submit.",
+                        FlagSeverity.Notable,
+                        [stage]
+                    )
+                );
             }
 
-            return new CaptureSection(start, complete, drop, stage);
+            return new CaptureSection(start, complete, drop, stage, flags);
+        }
+
+        private static string FeedbackShortSummary(AssistantFeedbackEvidenceRow row)
+        {
+            var sentiment = string.IsNullOrWhiteSpace(row.Sentiment)
+                ? "unclassified"
+                : row.Sentiment.Trim().ToLowerInvariant();
+            var tags = row.DetectedTags.Count == 0
+                ? "no tags"
+                : string.Join(", ", row.DetectedTags.Take(3));
+            return Truncate($"{sentiment}; {tags}", 120);
         }
 
         private async Task<RecentActionsSection> LoadRecentActionsAsync(

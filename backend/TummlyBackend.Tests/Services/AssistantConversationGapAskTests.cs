@@ -642,7 +642,8 @@ namespace TummlyBackend.Tests.Services
                     new MetricPoint(0m, null, null),
                     new MetricPoint(0m, null, null),
                     new MetricPoint(0m, null, null),
-                    null
+                    null,
+                    []
                 ),
                 new RecentActionsSection([]),
                 new SnapshotMeta(IsNewAccount: true, TotalDaysOfHistory: 5, [])

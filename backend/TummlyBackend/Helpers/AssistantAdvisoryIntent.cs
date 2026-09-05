@@ -211,52 +211,13 @@ namespace TummlyBackend.Helpers
         }
 
         private static AdvisoryPreCheckOutcome EvaluateGeneralHealth(PreCheckInput input)
-        {
-            if (input.OwnedLocationIds.Count == 0)
-            {
-                return GapOutcome(
-                    AdvisoryGapReason.ScopeUnresolved,
-                    [],
-                    input.ConversationTurnId,
-                    "No Owned location is available."
-                );
-            }
-
-            if (input.Snapshot.Meta.TotalDaysOfHistory
-                < input.Settings.MinDaysForTrendClaim)
-            {
-                return GapOutcome(
-                    AdvisoryGapReason.InsufficientData,
-                    [],
-                    input.ConversationTurnId,
-                    null
-                );
-            }
-
-            return ClearOutcome(input);
-        }
+            => ScopeOrHistoryGap(input) ?? ClearOutcome(input);
 
         private static AdvisoryPreCheckOutcome EvaluateGrowth(PreCheckInput input)
         {
-            if (input.OwnedLocationIds.Count == 0)
+            if (ScopeOrHistoryGap(input) is { } gap)
             {
-                return GapOutcome(
-                    AdvisoryGapReason.ScopeUnresolved,
-                    input.OwnedLocationIds.ToArray(),
-                    input.ConversationTurnId,
-                    null
-                );
-            }
-
-            if (input.Snapshot.Meta.TotalDaysOfHistory
-                < input.Settings.MinDaysForTrendClaim)
-            {
-                return GapOutcome(
-                    AdvisoryGapReason.InsufficientData,
-                    [],
-                    input.ConversationTurnId,
-                    null
-                );
+                return gap;
             }
 
             if (string.IsNullOrWhiteSpace(input.ChosenMetricNote)
@@ -290,7 +251,7 @@ namespace TummlyBackend.Helpers
                     < input.Settings.MinDaysForTrendClaim)
             {
                 return GapOutcome(
-                    AdvisoryGapReason.RangeAmbiguous,
+                    AdvisoryGapReason.InsufficientData,
                     ["last 7 days", "last 30 days", "this month"],
                     input.ConversationTurnId,
                     "The comparison window still has thin data."
@@ -312,6 +273,49 @@ namespace TummlyBackend.Helpers
                 );
             }
 
+            // Diagnostic asks almost never hard-gap: thin history and missing
+            // drivers are honest answers, not clarifying questions.
+            if (input.Snapshot.Meta.TotalDaysOfHistory
+                    < input.Settings.MinDaysForTrendClaim
+                || !HasDriverFlag(input.Snapshot))
+            {
+                return new AdvisoryPreCheckOutcome.NoClearDriver(
+                    "I can see the recent numbers, but I do not see a clear "
+                        + "driver yet. I will not invent a cause.",
+                    input.Snapshot
+                );
+            }
+
+            return ClearOutcome(input);
+        }
+
+        /// <summary>
+        /// Gap when the live Reason model asks for clarify mid-turn.
+        /// </summary>
+        public static AdvisoryGap ModelRequestedGap(
+            string[] candidateOptions,
+            string conversationTurnId,
+            string? partialDiagnosisNote = null
+        )
+            => new(
+                AdvisoryGapReason.ModelRequested,
+                candidateOptions,
+                partialDiagnosisNote,
+                conversationTurnId
+            );
+
+        private static AdvisoryPreCheckOutcome? ScopeOrHistoryGap(PreCheckInput input)
+        {
+            if (input.OwnedLocationIds.Count == 0)
+            {
+                return GapOutcome(
+                    AdvisoryGapReason.ScopeUnresolved,
+                    [],
+                    input.ConversationTurnId,
+                    "No Owned location is available."
+                );
+            }
+
             if (input.Snapshot.Meta.TotalDaysOfHistory
                 < input.Settings.MinDaysForTrendClaim)
             {
@@ -323,16 +327,7 @@ namespace TummlyBackend.Helpers
                 );
             }
 
-            if (!HasDriverFlag(input.Snapshot))
-            {
-                return new AdvisoryPreCheckOutcome.NoClearDriver(
-                    "I can see the recent numbers, but I do not see a clear "
-                        + "driver yet. I will not invent a cause.",
-                    input.Snapshot
-                );
-            }
-
-            return ClearOutcome(input);
+            return null;
         }
 
         private static AdvisoryPreCheckOutcome.Clear ClearOutcome(PreCheckInput input)

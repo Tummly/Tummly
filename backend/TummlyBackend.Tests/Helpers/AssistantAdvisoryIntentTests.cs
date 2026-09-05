@@ -126,6 +126,56 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("will not invent a cause", noDriver.Body, StringComparison.Ordinal);
         }
 
+        [Fact]
+        public void Evaluate_Diagnostic_ShortHistory_IsNoClearDriverNotGap()
+        {
+            var snapshot = Snapshot(historyDays: 5);
+
+            var outcome = AssistantAdvisoryIntent.Evaluate(
+                ownedLocationIds: ["10"],
+                message: "Why did covers drop?",
+                snapshot,
+                Settings
+            );
+
+            Assert.IsType<AdvisoryPreCheckOutcome.NoClearDriver>(outcome);
+        }
+
+        [Fact]
+        public void Evaluate_Comparison_ThinHistory_InsufficientData()
+        {
+            var snapshot = Snapshot(historyDays: 5) with
+            {
+                Meta = new SnapshotMeta(
+                    IsNewAccount: true,
+                    TotalDaysOfHistory: 5,
+                    SectionsWithInsufficientData: ["Offers"]
+                ),
+            };
+
+            var outcome = AssistantAdvisoryIntent.Evaluate(
+                ownedLocationIds: ["10"],
+                message: "Compare this month vs last month",
+                snapshot,
+                Settings
+            );
+
+            var gap = Assert.IsType<AdvisoryPreCheckOutcome.Gap>(outcome);
+            Assert.Equal(AdvisoryGapReason.InsufficientData, gap.Advisory.Reason);
+        }
+
+        [Fact]
+        public void ModelRequestedGap_UsesModelRequestedReason()
+        {
+            var gap = AssistantAdvisoryIntent.ModelRequestedGap(
+                ["covers", "sentiment"],
+                "turn-1",
+                "Partial note"
+            );
+            Assert.Equal(AdvisoryGapReason.ModelRequested, gap.Reason);
+            Assert.Equal("Partial note", gap.PartialDiagnosisNote);
+        }
+
         private static RestaurantContextSnapshot Snapshot(
             int historyDays,
             decimal? coversPct = null,
@@ -166,7 +216,8 @@ namespace TummlyBackend.Tests.Helpers
                     new MetricPoint(20m, 18m, capturePct),
                     new MetricPoint(10m, 12m, capturePct),
                     new MetricPoint(50m, 40m, null),
-                    null
+                    null,
+                    []
                 ),
                 new RecentActionsSection([]),
                 new SnapshotMeta(

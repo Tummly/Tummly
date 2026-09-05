@@ -588,31 +588,29 @@ namespace TummlyBackend.Services
 
             // Unmatched routing: cancel already handled. A new create drops
             // the open Gap. Retrieve, Refuse, and confused fills keep it.
-            // Advisory Gaps: a resolving choice continues the advisory path;
-            // off-topic retrieve/create drops the Gap like a fresh turn.
+            // Advisory Gaps route through TryResumeGapAsync (same entry as
+            // Creation); a resolving choice continues the advisory path.
             if (gapState is not null
                 && AssistantGapTurn.IsAdvisoryGap(gapState))
             {
-                var advisoryResume = TryResumeAdvisoryGap(
+                var resumed = await TryResumeGapAsync(
+                    conversation,
                     gapState,
-                    userMessage
+                    userMessage,
+                    locationName,
+                    ownedLocations,
+                    replaceFailure,
+                    cancellationToken
                 );
-                if (advisoryResume.ReaskBody is not null)
+                if (resumed.Outcome is not null)
                 {
-                    return await FinishGapTurnAsync(
-                        conversation,
-                        gapState,
-                        advisoryResume.ReaskBody,
-                        replaceFailure,
-                        cancellationToken
-                    );
+                    return resumed.Outcome;
                 }
 
-                conversation.DraftInterviewJson = null;
-                gapState = null;
-                if (advisoryResume.MergedMessage is not null)
+                gapState = AssistantGapTurn.Parse(conversation.DraftInterviewJson);
+                if (resumed.MergedUserMessage is not null)
                 {
-                    userMessage = advisoryResume.MergedMessage;
+                    userMessage = resumed.MergedUserMessage;
                 }
             }
             else if (gapState is not null
@@ -2993,7 +2991,8 @@ namespace TummlyBackend.Services
             AssistantTurnOutcome? Outcome,
             IReadOnlyList<string>? DraftTargets,
             int? LocationId = null,
-            string? LocationName = null
+            string? LocationName = null,
+            string? MergedUserMessage = null
         );
 
         private sealed record CombinedCreateResumeContext(
@@ -3272,6 +3271,17 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            if (AssistantGapTurn.IsAdvisoryGap(gapState))
+            {
+                return await ResumeAdvisoryGapAsync(
+                    conversation,
+                    gapState,
+                    userMessage,
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
+
             var stayOnOfferPath = AssistantGapTurn.IsOfferPathGap(gapState);
             var detected = AssistantCreateTargets.Detect(userMessage);
             if (detected.Count > 1 && !stayOnOfferPath)
@@ -4170,6 +4180,37 @@ namespace TummlyBackend.Services
             string? ReaskBody
         );
 
+        private async Task<GapResume> ResumeAdvisoryGapAsync(
+            AssistantConversation conversation,
+            AssistantGapState gapState,
+            string userMessage,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken
+        )
+        {
+            var advisoryResume = TryResumeAdvisoryGap(gapState, userMessage);
+            if (advisoryResume.ReaskBody is not null)
+            {
+                return new GapResume(
+                    await FinishGapTurnAsync(
+                        conversation,
+                        gapState,
+                        advisoryResume.ReaskBody,
+                        replaceFailure,
+                        cancellationToken
+                    ),
+                    null
+                );
+            }
+
+            conversation.DraftInterviewJson = null;
+            return new GapResume(
+                null,
+                null,
+                MergedUserMessage: advisoryResume.MergedMessage
+            );
+        }
+
         private static AdvisoryGapResume TryResumeAdvisoryGap(
             AssistantGapState gapState,
             string userMessage
@@ -4218,7 +4259,7 @@ namespace TummlyBackend.Services
             var locationIds = compareIds.Count > 0
                 ? compareIds
                 : ownedLocations.Select(location => location.Id).ToList();
-            var scope = BuildAdvisoryScope(locationIds);
+            var scope = BuildAdvisoryScope(locationIds, ownedLocations.Count);
             var chosenMetric = ExtractChosenMetricNote(userMessage);
             var snapshot = await _restaurantContextSnapshot.BuildAsync(
                 conversation.OwnerUserId,
@@ -4270,7 +4311,10 @@ namespace TummlyBackend.Services
             };
         }
 
-        private static LocationScope BuildAdvisoryScope(IReadOnlyList<int> locationIds)
+        private static LocationScope BuildAdvisoryScope(
+            IReadOnlyList<int> locationIds,
+            int ownedLocationCount
+        )
         {
             var ids = locationIds
                 .Select(id => id.ToString(CultureInfo.InvariantCulture))
@@ -4283,6 +4327,11 @@ namespace TummlyBackend.Services
             if (ids.Length == 0)
             {
                 return new AllOwnedLocations([]);
+            }
+
+            if (ids.Length < ownedLocationCount)
+            {
+                return new NamedSubset(ids);
             }
 
             return new AllOwnedLocations(ids);

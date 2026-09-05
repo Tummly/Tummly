@@ -104,7 +104,8 @@ namespace TummlyBackend.Models
         MetricPoint FunnelStartCount,
         MetricPoint FunnelCompleteCount,
         MetricPoint DropOffRate,
-        string? DropOffStageFlag
+        string? DropOffStageFlag,
+        List<Flag> Flags
     );
 
     public sealed record PriorAssistantAction(
