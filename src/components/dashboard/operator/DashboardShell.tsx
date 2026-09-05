@@ -153,11 +153,13 @@ export function DashboardShell({
   const [settingsExpanded, setSettingsExpanded] = useState(
     readSidebarSettingsExpanded
   )
+  const isAiDrawerOpen = Boolean(aiAssistant?.snapshot.drawerOpen)
+  const isAssistantExpanded =
+    isAiDrawerOpen && aiAssistant?.snapshot.widthMode === "expanded"
+
   const sideNavExpandLock = assistantSideNavExpandLock({
     priorCollapsed: sidebarCollapsed,
-    assistantExpanded:
-      aiAssistant?.snapshot.drawerOpen === true
-      && aiAssistant.snapshot.widthMode === "expanded",
+    assistantExpanded: isAssistantExpanded,
   })
   const effectiveSidebarCollapsed = sideNavExpandLock.effectiveCollapsed
 
@@ -230,6 +232,7 @@ export function DashboardShell({
           onOpenAiAssistant={
             aiAssistant ? handleOpenAiAssistant : undefined
           }
+          aiAssistantOpen={Boolean(aiAssistant?.snapshot.drawerOpen)}
           onRouteDestination={aiAssistant?.onRouteDestination}
           onSelectLocation={handleSelectLocation}
           onSignOut={onSignOut}
@@ -285,51 +288,7 @@ export function DashboardShell({
         />
       ) : null}
 
-      {aiAssistant ? (
-        <AiAssistantDrawer
-          snapshot={aiAssistant.snapshot}
-          sidebarCollapsed={effectiveSidebarCollapsed}
-          onOpenChange={aiAssistant.onOpenChange}
-          onStartNewChat={aiAssistant.onStartNewChat}
-          onOpenRecent={aiAssistant.onOpenRecent}
-          onOpenArchive={aiAssistant.onOpenArchive}
-          onBackToConversation={aiAssistant.onBackToConversation}
-          onSearchQueryChange={aiAssistant.onSearchQueryChange}
-          onOpenConversation={aiAssistant.onOpenConversation}
-          onArchiveConversation={aiAssistant.onArchiveConversation}
-          onUnarchiveConversation={aiAssistant.onUnarchiveConversation}
-          onRequestDelete={aiAssistant.onRequestDelete}
-          onCancelDelete={aiAssistant.onCancelDelete}
-          onConfirmDelete={aiAssistant.onConfirmDelete}
-          onRetryList={aiAssistant.onRetryList}
-          onRetryBody={aiAssistant.onRetryBody}
-          onExpand={aiAssistant.onExpand}
-          onLeaveExpand={aiAssistant.onLeaveExpand}
-          onOpenChangeScope={aiAssistant.onOpenChangeScope}
-          onChangeScopeOpenChange={aiAssistant.onChangeScopeOpenChange}
-          onChangeScopeDraftLocation={aiAssistant.onChangeScopeDraftLocation}
-          onChangeScopeDraftReportingPeriod={
-            aiAssistant.onChangeScopeDraftReportingPeriod
-          }
-          onApplyChangeScope={aiAssistant.onApplyChangeScope}
-          onSetComposerDraft={aiAssistant.onSetComposerDraft}
-          onFillComposerFromChip={aiAssistant.onFillComposerFromChip}
-          onSend={aiAssistant.onSend}
-          onStartMic={aiAssistant.onStartMic}
-          onConfirmMic={aiAssistant.onConfirmMic}
-          onCancelMic={aiAssistant.onCancelMic}
-          onDismissMicError={aiAssistant.onDismissMicError}
-          micAudioLevelSource={aiAssistant.micAudioLevelSource}
-          onRetry={aiAssistant.onRetry}
-          onToggleHelpful={aiAssistant.onToggleHelpful}
-          onActivateAction={aiAssistant.onActivateAction}
-          onDismissFromEscape={aiAssistant.onDismissFromEscape}
-          onViewUsage={aiAssistant.onViewUsage}
-          onAddCredits={aiAssistant.onAddCredits}
-          onFollowRestorationHelper={aiAssistant.onFollowRestorationHelper}
-        />
-      ) : null}
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <div
           className={cn(
             "hidden min-h-0 shrink-0 lg:flex lg:flex-col",
@@ -433,13 +392,20 @@ export function DashboardShell({
 
         <main
           className={cn(
-            "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+            "flex min-h-0 min-w-0 flex-col overflow-hidden",
+            "transition-[width,flex,margin,opacity,border-radius] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
             isShopPage
               ? cn("rounded-tl-none", SHOP_PAGE_BACKGROUND_CLASS)
               : cn(
                   "rounded-tl-[var(--operator-shell-main-radius)]",
                   "bg-op-app-background-default"
-                )
+                ),
+            isAiDrawerOpen &&
+              !isShopPage &&
+              "my-2 ml-2 h-[calc(100%-1rem)] rounded-tl-[20px] rounded-tr-[20px] rounded-bl-[10px] rounded-br-[10px] border border-op-border-default",
+            isAssistantExpanded
+              ? "w-0 min-w-0 flex-none opacity-0 pointer-events-none p-0 m-0 border-0 overflow-hidden"
+              : "flex-1 min-w-0 opacity-100"
           )}
         >
           {/*
@@ -501,6 +467,51 @@ export function DashboardShell({
             </div>
           </div>
         </main>
+
+        {aiAssistant ? (
+          <AiAssistantDrawer
+            snapshot={aiAssistant.snapshot}
+            sidebarCollapsed={effectiveSidebarCollapsed}
+            onOpenChange={aiAssistant.onOpenChange}
+            onStartNewChat={aiAssistant.onStartNewChat}
+            onOpenRecent={aiAssistant.onOpenRecent}
+            onOpenArchive={aiAssistant.onOpenArchive}
+            onBackToConversation={aiAssistant.onBackToConversation}
+            onSearchQueryChange={aiAssistant.onSearchQueryChange}
+            onOpenConversation={aiAssistant.onOpenConversation}
+            onArchiveConversation={aiAssistant.onArchiveConversation}
+            onUnarchiveConversation={aiAssistant.onUnarchiveConversation}
+            onRequestDelete={aiAssistant.onRequestDelete}
+            onCancelDelete={aiAssistant.onCancelDelete}
+            onConfirmDelete={aiAssistant.onConfirmDelete}
+            onRetryList={aiAssistant.onRetryList}
+            onRetryBody={aiAssistant.onRetryBody}
+            onExpand={aiAssistant.onExpand}
+            onLeaveExpand={aiAssistant.onLeaveExpand}
+            onOpenChangeScope={aiAssistant.onOpenChangeScope}
+            onChangeScopeOpenChange={aiAssistant.onChangeScopeOpenChange}
+            onChangeScopeDraftLocation={aiAssistant.onChangeScopeDraftLocation}
+            onChangeScopeDraftReportingPeriod={
+              aiAssistant.onChangeScopeDraftReportingPeriod
+            }
+            onApplyChangeScope={aiAssistant.onApplyChangeScope}
+            onSetComposerDraft={aiAssistant.onSetComposerDraft}
+            onFillComposerFromChip={aiAssistant.onFillComposerFromChip}
+            onSend={aiAssistant.onSend}
+            onStartMic={aiAssistant.onStartMic}
+            onConfirmMic={aiAssistant.onConfirmMic}
+            onCancelMic={aiAssistant.onCancelMic}
+            onDismissMicError={aiAssistant.onDismissMicError}
+            micAudioLevelSource={aiAssistant.micAudioLevelSource}
+            onRetry={aiAssistant.onRetry}
+            onToggleHelpful={aiAssistant.onToggleHelpful}
+            onActivateAction={aiAssistant.onActivateAction}
+            onDismissFromEscape={aiAssistant.onDismissFromEscape}
+            onViewUsage={aiAssistant.onViewUsage}
+            onAddCredits={aiAssistant.onAddCredits}
+            onFollowRestorationHelper={aiAssistant.onFollowRestorationHelper}
+          />
+        ) : null}
       </div>
     </div>
   )

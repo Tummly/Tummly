@@ -41,6 +41,7 @@ type DashboardNavbarProps = {
   onViewAiCreditsUsage?: () => void
   onAddAiCredits?: () => void
   onOpenAiAssistant?: () => void
+  aiAssistantOpen?: boolean
   onRouteDestination?: () => void
   onSelectLocation: (locationId: number) => void
   onSignOut: () => void
@@ -62,6 +63,7 @@ export function DashboardNavbar({
   onViewAiCreditsUsage,
   onAddAiCredits,
   onOpenAiAssistant,
+  aiAssistantOpen = false,
   onRouteDestination,
   onSelectLocation,
   onSignOut,
@@ -188,6 +190,9 @@ export function DashboardNavbar({
                   >
                     <AiIcon />
                   </Button>
+                  <div className="hidden h-10 items-center justify-center rounded-op-sm border border-op-border-default px-3.5 text-xs font-medium text-neutral-400 lg:inline-flex">
+                    100 AI credits
+                  </div>
                   <Button
                     type="button"
                     variant="ghost"
@@ -195,7 +200,8 @@ export function DashboardNavbar({
                       "hidden gap-1.5 rounded-op-sm pl-2 pr-3 md:inline-flex",
                       OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS,
                       "text-xs font-medium text-op-header-ai-text lg:h-10 lg:min-h-10 lg:gap-2 lg:px-4 lg:text-sm",
-                      "bg-op-header-ai-background hover:bg-op-header-ai-hover"
+                      "bg-op-header-ai-background hover:bg-op-header-ai-hover",
+                      aiAssistantOpen && "border border-op-border-default bg-[#202020] text-white"
                     )}
                     aria-label="AI Assistant"
                     onClick={onOpenAiAssistant}

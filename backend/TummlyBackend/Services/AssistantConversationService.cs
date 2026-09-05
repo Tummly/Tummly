@@ -1,4 +1,6 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
@@ -40,6 +42,10 @@ namespace TummlyBackend.Services
         private readonly IAssistantAiBilling _aiBilling;
         private readonly TimeProvider _clock;
         private readonly FeedbackClassificationSettings _liveAnswerSettings;
+        private readonly IRestaurantContextSnapshotService? _restaurantContextSnapshot;
+        private readonly RestaurantContextSnapshotSettings _snapshotSettings;
+        private readonly IAssistantAdvisoryReasonProvider? _advisoryReason;
+        private readonly ILogger<AssistantConversationService> _logger;
         private string? _pendingAssistantBodyPrefix;
 
         public AssistantConversationService(
@@ -63,7 +69,11 @@ namespace TummlyBackend.Services
             IRestaurantPermissionHelper permissions,
             IAssistantAiBilling aiBilling,
             TimeProvider? timeProvider = null,
-            IOptions<FeedbackClassificationSettings>? liveAnswerSettings = null
+            IOptions<FeedbackClassificationSettings>? liveAnswerSettings = null,
+            IRestaurantContextSnapshotService? restaurantContextSnapshot = null,
+            IOptions<RestaurantContextSnapshotSettings>? snapshotSettings = null,
+            IAssistantAdvisoryReasonProvider? advisoryReason = null,
+            ILogger<AssistantConversationService>? logger = null
         )
         {
             _context = context;
@@ -88,6 +98,12 @@ namespace TummlyBackend.Services
             _clock = timeProvider ?? TimeProvider.System;
             _liveAnswerSettings = liveAnswerSettings?.Value
                 ?? new FeedbackClassificationSettings();
+            _restaurantContextSnapshot = restaurantContextSnapshot;
+            _snapshotSettings = snapshotSettings?.Value
+                ?? new RestaurantContextSnapshotSettings();
+            _advisoryReason = advisoryReason;
+            _logger = logger
+                ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantConversationService>.Instance;
         }
 
         public async Task<AssistantTurnOutcome> SendTurnAsync(
@@ -580,7 +596,32 @@ namespace TummlyBackend.Services
 
             // Unmatched routing: cancel already handled. A new create drops
             // the open Gap. Retrieve, Refuse, and confused fills keep it.
+            // Advisory Gaps route through TryResumeGapAsync (same entry as
+            // Creation); a resolving choice continues the advisory path.
             if (gapState is not null
+                && AssistantGapTurn.IsAdvisoryGap(gapState))
+            {
+                var resumed = await TryResumeGapAsync(
+                    conversation,
+                    gapState,
+                    userMessage,
+                    locationName,
+                    ownedLocations,
+                    replaceFailure,
+                    cancellationToken
+                );
+                if (resumed.Outcome is not null)
+                {
+                    return resumed.Outcome;
+                }
+
+                gapState = AssistantGapTurn.Parse(conversation.DraftInterviewJson);
+                if (resumed.MergedUserMessage is not null)
+                {
+                    userMessage = resumed.MergedUserMessage;
+                }
+            }
+            else if (gapState is not null
                 && AssistantGapAsk.LooksLikeNewCreateDuringGap(userMessage))
             {
                 conversation.DraftInterviewJson = null;
@@ -934,6 +975,34 @@ namespace TummlyBackend.Services
             IReadOnlyList<string> failedLocationNames = [];
             IReadOnlyList<string> notStartedLocationNames = [];
             AssistantRetrievedEvidence savedEvidence;
+
+            // Advisory Gap pre-check before expensive retrieve / live LLM.
+            // Clear with an injected Reason provider finishes on that path;
+            // without it, Clear falls through to retrieve + live answer.
+            if (_restaurantContextSnapshot is not null
+                && gapState is null
+                && !isCreateTurn
+                && !helpCentreAsk
+                && !pureProductExpert
+                && !attentionAsk
+                && AssistantAdvisoryIntent.LooksLikeAdvisoryRetrieve(userMessage))
+            {
+                var advisoryTurn = await TryFinishAdvisoryPreCheckAsync(
+                    conversation,
+                    userMessage,
+                    ownedLocations,
+                    compareIds,
+                    replaceFailure,
+                    boundCreateLocationId,
+                    idempotencyKey,
+                    cancellationToken
+                );
+                if (advisoryTurn is not null)
+                {
+                    return advisoryTurn;
+                }
+            }
+
             try
             {
                 if (pureProductExpert)
@@ -2931,7 +3000,8 @@ namespace TummlyBackend.Services
             AssistantTurnOutcome? Outcome,
             IReadOnlyList<string>? DraftTargets,
             int? LocationId = null,
-            string? LocationName = null
+            string? LocationName = null,
+            string? MergedUserMessage = null
         );
 
         private sealed record CombinedCreateResumeContext(
@@ -3210,6 +3280,17 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            if (AssistantGapTurn.IsAdvisoryGap(gapState))
+            {
+                return await ResumeAdvisoryGapAsync(
+                    conversation,
+                    gapState,
+                    userMessage,
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
+
             var stayOnOfferPath = AssistantGapTurn.IsOfferPathGap(gapState);
             var detected = AssistantCreateTargets.Detect(userMessage);
             if (detected.Count > 1 && !stayOnOfferPath)
@@ -4101,6 +4182,348 @@ namespace TummlyBackend.Services
                 liveAnswerAlreadyCompleted: liveAnswerAlreadyCompleted,
                 turnBilling: turnBilling
             );
+        }
+
+        private sealed record AdvisoryGapResume(
+            string? MergedMessage,
+            string? ReaskBody
+        );
+
+        private async Task<GapResume> ResumeAdvisoryGapAsync(
+            AssistantConversation conversation,
+            AssistantGapState gapState,
+            string userMessage,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken
+        )
+        {
+            var advisoryResume = TryResumeAdvisoryGap(gapState, userMessage);
+            if (advisoryResume.ReaskBody is not null)
+            {
+                return new GapResume(
+                    await FinishGapTurnAsync(
+                        conversation,
+                        gapState,
+                        advisoryResume.ReaskBody,
+                        replaceFailure,
+                        cancellationToken
+                    ),
+                    null
+                );
+            }
+
+            conversation.DraftInterviewJson = null;
+            return new GapResume(
+                null,
+                null,
+                MergedUserMessage: advisoryResume.MergedMessage
+            );
+        }
+
+        private static AdvisoryGapResume TryResumeAdvisoryGap(
+            AssistantGapState gapState,
+            string userMessage
+        )
+        {
+            var choice = AssistantCampaignDraftBind.ResolveNamedChoice(
+                gapState.Options,
+                userMessage
+            );
+            if (choice is not null)
+            {
+                return new AdvisoryGapResume(
+                    $"{gapState.SourceUserMessage}\n{choice}",
+                    null
+                );
+            }
+
+            if (AssistantGapAsk.LooksLikeNewCreateDuringGap(userMessage)
+                || AssistantAskIntent.HasReplacingRetrieveAsk(userMessage)
+                || AssistantTaskClassification.LooksLikeCreateTurn(userMessage)
+                || AssistantTaskClassification.LooksLikeRecoveryPath(userMessage))
+            {
+                return new AdvisoryGapResume(null, null);
+            }
+
+            // Model-requested clarify (and other option-less advisory gaps) must
+            // accept a free-form reply the same way a named choice resolves.
+            if (gapState.Options.Count == 0
+                && !string.IsNullOrWhiteSpace(userMessage))
+            {
+                return new AdvisoryGapResume(
+                    $"{gapState.SourceUserMessage}\n{userMessage.Trim()}",
+                    null
+                );
+            }
+
+            return new AdvisoryGapResume(
+                null,
+                AssistantGapTurn.AdvisoryGapBody(gapState)
+            );
+        }
+
+        private async Task<AssistantTurnOutcome?> TryFinishAdvisoryPreCheckAsync(
+            AssistantConversation conversation,
+            string userMessage,
+            IReadOnlyList<OwnedLocationRow> ownedLocations,
+            IReadOnlyList<int> compareIds,
+            AssistantMessage? replaceFailure,
+            int? boundCreateLocationId,
+            string? idempotencyKey,
+            CancellationToken cancellationToken
+        )
+        {
+            if (_restaurantContextSnapshot is null)
+            {
+                return null;
+            }
+
+            var locationIds = compareIds.Count > 0
+                ? compareIds
+                : ownedLocations.Select(location => location.Id).ToList();
+            var scope = BuildAdvisoryScope(locationIds, ownedLocations.Count);
+            var chosenMetric = ExtractChosenMetricNote(userMessage);
+            var snapshot = await _restaurantContextSnapshot.BuildAsync(
+                conversation.OwnerUserId,
+                scope,
+                currentOverride: null,
+                comparisonOverride: null,
+                cancellationToken
+            );
+            var ownedIdStrings = ownedLocations
+                .Select(location =>
+                    location.Id.ToString(CultureInfo.InvariantCulture)
+                )
+                .ToList();
+            var outcome = AssistantAdvisoryIntent.Evaluate(
+                ownedIdStrings,
+                userMessage,
+                snapshot,
+                _snapshotSettings,
+                conversationTurnId: Guid.NewGuid()
+                    .ToString("N", CultureInfo.InvariantCulture),
+                chosenMetricNote: chosenMetric
+            );
+
+            return outcome switch
+            {
+                AdvisoryPreCheckOutcome.Gap gap => await FinishGapTurnAsync(
+                    conversation,
+                    AssistantGapTurn.CreateAdvisory(gap.Advisory, userMessage),
+                    AssistantAdvisoryIntent.GapQuestionBody(gap.Advisory),
+                    replaceFailure,
+                    cancellationToken
+                ),
+                AdvisoryPreCheckOutcome.NoClearDriver noDriver =>
+                    await PersistAssistantAsync(
+                        conversation,
+                        GroundedMessage(
+                            DateTime.UtcNow,
+                            "No clear driver",
+                            noDriver.Body,
+                            []
+                        ),
+                        replaceFailure,
+                        cancellationToken,
+                        liveAnswerAlreadyCompleted: true
+                    ),
+                AdvisoryPreCheckOutcome.PureProduct => null,
+                AdvisoryPreCheckOutcome.Clear clear when _advisoryReason is not null
+                    => await FinishAdvisoryClearAsync(
+                        conversation,
+                        userMessage,
+                        clear,
+                        replaceFailure,
+                        boundCreateLocationId,
+                        idempotencyKey,
+                        cancellationToken
+                    ),
+                // Clear without Reason provider: keep retrieve + live path.
+                _ => null,
+            };
+        }
+
+        private async Task<AssistantTurnOutcome> FinishAdvisoryClearAsync(
+            AssistantConversation conversation,
+            string userMessage,
+            AdvisoryPreCheckOutcome.Clear clear,
+            AssistantMessage? replaceFailure,
+            int? boundCreateLocationId,
+            string? idempotencyKey,
+            CancellationToken cancellationToken
+        )
+        {
+            var billingGate = await TryBeginBilledLiveAnswerAsync(
+                conversation,
+                boundCreateLocationId,
+                idempotencyKey,
+                cancellationToken
+            );
+            if (billingGate.Error is not null)
+            {
+                return billingGate.Error;
+            }
+
+            var turnBilling = billingGate.Billing;
+            AssistantAdvisoryReasonResult reasonResult;
+            try
+            {
+                await TryPublishProgressAsync(
+                    conversation.OwnerUserId,
+                    conversation.Id,
+                    AssistantTurnProgressSteps.Preparing,
+                    cancellationToken
+                );
+                reasonResult = await _advisoryReason!.CompleteAsync(
+                    new AssistantAdvisoryReasonInput(
+                        userMessage,
+                        clear.Snapshot,
+                        BuildLiveAnswerHistory(conversation)
+                    ),
+                    cancellationToken
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                conversation.LastCompareLocationIdsJson = null;
+                await PersistAssistantAsync(
+                    conversation,
+                    FailureMessage(DateTime.UtcNow),
+                    replaceFailure,
+                    CancellationToken.None
+                );
+                throw;
+            }
+
+            if (reasonResult is not AssistantAdvisoryReasonResult.Succeeded succeeded)
+            {
+                conversation.LastCompareLocationIdsJson = null;
+                return await PersistAssistantAsync(
+                    conversation,
+                    FailureMessage(DateTime.UtcNow),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true,
+                    turnBilling: turnBilling
+                );
+            }
+
+            turnBilling?.MarkLiveAnswerSucceeded();
+            var validated = AssistantAdvisoryReasonValidate.Validate(
+                succeeded.Output,
+                clear.Snapshot,
+                _logger
+            );
+
+            if (validated is AdvisoryReasonValidateResult.Clarify clarify)
+            {
+                _logger.LogInformation(
+                    "AdvisoryReasonClarifyAfterClear conversationId={ConversationId}",
+                    conversation.Id
+                );
+                return await FinishGapTurnAsync(
+                    conversation,
+                    AssistantGapTurn.CreateAdvisory(
+                        clarify.Gap,
+                        userMessage,
+                        AssistantGapTurn.GapSourceModelRequested
+                    ),
+                    AssistantAdvisoryIntent.GapQuestionBody(clarify.Gap),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true,
+                    turnBilling: turnBilling
+                );
+            }
+
+            if (validated is AdvisoryReasonValidateResult.FallbackNoClearDriver)
+            {
+                conversation.LastCompareLocationIdsJson = null;
+                return await PersistAssistantAsync(
+                    conversation,
+                    GroundedMessage(
+                        DateTime.UtcNow,
+                        "No clear driver",
+                        AssistantAdvisoryReasonValidate.NoClearDriverBody,
+                        []
+                    ),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true,
+                    turnBilling: turnBilling
+                );
+            }
+
+            var valid = (AdvisoryReasonValidateResult.Valid)validated;
+            _logger.LogInformation(
+                "Advisory Reason evidence_used sections={EvidenceUsed} "
+                + "conversationId={ConversationId}",
+                string.Join(", ", valid.Output.EvidenceUsed),
+                conversation.Id
+            );
+            conversation.LastCompareLocationIdsJson = null;
+            return await PersistAssistantAsync(
+                conversation,
+                GroundedMessage(
+                    DateTime.UtcNow,
+                    "Advisory",
+                    AssistantAdvisoryReasonValidate.RenderBody(valid.Output),
+                    []
+                ),
+                replaceFailure,
+                cancellationToken,
+                liveAnswerAlreadyCompleted: true,
+                turnBilling: turnBilling
+            );
+        }
+
+        private static LocationScope BuildAdvisoryScope(
+            IReadOnlyList<int> locationIds,
+            int ownedLocationCount
+        )
+        {
+            var ids = locationIds
+                .Select(id => id.ToString(CultureInfo.InvariantCulture))
+                .ToArray();
+            if (ids.Length == 1)
+            {
+                return new SingleLocation(ids[0]);
+            }
+
+            if (ids.Length == 0)
+            {
+                return new AllOwnedLocations([]);
+            }
+
+            if (ids.Length < ownedLocationCount)
+            {
+                return new NamedSubset(ids);
+            }
+
+            return new AllOwnedLocations(ids);
+        }
+
+        private static string? ExtractChosenMetricNote(string userMessage)
+        {
+            var lower = userMessage.ToLowerInvariant();
+            if (lower.Contains("covers", StringComparison.Ordinal))
+            {
+                return "covers";
+            }
+
+            if (lower.Contains("capture", StringComparison.Ordinal)
+                || lower.Contains("funnel", StringComparison.Ordinal))
+            {
+                return "capture";
+            }
+
+            if (lower.Contains("sentiment", StringComparison.Ordinal)
+                || lower.Contains("feedback score", StringComparison.Ordinal))
+            {
+                return "sentiment";
+            }
+
+            return null;
         }
 
         private sealed record ScopeAuthorizeResult(
