@@ -41,7 +41,6 @@ describe("OPERATOR_SIDEBAR_SETTINGS_CHILDREN", () => {
       "team-permissions",
       "billing-credits",
       "privacy-consent",
-      "brand-guest-form",
     ])
     expect(OPERATOR_SIDEBAR_SETTINGS_CHILDREN.map((item) => item.label)).toEqual(
       [
@@ -50,7 +49,6 @@ describe("OPERATOR_SIDEBAR_SETTINGS_CHILDREN", () => {
         "Team & permissions",
         "Billing & credits",
         "Privacy & consent",
-        "Brand & guest form",
       ]
     )
   })

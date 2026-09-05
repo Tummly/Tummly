@@ -109,28 +109,41 @@ function samplePage(overrides: Partial<BillingCreditsPageData> = {}): BillingCre
 function createTestModule(
   pageOverrides: Partial<BillingCreditsPageData> = {},
   usage: CreditsUsageSnapshot = sampleUsage(),
-  adapterOverrides: Partial<BillingCreditsPageAdapters> = {}
+  adapterOverrides: Partial<BillingCreditsPageAdapters> = {},
+  moduleOptions: {
+    sleep?: (ms: number) => Promise<void>
+    topUpReturnPoll?: { maxAttempts: number; delayMs: number }
+  } = {}
 ) {
   const page = samplePage(pageOverrides)
-  return createOperatorBillingCreditsPageModule({
-    getPage: vi.fn(async () => page),
-    getUsage: async () => usage,
-    getBillingActivity: vi.fn(async () => ({
-      items: [],
-      totalCount: 0,
-      page: 1,
-      pageSize: 10,
-    })),
-    submitPlanChange: vi.fn(),
-    updateBillingContacts: vi.fn(async (payload) => ({
-      ...page.billingContacts,
-      billingContactUserId: payload.billingContactUserId,
-      billingEmail: payload.billingEmail,
-      lowCreditAlerts: { ...payload.lowCreditAlerts },
-      paymentFailureAlerts: { ...payload.paymentFailureAlerts },
-    })),
-    ...adapterOverrides,
-  })
+  return createOperatorBillingCreditsPageModule(
+    {
+      getPage: vi.fn(async () => page),
+      getUsage: async () => usage,
+      getBillingActivity: vi.fn(async () => ({
+        items: [],
+        totalCount: 0,
+        page: 1,
+        pageSize: 10,
+      })),
+      submitPlanChange: vi.fn(),
+      updateBillingContacts: vi.fn(async (payload) => ({
+        ...page.billingContacts,
+        billingContactUserId: payload.billingContactUserId,
+        billingEmail: payload.billingEmail,
+        lowCreditAlerts: { ...payload.lowCreditAlerts },
+        paymentFailureAlerts: { ...payload.paymentFailureAlerts },
+      })),
+      ...adapterOverrides,
+    },
+    {
+      sleep: moduleOptions.sleep ?? (async () => {}),
+      topUpReturnPoll: moduleOptions.topUpReturnPoll ?? {
+        maxAttempts: 0,
+        delayMs: 0,
+      },
+    }
+  )
 }
 
 describe("resolveBillingCreditsTabId", () => {
@@ -828,11 +841,108 @@ describe("createOperatorBillingCreditsPageModule", () => {
     await module.load()
 
     module.selectTopUpPack("email", 5000)
-    module.handleTopUpPayReturn("success")
+    await module.handleTopUpPayReturn("success")
 
     expect(module.consumePendingNavigation()).toBe(
       "/single-dashboard/settings/billing-credits?location=42&tab=credits-usage"
     )
+  })
+
+  it("reloads usage after top-up success until purchased credits advance", async () => {
+    const stale = sampleUsage({
+      isPilot: false,
+      channels: [
+        {
+          channel: "email",
+          combinedRemaining: 500,
+          usedThisCycle: 0,
+          includedThisPeriod: 500,
+          purchasedRemaining: 0,
+          purchasedExpiryLabel: null,
+        },
+        {
+          channel: "sms",
+          combinedRemaining: 428,
+          usedThisCycle: 72,
+          includedThisPeriod: 500,
+          purchasedRemaining: 0,
+          purchasedExpiryLabel: null,
+        },
+        {
+          channel: "ai",
+          combinedRemaining: 100,
+          usedThisCycle: 0,
+          includedThisPeriod: 100,
+          purchasedRemaining: 0,
+          purchasedExpiryLabel: null,
+        },
+      ],
+    })
+    const minted = {
+      ...stale,
+      channels: stale.channels.map((row) =>
+        row.channel === "ai"
+          ? {
+              ...row,
+              combinedRemaining: 600,
+              purchasedRemaining: 500,
+              purchasedExpiryLabel: "Use by 5 Mar 2027",
+            }
+          : row
+      ),
+    }
+    let usageCalls = 0
+    const getUsage = vi.fn(async () => {
+      usageCalls += 1
+      return usageCalls <= 2 ? stale : minted
+    })
+    const sleep = vi.fn(async () => {})
+    const page = samplePage({
+      planSubscription: {
+        ...samplePage().planSubscription,
+        isPilot: false,
+        aiCreditsRemaining: 100,
+      },
+    })
+    const module = createOperatorBillingCreditsPageModule(
+      {
+        getPage: vi.fn(async () => page),
+        getUsage,
+        getBillingActivity: vi.fn(async () => ({
+          items: [],
+          totalCount: 0,
+          page: 1,
+          pageSize: 10,
+        })),
+        submitPlanChange: vi.fn(),
+        updateBillingContacts: vi.fn(async (payload) => ({
+          ...page.billingContacts,
+          ...payload,
+        })),
+      },
+      {
+        sleep,
+        topUpReturnPoll: { maxAttempts: 5, delayMs: 10 },
+      }
+    )
+    await module.load()
+    expect(
+      module.getSnapshot().creditsUsage?.channels.find((c) => c.channel === "ai")
+        ?.combinedRemaining
+    ).toBe(100)
+
+    await module.handleTopUpPayReturn("success")
+
+    expect(
+      module.getSnapshot().creditsUsage?.channels.find((c) => c.channel === "ai")
+        ?.combinedRemaining
+    ).toBe(600)
+    expect(
+      module.getSnapshot().creditsUsage?.channels.find((c) => c.channel === "ai")
+        ?.purchasedRemaining
+    ).toBe(500)
+    expect(getUsage.mock.calls.length).toBeGreaterThanOrEqual(3)
+    expect(sleep).toHaveBeenCalled()
   })
 
   it("returns to plan-subscription with Cancels on after cancel plan success", async () => {
@@ -886,7 +996,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
     await module.load()
 
     module.selectTopUpPack("ai", 100)
-    module.handleTopUpPayReturn("fail")
+    await module.handleTopUpPayReturn("fail")
 
     expect(module.getSnapshot().managePlanSection).toBe("credit-top-ups")
     expect(module.getSnapshot().topUpCards.find((c) => c.channel === "ai")?.packs
@@ -906,7 +1016,7 @@ describe("createOperatorBillingCreditsPageModule", () => {
     await module.load()
 
     module.selectTopUpPack("ai", 100)
-    module.handleTopUpPayReturn("cancel")
+    await module.handleTopUpPayReturn("cancel")
 
     expect(module.getSnapshot().managePlanSection).toBe("credit-top-ups")
     expect(

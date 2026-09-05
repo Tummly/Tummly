@@ -339,7 +339,9 @@ export type OperatorBillingCreditsPageModule = {
   requestTopUpBuy: (channel: CreditChannelId) => Promise<void>
   cancelTopUpBuy: () => void
   confirmTopUpBuy: () => Promise<void>
-  handleTopUpPayReturn: (outcome: "success" | "cancel" | "fail") => void
+  handleTopUpPayReturn: (
+    outcome: "success" | "cancel" | "fail"
+  ) => Promise<void>
   shouldAutoOpenCreditTopUps: () => boolean
   requestAddExtraLocation: () => void
   requestRemoveExtraLocation: () => void
@@ -451,6 +453,23 @@ function draftFromContacts(
   }
 }
 
+function purchasedRemainingTotal(
+  usage: CreditsUsageSnapshot | null
+): number {
+  if (usage == null) {
+    return 0
+  }
+  return usage.channels.reduce(
+    (sum, row) => sum + row.purchasedRemaining,
+    0
+  )
+}
+
+const DEFAULT_TOP_UP_RETURN_POLL = {
+  maxAttempts: 12,
+  delayMs: 1000,
+} as const
+
 export function createOperatorBillingCreditsPageModule(
   adapters: BillingCreditsPageAdapters,
   options: {
@@ -458,9 +477,19 @@ export function createOperatorBillingCreditsPageModule(
     initialSurface?: BillingCreditsSurface
     initialManagePlanSection?: string | null
     getNow?: () => Date
+    /** Test seam: wait between top-up return usage polls. */
+    sleep?: (ms: number) => Promise<void>
+    topUpReturnPoll?: { maxAttempts: number; delayMs: number }
   } = {}
 ): OperatorBillingCreditsPageModule {
   const getNow = options.getNow ?? (() => new Date())
+  const sleep =
+    options.sleep
+    ?? ((ms: number) =>
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, ms)
+      }))
+  const topUpReturnPoll = options.topUpReturnPoll ?? DEFAULT_TOP_UP_RETURN_POLL
   let data: BillingCreditsPageData | null = null
   let creditsUsage: CreditsUsageSnapshot | null = null
   let persistedContacts: BillingContactsSnapshot | null = null
@@ -1184,7 +1213,7 @@ export function createOperatorBillingCreditsPageModule(
       }
       refreshSnapshot()
     },
-    handleTopUpPayReturn: (outcome) => {
+    handleTopUpPayReturn: async (outcome) => {
       if (outcome === "success") {
         const href = buildBillingCreditsHref("credits-usage")
         if (href != null) {
@@ -1193,11 +1222,26 @@ export function createOperatorBillingCreditsPageModule(
         selectedPackByChannel = {}
         topUpConfirm = null
         refreshSnapshot()
+
+        // Hosted Checkout returns before ORDER_COMPLETED mint. Poll usage
+        // until purchased credits advance (or attempts are exhausted).
+        const baseline = purchasedRemainingTotal(creditsUsage)
+        await reload()
+        let attempts = 0
+        while (
+          purchasedRemainingTotal(creditsUsage) <= baseline
+          && attempts < topUpReturnPoll.maxAttempts
+        ) {
+          await sleep(topUpReturnPoll.delayMs)
+          await reload()
+          attempts += 1
+        }
         return
       }
 
       managePlanSection = "credit-top-ups"
       refreshSnapshot()
+      await reload()
     },
     shouldAutoOpenCreditTopUps: () =>
       accessLevel() === "manage"
