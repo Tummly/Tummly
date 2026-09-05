@@ -164,6 +164,41 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal(AdvisoryGapReason.ModelRequested, clarify.Gap.Reason);
             Assert.Equal("Which metric should I use?", clarify.Gap.PartialDiagnosisNote);
             Assert.Equal("turn-clarify", clarify.Gap.ConversationTurnId);
+            Assert.Equal(
+                "Which metric should I use?",
+                AssistantAdvisoryIntent.GapQuestionBody(clarify.Gap)
+            );
+        }
+
+        [Fact]
+        public void Validate_Advisory_EmptyEvidenceRef_KeepsRecommendation()
+        {
+            var snapshot = SnapshotWithCovers();
+            var output = new AssistantAdvisoryReasonOutput(
+                "advisory",
+                "Summary.",
+                null,
+                [
+                    new AssistantAdvisoryReasonRecommendation(
+                        AssistantAdvisoryReasonStructuredOutput.AdviceOnlyAction,
+                        "Keep empty refs",
+                        "Soft advice",
+                        [],
+                        "low"
+                    ),
+                ],
+                ["Account"]
+            );
+
+            var result = AssistantAdvisoryReasonValidate.Validate(
+                output,
+                snapshot,
+                NullLogger.Instance
+            );
+
+            var valid = Assert.IsType<AdvisoryReasonValidateResult.Valid>(result);
+            var kept = Assert.Single(valid.Output.Recommendations);
+            Assert.Equal("Keep empty refs", kept.Headline);
         }
 
         [Fact]

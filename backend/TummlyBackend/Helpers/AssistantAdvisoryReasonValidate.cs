@@ -51,25 +51,31 @@ namespace TummlyBackend.Helpers
                 );
             }
 
-            var recommendations = FilterRecommendations(
-                output,
-                allowedPaths,
-                logger
-            );
-
+            IReadOnlyList<AssistantAdvisoryReasonRecommendation> recommendations;
             if (string.Equals(answerType, "direct", StringComparison.Ordinal)
                 || string.Equals(answerType, "product_expert", StringComparison.Ordinal))
             {
-                if (recommendations.Count > 0)
+                // Warn on the model payload before evidence filtering so a turn
+                // that only had bad refs still logs the answer_type violation.
+                if (output.Recommendations.Count > 0)
                 {
                     logger.LogWarning(
                         "Advisory Reason answer_type={AnswerType} returned "
                         + "{Count} recommendations; dropping them.",
                         answerType,
-                        recommendations.Count
+                        output.Recommendations.Count
                     );
-                    recommendations = [];
                 }
+
+                recommendations = [];
+            }
+            else
+            {
+                recommendations = FilterRecommendations(
+                    output,
+                    allowedPaths,
+                    logger
+                );
             }
 
             var evidenceUsed = output.EvidenceUsed
@@ -211,16 +217,7 @@ namespace TummlyBackend.Helpers
             var kept = new List<AssistantAdvisoryReasonRecommendation>();
             foreach (var recommendation in output.Recommendations)
             {
-                if (recommendation.EvidenceRef.Count == 0)
-                {
-                    logger.LogWarning(
-                        "Dropping advisory recommendation with empty evidence_ref "
-                        + "(headline={Headline}).",
-                        recommendation.Headline
-                    );
-                    continue;
-                }
-
+                // Empty evidence_ref has nothing that fails to resolve — keep it.
                 var badRefs = recommendation.EvidenceRef
                     .Where(path => !EvidenceRefResolves(path, allowedPaths))
                     .ToArray();

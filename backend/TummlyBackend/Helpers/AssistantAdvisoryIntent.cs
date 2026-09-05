@@ -186,6 +186,15 @@ namespace TummlyBackend.Helpers
 
         public static string GapQuestionBody(AdvisoryGap gap)
         {
+            // Model clarify after Clear stores the question in PartialDiagnosisNote
+            // with no CandidateOptions — surface that question alone.
+            if (gap.Reason == AdvisoryGapReason.ModelRequested
+                && gap.CandidateOptions.Length == 0
+                && !string.IsNullOrWhiteSpace(gap.PartialDiagnosisNote))
+            {
+                return gap.PartialDiagnosisNote.Trim();
+            }
+
             var prefix = string.IsNullOrWhiteSpace(gap.PartialDiagnosisNote)
                 ? string.Empty
                 : gap.PartialDiagnosisNote.Trim() + " ";

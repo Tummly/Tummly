@@ -101,6 +101,68 @@ namespace TummlyBackend.Tests.Services
                 gapState.GapSource
             );
             Assert.Equal("Which metric should I use?", gapState.PartialDiagnosisNote);
+            Assert.Equal(
+                "Which metric should I use?",
+                outcome.Conversation.Messages[^1].Body
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_AdvisoryClear_Clarify_FreeFormReply_Resumes()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 46, "Resume Clarify");
+            var snapshot = HealthyAdvisorySnapshot(locationId);
+            var reason = new FakeAssistantAdvisoryReasonProvider();
+            reason.EnqueueSucceedWith(
+                new AssistantAdvisoryReasonOutput(
+                    "clarify",
+                    "I need one more detail.",
+                    "Which metric should I use?",
+                    [],
+                    ["Account"]
+                )
+            );
+            reason.EnqueueSucceedWith(
+                new AssistantAdvisoryReasonOutput(
+                    "direct",
+                    "Focusing on covers.",
+                    null,
+                    [],
+                    ["Account.Covers"]
+                )
+            );
+            var service = CreateConversationService(
+                restaurantContextSnapshot: new FixedRestaurantContextSnapshot(snapshot),
+                advisoryReason: reason
+            );
+
+            var first = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await service.SendTurnAsync(
+                    ownerUserId: 46,
+                    FirstSendRequest(locationId, "How are we doing this month?")
+                )
+            );
+            Assert.Equal("gap", first.Conversation.Messages[^1].Class);
+
+            var second = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await service.SendTurnAsync(
+                    ownerUserId: 46,
+                    FirstSendRequest(
+                        locationId,
+                        "covers",
+                        first.Conversation.Id
+                    )
+                )
+            );
+
+            Assert.Equal("grounded", second.Conversation.Messages[^1].Class);
+            Assert.Contains(
+                "Focusing on covers.",
+                second.Conversation.Messages[^1].Body,
+                StringComparison.Ordinal
+            );
+            Assert.Null(await StoredGapStateOrNullAsync(second.Conversation.Id));
+            Assert.Equal(2, reason.CompleteCount);
         }
 
         [Fact]

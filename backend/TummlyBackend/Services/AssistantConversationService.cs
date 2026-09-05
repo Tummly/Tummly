@@ -4245,6 +4245,17 @@ namespace TummlyBackend.Services
                 return new AdvisoryGapResume(null, null);
             }
 
+            // Model-requested clarify (and other option-less advisory gaps) must
+            // accept a free-form reply the same way a named choice resolves.
+            if (gapState.Options.Count == 0
+                && !string.IsNullOrWhiteSpace(userMessage))
+            {
+                return new AdvisoryGapResume(
+                    $"{gapState.SourceUserMessage}\n{userMessage.Trim()}",
+                    null
+                );
+            }
+
             return new AdvisoryGapResume(
                 null,
                 AssistantGapTurn.AdvisoryGapBody(gapState)
