@@ -144,7 +144,18 @@ import type {
   HomeRecommendationResponse,
   WeeklyBriefGenerateResponse,
   WeeklyBriefGetResponse,
+  WeeklyBriefMarkReviewedResponse,
 } from "@/types/operatorHome"
+import type {
+  ReportsCampaignsResponse,
+  ReportsCaptureResponse,
+  ReportsExportKind,
+  ReportsFeedbackResponse,
+  ReportsOffersResponse,
+  ReportsOverviewResponse,
+} from "@/types/operatorReports"
+
+export type { ReportsExportKind }
 
 export const getLocations = async (): Promise<LocationsResponse> => {
   const response = await axiosInstance.get<LocationsResponse>(
@@ -1231,6 +1242,96 @@ export const getWeeklyBrief = async (
   return response.data
 }
 
+export const getReportsOverview = async (input: {
+  locationId: number
+  from: string
+  to: string
+}): Promise<ReportsOverviewResponse> => {
+  const response = await axiosInstance.get<ReportsOverviewResponse>(
+    "/reports/overview",
+    {
+      params: {
+        locationId: input.locationId,
+        from: input.from,
+        to: input.to,
+      },
+    }
+  )
+  return response.data
+}
+
+export const getReportsCapture = async (input: {
+  locationId: number
+  from: string
+  to: string
+}): Promise<ReportsCaptureResponse> => {
+  const response = await axiosInstance.get<ReportsCaptureResponse>(
+    "/reports/capture",
+    {
+      params: {
+        locationId: input.locationId,
+        from: input.from,
+        to: input.to,
+      },
+    }
+  )
+  return response.data
+}
+
+export const getReportsFeedback = async (input: {
+  locationId: number
+  from: string
+  to: string
+}): Promise<ReportsFeedbackResponse> => {
+  const response = await axiosInstance.get<ReportsFeedbackResponse>(
+    "/reports/feedback",
+    {
+      params: {
+        locationId: input.locationId,
+        from: input.from,
+        to: input.to,
+      },
+    }
+  )
+  return response.data
+}
+
+export const getReportsOffers = async (input: {
+  locationId: number
+  from: string
+  to: string
+}): Promise<ReportsOffersResponse> => {
+  const response = await axiosInstance.get<ReportsOffersResponse>(
+    "/reports/offers",
+    {
+      params: {
+        locationId: input.locationId,
+        from: input.from,
+        to: input.to,
+      },
+    }
+  )
+  return response.data
+}
+
+export const getReportsCampaigns = async (input: {
+  locationId: number
+  from: string
+  to: string
+}): Promise<ReportsCampaignsResponse> => {
+  const response = await axiosInstance.get<ReportsCampaignsResponse>(
+    "/reports/campaigns",
+    {
+      params: {
+        locationId: input.locationId,
+        from: input.from,
+        to: input.to,
+      },
+    }
+  )
+  return response.data
+}
+
 export const generateWeeklyBrief = async (
   locationId: number
 ): Promise<WeeklyBriefGenerateResponse> => {
@@ -1246,6 +1347,112 @@ export const generateWeeklyBrief = async (
       const data = error.response.data as WeeklyBriefGenerateResponse
       if (typeof data.success === "boolean") {
         return data
+      }
+    }
+    throw error
+  }
+}
+
+export const markWeeklyBriefReviewed = async (
+  locationId: number,
+  week?: string | null
+): Promise<WeeklyBriefMarkReviewedResponse> => {
+  try {
+    const response = await axiosInstance.post<WeeklyBriefMarkReviewedResponse>(
+      "/home/weekly-brief/mark-reviewed",
+      null,
+      {
+        params: {
+          locationId,
+          ...(week != null && week !== "" ? { week } : {}),
+        },
+      }
+    )
+    return response.data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data != null) {
+      const data = error.response.data as WeeklyBriefMarkReviewedResponse
+      if (typeof data.success === "boolean") {
+        return data
+      }
+    }
+    throw error
+  }
+}
+
+export const downloadWeeklyBriefPdf = async (
+  locationId: number,
+  week?: string | null
+): Promise<{ blob: Blob; filename: string }> => {
+  const response = await axiosInstance.get<Blob>("/home/weekly-brief/pdf", {
+    params: {
+      locationId,
+      ...(week != null && week !== "" ? { week } : {}),
+    },
+    responseType: "blob",
+  })
+  const filename =
+    parseContentDispositionFilename(
+      response.headers["content-disposition"] as string | undefined
+    ) ?? `tummly-weekly-brief-${locationId}.pdf`
+  return { blob: response.data, filename }
+}
+
+export const downloadReportsExport = async (input: {
+  kind: ReportsExportKind
+  locationId: number
+  from: string
+  to: string
+}): Promise<{ blob: Blob; filename: string }> => {
+  const extension = input.kind === "overview" ? "pdf" : "csv"
+  const path =
+    input.kind === "offers-redemptions"
+      ? "/offers/redemptions/export"
+      : input.kind === "guest-consent"
+        ? "/privacy-consent/permission-records/export"
+        : `/reports/export/${input.kind}`
+  const fallbackFilename =
+    input.kind === "offers-redemptions"
+      ? `tummly-offers-redemptions-${input.locationId}.${extension}`
+      : input.kind === "guest-consent"
+        ? `tummly-consent-permission-records-${input.locationId}.${extension}`
+        : `tummly-reports-${input.kind}-${input.locationId}.${extension}`
+  try {
+    const params =
+      input.kind === "guest-consent"
+        ? { locationId: input.locationId }
+        : {
+            locationId: input.locationId,
+            from: input.from,
+            to: input.to,
+          }
+    const response = await axiosInstance.get<Blob>(path, {
+      params,
+      responseType: "blob",
+    })
+    const filename =
+      parseContentDispositionFilename(
+        response.headers["content-disposition"] as string | undefined
+      ) ?? fallbackFilename
+    return { blob: response.data, filename }
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data instanceof Blob) {
+      try {
+        const text = await error.response.data.text()
+        const parsed = JSON.parse(text) as {
+          message?: unknown
+          code?: unknown
+        }
+        if (typeof parsed.message === "string" && parsed.message.length > 0) {
+          throw new Error(parsed.message)
+        }
+        if (typeof parsed.code === "string" && parsed.code.length > 0) {
+          throw new Error(parsed.code)
+        }
+      } catch (inner) {
+        if (inner instanceof Error && !(inner instanceof SyntaxError)) {
+          throw inner
+        }
       }
     }
     throw error

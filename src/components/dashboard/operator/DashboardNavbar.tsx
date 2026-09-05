@@ -5,6 +5,7 @@ import logoMark from "@/assets/svg/logo-mark.svg"
 import logo from "@/assets/svg/logo.svg"
 import { AccountMenu } from "@/components/dashboard/operator/AccountMenu"
 import { LocationSwitcher } from "@/components/dashboard/operator/LocationSwitcher"
+import { ShellAiCreditsButton } from "@/components/dashboard/operator/ShellAiCreditsButton"
 import {
   OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS,
   OperatorShellDisabledChromeButton,
@@ -14,6 +15,7 @@ import {
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import type { OperatorShellAiCreditsViewModel } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import {
   OPERATOR_NAVBAR_GUTTER_RIGHT,
   OPERATOR_NAVBAR_UTILITY_INSET_LEFT,
@@ -34,6 +36,10 @@ type DashboardNavbarProps = {
   notificationsUnreadCount?: number
   onOpenNotifications?: () => void
   onOpenNotificationPreferences?: () => void
+  shellAiCredits?: OperatorShellAiCreditsViewModel
+  onShellAiCreditsOpenChange?: (open: boolean) => void
+  onViewAiCreditsUsage?: () => void
+  onAddAiCredits?: () => void
   onOpenAiAssistant?: () => void
   onRouteDestination?: () => void
   onSelectLocation: (locationId: number) => void
@@ -51,6 +57,10 @@ export function DashboardNavbar({
   notificationsUnreadCount = 0,
   onOpenNotifications,
   onOpenNotificationPreferences,
+  shellAiCredits,
+  onShellAiCreditsOpenChange,
+  onViewAiCreditsUsage,
+  onAddAiCredits,
   onOpenAiAssistant,
   onRouteDestination,
   onSelectLocation,
@@ -59,6 +69,10 @@ export function DashboardNavbar({
 }: DashboardNavbarProps) {
   const notificationsEnabled = onOpenNotifications != null
   const aiAssistantEnabled = onOpenAiAssistant != null
+  const shellAiCreditsEnabled =
+    shellAiCredits != null
+    && onViewAiCreditsUsage != null
+    && onAddAiCredits != null
   const showUnreadBadge = notificationsUnreadCount > 0
 
   return (
@@ -149,7 +163,16 @@ export function DashboardNavbar({
 
             <OperatorShellDisabledSearchField className="hidden min-w-0 flex-1 lg:flex" />
 
-            <div className="flex shrink-0 items-center gap-0.5 lg:ml-auto">
+            <div className="flex shrink-0 items-center gap-0.5 lg:ml-auto lg:gap-1.5">
+              {shellAiCreditsEnabled ? (
+                <ShellAiCreditsButton
+                  credits={shellAiCredits}
+                  onOpenChange={onShellAiCreditsOpenChange}
+                  onViewUsage={onViewAiCreditsUsage}
+                  onAddCredits={onAddAiCredits}
+                />
+              ) : null}
+
               {aiAssistantEnabled ? (
                 <>
                   <Button

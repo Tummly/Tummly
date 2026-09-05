@@ -391,6 +391,20 @@ namespace TummlyBackend.Tests.Services
             );
             await context.SaveChangesAsync();
 
+            await using var ambient =
+                await context.Database.BeginTransactionAsync();
+            context.RevolutWebhookEventClaims.Add(
+                new RevolutWebhookEventClaim
+                {
+                    Id = Guid.NewGuid(),
+                    Event = "ORDER_COMPLETED",
+                    ObjectId = "ord_topup_ai",
+                    Disposition = RevolutWebhookClaimDispositions.Applied,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
             await applier.ApplyAsync(
                 new RevolutOrderCompletedApplyRequest(
                     OrderId: "ord_topup_ai",
@@ -401,6 +415,8 @@ namespace TummlyBackend.Tests.Services
                     RawOrderBody: "{}"
                 )
             );
+
+            await ambient.CommitAsync();
 
             Assert.Equal(
                 1,

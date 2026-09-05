@@ -2171,6 +2171,14 @@ namespace TummlyBackend.Data
                 )
                 .HasMaxLength(32);
 
+            modelBuilder.Entity<WeeklyBrief>()
+                .HasOne(row => row.ReviewedByUser)
+                .WithMany()
+                .HasForeignKey(row => row.ReviewedByUserId)
+                // NoAction: SQL Server rejects ReviewedByUser SET NULL alongside
+                // other Users cascade paths (error 1785). Annotation id only.
+                .OnDelete(DeleteBehavior.NoAction);
+
             /*
              =========================================
              TUMMLY SHOP CART / ORDER (ticket 14)

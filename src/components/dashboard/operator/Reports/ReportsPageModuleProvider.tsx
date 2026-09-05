@@ -1,0 +1,107 @@
+import { createElement, useEffect, useState, type ReactNode } from "react"
+import { useOutletContext } from "react-router-dom"
+
+import {
+  downloadReportsExport,
+  downloadWeeklyBriefPdf,
+  generateWeeklyBrief,
+  getReportsCapture,
+  getReportsFeedback,
+  getReportsOffers,
+  getReportsCampaigns,
+  getReportsOverview,
+  getWeeklyBrief,
+  markWeeklyBriefReviewed,
+  triggerBrowserDownload,
+} from "@/api/dashboardApi"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
+import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
+import { ReportsExportDialog } from "@/components/dashboard/operator/Reports/ReportsExportDialog"
+import { reportsPageModuleContext } from "@/components/dashboard/operator/Reports/utils/reportsPageModuleContext"
+import { useReportsPageModule } from "@/components/dashboard/operator/Reports/utils/useReportsPageModule"
+import { createOperatorReportsPageModule } from "@/lib/operatorReports/createOperatorReportsPageModule"
+
+function ReportsExportDialogHost() {
+  const reports = useReportsPageModule()
+  return (
+    <ReportsExportDialog
+      open={reports.snapshot.exportDialogOpen}
+      onOpenChange={(open) => {
+        if (open) {
+          reports.openExportDialog()
+        } else {
+          reports.closeExportDialog()
+        }
+      }}
+      showOfferRedemptionLog={
+        reports.snapshot.exportOffersRedemptionLogVisible
+      }
+      showGuestConsent={reports.snapshot.exportGuestConsentVisible}
+      pendingCsvExportKind={reports.snapshot.pendingCsvExportKind}
+      csvConsentChecked={reports.snapshot.csvConsentChecked}
+      exportDownloadBusyKind={reports.snapshot.exportDownloadBusyKind}
+      exportDownloadError={reports.snapshot.exportDownloadError}
+      onRequestExport={reports.requestExport}
+      onSetCsvConsentChecked={reports.setCsvConsentChecked}
+      onConfirmCsvExport={reports.confirmCsvExport}
+      onCancelCsvConsent={reports.cancelCsvConsent}
+    />
+  )
+}
+
+export function ReportsPageModuleProvider({
+  children,
+}: {
+  children: ReactNode
+}) {
+  const dashboardUiStore = useDashboardUiStoreApi()
+  const dashboardContext = useOutletContext<DashboardOutletContext | undefined>()
+  const [pageModule] = useState(() =>
+    createOperatorReportsPageModule({
+      getOverview: getReportsOverview,
+      getCapture: getReportsCapture,
+      getFeedback: getReportsFeedback,
+      getOffers: getReportsOffers,
+      getCampaigns: getReportsCampaigns,
+      getWeeklyBrief,
+      generateWeeklyBrief,
+      markWeeklyBriefReviewed,
+      downloadWeeklyBriefPdf,
+      downloadReportsExport,
+      triggerBrowserDownload,
+      getReportsDateRange: () => dashboardUiStore.getState().reportsDateRange,
+    })
+  )
+
+  useEffect(() => {
+    if (dashboardContext == null) {
+      return
+    }
+    void pageModule.syncWorkspace({
+      selectedLocationId: dashboardContext.selectedLocationId,
+      locations: dashboardContext.locations,
+      billingStatus: dashboardContext.billingStatus,
+      chargebackRestricted: dashboardContext.chargebackRestricted,
+      offersView: dashboardContext.offersAccess !== "none",
+      privacyConsentView: dashboardContext.privacyConsentAccess !== "none",
+    })
+    // Depend on primitive / stable fields only — Outlet context is a new object
+    // on every Dashboard render (e.g. AI credits refresh), which must not
+    // re-sync and flash Reports loading chrome.
+  }, [
+    dashboardContext?.selectedLocationId,
+    dashboardContext?.billingStatus,
+    dashboardContext?.chargebackRestricted,
+    dashboardContext?.offersAccess,
+    dashboardContext?.privacyConsentAccess,
+    dashboardContext?.locations,
+    pageModule,
+  ])
+
+  return createElement(
+    reportsPageModuleContext.Provider,
+    { value: pageModule },
+    children,
+    createElement(ReportsExportDialogHost)
+  )
+}

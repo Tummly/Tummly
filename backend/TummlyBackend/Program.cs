@@ -388,12 +388,44 @@ builder.Services.AddScoped<
     OffersMetricsService
 >();
 builder.Services.AddScoped<
+    IReportsOverviewService,
+    ReportsOverviewService
+>();
+builder.Services.AddScoped<
+    IReportsCaptureService,
+    ReportsCaptureService
+>();
+builder.Services.AddScoped<
+    IReportsFeedbackService,
+    ReportsFeedbackService
+>();
+builder.Services.AddScoped<
+    IReportsOffersService,
+    ReportsOffersService
+>();
+builder.Services.AddScoped<
+    IReportsCampaignsService,
+    ReportsCampaignsService
+>();
+builder.Services.AddScoped<
+    IReportsExportService,
+    ReportsExportService
+>();
+builder.Services.AddScoped<
     IOfferIssueService,
     OfferIssueService
 >();
 builder.Services.AddScoped<
     IOfferLifecycleService,
     OfferLifecycleService
+>();
+builder.Services.AddScoped<
+    IOffersRedemptionsExportService,
+    OffersRedemptionsExportService
+>();
+builder.Services.AddScoped<
+    IPrivacyConsentPermissionRecordsExportService,
+    PrivacyConsentPermissionRecordsExportService
 >();
 builder.Services.AddScoped<
     IOfferVoidRequestService,

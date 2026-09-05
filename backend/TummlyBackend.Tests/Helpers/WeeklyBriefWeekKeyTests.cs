@@ -160,5 +160,61 @@ namespace TummlyBackend.Tests.Helpers
             );
             Assert.Equal(string.Empty, weekKey);
         }
+
+        [Fact]
+        public void TryCoverageWindow_WorkspaceWeekKey_UsesLocalMidnightSpan()
+        {
+            Assert.True(
+                WeeklyBriefWeekKey.TryCoverageWindow(
+                    "monday:2026-08-10",
+                    London,
+                    out var startUtc,
+                    out var endUtc
+                )
+            );
+            Assert.Equal(
+                new DateTime(2026, 8, 9, 23, 0, 0, DateTimeKind.Utc),
+                startUtc
+            );
+            Assert.Equal(
+                new DateTime(2026, 8, 16, 23, 0, 0, DateTimeKind.Utc),
+                endUtc
+            );
+        }
+
+        [Fact]
+        public void TryCoverageWindow_LegacyIsoWeekKey_UsesMondayStart()
+        {
+            // ISO 2026-W33 → Monday 2026-08-10 … Monday 2026-08-17
+            Assert.True(
+                WeeklyBriefWeekKey.TryCoverageWindow(
+                    "2026-W33",
+                    London,
+                    out var startUtc,
+                    out var endUtc
+                )
+            );
+            Assert.Equal(
+                new DateTime(2026, 8, 9, 23, 0, 0, DateTimeKind.Utc),
+                startUtc
+            );
+            Assert.Equal(
+                new DateTime(2026, 8, 16, 23, 0, 0, DateTimeKind.Utc),
+                endUtc
+            );
+        }
+
+        [Fact]
+        public void TryCoverageWindow_RejectsInvalidKey()
+        {
+            Assert.False(
+                WeeklyBriefWeekKey.TryCoverageWindow(
+                    "not-a-week",
+                    London,
+                    out _,
+                    out _
+                )
+            );
+        }
     }
 }

@@ -30,6 +30,7 @@ import { connectAssistantHub } from "@/lib/operatorAiAssistant/connectAssistantH
 import {
   ASSISTANT_CREDITS_STUB_ALLOWANCE,
   ASSISTANT_CREDITS_STUB_REMAINING,
+  ASSISTANT_CREDITS_STUB_USED,
 } from "@/lib/operatorAiAssistant/assistantCreditsPresentation"
 import {
   createOperatorAiAssistantModule,
@@ -107,6 +108,7 @@ export type OperatorAiAssistantApi = {
   toggleHelpful: OperatorAiAssistantModule["toggleHelpful"]
   clickAction: OperatorAiAssistantModule["clickAction"]
   dismissFromEscape: OperatorAiAssistantModule["dismissFromEscape"]
+  refreshCreditsChrome: OperatorAiAssistantModule["refreshCreditsChrome"]
   viewUsage: OperatorAiAssistantModule["viewUsage"]
   addCredits: OperatorAiAssistantModule["addCredits"]
   followRestorationHelper: OperatorAiAssistantModule["followRestorationHelper"]
@@ -230,6 +232,7 @@ export function useAiAssistantModule(
             remaining: ai?.combinedRemaining ?? ASSISTANT_CREDITS_STUB_REMAINING,
             allowance:
               ai?.includedThisPeriod ?? ASSISTANT_CREDITS_STUB_ALLOWANCE,
+            usedThisCycle: ai?.usedThisCycle ?? ASSISTANT_CREDITS_STUB_USED,
             accessLevel: current.billingCreditsAccess,
             permissionRole: page.actorPermissionRole,
             billingStatus: page.planSubscription.billingStatus,
@@ -328,6 +331,7 @@ export function useAiAssistantModule(
     toggleHelpful: assistant.toggleHelpful,
     clickAction: assistant.clickAction,
     dismissFromEscape: assistant.dismissFromEscape,
+    refreshCreditsChrome: assistant.refreshCreditsChrome,
     viewUsage: assistant.viewUsage,
     addCredits: assistant.addCredits,
     followRestorationHelper: assistant.followRestorationHelper,

@@ -3,8 +3,8 @@ using System.Text.Json;
 namespace TummlyBackend.Helpers
 {
     /// <summary>
-    /// Shared JSON options for Weekly brief <c>BodyJson</c> / <c>MetricsJson</c>
-    /// store and read paths (generate persist + GET deserialize).
+    /// Shared JSON options for Weekly brief <c>BodyJson</c> / <c>MetricsJson</c> /
+    /// <c>EnrichmentJson</c> store and read paths (generate persist + GET deserialize).
     /// </summary>
     public static class WeeklyBriefStoreJson
     {

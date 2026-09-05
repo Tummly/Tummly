@@ -47,6 +47,7 @@ const weeklyBriefMetricsFixture: WeeklyBriefMetrics = {
   redemptionsInWeek: 0,
   campaignsSentInWeek: 0,
   campaignRecipientsReached: 0,
+  unsubscribesInWeek: 0,
 }
 
 function readyWeeklyBriefResponse(
@@ -61,6 +62,17 @@ function readyWeeklyBriefResponse(
     generatedAtUtc: "2026-08-18T09:00:00.000Z",
     body: weeklyBriefBodyFixture,
     metrics: weeklyBriefMetricsFixture,
+    meta: {
+      period: "Week 33, 2026",
+      dataSources: ["Capture", "Feedback"],
+      confidence: "Based on moderate activity; patterns may be early.",
+      confidenceLevel: "medium",
+    },
+    executiveSummary: "Loop health held steady this week.",
+    whatChanged: [],
+    feedbackSummary: null,
+    recommendedActions: [],
+    suggestedCampaign: null,
   }
 }
 
@@ -3049,6 +3061,11 @@ describe("createOperatorHomePageModule", () => {
       "Steady week across capture and feedback."
     )
     expect(home.getSnapshot().weeklyBrief.week).toBe("2026-W33")
+    // Home ignores Figma-oriented ready fields on the shared envelope.
+    expect(home.getSnapshot().weeklyBrief).not.toHaveProperty("meta")
+    expect(home.getSnapshot().weeklyBrief).not.toHaveProperty(
+      "executiveSummary"
+    )
     expect(home.getSnapshot().viewModel).not.toHaveProperty("weeklyBrief")
   })
 

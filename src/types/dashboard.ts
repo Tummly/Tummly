@@ -29,6 +29,16 @@ export interface LocationsResponse {
   aiAssistantAccess?: boolean;
   teamPermissionsAccess?: "none" | "view" | "manage";
   billingCreditsAccess?: "none" | "view" | "manage";
+  /**
+   * Offers Area chrome. Omit defaults to manage/view on the client so Export
+   * still shows the redemption log row (CODING_STANDARDS chrome omit).
+   */
+  offersAccess?: "none" | "view" | "manage";
+  /**
+   * Privacy consent Area chrome. Omit defaults to manage/view on the client so
+   * Export still shows the Guest consent row (CODING_STANDARDS chrome omit).
+   */
+  privacyConsentAccess?: "none" | "view" | "manage";
   /** Live subscription plan name for shell chrome (Pilot, Starter, Growth, Group). */
   subscriptionPlan?: string;
   /** Soft lock / Dormant / Active / Pilot / Past due for Lock Alert chrome. */

@@ -59,6 +59,13 @@ import { BillingCreditsRoute } from "@/components/dashboard/operator/BillingCred
 import { ManagePlanRoute } from "@/components/dashboard/operator/BillingCredits/ManagePlanRoute";
 import { BillingCreditsPageModuleProvider } from "@/components/dashboard/operator/BillingCredits/BillingCreditsPageModuleProvider";
 import { ShopRoute } from "@/components/dashboard/operator/Shop/ShopRoute";
+import { ReportsLayoutRoute } from "@/components/dashboard/operator/Reports/ReportsLayoutRoute";
+import { ReportsRoute } from "@/components/dashboard/operator/Reports/ReportsRoute";
+import { CaptureReportRoute } from "@/components/dashboard/operator/Reports/CaptureReportRoute";
+import { FeedbackReportRoute } from "@/components/dashboard/operator/Reports/FeedbackReportRoute";
+import { OffersReportRoute } from "@/components/dashboard/operator/Reports/OffersReportRoute";
+import { CampaignsReportRoute } from "@/components/dashboard/operator/Reports/CampaignsReportRoute";
+import { WeeklyBriefRoute } from "@/components/dashboard/operator/Reports/WeeklyBriefRoute";
 import AdminDashboard from "../../components/dashboard/admin/Dashboard";
 import SupportDashboard from "../../components/dashboard/support/Dashboard";
 import SupportQueryDetailPage from "../../components/dashboard/support/SupportQueryDetailPage";
@@ -262,6 +269,14 @@ function AppRoutes() {
                     </PrivacyConsentPageModuleProvider>
                   }
                 />
+                <Route path="reports" element={<ReportsLayoutRoute />}>
+                  <Route index element={<ReportsRoute />} />
+                  <Route path="capture" element={<CaptureReportRoute />} />
+                  <Route path="feedback" element={<FeedbackReportRoute />} />
+                  <Route path="offers" element={<OffersReportRoute />} />
+                  <Route path="campaigns" element={<CampaignsReportRoute />} />
+                  <Route path="weekly-brief" element={<WeeklyBriefRoute />} />
+                </Route>
                 <Route path="shop" element={<ShopRoute />} />
               </Route>
             </Route>
@@ -374,6 +389,14 @@ function AppRoutes() {
                     </PrivacyConsentPageModuleProvider>
                   }
                 />
+                <Route path="reports" element={<ReportsLayoutRoute />}>
+                  <Route index element={<ReportsRoute />} />
+                  <Route path="capture" element={<CaptureReportRoute />} />
+                  <Route path="feedback" element={<FeedbackReportRoute />} />
+                  <Route path="offers" element={<OffersReportRoute />} />
+                  <Route path="campaigns" element={<CampaignsReportRoute />} />
+                  <Route path="weekly-brief" element={<WeeklyBriefRoute />} />
+                </Route>
                 <Route path="shop" element={<ShopRoute />} />
               </Route>
             </Route>

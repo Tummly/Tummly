@@ -60,7 +60,11 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var reports = await GateReportsViewAsync(locationId);
+            var reports = await ReportsQueryGate.AuthorizeReportsViewAsync(
+                _permissions,
+                User,
+                locationId
+            );
             var denied = reports.ToHttpResult();
 
             if (denied != null)
@@ -102,7 +106,12 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            return ReadyEnvelopeOrStoreError(locationId, weekKey, row);
+            return await ReadyEnvelopeOrStoreErrorAsync(
+                locationId,
+                weekKey,
+                row,
+                cancellationToken
+            );
         }
 
         /// <summary>
@@ -131,7 +140,11 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var reports = await GateReportsViewAsync(locationId);
+            var reports = await ReportsQueryGate.AuthorizeReportsViewAsync(
+                _permissions,
+                User,
+                locationId
+            );
             var denied = reports.ToHttpResult();
 
             if (denied != null)
@@ -195,11 +208,344 @@ namespace TummlyBackend.Controllers
                 );
             }
 
-            return ReadyEnvelopeOrStoreError(
+            return await ReadyEnvelopeOrStoreErrorAsync(
                 locationId,
                 closedWeek.WeekKey,
-                succeeded.Brief
+                succeeded.Brief,
+                cancellationToken
             );
+        }
+
+        /// <summary>
+        /// Mark the location+week Weekly brief as reviewed (annotation; Soft lock allowed).
+        /// Re-mark refreshes <c>reviewedAtUtc</c> / <c>reviewedByUserId</c>.
+        /// </summary>
+        [HttpPost("mark-reviewed")]
+        public async Task<IActionResult> MarkWeeklyBriefReviewed(
+            [FromQuery] int locationId,
+            [FromQuery] string? week = null,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (locationId <= 0)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "locationId is required.",
+                });
+            }
+
+            var reports = await ReportsQueryGate.AuthorizeReportsViewAsync(
+                _permissions,
+                User,
+                locationId
+            );
+            var denied = reports.ToHttpResult();
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            if (!TryResolveWeekKey(
+                    week,
+                    weekStartsOn: await ResolveWeekStartsOnAsync(
+                        locationId,
+                        cancellationToken
+                    ),
+                    out var weekKey,
+                    out var weekError
+                ))
+            {
+                return weekError!;
+            }
+
+            var row = await _context.WeeklyBriefs
+                .FirstOrDefaultAsync(
+                    brief =>
+                        brief.LocationId == locationId
+                        && brief.WeekKey == weekKey
+                        && brief.Status == WeeklyBriefStatus.Succeeded,
+                    cancellationToken
+                );
+
+            if (row is null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Weekly brief is not ready for this location and week.",
+                });
+            }
+
+            row.ReviewedAtUtc = DateTime.UtcNow;
+            row.ReviewedByUserId = userId;
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return await ReadyEnvelopeOrStoreErrorAsync(
+                locationId,
+                weekKey,
+                row,
+                cancellationToken
+            );
+        }
+
+        /// <summary>
+        /// Sync Weekly brief PDF download (same sections as ready Figma page).
+        /// Soft lock / Dormant / chargeback → 403 (paid-write gate).
+        /// </summary>
+        [HttpGet("pdf")]
+        public async Task<IActionResult> DownloadWeeklyBriefPdf(
+            [FromQuery] int locationId,
+            [FromQuery] string? week = null,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out _);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (locationId <= 0)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "locationId is required.",
+                });
+            }
+
+            var reports = await ReportsQueryGate.AuthorizeReportsViewAsync(
+                _permissions,
+                User,
+                locationId
+            );
+            var denied = reports.ToHttpResult();
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                await OperatorBillingLockGate.EnsurePaidWriteAllowedForLocationAsync(
+                    _context,
+                    locationId,
+                    cancellationToken
+                );
+            }
+            catch (OperatorBillingLockedException ex)
+            {
+                return OperatorBillingLockGate.Forbidden(ex.Code);
+            }
+
+            if (!TryResolveWeekKey(
+                    week,
+                    weekStartsOn: await ResolveWeekStartsOnAsync(
+                        locationId,
+                        cancellationToken
+                    ),
+                    out var weekKey,
+                    out var weekError
+                ))
+            {
+                return weekError!;
+            }
+
+            var row = await _context.WeeklyBriefs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    brief =>
+                        brief.LocationId == locationId
+                        && brief.WeekKey == weekKey
+                        && brief.Status == WeeklyBriefStatus.Succeeded,
+                    cancellationToken
+                );
+
+            if (row is null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Weekly brief is not ready for this location and week.",
+                });
+            }
+
+            WeeklyBriefBody? body;
+            WeeklyBriefMetrics? metrics;
+            try
+            {
+                body = JsonSerializer.Deserialize<WeeklyBriefBody>(
+                    row.BodyJson,
+                    WeeklyBriefStoreJson.Options
+                );
+                metrics = JsonSerializer.Deserialize<WeeklyBriefMetrics>(
+                    row.MetricsJson,
+                    WeeklyBriefStoreJson.Options
+                );
+            }
+            catch (JsonException)
+            {
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "Stored weekly brief could not be read.",
+                    }
+                );
+            }
+
+            if (body is null || metrics is null)
+            {
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "Stored weekly brief could not be read.",
+                    }
+                );
+            }
+
+            var locationName = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(l => l.Id == locationId)
+                .Select(l => l.LocationName)
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? "Location";
+
+            var priorMetrics = await TryLoadPriorMetricsAsync(
+                locationId,
+                weekKey,
+                cancellationToken
+            );
+            var phase1 = WeeklyBriefPhase1Meta.Build(
+                body,
+                metrics,
+                weekKey,
+                priorMetrics
+            );
+
+            DateTime? coverageFromUtc = null;
+            DateTime? coverageToUtc = null;
+            if (
+                WeeklyBriefWeekKey.TryCoverageWindow(
+                    weekKey,
+                    WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                    out var fromUtc,
+                    out var toUtc
+                )
+            )
+            {
+                coverageFromUtc = fromUtc;
+                coverageToUtc = toUtc;
+            }
+
+            var recommendedActions =
+                await WeeklyBriefRecommendedActions.BuildFactsAsync(
+                    _context,
+                    locationId,
+                    metrics,
+                    coverageFromUtc,
+                    coverageToUtc,
+                    cancellationToken
+                );
+
+            var enrichment = WeeklyBriefEnrichmentApply.TryDeserialize(
+                row.EnrichmentJson
+            );
+            var executiveSummary = WeeklyBriefEnrichmentApply.ResolveExecutiveSummary(
+                phase1.ExecutiveSummary,
+                enrichment
+            );
+            var feedbackSummary = WeeklyBriefEnrichmentApply.ResolveFeedbackSummary(
+                phase1.FeedbackSummary,
+                metrics,
+                enrichment
+            );
+            recommendedActions = WeeklyBriefEnrichmentApply.ApplyActionWording(
+                recommendedActions,
+                enrichment
+            );
+
+            WeeklyBriefRecommendedActions.SuggestedCampaignDto? suggestedCampaign =
+                null;
+            if (coverageFromUtc is DateTime windowFrom && coverageToUtc is DateTime windowTo)
+            {
+                suggestedCampaign =
+                    await WeeklyBriefRecommendedActions.FindSuggestedCampaignAsync(
+                        _context,
+                        locationId,
+                        windowFrom,
+                        windowTo,
+                        cancellationToken
+                    );
+            }
+
+            var document = new WeeklyBriefPdfWriter.Document(
+                LocationName: locationName,
+                Period: phase1.Meta.Period,
+                DataSources: phase1.Meta.DataSources,
+                Confidence: phase1.Meta.Confidence,
+                GeneratedAtLabel: LondonDateFormat.DMmmYyyy(row.GeneratedAtUtc),
+                ExecutiveSummary: executiveSummary,
+                WhatChanged: phase1.WhatChanged
+                    .Select(change => new WeeklyBriefPdfWriter.WhatChangedRow(
+                        change.Area,
+                        change.Change,
+                        change.Meaning
+                    ))
+                    .ToList(),
+                FeedbackSummary: feedbackSummary is null
+                    ? null
+                    : new WeeklyBriefPdfWriter.FeedbackSummary(
+                        feedbackSummary.Text,
+                        feedbackSummary.Subtitle
+                    ),
+                RecommendedActionLines: FormatRecommendedActionLines(
+                    recommendedActions
+                ),
+                SuggestedCampaign: suggestedCampaign is null
+                    ? null
+                    : new WeeklyBriefPdfWriter.SuggestedCampaign(
+                        suggestedCampaign.Name,
+                        suggestedCampaign.AudienceKey
+                    )
+            );
+
+            var (content, fileName) = WeeklyBriefPdfWriter.Render(
+                document,
+                locationId,
+                DateTime.UtcNow
+            );
+            return File(content, WeeklyBriefPdfWriter.ContentType, fileName);
+        }
+
+        private static IReadOnlyList<string> FormatRecommendedActionLines(
+            IReadOnlyList<object> facts
+        )
+        {
+            var lines = new List<string>(facts.Count);
+            foreach (var fact in facts)
+            {
+                lines.Add(WeeklyBriefEnrichmentApply.FormatRecommendedActionLine(fact));
+            }
+
+            return lines;
         }
 
         /// <summary>
@@ -253,10 +599,11 @@ namespace TummlyBackend.Controllers
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
-        private IActionResult ReadyEnvelopeOrStoreError(
+        private async Task<IActionResult> ReadyEnvelopeOrStoreErrorAsync(
             int locationId,
             string weekKey,
-            WeeklyBrief row
+            WeeklyBrief row,
+            CancellationToken cancellationToken
         )
         {
             WeeklyBriefBody? body;
@@ -296,6 +643,74 @@ namespace TummlyBackend.Controllers
                 );
             }
 
+            var priorMetrics = await TryLoadPriorMetricsAsync(
+                locationId,
+                weekKey,
+                cancellationToken
+            );
+            var phase1 = WeeklyBriefPhase1Meta.Build(
+                body,
+                metrics,
+                weekKey,
+                priorMetrics
+            );
+
+            DateTime? coverageFromUtc = null;
+            DateTime? coverageToUtc = null;
+            if (
+                WeeklyBriefWeekKey.TryCoverageWindow(
+                    weekKey,
+                    WeeklyBriefWeekKey.DefaultLocationTimeZoneId,
+                    out var fromUtc,
+                    out var toUtc
+                )
+            )
+            {
+                coverageFromUtc = fromUtc;
+                coverageToUtc = toUtc;
+            }
+
+            var recommendedActions =
+                await WeeklyBriefRecommendedActions.BuildFactsAsync(
+                    _context,
+                    locationId,
+                    metrics,
+                    coverageFromUtc,
+                    coverageToUtc,
+                    cancellationToken
+                );
+
+            var enrichment = WeeklyBriefEnrichmentApply.TryDeserialize(
+                row.EnrichmentJson
+            );
+            var executiveSummary = WeeklyBriefEnrichmentApply.ResolveExecutiveSummary(
+                phase1.ExecutiveSummary,
+                enrichment
+            );
+            var feedbackSummary = WeeklyBriefEnrichmentApply.ResolveFeedbackSummary(
+                phase1.FeedbackSummary,
+                metrics,
+                enrichment
+            );
+            recommendedActions = WeeklyBriefEnrichmentApply.ApplyActionWording(
+                recommendedActions,
+                enrichment
+            );
+
+            WeeklyBriefRecommendedActions.SuggestedCampaignDto? suggestedCampaign =
+                null;
+            if (coverageFromUtc is DateTime windowFrom && coverageToUtc is DateTime windowTo)
+            {
+                suggestedCampaign =
+                    await WeeklyBriefRecommendedActions.FindSuggestedCampaignAsync(
+                        _context,
+                        locationId,
+                        windowFrom,
+                        windowTo,
+                        cancellationToken
+                    );
+            }
+
             return Ok(new
             {
                 success = true,
@@ -306,19 +721,55 @@ namespace TummlyBackend.Controllers
                 generatedAtUtc = row.GeneratedAtUtc,
                 body,
                 metrics,
+                meta = phase1.Meta,
+                executiveSummary,
+                whatChanged = phase1.WhatChanged,
+                feedbackSummary,
+                recommendedActions,
+                suggestedCampaign,
+                reviewedAtUtc = row.ReviewedAtUtc,
+                reviewedByUserId = row.ReviewedByUserId,
             });
         }
 
-        private Task<RestaurantPermissionDecision> GateReportsViewAsync(
-            int locationId
+        private async Task<WeeklyBriefMetrics?> TryLoadPriorMetricsAsync(
+            int locationId,
+            string weekKey,
+            CancellationToken cancellationToken
         )
         {
-            return _permissions.AuthorizeLocationAsync(
-                User,
-                OperatorAreaIds.Reports,
-                PermissionLevel.View,
-                locationId
-            );
+            if (!WeeklyBriefWeekKey.TryPriorWeekKey(weekKey, out var priorKey))
+            {
+                return null;
+            }
+
+            var priorRow = await _context.WeeklyBriefs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    brief =>
+                        brief.LocationId == locationId
+                        && brief.WeekKey == priorKey
+                        && brief.Status == WeeklyBriefStatus.Succeeded,
+                    cancellationToken
+                );
+
+            if (priorRow is null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<WeeklyBriefMetrics>(
+                    priorRow.MetricsJson,
+                    WeeklyBriefStoreJson.Options
+                );
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
         }
+
     }
 }

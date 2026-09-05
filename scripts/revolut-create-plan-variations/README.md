@@ -1,10 +1,12 @@
 # Revolut plan variations create (ticket 13 / lock 06)
 
-Repo-owned runbook. Creates the **eight** recurring Revolut subscription plan
-variations from pack lookup keys. Amounts are Tummly **gross** minor units
-(net pack pence + 20% UK VAT, half-up). Each variation `name` (label) is the
-pack `lookup_key` (same string as the env map key). **Never PATCH** a live
-variation amount — new pricebook → new lookup keys → new variations.
+Repo-owned runbook. Creates the **eight** recurring Revolut subscription plans
+(one plan per cadence) from pack lookup keys. Amounts are Tummly **gross**
+minor units (net pack pence + 20% UK VAT, half-up). Each plan `name` is a
+friendly checkout label (e.g. `Paid Starter Plan Monthly`). Each variation
+`name` (label) is the pack `lookup_key` (same string as the env map key).
+**Never PATCH** a live variation amount — new pricebook → new lookup keys →
+new variations.
 
 Top-ups have **no** Revolut catalog object.
 
@@ -24,8 +26,12 @@ Top-ups have **no** Revolut catalog object.
 ./scripts/revolut-create-plan-variations/create-plan-variations.sh
 ```
 
-Prints net → gross rows and the four `POST /api/subscription-plans` bodies
-(starter, growth, group, additional_group_location × monthly/annual).
+Prints net → gross rows and the eight `POST /api/subscription-plans` bodies
+(one plan per cadence: e.g. `Paid Starter Plan Monthly`,
+`Paid Starter Plan Annual`, …). Hosted Checkout uses the plan `name`.
+Variation `name` (label) stays the pack `lookup_key` (same string as the env
+map key). **Never PATCH** a live variation amount — new pricebook → new
+lookup keys → new variations.
 
 ## Apply (sandbox)
 

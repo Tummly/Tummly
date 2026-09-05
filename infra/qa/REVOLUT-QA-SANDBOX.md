@@ -89,10 +89,12 @@ TUMMLY_REGISTERED_ADDRESS=…
 
 Apply:
 
-```powershell
+```bash
 cd infra/qa
-./apply-aca-secrets.ps1
+./apply-aca-secrets.sh
 ```
+
+(PowerShell twin: `./apply-aca-secrets.ps1` — same secrets file.)
 
 Confirm revision ready, then:
 

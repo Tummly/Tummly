@@ -257,7 +257,11 @@ namespace TummlyBackend.Interfaces
         int Quantity,
         int TotalAmount,
         IReadOnlyList<RevolutOrderLineItemTax> Taxes,
-        string? ExternalId = null
+        string? ExternalId = null,
+        /// <summary>
+        /// Revolut <c>line_items[].type</c>: <c>service</c> or <c>physical</c>.
+        /// </summary>
+        string Type = "service"
     );
 
     public sealed record RevolutOrderLineItemTax(

@@ -5368,6 +5368,16 @@ describe("clarify vs grounded vs failure chrome", () => {
       showViewUsage: true,
       showAddCredits: true,
       sendBlocked: false,
+      shellAiCredits: {
+        buttonLabel: "7 AI credits",
+        title: "AI credit usage",
+        usedLine: "13 of 20 AI credits used",
+        leftLine: "7 AI credits left",
+        viewUsageLabel: "View AI usage",
+        addCreditsLabel: "Add AI credits",
+        showViewUsage: true,
+        showAddCredits: true,
+      },
     })
 
     module.viewUsage()

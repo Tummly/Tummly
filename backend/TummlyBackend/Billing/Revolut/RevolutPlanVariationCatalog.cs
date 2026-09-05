@@ -6,7 +6,8 @@ namespace TummlyBackend.Billing.Revolut
 {
     /// <summary>
     /// Builds Revolut subscription-plan create payloads from the pack pricebook
-    /// (ticket 13 / lock 06). Create only — never PATCH a live variation amount.
+    /// (ticket 13 / lock 06). One plan per cadence with a friendly Hosted
+    /// Checkout name. Create only — never PATCH a live variation amount.
     /// </summary>
     public static class RevolutPlanVariationCatalog
     {
@@ -105,25 +106,51 @@ namespace TummlyBackend.Billing.Revolut
             IReadOnlyList<RevolutPlanVariationRow> rows
         )
         {
+            // One Revolut subscription plan per cadence so Hosted Checkout shows
+            // a friendly plan name (e.g. "Paid Starter Plan Monthly") instead of
+            // "starter #1".
             return rows
-                .GroupBy(r => r.PlanKey, StringComparer.Ordinal)
-                .OrderBy(g => Array.IndexOf(RecurringPlanKeys, g.Key))
-                .Select(g =>
-                {
-                    var variations = g.OrderBy(r =>
-                            r.Cadence == "monthly" ? 0 : 1
-                        )
-                        .Select(r => new RevolutCreatePlanVariation(
+                .OrderBy(r => Array.IndexOf(RecurringPlanKeys, r.PlanKey))
+                .ThenBy(r => r.Cadence == "monthly" ? 0 : 1)
+                .Select(r => new RevolutCreatePlanBody(
+                    PlanKey: r.PlanKey,
+                    Name: DisplayNameFor(r.PlanKey, r.Cadence),
+                    Variations:
+                    [
+                        new RevolutCreatePlanVariation(
                             Label: r.LookupKey,
                             LookupKey: r.LookupKey,
                             CycleDuration: r.CycleDuration,
                             AmountGrossMinor: r.GrossMinor,
                             Currency: r.Currency
-                        ))
-                        .ToList();
-                    return new RevolutCreatePlanBody(g.Key, variations);
-                })
+                        ),
+                    ]
+                ))
                 .ToList();
+        }
+
+        /// <summary>
+        /// Revolut Hosted Checkout title for a subscription plan (plan <c>name</c>).
+        /// </summary>
+        public static string DisplayNameFor(string planKey, string cadence)
+        {
+            var period = string.Equals(
+                cadence,
+                "annual",
+                StringComparison.OrdinalIgnoreCase
+            )
+                ? "Annual"
+                : "Monthly";
+
+            return planKey.Trim().ToLowerInvariant() switch
+            {
+                "starter" => $"Paid Starter Plan {period}",
+                "growth" => $"Paid Growth Plan {period}",
+                "group" => $"Paid Group Plan {period}",
+                "additional_group_location" =>
+                    $"Additional Group Location {period}",
+                _ => $"{planKey.Trim()} {period}",
+            };
         }
 
         /// <summary>
@@ -261,6 +288,7 @@ namespace TummlyBackend.Billing.Revolut
     );
 
     public sealed record RevolutCreatePlanBody(
+        string PlanKey,
         string Name,
         IReadOnlyList<RevolutCreatePlanVariation> Variations
     );

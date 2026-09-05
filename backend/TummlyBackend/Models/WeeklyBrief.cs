@@ -32,7 +32,7 @@ namespace TummlyBackend.Models
 
         /// <summary>
         /// Structured brief body JSON (
-        /// <see cref="WeeklyBriefBody"/> / <c>WeeklyBriefStructuredOutput</c> schema v1).
+        /// <see cref="WeeklyBriefBody"/> / body schema v1 for Home).
         /// </summary>
         [Required]
         public string BodyJson { get; set; } = string.Empty;
@@ -45,10 +45,29 @@ namespace TummlyBackend.Models
         public string MetricsJson { get; set; } = string.Empty;
 
         /// <summary>
+        /// Optional phase-2 Reports enrichment JSON (
+        /// <see cref="WeeklyBriefEnrichment"/>). Null on pre-phase-2 rows.
+        /// </summary>
+        public string? EnrichmentJson { get; set; }
+
+        /// <summary>
         /// Optional error payload when a failed attempt is retained.
         /// Prefer omitting the row until success instead.
         /// </summary>
         public string? ErrorInfo { get; set; }
+
+        /// <summary>
+        /// When an operator marked this location+week brief as reviewed (annotation).
+        /// Null until first mark. Re-mark refreshes this timestamp.
+        /// </summary>
+        public DateTime? ReviewedAtUtc { get; set; }
+
+        /// <summary>
+        /// User who last marked this brief as reviewed. Null until first mark.
+        /// </summary>
+        public int? ReviewedByUserId { get; set; }
+
+        public User? ReviewedByUser { get; set; }
     }
 
     public enum WeeklyBriefStatus

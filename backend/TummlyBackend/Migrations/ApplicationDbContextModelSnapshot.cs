@@ -4087,6 +4087,9 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("EnrichmentJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ErrorInfo")
                         .HasColumnType("nvarchar(max)");
 
@@ -4100,6 +4103,12 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ReviewedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -4111,6 +4120,8 @@ namespace TummlyBackend.Migrations
                         .HasColumnType("nvarchar(32)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ReviewedByUserId");
 
                     b.HasIndex("LocationId", "WeekKey")
                         .IsUnique();
@@ -5283,7 +5294,14 @@ namespace TummlyBackend.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("TummlyBackend.Models.User", "ReviewedByUser")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.Navigation("Location");
+
+                    b.Navigation("ReviewedByUser");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.AssistantConversation", b =>

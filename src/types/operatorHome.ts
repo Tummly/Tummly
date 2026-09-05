@@ -270,6 +270,7 @@ export type WeeklyBriefMetrics = {
   redemptionsInWeek: number;
   campaignsSentInWeek: number;
   campaignRecipientsReached: number;
+  unsubscribesInWeek: number;
 };
 
 export type WeeklyBriefNotReadyResponse = {
@@ -277,6 +278,69 @@ export type WeeklyBriefNotReadyResponse = {
   ready: false;
   locationId: number;
   week: string;
+};
+
+/** Phase-1 Figma meta on the shared ready envelope (Home ignores unused fields). */
+export type WeeklyBriefReadyMeta = {
+  period: string;
+  dataSources: string[];
+  confidence: string;
+  confidenceLevel?: "high" | "medium" | "low";
+};
+
+/** Phase-1 What changed row on the ready envelope. */
+export type WeeklyBriefWhatChangedRow = {
+  area: string;
+  change: string;
+  meaning: string;
+};
+
+/** Phase-1 Feedback summary facts on the ready envelope (no theme AI). */
+export type WeeklyBriefFeedbackSummary = {
+  text: string;
+  subtitle: string;
+  needsAttentionCount: number;
+};
+
+/** Recommended-action facts (client owns default title / subtitle / CTA; server may enrich). */
+export type WeeklyBriefFeedbackNeedsAttentionFact = {
+  kind: "feedback-needs-attention";
+  count: number;
+  target: "feedback-needs-attention";
+  title?: string | null;
+  subtitle?: string | null;
+};
+
+export type WeeklyBriefRepeatedInvalidFact = {
+  kind: "repeated-invalid";
+  count: number;
+  target: "redemption-log";
+  title?: string | null;
+  subtitle?: string | null;
+};
+
+export type WeeklyBriefLowRedemptionFact = {
+  kind: "low-redemption";
+  offerId: number;
+  offerTitle: string;
+  claims: number;
+  redemptions: number;
+  rate: number;
+  target: "offers";
+  title?: string | null;
+  subtitle?: string | null;
+};
+
+export type WeeklyBriefRecommendedActionFact =
+  | WeeklyBriefFeedbackNeedsAttentionFact
+  | WeeklyBriefRepeatedInvalidFact
+  | WeeklyBriefLowRedemptionFact;
+
+/** Suggested Draft campaign on the ready envelope when one qualifies. */
+export type WeeklyBriefSuggestedCampaignWire = {
+  campaignId: number;
+  name: string;
+  audienceKey: string | null;
 };
 
 export type WeeklyBriefReadyResponse = {
@@ -288,6 +352,15 @@ export type WeeklyBriefReadyResponse = {
   generatedAtUtc: string;
   body: WeeklyBriefBody;
   metrics: WeeklyBriefMetrics;
+  meta: WeeklyBriefReadyMeta;
+  executiveSummary: string;
+  whatChanged: WeeklyBriefWhatChangedRow[];
+  feedbackSummary: WeeklyBriefFeedbackSummary | null;
+  recommendedActions: WeeklyBriefRecommendedActionFact[];
+  suggestedCampaign: WeeklyBriefSuggestedCampaignWire | null;
+  /** Present when marked; null/omitted until first mark. */
+  reviewedAtUtc?: string | null;
+  reviewedByUserId?: number | null;
 };
 
 export type WeeklyBriefGetResponse =
@@ -303,3 +376,12 @@ export type WeeklyBriefGenerateFailureResponse = {
 export type WeeklyBriefGenerateResponse =
   | WeeklyBriefReadyResponse
   | WeeklyBriefGenerateFailureResponse;
+
+export type WeeklyBriefMarkReviewedFailureResponse = {
+  success: false;
+  message: string;
+};
+
+export type WeeklyBriefMarkReviewedResponse =
+  | WeeklyBriefReadyResponse
+  | WeeklyBriefMarkReviewedFailureResponse;
