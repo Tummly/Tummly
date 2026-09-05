@@ -41,7 +41,32 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal("turn-1", parsed.ConversationTurnId);
             Assert.Equal(nameof(AdvisoryGapReason.MetricAmbiguous), parsed.AdvisoryReason);
             Assert.Equal("How can we grow?", parsed.SourceUserMessage);
+            Assert.Equal(AssistantGapTurn.GapSourcePreCheck, parsed.GapSource);
             Assert.True(AssistantGapTurn.IsAdvisoryGap(parsed));
+        }
+
+        [Fact]
+        public void CreateAdvisory_ModelRequested_SetsGapSource()
+        {
+            var gap = AssistantAdvisoryIntent.ModelRequestedGap(
+                ["covers"],
+                "turn-2",
+                "Which metric?"
+            );
+            var created = AssistantGapTurn.CreateAdvisory(
+                gap,
+                "How are we doing?",
+                AssistantGapTurn.GapSourceModelRequested
+            );
+
+            Assert.Equal(
+                AssistantGapTurn.GapSourceModelRequested,
+                created.GapSource
+            );
+            Assert.Equal(
+                nameof(AdvisoryGapReason.ModelRequested),
+                created.AdvisoryReason
+            );
         }
 
         [Fact]

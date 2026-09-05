@@ -25,6 +25,12 @@ namespace TummlyBackend.Helpers
         public string? ConversationTurnId { get; set; }
 
         public string? AdvisoryReason { get; set; }
+
+        /// <summary>
+        /// Logging only: <see cref="AssistantGapTurn.GapSourcePreCheck"/> or
+        /// <see cref="AssistantGapTurn.GapSourceModelRequested"/>.
+        /// </summary>
+        public string? GapSource { get; set; }
     }
 
     public static class AssistantGapTurn
@@ -41,6 +47,8 @@ namespace TummlyBackend.Helpers
 
         public const string GapKindCreation = "creation";
         public const string GapKindAdvisory = "advisory";
+        public const string GapSourcePreCheck = "pre-check";
+        public const string GapSourceModelRequested = "model-requested";
         public const string KindAdvisoryScope = "advisory-scope";
         public const string KindAdvisoryRange = "advisory-range";
         public const string KindAdvisoryMetric = "advisory-metric";
@@ -171,7 +179,8 @@ namespace TummlyBackend.Helpers
 
         public static AssistantGapState CreateAdvisory(
             AdvisoryGap gap,
-            string sourceUserMessage
+            string sourceUserMessage,
+            string gapSource = GapSourcePreCheck
         )
             => new()
             {
@@ -183,6 +192,7 @@ namespace TummlyBackend.Helpers
                 PartialDiagnosisNote = gap.PartialDiagnosisNote,
                 ConversationTurnId = gap.ConversationTurnId,
                 AdvisoryReason = gap.Reason.ToString(),
+                GapSource = gapSource,
             };
 
         public static bool IsAdvisoryGap(AssistantGapState gapState)

@@ -771,6 +771,10 @@ if (useFakeFeedbackClassification)
     builder.Services.AddSingleton<IAssistantLiveAnswerProvider>(sp =>
         sp.GetRequiredService<FakeAssistantLiveAnswerProvider>()
     );
+    builder.Services.AddSingleton<FakeAssistantAdvisoryReasonProvider>();
+    builder.Services.AddSingleton<IAssistantAdvisoryReasonProvider>(sp =>
+        sp.GetRequiredService<FakeAssistantAdvisoryReasonProvider>()
+    );
 }
 else
 {
@@ -801,6 +805,10 @@ else
     builder.Services.AddSingleton<
         IAssistantLiveAnswerProvider,
         AzureOpenAIAssistantLiveAnswerProvider
+    >();
+    builder.Services.AddSingleton<
+        IAssistantAdvisoryReasonProvider,
+        AzureOpenAIAssistantAdvisoryReasonProvider
     >();
 }
 
@@ -886,6 +894,22 @@ builder.Services.AddHttpClient(
 
 builder.Services.AddHttpClient(
     AssistantLiveAnswerStructuredOutput.HttpClientName,
+    client =>
+    {
+        var endpoint = builder.Configuration[
+            $"{FeedbackClassificationSettings.SectionName}:Endpoint"
+        ];
+        if (!string.IsNullOrWhiteSpace(endpoint))
+        {
+            client.BaseAddress = new Uri(endpoint.TrimEnd('/') + "/");
+        }
+
+        client.Timeout = TimeSpan.FromSeconds(60);
+    }
+);
+
+builder.Services.AddHttpClient(
+    AssistantAdvisoryReasonStructuredOutput.HttpClientName,
     client =>
     {
         var endpoint = builder.Configuration[

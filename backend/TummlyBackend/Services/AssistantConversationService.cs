@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
@@ -43,6 +44,8 @@ namespace TummlyBackend.Services
         private readonly FeedbackClassificationSettings _liveAnswerSettings;
         private readonly IRestaurantContextSnapshotService? _restaurantContextSnapshot;
         private readonly RestaurantContextSnapshotSettings _snapshotSettings;
+        private readonly IAssistantAdvisoryReasonProvider? _advisoryReason;
+        private readonly ILogger<AssistantConversationService> _logger;
         private string? _pendingAssistantBodyPrefix;
 
         public AssistantConversationService(
@@ -68,7 +71,9 @@ namespace TummlyBackend.Services
             TimeProvider? timeProvider = null,
             IOptions<FeedbackClassificationSettings>? liveAnswerSettings = null,
             IRestaurantContextSnapshotService? restaurantContextSnapshot = null,
-            IOptions<RestaurantContextSnapshotSettings>? snapshotSettings = null
+            IOptions<RestaurantContextSnapshotSettings>? snapshotSettings = null,
+            IAssistantAdvisoryReasonProvider? advisoryReason = null,
+            ILogger<AssistantConversationService>? logger = null
         )
         {
             _context = context;
@@ -96,6 +101,9 @@ namespace TummlyBackend.Services
             _restaurantContextSnapshot = restaurantContextSnapshot;
             _snapshotSettings = snapshotSettings?.Value
                 ?? new RestaurantContextSnapshotSettings();
+            _advisoryReason = advisoryReason;
+            _logger = logger
+                ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<AssistantConversationService>.Instance;
         }
 
         public async Task<AssistantTurnOutcome> SendTurnAsync(
@@ -969,9 +977,8 @@ namespace TummlyBackend.Services
             AssistantRetrievedEvidence savedEvidence;
 
             // Advisory Gap pre-check before expensive retrieve / live LLM.
-            // Clear→Reason LLM handoff is deferred: Clear continues the
-            // existing retrieve + live-answer path without a dedicated Reason
-            // provider in this slice.
+            // Clear with an injected Reason provider finishes on that path;
+            // without it, Clear falls through to retrieve + live answer.
             if (_restaurantContextSnapshot is not null
                 && gapState is null
                 && !isCreateTurn
@@ -986,6 +993,8 @@ namespace TummlyBackend.Services
                     ownedLocations,
                     compareIds,
                     replaceFailure,
+                    boundCreateLocationId,
+                    idempotencyKey,
                     cancellationToken
                 );
                 if (advisoryTurn is not null)
@@ -4248,6 +4257,8 @@ namespace TummlyBackend.Services
             IReadOnlyList<OwnedLocationRow> ownedLocations,
             IReadOnlyList<int> compareIds,
             AssistantMessage? replaceFailure,
+            int? boundCreateLocationId,
+            string? idempotencyKey,
             CancellationToken cancellationToken
         )
         {
@@ -4306,9 +4317,153 @@ namespace TummlyBackend.Services
                         liveAnswerAlreadyCompleted: true
                     ),
                 AdvisoryPreCheckOutcome.PureProduct => null,
-                // Clear: keep existing retrieve + live path (Reason LLM deferred).
+                AdvisoryPreCheckOutcome.Clear clear when _advisoryReason is not null
+                    => await FinishAdvisoryClearAsync(
+                        conversation,
+                        userMessage,
+                        clear,
+                        replaceFailure,
+                        boundCreateLocationId,
+                        idempotencyKey,
+                        cancellationToken
+                    ),
+                // Clear without Reason provider: keep retrieve + live path.
                 _ => null,
             };
+        }
+
+        private async Task<AssistantTurnOutcome> FinishAdvisoryClearAsync(
+            AssistantConversation conversation,
+            string userMessage,
+            AdvisoryPreCheckOutcome.Clear clear,
+            AssistantMessage? replaceFailure,
+            int? boundCreateLocationId,
+            string? idempotencyKey,
+            CancellationToken cancellationToken
+        )
+        {
+            var billingGate = await TryBeginBilledLiveAnswerAsync(
+                conversation,
+                boundCreateLocationId,
+                idempotencyKey,
+                cancellationToken
+            );
+            if (billingGate.Error is not null)
+            {
+                return billingGate.Error;
+            }
+
+            var turnBilling = billingGate.Billing;
+            AssistantAdvisoryReasonResult reasonResult;
+            try
+            {
+                await TryPublishProgressAsync(
+                    conversation.OwnerUserId,
+                    conversation.Id,
+                    AssistantTurnProgressSteps.Preparing,
+                    cancellationToken
+                );
+                reasonResult = await _advisoryReason!.CompleteAsync(
+                    new AssistantAdvisoryReasonInput(
+                        userMessage,
+                        clear.Snapshot,
+                        BuildLiveAnswerHistory(conversation)
+                    ),
+                    cancellationToken
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                conversation.LastCompareLocationIdsJson = null;
+                await PersistAssistantAsync(
+                    conversation,
+                    FailureMessage(DateTime.UtcNow),
+                    replaceFailure,
+                    CancellationToken.None
+                );
+                throw;
+            }
+
+            if (reasonResult is not AssistantAdvisoryReasonResult.Succeeded succeeded)
+            {
+                conversation.LastCompareLocationIdsJson = null;
+                return await PersistAssistantAsync(
+                    conversation,
+                    FailureMessage(DateTime.UtcNow),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true,
+                    turnBilling: turnBilling
+                );
+            }
+
+            turnBilling?.MarkLiveAnswerSucceeded();
+            var validated = AssistantAdvisoryReasonValidate.Validate(
+                succeeded.Output,
+                clear.Snapshot,
+                _logger
+            );
+
+            if (validated is AdvisoryReasonValidateResult.Clarify clarify)
+            {
+                _logger.LogInformation(
+                    "AdvisoryReasonClarifyAfterClear conversationId={ConversationId}",
+                    conversation.Id
+                );
+                return await FinishGapTurnAsync(
+                    conversation,
+                    AssistantGapTurn.CreateAdvisory(
+                        clarify.Gap,
+                        userMessage,
+                        AssistantGapTurn.GapSourceModelRequested
+                    ),
+                    AssistantAdvisoryIntent.GapQuestionBody(clarify.Gap),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true,
+                    turnBilling: turnBilling
+                );
+            }
+
+            if (validated is AdvisoryReasonValidateResult.FallbackNoClearDriver)
+            {
+                conversation.LastCompareLocationIdsJson = null;
+                return await PersistAssistantAsync(
+                    conversation,
+                    GroundedMessage(
+                        DateTime.UtcNow,
+                        "No clear driver",
+                        AssistantAdvisoryReasonValidate.NoClearDriverBody,
+                        []
+                    ),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true,
+                    turnBilling: turnBilling
+                );
+            }
+
+            var valid = (AdvisoryReasonValidateResult.Valid)validated;
+            _logger.LogInformation(
+                "Advisory Reason evidence_used sections={EvidenceUsed} "
+                + "conversationId={ConversationId}",
+                string.Join(", ", valid.Output.EvidenceUsed),
+                conversation.Id
+            );
+            conversation.LastCompareLocationIdsJson = null;
+            return await PersistAssistantAsync(
+                conversation,
+                GroundedMessage(
+                    DateTime.UtcNow,
+                    "Advisory",
+                    AssistantAdvisoryReasonValidate.RenderBody(valid.Output),
+                    []
+                ),
+                replaceFailure,
+                cancellationToken,
+                liveAnswerAlreadyCompleted: true,
+                turnBilling: turnBilling
+            );
         }
 
         private static LocationScope BuildAdvisoryScope(
