@@ -58,11 +58,9 @@ import {
   assistantComposerShellClass,
   assistantComposerTextareaClass,
 } from "@/lib/operatorAiAssistant/assistantCreditsPresentation"
-import {
-  ASSISTANT_WAIT_TEXT_CLASS,
-} from "@/lib/operatorAiAssistant/assistantWaitPresentation"
 import type {
   OperatorAiAssistantAction,
+  OperatorAiAssistantAnalysisScope,
   OperatorAiAssistantDraftLocation,
   OperatorAiAssistantHelpfulFill,
   OperatorAiAssistantMessage,
@@ -135,21 +133,6 @@ function readViewportAtLeastLg(): boolean {
     return true
   }
   return window.matchMedia(LG_VIEWPORT_QUERY).matches
-}
-
-function AssistantWaitLine({ text }: { text: string }) {
-  return (
-    <p
-      className={ASSISTANT_WAIT_TEXT_CLASS}
-      role="status"
-      aria-live="polite"
-      aria-label={text}
-    >
-      <span key={text} data-assistant-wait-phrase aria-hidden>
-        {text}
-      </span>
-    </p>
-  )
 }
 
 function HelpfulButtons({
