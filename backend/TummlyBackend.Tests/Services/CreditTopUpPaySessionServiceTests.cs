@@ -16,7 +16,7 @@ namespace TummlyBackend.Tests.Services
         private readonly DateTime _now = new(2026, 8, 20, 12, 0, 0, DateTimeKind.Utc);
 
         [Fact]
-        public async Task StartAsync_CreatesOrderWithExternalId_AndPersistsTopupIntent()
+        public async Task StartAsync_CreatesOrderWithFriendlyName_AndPersistsTopupIntent()
         {
             await using var context = CreateContext();
             var account = await SeedPaidStarterAsync(context);
@@ -40,8 +40,17 @@ namespace TummlyBackend.Tests.Services
                 merchant.LastCreateOrderRequest!.CustomerId
             );
             Assert.Equal(
-                pack.LookupKey,
-                merchant.LastCreateOrderRequest.LineItems![0].ExternalId
+                "AI Credits 500 Topup",
+                merchant.LastCreateOrderRequest.Description
+            );
+            Assert.Equal(
+                "AI Credits 500 Topup",
+                merchant.LastCreateOrderRequest.LineItems![0].Name
+            );
+            Assert.True(
+                string.IsNullOrWhiteSpace(
+                    merchant.LastCreateOrderRequest.LineItems[0].ExternalId
+                )
             );
             Assert.Contains(
                 "tab=credits-usage",

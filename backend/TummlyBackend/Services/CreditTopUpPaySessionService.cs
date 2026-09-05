@@ -164,8 +164,7 @@ namespace TummlyBackend.Services
                                     Percentage: "20.00",
                                     Amount: vat
                                 ),
-                            ],
-                            ExternalId: pack.LookupKey
+                            ]
                         ),
                     ]
                 ),

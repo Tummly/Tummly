@@ -62,51 +62,75 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public void ToCreatePlanBodies_FourPlans_MonthlyAndAnnual_LabelIsLookupKey()
+        public void ToCreatePlanBodies_EightPlans_OneVariation_FriendlyDisplayName()
         {
             var json = File.ReadAllText(PackJsonPath());
             var rows = RevolutPlanVariationCatalog.BuildFromPackJson(json);
             var bodies = RevolutPlanVariationCatalog.ToCreatePlanBodies(rows);
 
-            Assert.Equal(4, bodies.Count);
+            Assert.Equal(8, bodies.Count);
             Assert.All(
                 bodies,
                 body =>
                 {
-                    Assert.Equal(2, body.Variations.Count);
-                    Assert.All(
-                        body.Variations,
-                        v =>
-                            Assert.Equal(
-                                v.LookupKey,
-                                v.Label
-                            )
+                    Assert.Single(body.Variations);
+                    Assert.Equal(
+                        body.Variations[0].LookupKey,
+                        body.Variations[0].Label
                     );
                 }
             );
 
-            var starter = bodies.Single(b => b.Name == "starter");
-            var monthly = starter.Variations.Single(v =>
-                v.CycleDuration == "P1M"
+            var starterMonthly = bodies.Single(b =>
+                b.Name == "Paid Starter Plan Monthly"
             );
+            Assert.Equal("starter", starterMonthly.PlanKey);
             Assert.Equal(
                 RevolutPlanVariationKeys.StarterMonthly,
-                monthly.LookupKey
+                starterMonthly.Variations[0].LookupKey
             );
-            Assert.Equal(4680, monthly.AmountGrossMinor);
-            Assert.Equal("GBP", monthly.Currency);
+            Assert.Equal(4680, starterMonthly.Variations[0].AmountGrossMinor);
+            Assert.Equal("GBP", starterMonthly.Variations[0].Currency);
+
+            var starterAnnual = bodies.Single(b =>
+                b.Name == "Paid Starter Plan Annual"
+            );
+            Assert.Equal(
+                RevolutPlanVariationKeys.StarterAnnual,
+                starterAnnual.Variations[0].LookupKey
+            );
 
             var createJson = RevolutPlanVariationCatalog.ToCreatePlanRequestJson(
-                starter
+                starterMonthly
             );
             using var doc = JsonDocument.Parse(createJson);
+            Assert.Equal(
+                "Paid Starter Plan Monthly",
+                doc.RootElement.GetProperty("name").GetString()
+            );
             var named = doc
                 .RootElement.GetProperty("variations")
                 .EnumerateArray()
                 .Select(v => v.GetProperty("name").GetString())
                 .ToArray();
-            Assert.Contains(RevolutPlanVariationKeys.StarterMonthly, named);
-            Assert.Contains(RevolutPlanVariationKeys.StarterAnnual, named);
+            Assert.Equal(
+                RevolutPlanVariationKeys.StarterMonthly,
+                named[0]
+            );
+            Assert.Single(named);
+        }
+
+        [Fact]
+        public void DisplayNameFor_StarterMonthly_IsPaidStarterPlanMonthly()
+        {
+            Assert.Equal(
+                "Paid Starter Plan Monthly",
+                RevolutPlanVariationCatalog.DisplayNameFor("starter", "monthly")
+            );
+            Assert.Equal(
+                "Paid Growth Plan Annual",
+                RevolutPlanVariationCatalog.DisplayNameFor("growth", "annual")
+            );
         }
 
         [Fact]

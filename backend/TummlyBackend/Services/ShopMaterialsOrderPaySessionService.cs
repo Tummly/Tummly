@@ -136,6 +136,9 @@ namespace TummlyBackend.Services
             var net = order.MaterialsNetPence + order.DeliveryNetPence;
             var vat = order.VatPence;
             var gross = order.GrossPence;
+            var description = ShopMaterialsOrderLineCopy.FormatOrderDescription(
+                order
+            );
 
             var redirectUrl = RevolutHostedCheckoutRedirectUrls.BuildShopOrdersTabUrl(
                 _configuration,
@@ -155,7 +158,7 @@ namespace TummlyBackend.Services
                     PlanVariationLookupKey: null,
                     CustomerId: billingAccount.RevolutCustomerId,
                     RedirectUrl: redirectUrl,
-                    Description: $"Tummly Shop materials order {order.OrderNumber}",
+                    Description: description,
                     LineItems: lineItems
                 ),
                 cancellationToken
@@ -235,7 +238,9 @@ namespace TummlyBackend.Services
                 var lineGross = line.LineNetPence + lineVat;
                 items.Add(
                     new RevolutOrderLineItem(
-                        Name: line.TitleSnapshot,
+                        Name: ShopMaterialsOrderLineCopy.FormatLineName(
+                            line.TitleSnapshot
+                        ),
                         UnitPriceAmount: line.UnitNetPence,
                         Quantity: line.Quantity,
                         TotalAmount: lineGross,
@@ -247,7 +252,6 @@ namespace TummlyBackend.Services
                                 Amount: lineVat
                             ),
                         ],
-                        ExternalId: line.CatalogSkuId,
                         Type: "physical"
                     )
                 );
@@ -257,12 +261,11 @@ namespace TummlyBackend.Services
             {
                 items.Add(
                     new RevolutOrderLineItem(
-                        Name: "Express delivery",
+                        Name: ShopMaterialsOrderLineCopy.ExpressDeliveryLineName,
                         UnitPriceAmount: order.DeliveryNetPence,
                         Quantity: 1,
                         TotalAmount: order.DeliveryNetPence,
-                        Taxes: [],
-                        ExternalId: "shop-express-delivery"
+                        Taxes: []
                     )
                 );
             }

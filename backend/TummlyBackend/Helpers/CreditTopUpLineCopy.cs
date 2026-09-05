@@ -9,12 +9,12 @@ namespace TummlyBackend.Helpers
         {
             var label = channel.Trim().ToLowerInvariant() switch
             {
-                "sms" => "SMS",
-                "email" => "Email",
-                "ai" => "AI",
-                _ => channel.Trim(),
+                "sms" => "SMS Credits",
+                "email" => "Email Credits",
+                "ai" => "AI Credits",
+                _ => $"{channel.Trim()} Credits",
             };
-            return $"{label} credit pack ({quantity:N0})";
+            return $"{label} {quantity} Topup";
         }
     }
 }

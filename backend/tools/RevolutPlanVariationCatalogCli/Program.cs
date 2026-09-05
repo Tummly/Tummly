@@ -91,7 +91,17 @@ static class Program
 
         foreach (var body in bodies)
         {
-            var planRows = rows.Where(r => r.PlanKey == body.Name).ToList();
+            var planRows = rows
+                .Where(r =>
+                    body.Variations.Any(v =>
+                        string.Equals(
+                            v.LookupKey,
+                            r.LookupKey,
+                            StringComparison.Ordinal
+                        )
+                    )
+                )
+                .ToList();
             var payload = RevolutPlanVariationCatalog.ToCreatePlanRequestJson(
                 body
             );
