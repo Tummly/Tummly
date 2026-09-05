@@ -106,7 +106,9 @@ namespace TummlyBackend.Tests.Services
             ICaptureThankYouOfferService? thankYouOffers = null,
             TimeProvider? timeProvider = null,
             IOptions<FeedbackClassificationSettings>? liveAnswerOptions = null,
-            IAssistantAiBilling? aiBilling = null
+            IAssistantAiBilling? aiBilling = null,
+            IRestaurantContextSnapshotService? restaurantContextSnapshot = null,
+            IOptions<RestaurantContextSnapshotSettings>? snapshotSettings = null
         )
         {
             var catalog = offersCatalog ?? new OffersCatalogService(_context);
@@ -144,7 +146,9 @@ namespace TummlyBackend.Tests.Services
                 new RestaurantPermissionHelper(_context),
                 aiBilling ?? _aiBilling,
                 timeProvider ?? _clock,
-                liveAnswerOptions
+                liveAnswerOptions,
+                restaurantContextSnapshot,
+                snapshotSettings
             );
         }
 

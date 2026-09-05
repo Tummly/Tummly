@@ -141,6 +141,9 @@ builder.Services.Configure<HelpCentreSettings>(
 builder.Services.Configure<FeedbackClassificationSettings>(
     builder.Configuration.GetSection(FeedbackClassificationSettings.SectionName)
 );
+builder.Services.Configure<RestaurantContextSnapshotSettings>(
+    builder.Configuration.GetSection(RestaurantContextSnapshotSettings.SectionName)
+);
 builder.Services.Configure<GuestResponseEmailDeliverySettings>(
     builder.Configuration.GetSection(
         GuestResponseEmailDeliverySettings.SectionName
@@ -1000,6 +1003,10 @@ builder.Services.AddScoped<IAssistantCaptureRetrieve, AssistantCaptureRetrieve>(
 builder.Services.AddScoped<IAssistantHomeKpiRetrieve, AssistantHomeKpiRetrieve>();
 builder.Services.AddScoped<IAssistantGuestsRetrieve, AssistantGuestsRetrieve>();
 builder.Services.AddScoped<IAssistantAttentionRetrieve, AssistantAttentionRetrieve>();
+builder.Services.AddScoped<
+    IRestaurantContextSnapshotService,
+    RestaurantContextSnapshotService
+>();
 
 builder.Services.AddScoped<IAssistantConversationService, AssistantConversationService>();
 
