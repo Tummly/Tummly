@@ -13,10 +13,7 @@ import { teamPermissionsFilterSheetSchema } from "@/lib/operatorTeamPermissions/
 import { assignableRolesForActor } from "@/lib/operatorTeamPermissions/permissionRoles"
 import { isTeamPermissionsMatrixEditEnabled } from "@/lib/env"
 import type { PlanEntitlementsAccountSnapshot } from "@/lib/planEntitlements/planEntitlementsPresentation"
-import {
-  normalizePlanEntitlementsAccount,
-  teamMemberCapReachedMessage,
-} from "@/lib/planEntitlements/planEntitlementsPresentation"
+import { normalizePlanEntitlementsAccount } from "@/lib/planEntitlements/planEntitlementsPresentation"
 import {
   legalAdminLevels,
   resolveTeamPermissionsTabId,
@@ -152,7 +149,6 @@ export type TeamPermissionsPageAdapters = {
 
 export type TeamPermissionsDialog =
   | { kind: "none" }
-  | { kind: "notes" }
   | { kind: "invite" }
   | {
       kind: "edit-member"
@@ -218,7 +214,7 @@ export type OperatorTeamPermissionsPageModule = {
   applyFilters: () => void
   clearFiltersAndSearch: () => void
   removeFilterChip: (chip: FilterChip) => void
-  openNotes: () => void
+  openPermissionRules: () => void
   openInvite: () => void
   openViewMember: (membershipId: number) => void
   openEditMember: (membershipId: number) => void
@@ -643,6 +639,24 @@ function formatTeamMembersUsageLabel(
     }
   }
 
+  const requestTabChange = (tabId: TeamPermissionsTabId) => {
+    const next = resolveTeamPermissionsTabId(
+      tabId,
+      privacyConsentHasAccess
+    )
+    if (next === activeTabId) {
+      return
+    }
+    if (isDirty()) {
+      pendingLeave = { kind: "tab", tabId: next }
+      leaveDirtyOpen = true
+      emit()
+      return
+    }
+    activeTabId = next
+    emit()
+  }
+
   return {
     subscribe: (listener) => {
       listeners.add(listener)
@@ -656,23 +670,7 @@ function formatTeamMembersUsageLabel(
       activeTabId = resolveTeamPermissionsTabId(raw, privacyConsentHasAccess)
       emit()
     },
-    requestTabChange: (tabId) => {
-      const next = resolveTeamPermissionsTabId(
-        tabId,
-        privacyConsentHasAccess
-      )
-      if (next === activeTabId) {
-        return
-      }
-      if (isDirty()) {
-        pendingLeave = { kind: "tab", tabId: next }
-        leaveDirtyOpen = true
-        emit()
-        return
-      }
-      activeTabId = next
-      emit()
-    },
+    requestTabChange,
     setSearchQuery: (query) => {
       searchQuery = query
       emit()
@@ -731,20 +729,14 @@ function formatTeamMembersUsageLabel(
       )
       emit()
     },
-    openNotes: () => {
-      dialog = { kind: "notes" }
-      emit()
+    openPermissionRules: () => {
+      requestTabChange("roles-permissions")
     },
     openInvite: () => {
       if (!(data?.actorCanManage ?? false)) {
         return
       }
       if (data.entitlements.teamMembers.atCap) {
-        inviteEmailError = teamMemberCapReachedMessage(
-          data.entitlements.teamMembers
-        )
-        dialog = { kind: "invite" }
-        emit()
         return
       }
       inviteDraft = emptyInviteDraft(data?.actorPermissionRole ?? "")
@@ -872,11 +864,6 @@ function formatTeamMembersUsageLabel(
           busy = false
           emit()
         }
-        return
-      }
-      if (dialog.kind === "notes") {
-        dialog = { kind: "none" }
-        emit()
         return
       }
       if (dialog.kind === "edit-member") {

@@ -80,7 +80,8 @@ namespace TummlyBackend.Services
             string toEmail,
             string subject,
             string htmlBody,
-            IReadOnlyList<EmailInlineImage>? inlineImages = null
+            IReadOnlyList<EmailInlineImage>? inlineImages = null,
+            IReadOnlyList<EmailFileAttachment>? fileAttachments = null
         )
         {
             if (UsesResend)
@@ -89,7 +90,8 @@ namespace TummlyBackend.Services
                     toEmail,
                     subject,
                     htmlBody,
-                    inlineImages
+                    inlineImages,
+                    fileAttachments
                 );
                 return;
             }
@@ -98,7 +100,8 @@ namespace TummlyBackend.Services
                 toEmail,
                 subject,
                 htmlBody,
-                inlineImages
+                inlineImages,
+                fileAttachments
             );
         }
 
@@ -106,7 +109,8 @@ namespace TummlyBackend.Services
             string toEmail,
             string subject,
             string htmlBody,
-            IReadOnlyList<EmailInlineImage>? inlineImages
+            IReadOnlyList<EmailInlineImage>? inlineImages,
+            IReadOnlyList<EmailFileAttachment>? fileAttachments
         )
         {
             var (deliverTo, html) =
@@ -129,7 +133,7 @@ namespace TummlyBackend.Services
                 ReplyTo = string.IsNullOrWhiteSpace(_emailSettings.ReplyToEmail)
                     ? null
                     : _emailSettings.ReplyToEmail,
-                Attachments = ToResendAttachments(inlineImages),
+                Attachments = ToResendAttachments(inlineImages, fileAttachments),
             };
 
             var client = _httpClientFactory.CreateClient("Resend");
@@ -254,7 +258,8 @@ namespace TummlyBackend.Services
             string toEmail,
             string subject,
             string htmlBody,
-            IReadOnlyList<EmailInlineImage>? inlineImages
+            IReadOnlyList<EmailInlineImage>? inlineImages,
+            IReadOnlyList<EmailFileAttachment>? fileAttachments
         )
         {
             var email = new MimeMessage();
@@ -276,7 +281,7 @@ namespace TummlyBackend.Services
                 );
             }
 
-            email.Body = BuildSmtpBody(htmlBody, inlineImages);
+            email.Body = BuildSmtpBody(htmlBody, inlineImages, fileAttachments);
 
             using var smtp =
                 await CreateSmtpClientAsync();
@@ -288,10 +293,13 @@ namespace TummlyBackend.Services
 
         private static MimeEntity BuildSmtpBody(
             string htmlBody,
-            IReadOnlyList<EmailInlineImage>? inlineImages
+            IReadOnlyList<EmailInlineImage>? inlineImages,
+            IReadOnlyList<EmailFileAttachment>? fileAttachments
         )
         {
-            if (inlineImages is null || inlineImages.Count == 0)
+            var hasInline = inlineImages is { Count: > 0 };
+            var hasFiles = fileAttachments is { Count: > 0 };
+            if (!hasInline && !hasFiles)
             {
                 return new TextPart("html")
                 {
@@ -304,40 +312,84 @@ namespace TummlyBackend.Services
                 HtmlBody = htmlBody,
             };
 
-            foreach (var image in inlineImages)
+            if (hasInline)
             {
-                var resource = builder.LinkedResources.Add(
-                    image.Filename,
-                    image.Content,
-                    new ContentType("image", "png")
-                );
-                resource.ContentId = image.ContentId;
-                resource.ContentDisposition = new ContentDisposition(
-                    ContentDisposition.Inline
-                );
+                foreach (var image in inlineImages!)
+                {
+                    var resource = builder.LinkedResources.Add(
+                        image.Filename,
+                        image.Content,
+                        new ContentType("image", "png")
+                    );
+                    resource.ContentId = image.ContentId;
+                    resource.ContentDisposition = new ContentDisposition(
+                        ContentDisposition.Inline
+                    );
+                }
+            }
+
+            if (hasFiles)
+            {
+                foreach (var file in fileAttachments!)
+                {
+                    var parts = file.ContentType.Split(
+                        '/',
+                        2,
+                        StringSplitOptions.TrimEntries
+                    );
+                    var contentType = parts.Length == 2
+                        ? new ContentType(parts[0], parts[1])
+                        : new ContentType("application", "octet-stream");
+                    builder.Attachments.Add(
+                        file.Filename,
+                        file.Content,
+                        contentType
+                    );
+                }
             }
 
             return builder.ToMessageBody();
         }
 
         private static ResendAttachment[]? ToResendAttachments(
-            IReadOnlyList<EmailInlineImage>? inlineImages
+            IReadOnlyList<EmailInlineImage>? inlineImages,
+            IReadOnlyList<EmailFileAttachment>? fileAttachments
         )
         {
-            if (inlineImages is null || inlineImages.Count == 0)
+            var list = new List<ResendAttachment>();
+
+            if (inlineImages is { Count: > 0 })
             {
-                return null;
+                foreach (var image in inlineImages)
+                {
+                    list.Add(
+                        new ResendAttachment
+                        {
+                            Content = Convert.ToBase64String(image.Content),
+                            Filename = image.Filename,
+                            ContentId = image.ContentId,
+                            ContentType = "image/png",
+                        }
+                    );
+                }
             }
 
-            return inlineImages
-                .Select(image => new ResendAttachment
+            if (fileAttachments is { Count: > 0 })
+            {
+                foreach (var file in fileAttachments)
                 {
-                    Content = Convert.ToBase64String(image.Content),
-                    Filename = image.Filename,
-                    ContentId = image.ContentId,
-                    ContentType = "image/png",
-                })
-                .ToArray();
+                    list.Add(
+                        new ResendAttachment
+                        {
+                            Content = Convert.ToBase64String(file.Content),
+                            Filename = file.Filename,
+                            ContentType = file.ContentType,
+                        }
+                    );
+                }
+            }
+
+            return list.Count == 0 ? null : list.ToArray();
         }
 
         /*
@@ -793,6 +845,39 @@ namespace TummlyBackend.Services
             await SendEmailAsync(toEmail, title, htmlBody);
         }
 
+        public async Task SendTummlyVatInvoiceEmailAsync(
+            string toEmail,
+            string documentNumber,
+            string lineDescription,
+            int grossPence,
+            byte[] pdfContent,
+            string pdfFileName
+        )
+        {
+            var subject = TummlyVatInvoiceEmailTemplate.Subject(documentNumber);
+            var htmlBody = TummlyVatInvoiceEmailTemplate.GenerateHtml(
+                documentNumber,
+                lineDescription,
+                grossPence,
+                GetFrontendBaseUrl()
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                subject,
+                htmlBody,
+                inlineImages: null,
+                fileAttachments:
+                [
+                    new EmailFileAttachment(
+                        pdfFileName,
+                        pdfContent,
+                        "application/pdf"
+                    ),
+                ]
+            );
+        }
+
         private sealed class ResendEmailPayload
         {
             [JsonPropertyName("from")]
@@ -824,7 +909,8 @@ namespace TummlyBackend.Services
             public string Filename { get; set; } = string.Empty;
 
             [JsonPropertyName("content_id")]
-            public string ContentId { get; set; } = string.Empty;
+            [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+            public string? ContentId { get; set; }
 
             [JsonPropertyName("content_type")]
             public string ContentType { get; set; } = "image/png";

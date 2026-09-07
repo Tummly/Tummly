@@ -19,6 +19,14 @@ namespace TummlyBackend.Helpers
         public const string OneDraftTargetSentence =
             "I cannot draft more than one target per interview.";
 
+        /// <summary>
+        /// Greeting, chitchat, or other text outside the retrieve allow-list.
+        /// Redirects the operator instead of dumping a default Summary.
+        /// </summary>
+        public const string VagueAskClarifyBody =
+            "I can answer about Feedback, offers, Campaigns, Capture, Location Guests, "
+            + "or Performance overview in this Analysis scope. What would you like to know?";
+
         public const int NamedRowCap = 5;
 
         public const int SummariseExcerptCap = 3;
@@ -54,6 +62,11 @@ namespace TummlyBackend.Helpers
             bool suppressMixedRefusal = false
         )
         {
+            if (!AssistantAskIntent.HasRetrieveAsk(userMessage))
+            {
+                return Clarify(VagueAskClarifyBody);
+            }
+
             var grounded = AssistantAskIntent.ClassifyGrounded(userMessage);
             if (evidence.IsEmpty && grounded != AssistantGroundedAsk.ListGuests)
             {

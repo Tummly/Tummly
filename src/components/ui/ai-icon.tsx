@@ -12,17 +12,29 @@ type AiIconProps = {
   size?: 16 | 18 | 22 | 24 | 26 | 28 | 32 | 38 | 48
 }
 
-/** Brand AI glyph — green-to-blue petal ring (`assets/svg/ui-icons/ai-icon.svg`). */
+/**
+ * Brand AI glyph (`assets/svg/ui-icons/ai-icon.svg`).
+ * Fills with `currentColor` so it follows parent text (black in light mode,
+ * white in dark mode via `text-op-text-primary` / shell chrome). Pass a text
+ * color class when the parent is not already themed.
+ */
 export function AiIcon({ className, size = 18 }: AiIconProps) {
   return (
-    <img
-      src={aiIcon}
-      alt=""
-      width={size}
-      height={size}
-      className={cn("shrink-0 object-contain", className)}
-      style={{ width: size, height: size }}
+    <span
       aria-hidden
+      className={cn("inline-block shrink-0 bg-current", className)}
+      style={{
+        width: size,
+        height: size,
+        maskImage: `url(${aiIcon})`,
+        maskSize: "contain",
+        maskRepeat: "no-repeat",
+        maskPosition: "center",
+        WebkitMaskImage: `url(${aiIcon})`,
+        WebkitMaskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+      }}
     />
   )
 }

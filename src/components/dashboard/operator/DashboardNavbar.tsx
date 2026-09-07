@@ -201,7 +201,7 @@ export function DashboardNavbar({
                       OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS,
                       "text-xs font-medium text-op-header-ai-text lg:h-10 lg:min-h-10 lg:gap-2 lg:px-4 lg:text-sm",
                       "bg-op-header-ai-background hover:bg-op-header-ai-hover",
-                      aiAssistantOpen && "border border-op-border-default bg-[#202020] text-white"
+                      aiAssistantOpen && "border border-op-border-default"
                     )}
                     aria-label="AI Assistant"
                     onClick={onOpenAiAssistant}

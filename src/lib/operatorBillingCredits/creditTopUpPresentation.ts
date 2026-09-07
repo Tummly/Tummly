@@ -43,7 +43,6 @@ export type CreditTopUpCardViewModel = {
   buyLabel: string
   buyDisabled: boolean
   chipsDisabled: boolean
-  showPilotNotice: boolean
 }
 
 export type CreditTopUpConfirmViewModel = {
@@ -122,6 +121,11 @@ export function buildCreditTopUpCards(options: {
   selectedPackByChannel: Partial<Record<CreditChannelId, number>>
   focusedChannel: CreditChannelId | null
 }): CreditTopUpCardViewModel[] {
+  // Pilot cannot buy top-ups — hide purchase cards entirely (no disabled Buy UI).
+  if (options.isPilot) {
+    return []
+  }
+
   const channelOrder: CreditChannelId[] = ["sms", "ai", "email"]
   const visibility = {
     subscriptionPlan: options.subscriptionPlan,
@@ -138,7 +142,7 @@ export function buildCreditTopUpCards(options: {
         ? packs.find((pack) => pack.quantity === selectedQuantity)
         : undefined
 
-    const chipsDisabled = options.isPilot || !options.canBuy
+    const chipsDisabled = !options.canBuy
     const buyDisabled = chipsDisabled || selectedPack == null
     const unit = channel === "email" ? "sends" : "credits"
 
@@ -159,7 +163,6 @@ export function buildCreditTopUpCards(options: {
       buyLabel: `Buy ${creditChannelLabel(channel)}`,
       buyDisabled,
       chipsDisabled,
-      showPilotNotice: options.isPilot,
     }
   })
 }

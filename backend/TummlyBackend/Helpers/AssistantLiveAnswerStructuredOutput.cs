@@ -415,6 +415,13 @@ namespace TummlyBackend.Helpers
                 Change Scope to pick another Owned location or Reporting period,
                 or to send a more specific ask. No Actions. Do not invent facts.
 
+                When the operator message is a greeting, small talk, or otherwise
+                not about the allow-list domains, emit answerClass clarify. Body:
+                one short plain sentence that asks what they want to know about
+                Feedback, offers, Campaigns, Capture, Location Guests, or
+                Performance overview. Do not summarise or list retrieved evidence
+                for those asks.
+
                 Legal Create Campaign Draft, Create Campaign with Offer, Offer path,
                 and Recovery path asks are not Mutate refusals. Emit assistantTask
                 create-campaign-with-offer when the ask needs a Campaign and a new

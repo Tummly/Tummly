@@ -23,6 +23,7 @@ namespace TummlyBackend.Services
             private readonly ApplicationDbContext _context;
             private readonly IIncludedPeriodMintService _mint;
             private readonly ITummlyVatInvoiceService _vatInvoices;
+            private readonly ITummlyVatInvoiceEmailDelivery _invoiceEmail;
             private readonly IPlanChangeService _planChange;
             private readonly IExtraGroupLocationService _extraGroupLocation;
             private readonly ICreditLedger _creditLedger;
@@ -37,12 +38,14 @@ namespace TummlyBackend.Services
                 IExtraGroupLocationService extraGroupLocation,
                 ICreditLedger creditLedger,
                 IRevolutMerchantClient merchant,
-                TimeProvider clock
+                TimeProvider clock,
+                ITummlyVatInvoiceEmailDelivery? invoiceEmail = null
             )
             {
                 _context = context;
                 _mint = mint;
                 _vatInvoices = vatInvoices;
+                _invoiceEmail = invoiceEmail ?? NoOpTummlyVatInvoiceEmailDelivery.Instance;
                 _planChange = planChange;
                 _extraGroupLocation = extraGroupLocation;
                 _creditLedger = creditLedger;
@@ -230,7 +233,7 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var invoice = await _vatInvoices.MintForCompletedOrderAsync(
+            var invoice = await MintInvoiceAndDeliverEmailAsync(
                 new TummlyVatInvoiceMintRequest(
                     RevolutOrderId: request.OrderId,
                     RevolutSubscriptionId: request.SubscriptionId
@@ -324,7 +327,7 @@ namespace TummlyBackend.Services
             }
 
             var taxPoint = _clock.GetUtcNow().UtcDateTime;
-            var invoice = await _vatInvoices.MintForCompletedOrderAsync(
+            var invoice = await MintInvoiceAndDeliverEmailAsync(
                 new TummlyVatInvoiceMintRequest(
                     RevolutOrderId: intent.OrderId,
                     RevolutSubscriptionId: intent.RevolutSubscriptionId,
@@ -493,7 +496,7 @@ namespace TummlyBackend.Services
                 }
             }
 
-            var invoice = await _vatInvoices.MintForCompletedOrderAsync(
+            var invoice = await MintInvoiceAndDeliverEmailAsync(
                 new TummlyVatInvoiceMintRequest(
                     RevolutOrderId: intent.OrderId,
                     RevolutSubscriptionId: string.IsNullOrWhiteSpace(subscriptionId)
@@ -607,7 +610,7 @@ namespace TummlyBackend.Services
                 quantity
             );
 
-            var invoice = await _vatInvoices.MintForCompletedOrderAsync(
+            var invoice = await MintInvoiceAndDeliverEmailAsync(
                 new TummlyVatInvoiceMintRequest(
                     RevolutOrderId: intent.OrderId,
                     RevolutSubscriptionId: null,
@@ -713,7 +716,7 @@ namespace TummlyBackend.Services
                 ? "Paid"
                 : paymentMethodSummary.Trim();
 
-            var invoice = await _vatInvoices.MintForCompletedOrderAsync(
+            var invoice = await MintInvoiceAndDeliverEmailAsync(
                 new TummlyVatInvoiceMintRequest(
                     RevolutOrderId: intent.OrderId,
                     RevolutSubscriptionId: null,
@@ -882,6 +885,27 @@ namespace TummlyBackend.Services
             );
         }
 
+        private async Task<TummlyVatInvoice> MintInvoiceAndDeliverEmailAsync(
+            TummlyVatInvoiceMintRequest request,
+            CancellationToken cancellationToken
+        )
+        {
+            var preexisting = await _vatInvoices.FindByRevolutOrderIdAsync(
+                request.RevolutOrderId,
+                cancellationToken
+            );
+            var invoice = await _vatInvoices.MintForCompletedOrderAsync(
+                request,
+                cancellationToken
+            );
+            await _invoiceEmail.DeliverIfNewAsync(
+                invoice,
+                wasNewlyMinted: preexisting == null,
+                cancellationToken
+            );
+            return invoice;
+        }
+
         private static string CadenceToBillingCycle(string targetCadence)
         {
             return targetCadence.Trim().ToLowerInvariant() switch
@@ -890,5 +914,16 @@ namespace TummlyBackend.Services
                 _ => BillingCycles.Monthly,
             };
         }
+    }
+
+    file sealed class NoOpTummlyVatInvoiceEmailDelivery : ITummlyVatInvoiceEmailDelivery
+    {
+        public static readonly NoOpTummlyVatInvoiceEmailDelivery Instance = new();
+
+        public Task DeliverIfNewAsync(
+            TummlyVatInvoice invoice,
+            bool wasNewlyMinted,
+            CancellationToken cancellationToken = default
+        ) => Task.CompletedTask;
     }
 }

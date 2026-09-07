@@ -59,9 +59,14 @@ export type AssistantCampaignsIntent =
       openBlankCreate: true
     }
 
-export type AssistantOffersIntent = {
-  view: "drafts"
-}
+export type AssistantOffersIntent =
+  | {
+      view: "drafts"
+    }
+  | {
+      /** Home / Reports Create offer — blank Create Offer drawer. */
+      openBlankCreate: true
+    }
 
 export type AssistantActionNavigatePlan = {
   path: string

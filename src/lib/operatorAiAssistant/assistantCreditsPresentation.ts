@@ -185,17 +185,14 @@ const ASSISTANT_COMPOSER_CIRCLE_CHROME_CLASS = [
   "hover:bg-op-assistant-credits-background hover:text-op-text-primary",
 ].join(" ")
 
-/** Mic circle — 40px, 44px hit below md. */
+/** Mic and Send circles — both 40px (Figma 5686:21778). 44px hit below md. */
 export const ASSISTANT_COMPOSER_CIRCLE_CLASS = [
   ASSISTANT_COMPOSER_CIRCLE_CHROME_CLASS,
   "size-10 min-h-11 min-w-11 p-2 md:min-h-10 md:min-w-10",
 ].join(" ")
 
-/** Send circle — smaller than mic. */
-export const ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS = [
-  ASSISTANT_COMPOSER_CIRCLE_CHROME_CLASS,
-  "size-8 min-h-8 min-w-8 p-2",
-].join(" ")
+/** Same diameter as the mic circle. */
+export const ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS = ASSISTANT_COMPOSER_CIRCLE_CLASS
 
 export const ASSISTANT_COMPOSER_SEND_ICON_CLASS = "size-4"
 

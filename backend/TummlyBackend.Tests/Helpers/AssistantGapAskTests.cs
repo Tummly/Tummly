@@ -52,6 +52,48 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void ValueAsks_NamePercentMoneyOrItem_NotSchemaValue()
+        {
+            Assert.Equal(
+                AssistantGapAsk.PercentValueAsk,
+                AssistantGapAsk.ForOfferTerms(
+                    new AssistantOfferPathTermsState
+                    {
+                        OfferType = "percentage_discount",
+                    }
+                )
+            );
+            Assert.Equal(
+                AssistantGapAsk.MoneyValueAsk,
+                AssistantGapAsk.ForOfferTerms(
+                    new AssistantOfferPathTermsState
+                    {
+                        OfferType = "fixed_discount",
+                    }
+                )
+            );
+            Assert.Equal(
+                AssistantGapAsk.ItemValueAsk,
+                AssistantGapAsk.ForOfferTerms(
+                    new AssistantOfferPathTermsState
+                    {
+                        OfferType = "free_item",
+                    }
+                )
+            );
+            Assert.DoesNotContain(
+                "value",
+                AssistantGapAsk.PercentValueAsk,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.DoesNotContain(
+                "value",
+                AssistantGapAsk.MoneyValueAsk,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
         public void ExplainEndDate_IsNotTheSameAsTheAsk()
         {
             var terms = new AssistantOfferPathTermsState

@@ -120,7 +120,7 @@ describe("creditTopUpPresentation", () => {
     expect(sms?.selectedNetLabel).toBe("£55 + VAT")
   })
 
-  it("keeps chips and Buy disabled on Pilot", () => {
+  it("hides purchase cards on Pilot", () => {
     const cards = buildCreditTopUpCards({
       channels: sampleChannels,
       subscriptionPlan: "Pilot",
@@ -131,7 +131,6 @@ describe("creditTopUpPresentation", () => {
       focusedChannel: null,
     })
 
-    expect(cards.every((card) => card.buyDisabled)).toBe(true)
-    expect(cards.every((card) => card.showPilotNotice)).toBe(true)
+    expect(cards).toEqual([])
   })
 })

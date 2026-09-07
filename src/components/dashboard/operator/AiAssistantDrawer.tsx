@@ -15,9 +15,11 @@ import {
 } from "lucide-react"
 
 import { AiAssistantChangeScopeDialog } from "@/components/dashboard/operator/AiAssistantChangeScopeDialog"
+import { AiAssistantComposerShell } from "@/components/dashboard/operator/AiAssistantComposerShell"
 import { AiAssistantConversationList } from "@/components/dashboard/operator/AiAssistantConversationList"
 import { AiAssistantCreditsBar } from "@/components/dashboard/operator/AiAssistantCreditsBar"
 import { AiAssistantDeleteDialog } from "@/components/dashboard/operator/AiAssistantDeleteDialog"
+import { AiAssistantLoadingBorder } from "@/components/dashboard/operator/AiAssistantLoadingBorder"
 import { AssistantPreparingAnswer } from "@/components/dashboard/operator/AssistantPreparingAnswer"
 import { GroundedLiveAnswerBody } from "@/components/dashboard/operator/GroundedLiveAnswerBody"
 import { AiAssistantMicChrome } from "@/components/dashboard/operator/AiAssistantMicChrome"
@@ -54,8 +56,9 @@ import {
   stickAssistantThreadToBottom,
 } from "@/lib/operatorAiAssistant/assistantDrawerPresentation"
 import {
+  ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS,
+  ASSISTANT_COMPOSER_SEND_ICON_CLASS,
   assistantComposerFieldClass,
-  assistantComposerShellClass,
   assistantComposerTextareaClass,
 } from "@/lib/operatorAiAssistant/assistantCreditsPresentation"
 import type {
@@ -116,15 +119,12 @@ type AiAssistantDrawerProps = {
 }
 
 
-const ACTION_CARD_CLASS = [
-  "h-auto min-h-11 justify-start gap-2 rounded-[8px]",
-  "border border-op-border-default px-[18px] py-[18px]",
-  "text-left text-sm font-normal whitespace-normal text-[var(--op-color-gray-550)]",
-  "shadow-none hover:bg-transparent md:min-h-0",
-].join(" ")
-
 const HELPFUL_HIT_CLASS =
   "size-11 min-h-11 min-w-11 p-0 text-op-text-primary hover:bg-transparent md:size-4 md:min-h-0 md:min-w-0"
+
+/** Same chrome as New chat suggestion prompts (arrow + label). */
+const ACTION_PROMPT_CLASS =
+  "group inline-flex items-center gap-2.5 text-left transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 py-0.5"
 
 const LG_VIEWPORT_QUERY = "(min-width: 1024px)"
 
@@ -214,7 +214,7 @@ function ThreadMessage({
         className="flex justify-end"
         data-assistant-thread-row={message.id}
       >
-        <div className="max-w-[85%] rounded-[8px] border border-[var(--op-color-gray-85)] bg-op-surface-primary px-[18px] py-[14px] text-sm leading-5 text-[var(--op-color-gray-550)] dark:border-[#2a2a2a] dark:bg-[#141414]">
+        <div className="max-w-[85%] rounded-[8px] border border-op-assistant-list-border bg-op-assistant-list-row-active px-[18px] py-[14px] text-sm leading-5 text-op-assistant-list-subtitle">
           {message.body}
         </div>
       </div>
@@ -241,7 +241,7 @@ function ThreadMessage({
     >
       <div className="flex flex-col gap-[12px]">
         <div className="flex gap-3 items-start">
-          <AiIcon size={26} />
+          <AiIcon size={26} className="text-op-assistant-list-title" />
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             {message.title ? (
               <p className="text-sm leading-5 font-normal text-op-text-primary">
@@ -266,24 +266,28 @@ function ThreadMessage({
         ) : null}
       </div>
       {message.class === "grounded" && (message.actions?.length ?? 0) > 0 ? (
-        <div className="flex flex-col gap-3">
-          <p className="text-sm leading-5 font-medium text-op-text-primary">
+        <div className="flex flex-col gap-3.5">
+          <p className="text-sm leading-5 font-medium text-op-assistant-list-title">
             Actions
           </p>
           {message.actions?.map((action) => (
-            <Button
+            <button
               key={action.type}
               type="button"
-              variant="op-ghost"
-              className={ACTION_CARD_CLASS}
               disabled={action.clickable === false}
               onClick={() => {
                 onActivateAction(action)
               }}
+              className={ACTION_PROMPT_CLASS}
             >
-              <AiIcon size={16} />
-              {action.label}
-            </Button>
+              <ArrowRight
+                className="size-3.5 shrink-0 text-op-assistant-list-title transition-transform group-hover:translate-x-0.5"
+                aria-hidden
+              />
+              <span className="text-sm font-normal text-op-assistant-list-title group-hover:text-op-assistant-list-subtitle">
+                {action.label}
+              </span>
+            </button>
           ))}
         </div>
       ) : null}
@@ -430,12 +434,6 @@ export function AiAssistantDrawer({
     snapshot.drawerOpen,
   ])
 
-  useEffect(() => {
-    if (snapshot.drawerOpen && snapshot.listStatus === "idle") {
-      onOpenRecent()
-    }
-  }, [snapshot.drawerOpen, snapshot.listStatus, onOpenRecent])
-
   useLayoutEffect(() => {
     if (showList || showGreeting) {
       lastScrolledThreadKeyRef.current = null
@@ -465,16 +463,16 @@ export function AiAssistantDrawer({
           <div className="self-stretch flex flex-col justify-start items-center gap-4">
             <div className="flex flex-col justify-start items-center gap-3">
               <div className="inline-flex justify-start items-center gap-3">
-                <AiIcon size={28} className="size-7 shrink-0 text-white" />
-                <div className="text-center text-lg font-medium text-neutral-500">
+                <AiIcon size={28} className="size-7 shrink-0 text-op-assistant-list-title" />
+                <div className="text-center text-lg font-medium text-op-assistant-list-subtitle">
                   {snapshot.greeting.hello}
                 </div>
               </div>
-              <h2 className="text-center text-2xl font-medium tracking-tight text-white">
+              <h2 className="text-center text-2xl font-medium tracking-tight text-op-assistant-list-title">
                 {snapshot.greeting.headline}
               </h2>
             </div>
-            <p className="w-96 max-w-full text-center text-base font-normal leading-5 text-neutral-400">
+            <p className="w-96 max-w-full text-center text-base font-normal leading-5 text-op-assistant-list-subtitle">
               {snapshot.greeting.body}
             </p>
           </div>
@@ -495,10 +493,10 @@ export function AiAssistantDrawer({
                     className="group inline-flex items-center gap-2.5 text-left transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <ArrowRight
-                      className="size-3.5 shrink-0 text-white transition-transform group-hover:translate-x-0.5"
+                      className="size-3.5 shrink-0 text-op-assistant-list-title transition-transform group-hover:translate-x-0.5"
                       aria-hidden
                     />
-                    <span className="text-sm font-normal text-white group-hover:text-neutral-300">
+                    <span className="text-sm font-normal text-op-assistant-list-title group-hover:text-op-assistant-list-subtitle">
                       {label}
                     </span>
                   </button>
@@ -517,10 +515,10 @@ export function AiAssistantDrawer({
                     className="group inline-flex items-center gap-2.5 text-left transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <ArrowRight
-                      className="size-3.5 shrink-0 text-white transition-transform group-hover:translate-x-0.5"
+                      className="size-3.5 shrink-0 text-op-assistant-list-title transition-transform group-hover:translate-x-0.5"
                       aria-hidden
                     />
-                    <span className="text-sm font-normal text-white group-hover:text-neutral-300">
+                    <span className="text-sm font-normal text-op-assistant-list-title group-hover:text-op-assistant-list-subtitle">
                       {label}
                     </span>
                   </button>
@@ -539,10 +537,10 @@ export function AiAssistantDrawer({
                     className="group inline-flex items-center gap-2.5 text-left transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <ArrowRight
-                      className="size-3.5 shrink-0 text-white transition-transform group-hover:translate-x-0.5"
+                      className="size-3.5 shrink-0 text-op-assistant-list-title transition-transform group-hover:translate-x-0.5"
                       aria-hidden
                     />
-                    <span className="text-sm font-normal text-white group-hover:text-neutral-300">
+                    <span className="text-sm font-normal text-op-assistant-list-title group-hover:text-op-assistant-list-subtitle">
                       {label}
                     </span>
                   </button>
@@ -553,21 +551,22 @@ export function AiAssistantDrawer({
 
           {/* 3. Composer */}
           <div className="self-stretch flex flex-col justify-start items-start gap-4">
-            <div
-              className={cn(
-                assistantComposerShellClass(composerFocused),
-                "self-stretch rounded-lg border border-[#262626] bg-[#141414] overflow-hidden"
-              )}
+            <AiAssistantComposerShell
+              focused={composerFocused}
+              loading={snapshot.turnInFlight}
+              className="self-stretch"
+              credits={
+                <AiAssistantCreditsBar
+                  remainingLine={snapshot.creditsRemainingLine}
+                  viewUsageLabel={snapshot.viewUsageLabel}
+                  addCreditsLabel={snapshot.addCreditsLabel}
+                  showViewUsage={snapshot.showViewUsage}
+                  showAddCredits={snapshot.showAddCredits}
+                  onViewUsage={onViewUsage}
+                  onAddCredits={onAddCredits}
+                />
+              }
             >
-              <AiAssistantCreditsBar
-                remainingLine={snapshot.creditsRemainingLine}
-                viewUsageLabel={snapshot.viewUsageLabel}
-                addCreditsLabel={snapshot.addCreditsLabel}
-                showViewUsage={snapshot.showViewUsage}
-                showAddCredits={snapshot.showAddCredits}
-                onViewUsage={onViewUsage}
-                onAddCredits={onAddCredits}
-              />
               <div className={assistantComposerFieldClass(snapshot.micChrome)}>
                 <Textarea
                   ref={composerRef}
@@ -631,7 +630,7 @@ export function AiAssistantDrawer({
                         <Button
                           type="button"
                           variant="op-ghost"
-                          className="h-auto min-h-0 p-0 text-xs font-medium text-neutral-400 hover:bg-transparent hover:text-white transition-colors cursor-pointer"
+                          className="h-auto min-h-0 p-0 text-xs font-medium text-op-assistant-list-subtitle hover:bg-transparent hover:text-op-assistant-list-title transition-colors cursor-pointer"
                           onClick={onFollowRestorationHelper}
                         >
                           {snapshot.restorationHelper.label}
@@ -645,14 +644,15 @@ export function AiAssistantDrawer({
                         aria-label="Send"
                         onClick={onSend}
                         className={cn(
-                          "size-8 min-h-8 min-w-8 p-0 transition-colors rounded-full flex items-center justify-center",
+                          ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS,
+                          "transition-colors",
                           canSend
-                            ? "bg-white text-black hover:bg-neutral-200 cursor-pointer"
-                            : "opacity-40 cursor-not-allowed bg-[#222222] text-neutral-400 hover:bg-[#222222]"
+                            ? "bg-op-text-primary text-op-text-inverse hover:bg-op-text-primary hover:text-op-text-inverse hover:opacity-90 cursor-pointer"
+                            : "opacity-40 cursor-not-allowed bg-op-assistant-list-row-active text-op-assistant-list-subtitle hover:bg-op-assistant-list-row-active hover:text-op-assistant-list-subtitle"
                         )}
                       >
                         <ArrowUpIcon
-                          className="size-4"
+                          className={ASSISTANT_COMPOSER_SEND_ICON_CLASS}
                           aria-hidden
                         />
                       </Button>
@@ -660,7 +660,7 @@ export function AiAssistantDrawer({
                   )}
                 </div>
               </div>
-            </div>
+            </AiAssistantComposerShell>
           </div>
         </div>
       </div>
@@ -668,23 +668,23 @@ export function AiAssistantDrawer({
       <div className={assistantConversationStageClass(paintExpanded)}>
         <div
           ref={threadBodyRef}
-          className={cn(assistantThreadBodyClass(paintExpanded), !paintExpanded && "!px-5 !pb-4")}
+          className={cn(assistantThreadBodyClass(paintExpanded), !paintExpanded && "!px-5")}
         >
           <div className={assistantThreadRailClass(paintExpanded)}>
             {showGreeting ? (
               <div className="flex flex-1 flex-col justify-center gap-7 pb-4">
                 <div className="flex flex-col gap-4">
                   <div className="inline-flex items-center gap-3">
-                    <AiIcon size={26} className="size-6 shrink-0 text-white" />
-                    <span className="text-base font-normal text-neutral-400">
+                    <AiIcon size={26} className="size-6 shrink-0 text-op-assistant-list-title" />
+                    <span className="text-base font-normal text-op-assistant-list-subtitle">
                       {snapshot.greeting.hello}
                     </span>
                   </div>
                   <div className="flex flex-col gap-2.5">
-                    <h2 className="text-2xl font-medium tracking-tight text-white">
+                    <h2 className="text-2xl font-medium tracking-tight text-op-assistant-list-title">
                       {snapshot.greeting.headline}
                     </h2>
-                    <p className="max-w-[380px] text-sm font-normal leading-relaxed text-neutral-400">
+                    <p className="max-w-[380px] text-sm font-normal leading-relaxed text-op-assistant-list-subtitle">
                       {snapshot.greeting.body}
                     </p>
                   </div>
@@ -704,10 +704,10 @@ export function AiAssistantDrawer({
                         className="group inline-flex items-center gap-2.5 text-left transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 py-0.5"
                       >
                         <ArrowRight
-                          className="size-3.5 shrink-0 text-white transition-transform group-hover:translate-x-0.5"
+                          className="size-3.5 shrink-0 text-op-assistant-list-title transition-transform group-hover:translate-x-0.5"
                           aria-hidden
                         />
-                        <span className="text-sm font-normal text-white group-hover:text-neutral-300">
+                        <span className="text-sm font-normal text-op-assistant-list-title group-hover:text-op-assistant-list-subtitle">
                           {label}
                         </span>
                       </button>
@@ -741,22 +741,22 @@ export function AiAssistantDrawer({
           )}
         >
           <div className={assistantComposerRailClass(paintExpanded)}>
-            <div
-              className={cn(
-                assistantComposerShellClass(composerFocused),
-                "rounded-[10px] border-[#262626] bg-[#141414] overflow-hidden",
-                paintExpanded && "w-full max-w-[746px] mx-auto"
-              )}
+            <AiAssistantComposerShell
+              focused={composerFocused}
+              loading={snapshot.turnInFlight}
+              className={cn(paintExpanded && "w-full max-w-[746px] mx-auto")}
+              credits={
+                <AiAssistantCreditsBar
+                  remainingLine={snapshot.creditsRemainingLine}
+                  viewUsageLabel={snapshot.viewUsageLabel}
+                  addCreditsLabel={snapshot.addCreditsLabel}
+                  showViewUsage={snapshot.showViewUsage}
+                  showAddCredits={snapshot.showAddCredits}
+                  onViewUsage={onViewUsage}
+                  onAddCredits={onAddCredits}
+                />
+              }
             >
-              <AiAssistantCreditsBar
-                remainingLine={snapshot.creditsRemainingLine}
-                viewUsageLabel={snapshot.viewUsageLabel}
-                addCreditsLabel={snapshot.addCreditsLabel}
-                showViewUsage={snapshot.showViewUsage}
-                showAddCredits={snapshot.showAddCredits}
-                onViewUsage={onViewUsage}
-                onAddCredits={onAddCredits}
-              />
               <div className={assistantComposerFieldClass(snapshot.micChrome)}>
                 <Textarea
                   ref={composerRef}
@@ -820,7 +820,7 @@ export function AiAssistantDrawer({
                         <Button
                           type="button"
                           variant="op-ghost"
-                          className="h-auto min-h-0 p-0 text-xs font-medium text-neutral-400 hover:bg-transparent hover:text-white transition-colors cursor-pointer"
+                          className="h-auto min-h-0 p-0 text-xs font-medium text-op-assistant-list-subtitle hover:bg-transparent hover:text-op-assistant-list-title transition-colors cursor-pointer"
                           onClick={onFollowRestorationHelper}
                         >
                           {snapshot.restorationHelper.label}
@@ -834,14 +834,15 @@ export function AiAssistantDrawer({
                         aria-label="Send"
                         onClick={onSend}
                         className={cn(
-                          "size-8 min-h-8 min-w-8 p-0 transition-colors rounded-full flex items-center justify-center",
+                          ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS,
+                          "transition-colors",
                           canSend
-                            ? "bg-white text-black hover:bg-neutral-200 cursor-pointer"
-                            : "opacity-40 cursor-not-allowed bg-[#222222] text-neutral-400 hover:bg-[#222222]"
+                            ? "bg-op-text-primary text-op-text-inverse hover:bg-op-text-primary hover:text-op-text-inverse hover:opacity-90 cursor-pointer"
+                            : "opacity-40 cursor-not-allowed bg-op-assistant-list-row-active text-op-assistant-list-subtitle hover:bg-op-assistant-list-row-active hover:text-op-assistant-list-subtitle"
                         )}
                       >
                         <ArrowUpIcon
-                          className="size-4"
+                          className={ASSISTANT_COMPOSER_SEND_ICON_CLASS}
                           aria-hidden
                         />
                       </Button>
@@ -849,7 +850,7 @@ export function AiAssistantDrawer({
                   )}
                 </div>
               </div>
-            </div>
+            </AiAssistantComposerShell>
           </div>
         </div>
       </div>
@@ -859,34 +860,34 @@ export function AiAssistantDrawer({
   const panelContent = paintExpanded ? (
     <div className="flex min-h-0 flex-1 flex-row" data-vaul-no-drag>
       {/* Left Sidebar: Conversations List */}
-      <div className="w-[280px] shrink-0 border-r border-[#262626] flex flex-col min-h-0 bg-op-assistant-list-background">
+      <div className="w-[280px] shrink-0 border-r border-op-assistant-list-border flex flex-col min-h-0 bg-op-assistant-list-background">
         <div className="flex items-center gap-5 px-5 pt-5 pb-4">
           <Button
             type="button"
             variant="op-ghost"
             size="icon"
-            className="size-4 min-h-0 min-w-0 p-0 text-white hover:bg-transparent"
+            className="size-4 min-h-0 min-w-0 p-0 text-op-assistant-list-title hover:bg-transparent"
             aria-label="Change analysis scope"
             onClick={onOpenChangeScope}
           >
-            <Settings className="size-4 text-white" aria-hidden />
+            <Settings className="size-4 text-op-assistant-list-title" aria-hidden />
           </Button>
           <Button
             type="button"
             variant="op-ghost"
-            className="h-auto min-h-0 gap-1.5 p-0 text-sm font-normal text-white hover:bg-transparent cursor-pointer"
+            className="h-auto min-h-0 gap-1.5 p-0 text-sm font-normal text-op-assistant-list-title hover:bg-transparent cursor-pointer"
             onClick={onStartNewChat}
           >
-            <PlusCircleIcon className="size-3.5 text-white" aria-hidden />
+            <PlusCircleIcon className="size-3.5 text-op-assistant-list-title" aria-hidden />
             New chat
           </Button>
           <Button
             type="button"
             variant="op-ghost"
-            className="h-auto min-h-0 gap-1.5 p-0 text-sm font-normal text-white hover:bg-transparent cursor-pointer"
+            className="h-auto min-h-0 gap-1.5 p-0 text-sm font-normal text-op-assistant-list-title hover:bg-transparent cursor-pointer"
             onClick={onOpenRecent}
           >
-            <HistoryIcon className="size-3 text-white" aria-hidden />
+            <HistoryIcon className="size-3 text-op-assistant-list-title" aria-hidden />
             Recent
           </Button>
         </div>
@@ -894,13 +895,13 @@ export function AiAssistantDrawer({
         {snapshot.listRows.length > 0 ? (
           <div className="px-5 pb-3">
             <div className="relative w-full">
-              <OperatorSearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-neutral-500" />
+              <OperatorSearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-op-assistant-list-subtitle" />
               <Input
                 value={snapshot.searchQuery}
                 onChange={(event) => onSearchQueryChange(event.target.value)}
                 aria-label={ASSISTANT_SEARCH_PLACEHOLDER}
                 placeholder={ASSISTANT_SEARCH_PLACEHOLDER}
-                className="h-8 rounded-[4px] border border-[#2c2c2c] bg-[#141414] pl-8 pr-2 text-xs text-white placeholder:text-neutral-500 focus-visible:ring-0 focus-visible:border-neutral-500"
+                className="h-8 rounded-[4px] border border-op-assistant-list-border bg-op-assistant-list-search-background pl-8 pr-2 text-xs text-op-assistant-list-title placeholder:text-op-assistant-list-subtitle focus-visible:ring-0 focus-visible:border-op-assistant-list-border"
               />
             </div>
           </div>
@@ -914,8 +915,8 @@ export function AiAssistantDrawer({
                 className={cn(
                   "group flex w-full items-center justify-between rounded-lg px-3 py-2 transition-colors cursor-pointer text-left",
                   row.isCurrent
-                    ? "bg-[#222222] text-white"
-                    : "text-neutral-400 hover:bg-[#1a1a1a] hover:text-neutral-200"
+                    ? "bg-op-assistant-list-row-active text-op-assistant-list-title"
+                    : "text-op-assistant-list-subtitle hover:bg-op-assistant-list-row-hover hover:text-op-assistant-list-title"
                 )}
                 onClick={() => onOpenConversation(row.id)}
               >
@@ -923,7 +924,7 @@ export function AiAssistantDrawer({
                   <span className="w-full truncate text-sm font-medium">
                     {row.title}
                   </span>
-                  <span className="w-full truncate text-xs text-neutral-500">
+                  <span className="w-full truncate text-xs text-op-assistant-list-subtitle">
                     {row.meta}
                   </span>
                 </div>
@@ -933,14 +934,14 @@ export function AiAssistantDrawer({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-6 shrink-0 opacity-0 group-hover:opacity-100 p-0 text-neutral-400 hover:text-white hover:bg-transparent transition-opacity"
+                      className="size-6 shrink-0 opacity-0 group-hover:opacity-100 p-0 text-op-assistant-list-subtitle hover:text-op-assistant-list-title hover:bg-transparent transition-opacity"
                       onClick={(e) => e.stopPropagation()}
                       aria-label={`Actions for ${row.title}`}
                     >
                       <MoreVerticalIcon className="size-3.5" aria-hidden />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-[#1e1e1e] border-[#333] text-white text-xs z-[120]">
+                  <DropdownMenuContent align="end" className="bg-op-assistant-list-menu-background border-op-assistant-list-border text-op-assistant-list-title text-xs z-[120]">
                     <DropdownMenuItem onClick={() => onArchiveConversation(row.id)}>
                       Archive
                     </DropdownMenuItem>
@@ -956,7 +957,7 @@ export function AiAssistantDrawer({
             ))
           ) : (
             <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-op-assistant-list-subtitle">
                 No conversations yet
               </p>
             </div>
@@ -971,7 +972,7 @@ export function AiAssistantDrawer({
             <button
               type="button"
               onClick={onOpenChangeScope}
-              className="cursor-pointer text-left text-xs font-normal text-neutral-500 transition-colors hover:text-neutral-300"
+              className="cursor-pointer text-left text-xs font-normal text-op-assistant-list-subtitle transition-colors hover:text-op-assistant-list-subtitle"
               title={snapshot.headerStatusLine}
               aria-label={snapshot.headerStatusLine}
             >
@@ -983,17 +984,17 @@ export function AiAssistantDrawer({
               type="button"
               variant="ghost"
               size="icon"
-              className="hidden size-4 min-h-0 min-w-0 p-0 text-zinc-400 hover:text-white hover:bg-transparent lg:inline-flex"
+              className="hidden size-4 min-h-0 min-w-0 p-0 text-op-assistant-list-subtitle hover:text-op-assistant-list-title hover:bg-transparent lg:inline-flex"
               aria-label="Collapse AI Assistant"
               onClick={onLeaveExpand}
             >
-              <Minimize2Icon className="size-4 text-zinc-400" aria-hidden />
+              <Minimize2Icon className="size-4 text-op-assistant-list-subtitle" aria-hidden />
             </Button>
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="size-8 min-h-0 min-w-0 rounded-md bg-[#222222] text-neutral-300 hover:bg-[#2c2c2c] hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+              className="size-8 min-h-0 min-w-0 rounded-md bg-op-assistant-list-row-active text-op-assistant-list-subtitle hover:bg-op-assistant-list-search-hover hover:text-op-assistant-list-title flex items-center justify-center cursor-pointer transition-colors"
               aria-label="Close AI Assistant"
               onClick={() => onOpenChange(false)}
             >
@@ -1044,20 +1045,20 @@ export function AiAssistantDrawer({
                     type="button"
                     variant="op-ghost"
                     size="icon"
-                    className="size-4 min-h-0 min-w-0 p-0 text-white hover:bg-transparent"
+                    className="size-4 min-h-0 min-w-0 p-0 text-op-assistant-list-title hover:bg-transparent"
                     aria-label="Change analysis scope"
                     onClick={onOpenChangeScope}
                   >
-                    <Settings className="size-4 text-white" aria-hidden />
+                    <Settings className="size-4 text-op-assistant-list-title" aria-hidden />
                   </Button>
                   <Button
                     type="button"
                     variant="op-ghost"
-                    className="h-auto min-h-0 gap-1.5 p-0 text-sm font-normal text-white hover:bg-transparent"
+                    className="h-auto min-h-0 gap-1.5 p-0 text-sm font-normal text-op-assistant-list-title hover:bg-transparent"
                     onClick={onStartNewChat}
                   >
                     <PlusCircleIcon
-                      className="size-3.5 text-white"
+                      className="size-3.5 text-op-assistant-list-title"
                       aria-hidden
                     />
                     New chat
@@ -1065,11 +1066,11 @@ export function AiAssistantDrawer({
                   <Button
                     type="button"
                     variant="op-ghost"
-                    className="h-auto min-h-0 gap-1.5 p-0 text-sm font-normal text-white hover:bg-transparent"
+                    className="h-auto min-h-0 gap-1.5 p-0 text-sm font-normal text-op-assistant-list-title hover:bg-transparent"
                     onClick={onOpenRecent}
                   >
                     <HistoryIcon
-                      className="size-3 text-white"
+                      className="size-3 text-op-assistant-list-title"
                       aria-hidden
                     />
                     Recent
@@ -1080,12 +1081,12 @@ export function AiAssistantDrawer({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="hidden size-4 min-h-0 min-w-0 p-0 text-zinc-400 hover:text-white hover:bg-transparent lg:inline-flex"
+                    className="hidden size-4 min-h-0 min-w-0 p-0 text-op-assistant-list-subtitle hover:text-op-assistant-list-title hover:bg-transparent lg:inline-flex"
                     aria-label="Expand AI Assistant"
                     onClick={onExpand}
                   >
                     <Maximize2Icon
-                      className="size-4 text-zinc-400"
+                      className="size-4 text-op-assistant-list-subtitle"
                       aria-hidden
                     />
                   </Button>
@@ -1093,7 +1094,7 @@ export function AiAssistantDrawer({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-8 min-h-0 min-w-0 rounded-md bg-[#222222] text-neutral-300 hover:bg-[#2c2c2c] hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+                    className="size-8 min-h-0 min-w-0 rounded-md bg-op-assistant-list-row-active text-op-assistant-list-subtitle hover:bg-op-assistant-list-search-hover hover:text-op-assistant-list-title flex items-center justify-center cursor-pointer transition-colors"
                     aria-label="Close AI Assistant"
                     onClick={() => onOpenChange(false)}
                   >
@@ -1106,7 +1107,7 @@ export function AiAssistantDrawer({
                 <button
                   type="button"
                   onClick={onOpenChangeScope}
-                  className="mt-1 cursor-pointer text-left text-xs font-normal text-neutral-500 transition-colors hover:text-neutral-300"
+                  className="mt-1 cursor-pointer text-left text-xs font-normal text-op-assistant-list-subtitle transition-colors hover:text-op-assistant-list-subtitle"
                   title={snapshot.headerStatusLine}
                   aria-label={snapshot.headerStatusLine}
                 >
@@ -1154,24 +1155,30 @@ export function AiAssistantDrawer({
                 ease: [0.32, 0.72, 0, 1],
               }}
               className={cn(
-                "relative flex min-h-0 flex-col overflow-hidden",
-                "bg-op-assistant-list-background text-op-text-primary",
-                "my-2 h-[calc(100%-1rem)]",
-                "rounded-tl-[20px] rounded-tr-[20px] rounded-bl-[10px] rounded-br-[10px]",
-                "border border-op-border-default shadow-2xl",
+                "relative my-2 flex h-[calc(100%-1rem)] min-h-0 flex-col",
                 paintExpanded ? "flex-1 min-w-0 shrink" : "shrink-0"
               )}
               data-assistant-width={paintExpanded ? "expanded" : "collapsed"}
               aria-label="AI Assistant"
             >
-              <div
+              <AiAssistantLoadingBorder
+                loading={snapshot.turnInFlight}
                 className={cn(
-                  "flex min-h-0 flex-1 flex-col",
-                  !paintExpanded && "w-[480px] shrink-0"
+                  "flex min-h-0 flex-1 flex-col overflow-hidden shadow-2xl",
+                  "rounded-tl-[20px] rounded-tr-[20px] rounded-bl-[10px] rounded-br-[10px]",
+                  !snapshot.turnInFlight && "border border-op-border-default"
                 )}
+                contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden bg-op-assistant-list-background text-op-text-primary rounded-tl-[19px] rounded-tr-[19px] rounded-bl-[9px] rounded-br-[9px]"
               >
-                {panelContent}
-              </div>
+                <div
+                  className={cn(
+                    "flex min-h-0 flex-1 flex-col",
+                    !paintExpanded && "w-[480px] shrink-0"
+                  )}
+                >
+                  {panelContent}
+                </div>
+              </AiAssistantLoadingBorder>
             </motion.aside>
           )}
         </AnimatePresence>
@@ -1190,7 +1197,7 @@ export function AiAssistantDrawer({
                 viewportAtLeastLg,
                 sidebarCollapsed,
               }),
-              "bg-op-assistant-list-background text-op-text-primary"
+              "border-l-0 bg-transparent p-0 text-op-text-primary shadow-none"
             )}
             showOverlay={showOverlay}
             overlayClassName={assistantDrawerOverlayClass()}
@@ -1203,7 +1210,16 @@ export function AiAssistantDrawer({
             <DrawerDescription className="sr-only">
               Ask about feedback, guests, offers, campaigns or performance.
             </DrawerDescription>
-            {panelContent}
+            <AiAssistantLoadingBorder
+              loading={snapshot.turnInFlight}
+              className={cn(
+                "flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-l-[2px]",
+                !snapshot.turnInFlight && "border-0"
+              )}
+              contentClassName="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-l-[2px] bg-op-assistant-list-background"
+            >
+              {panelContent}
+            </AiAssistantLoadingBorder>
           </DrawerContent>
         </Drawer>
       )}

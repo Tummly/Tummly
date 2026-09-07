@@ -197,6 +197,32 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(history!);
         }
 
+        [Theory]
+        [InlineData("hello")]
+        [InlineData("what is up?")]
+        [InlineData("random gibberish xyz")]
+        public async Task SendTurn_VagueAsk_ClarifiesWithoutLiveAnswer(
+            string message
+        )
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var before = _fake.CompleteCount;
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, message)
+                )
+            );
+
+            Assert.Equal("clarify", outcome.Conversation.Messages[^1].Class);
+            Assert.Equal(
+                AssistantLiveAnswerCopy.VagueAskClarifyBody,
+                outcome.Conversation.Messages[^1].Body
+            );
+            Assert.Equal(before, _fake.CompleteCount);
+        }
+
         [Fact]
         public async Task RetryTurn_DoesNotLeakReplacedFailureReplyIntoHistory()
         {

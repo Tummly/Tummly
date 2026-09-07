@@ -134,5 +134,14 @@ namespace TummlyBackend.Tests.Helpers
             string? ctaLabel,
             string? ctaHref
         ) => Task.CompletedTask;
+
+        public virtual Task SendTummlyVatInvoiceEmailAsync(
+            string toEmail,
+            string documentNumber,
+            string lineDescription,
+            int grossPence,
+            byte[] pdfContent,
+            string pdfFileName
+        ) => Task.CompletedTask;
     }
 }

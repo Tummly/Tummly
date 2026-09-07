@@ -1,10 +1,11 @@
 import { useEffect, useSyncExternalStore } from "react"
 import { MoreVerticalIcon, XIcon } from "lucide-react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useOutletContext } from "react-router-dom"
 
 import { useWriteActiveTabToSearchParams } from "@/hooks/useWriteActiveTabToSearchParams"
 
 import { AccountWorkspaceConfirmDialog } from "@/components/dashboard/operator/AccountWorkspace/AccountWorkspaceConfirmDialog"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { GuestsFilterChipRow } from "@/components/dashboard/operator/Guests/GuestsFilterChipRow"
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
@@ -130,6 +131,11 @@ import {
   CAPTURE_DIALOG_CLOSE_BUTTON_CLASS,
   CAPTURE_DIALOG_HEADER_ROW_CLASS,
 } from "@/lib/operatorCapture/capturePresentation"
+import {
+  billingCreditsHeaderActions,
+  operatorDashboardBillingCreditsManagePlanPath,
+} from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+import { teamMemberCapReachedMessage } from "@/lib/planEntitlements/planEntitlementsPresentation"
 
 function actionLabel(action: string): string {
   switch (action) {
@@ -152,6 +158,73 @@ function actionLabel(action: string): string {
   }
 }
 
+function InviteTeamMemberActions({
+  inviteAtCap,
+  inviteAtCapMessage,
+  upgradePlanHref,
+  onInvite,
+  onUpgrade,
+  align = "end",
+  showHelper = true,
+}: {
+  inviteAtCap: boolean
+  inviteAtCapMessage: string | null
+  upgradePlanHref: string | null
+  onInvite: () => void
+  onUpgrade: (href: string) => void
+  align?: "start" | "end"
+  showHelper?: boolean
+}) {
+  if (!inviteAtCap) {
+    return (
+      <Button
+        type="button"
+        variant="op-primary"
+        className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+        onClick={onInvite}
+      >
+        {copy.invite}
+      </Button>
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex max-w-md flex-col gap-2",
+        align === "end" ? "items-end text-right" : "items-start text-left"
+      )}
+    >
+      {upgradePlanHref != null ? (
+        <Button
+          type="button"
+          variant="op-primary"
+          className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+          onClick={() => onUpgrade(upgradePlanHref)}
+        >
+          {copy.upgradePlan}
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          variant="op-primary"
+          className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+          disabled
+          aria-disabled
+          title={inviteAtCapMessage ?? copy.inviteAtCapHelper}
+        >
+          {copy.invite}
+        </Button>
+      )}
+      {showHelper && inviteAtCapMessage != null ? (
+        <p className="m-0 text-sm font-medium text-op-text-muted">
+          {inviteAtCapMessage}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 export function TeamPermissionsPage() {
   const pageModule = useTeamPermissionsPageModuleApi()
   const snap = useSyncExternalStore(
@@ -160,7 +233,19 @@ export function TeamPermissionsPage() {
     pageModule.getSnapshot
   )
   const navigate = useNavigate()
+  const { mode, selectedLocationId, billingCreditsAccess, permissionRole } =
+    useOutletContext<DashboardOutletContext>()
   const roleOptions = assignableRolesForActor(snap.actorPermissionRole)
+  const canUpgradePlan = billingCreditsHeaderActions({
+    accessLevel: billingCreditsAccess,
+    permissionRole,
+  }).showManagePlan
+  const upgradePlanHref = canUpgradePlan
+    ? operatorDashboardBillingCreditsManagePlanPath(mode, selectedLocationId)
+    : null
+  const inviteAtCapMessage = snap.inviteAtCap
+    ? teamMemberCapReachedMessage(snap.entitlements.teamMembers)
+    : null
 
   useWriteActiveTabToSearchParams(snap.activeTabId)
 
@@ -239,30 +324,32 @@ export function TeamPermissionsPage() {
           <h1 className={GUESTS_PAGE_TITLE_CLASS}>{copy.title}</h1>
           <p className={ACCOUNT_WORKSPACE_PAGE_SUBTITLE_CLASS}>{copy.subtitle}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {snap.actorCanManage ? (
+        <div className="flex max-w-md flex-col items-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {snap.actorCanManage ? (
+              <InviteTeamMemberActions
+                inviteAtCap={snap.inviteAtCap}
+                inviteAtCapMessage={inviteAtCapMessage}
+                upgradePlanHref={upgradePlanHref}
+                onInvite={() => pageModule.openInvite()}
+                onUpgrade={(href) => navigate(href)}
+                showHelper={false}
+              />
+            ) : null}
             <Button
               type="button"
-              variant="op-primary"
-              className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-              disabled={snap.inviteAtCap}
-              aria-disabled={snap.inviteAtCap}
-              title={
-                snap.inviteAtCap ? copy.inviteAtCapHelper : undefined
-              }
-              onClick={() => pageModule.openInvite()}
+              variant="op-secondary"
+              className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+              onClick={() => pageModule.openPermissionRules()}
             >
-              {copy.invite}
+              {copy.viewPermissionRules}
             </Button>
+          </div>
+          {snap.actorCanManage && inviteAtCapMessage != null ? (
+            <p className="m-0 text-right text-sm font-medium text-op-text-muted">
+              {inviteAtCapMessage}
+            </p>
           ) : null}
-          <Button
-            type="button"
-            variant="op-secondary"
-            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-            onClick={() => pageModule.openNotes()}
-          >
-            {copy.viewNotes}
-          </Button>
         </div>
       </div>
 
@@ -314,7 +401,13 @@ export function TeamPermissionsPage() {
             <RolesPermissionsBody snap={snap} pageModule={pageModule} />
           </TabsContent>
           <TabsContent value="invitations" className="mt-0">
-            <InvitationsBody snap={snap} pageModule={pageModule} />
+            <InvitationsBody
+              snap={snap}
+              pageModule={pageModule}
+              inviteAtCapMessage={inviteAtCapMessage}
+              upgradePlanHref={upgradePlanHref}
+              onUpgrade={(href) => navigate(href)}
+            />
           </TabsContent>
           <TabsContent value="access-activity" className="mt-0">
             <AccessActivityBody snap={snap} pageModule={pageModule} />
@@ -331,51 +424,6 @@ export function TeamPermissionsPage() {
         onOpenChange={(open) => pageModule.setFiltersOpen(open)}
         onApply={() => pageModule.applyFilters()}
       />
-
-      <Dialog
-        open={snap.dialog.kind === "notes"}
-        onOpenChange={(open) => {
-          if (!open) {
-            pageModule.closeDialog()
-          }
-        }}
-      >
-        <DialogContent
-          showCloseButton={false}
-          className="gap-8 rounded-op-md bg-op-surface-secondary p-8 sm:max-w-[633px]"
-        >
-          <div className={CAPTURE_DIALOG_HEADER_ROW_CLASS}>
-            <DialogHeader className="min-w-0 flex-1 gap-3">
-              <DialogTitle className="text-2xl font-bold">
-                {copy.notesTitle}
-              </DialogTitle>
-              <DialogDescription className="text-base font-medium text-op-text-muted">
-                {copy.notesBody}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogClose asChild>
-              <Button
-                type="button"
-                variant="op-collapse"
-                aria-label="Close"
-                className={CAPTURE_DIALOG_CLOSE_BUTTON_CLASS}
-                onClick={() => pageModule.closeDialog()}
-              >
-                <XIcon aria-hidden />
-              </Button>
-            </DialogClose>
-          </div>
-          <DialogFooter className="sm:justify-start">
-            <Button
-              type="button"
-              variant="op-tertiary"
-              onClick={() => pageModule.closeDialog()}
-            >
-              {copy.notesDone}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog
         open={snap.dialog.kind === "invite"}
@@ -1023,11 +1071,17 @@ function AccessActivityRows({
 function InvitationsBody({
   snap,
   pageModule,
+  inviteAtCapMessage,
+  upgradePlanHref,
+  onUpgrade,
 }: {
   snap: ReturnType<
     ReturnType<typeof useTeamPermissionsPageModuleApi>["getSnapshot"]
   >
   pageModule: ReturnType<typeof useTeamPermissionsPageModuleApi>
+  inviteAtCapMessage: string | null
+  upgradePlanHref: string | null
+  onUpgrade: (href: string) => void
 }) {
   if (snap.loadStatus === "idle" || snap.loadStatus === "loading") {
     return (
@@ -1072,23 +1126,21 @@ function InvitationsBody({
               {copy.invitationsEmptyTitle}
             </p>
             <p className={ACCOUNT_WORKSPACE_IDENTITY_SUBTITLE_CLASS}>
-              {copy.invitationsEmptyHelper}
+              {snap.inviteAtCap && inviteAtCapMessage != null
+                ? inviteAtCapMessage
+                : copy.invitationsEmptyHelper}
             </p>
           </div>
           {snap.actorCanManage ? (
-            <Button
-              type="button"
-              variant="op-primary"
-              className="w-auto shrink-0"
-              disabled={snap.inviteAtCap}
-              aria-disabled={snap.inviteAtCap}
-              title={
-                snap.inviteAtCap ? copy.inviteAtCapHelper : undefined
-              }
-              onClick={() => pageModule.openInvite()}
-            >
-              {copy.invite}
-            </Button>
+            <InviteTeamMemberActions
+              inviteAtCap={snap.inviteAtCap}
+              inviteAtCapMessage={inviteAtCapMessage}
+              upgradePlanHref={upgradePlanHref}
+              onInvite={() => pageModule.openInvite()}
+              onUpgrade={onUpgrade}
+              align="start"
+              showHelper={false}
+            />
           ) : null}
         </div>
       ) : (

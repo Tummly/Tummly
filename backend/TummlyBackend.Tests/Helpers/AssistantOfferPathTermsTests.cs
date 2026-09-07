@@ -30,6 +30,54 @@ namespace TummlyBackend.Tests.Helpers
             );
         }
 
+        [Theory]
+        [InlineData("Draft a 10 percent off offer valid 30 days after issue", 10)]
+        [InlineData("Draft a 10 percent offer valid 30 days after issue", 10)]
+        [InlineData("Create a 12.5 percentage off deal valid 14 days after issue", 12.5)]
+        [InlineData("Create a 10% off offer valid 30 days after issue", 10)]
+        [InlineData("Draft a ten percent off offer valid 30 days after issue", 10)]
+        [InlineData("Create a twenty-five percent offer valid 14 days after issue", 25)]
+        [InlineData("Create a fifty % off deal valid 7 days after issue", 50)]
+        public void Parse_SpokenPercent_CapturesDiscountValue(string message, decimal expected)
+        {
+            var state = AssistantOfferPathTerms.Parse(message, Utc2026);
+
+            Assert.Equal("percentage_discount", state.OfferType);
+            Assert.Equal(expected, state.DiscountPercentage);
+            Assert.DoesNotContain("value", AssistantOfferPathTerms.MissingFields(state));
+        }
+
+        [Theory]
+        [InlineData("Create a £5 off offer valid 30 days after issue", 5)]
+        [InlineData("Create a 5 pounds off offer valid 30 days after issue", 5)]
+        [InlineData("Create a 5 pound off deal valid 14 days after issue", 5)]
+        [InlineData("Create a $5 off offer valid 30 days after issue", 5)]
+        [InlineData("Create a 5 dollars off offer valid 30 days after issue", 5)]
+        [InlineData("Create a 5 quid off offer valid 14 days after issue", 5)]
+        [InlineData("Create a five pounds off offer valid 30 days after issue", 5)]
+        [InlineData("Create a ten quid off deal valid 14 days after issue", 10)]
+        public void Parse_SpokenPounds_CapturesDiscountAmount(string message, decimal expected)
+        {
+            var state = AssistantOfferPathTerms.Parse(message, Utc2026);
+
+            Assert.Equal("fixed_discount", state.OfferType);
+            Assert.Equal(expected, state.DiscountAmount);
+            Assert.DoesNotContain("value", AssistantOfferPathTerms.MissingFields(state));
+        }
+
+        [Fact]
+        public void Parse_PercentOffPhraseWithoutNumber_StillNeedsValue()
+        {
+            var state = AssistantOfferPathTerms.Parse(
+                "Create a percent off offer valid 30 days after issue",
+                Utc2026
+            );
+
+            Assert.Equal("percentage_discount", state.OfferType);
+            Assert.Null(state.DiscountPercentage);
+            Assert.Contains("value", AssistantOfferPathTerms.MissingFields(state));
+        }
+
         [Fact]
         public void Parse_YearEnd_Uses31DecemberOfUtcYear()
         {

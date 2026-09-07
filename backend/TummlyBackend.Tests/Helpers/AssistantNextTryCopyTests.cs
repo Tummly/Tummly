@@ -1,4 +1,5 @@
 using TummlyBackend.Helpers;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Tests.Helpers
 {
@@ -22,6 +23,73 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("nothing to summarise", result.Body, StringComparison.Ordinal);
             Assert.Contains(AssistantNextTryCopy.Sentence, result.Body, StringComparison.Ordinal);
             Assert.Empty(result.Actions);
+        }
+
+        [Theory]
+        [InlineData("hello")]
+        [InlineData("what is up?")]
+        [InlineData("asdfghjkl")]
+        public void GroundedFromEvidence_VagueAsk_ClarifiesInsteadOfDefaultSummary(
+            string userMessage
+        )
+        {
+            var evidence = AssistantRetrievedEvidence.FromFeedback(
+                new AssistantFeedbackEvidence(
+                    2,
+                    2,
+                    0,
+                    0,
+                    2,
+                    1,
+                    [new AssistantFeedbackTagCount("WaitTime", 2)],
+                    [],
+                    [],
+                    [],
+                    []
+                )
+            );
+
+            var result = AssistantLiveAnswerCopy.GroundedFromEvidence(
+                userMessage,
+                "Camden",
+                "the last 7 days",
+                evidence
+            );
+
+            Assert.Equal(AssistantMessageClass.Clarify, result.Class);
+            Assert.Equal(AssistantLiveAnswerCopy.VagueAskClarifyBody, result.Body);
+            Assert.Null(result.Title);
+            Assert.Empty(result.Actions);
+        }
+
+        [Fact]
+        public void GroundedFromEvidence_InScopeSummariseAsk_StillGrounds()
+        {
+            var evidence = AssistantRetrievedEvidence.FromFeedback(
+                new AssistantFeedbackEvidence(
+                    2,
+                    2,
+                    0,
+                    0,
+                    2,
+                    1,
+                    [new AssistantFeedbackTagCount("WaitTime", 2)],
+                    [],
+                    [],
+                    [],
+                    []
+                )
+            );
+
+            var result = AssistantLiveAnswerCopy.GroundedFromEvidence(
+                "Summarise feedback for me",
+                "Camden",
+                "the last 7 days",
+                evidence
+            );
+
+            Assert.Equal(AssistantMessageClass.Grounded, result.Class);
+            Assert.NotEqual(AssistantLiveAnswerCopy.VagueAskClarifyBody, result.Body);
         }
 
         [Fact]

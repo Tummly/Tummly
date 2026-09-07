@@ -482,6 +482,11 @@ namespace TummlyBackend.Helpers
                 found.Add(("percentage_discount", $"{pct:0.##}% off"));
                 state.DiscountPercentage ??= pct;
             }
+            else if (AssistantSpokenOfferQuantity.TryMatchPercent(lower, out pct))
+            {
+                found.Add(("percentage_discount", $"{pct:0.##}% off"));
+                state.DiscountPercentage ??= pct;
+            }
             else if (ContainsAny(lower, "percent off", "percentage off", "percentage discount"))
             {
                 found.Add(("percentage_discount", "percentage discount"));
@@ -498,7 +503,21 @@ namespace TummlyBackend.Helpers
                 found.Add(("fixed_discount", $"£{amount:0.##} off"));
                 state.DiscountAmount ??= amount;
             }
-            else if (ContainsAny(lower, "money off", "amount off", "pounds off", "fixed discount"))
+            else if (AssistantSpokenOfferQuantity.TryMatchMoney(lower, out amount))
+            {
+                found.Add(("fixed_discount", $"£{amount:0.##} off"));
+                state.DiscountAmount ??= amount;
+            }
+            else if (ContainsAny(
+                lower,
+                "money off",
+                "amount off",
+                "pounds off",
+                "pound off",
+                "quid off",
+                "dollars off",
+                "dollar off",
+                "fixed discount"))
             {
                 found.Add(("fixed_discount", "fixed discount"));
             }
@@ -855,10 +874,16 @@ namespace TummlyBackend.Helpers
         private static string Clean(string value)
             => value.Trim().TrimEnd('.', ',', ';');
 
-        [GeneratedRegex(@"(?<value>\d+(?:\.\d+)?)\s*%")]
+        [GeneratedRegex(
+            @"(?<value>\d+(?:\.\d+)?)\s*(?:%|percent(?:age)?s?\b)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+        )]
         private static partial Regex PercentRegex();
 
-        [GeneratedRegex(@"£\s*(?<value>\d+(?:\.\d+)?)")]
+        [GeneratedRegex(
+            @"£\s*(?<value>\d+(?:\.\d+)?)|\$\s*(?<value>\d+(?:\.\d+)?)|(?<value>\d+(?:\.\d+)?)\s*(?:pounds?|gbp|quid|dollars?)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+        )]
         private static partial Regex PoundsRegex();
 
         [GeneratedRegex(@"(?<value>\d+(?:\.\d+)?)")]

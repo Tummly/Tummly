@@ -34,6 +34,7 @@ type HomeHeroProps = {
   previewBusy?: boolean
   guestFormPreviewLocationName?: string
   guestFormPreviewAddress?: string
+  guestFormPreviewBrandLogoPublicUrl?: string | null
   onPreviewGuestForm?: () => void
   onCopySmartGuestLink?: () => void
 }
@@ -57,6 +58,7 @@ export function HomeHero({
   previewBusy = false,
   guestFormPreviewLocationName = "",
   guestFormPreviewAddress = "",
+  guestFormPreviewBrandLogoPublicUrl = null,
   onPreviewGuestForm,
   onCopySmartGuestLink,
 }: HomeHeroProps) {
@@ -185,6 +187,7 @@ export function HomeHero({
             <HomeGuestFormPhone
               locationName={guestFormPreviewLocationName}
               address={guestFormPreviewAddress}
+              brandLogoPublicUrl={guestFormPreviewBrandLogoPublicUrl}
             />
           </div>
         </div>

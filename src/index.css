@@ -77,6 +77,7 @@
   --color-op-color-green-500-muted: var(--op-color-green-500-muted);
   --color-op-color-green-600: var(--op-color-green-600);
   --color-op-color-green-600-muted: var(--op-color-green-600-muted);
+  --color-op-color-blue-400: var(--op-color-blue-400);
   --color-op-color-blue-600: var(--op-color-blue-600);
   --color-op-color-gray-60: var(--op-color-gray-60);
   --color-op-color-gray-70: var(--op-color-gray-70);
@@ -347,12 +348,20 @@ html.op {
   --op-shop-banner-wash: #ece6de;
   --op-color-gray-100: #edefee;
   --op-color-gray-150: #ebebeb;
+  /* Figma Header/AI bg-colour (light) */
+  --op-color-gray-190: #e6e6e6;
   --op-color-gray-200: #e5e5e5;
+  /* Figma Side-nav item hover fill (light) */
+  --op-color-gray-205: #e4e4e4;
   /* Figma default divider / table / tab border (light) */
   --op-color-gray-210: #dbdbdb;
   /* Light toast / date control border */
   --op-color-gray-225: #dcdcdc;
+  /* Figma Header/AI bg-colour_hovered (light) */
+  --op-color-gray-230: #dddddd;
   --op-color-gray-250: #dfdfdf;
+  /* Figma header AI Assistant button fill (light) */
+  --op-color-gray-280: #d7d7d7;
   --op-color-gray-300: #d5d5d5;
   --op-color-gray-350: #cccccc;
   /* Figma table checkbox border (light) */
@@ -394,6 +403,8 @@ html.op {
   --op-color-green-600: #14a946;
   /* Figma setup checklist completed row fill rgba(20, 169, 70, 0.04) (3238:28140) */
   --op-color-green-600-muted: rgba(20, 169, 70, 0.04);
+  /* Figma AI Assistant loading border blue (composer chrome) */
+  --op-color-blue-400: #4984f2;
   /* Figma AI Assistant headline gradient end rgb(19, 90, 204) (3454:56046) */
   --op-color-blue-600: #135acc;
   --op-color-green-700: #00892c;
@@ -503,29 +514,29 @@ html.op {
   --op-header-search-hover: var(--op-surface-primary);
   --op-header-search-text: var(--op-text-muted);
   --op-header-search-radius: var(--op-radius-sm);
-  --op-header-ai-background: var(--op-background-secondary);
+  --op-header-ai-background: var(--op-color-gray-280);
   --op-header-ai-hover: var(--op-surface-primary);
   --op-header-ai-text: var(--op-text-primary);
   --op-header-profile-name: var(--op-text-primary);
   --op-header-profile-role: var(--op-text-muted);
   --op-header-icons-color: var(--op-icon-default);
-  /* Figma 3454:56050 — credits = Main Bg/Colour; inbox = Side-nav/bg-colour.
-   * Light: strip lighter (white), field recessed (gray-150). */
-  --op-assistant-credits-background: var(--op-surface-primary);
-  --op-assistant-composer-background: var(--op-background-secondary);
-  --op-assistant-composer-recording-background: var(--op-surface-primary);
-  --op-assistant-composer-border: var(--op-border-default);
+  /* Figma 3454:56050 / 5686:21043 — credits = Main Bg/Colour; composer = Side-nav bg.
+   * Light: Main Bg/Colour #EDEFEE, Side-nav/Cards #FFFFFF, Border #E5E5E5. */
+  --op-assistant-credits-background: var(--op-color-gray-100);
+  --op-assistant-composer-background: var(--op-color-white);
+  --op-assistant-composer-recording-background: var(--op-color-gray-100);
+  --op-assistant-composer-border: var(--op-color-gray-200);
   --op-assistant-overlay: rgb(0 0 0 / 0.1);
-  /* Figma 4953:24017 — Conversations chrome, mapped for light mode. */
-  --op-assistant-list-background: var(--op-surface-secondary);
-  --op-assistant-list-row-active: var(--op-background-secondary);
-  --op-assistant-list-row-hover: var(--op-color-gray-70);
-  --op-assistant-list-border: var(--op-border-default);
-  --op-assistant-list-title: var(--op-text-primary);
+  /* Figma 5686:21043 AI Assistant - Light mood / Theme Light (pairs of dark tokens). */
+  --op-assistant-list-background: var(--op-color-white);
+  --op-assistant-list-row-active: var(--op-color-gray-150);
+  --op-assistant-list-row-hover: var(--op-color-gray-205);
+  --op-assistant-list-border: var(--op-color-gray-200);
+  --op-assistant-list-title: var(--op-color-gray-1000);
   --op-assistant-list-subtitle: var(--op-color-gray-550);
-  --op-assistant-list-search-background: var(--op-background-secondary);
-  --op-assistant-list-search-hover: var(--op-action-secondary-hover);
-  --op-assistant-list-menu-background: var(--op-surface-primary);
+  --op-assistant-list-search-background: var(--op-color-gray-190);
+  --op-assistant-list-search-hover: var(--op-color-gray-230);
+  --op-assistant-list-menu-background: var(--op-color-white);
   --op-header-location-background: var(--op-background-secondary);
   --op-header-location-heading: var(--op-text-primary);
   --op-header-location-subheading: var(--op-text-muted);
@@ -600,6 +611,7 @@ html.op.dark {
   --op-shop-banner-wash: #ece6de;
   /* Header + SideNav chrome — was #141414 before token migration. */
   --op-shell-chrome: var(--op-color-black);
+  --op-header-ai-background: var(--op-background-secondary);
   --op-border-default: var(--op-color-gray-980);
   --op-divider: var(--op-color-gray-980);
   /* Same composite as former rgba(74,74,76,0.4) on dark surfaces */

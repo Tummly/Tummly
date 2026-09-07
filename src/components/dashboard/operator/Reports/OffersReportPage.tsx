@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom"
+import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -54,6 +55,7 @@ export function OffersReportPage({
   mode = "single",
 }: OffersReportPageProps) {
   const navigate = useNavigate()
+  const setOffersIntent = useDashboardUiStore((state) => state.setOffersIntent)
   const reportsChrome = useReportsChildChrome("offers", mode)
   const reports = useReportsPageModule()
   const {
@@ -73,6 +75,7 @@ export function OffersReportPage({
   )
 
   const handleCreateOffer = () => {
+    setOffersIntent({ openBlankCreate: true })
     navigate(operatorDashboardNavPath(mode, "offers", selectedLocationId))
   }
 

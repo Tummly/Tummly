@@ -228,11 +228,20 @@ export function useAiAssistantModule(
             getBillingCreditsPage(),
           ])
           const ai = usage.channels.find((channel) => channel.channel === "ai")
+          const remaining =
+            ai?.combinedRemaining ?? ASSISTANT_CREDITS_STUB_REMAINING
+          const usedThisCycle =
+            ai?.usedThisCycle ?? ASSISTANT_CREDITS_STUB_USED
+          const includedThisPeriod =
+            ai?.includedThisPeriod ?? ASSISTANT_CREDITS_STUB_ALLOWANCE
           return {
-            remaining: ai?.combinedRemaining ?? ASSISTANT_CREDITS_STUB_REMAINING,
-            allowance:
-              ai?.includedThisPeriod ?? ASSISTANT_CREDITS_STUB_ALLOWANCE,
-            usedThisCycle: ai?.usedThisCycle ?? ASSISTANT_CREDITS_STUB_USED,
+            remaining,
+            // Plan included or remaining+used when purchased add-ons lift the pool.
+            allowance: Math.max(
+              includedThisPeriod,
+              remaining + usedThisCycle
+            ),
+            usedThisCycle,
             accessLevel: current.billingCreditsAccess,
             permissionRole: page.actorPermissionRole,
             billingStatus: page.planSubscription.billingStatus,

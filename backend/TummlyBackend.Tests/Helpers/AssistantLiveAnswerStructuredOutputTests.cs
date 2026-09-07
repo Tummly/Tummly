@@ -121,6 +121,25 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void BuildSystemPrompt_VagueOrGreetingAsksMustClarify()
+        {
+            var prompt = AssistantLiveAnswerStructuredOutput.BuildSystemPrompt(
+                "2026-08-16"
+            );
+
+            Assert.Contains(
+                "greeting, small talk, or otherwise",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "Do not summarise or list retrieved evidence",
+                prompt,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
         public void BuildSystemPrompt_TreatsHistoryAsContextOnly()
         {
             var prompt = AssistantLiveAnswerStructuredOutput.BuildSystemPrompt(

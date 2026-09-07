@@ -16,7 +16,10 @@ namespace TummlyBackend.Helpers
             "How much off should guests get, or which item?";
 
         public const string PercentValueAsk =
-            "How much off should guests get?";
+            "What percent off should guests get?";
+
+        public const string MoneyValueAsk =
+            "How much money off should guests get?";
 
         public const string ItemValueAsk =
             "Which item should guests get?";
@@ -94,7 +97,10 @@ namespace TummlyBackend.Helpers
                     + "Say percent off, money off, a free item, or a replacement.";
             }
 
-            if (ask == PercentValueAsk || ask == ItemValueAsk || ask == ValueAsk)
+            if (ask == PercentValueAsk
+                || ask == MoneyValueAsk
+                || ask == ItemValueAsk
+                || ask == ValueAsk)
             {
                 return "I still need the amount or the item. " + ask;
             }
@@ -221,7 +227,8 @@ namespace TummlyBackend.Helpers
         private static string ValueAskFor(AssistantOfferPathTermsState terms)
             => terms.OfferType switch
             {
-                "percentage_discount" or "fixed_discount" => PercentValueAsk,
+                "percentage_discount" => PercentValueAsk,
+                "fixed_discount" => MoneyValueAsk,
                 "free_item" or "replacement_item" => ItemValueAsk,
                 _ => ValueAsk,
             };

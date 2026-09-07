@@ -18,6 +18,7 @@ import {
   CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS,
 } from "@/lib/operatorCampaigns/campaignsPresentation"
 import {
+  GUESTS_PAGE_PRIMARY_BUTTON_CLASS,
   GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
   GUESTS_SECTION_SUBTITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
@@ -172,16 +173,39 @@ export function CreditTopUpsSection({
   >
   pageModule: ReturnType<typeof useBillingCreditsPageModuleApi>
 }) {
-  const showPilotNotice =
+  const isPilot =
     snap.creditsUsage?.isPilot === true
-    && snap.topUpCards.some((card) => card.showPilotNotice)
+    || snap.planSubscription?.isPilot === true
+
+  if (isPilot) {
+    return (
+      <div className="flex flex-col items-start gap-5">
+        <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{copy.topUpPilotNotice}</p>
+        {snap.showManagePlan ? (
+          <Button
+            type="button"
+            variant="op-primary"
+            className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
+            onClick={() => {
+              if (snap.surface === "manage-plan") {
+                pageModule.scrollManagePlanToCards()
+                document
+                  .getElementById("plan-cards")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                return
+              }
+              pageModule.openManagePlan()
+            }}
+          >
+            {copy.topUpPilotUpgrade}
+          </Button>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-5">
-      {showPilotNotice ? (
-        <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{copy.topUpPilotNotice}</p>
-      ) : null}
-
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         {snap.topUpCards.map((card) => (
           <CreditTopUpCard

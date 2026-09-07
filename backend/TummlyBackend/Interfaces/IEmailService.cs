@@ -182,5 +182,20 @@ namespace TummlyBackend.Interfaces
             string? ctaLabel,
             string? ctaHref
         );
+
+        /*
+         =========================================
+         TUMMLY VAT INVOICE (non-transactional)
+         =========================================
+        */
+
+        Task SendTummlyVatInvoiceEmailAsync(
+            string toEmail,
+            string documentNumber,
+            string lineDescription,
+            int grossPence,
+            byte[] pdfContent,
+            string pdfFileName
+        );
     }
 }

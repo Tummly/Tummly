@@ -9,6 +9,7 @@ import {
   creditChannelHeadline,
   creditChannelPurchasedLine,
   creditChannelSubline,
+  creditChannelTotalPool,
   type CreditChannelUsageRecord,
 } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 
@@ -34,6 +35,25 @@ describe("creditChannelFillRatio", () => {
   })
 })
 
+describe("creditChannelTotalPool", () => {
+  it("uses included when the pool stays within plan", () => {
+    expect(creditChannelTotalPool(channelRecord())).toBe(500)
+  })
+
+  it("includes purchased add-ons when remaining + used exceeds included", () => {
+    expect(
+      creditChannelTotalPool(
+        channelRecord({
+          combinedRemaining: 599,
+          usedThisCycle: 1,
+          includedThisPeriod: 100,
+          purchasedRemaining: 500,
+        })
+      )
+    ).toBe(600)
+  })
+})
+
 describe("creditChannelHeadline", () => {
   it("shows combined remaining for live channels", () => {
     expect(creditChannelHeadline(428, "sms")).toBe("428 remaining")
@@ -47,10 +67,24 @@ describe("creditChannelHeadline", () => {
 })
 
 describe("creditChannelCardHeadline", () => {
-  it("shows remaining of included for SMS and AI", () => {
+  it("shows remaining of total pool for SMS and AI", () => {
     expect(creditChannelCardHeadline(channelRecord())).toBe(
       "428 of 500 remaining"
     )
+  })
+
+  it("lifts the total when purchased add-ons raise remaining above included", () => {
+    expect(
+      creditChannelCardHeadline(
+        channelRecord({
+          channel: "ai",
+          combinedRemaining: 599,
+          usedThisCycle: 1,
+          includedThisPeriod: 100,
+          purchasedRemaining: 500,
+        })
+      )
+    ).toBe("599 of 600 remaining")
   })
 
   it("shows used of included for email", () => {
