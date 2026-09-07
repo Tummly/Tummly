@@ -253,6 +253,18 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     expect(module.getSnapshot().visibleMembers).toHaveLength(2)
   })
 
+  it("openPermissionRules switches to the Roles & permissions matrix tab", async () => {
+    const module = createOperatorTeamPermissionsPageModule(adapters(), {
+      initialTabId: "members",
+    })
+    await module.load()
+    expect(module.getSnapshot().activeTabId).toBe("members")
+
+    module.openPermissionRules()
+
+    expect(module.getSnapshot().activeTabId).toBe("roles-permissions")
+  })
+
   it("Owner dirty matrix opens leave-dirty Save then continues", async () => {
     const api = adapters()
     const module = createOperatorTeamPermissionsPageModule(api, {

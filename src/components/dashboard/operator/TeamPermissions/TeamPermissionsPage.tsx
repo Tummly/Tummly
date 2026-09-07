@@ -195,11 +195,6 @@ function InviteTeamMemberActions({
         align === "end" ? "items-end text-right" : "items-start text-left"
       )}
     >
-      {showHelper && inviteAtCapMessage != null ? (
-        <p className="m-0 text-sm font-medium text-op-text-muted">
-          {inviteAtCapMessage}
-        </p>
-      ) : null}
       {upgradePlanHref != null ? (
         <Button
           type="button"
@@ -221,6 +216,11 @@ function InviteTeamMemberActions({
           {copy.invite}
         </Button>
       )}
+      {showHelper && inviteAtCapMessage != null ? (
+        <p className="m-0 text-sm font-medium text-op-text-muted">
+          {inviteAtCapMessage}
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -324,24 +324,32 @@ export function TeamPermissionsPage() {
           <h1 className={GUESTS_PAGE_TITLE_CLASS}>{copy.title}</h1>
           <p className={ACCOUNT_WORKSPACE_PAGE_SUBTITLE_CLASS}>{copy.subtitle}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {snap.actorCanManage ? (
-            <InviteTeamMemberActions
-              inviteAtCap={snap.inviteAtCap}
-              inviteAtCapMessage={inviteAtCapMessage}
-              upgradePlanHref={upgradePlanHref}
-              onInvite={() => pageModule.openInvite()}
-              onUpgrade={(href) => navigate(href)}
-            />
+        <div className="flex max-w-md flex-col items-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {snap.actorCanManage ? (
+              <InviteTeamMemberActions
+                inviteAtCap={snap.inviteAtCap}
+                inviteAtCapMessage={inviteAtCapMessage}
+                upgradePlanHref={upgradePlanHref}
+                onInvite={() => pageModule.openInvite()}
+                onUpgrade={(href) => navigate(href)}
+                showHelper={false}
+              />
+            ) : null}
+            <Button
+              type="button"
+              variant="op-secondary"
+              className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+              onClick={() => pageModule.openPermissionRules()}
+            >
+              {copy.viewPermissionRules}
+            </Button>
+          </div>
+          {snap.actorCanManage && inviteAtCapMessage != null ? (
+            <p className="m-0 text-right text-sm font-medium text-op-text-muted">
+              {inviteAtCapMessage}
+            </p>
           ) : null}
-          <Button
-            type="button"
-            variant="op-secondary"
-            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-            onClick={() => pageModule.openNotes()}
-          >
-            {copy.viewNotes}
-          </Button>
         </div>
       </div>
 
@@ -416,51 +424,6 @@ export function TeamPermissionsPage() {
         onOpenChange={(open) => pageModule.setFiltersOpen(open)}
         onApply={() => pageModule.applyFilters()}
       />
-
-      <Dialog
-        open={snap.dialog.kind === "notes"}
-        onOpenChange={(open) => {
-          if (!open) {
-            pageModule.closeDialog()
-          }
-        }}
-      >
-        <DialogContent
-          showCloseButton={false}
-          className="gap-8 rounded-op-md bg-op-surface-secondary p-8 sm:max-w-[633px]"
-        >
-          <div className={CAPTURE_DIALOG_HEADER_ROW_CLASS}>
-            <DialogHeader className="min-w-0 flex-1 gap-3">
-              <DialogTitle className="text-2xl font-bold">
-                {copy.notesTitle}
-              </DialogTitle>
-              <DialogDescription className="text-base font-medium text-op-text-muted">
-                {copy.notesBody}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogClose asChild>
-              <Button
-                type="button"
-                variant="op-collapse"
-                aria-label="Close"
-                className={CAPTURE_DIALOG_CLOSE_BUTTON_CLASS}
-                onClick={() => pageModule.closeDialog()}
-              >
-                <XIcon aria-hidden />
-              </Button>
-            </DialogClose>
-          </div>
-          <DialogFooter className="sm:justify-start">
-            <Button
-              type="button"
-              variant="op-tertiary"
-              onClick={() => pageModule.closeDialog()}
-            >
-              {copy.notesDone}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog
         open={snap.dialog.kind === "invite"}

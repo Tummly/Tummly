@@ -12,11 +12,7 @@ export const TEAM_PERMISSIONS_PAGE_COPY = {
   subtitle:
     "Invite team members and control what they can access across locations, guests, feedback, campaigns, billing and settings.",
   invite: "Invite team member",
-  viewNotes: "View permission notes",
-  notesTitle: "View permission notes",
-  notesDone: "Done",
-  notesBody:
-    "Cells store No access, View, Manage, or Scoped. Figma labels Limited, View reports, Redeem only, and Manage* are display notes, not extra stored levels. Only Owner may edit the Admin column. Other permission role columns stay No access on Team & permissions.",
+  viewPermissionRules: "View permission rules",
   inviteTitle: "Invite team member",
   inviteSubtitle:
     "Add someone to your Tummly workspace and choose what they can access.",
