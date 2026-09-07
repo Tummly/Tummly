@@ -12,6 +12,25 @@ namespace TummlyBackend.Helpers
         public string? LocationKind { get; set; }
         public string? OfferTermsJson { get; set; }
         public List<string> OpenRules { get; set; } = [];
+
+        /// <summary>
+        /// <see cref="AssistantGapTurn.GapKindCreation"/> (default) or
+        /// <see cref="AssistantGapTurn.GapKindAdvisory"/>. Missing JSON
+        /// values stay creation for back-compat.
+        /// </summary>
+        public string GapKind { get; set; } = AssistantGapTurn.GapKindCreation;
+
+        public string? PartialDiagnosisNote { get; set; }
+
+        public string? ConversationTurnId { get; set; }
+
+        public string? AdvisoryReason { get; set; }
+
+        /// <summary>
+        /// Logging only: <see cref="AssistantGapTurn.GapSourcePreCheck"/> or
+        /// <see cref="AssistantGapTurn.GapSourceModelRequested"/>.
+        /// </summary>
+        public string? GapSource { get; set; }
     }
 
     public static class AssistantGapTurn
@@ -25,6 +44,16 @@ namespace TummlyBackend.Helpers
         public const string KindOfferTerms = "offer-terms";
         public const string KindCampaignTitle = "campaign-title";
         public const string KindFeedback = "feedback";
+
+        public const string GapKindCreation = "creation";
+        public const string GapKindAdvisory = "advisory";
+        public const string GapSourcePreCheck = "pre-check";
+        public const string GapSourceModelRequested = "model-requested";
+        public const string KindAdvisoryScope = "advisory-scope";
+        public const string KindAdvisoryRange = "advisory-range";
+        public const string KindAdvisoryMetric = "advisory-metric";
+        public const string KindAdvisoryData = "advisory-data";
+        public const string KindAdvisoryModel = "advisory-model";
 
         public static AssistantGapState CreateTarget(
             IReadOnlyList<string> options,
@@ -142,9 +171,65 @@ namespace TummlyBackend.Helpers
             => new()
             {
                 Kind = KindFeedback,
+                GapKind = GapKindCreation,
                 AssistantTask = AssistantTask.RecoveryPath,
                 Options = options.ToList(),
                 SourceUserMessage = sourceUserMessage,
+            };
+
+        public static AssistantGapState CreateAdvisory(
+            AdvisoryGap gap,
+            string sourceUserMessage,
+            string gapSource = GapSourcePreCheck
+        )
+            => new()
+            {
+                Kind = KindForAdvisoryReason(gap.Reason),
+                GapKind = GapKindAdvisory,
+                AssistantTask = AssistantTask.Retrieve,
+                Options = gap.CandidateOptions.ToList(),
+                SourceUserMessage = sourceUserMessage,
+                PartialDiagnosisNote = gap.PartialDiagnosisNote,
+                ConversationTurnId = gap.ConversationTurnId,
+                AdvisoryReason = gap.Reason.ToString(),
+                GapSource = gapSource,
+            };
+
+        public static bool IsAdvisoryGap(AssistantGapState gapState)
+            => string.Equals(
+                gapState.GapKind,
+                GapKindAdvisory,
+                StringComparison.Ordinal
+            );
+
+        public static string AdvisoryGapBody(AssistantGapState gapState)
+        {
+            var reason = Enum.TryParse<AdvisoryGapReason>(
+                gapState.AdvisoryReason,
+                ignoreCase: true,
+                out var parsed
+            )
+                ? parsed
+                : AdvisoryGapReason.ModelRequested;
+            return AssistantAdvisoryIntent.GapQuestionBody(
+                new AdvisoryGap(
+                    reason,
+                    gapState.Options.ToArray(),
+                    gapState.PartialDiagnosisNote,
+                    gapState.ConversationTurnId ?? string.Empty
+                )
+            );
+        }
+
+        private static string KindForAdvisoryReason(AdvisoryGapReason reason)
+            => reason switch
+            {
+                AdvisoryGapReason.ScopeUnresolved => KindAdvisoryScope,
+                AdvisoryGapReason.RangeAmbiguous => KindAdvisoryRange,
+                AdvisoryGapReason.MetricAmbiguous => KindAdvisoryMetric,
+                AdvisoryGapReason.InsufficientData => KindAdvisoryData,
+                AdvisoryGapReason.ModelRequested => KindAdvisoryModel,
+                _ => KindAdvisoryModel,
             };
 
         private static AssistantGapState CreateNamed(
@@ -156,6 +241,7 @@ namespace TummlyBackend.Helpers
             => new()
             {
                 Kind = kind,
+                GapKind = GapKindCreation,
                 AssistantTask = assistantTask,
                 Options = options.ToList(),
                 SourceUserMessage = sourceUserMessage,
@@ -175,7 +261,9 @@ namespace TummlyBackend.Helpers
         private static bool IsKnownKind(string kind)
             => kind is KindCreateTarget or KindLocation
                 or KindOffer or KindAudience or KindChannel
-                or KindOfferTerms or KindCampaignTitle or KindFeedback;
+                or KindOfferTerms or KindCampaignTitle or KindFeedback
+                or KindAdvisoryScope or KindAdvisoryRange or KindAdvisoryMetric
+                or KindAdvisoryData or KindAdvisoryModel;
 
         public static AssistantGapState? Parse(string? json)
         {
@@ -192,6 +280,11 @@ namespace TummlyBackend.Helpers
                     || !IsKnownKind(state.Kind))
                 {
                     return null;
+                }
+
+                if (string.IsNullOrWhiteSpace(state.GapKind))
+                {
+                    state.GapKind = GapKindCreation;
                 }
 
                 return state;

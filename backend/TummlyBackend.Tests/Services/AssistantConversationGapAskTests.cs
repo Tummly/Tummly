@@ -607,6 +607,88 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task SendTurn_AdvisoryHealth_ShortHistory_PersistsAdvisoryGap()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 41, "Advisory Venue");
+            var snapshot = new RestaurantContextSnapshot(
+                "2026-09-05",
+                new SingleLocation(locationId.ToString()),
+                new PeriodWindow(new DateOnly(2026, 8, 7), new DateOnly(2026, 9, 5)),
+                new PeriodWindow(new DateOnly(2026, 7, 8), new DateOnly(2026, 8, 6)),
+                new AccountSection(
+                    new MetricPoint(0m, null, null),
+                    new MetricPoint(0m, null, null),
+                    new MetricPoint(0m, null, null),
+                    new MetricPoint(0m, null, null),
+                    []
+                ),
+                new CampaignsSection([], [], []),
+                new OffersSection([], [], []),
+                new FeedbackSection(
+                    new MetricPoint(0m, null, null),
+                    [],
+                    [],
+                    0,
+                    []
+                ),
+                new GuestsSection(
+                    new MetricPoint(0m, null, null),
+                    new MetricPoint(0m, null, null),
+                    new MetricPoint(0m, null, null),
+                    []
+                ),
+                new CaptureSection(
+                    new MetricPoint(0m, null, null),
+                    new MetricPoint(0m, null, null),
+                    new MetricPoint(0m, null, null),
+                    null,
+                    []
+                ),
+                new RecentActionsSection([]),
+                new SnapshotMeta(IsNewAccount: true, TotalDaysOfHistory: 5, [])
+            );
+            var service = CreateConversationService(
+                restaurantContextSnapshot: new FixedRestaurantContextSnapshot(snapshot)
+            );
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await service.SendTurnAsync(
+                    ownerUserId: 41,
+                    FirstSendRequest(locationId, "How are we doing this month?")
+                )
+            );
+
+            Assert.Equal("gap", outcome.Conversation.Messages[^1].Class);
+            var gapState = await StoredGapStateOrNullAsync(outcome.Conversation.Id);
+            Assert.NotNull(gapState);
+            Assert.Equal(AssistantGapTurn.GapKindAdvisory, gapState!.GapKind);
+            Assert.Equal(AssistantGapTurn.KindAdvisoryData, gapState.Kind);
+            Assert.Equal(
+                nameof(AdvisoryGapReason.InsufficientData),
+                gapState.AdvisoryReason
+            );
+        }
+
+        private sealed class FixedRestaurantContextSnapshot : IRestaurantContextSnapshotService
+        {
+            private readonly RestaurantContextSnapshot _snapshot;
+
+            public FixedRestaurantContextSnapshot(RestaurantContextSnapshot snapshot)
+            {
+                _snapshot = snapshot;
+            }
+
+            public Task<RestaurantContextSnapshot> BuildAsync(
+                int ownerUserId,
+                LocationScope scope,
+                PeriodWindow? currentOverride,
+                PeriodWindow? comparisonOverride,
+                CancellationToken cancellationToken = default
+            )
+                => Task.FromResult(_snapshot);
+        }
+
         private async Task<AssistantGapState?> StoredGapStateOrNullAsync(int conversationId)
         {
             var row = await _context.AssistantConversations.SingleAsync(

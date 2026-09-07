@@ -81,7 +81,14 @@ export function BillingCreditsPageModuleProvider({
   }, [pageModule, mode, selectedLocationId])
 
   useEffect(() => {
-    void pageModule.load()
+    const outcome = searchParams.get("topUpOutcome")
+    if (
+      outcome !== "success"
+      && outcome !== "cancel"
+      && outcome !== "fail"
+    ) {
+      void pageModule.load()
+    }
   }, [pageModule])
 
   useEffect(() => {
@@ -135,18 +142,18 @@ export function BillingCreditsPageModuleProvider({
     }
     handledTopUpReturnRef.current = returnKey
 
-    pageModule.handleTopUpPayReturn(outcome)
-    void pageModule.load()
-
-    const next = new URLSearchParams(searchParams)
-    next.delete("topUpOutcome")
-    navigate(
-      {
-        pathname: location.pathname,
-        search: next.toString() === "" ? "" : `?${next.toString()}`,
-      },
-      { replace: true }
-    )
+    void (async () => {
+      await pageModule.handleTopUpPayReturn(outcome)
+      const next = new URLSearchParams(searchParams)
+      next.delete("topUpOutcome")
+      navigate(
+        {
+          pathname: location.pathname,
+          search: next.toString() === "" ? "" : `?${next.toString()}`,
+        },
+        { replace: true }
+      )
+    })()
   }, [pageModule, searchParams, location.pathname, navigate])
 
   useEffect(() => {

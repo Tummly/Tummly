@@ -222,7 +222,7 @@ export function assistantComposerShellClass(focused: boolean): string {
 export function assistantComposerTextareaClass(): string {
   return [
     "min-h-0 flex-1 resize-none rounded-none border-0 bg-transparent p-0",
-    "text-base text-op-text-primary shadow-none",
+    "text-sm text-op-text-primary shadow-none",
     "placeholder:text-[var(--op-color-gray-550)]",
     "focus-visible:border-0 focus-visible:ring-0",
     "disabled:bg-transparent disabled:opacity-100 dark:bg-transparent dark:disabled:bg-transparent",

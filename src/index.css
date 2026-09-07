@@ -11,6 +11,7 @@
   --font-sans: "Inter Variable", sans-serif;
   /* Free Season Mix stand-in — soft hybrid serif with a light serif whisper. */
   --font-serif: "Roboto Serif Variable", "Roboto Serif", ui-serif, Georgia, serif;
+  --font-inter: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -675,6 +676,10 @@ html.op [data-slot="sheet-overlay"] {
   background: rgba(4, 4, 4, 0.4);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+html.op [data-slot="drawer-overlay"].bg-op-assistant-overlay {
+  background: transparent;
 }
 
 @layer base {

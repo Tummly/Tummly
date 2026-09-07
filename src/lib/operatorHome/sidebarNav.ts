@@ -20,7 +20,6 @@ export type OperatorSidebarSettingsChildId =
   | "team-permissions"
   | "billing-credits"
   | "privacy-consent"
-  | "brand-guest-form";
 
 export type OperatorSidebarFooterNavId = "tummly-shop";
 
@@ -84,7 +83,6 @@ export const OPERATOR_SIDEBAR_SETTINGS_CHILDREN: ReadonlyArray<{
   { id: "team-permissions", label: "Team & permissions" },
   { id: "billing-credits", label: "Billing & credits" },
   { id: "privacy-consent", label: "Privacy & consent" },
-  { id: "brand-guest-form", label: "Brand & guest form" },
 ] as const;
 
 export const OPERATOR_SIDEBAR_SHOP = {
