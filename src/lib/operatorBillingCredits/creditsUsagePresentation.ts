@@ -69,6 +69,21 @@ export function formatCreditCount(count: number): string {
   return count.toLocaleString("en-GB")
 }
 
+/**
+ * Total credits in play for a channel this cycle: plan included, or
+ * remaining + used when purchased add-ons lift the pool above included.
+ */
+export function creditChannelTotalPool(record: {
+  combinedRemaining: number
+  usedThisCycle: number
+  includedThisPeriod: number
+}): number {
+  return Math.max(
+    record.includedThisPeriod,
+    record.combinedRemaining + record.usedThisCycle
+  )
+}
+
 export function creditChannelFillRatio(
   combinedRemaining: number,
   usedThisCycle: number
@@ -104,7 +119,7 @@ export function creditChannelCardHeadline(
   if (record.channel === "email") {
     return `${formatCreditCount(record.usedThisCycle)} of ${formatCreditCount(record.includedThisPeriod)} used`
   }
-  return `${formatCreditCount(record.combinedRemaining)} of ${formatCreditCount(record.includedThisPeriod)} remaining`
+  return `${formatCreditCount(record.combinedRemaining)} of ${formatCreditCount(creditChannelTotalPool(record))} remaining`
 }
 
 export function creditChannelSubline(
@@ -208,12 +223,7 @@ export function buildCreditChannelCardViewModel(
       record.combinedRemaining,
       record.usedThisCycle
     ),
-    meterMaxLabel: formatCreditCount(
-      Math.max(
-        record.includedThisPeriod,
-        record.combinedRemaining + record.usedThisCycle
-      )
-    ),
+    meterMaxLabel: formatCreditCount(creditChannelTotalPool(record)),
     isDepleted,
     showBuy: actions.showBuy,
     showChangePlan: actions.showChangePlan,

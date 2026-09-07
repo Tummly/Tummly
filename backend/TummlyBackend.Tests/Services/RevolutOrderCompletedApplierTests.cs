@@ -442,6 +442,93 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Apply_Topup_EmailsInvoice_ToBillingEmail()
+        {
+            await using var context = CreateContext();
+            var account = await SeedActiveStarterAsync(context);
+            account.BillingEmail = "invoices@venue.test";
+            await context.SaveChangesAsync();
+
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var emailDelivery = new RecordingInvoiceEmailDelivery();
+            var applier = CreateApplier(context, mint, clock, invoiceEmail: emailDelivery);
+
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_topup_email",
+                    RestaurantId = account.RestaurantId,
+                    Purpose = RevolutOrderIntentPurposes.Topup,
+                    TargetPlan = string.Empty,
+                    TargetCadence = string.Empty,
+                    RevolutSubscriptionId = string.Empty,
+                    CheckoutUrl = "https://checkout.revolut.test/topup",
+                    IdempotencyKey = "k_topup_email",
+                    IsOpen = true,
+                    NetAmountMinor = 1500,
+                    VatAmountMinor = 300,
+                    GrossAmountMinor = 1800,
+                    Channel = "ai",
+                    Quantity = 500,
+                    PackLookupKey = "tummly_ai_500_gbp_v3",
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            await applier.ApplyAsync(
+                new RevolutOrderCompletedApplyRequest(
+                    OrderId: "ord_topup_email",
+                    OrderState: "completed",
+                    BillingReason: null,
+                    SubscriptionId: null,
+                    RawWebhookBody: "{}",
+                    RawOrderBody: "{}"
+                )
+            );
+
+            Assert.Single(emailDelivery.Calls);
+            Assert.True(emailDelivery.Calls[0].WasNewlyMinted);
+            Assert.Equal(
+                "ord_topup_email",
+                emailDelivery.Calls[0].Invoice.RevolutOrderId
+            );
+        }
+
+        [Fact]
+        public async Task Apply_SetupIntent_EmailsInvoice_OnceOnReplay()
+        {
+            await using var context = CreateContext();
+            var pending = await SeedPilotPendingAsync(context, "ord_email_setup", "sub_email");
+            var account = await context.BillingAccounts.SingleAsync();
+            account.BillingEmail = null;
+            await context.SaveChangesAsync();
+
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var emailDelivery = new RecordingInvoiceEmailDelivery();
+            var applier = CreateApplier(context, mint, clock, invoiceEmail: emailDelivery);
+
+            var request = new RevolutOrderCompletedApplyRequest(
+                OrderId: "ord_email_setup",
+                OrderState: "completed",
+                BillingReason: RevolutOrderCompletedApplier.SetupIntent,
+                SubscriptionId: pending.RevolutSubscriptionId,
+                RawWebhookBody: "{}",
+                RawOrderBody: "{}"
+            );
+
+            await applier.ApplyAsync(request);
+            await applier.ApplyAsync(request);
+
+            Assert.Equal(2, emailDelivery.Calls.Count);
+            Assert.True(emailDelivery.Calls[0].WasNewlyMinted);
+            Assert.False(emailDelivery.Calls[1].WasNewlyMinted);
+        }
+
+        [Fact]
         public async Task Apply_Topup_ClosedIntent_DoesNotDoubleAllocate()
         {
             await using var context = CreateContext();
@@ -1012,7 +1099,8 @@ namespace TummlyBackend.Tests.Services
             ApplicationDbContext context,
             IIncludedPeriodMintService mint,
             TimeProvider clock,
-            IRevolutMerchantClient? merchant = null
+            IRevolutMerchantClient? merchant = null,
+            ITummlyVatInvoiceEmailDelivery? invoiceEmail = null
         )
         {
             return new RevolutOrderCompletedApplier(
@@ -1037,7 +1125,8 @@ namespace TummlyBackend.Tests.Services
                 ),
                 new CreditLedgerService(context, clock, _pricebook),
                 merchant ?? new RecordingLandMerchant(),
-                clock
+                clock,
+                invoiceEmail
             );
         }
 
@@ -1142,6 +1231,21 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 Calls++;
+                return Task.CompletedTask;
+            }
+        }
+
+        private sealed class RecordingInvoiceEmailDelivery : ITummlyVatInvoiceEmailDelivery
+        {
+            public List<(TummlyVatInvoice Invoice, bool WasNewlyMinted)> Calls { get; } = [];
+
+            public Task DeliverIfNewAsync(
+                TummlyVatInvoice invoice,
+                bool wasNewlyMinted,
+                CancellationToken cancellationToken = default
+            )
+            {
+                Calls.Add((invoice, wasNewlyMinted));
                 return Task.CompletedTask;
             }
         }

@@ -68,25 +68,26 @@ export const ASSISTANT_EXPAND_CONVERSATION_RAIL_CLASS =
   "mx-auto w-full max-w-[800px] px-[30px]"
 
 /**
- * Expand stage is full pane width so the thread scrollbar sits on the
- * right bleed. 30px sits between the thread and the composer. 16px sits
- * under the composer.
+ * Stage is full pane width so the thread scrollbar sits on the right bleed.
+ * 30px sits between the thread and the composer (Actions / answer vs input).
+ * Expand also keeps 16px under the composer.
  */
 export function assistantConversationStageClass(expanded: boolean): string {
   return expanded
     ? "flex min-h-0 flex-1 flex-col gap-[30px] pb-4"
-    : "flex min-h-0 flex-1 flex-col"
+    : "flex min-h-0 flex-1 flex-col gap-[30px]"
 }
 
 /**
  * Scrollable thread. Expand is full pane width so the scrollbar sits on
- * the right bleed. Collapsed keeps 30px gutters on the scroll box.
+ * the right bleed. Collapsed keeps 30px side gutters; stage gap owns the
+ * space above the composer.
  */
 export function assistantThreadBodyClass(expanded: boolean): string {
   return [
     OPERATOR_RIGHT_DRAWER_BODY_CLASS,
     "flex flex-col",
-    expanded ? "" : "px-[30px] pb-[30px]",
+    expanded ? "" : "px-[30px]",
   ]
     .filter((part) => part.length > 0)
     .join(" ")

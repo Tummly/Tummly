@@ -131,14 +131,14 @@ describe("assistantDrawerPresentation", () => {
     expect(expandedStage).toContain("pb-4")
     expect(expandedStage).not.toContain("px-[30px]")
     expect(expandedStage).not.toContain("pb-[50px]")
-    expect(assistantConversationStageClass(false)).not.toContain("gap-[30px]")
+    expect(assistantConversationStageClass(false)).toContain("gap-[30px]")
     expect(assistantConversationStageClass(false)).not.toContain("pb-4")
 
     expect(assistantThreadBodyClass(true)).toContain("overflow-y-auto")
     expect(assistantThreadBodyClass(true)).not.toContain("px-[30px]")
     expect(assistantThreadBodyClass(true)).not.toContain("max-w-[800px]")
     expect(assistantThreadBodyClass(false)).toContain("px-[30px]")
-    expect(assistantThreadBodyClass(false)).toContain("pb-[30px]")
+    expect(assistantThreadBodyClass(false)).not.toContain("pb-[30px]")
 
     expect(assistantThreadRailClass(true)).toContain("max-w-[800px]")
     expect(assistantThreadRailClass(true)).toContain("px-[30px]")

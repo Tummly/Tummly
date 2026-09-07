@@ -12,7 +12,7 @@ type AiAssistantCreditsBarProps = {
   className?: string
 }
 
-/** Composer credits strip — Figma 3454:56050. Live Billing AI balances. */
+/** Composer credits strip — top radius only; sits behind the input (Figma 5686:21778). */
 export function AiAssistantCreditsBar({
   remainingLine,
   viewUsageLabel,
@@ -26,11 +26,11 @@ export function AiAssistantCreditsBar({
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-3 border-b border-op-border-default bg-[#141414] px-5 py-3.5",
+        "flex items-center justify-between gap-3 rounded-t-[8px] rounded-b-none bg-op-assistant-credits-background px-5 py-4",
         className
       )}
     >
-      <p className="min-w-0 truncate text-xs font-medium text-neutral-400">
+      <p className="min-w-0 truncate text-xs font-medium text-op-assistant-list-subtitle">
         {remainingLine}
       </p>
       <div className="flex shrink-0 items-center gap-4">
@@ -38,7 +38,7 @@ export function AiAssistantCreditsBar({
           <Button
             type="button"
             variant="op-ghost"
-            className="h-auto min-h-0 p-0 text-xs font-medium text-neutral-400 hover:bg-transparent hover:text-white transition-colors cursor-pointer"
+            className="h-auto min-h-0 p-0 text-xs font-medium text-op-assistant-list-subtitle hover:bg-transparent hover:text-op-assistant-list-title transition-colors cursor-pointer"
             onClick={onViewUsage}
           >
             {viewUsageLabel}
@@ -48,7 +48,7 @@ export function AiAssistantCreditsBar({
           <Button
             type="button"
             variant="op-ghost"
-            className="h-auto min-h-0 p-0 text-xs font-medium text-neutral-400 hover:bg-transparent hover:text-white transition-colors cursor-pointer"
+            className="h-auto min-h-0 p-0 text-xs font-medium text-op-assistant-list-subtitle hover:bg-transparent hover:text-op-assistant-list-title transition-colors cursor-pointer"
             onClick={onAddCredits}
           >
             {addCreditsLabel}

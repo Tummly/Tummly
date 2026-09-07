@@ -614,6 +614,10 @@ builder.Services.AddScoped<
     RevolutOrderCompletedApplier
 >();
 builder.Services.AddScoped<ITummlyVatInvoiceService, TummlyVatInvoiceService>();
+builder.Services.AddScoped<
+    ITummlyVatInvoiceEmailDelivery,
+    TummlyVatInvoiceEmailDelivery
+>();
 builder.Services.AddScoped<IAdminPaymentRefundService, AdminPaymentRefundService>();
 builder.Services.AddScoped<
     IRevolutPaymentRefundCompletedHandler,

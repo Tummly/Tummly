@@ -62,6 +62,7 @@ type HomeBodyProps = {
   previewBusy?: boolean
   guestFormPreviewLocationName?: string
   guestFormPreviewAddress?: string
+  guestFormPreviewBrandLogoPublicUrl?: string | null
   onPreviewGuestForm?: () => void
   onCreateOffer?: () => void
   onCreateCampaign?: () => void
@@ -147,6 +148,7 @@ export function HomeBody({
   previewBusy = false,
   guestFormPreviewLocationName = "",
   guestFormPreviewAddress = "",
+  guestFormPreviewBrandLogoPublicUrl = null,
   onPreviewGuestForm,
   onCreateOffer,
   onCreateCampaign,
@@ -223,6 +225,7 @@ export function HomeBody({
         previewBusy={previewBusy}
         guestFormPreviewLocationName={guestFormPreviewLocationName}
         guestFormPreviewAddress={guestFormPreviewAddress}
+        guestFormPreviewBrandLogoPublicUrl={guestFormPreviewBrandLogoPublicUrl}
         onPreviewGuestForm={onPreviewGuestForm}
         onCopySmartGuestLink={onCopySmartGuestLink}
       />

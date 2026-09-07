@@ -35,7 +35,7 @@ export function HomePage({
 }: HomePageProps) {
   const home = useHomePageModule()
   const navigate = useNavigate()
-  const { mode, selectedLocationId, locations } =
+  const { mode, selectedLocationId, locations, brandLogoPublicUrl } =
     useOutletContext<DashboardOutletContext>()
   const homePerformanceDateRange = useDashboardUiStore(
     (state) => state.homePerformanceDateRange
@@ -45,6 +45,9 @@ export function HomePage({
   )
   const setCampaignsIntent = useDashboardUiStore(
     (state) => state.setCampaignsIntent
+  )
+  const setOffersIntent = useDashboardUiStore(
+    (state) => state.setOffersIntent
   )
   const setFeedbackInboxIntent = useDashboardUiStore(
     (state) => state.setFeedbackInboxIntent
@@ -189,6 +192,7 @@ export function HomePage({
         performanceLoading={home.snapshot.performanceLoadStatus === "loading"}
         guestFormPreviewLocationName={viewModel.selectedLocationName}
         guestFormPreviewAddress={selectedLocation?.address ?? ""}
+        guestFormPreviewBrandLogoPublicUrl={brandLogoPublicUrl}
         brandName={viewModel.selectedLocationName}
         liveOffersLoadStatus={home.snapshot.liveOffersLoadStatus}
         liveCards={home.snapshot.liveCards}
@@ -196,9 +200,11 @@ export function HomePage({
         liveOffersPauseBusy={home.snapshot.liveOffersPauseBusy}
         onLiveOffersEmptyAction={(actionId) => {
           if (actionId === "create-offer") {
+            setOffersIntent({ openBlankCreate: true })
             navigate(operatorDashboardNavPath(mode, "offers", locationId))
             return
           }
+          setCampaignsIntent({ openBlankCreate: true })
           navigate(operatorDashboardNavPath(mode, "campaigns", locationId))
         }}
         onRetryLiveOffers={() => {
@@ -275,11 +281,13 @@ export function HomePage({
         previewBusy={home.snapshot.previewBusy}
         onPreviewGuestForm={home.previewGuestForm}
         onCreateOffer={() => {
+          setOffersIntent({ openBlankCreate: true })
           navigate(
             operatorDashboardNavPath(mode, "offers", selectedLocationId)
           )
         }}
         onCreateCampaign={() => {
+          setCampaignsIntent({ openBlankCreate: true })
           navigate(
             operatorDashboardNavPath(mode, "campaigns", selectedLocationId)
           )

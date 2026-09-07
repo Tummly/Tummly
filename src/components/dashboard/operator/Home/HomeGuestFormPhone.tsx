@@ -19,6 +19,7 @@ const LG_VIEWPORT_QUERY = "(min-width: 1024px)"
 type HomeGuestFormPhoneProps = {
   locationName: string
   address: string
+  brandLogoPublicUrl?: string | null
 }
 
 function readLargeViewport(): boolean {
@@ -89,6 +90,7 @@ function HomePhoneShell({
 function FixedGuestFormCanvas({
   locationName,
   address,
+  brandLogoPublicUrl = null,
   scale,
 }: HomeGuestFormPhoneProps & { scale: number }) {
   return (
@@ -106,6 +108,7 @@ function FixedGuestFormCanvas({
           token=""
           locationName={locationName}
           address={address}
+          brandLogoPublicUrl={brandLogoPublicUrl}
           guestFormConsent={GUEST_FORM_CONSENT_DEMO}
           isSubmitting={false}
           submitError={null}
@@ -120,6 +123,7 @@ function FixedGuestFormCanvas({
 function HomeGuestFormPhoneComposition({
   locationName,
   address,
+  brandLogoPublicUrl = null,
 }: HomeGuestFormPhoneProps) {
   const screenRef = useRef<HTMLDivElement>(null)
   const screenWidth = useElementWidth(screenRef)
@@ -131,6 +135,7 @@ function HomeGuestFormPhoneComposition({
           <FixedGuestFormCanvas
             locationName={locationName}
             address={address}
+            brandLogoPublicUrl={brandLogoPublicUrl}
             scale={screenWidth / OPERATOR_HOME_HERO_PHONE_CANVAS_WIDTH}
           />
         ) : null}

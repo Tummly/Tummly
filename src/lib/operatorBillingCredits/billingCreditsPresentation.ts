@@ -60,6 +60,7 @@ export const BILLING_CREDITS_PAGE_COPY = {
     "Pilot does not convert to a paid plan automatically. Credit top-ups are unavailable during Pilot.",
   topUpPilotNotice:
     "Credit top-ups need a paid plan. Pilot does not convert to a paid plan automatically.",
+  topUpPilotUpgrade: "Choose a plan",
   managePlanPlanCards: "Plan cards",
   managePlanCreditTopUps: "Credit top-ups",
   plusVat: "+ VAT",
@@ -290,7 +291,7 @@ export const BILLING_CREDITS_USAGE_TABLE_WRAP_CLASS = "p-6"
 
 /** Credit top-ups embedded cards — Figma 5746:96612. */
 export const BILLING_CREDIT_TOP_UP_CARD_CLASS =
-  "flex flex-col items-start justify-between gap-8 rounded-op-md bg-[var(--op-color-gray-990)] p-6 dark:bg-[#202020]"
+  "flex flex-col items-start justify-between gap-8 rounded-op-md border border-op-card-border bg-op-surface-primary p-6 dark:bg-op-color-gray-992 dark:shadow-none"
 
 export const BILLING_CREDITS_CTA_BUTTON_CLASS =
   "w-auto shrink-0 self-start"
@@ -299,7 +300,7 @@ export const BILLING_CREDIT_TOP_UP_BALANCE_VALUE_CLASS =
   "m-0 text-lg font-medium leading-normal text-op-card-title-color"
 
 export const BILLING_CREDIT_TOP_UP_BALANCE_CAPTION_CLASS =
-  "m-0 text-xs font-normal leading-normal text-[var(--op-color-gray-550)]"
+  "m-0 text-xs font-normal leading-normal text-op-card-subtitle-color"
 
 export function resolveManagePlanSection(
   raw: string | null | undefined

@@ -692,10 +692,9 @@ namespace TummlyBackend.Helpers
 
             foreach (Match match in AmountRegex().Matches(text))
             {
-                var raw = match.Groups[1].Success
-                    ? match.Groups[1].Value
-                    : match.Groups[2].Value;
-                if (!decimal.TryParse(
+                var raw = FirstCapturedGroup(match, 1, 2, 3);
+                if (raw is null
+                    || !decimal.TryParse(
                         raw,
                         NumberStyles.Number,
                         CultureInfo.InvariantCulture,
@@ -765,6 +764,20 @@ namespace TummlyBackend.Helpers
             return true;
         }
 
+        private static string? FirstCapturedGroup(Match match, params int[] indexes)
+        {
+            foreach (var index in indexes)
+            {
+                var group = match.Groups[index];
+                if (group.Success && !string.IsNullOrWhiteSpace(group.Value))
+                {
+                    return group.Value;
+                }
+            }
+
+            return null;
+        }
+
         private static bool ContainsAny(string lower, params string[] needles)
             => needles.Any(needle => lower.Contains(needle, StringComparison.Ordinal));
 
@@ -795,13 +808,13 @@ namespace TummlyBackend.Helpers
         private static partial Regex EmailEligibleRegex();
 
         [GeneratedRegex(
-            @"(\d+(?:\.\d+)?)\s*%",
-            RegexOptions.CultureInvariant
+            @"(\d+(?:\.\d+)?)\s*(?:%|percent(?:age)?s?\b)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
         )]
         private static partial Regex PercentRegex();
 
         [GeneratedRegex(
-            @"£\s*(\d+(?:\.\d+)?)|(?:^|[^\d])(\d+(?:\.\d+)?)\s*(?:pound|pounds)\b",
+            @"£\s*(\d+(?:\.\d+)?)|\$\s*(\d+(?:\.\d+)?)|(?:^|[^\d])(\d+(?:\.\d+)?)\s*(?:pounds?|gbp|quid|dollars?)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
         )]
         private static partial Regex AmountRegex();

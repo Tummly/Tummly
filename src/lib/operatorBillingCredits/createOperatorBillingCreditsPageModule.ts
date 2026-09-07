@@ -693,6 +693,7 @@ export function createOperatorBillingCreditsPageModule(
     const paymentMethod = data?.paymentMethod ?? null
     const invoices = data?.invoices ?? []
     const plan = data?.planSubscription ?? null
+    const isPilot = plan?.isPilot === true || creditsUsage?.isPilot === true
     const managePlanLockMode = resolveManagePlanLockMode()
     const buyCreditsDisabled =
       plan != null && isAccountLockedBillingStatus(plan.billingStatus)
@@ -731,7 +732,8 @@ export function createOperatorBillingCreditsPageModule(
       actorCanPersistBillingContacts:
         data?.actorCanPersistBillingContacts ?? false,
       showManagePlan: actions.showManagePlan,
-      showBuyCredits: actions.showBuyCredits,
+      // Pilot cannot buy top-ups — hide Buy credits (no route into purchase UI).
+      showBuyCredits: actions.showBuyCredits && !isPilot,
       buyCreditsDisabled,
       showChangePlan: actions.showChangePlan,
       managePlanSection,

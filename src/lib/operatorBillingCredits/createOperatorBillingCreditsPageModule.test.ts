@@ -345,14 +345,24 @@ describe("createOperatorBillingCreditsPageModule", () => {
     module.openManagePlan()
 
     const snap = module.getSnapshot()
-    expect(snap.buyCreditsDisabled).toBe(true)
-    expect(snap.showBuyCredits).toBe(true)
+    // Pilot cannot buy top-ups — Buy credits is hidden, not merely disabled.
+    expect(snap.showBuyCredits).toBe(false)
+    expect(snap.topUpCards).toEqual([])
     expect(snap.managePlanLockMode).toBe("pilot-restore")
     expect(snap.showUpdatePaymentMethod).toBe(true)
     expect(snap.updatePaymentMethodDisabled).toBe(true)
     expect(
       snap.managePlanCards.find((card) => card.id === "Starter")?.cta
     ).toMatchObject({ kind: "action", disabled: false, changeKind: "convert" })
+  })
+
+  it("hides Buy credits and top-up purchase cards on Pilot", async () => {
+    const module = createTestModule()
+    await module.load()
+    const snap = module.getSnapshot()
+    expect(snap.planSubscription?.isPilot).toBe(true)
+    expect(snap.showBuyCredits).toBe(false)
+    expect(snap.topUpCards).toEqual([])
   })
 
   it("disables plan-change CTAs during Soft lock dunning", async () => {

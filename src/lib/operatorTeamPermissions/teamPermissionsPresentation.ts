@@ -66,7 +66,8 @@ export const TEAM_PERMISSIONS_PAGE_COPY = {
   owners: "Owners",
   teamPlanUsage: "Plan usage",
   inviteAtCapHelper:
-    "Your team user limit is reached. Remove a member or cancel a pending invite to add someone new.",
+    "Your current plan’s user allowance has been reached. Upgrade your plan to add more users.",
+  upgradePlan: "Upgrade plan",
   columnName: "Name",
   columnEmail: "Email",
   columnRole: "Role",

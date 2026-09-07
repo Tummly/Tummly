@@ -240,10 +240,11 @@ describe("assistantCreditsPresentation", () => {
     expect(className).toContain("md:p-[21px]")
   })
 
-  it("paints Send smaller than the mic circle", () => {
+  it("keeps Mic and Send circles the same size", () => {
+    expect(ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS).toBe(
+      ASSISTANT_COMPOSER_CIRCLE_CLASS
+    )
     expect(ASSISTANT_COMPOSER_CIRCLE_CLASS).toContain("size-10")
-    expect(ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS).toContain("size-8")
-    expect(ASSISTANT_COMPOSER_SEND_CIRCLE_CLASS).not.toContain("size-10")
     expect(ASSISTANT_COMPOSER_SEND_ICON_CLASS).toBe("size-4")
   })
 

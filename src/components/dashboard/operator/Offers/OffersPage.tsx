@@ -51,7 +51,11 @@ export function OffersPage() {
   )
 
   useEffect(() => {
-    if (offersIntent?.view !== "drafts") {
+    if (
+      offersIntent == null
+      || !("view" in offersIntent)
+      || offersIntent.view !== "drafts"
+    ) {
       return
     }
     setOffersIntent(null)
@@ -68,6 +72,22 @@ export function OffersPage() {
         })
       })
   }, [offersIntent, pageModule, setOffersIntent])
+
+  useEffect(() => {
+    if (offersIntent == null || !("openBlankCreate" in offersIntent)) {
+      return
+    }
+    if (snapshot.viewModel == null) {
+      return
+    }
+    setOffersIntent(null)
+    openCreateOfferDrawer()
+  }, [
+    offersIntent,
+    openCreateOfferDrawer,
+    setOffersIntent,
+    snapshot.viewModel,
+  ])
 
   const redemptionLogHref = useMemo(() => {
     if (snapshot.viewModel == null) {

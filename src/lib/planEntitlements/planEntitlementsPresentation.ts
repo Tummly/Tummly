@@ -103,7 +103,7 @@ export function teamMemberCapReachedMessage(
   if (!limit.available) {
     return "Plan limits are unavailable right now."
   }
-  return `Your plan includes ${limit.cap} team users. Remove a member or cancel a pending invite to add someone new.`
+  return `Your current plan’s user allowance has been reached (${limit.cap} team users). Upgrade your plan to add more users.`
 }
 
 export function activeOfferCapReachedMessage(

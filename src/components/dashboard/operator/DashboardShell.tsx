@@ -402,7 +402,7 @@ export function DashboardShell({
                 ),
             isAiDrawerOpen &&
               !isShopPage &&
-              "my-2 ml-2 h-[calc(100%-1rem)] rounded-tl-[20px] rounded-tr-[20px] rounded-bl-[10px] rounded-br-[10px] border border-op-border-default",
+              "my-2 h-[calc(100%-1rem)] rounded-tl-[20px] rounded-tr-[20px] rounded-bl-[10px] rounded-br-[10px] border border-op-border-default",
             isAssistantExpanded
               ? "w-0 min-w-0 flex-none opacity-0 pointer-events-none p-0 m-0 border-0 overflow-hidden"
               : "flex-1 min-w-0 opacity-100"

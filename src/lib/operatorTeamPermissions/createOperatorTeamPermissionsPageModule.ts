@@ -13,10 +13,7 @@ import { teamPermissionsFilterSheetSchema } from "@/lib/operatorTeamPermissions/
 import { assignableRolesForActor } from "@/lib/operatorTeamPermissions/permissionRoles"
 import { isTeamPermissionsMatrixEditEnabled } from "@/lib/env"
 import type { PlanEntitlementsAccountSnapshot } from "@/lib/planEntitlements/planEntitlementsPresentation"
-import {
-  normalizePlanEntitlementsAccount,
-  teamMemberCapReachedMessage,
-} from "@/lib/planEntitlements/planEntitlementsPresentation"
+import { normalizePlanEntitlementsAccount } from "@/lib/planEntitlements/planEntitlementsPresentation"
 import {
   legalAdminLevels,
   resolveTeamPermissionsTabId,
@@ -740,11 +737,6 @@ function formatTeamMembersUsageLabel(
         return
       }
       if (data.entitlements.teamMembers.atCap) {
-        inviteEmailError = teamMemberCapReachedMessage(
-          data.entitlements.teamMembers
-        )
-        dialog = { kind: "invite" }
-        emit()
         return
       }
       inviteDraft = emptyInviteDraft(data?.actorPermissionRole ?? "")

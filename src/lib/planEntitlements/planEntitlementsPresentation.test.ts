@@ -38,6 +38,8 @@ describe("planEntitlementsPresentation", () => {
         atCap: true,
         available: true,
       })
-    ).toContain("3 team users")
+    ).toBe(
+      "Your current plan’s user allowance has been reached (3 team users). Upgrade your plan to add more users."
+    )
   })
 })

@@ -901,6 +901,32 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // Greetings and other off-allow-list asks must not fall through to
+            // Retrieve → default Summarise grounded dump (Fake or Azure).
+            if (gapState is null
+                && !helpCentreAsk
+                && !productExpertTurn
+                && !attentionAsk
+                && !isCreateTurn
+                && !AssistantTaskClassification.LooksLikeRecoveryPath(userMessage)
+                && AssistantTaskClassification.Classify(userMessage)
+                    == AssistantTask.Retrieve
+                && !AssistantAskIntent.HasRetrieveAsk(userMessage)
+                && compareOutcome is AssistantCompareOutcome.NotCompare)
+            {
+                conversation.LastCompareLocationIdsJson = null;
+                return await PersistAssistantAsync(
+                    conversation,
+                    ClarifyMessage(
+                        DateTime.UtcNow,
+                        AssistantLiveAnswerCopy.VagueAskClarifyBody
+                    ),
+                    replaceFailure,
+                    cancellationToken,
+                    liveAnswerAlreadyCompleted: true
+                );
+            }
+
             var periodPhrase = AssistantAnalysisScope.PeriodPhrase(scope.ReportingPeriod);
             var window = AssistantReportingPeriodWindow.Resolve(
                 scope.ReportingPeriod,
