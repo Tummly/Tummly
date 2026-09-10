@@ -487,11 +487,11 @@ export const MANAGE_PLAN_CURRENT_PLAN_CARD_CLASS =
 export const MANAGE_PLAN_CURRENT_PLAN_NAME_CLASS =
   "m-0 font-serif text-[28px] font-medium leading-none text-foreground"
 export const MANAGE_PLAN_CARDS_GRID_CLASS =
-  "grid grid-cols-1 gap-6 xl:grid-cols-4 xl:gap-4"
+  "grid grid-cols-1 gap-6 xl:grid-cols-[repeat(4,minmax(0,1fr))] xl:gap-4"
 export const MANAGE_PLAN_CARD_CLASS =
-  "flex h-full min-w-0 flex-col gap-10 rounded-[6px] border border-transparent px-3 py-6"
+  "flex h-full w-full min-w-0 flex-col gap-10 rounded-[6px] px-3 py-6"
 export const MANAGE_PLAN_CARD_POPULAR_CLASS =
-  "flex h-full min-w-0 flex-col gap-10 rounded-[6px] border border-primary bg-primary/[0.05] px-3 py-6"
+  "flex h-full w-full min-w-0 flex-col gap-10 rounded-[6px] bg-primary/[0.05] px-3 py-6 ring-1 ring-inset ring-primary"
 export const MANAGE_PLAN_CARD_TITLE_CLASS =
   "m-0 font-serif text-[30px] font-medium leading-none text-foreground"
 export const MANAGE_PLAN_CARD_DESCRIPTION_CLASS =
