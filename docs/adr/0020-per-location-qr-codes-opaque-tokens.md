@@ -2,7 +2,7 @@
 
 Guest entry stays `/scan/{token}` with an opaque random token — the invariant from ADR-0001. What changed is **where tokens live** and **how many** exist per **Owned location**.
 
-Each location has five peer **QR code**s (Counter card, Packaging sticker, Delivery insert, Window sticker, Smart Guest), each with its own token on `QrCode.Token`. **Smart Guest Link** is the operator-facing name for the Smart Guest type’s **QR link** only (copy + preview on Home). Placement types are for physical materials via the **Tummly Shop**; operators do not download QR PNGs from the dashboard.
+Each new location has three peer **QR code**s (Table Tent, Window Sticker, Offer Card), each with its own token on `QrCode.Token`. **Smart Guest Link** on Home resolves the Active Table Tent token (falling back to legacy Smart Guest for older locations). Placement types are for physical materials via the **Tummly Shop**; operators do not download QR PNGs from the dashboard.
 
 `RestaurantLocation.LinkToken` is retired. Existing LinkTokens were backfilled onto each location’s Smart Guest `QrCode` so printed Smart Guest URLs keep working. Guest Loop provisioning mints all five **Active** codes per new location.
 

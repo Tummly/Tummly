@@ -20,11 +20,14 @@ const WORKFLOW_STATUS_OPTION_IDS: FeedbackWorkflowStatus[] = [
 ]
 
 export const FEEDBACK_INBOX_CATALOG_QR_SOURCE_OPTIONS: SchemaOption[] = [
+  { id: "TableTent", label: "Table tent" },
+  { id: "WindowSticker", label: "Window sticker" },
+  { id: "OfferCard", label: "Offer card" },
   { id: "CounterCard", label: "Counter card" },
   { id: "PackagingSticker", label: "Packaging sticker" },
   { id: "DeliveryInsert", label: "Delivery insert" },
-  { id: "WindowSticker", label: "Window sticker" },
   { id: "SmartGuest", label: "Smart Guest" },
+  { id: "ReceiptSticker", label: "Receipt sticker" },
 ]
 
 export function feedbackInboxDigitalLinkOptionId(qrCodeId: number): string {

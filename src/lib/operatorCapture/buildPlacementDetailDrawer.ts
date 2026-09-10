@@ -64,6 +64,8 @@ const QR_TYPE_LABELS: Record<CapturePlacementQrType, string> = {
   SmartGuest: "Smart Guest",
   DigitalGuestLink: "Digital guest link",
   ReceiptSticker: "Receipt sticker",
+  TableTent: "Table tent",
+  OfferCard: "Offer card",
 }
 
 const CHANNEL_LABELS: Record<CaptureDigitalGuestLinkChannel, string> = {

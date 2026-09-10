@@ -32,23 +32,21 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task MintDefaultQrCodesAsync_StagesFiveActiveQrCodes()
+        public async Task MintDefaultQrCodesAsync_StagesThreeActiveQrCodes()
         {
             var location = await CreateLocationAsync();
 
             var qrCodes = await _service.MintDefaultQrCodesAsync(location);
 
-            Assert.Equal(5, qrCodes.Count);
+            Assert.Equal(3, qrCodes.Count);
             Assert.All(qrCodes, q => Assert.Equal(QrCodeStatus.Active, q.Status));
             Assert.All(qrCodes, q => Assert.Equal(32, q.Token.Length));
             Assert.Equal(
                 new[]
                 {
-                    QrType.CounterCard,
-                    QrType.PackagingSticker,
-                    QrType.DeliveryInsert,
+                    QrType.TableTent,
                     QrType.WindowSticker,
-                    QrType.SmartGuest
+                    QrType.OfferCard
                 },
                 qrCodes.Select(q => q.QrType).ToArray()
             );
@@ -76,7 +74,7 @@ namespace TummlyBackend.Tests.Services
 
             await _context.SaveChangesAsync();
 
-            Assert.Equal(5, await _context.QrCodes.CountAsync());
+            Assert.Equal(3, await _context.QrCodes.CountAsync());
         }
 
         [Fact]
@@ -89,7 +87,7 @@ namespace TummlyBackend.Tests.Services
             var qrCodesB = await _service.MintDefaultQrCodesAsync(locationB);
 
             var tokens = qrCodesA.Concat(qrCodesB).Select(q => q.Token).ToList();
-            Assert.Equal(10, tokens.Count);
+            Assert.Equal(6, tokens.Count);
             Assert.Equal(tokens.Distinct().Count(), tokens.Count);
         }
 

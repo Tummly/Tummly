@@ -33,6 +33,9 @@ const QR_TYPE_LABELS: Record<CapturePlacementQrType, string> = {
   WindowSticker: "Window sticker",
   SmartGuest: "Smart Guest",
   DigitalGuestLink: "Digital guest link",
+  ReceiptSticker: "Receipt sticker",
+  TableTent: "Table tent",
+  OfferCard: "Offer card",
 }
 
 /** Build QR placements table rows from Active/Paused list facts. */

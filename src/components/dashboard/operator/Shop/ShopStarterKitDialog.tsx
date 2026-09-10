@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 export const SHOP_MATERIALS_PACK_LINES = [
   { skuId: "table-tents", quantity: 10 },
   { skuId: "window-stickers", quantity: 4 },
-  { skuId: "counter-cards", quantity: 50 },
+  { skuId: "offer-card", quantity: 50 },
 ] as const
 
 type ShopMaterialsPackDialogProps = {
@@ -33,15 +33,15 @@ export function ShopMaterialsPackDialog({
 }: ShopMaterialsPackDialogProps) {
   const kitItems = [
     {
-      title: "10× Table tents",
+      title: "10× Table Tent QR",
       desc: "Double-sided matte acrylic tents with your custom location QR code.",
     },
     {
-      title: "4× Window stickers",
+      title: "4× Window Sticker QR",
       desc: "UV-resistant vinyl clings for entrances and front windows.",
     },
     {
-      title: "50× Counter cards",
+      title: "50× Offer Card",
       desc: "Compact cards for ordering, payment, or collection counters.",
     },
   ]

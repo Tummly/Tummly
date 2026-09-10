@@ -34,6 +34,9 @@ const QR_TYPE_LABELS: Record<CapturePlacementQrType, string> = {
   WindowSticker: "Window sticker",
   SmartGuest: "Smart Guest",
   DigitalGuestLink: "Digital guest link",
+  ReceiptSticker: "Receipt sticker",
+  TableTent: "Table tent",
+  OfferCard: "Offer card",
 }
 
 const CHANNEL_LABELS: Record<string, string> = {

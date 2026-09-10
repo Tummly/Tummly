@@ -13,7 +13,6 @@ namespace TummlyBackend.Services
         private const int MaxPageSize = 100;
         private const int MaxTrackingUrlLength = 2048;
         private const int MaxOpsNotesLength = 2000;
-        private const string ReceiptStickersSkuId = "receipt-stickers";
 
         private static readonly HashSet<string> ValidFulfilmentFilters =
             new(StringComparer.OrdinalIgnoreCase)
@@ -45,15 +44,10 @@ namespace TummlyBackend.Services
         ];
 
         private readonly ApplicationDbContext _context;
-        private readonly ISmartGuestLinkService _smartGuestLink;
 
-        public AdminShopOrderFulfilmentService(
-            ApplicationDbContext context,
-            ISmartGuestLinkService smartGuestLink
-        )
+        public AdminShopOrderFulfilmentService(ApplicationDbContext context)
         {
             _context = context;
-            _smartGuestLink = smartGuestLink;
         }
 
         public async Task<AdminShopOrderListResponseDto> GetListAsync(
@@ -176,11 +170,6 @@ namespace TummlyBackend.Services
             if (patch.OpsNotesSet)
             {
                 order.OpsNotes = NormalizeOpsNotes(patch.OpsNotes);
-            }
-
-            if (transitioningToDelivered)
-            {
-                await MintReceiptStickerIfNeededAsync(order, cancellationToken);
             }
 
             order.UpdatedAtUtc = now;
@@ -488,48 +477,6 @@ namespace TummlyBackend.Services
 
             var trimmed = opsNotes.Trim();
             return trimmed.Length == 0 ? null : trimmed;
-        }
-
-        private async Task MintReceiptStickerIfNeededAsync(
-            ShopOrder order,
-            CancellationToken cancellationToken
-        )
-        {
-            var hasReceiptStickers = order.Lines.Any(line =>
-                string.Equals(
-                    line.CatalogSkuId,
-                    ReceiptStickersSkuId,
-                    StringComparison.OrdinalIgnoreCase
-                )
-            );
-            if (!hasReceiptStickers)
-            {
-                return;
-            }
-
-            var alreadyActive = await _context.QrCodes.AnyAsync(
-                row =>
-                    row.RestaurantLocationId == order.LocationId
-                    && row.QrType == QrType.ReceiptSticker
-                    && row.Status == QrCodeStatus.Active,
-                cancellationToken
-            );
-            if (alreadyActive)
-            {
-                return;
-            }
-
-            var token = await _smartGuestLink.GenerateTokenAsync();
-            _context.QrCodes.Add(
-                new QrCode
-                {
-                    RestaurantLocationId = order.LocationId,
-                    QrType = QrType.ReceiptSticker,
-                    Token = token,
-                    Status = QrCodeStatus.Active,
-                    CreatedAt = DateTime.UtcNow,
-                }
-            );
         }
 
         private static AdminShopOrderListItemDto MapListItem(ShopOrder order)

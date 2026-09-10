@@ -44,6 +44,9 @@ namespace TummlyBackend.Services
                 ["DeliveryInsert"] = QrType.DeliveryInsert,
                 ["WindowSticker"] = QrType.WindowSticker,
                 ["SmartGuest"] = QrType.SmartGuest,
+                ["ReceiptSticker"] = QrType.ReceiptSticker,
+                ["TableTent"] = QrType.TableTent,
+                ["OfferCard"] = QrType.OfferCard,
             };
 
         private static readonly (string Key, string Label)[] DetectedTagLabels =

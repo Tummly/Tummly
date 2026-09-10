@@ -201,66 +201,36 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task PatchFulfilment_DeliveredWithReceiptStickers_MintsActiveQrIdempotently()
+        public async Task PatchFulfilment_Delivered_DoesNotMintReceiptSticker()
         {
             var seeded = await SeedWorkspaceAsync();
             var orderId = await InsertOrderAsync(
                 seeded,
                 ShopFulfilmentStatuses.InTransit,
                 trackingUrl: "https://track.example/stickers",
-                catalogSkuId: "receipt-stickers",
-                titleSnapshot: "Receipt stickers"
+                catalogSkuId: "offer-card",
+                titleSnapshot: "Offer Card"
             );
 
-            using var firstDeliver = AuthorizedPatch(
+            using var deliver = AuthorizedPatch(
                 $"/api/admin/shop-orders/{orderId}/fulfilment",
                 seeded.AdminJwt,
                 new { fulfilmentStatus = ShopFulfilmentStatuses.Delivered }
             );
             Assert.Equal(
                 HttpStatusCode.OK,
-                (await _client.SendAsync(firstDeliver)).StatusCode
+                (await _client.SendAsync(deliver)).StatusCode
             );
 
-            var firstCount = await CountActiveReceiptStickersAsync(seeded.LocationId);
-            Assert.Equal(1, firstCount);
-
-            // Already delivered: opsNotes-only update must not mint again.
-            using var notesOnly = AuthorizedPatch(
-                $"/api/admin/shop-orders/{orderId}/fulfilment",
-                seeded.AdminJwt,
-                new { opsNotes = "confirmed at door" }
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var receiptCount = await context.QrCodes.CountAsync(row =>
+                row.RestaurantLocationId == seeded.LocationId
+                && row.QrType == QrType.ReceiptSticker
+                && row.Status == QrCodeStatus.Active
             );
-            Assert.Equal(
-                HttpStatusCode.OK,
-                (await _client.SendAsync(notesOnly)).StatusCode
-            );
-            Assert.Equal(
-                1,
-                await CountActiveReceiptStickersAsync(seeded.LocationId)
-            );
-
-            // Second order at same location with receipt-stickers: skip mint.
-            var secondOrderId = await InsertOrderAsync(
-                seeded,
-                ShopFulfilmentStatuses.InTransit,
-                trackingUrl: "https://track.example/stickers-2",
-                catalogSkuId: "receipt-stickers",
-                titleSnapshot: "Receipt stickers"
-            );
-            using var secondDeliver = AuthorizedPatch(
-                $"/api/admin/shop-orders/{secondOrderId}/fulfilment",
-                seeded.AdminJwt,
-                new { fulfilmentStatus = ShopFulfilmentStatuses.Delivered }
-            );
-            Assert.Equal(
-                HttpStatusCode.OK,
-                (await _client.SendAsync(secondDeliver)).StatusCode
-            );
-            Assert.Equal(
-                1,
-                await CountActiveReceiptStickersAsync(seeded.LocationId)
-            );
+            Assert.Equal(0, receiptCount);
         }
 
         [Fact]
@@ -328,18 +298,6 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var body = await ReadJsonAsync(response);
             Assert.False(body.TryGetProperty("opsNotes", out _));
-        }
-
-        private async Task<int> CountActiveReceiptStickersAsync(int locationId)
-        {
-            using var scope = _factory.Services.CreateScope();
-            var context = scope.ServiceProvider
-                .GetRequiredService<ApplicationDbContext>();
-            return await context.QrCodes.CountAsync(row =>
-                row.RestaurantLocationId == locationId
-                && row.QrType == QrType.ReceiptSticker
-                && row.Status == QrCodeStatus.Active
-            );
         }
 
         private async Task<ShopOrder> ReadOrderAsync(Guid orderId)

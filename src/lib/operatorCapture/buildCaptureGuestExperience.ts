@@ -72,6 +72,9 @@ const QR_TYPE_LABELS: Record<CapturePlacementItem["qrType"], string> = {
   WindowSticker: "Window sticker",
   SmartGuest: "Smart Guest",
   DigitalGuestLink: "Digital guest link",
+  ReceiptSticker: "Receipt sticker",
+  TableTent: "Table tent",
+  OfferCard: "Offer card",
 }
 
 function formatLastJourneyDate(iso: string): string {

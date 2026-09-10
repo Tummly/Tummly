@@ -35,8 +35,9 @@ export const SHOP_ORDERS_PAYMENT_STATUS_LABELS: Record<
 
 export type ShopOrdersMaterialTypeId =
   | "table-tents"
-  | "counter-cards"
   | "window-stickers"
+  | "offer-card"
+  | "counter-cards"
   | "packaging-stickers"
   | "receipt-stickers"
   | "delivery-inserts"
@@ -45,11 +46,12 @@ export const SHOP_ORDERS_MATERIAL_TYPE_LABELS: Record<
   ShopOrdersMaterialTypeId,
   string
 > = {
-  "table-tents": "Table tents",
+  "table-tents": "Table Tent QR",
+  "window-stickers": "Window Sticker QR",
+  "offer-card": "Offer Card",
   "counter-cards": "Counter cards",
   "packaging-stickers": "Packaging stickers",
   "receipt-stickers": "Receipt stickers",
-  "window-stickers": "Window stickers",
   "delivery-inserts": "Delivery inserts",
 }
 

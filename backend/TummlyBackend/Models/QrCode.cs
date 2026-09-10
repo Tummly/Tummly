@@ -4,9 +4,9 @@ namespace TummlyBackend.Models
 {
     /// <summary>
     /// A per-Owned-location instance of a QR type, with its own QR link
-    /// (opaque <see cref="Token"/>). Five defaults (four placement types plus
-    /// Smart Guest) are minted per location at Guest Loop provisioning.
-    /// Operators may also create Digital guest link codes from Capture.
+    /// (opaque <see cref="Token"/>). Three defaults (Table Tent, Window Sticker,
+    /// Offer Card) are minted at Guest Loop provisioning. Digital guest link is
+    /// operator-created. Legacy types may exist on older locations.
     /// Replaces the single <c>RestaurantLocation.LinkToken</c> model.
     /// </summary>
     public class QrCode

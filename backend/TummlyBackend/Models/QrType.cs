@@ -2,9 +2,10 @@ namespace TummlyBackend.Models
 {
     /// <summary>
     /// Catalog kind of a per-location QR code. Default set minted for every
-    /// Owned location at Guest Loop provisioning (four placement types plus
-    /// Smart Guest). Digital guest link is operator-created (many per location).
-    /// See CONTEXT.md "QR type".
+    /// Owned location at Guest Loop provisioning (Table Tent, Window Sticker,
+    /// Offer Card). Digital guest link is operator-created (many per location).
+    /// Legacy values (CounterCard, PackagingSticker, DeliveryInsert, SmartGuest,
+    /// ReceiptSticker) remain for existing rows. See CONTEXT.md "QR type".
     /// </summary>
     public enum QrType
     {
@@ -21,9 +22,13 @@ namespace TummlyBackend.Models
         DigitalGuestLink = 5,
 
         /// <summary>
-        /// Receipt sticker placement minted on Shop fulfilment (ticket 20).
+        /// Receipt sticker placement — legacy Shop fulfilment mint; retired from
+        /// the supported materials catalog.
         /// </summary>
         ReceiptSticker = 6,
+
+        TableTent = 7,
+
+        OfferCard = 8,
     }
 }
-

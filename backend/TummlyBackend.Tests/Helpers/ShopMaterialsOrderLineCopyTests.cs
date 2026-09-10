@@ -29,14 +29,14 @@ namespace TummlyBackend.Tests.Helpers
                     },
                     new ShopOrderLine
                     {
-                        CatalogSkuId = "counter-cards",
-                        TitleSnapshot = "Counter cards",
+                        CatalogSkuId = "offer-card",
+                        TitleSnapshot = "Offer Card",
                     },
                 ],
             };
 
             Assert.Equal(
-                "Tummly Shop · Counter cards, Table tents",
+                "Tummly Shop · Offer Card, Table tents",
                 ShopMaterialsOrderLineCopy.FormatOrderDescription(order)
             );
         }

@@ -74,7 +74,7 @@ namespace TummlyBackend.Tests.Integration
             var line = lines[0];
             Assert.Equal("table-tents", line.GetProperty("skuId").GetString());
             Assert.Equal(5, line.GetProperty("quantity").GetInt32());
-            Assert.Equal("Table tents", line.GetProperty("title").GetString());
+            Assert.Equal("Table Tent QR", line.GetProperty("title").GetString());
             Assert.Equal(2400, line.GetProperty("unitNetPence").GetInt32());
             Assert.Equal(12000, line.GetProperty("lineNetPence").GetInt32());
             Assert.Equal(12000, body.GetProperty("materialsNetPence").GetInt32());
@@ -91,12 +91,12 @@ namespace TummlyBackend.Tests.Integration
             await PutLineAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId,
-                "counter-cards",
+                "offer-card",
                 3
             );
 
             using var delete = AuthorizedDelete(
-                $"/api/shop/cart/lines/counter-cards?locationId={seeded.InScopeLocationId}",
+                $"/api/shop/cart/lines/offer-card?locationId={seeded.InScopeLocationId}",
                 seeded.MemberJwt
             );
             var response = await _client.SendAsync(delete);

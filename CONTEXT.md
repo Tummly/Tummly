@@ -61,11 +61,11 @@ The post-approval flow where an invited operator creates credentials and configu
 _Avoid_: Register, onboarding form
 
 **Guest Loop provisioning**:
-The final step of Operator Setup (single- and multi-location) where Tummly prepares each location's five default **QR code**s (four placement types plus Smart Guest) with distinct **QR link**s. The operator sees a progress animation that awaits actual per-location generation; they are not asked to configure touchpoints, feedback tags, thank-you copy, or offers during this step. The private feedback form is standard for all locations and requires no per-location configuration. Phase 3 (starter QR materials) generates the account **Activation Code** today; per-location **Starter QR materials** generation is planned for a later release. Operators do not receive downloadable QR PNGs from provisioning or the dashboard.
+The final step of Operator Setup (single- and multi-location) where Tummly prepares each location's three default **QR code**s (Table Tent, Window Sticker, Offer Card) with distinct **QR link**s. The operator sees a progress animation that awaits actual per-location generation; they are not asked to configure touchpoints, feedback tags, thank-you copy, or offers during this step. The private feedback form is standard for all locations and requires no per-location configuration. Phase 3 (starter QR materials) generates the account **Activation Code** today; per-location **Starter QR materials** generation is planned for a later release. Operators do not receive downloadable QR PNGs from provisioning or the dashboard.
 _Avoid_: Guest Loop configuration, step-3 form, rollout configuration
 
 **Guest Loop provisioning phases**:
-The three ordered preparation steps shown during Guest Loop provisioning: (1) Smart Guest Link / default **QR code**s — real backend mint of five Active codes per location, (2) private feedback form — presentational only (standard form, no per-location configuration), (3) starter QR materials — today generates the account **Activation Code** (real backend work); in a future release will also generate per-location **Starter QR materials** for physical print and shipment. The animation awaits completion of phases 1 and 3 before advancing.
+The three ordered preparation steps shown during Guest Loop provisioning: (1) Smart Guest Link / default **QR code**s — real backend mint of three Active codes per location (Table Tent, Window Sticker, Offer Card), (2) private feedback form — presentational only (standard form, no per-location configuration), (3) starter QR materials — today generates the account **Activation Code** (real backend work); in a future release will also generate per-location **Starter QR materials** for physical print and shipment. The animation awaits completion of phases 1 and 3 before advancing.
 _Avoid_: Loading screen, fake progress
 
 **Sign-in**:
@@ -425,11 +425,11 @@ _Avoid_: Legal file, policy attachment, Word doc (when you mean the downloadable
 ## Guest-facing
 
 **QR type**:
-The catalog kind of a per-location **QR code**. Default types: Counter card, Packaging sticker, Delivery insert, Window sticker, Smart Guest, and **Digital guest link**. For every type except **Digital guest link**, at most one non-archived **QR code** of that type may exist per **Owned location**. **Digital guest link** allows many per location, unique by **Link name** among non-archived codes. Encodes placement or channel intent; placement is not a separate domain entity.
+The catalog kind of a per-location **QR code**. Default types minted at provisioning: Table Tent, Window Sticker, Offer Card. Operators may also create **Digital guest link** codes. Legacy types (Counter card, Packaging sticker, Delivery insert, Smart Guest, Receipt sticker) may exist on older locations. For every type except **Digital guest link**, at most one non-archived **QR code** of that type may exist per **Owned location**. **Digital guest link** allows many per location, unique by **Link name** among non-archived codes. Encodes placement or channel intent; placement is not a separate domain entity.
 _Avoid_: QR placement (as an entity), QR category, touchpoint type
 
 **QR code**:
-A per–Owned location instance of a **QR type**, with its own **QR link**. Defaults are created per location (four physical placement types plus Smart Guest). Operators may also create **Digital guest link** codes from Capture. Operators do not download QR PNGs — physical stickers are obtained via the **Tummly Shop**. Home still emphasizes the **Smart Guest Link**; **Capture** exposes copy for each Active or Paused **QR link** and Pause/Activate (with confirm). Distinct from **Starter QR materials**.
+A per–Owned location instance of a **QR type**, with its own **QR link**. Defaults are created per location (Table Tent, Window Sticker, Offer Card). Table Tent is the primary physical type behind Home **Smart Guest Link** (legacy locations may still use Smart Guest). Operators may also create **Digital guest link** codes from Capture. Operators do not download QR PNGs — physical stickers are obtained via the **Tummly Shop**. Home still emphasizes the **Smart Guest Link**; **Capture** exposes copy for each Active or Paused **QR link** and Pause/Activate (with confirm). Distinct from **Starter QR materials**.
 _Avoid_: QR image, code image, QR placement (as an entity), downloadable QR
 
 **QR link**:
@@ -1331,7 +1331,7 @@ _Avoid_: Performance report (when meaning this drawer); Template Preview (when m
 ## Backend provisioning
 
 **`POST /api/auth/setup-account`**:
-The primary provisioning endpoint called at the end of Operator Setup. Creates a `User`, `Restaurant`, one or more `RestaurantLocation` rows, five Active **QR code**s per location (Counter card, Packaging sticker, Delivery insert, Window sticker, Smart Guest) each with a unique opaque token, and a stub `GuestLoopSetup`. Single and multi-location operators follow the same code path — the backend loops over `dto.Locations` regardless of account type. No QR PNG is generated during this step or afterward — operator-facing QR PNG generation has been retired. The private feedback form is standard for all locations and requires no per-location generation.
+The primary provisioning endpoint called at the end of Operator Setup. Creates a `User`, `Restaurant`, one or more `RestaurantLocation` rows, three Active **QR code**s per location (Table Tent, Window Sticker, Offer Card) each with a unique opaque token, and a stub `GuestLoopSetup`. Single and multi-location operators follow the same code path — the backend loops over `dto.Locations` regardless of account type. No QR PNG is generated during this step or afterward — operator-facing QR PNG generation has been retired. The private feedback form is standard for all locations and requires no per-location generation.
 _Avoid_: Complete setup, finalize account
 
 **`GuestLoopSetup`**:

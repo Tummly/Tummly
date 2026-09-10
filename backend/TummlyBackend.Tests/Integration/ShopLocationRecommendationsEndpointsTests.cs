@@ -91,7 +91,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.NotNull(tableLine);
             Assert.Equal(20, tableLine.Value.GetProperty("quantity").GetInt32());
 
-            var counterLine = FindLine(lines, "counter-cards");
+            var counterLine = FindLine(lines, "offer-card");
             Assert.NotNull(counterLine);
             Assert.Equal(3, counterLine.Value.GetProperty("quantity").GetInt32());
 
@@ -109,7 +109,7 @@ namespace TummlyBackend.Tests.Integration
         public async Task GetRecommendations_AppliesActivityFloor_WhenFeedbackAtLeastFive()
         {
             var seeded = await SeedWorkspaceAsync();
-            var smartGuestQrId = await SeedSmartGuestQrWithFeedbackAsync(
+            var smartGuestQrId = await SeedTableTentQrWithFeedbackAsync(
                 seeded.LocationId,
                 feedbackCount: 6
             );
@@ -153,7 +153,7 @@ namespace TummlyBackend.Tests.Integration
             // baseline = tableCount + 2 = 2; uncapped floor = ceil(2.2)+2 = 5;
             // cap = 2 * baseline = 4 — so the 2× baseline cap must bind.
             var seeded = await SeedWorkspaceAsync();
-            var smartGuestQrId = await SeedSmartGuestQrWithFeedbackAsync(
+            var smartGuestQrId = await SeedTableTentQrWithFeedbackAsync(
                 seeded.LocationId,
                 feedbackCount: 6
             );
@@ -258,7 +258,7 @@ namespace TummlyBackend.Tests.Integration
             return null;
         }
 
-        private async Task<int> SeedSmartGuestQrWithFeedbackAsync(
+        private async Task<int> SeedTableTentQrWithFeedbackAsync(
             int locationId,
             int feedbackCount
         )
@@ -270,8 +270,8 @@ namespace TummlyBackend.Tests.Integration
             var qr = new QrCode
             {
                 RestaurantLocationId = locationId,
-                QrType = QrType.SmartGuest,
-                Token = $"sg-{Guid.NewGuid():N}"[..32],
+                QrType = QrType.TableTent,
+                Token = $"tt-{Guid.NewGuid():N}"[..32],
                 Status = QrCodeStatus.Active,
                 CreatedAt = DateTime.UtcNow,
             };
