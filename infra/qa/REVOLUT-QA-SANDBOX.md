@@ -157,7 +157,7 @@ Admin refund paths.
 | `503` + `revolut_not_ready` | Secret / ApiBaseUrl / ApiVersion |
 | `503` + `revolut_sandbox_required` | `RequireSandboxHost=true` but host is not sandbox |
 | `503` + `plan_variation_missing` | Eight sandbox UUIDs mounted |
-| HPP ok, no entitlements | Webhook URL/signing secret; `/health/revolut` webhook flag; stuck revision (`probe-qa-api-revision.sh`) |
+| HPP ok, no entitlements | Webhook URL/signing secret; `/health/revolut` webhook flag; stuck revision (`probe-qa-api-revision.sh`). Confirm Sandbox webhook events include `ORDER_COMPLETED`. If Merchant order is `completed` but Tummly still Pilot / open pending / no `TM-` invoice, replay: `./scripts/replay-revolut-order-completed.sh <order-id>` (uses `Revolut__WebhookSigningSecret` from `infra/qa/secrets.qa.env`). |
 | Test card declined | Confirm Sandbox host (not Production) |
 
 ---

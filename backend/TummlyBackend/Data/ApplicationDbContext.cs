@@ -75,6 +75,8 @@ namespace TummlyBackend.Data
             set;
         }
 
+        public DbSet<RevolutWebhookInboxItem> RevolutWebhookInboxItems { get; set; }
+
         public DbSet<TummlyDocumentSequence> TummlyDocumentSequences { get; set; }
 
         public DbSet<TummlyVatInvoice> TummlyVatInvoices { get; set; }
@@ -809,6 +811,33 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<RevolutWebhookEventClaim>()
                 .Property(row => row.Disposition)
                 .HasMaxLength(64)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutWebhookInboxItem>()
+                .HasIndex(row => row.PayloadHash)
+                .IsUnique();
+
+            modelBuilder.Entity<RevolutWebhookInboxItem>()
+                .HasIndex(row => new
+                {
+                    row.Status,
+                    row.RetryAfterUtc,
+                    row.ClaimedAtUtc,
+                    row.CreatedAtUtc,
+                });
+
+            modelBuilder.Entity<RevolutWebhookInboxItem>()
+                .Property(row => row.PayloadHash)
+                .HasMaxLength(64)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutWebhookInboxItem>()
+                .Property(row => row.RawBody)
+                .IsRequired();
+
+            modelBuilder.Entity<RevolutWebhookInboxItem>()
+                .Property(row => row.Status)
+                .HasMaxLength(16)
                 .IsRequired();
 
             /*

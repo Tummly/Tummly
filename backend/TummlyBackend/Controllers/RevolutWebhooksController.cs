@@ -9,11 +9,11 @@ namespace TummlyBackend.Controllers
     [AllowAnonymous]
     public sealed class RevolutWebhooksController : ControllerBase
     {
-        private readonly IRevolutWebhookService _webhooks;
+        private readonly IRevolutWebhookReceiver _receiver;
 
-        public RevolutWebhooksController(IRevolutWebhookService webhooks)
+        public RevolutWebhooksController(IRevolutWebhookReceiver receiver)
         {
-            _webhooks = webhooks;
+            _receiver = receiver;
         }
 
         [HttpPost("/api/webhooks/revolut")]
@@ -40,7 +40,7 @@ namespace TummlyBackend.Controllers
                 .Headers["Revolut-Request-Timestamp"]
                 .ToString();
 
-            var result = await _webhooks.HandleAsync(
+            var result = await _receiver.ReceiveAsync(
                 rawBody,
                 signature,
                 timestamp,

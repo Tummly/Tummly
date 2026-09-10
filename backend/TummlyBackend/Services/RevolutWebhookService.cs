@@ -112,6 +112,17 @@ namespace TummlyBackend.Services
                 );
             }
 
+            return await ProcessVerifiedAsync(
+                rawBody ?? string.Empty,
+                cancellationToken
+            );
+        }
+
+        public async Task<RevolutWebhookHandleResult> ProcessVerifiedAsync(
+            string rawBody,
+            CancellationToken cancellationToken = default
+        )
+        {
             if (
                 string.IsNullOrWhiteSpace(rawBody)
                 || !TryParseEnvelope(rawBody, out var envelope)

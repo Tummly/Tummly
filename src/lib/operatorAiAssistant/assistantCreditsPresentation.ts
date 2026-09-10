@@ -103,7 +103,12 @@ export function assistantCreditsShowViewUsage(
 export function assistantCreditsShowAddCredits(options: {
   accessLevel: BillingCreditsAccessLevel
   permissionRole: string
+  /** Pilot has no credit top-ups — hide Add (same as Credits & usage Buy). */
+  isPilot?: boolean
 }): boolean {
+  if (options.isPilot === true) {
+    return false
+  }
   if (options.accessLevel !== "manage") {
     return false
   }

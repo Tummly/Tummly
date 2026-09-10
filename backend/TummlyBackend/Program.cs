@@ -624,6 +624,9 @@ builder.Services.AddScoped<
     RevolutPaymentRefundCompletedHandler
 >();
 builder.Services.AddScoped<IRevolutWebhookService, RevolutWebhookService>();
+builder.Services.AddScoped<IRevolutWebhookReceiver, RevolutWebhookReceiver>();
+builder.Services.AddSingleton<IRevolutWebhookInboxWork, RevolutWebhookInboxWork>();
+builder.Services.AddHostedService<RevolutWebhookInboxBackgroundService>();
 builder.Services.AddScoped<IRevolutDunningPayAdapter, RevolutDunningPayAdapter>();
 builder.Services.AddScoped<IBillingCreditsService, BillingCreditsService>();
 builder.Services.AddScoped<IExtraGroupLocationService, ExtraGroupLocationService>();
