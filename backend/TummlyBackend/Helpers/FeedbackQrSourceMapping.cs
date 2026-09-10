@@ -17,6 +17,9 @@ namespace TummlyBackend.Helpers
                 [QrType.WindowSticker] = "Window sticker",
                 [QrType.SmartGuest] = "Smart Guest",
                 [QrType.DigitalGuestLink] = "Digital guest link",
+                [QrType.ReceiptSticker] = "Receipt sticker",
+                [QrType.TableTent] = "Table tent",
+                [QrType.OfferCard] = "Offer card",
             };
 
         /// <summary>

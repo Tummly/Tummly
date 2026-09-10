@@ -163,6 +163,24 @@ namespace TummlyBackend.Services
             int restaurantLocationId
         )
         {
+            // Table Tent is the primary physical type for new locations.
+            // Fall back to legacy Smart Guest for locations minted before the
+            // three-materials catalog.
+            var primary = await _context.QrCodes
+                .AsNoTracking()
+                .Where(q =>
+                    q.RestaurantLocationId == restaurantLocationId
+                    && q.QrType == QrType.TableTent
+                    && q.Status == QrCodeStatus.Active
+                )
+                .Select(q => q.Token)
+                .FirstOrDefaultAsync();
+
+            if (primary != null)
+            {
+                return primary;
+            }
+
             return await _context.QrCodes
                 .AsNoTracking()
                 .Where(q =>

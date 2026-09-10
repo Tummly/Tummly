@@ -242,7 +242,13 @@ export function useAiAssistantModule(
               remaining + usedThisCycle
             ),
             usedThisCycle,
-            accessLevel: current.billingCreditsAccess,
+            // Prefer live Billing page capability over workspace Area cell —
+            // Manage plan redirects View actors away from top-up landings.
+            accessLevel: page.actorCanManage
+              ? "manage"
+              : current.billingCreditsAccess === "none"
+                ? "none"
+                : "view",
             permissionRole: page.actorPermissionRole,
             billingStatus: page.planSubscription.billingStatus,
             isPilot: usage.isPilot,

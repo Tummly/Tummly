@@ -11,7 +11,7 @@ Post-approval flow where an invited operator creates an **Account password** and
 | Multi-location wizard (4 steps) | Shipped |
 | Bulk location CSV upload | Shipped |
 | Guest Loop provisioning animation | Shipped |
-| Smart Guest Link token per location | Shipped — five default **QR code**s per location (Smart Guest + four placement types) |
+| Smart Guest Link token per location | Shipped — three default **QR code**s per location (Table Tent, Window Sticker, Offer Card) |
 | Activation Code generation (phase 3) | Shipped |
 | Private feedback form (standard) | Shipped (same form all locations) |
 | Operator QR PNG download | Retired — stickers via **Tummly Shop**; Home copy Smart Guest Link + preview only |
@@ -25,10 +25,10 @@ Post-approval flow where an invited operator creates an **Account password** and
 | Term | Definition |
 |------|------------|
 | **Operator Setup** | Invite-driven wizard: credentials → restaurant/group → locations (multi) → **Guest Loop provisioning** |
-| **Guest Loop provisioning** | Final step (Ready): backend prepares five default **QR code**s per location and Activation Code |
+| **Guest Loop provisioning** | Final step (Ready): backend prepares three default **QR code**s per location and Activation Code |
 | **Guest Loop provisioning phases** | (1) Default QR codes / Smart Guest Link — real API, (2) private feedback form — UI only, (3) Activation Code — real API |
 | **Smart Guest Link** | Operator-facing name for the Smart Guest **QR link**: `https://{frontend}/scan/{token}` where `token` = that code’s `QrCode.Token` |
-| **QR code** | Per-location instance of a **QR type** with its own opaque token; five defaults minted at provisioning |
+| **QR code** | Per-location instance of a **QR type** with its own opaque token; three defaults minted at provisioning |
 | **Owned location** | `RestaurantLocation` under operator's `Restaurant` |
 | **Address** | Street-level venue address in Operator Setup — distinct from trial **Main location** |
 | **Operator contact phone** | Optional UK phone; enables SMS Sign-in OTP when provided |
@@ -104,7 +104,7 @@ Invite validity: 14 days from last send; token rotated on resend/reminder.
 
 | Phase | Endpoint | Creates/updates |
 |-------|----------|-----------------|
-| 1 | `POST /api/auth/setup-account` | `User`, `Restaurant`, `RestaurantLocation`(s), five Active `QrCode`s per location, `GuestLoopSetup`; `TrialRequest` → Account Created |
+| 1 | `POST /api/auth/setup-account` | `User`, `Restaurant`, `RestaurantLocation`(s), three Active `QrCode`s per location, `GuestLoopSetup`; `TrialRequest` → Account Created |
 | 3 | `POST /api/auth/generate-activation-code` | `User.ActivationCodeHash`, encrypted copy for admin |
 
 **No JWT issued** at end of setup — operator must **Sign-in** separately.
@@ -168,7 +168,7 @@ Invite validity: 14 days from last send; token rotated on resend/reminder.
 
 ### Behaviour
 
-- Each `RestaurantLocation` receives five Active `QrCode` rows at provisioning (Counter card, Packaging sticker, Delivery insert, Window sticker, Smart Guest), each with a unique opaque 32-character token
+- Each `RestaurantLocation` receives three Active `QrCode` rows at provisioning (Table Tent, Window Sticker, Offer Card), each with a unique opaque 32-character token
 - Guest URL shape unchanged: `Frontend:BaseUrl` + `/scan/{token}`
 - Operators do **not** download QR PNGs from the dashboard — physical stickers via **Tummly Shop**; Home exposes copy Smart Guest Link + preview guest form
 - Capture sidenav route is a coming-soon stub for future QR management UI

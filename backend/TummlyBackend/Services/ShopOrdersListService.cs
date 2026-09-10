@@ -38,8 +38,10 @@ namespace TummlyBackend.Services
             new(StringComparer.OrdinalIgnoreCase)
             {
                 "table-tents",
-                "counter-cards",
                 "window-stickers",
+                "offer-card",
+                // Retired catalog SKUs — kept so historical orders remain filterable.
+                "counter-cards",
                 "packaging-stickers",
                 "receipt-stickers",
                 "delivery-inserts",

@@ -144,7 +144,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ProvisionAsync_CreatesEntitiesAndFiveDefaultQrCodes()
+        public async Task ProvisionAsync_CreatesEntitiesAndThreeDefaultQrCodes()
         {
             await SeedTrialRequestAsync("provision-token");
 
@@ -188,15 +188,13 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("LS1 1AA", location.Postcode);
             Assert.Equal(LocationLifecycleStatus.Active, location.LifecycleStatus);
 
-            Assert.Equal(5, qrCodes.Count);
+            Assert.Equal(3, qrCodes.Count);
             Assert.All(qrCodes, q => Assert.Equal(32, q.Token.Length));
             Assert.All(qrCodes, q => Assert.Equal(QrCodeStatus.Active, q.Status));
-            Assert.Equal(5, qrCodes.Select(q => q.QrType).Distinct().Count());
-            Assert.Contains(qrCodes, q => q.QrType == QrType.SmartGuest);
-            Assert.Contains(qrCodes, q => q.QrType == QrType.CounterCard);
-            Assert.Contains(qrCodes, q => q.QrType == QrType.PackagingSticker);
-            Assert.Contains(qrCodes, q => q.QrType == QrType.DeliveryInsert);
+            Assert.Equal(3, qrCodes.Select(q => q.QrType).Distinct().Count());
+            Assert.Contains(qrCodes, q => q.QrType == QrType.TableTent);
             Assert.Contains(qrCodes, q => q.QrType == QrType.WindowSticker);
+            Assert.Contains(qrCodes, q => q.QrType == QrType.OfferCard);
 
             var membership = await _context.RestaurantMemberships.SingleAsync();
             Assert.Equal(user.Id, membership.UserId);
@@ -331,7 +329,7 @@ namespace TummlyBackend.Tests.Services
                 .ToListAsync();
 
             Assert.Equal(2, locationIds.Count);
-            Assert.Equal(10, tokens.Count);
+            Assert.Equal(6, tokens.Count);
             Assert.Equal(tokens.Distinct().Count(), tokens.Count);
         }
 

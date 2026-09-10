@@ -1447,6 +1447,7 @@ function toSnapshot(
     showAddCredits: assistantCreditsShowAddCredits({
       accessLevel: credits.accessLevel,
       permissionRole: credits.permissionRole,
+      isPilot: credits.isPilot,
     }),
     shellAiCredits: buildShellAiCreditsViewModel(credits),
     restorationHelper: assistantCreditsRestorationHelper({
@@ -1486,6 +1487,7 @@ function buildShellAiCreditsViewModel(
     showAddCredits: assistantCreditsShowAddCredits({
       accessLevel: credits.accessLevel,
       permissionRole: credits.permissionRole,
+      isPilot: credits.isPilot,
     }),
   }
 }
@@ -2776,6 +2778,7 @@ export function createOperatorAiAssistantModule(
         !assistantCreditsShowAddCredits({
           accessLevel: creditsChrome.accessLevel,
           permissionRole: creditsChrome.permissionRole,
+          isPilot: creditsChrome.isPilot,
         })
       ) {
         return

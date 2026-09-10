@@ -23,7 +23,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task GetCatalog_Returns200_WithSixSkus_WhenViewInScope()
+        public async Task GetCatalog_Returns200_WithThreeSkus_WhenViewInScope()
         {
             var seeded = await SeedOwnerAndMemberAsync(
                 PermissionRoles.LocationManager,
@@ -46,14 +46,15 @@ namespace TummlyBackend.Tests.Integration
             );
 
             var items = body.GetProperty("items");
-            Assert.Equal(6, items.GetArrayLength());
+            Assert.Equal(3, items.GetArrayLength());
 
             var tableTents = items.EnumerateArray()
                 .First(row =>
                     row.GetProperty("skuId").GetString() == "table-tents"
                 );
-            Assert.Equal("Table tents", tableTents.GetProperty("title").GetString());
+            Assert.Equal("Table Tent QR", tableTents.GetProperty("title").GetString());
             Assert.Equal(2400, tableTents.GetProperty("unitNetPence").GetInt32());
+            Assert.Equal("TableTent", tableTents.GetProperty("qrType").GetString());
             Assert.True(tableTents.GetProperty("isPlanIncluded").GetBoolean());
             Assert.Equal(
                 "Essential",
@@ -138,7 +139,7 @@ namespace TummlyBackend.Tests.Integration
             );
 
             using var request = AuthorizedGet(
-                $"/api/shop/catalog/receipt-stickers?locationId={seeded.InScopeLocationId}",
+                $"/api/shop/catalog/offer-card?locationId={seeded.InScopeLocationId}",
                 seeded.MemberJwt
             );
 
@@ -147,9 +148,9 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             var item = body.GetProperty("item");
-            Assert.Equal("receipt-stickers", item.GetProperty("skuId").GetString());
-            Assert.Equal("ReceiptSticker", item.GetProperty("qrType").GetString());
-            Assert.True(item.GetProperty("mintOnShopFulfilment").GetBoolean());
+            Assert.Equal("offer-card", item.GetProperty("skuId").GetString());
+            Assert.Equal("OfferCard", item.GetProperty("qrType").GetString());
+            Assert.False(item.GetProperty("mintOnShopFulfilment").GetBoolean());
             Assert.Equal(
                 "tummly_uk_materials_catalog_v1",
                 item.GetProperty("catalogVersion").GetString()

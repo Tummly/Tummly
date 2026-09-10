@@ -34,6 +34,9 @@ namespace TummlyBackend.Services
                 [QrType.WindowSticker] = "Window sticker",
                 [QrType.SmartGuest] = "Smart Guest",
                 [QrType.DigitalGuestLink] = "Digital guest link",
+                [QrType.ReceiptSticker] = "Receipt sticker",
+                [QrType.TableTent] = "Table tent",
+                [QrType.OfferCard] = "Offer card",
             };
 
         private readonly ApplicationDbContext _context;
@@ -381,7 +384,13 @@ namespace TummlyBackend.Services
                                     ? "window sticker"
                                     : q.QrType == QrType.SmartGuest
                                         ? "smart guest"
-                                        : "digital guest link",
+                                        : q.QrType == QrType.ReceiptSticker
+                                            ? "receipt sticker"
+                                            : q.QrType == QrType.TableTent
+                                                ? "table tent"
+                                                : q.QrType == QrType.OfferCard
+                                                    ? "offer card"
+                                                    : "digital guest link",
                 ScanCount = _context.QrScanEvents.Count(e =>
                     e.QrCodeId == q.Id
                 ),

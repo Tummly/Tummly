@@ -255,7 +255,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task GetActiveSmartGuestTokenAsync_ReturnsToken_WhenActive()
+        public async Task GetActiveSmartGuestTokenAsync_ReturnsToken_WhenActiveSmartGuest()
         {
             var location = await CreateLocationAsync();
             await AddQrCodeAsync(location, "active-smart-guest-token12345", QrType.SmartGuest);
@@ -266,6 +266,29 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task GetActiveSmartGuestTokenAsync_PrefersTableTent_OverSmartGuest()
+        {
+            var location = await CreateLocationAsync();
+            await AddQrCodeAsync(location, "legacy-smart-guest-token123456", QrType.SmartGuest);
+            await AddQrCodeAsync(location, "active-table-tent-token1234567", QrType.TableTent);
+
+            var token = await _service.GetActiveSmartGuestTokenAsync(location.Id);
+
+            Assert.Equal("active-table-tent-token1234567", token);
+        }
+
+        [Fact]
+        public async Task GetActiveSmartGuestTokenAsync_ReturnsTableTent_WhenOnlyTableTent()
+        {
+            var location = await CreateLocationAsync();
+            await AddQrCodeAsync(location, "active-table-tent-token1234567", QrType.TableTent);
+
+            var token = await _service.GetActiveSmartGuestTokenAsync(location.Id);
+
+            Assert.Equal("active-table-tent-token1234567", token);
+        }
+
+        [Fact]
         public async Task GetActiveSmartGuestTokenAsync_ReturnsNull_WhenNoneActive()
         {
             var location = await CreateLocationAsync();
@@ -273,6 +296,12 @@ namespace TummlyBackend.Tests.Services
                 location,
                 "paused-smart-guest-token12345",
                 QrType.SmartGuest,
+                QrCodeStatus.Paused
+            );
+            await AddQrCodeAsync(
+                location,
+                "paused-table-tent-token12345678",
+                QrType.TableTent,
                 QrCodeStatus.Paused
             );
 

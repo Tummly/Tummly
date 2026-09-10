@@ -449,9 +449,12 @@ namespace TummlyBackend.Services
             return skuId switch
             {
                 "table-tents" => "table-tents",
+                "window-stickers" => "window-stickers",
+                "offer-card" => "offer-card",
+                "counter-cards" => "counter-cards",
                 "packaging-stickers" => "packaging-stickers",
                 "receipt-stickers" => "receipt-stickers",
-                "window-stickers" => "window-stickers",
+                "delivery-inserts" => "delivery-inserts",
                 "package-seal-stickers" => "package-seal-stickers",
                 "starter-kits" => "starter-kits",
                 _ => category,

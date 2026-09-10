@@ -94,14 +94,33 @@ namespace TummlyBackend.Controllers
 
             var locationIds = locations.Select(row => row.Id).ToList();
 
-            var smartGuestTokensByLocationId = await _context.QrCodes
+            var primaryLinkCandidates = await _context.QrCodes
                 .AsNoTracking()
                 .Where(qr =>
                     locationIds.Contains(qr.RestaurantLocationId)
-                    && qr.QrType == QrType.SmartGuest
+                    && (
+                        qr.QrType == QrType.TableTent
+                        || qr.QrType == QrType.SmartGuest
+                    )
                     && qr.Status == QrCodeStatus.Active
                 )
-                .ToDictionaryAsync(qr => qr.RestaurantLocationId, qr => qr.Token);
+                .Select(qr => new
+                {
+                    qr.RestaurantLocationId,
+                    qr.QrType,
+                    qr.Token,
+                })
+                .ToListAsync();
+
+            var smartGuestTokensByLocationId = primaryLinkCandidates
+                .GroupBy(qr => qr.RestaurantLocationId)
+                .ToDictionary(
+                    group => group.Key,
+                    group =>
+                        group.FirstOrDefault(qr => qr.QrType == QrType.TableTent)
+                            ?.Token
+                        ?? group.First(qr => qr.QrType == QrType.SmartGuest).Token
+                );
 
             var brandLogoPublicUrl =
                 string.IsNullOrWhiteSpace(restaurant.BrandLogoObjectKey)

@@ -1400,7 +1400,7 @@ namespace TummlyBackend.Tests.Integration
                 Succeeded: true,
                 Id: orderId,
                 State: "completed",
-                BillingReason: null,
+                BillingReason: RevolutOrderCompletedApplier.FinalSettlement,
                 RawBody: $$"""{"id":"{{orderId}}","state":"completed"}"""
             );
         }

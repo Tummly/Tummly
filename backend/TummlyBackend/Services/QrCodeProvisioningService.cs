@@ -6,15 +6,13 @@ namespace TummlyBackend.Services
 {
     public class QrCodeProvisioningService : IQrCodeProvisioningService
     {
-        // Order mirrors CONTEXT.md "QR type": four placement types, then
-        // Smart Guest (the operator-facing default link).
+        // Order mirrors CONTEXT.md "QR type": three supported placement types.
+        // Table Tent is the primary physical type behind Home Smart Guest Link.
         private static readonly QrType[] DefaultQrTypes =
         {
-            QrType.CounterCard,
-            QrType.PackagingSticker,
-            QrType.DeliveryInsert,
+            QrType.TableTent,
             QrType.WindowSticker,
-            QrType.SmartGuest,
+            QrType.OfferCard,
         };
 
         private readonly ApplicationDbContext _context;

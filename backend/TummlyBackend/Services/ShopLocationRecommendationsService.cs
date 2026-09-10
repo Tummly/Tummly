@@ -22,12 +22,9 @@ namespace TummlyBackend.Services
         private static readonly Dictionary<string, QrType> SkuToQrType =
             new(StringComparer.Ordinal)
             {
-                ["table-tents"] = QrType.SmartGuest,
-                ["counter-cards"] = QrType.CounterCard,
+                ["table-tents"] = QrType.TableTent,
                 ["window-stickers"] = QrType.WindowSticker,
-                ["packaging-stickers"] = QrType.PackagingSticker,
-                ["delivery-inserts"] = QrType.DeliveryInsert,
-                ["receipt-stickers"] = QrType.ReceiptSticker,
+                ["offer-card"] = QrType.OfferCard,
             };
 
         private readonly ApplicationDbContext _context;
@@ -165,29 +162,17 @@ namespace TummlyBackend.Services
 
             foreach (var (skuId, qrType) in SkuToQrType)
             {
-                if (skuId == "receipt-stickers" && !prompts.Contains("receipts"))
-                {
-                    continue;
-                }
-
                 var inPrompts = IsSkuInPromptBaseline(skuId, prompts);
                 activityByQrType.TryGetValue(qrType, out var activity);
                 var feedbackCount = activity?.FeedbackSubmitted ?? 0;
                 var activityAdd = !inPrompts && feedbackCount >= 5;
 
-                if (skuId == "receipt-stickers")
-                {
-                    if (!inPrompts)
-                    {
-                        continue;
-                    }
-                }
-                else if (!inPrompts && !activityAdd)
+                if (!inPrompts && !activityAdd)
                 {
                     continue;
                 }
 
-                var baseline = ComputeBaselineQty(skuId, details, inPrompts || skuId == "receipt-stickers");
+                var baseline = ComputeBaselineQty(skuId, details, inPrompts);
                 var quantity = ApplyActivityFloor(
                     skuId,
                     baseline,
@@ -199,13 +184,12 @@ namespace TummlyBackend.Services
                     continue;
                 }
 
-                var fromPrompts = inPrompts || skuId == "receipt-stickers";
                 var allocationText = BuildAllocationText(
                     skuId,
                     details,
                     quantity,
                     baseline,
-                    fromPrompts
+                    inPrompts
                 );
                 var reason = BuildReason(
                     skuId,
@@ -213,7 +197,7 @@ namespace TummlyBackend.Services
                     qrType,
                     feedbackCount,
                     hasActivity,
-                    fromPrompts
+                    inPrompts
                 );
 
                 includedSkus.Add((skuId, quantity, allocationText, reason));
@@ -248,12 +232,9 @@ namespace TummlyBackend.Services
             return skuId switch
             {
                 "table-tents" => prompts.Contains("tables"),
-                "counter-cards" => prompts.Contains("counters")
+                "offer-card" => prompts.Contains("counters")
                     || prompts.Contains("collection"),
                 "window-stickers" => prompts.Contains("windows"),
-                "packaging-stickers" => prompts.Contains("packaging"),
-                "delivery-inserts" => prompts.Contains("delivery"),
-                "receipt-stickers" => prompts.Contains("receipts"),
                 _ => false,
             };
         }
@@ -269,7 +250,7 @@ namespace TummlyBackend.Services
                 "table-tents" => fromPrompts
                     ? details.TableCount + 2
                     : 12,
-                "counter-cards" => fromPrompts
+                "offer-card" => fromPrompts
                     ? details.CounterCount + 1
                     : 2,
                 "window-stickers" => fromPrompts
@@ -277,9 +258,6 @@ namespace TummlyBackend.Services
                         + details.SecondaryEntranceCount
                         + 1
                     : 2,
-                "packaging-stickers" or "delivery-inserts" =>
-                    TakeawayPackQty(details.TakeawayVolume),
-                "receipt-stickers" => 1,
                 _ => 0,
             };
         }
@@ -290,11 +268,6 @@ namespace TummlyBackend.Services
             int feedbackSubmitted
         )
         {
-            if (skuId == "receipt-stickers")
-            {
-                return baseline;
-            }
-
             if (feedbackSubmitted < 5)
             {
                 return baseline;
@@ -304,19 +277,6 @@ namespace TummlyBackend.Services
             var cap = baseline * 2;
             activityFloor = Math.Min(activityFloor, cap);
             return Math.Max(baseline, activityFloor);
-        }
-
-        private static int TakeawayPackQty(string takeawayVolume)
-        {
-            return takeawayVolume switch
-            {
-                "fewer-than-100" => 25,
-                "100-249" => 50,
-                "250-499" => 100,
-                "500-999" => 150,
-                "1000-plus" => 200,
-                _ => 50,
-            };
         }
 
         private static string BuildAllocationText(
@@ -331,13 +291,10 @@ namespace TummlyBackend.Services
             {
                 "table-tents" when fromPrompts =>
                     $"{details.TableCount} for guest tables + {Math.Max(0, quantity - details.TableCount)} spare",
-                "counter-cards" when fromPrompts =>
+                "offer-card" when fromPrompts =>
                     $"{details.CounterCount} for counters + {Math.Max(0, quantity - details.CounterCount)} spare",
                 "window-stickers" when fromPrompts =>
                     $"{details.EntranceCount + details.SecondaryEntranceCount} for entrances + {Math.Max(0, quantity - (details.EntranceCount + details.SecondaryEntranceCount))} spare",
-                "packaging-stickers" or "delivery-inserts" =>
-                    $"{quantity} for weekly takeaway volume",
-                "receipt-stickers" => "1 roll for printed receipts",
                 _ => $"{quantity} recommended",
             };
         }
@@ -371,16 +328,10 @@ namespace TummlyBackend.Services
                 {
                     "table-tents" =>
                         $"Based on {details.TableCount} guest tables and how this location operates.",
-                    "counter-cards" =>
+                    "offer-card" =>
                         $"Based on {details.CounterCount} service counters and how this location operates.",
                     "window-stickers" =>
                         $"Based on {details.EntranceCount + details.SecondaryEntranceCount} entrances and how this location operates.",
-                    "packaging-stickers" =>
-                        "Based on takeaway volume and how this location operates.",
-                    "delivery-inserts" =>
-                        "Based on delivery volume and how this location operates.",
-                    "receipt-stickers" =>
-                        "Based on receipt prompts and how this location operates.",
                     _ => "Based on how this location operates.",
                 };
             }
@@ -389,12 +340,10 @@ namespace TummlyBackend.Services
             {
                 "table-tents" =>
                     $"Based on {details.TableCount} guest tables and {qrLabel} feedback in {windowLabel}.",
-                "counter-cards" =>
+                "offer-card" =>
                     $"Based on {details.CounterCount} service counters and {qrLabel} feedback in {windowLabel}.",
                 "window-stickers" =>
                     $"Based on {details.EntranceCount + details.SecondaryEntranceCount} entrances and {qrLabel} feedback in {windowLabel}.",
-                "packaging-stickers" or "delivery-inserts" =>
-                    $"Based on takeaway activity and {qrLabel} feedback in {windowLabel}.",
                 _ =>
                     $"Based on {qrLabel} feedback in {windowLabel}.",
             };
@@ -403,9 +352,11 @@ namespace TummlyBackend.Services
         private static string QrTypeLabel(QrType qrType) =>
             qrType switch
             {
+                QrType.TableTent => "table tent",
+                QrType.OfferCard => "offer card",
+                QrType.WindowSticker => "window sticker",
                 QrType.SmartGuest => "Smart Guest",
                 QrType.CounterCard => "counter card",
-                QrType.WindowSticker => "window sticker",
                 QrType.PackagingSticker => "packaging sticker",
                 QrType.DeliveryInsert => "delivery insert",
                 QrType.ReceiptSticker => "receipt sticker",

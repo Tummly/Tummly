@@ -12,6 +12,14 @@ namespace TummlyBackend.Interfaces
             string? requestTimestamp,
             CancellationToken cancellationToken = default
         );
+
+        /// <summary>
+        /// Applies a webhook that the durable receiver already verified.
+        /// </summary>
+        Task<RevolutWebhookHandleResult> ProcessVerifiedAsync(
+            string rawBody,
+            CancellationToken cancellationToken = default
+        );
     }
 
     public enum RevolutWebhookHandleStatus

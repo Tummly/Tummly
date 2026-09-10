@@ -1322,6 +1322,42 @@ export function BillingCreditsPage() {
   }, [snap.pendingPayRedirectUrl, pageModule])
 
   useEffect(() => {
+    if (
+      snap.loadStatus !== "loaded"
+      || snap.activeTabId !== "credits-usage"
+      || snap.focusedTopUpChannel == null
+    ) {
+      return
+    }
+    const channel = snap.focusedTopUpChannel
+    const targetId = `credit-top-up-${channel}`
+    let cancelled = false
+    const tryScroll = () => {
+      if (cancelled) {
+        return
+      }
+      const el =
+        document.getElementById(targetId)
+        ?? document.getElementById("credit-top-ups")
+      el?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(tryScroll)
+    })
+    const retry = window.setTimeout(tryScroll, 120)
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(frame)
+      window.clearTimeout(retry)
+    }
+  }, [
+    snap.loadStatus,
+    snap.activeTabId,
+    snap.focusedTopUpChannel,
+    snap.topUpCards.length,
+  ])
+
+  useEffect(() => {
     if (snap.pendingPaymentMethodRedirectUrl == null) {
       return
     }
@@ -1513,13 +1549,42 @@ export function ManagePlanPage() {
   }, [snap.pendingPayRedirectUrl, pageModule])
 
   useEffect(() => {
-    if (snap.focusedTopUpChannel == null) {
+    if (snap.loadStatus !== "loaded") {
       return
     }
-    document
-      .getElementById(`credit-top-up-${snap.focusedTopUpChannel}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" })
-  }, [snap.focusedTopUpChannel, snap.loadStatus])
+    const channel = snap.focusedTopUpChannel
+    if (channel == null && snap.managePlanSection !== "credit-top-ups") {
+      return
+    }
+    const targetId =
+      channel != null ? `credit-top-up-${channel}` : "credit-top-ups"
+
+    let cancelled = false
+    const tryScroll = () => {
+      if (cancelled) {
+        return
+      }
+      const el =
+        document.getElementById(targetId)
+        ?? document.getElementById("credit-top-ups")
+      el?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+    // Cards mount with the loaded snapshot — wait for paint, then retry once.
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(tryScroll)
+    })
+    const retry = window.setTimeout(tryScroll, 120)
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(frame)
+      window.clearTimeout(retry)
+    }
+  }, [
+    snap.focusedTopUpChannel,
+    snap.managePlanSection,
+    snap.loadStatus,
+    snap.topUpCards.length,
+  ])
 
   useEffect(() => {
     if (snap.pendingPaymentMethodRedirectUrl == null) {
