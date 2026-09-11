@@ -64,6 +64,12 @@ namespace TummlyBackend.Tests.Services
             var (widthPt, heightPt) = PrintTemplatePack.ReadSvgViewBoxPoints(
                 pack.Snapshot.CardSvgPath
             );
+            var qrPlacement =
+                PrintReadyQrPdfComposer.ResolveQrPlacementPoints(
+                    widthPt,
+                    heightPt,
+                    pack.Snapshot.OfferCardQr
+                );
             var whiteQr = new QrRasterImage(
                 3,
                 3,
@@ -79,6 +85,14 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Equal(240.94f, widthPt, 2);
             Assert.Equal(155.91f, heightPt, 2);
+            Assert.Equal(176.09, qrPlacement.XPt, 2);
+            Assert.Equal(13.63, qrPlacement.YPt, 2);
+            Assert.Equal(51.02, qrPlacement.WidthPt, 2);
+            Assert.Equal(51.02, qrPlacement.HeightPt, 2);
+            Assert.Equal(7, pack.Snapshot.OfferCardHeadline.XMm);
+            Assert.Equal(7, pack.Snapshot.OfferCardHeadline.YMm);
+            Assert.Equal(43, pack.Snapshot.OfferCardHeadline.WidthMm);
+            Assert.Equal(18, pack.Snapshot.OfferCardHeadline.HeightMm);
             Assert.True(
                 pdf.Length > 10_000,
                 "The PDF must include the Card Dev SVG vector artwork."

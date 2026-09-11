@@ -49,16 +49,18 @@ namespace TummlyBackend.PrintReadyQrMaterials
         )
         {
             var (widthPt, heightPt) = PrintTemplatePack.ReadSvgViewBoxPoints(svgPath);
-            var widthMm = widthPt / MmToPt;
-            var heightMm = heightPt / MmToPt;
-            var (xMm, yMm) = ResolveQrTopLeft(widthMm, heightMm, qrSlot);
+            var placement = ResolveQrPlacementPoints(
+                widthPt,
+                heightPt,
+                qrSlot
+            );
             return RenderTemplatePdf(
                 svgPath,
                 qrImage,
-                xMm * MmToPt,
-                yMm * MmToPt,
-                qrSlot.WidthMm * MmToPt,
-                qrSlot.HeightMm * MmToPt,
+                placement.XPt,
+                placement.YPt,
+                placement.WidthPt,
+                placement.HeightPt,
                 headline: null,
                 headlineBox: null
             );
@@ -72,13 +74,21 @@ namespace TummlyBackend.PrintReadyQrMaterials
         {
             var qr = pack.OfferCardQr;
             var headline = pack.OfferCardHeadline;
+            var (widthPt, heightPt) = PrintTemplatePack.ReadSvgViewBoxPoints(
+                pack.CardSvgPath
+            );
+            var placement = ResolveQrPlacementPoints(
+                widthPt,
+                heightPt,
+                qr
+            );
             return RenderTemplatePdf(
                 pack.CardSvgPath,
                 qrImage,
-                (qr.XMm ?? 0) * MmToPt,
-                (qr.YMm ?? 0) * MmToPt,
-                qr.WidthMm * MmToPt,
-                qr.HeightMm * MmToPt,
+                placement.XPt,
+                placement.YPt,
+                placement.WidthPt,
+                placement.HeightPt,
                 offerHeadline ?? pack.DefaultOfferHeadline,
                 headline
             );
@@ -105,6 +115,30 @@ namespace TummlyBackend.PrintReadyQrMaterials
             return (
                 (canvasWidthMm - slot.WidthMm) / 2.0,
                 (canvasHeightMm - slot.HeightMm) / 2.0
+            );
+        }
+
+        public static (
+            double XPt,
+            double YPt,
+            double WidthPt,
+            double HeightPt
+        ) ResolveQrPlacementPoints(
+            double canvasWidthPt,
+            double canvasHeightPt,
+            PrintSlotQrSpec slot
+        )
+        {
+            var (xMm, yMm) = ResolveQrTopLeft(
+                canvasWidthPt / MmToPt,
+                canvasHeightPt / MmToPt,
+                slot
+            );
+            return (
+                xMm * MmToPt,
+                yMm * MmToPt,
+                slot.WidthMm * MmToPt,
+                slot.HeightMm * MmToPt
             );
         }
 
