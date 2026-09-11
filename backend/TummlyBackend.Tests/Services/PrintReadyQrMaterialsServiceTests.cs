@@ -46,6 +46,7 @@ namespace TummlyBackend.Tests.Services
                 storage,
                 new QrCoderRasterizer(),
                 guestLinks,
+                new NoOpPrintReadyQrMaterialsWork(),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
             );
 
@@ -103,6 +104,7 @@ namespace TummlyBackend.Tests.Services
                     configuration,
                     new NoOpBillingAccountLifecycle()
                 ),
+                new NoOpPrintReadyQrMaterialsWork(),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
             );
 
@@ -140,6 +142,7 @@ namespace TummlyBackend.Tests.Services
                     configuration,
                     new NoOpBillingAccountLifecycle()
                 ),
+                new NoOpPrintReadyQrMaterialsWork(),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
             );
 
@@ -243,6 +246,7 @@ namespace TummlyBackend.Tests.Services
                     configuration,
                     new NoOpBillingAccountLifecycle()
                 ),
+                new NoOpPrintReadyQrMaterialsWork(),
                 NullLogger<PrintReadyQrMaterialsService>.Instance
             );
             var orderId = await SeedPaidOrderAsync(location, quantity: 1);
@@ -255,6 +259,86 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(PrintReadyQrAssetStatus.Failed, asset.Status);
             Assert.Contains("No Active QR code", asset.LastError);
             Assert.Equal(0, storage.UploadAttempts);
+        }
+
+        [Fact]
+        public async Task InvalidateAfterQrRotation_InvalidatesAndQueuesEveryAssetScope()
+        {
+            var location = await SeedLocationWithTableTentAsync();
+            var shopOrderId = Guid.NewGuid();
+            _context.PrintReadyQrAssets.AddRange(
+                ReadyAsset(shopOrderId: null),
+                ReadyAsset(shopOrderId)
+            );
+            await _context.SaveChangesAsync();
+            var work = new RecordingPrintReadyQrMaterialsWork();
+            var service = CreateService(new RecordingStorage(), work);
+
+            await service.InvalidateAfterQrRotationAsync(
+                location.Id,
+                QrType.TableTent
+            );
+
+            var assets = await _context.PrintReadyQrAssets.ToListAsync();
+            Assert.Equal(2, assets.Count);
+            Assert.All(assets, asset =>
+            {
+                Assert.Equal(PrintReadyQrAssetStatus.Preparing, asset.Status);
+                Assert.Null(asset.StorageKey);
+                Assert.Null(asset.FileName);
+                Assert.Null(asset.QrTokenFingerprint);
+                Assert.Null(asset.TemplatePackVersion);
+                Assert.Null(asset.OfferCopyVersion);
+                Assert.Null(asset.LastError);
+            });
+            Assert.Equal(new[] { location.Id }, work.LocationIds);
+            Assert.Equal(new[] { shopOrderId }, work.ShopOrderIds);
+
+            PrintReadyQrAsset ReadyAsset(Guid? shopOrderId) =>
+                new()
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.TableTent,
+                    ShopOrderId = shopOrderId,
+                    Status = PrintReadyQrAssetStatus.Ready,
+                    StorageKey = "old.pdf",
+                    FileName = "old.pdf",
+                    QrTokenFingerprint = "old-token",
+                    TemplatePackVersion = "old-pack",
+                    OfferCopyVersion = "old-copy",
+                };
+        }
+
+        [Fact]
+        public async Task InvalidateAfterQrRotation_QueueFailure_MarksAffectedAssetFailed()
+        {
+            var location = await SeedLocationWithTableTentAsync();
+            _context.PrintReadyQrAssets.Add(new PrintReadyQrAsset
+            {
+                RestaurantLocationId = location.Id,
+                QrType = QrType.TableTent,
+                Status = PrintReadyQrAssetStatus.Ready,
+                StorageKey = "old.pdf",
+                FileName = "old.pdf",
+                QrTokenFingerprint = "old-token",
+                TemplatePackVersion = "old-pack",
+                OfferCopyVersion = "old-copy",
+            });
+            await _context.SaveChangesAsync();
+            var work = new RecordingPrintReadyQrMaterialsWork
+            {
+                ThrowOnStarterRequest = true,
+            };
+            var service = CreateService(new RecordingStorage(), work);
+
+            await service.InvalidateAfterQrRotationAsync(
+                location.Id,
+                QrType.TableTent
+            );
+
+            var asset = await _context.PrintReadyQrAssets.SingleAsync();
+            Assert.Equal(PrintReadyQrAssetStatus.Failed, asset.Status);
+            Assert.Contains("Could not queue regeneration", asset.LastError);
         }
 
         [Fact]
@@ -308,6 +392,33 @@ namespace TummlyBackend.Tests.Services
         public void Dispose()
         {
             _context.Dispose();
+        }
+
+        private PrintReadyQrMaterialsService CreateService(
+            IQueryAttachmentStorage storage,
+            IPrintReadyQrMaterialsWork work
+        )
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Frontend:BaseUrl"] = "https://tummly.example",
+                })
+                .Build();
+            return new PrintReadyQrMaterialsService(
+                _context,
+                PrintTemplatePack.LoadFromContentRoot(AppContext.BaseDirectory),
+                MaterialsCatalog.LoadFromContentRoot(AppContext.BaseDirectory),
+                storage,
+                new QrCoderRasterizer(),
+                new SmartGuestLinkService(
+                    _context,
+                    configuration,
+                    new NoOpBillingAccountLifecycle()
+                ),
+                work,
+                NullLogger<PrintReadyQrMaterialsService>.Instance
+            );
         }
 
         private async Task<RestaurantLocation> SeedLocationWithTableTentAsync()
@@ -397,6 +508,69 @@ namespace TummlyBackend.Tests.Services
             _context.ShopOrders.Add(order);
             await _context.SaveChangesAsync();
             return order.Id;
+        }
+
+        private sealed class RecordingPrintReadyQrMaterialsWork
+            : IPrintReadyQrMaterialsWork
+        {
+            public List<int> LocationIds { get; } = [];
+
+            public List<Guid> ShopOrderIds { get; } = [];
+
+            public bool ThrowOnStarterRequest { get; set; }
+
+            public ValueTask RequestEnsureAsync(
+                int locationId,
+                CancellationToken cancellationToken = default
+            )
+            {
+                if (ThrowOnStarterRequest)
+                {
+                    throw new InvalidOperationException(
+                        "Controlled queue failure."
+                    );
+                }
+
+                LocationIds.Add(locationId);
+                return ValueTask.CompletedTask;
+            }
+
+            public ValueTask RequestShopOrderEnsureAsync(
+                Guid shopOrderId,
+                CancellationToken cancellationToken = default
+            )
+            {
+                ShopOrderIds.Add(shopOrderId);
+                return ValueTask.CompletedTask;
+            }
+
+            public Task RunAsync(CancellationToken stoppingToken) =>
+                Task.CompletedTask;
+
+            public Task DrainAsync(
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
+        }
+
+        private sealed class NoOpPrintReadyQrMaterialsWork
+            : IPrintReadyQrMaterialsWork
+        {
+            public ValueTask RequestEnsureAsync(
+                int locationId,
+                CancellationToken cancellationToken = default
+            ) => ValueTask.CompletedTask;
+
+            public ValueTask RequestShopOrderEnsureAsync(
+                Guid shopOrderId,
+                CancellationToken cancellationToken = default
+            ) => ValueTask.CompletedTask;
+
+            public Task RunAsync(CancellationToken stoppingToken) =>
+                Task.CompletedTask;
+
+            public Task DrainAsync(
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
         }
 
         private sealed class RecordingStorage : IQueryAttachmentStorage

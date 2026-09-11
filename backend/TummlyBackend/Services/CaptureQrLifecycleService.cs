@@ -6,7 +6,6 @@ using TummlyBackend.DTOs.Capture;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
-using TummlyBackend.PrintReadyQrMaterials;
 
 namespace TummlyBackend.Services
 {
@@ -20,21 +19,21 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly ISmartGuestLinkService _smartGuestLink;
         private readonly IPricebookCatalog _pricebookCatalog;
-        private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
+        private readonly IPrintReadyQrMaterialsService _printReadyQrMaterials;
         private readonly ILogger<CaptureQrLifecycleService> _logger;
 
         public CaptureQrLifecycleService(
             ApplicationDbContext context,
             ISmartGuestLinkService smartGuestLink,
             IPricebookCatalog pricebookCatalog,
-            IPrintReadyQrMaterialsWork printReadyQrMaterialsWork,
+            IPrintReadyQrMaterialsService printReadyQrMaterials,
             ILogger<CaptureQrLifecycleService> logger
         )
         {
             _context = context;
             _smartGuestLink = smartGuestLink;
             _pricebookCatalog = pricebookCatalog;
-            _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
+            _printReadyQrMaterials = printReadyQrMaterials;
             _logger = logger;
         }
 
@@ -344,44 +343,22 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var regeneratesPrintMaterials =
-                StarterQrMaterialTypes.Contains(qrCode.QrType);
-            Guid[] shopOrderIds = [];
-            if (regeneratesPrintMaterials)
-            {
-                var assets = await _context.PrintReadyQrAssets
-                    .Where(row =>
-                        row.RestaurantLocationId == command.LocationId
-                        && row.QrType == qrCode.QrType
-                    )
-                    .ToListAsync();
-
-                shopOrderIds = assets
-                    .Where(asset => asset.ShopOrderId.HasValue)
-                    .Select(asset => asset.ShopOrderId!.Value)
-                    .Distinct()
-                    .ToArray();
-                foreach (var asset in assets)
-                {
-                    asset.Status = PrintReadyQrAssetStatus.Preparing;
-                    asset.StorageKey = null;
-                    asset.FileName = null;
-                    asset.QrTokenFingerprint = null;
-                    asset.TemplatePackVersion = null;
-                    asset.OfferCopyVersion = null;
-                    asset.LastError = null;
-                    asset.UpdatedAtUtc = DateTime.UtcNow;
-                }
-            }
-
             qrCode.Token = await _smartGuestLink.GenerateTokenAsync();
             await _context.SaveChangesAsync();
 
-            if (regeneratesPrintMaterials)
+            try
             {
-                RequestPrintMaterialRegeneration(
+                await _printReadyQrMaterials.InvalidateAfterQrRotationAsync(
                     command.LocationId,
-                    shopOrderIds
+                    qrCode.QrType
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Could not invalidate print-ready QR materials after rotating QR code {QrCodeId}",
+                    qrCode.Id
                 );
             }
 
@@ -392,81 +369,6 @@ namespace TummlyBackend.Services
                 status = qrCode.Status.ToString(),
                 qrLinkUrl = _smartGuestLink.BuildGuestUrl(qrCode.Token),
             });
-        }
-
-        private void RequestPrintMaterialRegeneration(
-            int locationId,
-            IReadOnlyCollection<Guid> shopOrderIds
-        )
-        {
-            RequestPrintMaterialRegeneration(
-                () => _printReadyQrMaterialsWork.RequestEnsureAsync(locationId),
-                "Starter",
-                locationId
-            );
-            foreach (var shopOrderId in shopOrderIds)
-            {
-                RequestPrintMaterialRegeneration(
-                    () => _printReadyQrMaterialsWork
-                        .RequestShopOrderEnsureAsync(shopOrderId),
-                    "Shop",
-                    shopOrderId
-                );
-            }
-        }
-
-        private void RequestPrintMaterialRegeneration(
-            Func<ValueTask> requestFactory,
-            string scope,
-            object scopeId
-        )
-        {
-            try
-            {
-                var request = requestFactory();
-                if (!request.IsCompletedSuccessfully)
-                {
-                    _ = ObservePrintMaterialRequestAsync(
-                        request,
-                        scope,
-                        scopeId
-                    );
-                }
-            }
-            catch (Exception ex)
-            {
-                LogPrintMaterialRequestFailure(ex, scope, scopeId);
-            }
-        }
-
-        private async Task ObservePrintMaterialRequestAsync(
-            ValueTask request,
-            string scope,
-            object scopeId
-        )
-        {
-            try
-            {
-                await request;
-            }
-            catch (Exception ex)
-            {
-                LogPrintMaterialRequestFailure(ex, scope, scopeId);
-            }
-        }
-
-        private void LogPrintMaterialRequestFailure(
-            Exception exception,
-            string scope,
-            object scopeId
-        )
-        {
-            _logger.LogError(
-                exception,
-                "Could not queue {Scope} QR material regeneration for {ScopeId}",
-                scope,
-                scopeId
-            );
         }
 
         public async Task<QrLifecycleResult> ArchiveAsync(

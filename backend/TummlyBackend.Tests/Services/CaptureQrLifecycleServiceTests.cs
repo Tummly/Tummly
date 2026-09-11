@@ -18,7 +18,8 @@ namespace TummlyBackend.Tests.Services
         private readonly ApplicationDbContext _context;
         private readonly CaptureQrLifecycleService _service;
         private readonly SmartGuestLinkService _smartGuestLink;
-        private readonly RecordingPrintReadyQrMaterialsWork _printWork = new();
+        private readonly RecordingPrintReadyQrMaterialsService _printMaterials =
+            new();
         private int _userId;
         private int _locationId;
 
@@ -44,7 +45,7 @@ namespace TummlyBackend.Tests.Services
                 _context,
                 _smartGuestLink,
                 PricebookCatalog.LoadFromDirectory(PackDirectory()),
-                _printWork,
+                _printMaterials,
                 NullLogger<CaptureQrLifecycleService>.Instance
             );
 
@@ -154,54 +155,20 @@ namespace TummlyBackend.Tests.Services
         [InlineData(QrType.TableTent, QrCodeStatus.Active)]
         [InlineData(QrType.WindowSticker, QrCodeStatus.Paused)]
         [InlineData(QrType.OfferCard, QrCodeStatus.Active)]
-        public async Task Rotate_StarterMaterial_InvalidatesReadyAssetAndQueuesRegeneration(
+        public async Task Rotate_PhysicalMaterial_RequestsAsyncRegeneration(
             QrType qrType,
             QrCodeStatus status
         )
         {
             var qr = await SeedQrAsync(qrType, status);
-            var shopOrderId = Guid.NewGuid();
-            _context.PrintReadyQrAssets.AddRange(
-                ReadyAsset(shopOrderId: null),
-                ReadyAsset(shopOrderId)
-            );
-            await _context.SaveChangesAsync();
 
             var result = await _service.RotateAsync(CodeCommand(qr.Id));
 
             Assert.Equal(QrLifecycleResultKind.Ok, result.Kind);
-            var assets = await _context.PrintReadyQrAssets
-                .AsNoTracking()
-                .ToListAsync();
-            Assert.Equal(2, assets.Count);
-            Assert.All(assets, asset =>
-            {
-                Assert.Equal(PrintReadyQrAssetStatus.Preparing, asset.Status);
-                Assert.Null(asset.StorageKey);
-                Assert.Null(asset.FileName);
-                Assert.Null(asset.QrTokenFingerprint);
-                Assert.Null(asset.TemplatePackVersion);
-                Assert.Null(asset.OfferCopyVersion);
-                Assert.Null(asset.LastError);
-            });
-            Assert.Equal(new[] { _locationId }, _printWork.LocationIds);
-            Assert.Equal(new[] { shopOrderId }, _printWork.ShopOrderIds);
-
-            PrintReadyQrAsset ReadyAsset(Guid? shopOrderId) =>
-                new()
-                {
-                    RestaurantLocationId = _locationId,
-                    QrType = qrType,
-                    ShopOrderId = shopOrderId,
-                    Status = PrintReadyQrAssetStatus.Ready,
-                    StorageKey = $"ready/{qr.Token}.pdf",
-                    FileName = "ready.pdf",
-                    QrTokenFingerprint = "old-token-fingerprint",
-                    TemplatePackVersion = "old-pack",
-                    OfferCopyVersion = "old-copy",
-                    CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
-                    UpdatedAtUtc = DateTime.UtcNow.AddHours(-1),
-                };
+            Assert.Equal(
+                new[] { (_locationId, qrType) },
+                _printMaterials.Rotations
+            );
         }
 
         [Fact]
@@ -212,7 +179,7 @@ namespace TummlyBackend.Tests.Services
                 QrCodeStatus.Active
             );
             var oldToken = qr.Token;
-            _printWork.ThrowOnRequest = true;
+            _printMaterials.ThrowOnInvalidate = true;
 
             var result = await _service.RotateAsync(CodeCommand(qr.Id));
 
@@ -232,7 +199,7 @@ namespace TummlyBackend.Tests.Services
                 "Digital guest links cannot be rotated.",
                 result.Message
             );
-            Assert.Empty(_printWork.LocationIds);
+            Assert.Empty(_printMaterials.Rotations);
             Assert.Empty(_context.PrintReadyQrAssets);
         }
 
@@ -963,53 +930,82 @@ namespace TummlyBackend.Tests.Services
             }
         }
 
-        private sealed class RecordingPrintReadyQrMaterialsWork
-            : IPrintReadyQrMaterialsWork
+        private sealed class RecordingPrintReadyQrMaterialsService
+            : IPrintReadyQrMaterialsService
         {
-            public List<int> LocationIds { get; } = [];
+            public List<(int LocationId, QrType QrType)> Rotations { get; } = [];
 
-            public List<Guid> ShopOrderIds { get; } = [];
+            public bool ThrowOnInvalidate { get; set; }
 
-            public bool ThrowOnRequest { get; set; }
+            public Task InvalidateAfterQrRotationAsync(
+                int locationId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            )
+            {
+                if (ThrowOnInvalidate)
+                {
+                    throw new InvalidOperationException(
+                        "Controlled print module failure."
+                    );
+                }
 
-            public ValueTask RequestEnsureAsync(
+                Rotations.Add((locationId, qrType));
+                return Task.CompletedTask;
+            }
+
+            public Task EnsureStarterMaterialsAsync(
                 int locationId,
                 CancellationToken cancellationToken = default
-            )
-            {
-                if (ThrowOnRequest)
-                {
-                    throw new InvalidOperationException(
-                        "Controlled queue failure."
-                    );
-                }
+            ) => throw new NotSupportedException();
 
-                LocationIds.Add(locationId);
-                return ValueTask.CompletedTask;
-            }
-
-            public ValueTask RequestShopOrderEnsureAsync(
+            public Task EnsureShopOrderMaterialsAsync(
                 Guid shopOrderId,
                 CancellationToken cancellationToken = default
-            )
-            {
-                if (ThrowOnRequest)
-                {
-                    throw new InvalidOperationException(
-                        "Controlled queue failure."
-                    );
-                }
+            ) => throw new NotSupportedException();
 
-                ShopOrderIds.Add(shopOrderId);
-                return ValueTask.CompletedTask;
-            }
+            public Task<IReadOnlyList<PrintMaterialsLocationReadinessDto>>
+                ListReadinessAsync(
+                    int operatorUserId,
+                    CancellationToken cancellationToken = default
+                ) => throw new NotSupportedException();
 
-            public Task RunAsync(CancellationToken stoppingToken) =>
-                Task.CompletedTask;
+            public Task<IReadOnlyList<ShopPrintAssetReadinessDto>>
+                ListShopOrderReadinessAsync(
+                    Guid shopOrderId,
+                    CancellationToken cancellationToken = default
+                ) => throw new NotSupportedException();
 
-            public Task DrainAsync(
+            public Task EnsureAllStarterMaterialsForOperatorAsync(
+                int operatorUserId,
                 CancellationToken cancellationToken = default
-            ) => Task.CompletedTask;
+            ) => throw new NotSupportedException();
+
+            public Task<PrintReadyQrDownload?> DownloadAsync(
+                int operatorUserId,
+                int locationId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
+            public Task<PrintReadyQrDownload?> DownloadShopOrderAsync(
+                Guid shopOrderId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
+            public Task<PrintMaterialsAssetReadinessDto?> RetryAsync(
+                int operatorUserId,
+                int locationId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
+            public Task<ShopPrintAssetReadinessDto?> RetryShopOrderAsync(
+                Guid shopOrderId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
         }
     }
 }

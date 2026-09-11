@@ -111,6 +111,12 @@ namespace TummlyBackend.Tests.Services
                 return Task.CompletedTask;
             }
 
+            public Task InvalidateAfterQrRotationAsync(
+                int locationId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
             public Task<
                 IReadOnlyList<PrintMaterialsLocationReadinessDto>
             > ListReadinessAsync(

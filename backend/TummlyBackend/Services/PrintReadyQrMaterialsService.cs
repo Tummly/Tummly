@@ -24,6 +24,7 @@ namespace TummlyBackend.Services
         private readonly IQueryAttachmentStorage _storage;
         private readonly IQrCodeRasterizer _rasterizer;
         private readonly ISmartGuestLinkService _guestLinks;
+        private readonly IPrintReadyQrMaterialsWork _work;
         private readonly ILogger<PrintReadyQrMaterialsService> _logger;
 
         public PrintReadyQrMaterialsService(
@@ -33,6 +34,7 @@ namespace TummlyBackend.Services
             IQueryAttachmentStorage storage,
             IQrCodeRasterizer rasterizer,
             ISmartGuestLinkService guestLinks,
+            IPrintReadyQrMaterialsWork work,
             ILogger<PrintReadyQrMaterialsService> logger
         )
         {
@@ -42,6 +44,7 @@ namespace TummlyBackend.Services
             _storage = storage;
             _rasterizer = rasterizer;
             _guestLinks = guestLinks;
+            _work = work;
             _logger = logger;
         }
 
@@ -107,6 +110,91 @@ namespace TummlyBackend.Services
                     shopOrderId,
                     cancellationToken
                 );
+            }
+        }
+
+        public async Task InvalidateAfterQrRotationAsync(
+            int locationId,
+            QrType qrType,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!StarterQrMaterialTypes.Contains(qrType))
+            {
+                return;
+            }
+
+            var assets = await _context.PrintReadyQrAssets
+                .Where(row =>
+                    row.RestaurantLocationId == locationId
+                    && row.QrType == qrType
+                )
+                .ToListAsync(cancellationToken);
+            foreach (var asset in assets)
+            {
+                asset.Status = PrintReadyQrAssetStatus.Preparing;
+                asset.StorageKey = null;
+                asset.FileName = null;
+                asset.QrTokenFingerprint = null;
+                asset.TemplatePackVersion = null;
+                asset.OfferCopyVersion = null;
+                asset.LastError = null;
+                asset.UpdatedAtUtc = DateTime.UtcNow;
+            }
+            await _context.SaveChangesAsync(cancellationToken);
+
+            await QueueRegenerationAsync(
+                () => _work.RequestEnsureAsync(locationId, cancellationToken),
+                assets.Where(asset => asset.ShopOrderId == null),
+                $"Owned location {locationId}",
+                cancellationToken
+            );
+            foreach (
+                var shopOrderId in assets
+                    .Where(asset => asset.ShopOrderId.HasValue)
+                    .Select(asset => asset.ShopOrderId!.Value)
+                    .Distinct()
+            )
+            {
+                await QueueRegenerationAsync(
+                    () => _work.RequestShopOrderEnsureAsync(
+                        shopOrderId,
+                        cancellationToken
+                    ),
+                    assets.Where(asset => asset.ShopOrderId == shopOrderId),
+                    $"Shop order {shopOrderId}",
+                    cancellationToken
+                );
+            }
+        }
+
+        private async Task QueueRegenerationAsync(
+            Func<ValueTask> request,
+            IEnumerable<PrintReadyQrAsset> affectedAssets,
+            string scope,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                await request();
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogError(
+                    ex,
+                    "Could not queue print-ready QR material regeneration for {Scope}",
+                    scope
+                );
+                foreach (var asset in affectedAssets)
+                {
+                    asset.Status = PrintReadyQrAssetStatus.Failed;
+                    asset.LastError = TruncateError(
+                        $"Could not queue regeneration: {ex.Message}"
+                    );
+                    asset.UpdatedAtUtc = DateTime.UtcNow;
+                }
+                await _context.SaveChangesAsync(cancellationToken);
             }
         }
 

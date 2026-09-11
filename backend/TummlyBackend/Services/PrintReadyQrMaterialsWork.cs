@@ -35,11 +35,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            WriteRequest(
-                PrintMaterialsRequest.ForStarter(locationId),
-                "Starter QR materials",
-                locationId
-            );
+            WriteRequest(new StarterMaterialsRequest(locationId));
             return ValueTask.CompletedTask;
         }
 
@@ -48,38 +44,16 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            WriteRequest(
-                PrintMaterialsRequest.ForShopOrder(shopOrderId),
-                "Shop print-ready QR materials",
-                shopOrderId
-            );
+            WriteRequest(new ShopOrderMaterialsRequest(shopOrderId));
             return ValueTask.CompletedTask;
         }
 
-        private void WriteRequest(
-            PrintMaterialsRequest request,
-            string requestName,
-            object scopeId
-        )
+        private void WriteRequest(PrintMaterialsRequest request)
         {
-            try
+            if (!_requests.Writer.TryWrite(request))
             {
-                if (!_requests.Writer.TryWrite(request))
-                {
-                    _logger.LogWarning(
-                        "{RequestName} request dropped for {ScopeId}",
-                        requestName,
-                        scopeId
-                    );
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(
-                    ex,
-                    "{RequestName} request failed for {ScopeId}",
-                    requestName,
-                    scopeId
+                throw new InvalidOperationException(
+                    $"Print-ready QR materials request could not be queued for {request.ScopeId}."
                 );
             }
         }
@@ -131,20 +105,7 @@ namespace TummlyBackend.Services
                 using var scope = _scopeFactory.CreateScope();
                 var materials = scope.ServiceProvider
                     .GetRequiredService<IPrintReadyQrMaterialsService>();
-                if (request.LocationId is int locationId)
-                {
-                    await materials.EnsureStarterMaterialsAsync(
-                        locationId,
-                        cancellationToken
-                    );
-                }
-                else
-                {
-                    await materials.EnsureShopOrderMaterialsAsync(
-                        request.ShopOrderId!.Value,
-                        cancellationToken
-                    );
-                }
+                await request.EnsureAsync(materials, cancellationToken);
             }
             catch (OperationCanceledException) when (
                 cancellationToken.IsCancellationRequested
@@ -162,20 +123,42 @@ namespace TummlyBackend.Services
             }
         }
 
-        private sealed record PrintMaterialsRequest(
-            int? LocationId,
-            Guid? ShopOrderId
-        )
+        private abstract record PrintMaterialsRequest
         {
-            public object ScopeId => LocationId is int locationId
-                ? locationId
-                : ShopOrderId!.Value;
+            public abstract object ScopeId { get; }
 
-            public static PrintMaterialsRequest ForStarter(int locationId) =>
-                new(locationId, null);
+            public abstract Task EnsureAsync(
+                IPrintReadyQrMaterialsService materials,
+                CancellationToken cancellationToken
+            );
+        }
 
-            public static PrintMaterialsRequest ForShopOrder(Guid shopOrderId) =>
-                new(null, shopOrderId);
+        private sealed record StarterMaterialsRequest(int LocationId)
+            : PrintMaterialsRequest
+        {
+            public override object ScopeId => LocationId;
+
+            public override Task EnsureAsync(
+                IPrintReadyQrMaterialsService materials,
+                CancellationToken cancellationToken
+            ) => materials.EnsureStarterMaterialsAsync(
+                LocationId,
+                cancellationToken
+            );
+        }
+
+        private sealed record ShopOrderMaterialsRequest(Guid ShopOrderId)
+            : PrintMaterialsRequest
+        {
+            public override object ScopeId => ShopOrderId;
+
+            public override Task EnsureAsync(
+                IPrintReadyQrMaterialsService materials,
+                CancellationToken cancellationToken
+            ) => materials.EnsureShopOrderMaterialsAsync(
+                ShopOrderId,
+                cancellationToken
+            );
         }
     }
 }
