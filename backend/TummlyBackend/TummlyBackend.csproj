@@ -33,6 +33,8 @@
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.148.0" />
+    <PackageReference Include="Svg.Skia" Version="5.2.3" />
     <PackageReference Include="Twilio" Version="7.14.9" />
   </ItemGroup>
 

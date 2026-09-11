@@ -6,6 +6,18 @@ import {
 } from "./createOperatorPrintMaterialsPageModule"
 
 describe("createOperatorPrintMaterialsPageModule", () => {
+  it("keeps the same snapshot reference until state changes", async () => {
+    const module = createOperatorPrintMaterialsPageModule(
+      createInMemoryOperatorPrintMaterialsAdapters({ locations: [] })
+    )
+
+    expect(module.getSnapshot()).toBe(module.getSnapshot())
+
+    await module.load(42)
+
+    expect(module.getSnapshot()).toBe(module.getSnapshot())
+  })
+
   it("maps readiness and download/retry affordances after load", async () => {
     const adapters = createInMemoryOperatorPrintMaterialsAdapters({
       locations: [

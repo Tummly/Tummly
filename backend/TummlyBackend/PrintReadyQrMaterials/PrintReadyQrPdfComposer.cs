@@ -1,12 +1,12 @@
-using System.Globalization;
-using System.Text;
+using SkiaSharp;
+using Svg.Skia;
 using TummlyBackend.Models;
 
 namespace TummlyBackend.PrintReadyQrMaterials
 {
     /// <summary>
-    /// Hand-rolled PDF page sized to the Dev SVG viewBox (mm→pt) with QR PNG
-    /// pixels and optional offer headline at pack millimetre slots.
+    /// Renders the Dev SVG artwork to a vector PDF, then places the dynamic
+    /// QR and optional offer headline at the pack's millimetre slots.
     /// </summary>
     public static class PrintReadyQrPdfComposer
     {
@@ -48,11 +48,12 @@ namespace TummlyBackend.PrintReadyQrMaterials
             QrRasterImage qrImage
         )
         {
-            var (widthMm, heightMm) = PrintTemplatePack.ReadSvgViewBoxMm(svgPath);
+            var (widthPt, heightPt) = PrintTemplatePack.ReadSvgViewBoxPoints(svgPath);
+            var widthMm = widthPt / MmToPt;
+            var heightMm = heightPt / MmToPt;
             var (xMm, yMm) = ResolveQrTopLeft(widthMm, heightMm, qrSlot);
-            return BuildSinglePagePdf(
-                widthMm * MmToPt,
-                heightMm * MmToPt,
+            return RenderTemplatePdf(
+                svgPath,
                 qrImage,
                 xMm * MmToPt,
                 yMm * MmToPt,
@@ -69,12 +70,10 @@ namespace TummlyBackend.PrintReadyQrMaterials
             string? offerHeadline
         )
         {
-            var (widthMm, heightMm) = PrintTemplatePack.ReadSvgViewBoxMm(pack.CardSvgPath);
             var qr = pack.OfferCardQr;
             var headline = pack.OfferCardHeadline;
-            return BuildSinglePagePdf(
-                widthMm * MmToPt,
-                heightMm * MmToPt,
+            return RenderTemplatePdf(
+                pack.CardSvgPath,
                 qrImage,
                 (qr.XMm ?? 0) * MmToPt,
                 (qr.YMm ?? 0) * MmToPt,
@@ -109,9 +108,8 @@ namespace TummlyBackend.PrintReadyQrMaterials
             );
         }
 
-        private static byte[] BuildSinglePagePdf(
-            double pageWidthPt,
-            double pageHeightPt,
+        private static byte[] RenderTemplatePdf(
+            string svgPath,
             QrRasterImage qrImage,
             double qrXFromLeftPt,
             double qrYFromTopPt,
@@ -121,158 +119,193 @@ namespace TummlyBackend.PrintReadyQrMaterials
             PrintSlotRectSpec? headlineBox
         )
         {
-            // PDF origin is bottom-left; SVG slot Y is from top.
-            var qrYPdf = pageHeightPt - qrYFromTopPt - qrHeightPt;
-
-            var content = new StringBuilder(512);
-            // White page fill
-            content.Append("1 1 1 rg 0 0 ");
-            content.Append(F(pageWidthPt));
-            content.Append(' ');
-            content.Append(F(pageHeightPt));
-            content.Append(" re f\n");
-
-            if (headline is not null && headlineBox is not null)
+            using var svg = new SKSvg();
+            var picture = svg.Load(svgPath)
+                ?? throw new InvalidOperationException(
+                    $"Print template SVG could not be loaded: {svgPath}"
+                );
+            var bounds = picture.CullRect;
+            if (bounds.Width <= 0 || bounds.Height <= 0)
             {
-                var textYPdf =
-                    pageHeightPt
-                    - (headlineBox.YMm * MmToPt)
-                    - (headlineBox.HeightMm * MmToPt / 2.0);
-                var textX = headlineBox.XMm * MmToPt;
-                var fontSize = Math.Min(11.0, headlineBox.HeightMm * MmToPt * 0.45);
-                content.Append("0 0 0 rg\n");
-                content.Append("BT /F1 ");
-                content.Append(F(fontSize));
-                content.Append(" Tf ");
-                content.Append(F(textX));
-                content.Append(' ');
-                content.Append(F(textYPdf));
-                content.Append(" Td (");
-                content.Append(EscapePdfText(SanitizeAscii(headline)));
-                content.Append(") Tj ET\n");
+                throw new InvalidOperationException(
+                    $"Print template SVG has an invalid viewBox: {svgPath}"
+                );
             }
-
-            // Black-on-white QR image
-            content.Append("q ");
-            content.Append(F(qrWidthPt));
-            content.Append(" 0 0 ");
-            content.Append(F(qrHeightPt));
-            content.Append(' ');
-            content.Append(F(qrXFromLeftPt));
-            content.Append(' ');
-            content.Append(F(qrYPdf));
-            content.Append(" cm /Im1 Do Q\n");
-
-            var contentBytes = Encoding.ASCII.GetBytes(content.ToString());
-            var imageBytes = qrImage.RgbBytes;
-
-            var objects = new List<byte[]>
-            {
-                Encoding.ASCII.GetBytes(
-                    "1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj\n"
-                ),
-                Encoding.ASCII.GetBytes(
-                    "2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj\n"
-                ),
-                Encoding.ASCII.GetBytes(
-                    "3 0 obj<< /Type /Page /Parent 2 0 R "
-                        + $"/MediaBox [0 0 {F(pageWidthPt)} {F(pageHeightPt)}] "
-                        + "/Contents 4 0 R "
-                        + "/Resources<< /Font<< /F1 5 0 R >> "
-                        + "/XObject<< /Im1 6 0 R >> >> >>endobj\n"
-                ),
-                Concat(
-                    Encoding.ASCII.GetBytes(
-                        $"4 0 obj<< /Length {contentBytes.Length} >>stream\n"
-                    ),
-                    contentBytes,
-                    Encoding.ASCII.GetBytes("\nendstream\nendobj\n")
-                ),
-                Encoding.ASCII.GetBytes(
-                    "5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj\n"
-                ),
-                Concat(
-                    Encoding.ASCII.GetBytes(
-                        "6 0 obj<< /Type /XObject /Subtype /Image "
-                            + $"/Width {qrImage.Width} /Height {qrImage.Height} "
-                            + "/ColorSpace /DeviceRGB /BitsPerComponent 8 "
-                            + $"/Length {imageBytes.Length} >>stream\n"
-                    ),
-                    imageBytes,
-                    Encoding.ASCII.GetBytes("\nendstream\nendobj\n")
-                ),
-            };
 
             using var output = new MemoryStream();
-            output.Write(Encoding.ASCII.GetBytes("%PDF-1.4\n"));
-            var offsets = new List<int> { 0 };
-            foreach (var obj in objects)
+            var metadata = SKDocumentPdfMetadata.Default;
+            metadata.Title = "Tummly print-ready QR material";
+            metadata.Subject = headline;
+            using (var document = SKDocument.CreatePdf(output, metadata))
             {
-                offsets.Add((int)output.Position);
-                output.Write(obj);
+                var canvas = document.BeginPage(bounds.Width, bounds.Height);
+                canvas.Clear(SKColors.White);
+
+                canvas.Save();
+                canvas.Translate(-bounds.Left, -bounds.Top);
+                canvas.DrawPicture(picture);
+                canvas.Restore();
+
+                if (headline is not null && headlineBox is not null)
+                {
+                    DrawHeadline(canvas, headline, headlineBox);
+                }
+
+                DrawQr(
+                    canvas,
+                    qrImage,
+                    (float)qrXFromLeftPt,
+                    (float)qrYFromTopPt,
+                    (float)qrWidthPt,
+                    (float)qrHeightPt
+                );
+
+                document.EndPage();
+                document.Close();
             }
 
-            var xrefPos = (int)output.Position;
-            var xref = new StringBuilder();
-            xref.Append($"xref\n0 {objects.Count + 1}\n");
-            xref.Append("0000000000 65535 f \n");
-            for (var i = 1; i < offsets.Count; i++)
-            {
-                xref.Append(offsets[i].ToString("D10", CultureInfo.InvariantCulture));
-                xref.Append(" 00000 n \n");
-            }
-
-            xref.Append($"trailer<< /Size {objects.Count + 1} /Root 1 0 R >>\n");
-            xref.Append("startxref\n");
-            xref.Append(xrefPos);
-            xref.Append("\n%%EOF\n");
-            output.Write(Encoding.ASCII.GetBytes(xref.ToString()));
             return output.ToArray();
         }
 
-        private static string F(double value) =>
-            value.ToString("0.##", CultureInfo.InvariantCulture);
-
-        private static string SanitizeAscii(string value)
+        private static void DrawQr(
+            SKCanvas canvas,
+            QrRasterImage qrImage,
+            float x,
+            float y,
+            float width,
+            float height
+        )
         {
-            var sb = new StringBuilder(value.Length);
-            foreach (var ch in value)
+            if (qrImage.RgbBytes.Length != qrImage.Width * qrImage.Height * 3)
             {
-                if (ch >= 32 && ch <= 126)
+                throw new InvalidOperationException(
+                    "QR raster RGB byte count does not match its dimensions."
+                );
+            }
+
+            using var bitmap = new SKBitmap(
+                new SKImageInfo(
+                    qrImage.Width,
+                    qrImage.Height,
+                    SKColorType.Bgra8888,
+                    SKAlphaType.Opaque
+                )
+            );
+            for (var row = 0; row < qrImage.Height; row++)
+            {
+                for (var column = 0; column < qrImage.Width; column++)
                 {
-                    sb.Append(ch);
-                }
-                else if (char.IsWhiteSpace(ch))
-                {
-                    sb.Append(' ');
-                }
-                else
-                {
-                    sb.Append('?');
+                    var offset = (row * qrImage.Width + column) * 3;
+                    bitmap.SetPixel(
+                        column,
+                        row,
+                        new SKColor(
+                            qrImage.RgbBytes[offset],
+                            qrImage.RgbBytes[offset + 1],
+                            qrImage.RgbBytes[offset + 2]
+                        )
+                    );
                 }
             }
 
-            return sb.ToString();
+            using var image = SKImage.FromBitmap(bitmap);
+            canvas.DrawImage(
+                image,
+                new SKRect(x, y, x + width, y + height),
+                new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None),
+                null
+            );
         }
 
-        private static string EscapePdfText(string value) =>
-            value
-                .Replace("\\", "\\\\", StringComparison.Ordinal)
-                .Replace("(", "\\(", StringComparison.Ordinal)
-                .Replace(")", "\\)", StringComparison.Ordinal);
-
-        private static byte[] Concat(params byte[][] parts)
+        private static void DrawHeadline(
+            SKCanvas canvas,
+            string headline,
+            PrintSlotRectSpec box
+        )
         {
-            var length = parts.Sum(part => part.Length);
-            var buffer = new byte[length];
-            var offset = 0;
-            foreach (var part in parts)
+            var boxWidth = (float)(box.WidthMm * MmToPt);
+            var boxHeight = (float)(box.HeightMm * MmToPt);
+            using var typeface = SKTypeface.FromFamilyName(
+                "Arial",
+                SKFontStyle.Bold
+            );
+            using var paint = new SKPaint
             {
-                Buffer.BlockCopy(part, 0, buffer, offset, part.Length);
-                offset += part.Length;
+                IsAntialias = true,
+                Color = new SKColor(0x16, 0x1a, 0x18),
+            };
+            using var font = new SKFont(
+                typeface,
+                Math.Min(11f, boxHeight * 0.32f)
+            );
+
+            var lines = WrapHeadline(headline, font, paint, boxWidth);
+            while (lines.Count > 2 && font.Size > 7f)
+            {
+                font.Size -= 0.5f;
+                lines = WrapHeadline(headline, font, paint, boxWidth);
             }
 
-            return buffer;
+            lines = lines.Take(2).ToList();
+            var metrics = font.Metrics;
+            var lineHeight = (metrics.Descent - metrics.Ascent) * 1.1f;
+            var textHeight = lineHeight * lines.Count;
+            var x = (float)(box.XMm * MmToPt);
+            var y =
+                (float)(box.YMm * MmToPt)
+                + (boxHeight - textHeight) / 2f
+                - metrics.Ascent;
+
+            foreach (var line in lines)
+            {
+                canvas.DrawText(
+                    line,
+                    x,
+                    y,
+                    SKTextAlign.Left,
+                    font,
+                    paint
+                );
+                y += lineHeight;
+            }
+        }
+
+        private static List<string> WrapHeadline(
+            string headline,
+            SKFont font,
+            SKPaint paint,
+            float maxWidth
+        )
+        {
+            var lines = new List<string>();
+            var current = string.Empty;
+            foreach (
+                var word in headline.Split(
+                    ' ',
+                    StringSplitOptions.RemoveEmptyEntries
+                )
+            )
+            {
+                var candidate = current.Length == 0 ? word : $"{current} {word}";
+                if (
+                    current.Length == 0
+                    || font.MeasureText(candidate, paint) <= maxWidth
+                )
+                {
+                    current = candidate;
+                    continue;
+                }
+
+                lines.Add(current);
+                current = word;
+            }
+
+            if (current.Length > 0)
+            {
+                lines.Add(current);
+            }
+
+            return lines;
         }
     }
 }

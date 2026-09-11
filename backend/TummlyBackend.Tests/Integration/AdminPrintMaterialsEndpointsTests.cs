@@ -68,6 +68,43 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ConcurrentEnsure_IsIdempotent()
+        {
+            var seeded = await SeedOperatorWithDefaultQrCodesAsync();
+            var url =
+                $"/api/admin/operators/{seeded.OwnerUserId}/locations/{seeded.LocationId}/print-materials/ensure";
+            using var firstRequest = AuthorizedPost(url, seeded.AdminJwt);
+            using var secondRequest = AuthorizedPost(url, seeded.AdminJwt);
+
+            var responses = await Task.WhenAll(
+                _client.SendAsync(firstRequest),
+                _client.SendAsync(secondRequest)
+            );
+
+            Assert.All(
+                responses,
+                response => Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+            );
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var assets = await context.PrintReadyQrAssets
+                .AsNoTracking()
+                .Where(row =>
+                    row.RestaurantLocationId == seeded.LocationId
+                )
+                .ToListAsync();
+            Assert.Equal(3, assets.Count);
+            Assert.All(
+                assets,
+                asset => Assert.Equal(
+                    PrintReadyQrAssetStatus.Ready,
+                    asset.Status
+                )
+            );
+        }
+
+        [Fact]
         public async Task Download_ReturnsPdf_WhenReady_WithDistinctTentAndStickerNames()
         {
             var seeded = await SeedOperatorWithDefaultQrCodesAsync();

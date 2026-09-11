@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
@@ -16,6 +18,11 @@ namespace TummlyBackend.Services
             QrType.WindowSticker,
             QrType.OfferCard,
         };
+        private static readonly ConcurrentDictionary<
+            (int LocationId, QrType QrType),
+            SemaphoreSlim
+        > EnsureLocks = new();
+        private const int AutomaticGenerationAttempts = 2;
 
         private readonly ApplicationDbContext _context;
         private readonly PrintTemplatePack _pack;
@@ -262,6 +269,31 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            var generationLock = EnsureLocks.GetOrAdd(
+                (location.Id, qrType),
+                static _ => new SemaphoreSlim(1, 1)
+            );
+            await generationLock.WaitAsync(cancellationToken);
+            try
+            {
+                await EnsureOneWithinLockAsync(
+                    location,
+                    qrType,
+                    cancellationToken
+                );
+            }
+            finally
+            {
+                generationLock.Release();
+            }
+        }
+
+        private async Task EnsureOneWithinLockAsync(
+            RestaurantLocation location,
+            QrType qrType,
+            CancellationToken cancellationToken
+        )
+        {
             var qrCode = await _context.QrCodes
                 .AsNoTracking()
                 .FirstOrDefaultAsync(
@@ -304,8 +336,10 @@ namespace TummlyBackend.Services
                 return;
             }
 
+            var isNewAsset = false;
             if (asset == null)
             {
+                isNewAsset = true;
                 asset = new PrintReadyQrAsset
                 {
                     RestaurantLocationId = location.Id,
@@ -318,13 +352,26 @@ namespace TummlyBackend.Services
             }
             else
             {
-                asset.Status = PrintReadyQrAssetStatus.Preparing;
+                asset!.Status = PrintReadyQrAssetStatus.Preparing;
                 asset.LastError = null;
                 asset.UpdatedAtUtc = DateTime.UtcNow;
             }
 
-            await _context.SaveChangesAsync(cancellationToken);
-            await GenerateAndStoreAsync(location, asset, cancellationToken);
+            try
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException ex) when (
+                isNewAsset && IsUniqueConstraintViolation(ex)
+            )
+            {
+                // Another API instance won the starter location/type insert.
+                // That request owns generation; this ensure is already satisfied.
+                _context.Entry(asset!).State = EntityState.Detached;
+                return;
+            }
+
+            await GenerateAndStoreAsync(location, asset!, cancellationToken);
         }
 
         private async Task GenerateAndStoreAsync(
@@ -333,82 +380,120 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            try
+            Exception? lastFailure = null;
+            for (
+                var attempt = 1;
+                attempt <= AutomaticGenerationAttempts;
+                attempt++
+            )
             {
-                var qrCode = await _context.QrCodes
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(
-                        row =>
-                            row.RestaurantLocationId == location.Id
-                            && row.QrType == asset.QrType
-                            && row.Status == QrCodeStatus.Active,
+                try
+                {
+                    await GenerateAndStoreOnceAsync(
+                        location,
+                        asset,
                         cancellationToken
                     );
-
-                if (qrCode == null)
-                {
-                    throw new InvalidOperationException(
-                        $"No Active QR code for {asset.QrType} at location {location.Id}."
-                    );
+                    return;
                 }
-
-                if (!_storage.IsConfigured)
+                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
                 {
-                    throw new InvalidOperationException(
-                        "Object storage is not configured for print-ready QR assets."
-                    );
+                    lastFailure = ex;
+                    if (attempt < AutomaticGenerationAttempts)
+                    {
+                        _logger.LogWarning(
+                            ex,
+                            "Print-ready QR asset attempt {Attempt} failed for {QrType} at location {LocationId}; retrying",
+                            attempt,
+                            asset.QrType,
+                            location.Id
+                        );
+                        await Task.Delay(
+                            TimeSpan.FromMilliseconds(50 * attempt),
+                            cancellationToken
+                        );
+                    }
                 }
+            }
 
-                var guestUrl = _guestLinks.BuildGuestUrl(qrCode.Token);
-                var raster = _rasterizer.Render(guestUrl);
-                var pdf = PrintReadyQrPdfComposer.Compose(
-                    _pack.Snapshot,
-                    asset.QrType,
-                    raster,
-                    _pack.Snapshot.DefaultOfferHeadline
-                );
+            _logger.LogError(
+                lastFailure,
+                "Failed to generate print-ready QR asset {QrType} for location {LocationId} after {Attempts} attempts",
+                asset.QrType,
+                location.Id,
+                AutomaticGenerationAttempts
+            );
+            asset.Status = PrintReadyQrAssetStatus.Failed;
+            asset.LastError = TruncateError(
+                lastFailure?.Message ?? "Generation failed."
+            );
+            asset.UpdatedAtUtc = DateTime.UtcNow;
+            await _context.SaveChangesAsync(cancellationToken);
+        }
 
-                var fingerprint = FingerprintToken(qrCode.Token);
-                var fileName = BuildStorageFileName(
-                    location,
-                    asset.QrType
-                );
-                var storageKey =
-                    $"print-ready-qr/{location.Id}/{asset.QrType}/{fingerprint}.pdf";
-
-                await using var upload = new MemoryStream(pdf);
-                await _storage.UploadAsync(
-                    storageKey,
-                    upload,
-                    PrintReadyQrPdfComposer.ContentType,
-                    pdf.Length,
+        private async Task GenerateAndStoreOnceAsync(
+            RestaurantLocation location,
+            PrintReadyQrAsset asset,
+            CancellationToken cancellationToken
+        )
+        {
+            var qrCode = await _context.QrCodes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.RestaurantLocationId == location.Id
+                        && row.QrType == asset.QrType
+                        && row.Status == QrCodeStatus.Active,
                     cancellationToken
                 );
 
-                asset.Status = PrintReadyQrAssetStatus.Ready;
-                asset.StorageKey = storageKey;
-                asset.ContentType = PrintReadyQrPdfComposer.ContentType;
-                asset.FileName = fileName;
-                asset.QrTokenFingerprint = fingerprint;
-                asset.TemplatePackVersion = _pack.CurrentPackId;
-                asset.OfferCopyVersion = _pack.Snapshot.OfferCopyVersion;
-                asset.LastError = null;
-                asset.UpdatedAtUtc = DateTime.UtcNow;
-                await _context.SaveChangesAsync(cancellationToken);
-            }
-            catch (Exception ex)
+            if (qrCode == null)
             {
-                _logger.LogError(
-                    ex,
-                    "Failed to generate print-ready QR asset {QrType} for location {LocationId}",
-                    asset.QrType,
-                    location.Id
+                throw new InvalidOperationException(
+                    $"No Active QR code for {asset.QrType} at location {location.Id}."
                 );
-                asset.Status = PrintReadyQrAssetStatus.Failed;
-                asset.LastError = TruncateError(ex.Message);
-                asset.UpdatedAtUtc = DateTime.UtcNow;
-                await _context.SaveChangesAsync(cancellationToken);
             }
+
+            if (!_storage.IsConfigured)
+            {
+                throw new InvalidOperationException(
+                    "Object storage is not configured for print-ready QR assets."
+                );
+            }
+
+            var guestUrl = _guestLinks.BuildGuestUrl(qrCode.Token);
+            var raster = _rasterizer.Render(guestUrl);
+            var pdf = PrintReadyQrPdfComposer.Compose(
+                _pack.Snapshot,
+                asset.QrType,
+                raster,
+                _pack.Snapshot.DefaultOfferHeadline
+            );
+
+            var fingerprint = FingerprintToken(qrCode.Token);
+            var fileName = BuildStorageFileName(location, asset.QrType);
+            var storageKey =
+                $"print-ready-qr/{location.Id}/{asset.QrType}/{fingerprint}.pdf";
+
+            await using var upload = new MemoryStream(pdf);
+            await _storage.UploadAsync(
+                storageKey,
+                upload,
+                PrintReadyQrPdfComposer.ContentType,
+                pdf.Length,
+                cancellationToken
+            );
+
+            asset.Status = PrintReadyQrAssetStatus.Ready;
+            asset.StorageKey = storageKey;
+            asset.ContentType = PrintReadyQrPdfComposer.ContentType;
+            asset.FileName = fileName;
+            asset.QrTokenFingerprint = fingerprint;
+            asset.TemplatePackVersion = _pack.CurrentPackId;
+            asset.OfferCopyVersion = _pack.Snapshot.OfferCopyVersion;
+            asset.LastError = null;
+            asset.UpdatedAtUtc = DateTime.UtcNow;
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         private async Task<List<int>> OwnedLocationIdsAsync(
@@ -454,13 +539,7 @@ namespace TummlyBackend.Services
                 location.Restaurant?.Name ?? "restaurant"
             );
             var locationSlug = Slug(location.LocationName);
-            var typeSlug = qrType switch
-            {
-                QrType.TableTent => "table-tent",
-                QrType.WindowSticker => "window-sticker",
-                QrType.OfferCard => "offer-card",
-                _ => qrType.ToString().ToLowerInvariant(),
-            };
+            var typeSlug = QrTypeSlug(qrType);
             return $"tummly-{restaurant}-{locationSlug}-{typeSlug}.pdf";
         }
 
@@ -470,13 +549,7 @@ namespace TummlyBackend.Services
         /// </summary>
         private static string BuildDistinctFileName(string storedName, QrType qrType)
         {
-            var typeSlug = qrType switch
-            {
-                QrType.TableTent => "table-tent",
-                QrType.WindowSticker => "window-sticker",
-                QrType.OfferCard => "offer-card",
-                _ => qrType.ToString().ToLowerInvariant(),
-            };
+            var typeSlug = QrTypeSlug(qrType);
 
             if (storedName.Contains(typeSlug, StringComparison.OrdinalIgnoreCase))
             {
@@ -487,6 +560,15 @@ namespace TummlyBackend.Services
                 ? storedName[..^4] + $"-{typeSlug}.pdf"
                 : $"{storedName}-{typeSlug}.pdf";
         }
+
+        private static string QrTypeSlug(QrType qrType) =>
+            qrType switch
+            {
+                QrType.TableTent => "table-tent",
+                QrType.WindowSticker => "window-sticker",
+                QrType.OfferCard => "offer-card",
+                _ => qrType.ToString().ToLowerInvariant(),
+            };
 
         private static string Slug(string value)
         {
@@ -518,6 +600,16 @@ namespace TummlyBackend.Services
             }
 
             return message.Length <= 1000 ? message : message[..1000];
+        }
+
+        private static bool IsUniqueConstraintViolation(
+            DbUpdateException exception
+        )
+        {
+            return exception.InnerException is SqlException
+            {
+                Number: 2601 or 2627,
+            };
         }
     }
 

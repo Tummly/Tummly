@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Hosting;
@@ -107,7 +106,14 @@ namespace TummlyBackend.PrintReadyQrMaterials
             );
         }
 
-        public static (double WidthMm, double HeightMm) ReadSvgViewBoxMm(string svgPath)
+        /// <summary>
+        /// Illustrator exports the Dev templates at 72 user units per inch.
+        /// PDF points use the same scale, so the SVG viewBox can be used
+        /// directly as the PDF page size. Slot values stay in millimetres.
+        /// </summary>
+        public static (float WidthPt, float HeightPt) ReadSvgViewBoxPoints(
+            string svgPath
+        )
         {
             var text = File.ReadAllText(svgPath);
             var match = Regex.Match(
@@ -122,8 +128,14 @@ namespace TummlyBackend.PrintReadyQrMaterials
                 );
             }
 
-            var width = double.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
-            var height = double.Parse(match.Groups[4].Value, CultureInfo.InvariantCulture);
+            var width = float.Parse(
+                match.Groups[3].Value,
+                System.Globalization.CultureInfo.InvariantCulture
+            );
+            var height = float.Parse(
+                match.Groups[4].Value,
+                System.Globalization.CultureInfo.InvariantCulture
+            );
             return (width, height);
         }
 
