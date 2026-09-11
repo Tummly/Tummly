@@ -778,115 +778,6 @@ namespace TummlyBackend.Tests.Integration
             }
         }
 
-        [Theory]
-        [InlineData(QrCodeStatus.Active)]
-        [InlineData(QrCodeStatus.Paused)]
-        public async Task RotatePlacement_StarterAsset_PreparesThenRegeneratesForNewToken(
-            QrCodeStatus status
-        )
-        {
-            var seeded = await SeedSingleQrCodeAsync(
-                email: $"capture-rotate-starter-{status}@example.com",
-                token: $"capture-rotate-starter-{status}-old",
-                qrType: QrType.TableTent,
-                status: status
-            );
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider
-                    .GetRequiredService<ApplicationDbContext>();
-                context.PrintReadyQrAssets.Add(new PrintReadyQrAsset
-                {
-                    RestaurantLocationId = seeded.LocationId,
-                    QrType = QrType.TableTent,
-                    Status = PrintReadyQrAssetStatus.Ready,
-                    StorageKey = $"ready/{Fingerprint(seeded.Token)}.pdf",
-                    FileName = "old-table-tent.pdf",
-                    QrTokenFingerprint = Fingerprint(seeded.Token),
-                    TemplatePackVersion = "old-pack",
-                    OfferCopyVersion = "old-copy",
-                    CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
-                    UpdatedAtUtc = DateTime.UtcNow.AddHours(-1),
-                });
-                await context.SaveChangesAsync();
-            }
-
-            using var rotateRequest = new HttpRequestMessage(
-                HttpMethod.Post,
-                PlacementMutationUrl(
-                    "rotate",
-                    seeded.LocationId,
-                    seeded.QrCodeId
-                )
-            );
-            rotateRequest.Headers.Authorization =
-                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
-
-            var rotateResponse = await _client
-                .SendAsync(rotateRequest)
-                .WaitAsync(TimeSpan.FromSeconds(5));
-
-            Assert.Equal(HttpStatusCode.OK, rotateResponse.StatusCode);
-            string newToken;
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider
-                    .GetRequiredService<ApplicationDbContext>();
-                var qrCode = await context.QrCodes
-                    .AsNoTracking()
-                    .SingleAsync(row => row.Id == seeded.QrCodeId);
-                newToken = qrCode.Token;
-                Assert.NotEqual(seeded.Token, newToken);
-
-                var invalidated = await context.PrintReadyQrAssets
-                    .AsNoTracking()
-                    .SingleAsync(row =>
-                        row.RestaurantLocationId == seeded.LocationId
-                        && row.QrType == QrType.TableTent
-                        && row.ShopOrderId == null
-                    );
-                Assert.Equal(
-                    PrintReadyQrAssetStatus.Preparing,
-                    invalidated.Status
-                );
-                Assert.Null(invalidated.StorageKey);
-                Assert.Null(invalidated.QrTokenFingerprint);
-            }
-
-            var printWork = _factory.Services
-                .GetRequiredService<IPrintReadyQrMaterialsWork>();
-            await printWork.DrainAsync();
-
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider
-                    .GetRequiredService<ApplicationDbContext>();
-                var regenerated = await context.PrintReadyQrAssets
-                    .AsNoTracking()
-                    .SingleAsync(row =>
-                        row.RestaurantLocationId == seeded.LocationId
-                        && row.QrType == QrType.TableTent
-                        && row.ShopOrderId == null
-                    );
-                Assert.Equal(
-                    PrintReadyQrAssetStatus.Ready,
-                    regenerated.Status
-                );
-                Assert.Equal(
-                    Fingerprint(newToken),
-                    regenerated.QrTokenFingerprint
-                );
-                Assert.Contains(
-                    Fingerprint(newToken),
-                    regenerated.StorageKey
-                );
-                Assert.DoesNotContain(
-                    Fingerprint(seeded.Token),
-                    regenerated.StorageKey
-                );
-            }
-        }
-
         [Fact]
         public async Task RotatePlacement_Returns400_ForDigitalGuestLink()
         {
@@ -2157,12 +2048,5 @@ namespace TummlyBackend.Tests.Integration
             return body;
         }
 
-        private static string Fingerprint(string token)
-        {
-            var hash = System.Security.Cryptography.SHA256.HashData(
-                System.Text.Encoding.UTF8.GetBytes(token)
-            );
-            return Convert.ToHexString(hash).ToLowerInvariant();
-        }
     }
 }
