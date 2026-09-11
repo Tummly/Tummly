@@ -576,6 +576,8 @@ builder.Services.AddSingleton(sp =>
 );
 builder.Services.AddSingleton<IQrCodeRasterizer, QrCoderRasterizer>();
 builder.Services.AddScoped<IPrintReadyQrMaterialsService, PrintReadyQrMaterialsService>();
+builder.Services.AddSingleton<IPrintReadyQrMaterialsWork, PrintReadyQrMaterialsWork>();
+builder.Services.AddHostedService<PrintReadyQrMaterialsBackgroundService>();
 builder.Services.AddScoped<IShopCartService, ShopCartService>();
 builder.Services.AddScoped<IShopLocationRecommendationsService, ShopLocationRecommendationsService>();
 builder.Services.AddScoped<IShopOrderNumberAllocator, ShopOrderNumberAllocator>();

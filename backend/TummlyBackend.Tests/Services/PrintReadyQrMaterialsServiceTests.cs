@@ -56,6 +56,63 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task EnsureStarterMaterials_LeavesMatchingReadyAssetUnchanged()
+        {
+            var location = await SeedLocationWithTableTentAsync();
+            var qrCode = await _context.QrCodes.SingleAsync();
+            var storage = new FailFirstUploadStorage();
+            var pack = PrintTemplatePack.LoadFromContentRoot(
+                AppContext.BaseDirectory
+            );
+            var fingerprint = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(qrCode.Token)
+                )
+            ).ToLowerInvariant();
+            var originalUpdatedAt = DateTime.UtcNow.AddHours(-1);
+            _context.PrintReadyQrAssets.Add(new PrintReadyQrAsset
+            {
+                RestaurantLocationId = location.Id,
+                QrType = QrType.TableTent,
+                Status = PrintReadyQrAssetStatus.Ready,
+                StorageKey = $"ready/{fingerprint}.pdf",
+                FileName = "ready.pdf",
+                QrTokenFingerprint = fingerprint,
+                TemplatePackVersion = pack.CurrentPackId,
+                OfferCopyVersion = pack.Snapshot.OfferCopyVersion,
+                CreatedAtUtc = originalUpdatedAt,
+                UpdatedAtUtc = originalUpdatedAt,
+            });
+            await _context.SaveChangesAsync();
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Frontend:BaseUrl"] = "https://tummly.example",
+                })
+                .Build();
+            var service = new PrintReadyQrMaterialsService(
+                _context,
+                pack,
+                storage,
+                new QrCoderRasterizer(),
+                new SmartGuestLinkService(
+                    _context,
+                    configuration,
+                    new NoOpBillingAccountLifecycle()
+                ),
+                NullLogger<PrintReadyQrMaterialsService>.Instance
+            );
+
+            await service.EnsureStarterMaterialsAsync(location.Id);
+            await service.EnsureStarterMaterialsAsync(location.Id);
+
+            var asset = await _context.PrintReadyQrAssets.SingleAsync();
+            Assert.Equal(0, storage.UploadAttempts);
+            Assert.Equal(PrintReadyQrAssetStatus.Ready, asset.Status);
+            Assert.Equal(originalUpdatedAt, asset.UpdatedAtUtc);
+        }
+
+        [Fact]
         public void OfferCardPdf_UsesSvgPointCanvasAndIncludesTemplateArtwork()
         {
             var pack = PrintTemplatePack.LoadFromContentRoot(

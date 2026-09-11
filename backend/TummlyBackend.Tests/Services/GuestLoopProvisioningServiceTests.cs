@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Trial;
 using TummlyBackend.Exceptions;
+using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Services;
@@ -78,6 +79,7 @@ namespace TummlyBackend.Tests.Services
             _service = new GuestLoopProvisioningService(
                 _context,
                 qrCodeProvisioning,
+                new NoOpPrintReadyQrMaterialsWork(),
                 configuration,
                 PricebookCatalog.LoadFromDirectory(packDir)
             );
@@ -403,6 +405,22 @@ namespace TummlyBackend.Tests.Services
             });
 
             await _context.SaveChangesAsync();
+        }
+
+        private sealed class NoOpPrintReadyQrMaterialsWork
+            : IPrintReadyQrMaterialsWork
+        {
+            public ValueTask RequestEnsureAsync(
+                int locationId,
+                CancellationToken cancellationToken = default
+            ) => ValueTask.CompletedTask;
+
+            public Task RunAsync(CancellationToken stoppingToken)
+                => Task.CompletedTask;
+
+            public Task DrainAsync(
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
         }
     }
 }

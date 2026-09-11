@@ -5,6 +5,7 @@ using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
 using TummlyBackend.DTOs.Locations;
+using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
 using TummlyBackend.Tests.Helpers;
@@ -61,8 +62,6 @@ namespace TummlyBackend.Tests.Services
             }
 
             var catalog = PricebookCatalog.LoadFromDirectory(packDir);
-            _insert = new OwnedLocationInsertService(_context, catalog);
-
             var configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(
                     new Dictionary<string, string?>
@@ -72,6 +71,12 @@ namespace TummlyBackend.Tests.Services
                 )
                 .Build();
             var smartGuestLink = new SmartGuestLinkService(_context, configuration, new NoOpBillingAccountLifecycle());
+            _insert = new OwnedLocationInsertService(
+                _context,
+                catalog,
+                new QrCodeProvisioningService(_context, smartGuestLink),
+                new NoOpPrintReadyQrMaterialsWork()
+            );
             _lifecycle = new CaptureQrLifecycleService(
                 _context,
                 smartGuestLink,
@@ -125,6 +130,22 @@ namespace TummlyBackend.Tests.Services
         public void Dispose()
         {
             _context.Dispose();
+        }
+
+        private sealed class NoOpPrintReadyQrMaterialsWork
+            : IPrintReadyQrMaterialsWork
+        {
+            public ValueTask RequestEnsureAsync(
+                int locationId,
+                CancellationToken cancellationToken = default
+            ) => ValueTask.CompletedTask;
+
+            public Task RunAsync(CancellationToken stoppingToken)
+                => Task.CompletedTask;
+
+            public Task DrainAsync(
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
         }
 
         private void SeedPilotAtCap()
