@@ -126,7 +126,7 @@ export function createAdminShopOrderPrintAssetsPageModule(
             item.qrType === qrType ? mapRow(updated) : item
           ),
         })
-        return true
+        return updated.status === "Ready"
       } catch {
         publish({ ...snapshot, busyQrType: null })
         return false

@@ -123,4 +123,28 @@ describe("createAdminShopOrderPrintAssetsPageModule", () => {
       canRetry: false,
     })
   })
+
+  it("keeps retry available when generation remains Failed", async () => {
+    const retry = vi.fn().mockResolvedValue({
+      qrType: "OfferCard",
+      quantity: 50,
+      status: "Failed",
+      fileName: null,
+      lastError: "storage still unavailable",
+    })
+    const module = createAdminShopOrderPrintAssetsPageModule({
+      download: vi.fn(),
+      retry,
+    })
+    module.setOrder(order())
+
+    await expect(module.retry("OfferCard")).resolves.toBe(false)
+
+    expect(module.getSnapshot().rows[1]).toMatchObject({
+      status: "Failed",
+      lastError: "storage still unavailable",
+      canDownload: false,
+      canRetry: true,
+    })
+  })
 })

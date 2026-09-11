@@ -259,7 +259,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task PaidReorder_ReusesMatchingPdf_AndQrIdentityChangeRegenerates()
+        public async Task PaidReorder_ReusesMatchingPdf_AndEveryVersionInputChangeRegenerates()
         {
             var seeded = await SeedPaidShopWorkspaceAsync();
             var firstOrderId = await PlaceAwaitingPaymentOrderAsync(
@@ -283,6 +283,8 @@ namespace TummlyBackend.Tests.Integration
             );
 
             string firstStorageKey;
+            string currentTemplateVersion;
+            string currentOfferCopyVersion;
             using (var scope = _factory.Services.CreateScope())
             {
                 var context = scope.ServiceProvider
@@ -304,7 +306,96 @@ namespace TummlyBackend.Tests.Integration
                     row => row.ShopOrderId == reorderId
                 );
                 Assert.Equal(firstTwo[0].StorageKey, firstTwo[1].StorageKey);
-                firstStorageKey = firstTwo[0].StorageKey!;
+                var first = firstTwo.Single(row =>
+                    row.ShopOrderId == firstOrderId
+                );
+                firstStorageKey = first.StorageKey!;
+                Assert.False(string.IsNullOrWhiteSpace(first.TemplatePackVersion));
+                Assert.False(string.IsNullOrWhiteSpace(first.OfferCopyVersion));
+                currentTemplateVersion = first.TemplatePackVersion!;
+                currentOfferCopyVersion = first.OfferCopyVersion!;
+
+                var reusableAssets = await context.PrintReadyQrAssets
+                    .Where(row =>
+                        row.RestaurantLocationId == seeded.InScopeLocationId
+                        && row.QrType == QrType.TableTent
+                    )
+                    .ToListAsync();
+                foreach (var asset in reusableAssets)
+                {
+                    asset.TemplatePackVersion = "stale-template-version";
+                }
+                await context.SaveChangesAsync();
+            }
+
+            var templateChangedOrderId = await PlaceAwaitingPaymentOrderAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId
+            );
+            await CompleteShopPaymentAsync(
+                templateChangedOrderId,
+                seeded.MemberJwt,
+                seeded.InScopeLocationId
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var templateChanged = await context.PrintReadyQrAssets
+                    .SingleAsync(row =>
+                        row.ShopOrderId == templateChangedOrderId
+                    );
+                Assert.Equal(
+                    currentTemplateVersion,
+                    templateChanged.TemplatePackVersion
+                );
+                Assert.Equal(
+                    currentOfferCopyVersion,
+                    templateChanged.OfferCopyVersion
+                );
+
+                var reusableAssets = await context.PrintReadyQrAssets
+                    .Where(row =>
+                        row.RestaurantLocationId == seeded.InScopeLocationId
+                        && row.QrType == QrType.TableTent
+                    )
+                    .ToListAsync();
+                foreach (var asset in reusableAssets)
+                {
+                    asset.TemplatePackVersion = currentTemplateVersion;
+                    asset.OfferCopyVersion = "stale-offer-copy-version";
+                }
+                await context.SaveChangesAsync();
+            }
+
+            var offerCopyChangedOrderId = await PlaceAwaitingPaymentOrderAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId
+            );
+            await CompleteShopPaymentAsync(
+                offerCopyChangedOrderId,
+                seeded.MemberJwt,
+                seeded.InScopeLocationId
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var offerCopyChanged = await context.PrintReadyQrAssets
+                    .AsNoTracking()
+                    .SingleAsync(row =>
+                        row.ShopOrderId == offerCopyChangedOrderId
+                    );
+                Assert.Equal(
+                    currentTemplateVersion,
+                    offerCopyChanged.TemplatePackVersion
+                );
+                Assert.Equal(
+                    currentOfferCopyVersion,
+                    offerCopyChanged.OfferCopyVersion
+                );
 
                 var tableTent = await context.QrCodes.SingleAsync(row =>
                     row.RestaurantLocationId == seeded.InScopeLocationId
