@@ -61,11 +61,11 @@ The post-approval flow where an invited operator creates credentials and configu
 _Avoid_: Register, onboarding form
 
 **Guest Loop provisioning**:
-The final step of Operator Setup (single- and multi-location) where Tummly prepares each location's three default **QR code**s (Table Tent, Window Sticker, Offer Card) with distinct **QR link**s. The operator sees a progress animation that awaits actual per-location generation; they are not asked to configure touchpoints, feedback tags, thank-you copy, or offers during this step. The private feedback form is standard for all locations and requires no per-location configuration. Phase 3 (starter QR materials) generates the account **Activation Code** today; per-location **Starter QR materials** generation is planned for a later release. Operators do not receive downloadable QR PNGs from provisioning or the dashboard.
+The final step of Operator Setup (single- and multi-location) where Tummly prepares each location's three default **QR code**s (Table Tent, Window Sticker, Offer Card) with distinct **QR link**s. The operator sees a progress animation that awaits actual per-location generation; they are not asked to configure touchpoints, feedback tags, thank-you copy, or offers during this step. The private feedback form is standard for all locations and requires no per-location configuration. Phase 3 generates the account **Activation Code** today; per-location **Starter QR materials** (**Print-ready QR asset**s) are generated after the default **QR code**s exist and are Admin-downloadable for fulfilment — not operator downloads from provisioning or the dashboard.
 _Avoid_: Guest Loop configuration, step-3 form, rollout configuration
 
 **Guest Loop provisioning phases**:
-The three ordered preparation steps shown during Guest Loop provisioning: (1) Smart Guest Link / default **QR code**s — real backend mint of three Active codes per location (Table Tent, Window Sticker, Offer Card), (2) private feedback form — presentational only (standard form, no per-location configuration), (3) starter QR materials — today generates the account **Activation Code** (real backend work); in a future release will also generate per-location **Starter QR materials** for physical print and shipment. The animation awaits completion of phases 1 and 3 before advancing.
+The three ordered preparation steps shown during Guest Loop provisioning: (1) Smart Guest Link / default **QR code**s — real backend mint of three Active codes per location (Table Tent, Window Sticker, Offer Card), (2) private feedback form — presentational only (standard form, no per-location configuration), (3) starter QR materials — today generates the account **Activation Code** (real backend work); **Starter QR materials** print files follow after the default **QR code**s exist and are for Admin fulfilment download, not for the operator in the wizard. The animation awaits completion of phases 1 and 3 (Activation Code) before advancing.
 _Avoid_: Loading screen, fake progress
 
 **Sign-in**:
@@ -448,9 +448,21 @@ _Avoid_: Digital QR placement, custom link (when meaning this type), smart link 
 The operator-chosen display name of a **Digital guest link** **QR code**. Unique among non-archived Digital guest links at that **Owned location**. Not used for physical placement types or Smart Guest.
 _Avoid_: Placement name (when meaning a digital link), custom placement name (deferred physical Custom path)
 
+**Print-ready QR asset**:
+A generated printable PDF for one physical **QR type** at one **Owned location**, embedding that location's existing **QR link**. Table Tent and Window Sticker share one empty Dev SVG canvas and the same dynamic QR insert (**44 × 44 mm**, centred on the canvas when the pack leaves X/Y blank); material trim size is a print-shop spec, not a generator input. Admin still gets separately named Tent and Sticker downloads so fulfilment matches **QR type** / Shop lines (bytes may match). Offer Card uses the Card Dev SVG with dynamic offer headline (**43 × 18 mm** at pack X/Y) and dynamic QR (**18 × 18 mm** at pack X/Y). Until operator offer-on-onboarding exists, Offer Card uses fixed Tummly default offer copy from the **print template pack** (generic copy; not a hard-coded discount %). Stored after async generate; status may be Failed with Admin retry; regenerated when **QR link**, template version, or offer-copy version changes (including after **Rotate**). Admin may download and regenerate under **Soft lock**; Operators do not get these files in v1. Distinct from minting a **QR code** and from the account **Activation Code** SVG.
+_Avoid_: Printable QR materials, mint PDF, QR PNG download, placement print file
+
+**Print template pack**:
+The committed Dev bases and dynamic-slot spec for **Print-ready QR asset**s. Card: `Card - Dev.svg` plus offer-headline and QR slots. Table Tent / Window Sticker: shared empty Dev SVG; generator only inserts the QR at **44 × 44 mm**. Material overall sizes in the launch spec are for the print shop only. Preview-only PDFs are not in the pack. Slot millimetre rules come from the launch materials dynamic print spec.
+_Avoid_: Figma preview PDF, placement mockup, design export dump, material trim as generator input
+
 **Starter QR materials**:
-A formatted print-ready package per **Owned location** containing that location's **QR code**s (e.g. table tents, sticker sheets, printable PDFs) for physical placement in the venue. Planned for a future release: generated during Guest Loop provisioning phase 3, printed, and shipped to each location's **Address**. Not in the current release — today phase 3 only generates the account **Activation Code**.
-_Avoid_: QR pack, print materials, starter kit (when meaning the lifetime entitlement — use **Starter kit**)
+The per–**Owned location** onboarding print pack of **Print-ready QR asset**s for that location's default physical **QR type**s (Table Tent, Window Sticker, Offer Card). Generated for every **Owned location** that receives default **QR code**s — including locations added after Operator Setup — after those codes exist (not a second mint). Distinct from lifetime **Starter kit** (once per **Billing Account**): new locations still get **Starter QR materials** print files for Admin fulfilment; physical extras beyond that path still go through **Tummly Shop**. Printed and shipped to that location's **Address**, separate from **Activation fulfillment**.
+_Avoid_: QR pack, print materials, starter pack (ambiguous with **Starter kit**), Printable QR materials
+
+**Shop print asset**:
+A **Print-ready QR asset** generated when a **Shop order** becomes **Paid**, for each ordered **QR type** at that order's **Owned location**. Uses the location's existing Active **QR code** for that type — Shop does not mint a new token for the default physical types. A reorder does not mint; it reuses the stored file unless **QR link**, template version, or offer-copy version changed. Quantity on the line is a print-run instruction; Admin gets one master PDF per type. Download lives on the Admin Shop order surface.
+_Avoid_: Shop mint, reorder mint, fulfilment mint (when meaning token creation)
 
 **Starter kit**:
 One physical onboarding kit per **Billing Account** lifetime, at **Pilot** or first paid activation, whichever occurs first. Not a credit pool. Distinct from per-location **Starter QR materials**.
