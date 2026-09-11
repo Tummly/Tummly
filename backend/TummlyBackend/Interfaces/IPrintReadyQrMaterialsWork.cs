@@ -12,6 +12,11 @@ namespace TummlyBackend.Interfaces
             CancellationToken cancellationToken = default
         );
 
+        ValueTask RequestShopOrderEnsureAsync(
+            Guid shopOrderId,
+            CancellationToken cancellationToken = default
+        );
+
         Task RunAsync(CancellationToken stoppingToken);
 
         Task DrainAsync(CancellationToken cancellationToken = default);

@@ -219,6 +219,45 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task EnsureShopOrderMaterials_PausedCode_FailsWithoutGenerating()
+        {
+            var location = await SeedLocationWithTableTentAsync();
+            var qrCode = await _context.QrCodes.SingleAsync();
+            qrCode.Status = QrCodeStatus.Paused;
+            await _context.SaveChangesAsync();
+            var storage = new RecordingStorage();
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Frontend:BaseUrl"] = "https://tummly.example",
+                })
+                .Build();
+            var service = new PrintReadyQrMaterialsService(
+                _context,
+                PrintTemplatePack.LoadFromContentRoot(AppContext.BaseDirectory),
+                MaterialsCatalog.LoadFromContentRoot(AppContext.BaseDirectory),
+                storage,
+                new QrCoderRasterizer(),
+                new SmartGuestLinkService(
+                    _context,
+                    configuration,
+                    new NoOpBillingAccountLifecycle()
+                ),
+                NullLogger<PrintReadyQrMaterialsService>.Instance
+            );
+            var orderId = await SeedPaidOrderAsync(location, quantity: 1);
+
+            await service.EnsureShopOrderMaterialsAsync(orderId);
+
+            var asset = await _context.PrintReadyQrAssets.SingleAsync(row =>
+                row.ShopOrderId == orderId
+            );
+            Assert.Equal(PrintReadyQrAssetStatus.Failed, asset.Status);
+            Assert.Contains("No Active QR code", asset.LastError);
+            Assert.Equal(0, storage.UploadAttempts);
+        }
+
+        [Fact]
         public void OfferCardPdf_UsesSvgPointCanvasAndIncludesTemplateArtwork()
         {
             var pack = PrintTemplatePack.LoadFromContentRoot(

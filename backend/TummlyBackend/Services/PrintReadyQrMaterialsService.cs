@@ -87,7 +87,10 @@ namespace TummlyBackend.Services
                 .FirstOrDefaultAsync(
                     row =>
                         row.Id == shopOrderId
-                        && row.PaymentStatus == ShopPaymentStatuses.Paid,
+                        && (
+                            row.PaymentStatus == ShopPaymentStatuses.Paid
+                            || row.PaymentStatus == ShopPaymentStatuses.Refunded
+                        ),
                     cancellationToken
                 );
 
@@ -287,7 +290,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            if (!StarterTypes.Contains(qrType))
+            if (!StarterQrMaterialTypes.Contains(qrType))
             {
                 return null;
             }
@@ -406,7 +409,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            if (!StarterTypes.Contains(qrType))
+            if (!StarterQrMaterialTypes.Contains(qrType))
             {
                 return null;
             }
@@ -487,18 +490,12 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            var qrCode = await _context.QrCodes
-                .AsNoTracking()
-                .FirstOrDefaultAsync(
-                    row =>
-                        row.RestaurantLocationId == location.Id
-                        && row.QrType == qrType
-                        && (
-                            row.Status == QrCodeStatus.Active
-                            || row.Status == QrCodeStatus.Paused
-                        ),
-                    cancellationToken
-                );
+            var qrCode = await EligibleQrCodes(
+                    location.Id,
+                    qrType,
+                    shopOrderId
+                )
+                .FirstOrDefaultAsync(cancellationToken);
 
             if (qrCode == null && shopOrderId == null)
             {
@@ -691,23 +688,19 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            var qrCode = await _context.QrCodes
-                .AsNoTracking()
-                .FirstOrDefaultAsync(
-                    row =>
-                        row.RestaurantLocationId == location.Id
-                        && row.QrType == asset.QrType
-                        && (
-                            row.Status == QrCodeStatus.Active
-                            || row.Status == QrCodeStatus.Paused
-                        ),
-                    cancellationToken
-                );
+            var qrCode = await EligibleQrCodes(
+                    location.Id,
+                    asset.QrType,
+                    asset.ShopOrderId
+                )
+                .FirstOrDefaultAsync(cancellationToken);
 
             if (qrCode == null)
             {
                 throw new InvalidOperationException(
-                    $"No live QR code for {asset.QrType} at location {location.Id}."
+                    asset.ShopOrderId == null
+                        ? $"No Active or Paused QR code for {asset.QrType} at location {location.Id}."
+                        : $"No Active QR code for {asset.QrType} at location {location.Id}."
                 );
             }
 
@@ -755,6 +748,29 @@ namespace TummlyBackend.Services
             await _context.SaveChangesAsync(cancellationToken);
         }
 
+        private IQueryable<QrCode> EligibleQrCodes(
+            int locationId,
+            QrType qrType,
+            Guid? shopOrderId
+        )
+        {
+            var matchingCodes = _context.QrCodes
+                .AsNoTracking()
+                .Where(row =>
+                    row.RestaurantLocationId == locationId
+                    && row.QrType == qrType
+                );
+
+            return shopOrderId == null
+                ? matchingCodes.Where(row =>
+                    row.Status == QrCodeStatus.Active
+                    || row.Status == QrCodeStatus.Paused
+                )
+                : matchingCodes.Where(row =>
+                    row.Status == QrCodeStatus.Active
+                );
+        }
+
         private IReadOnlyDictionary<QrType, int> ResolveOrderedQrTypes(
             IEnumerable<ShopOrderLine> lines
         )
@@ -777,7 +793,7 @@ namespace TummlyBackend.Services
                         ignoreCase: false,
                         out var qrType
                     )
-                    || !StarterTypes.Contains(qrType)
+                    || !StarterQrMaterialTypes.Contains(qrType)
                 )
                 {
                     continue;

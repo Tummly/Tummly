@@ -344,18 +344,24 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var regeneratesStarterMaterial =
+            var regeneratesPrintMaterials =
                 StarterQrMaterialTypes.Contains(qrCode.QrType);
-            if (regeneratesStarterMaterial)
+            Guid[] shopOrderIds = [];
+            if (regeneratesPrintMaterials)
             {
-                var asset = await _context.PrintReadyQrAssets
-                    .FirstOrDefaultAsync(row =>
+                var assets = await _context.PrintReadyQrAssets
+                    .Where(row =>
                         row.RestaurantLocationId == command.LocationId
                         && row.QrType == qrCode.QrType
-                        && row.ShopOrderId == null
-                    );
+                    )
+                    .ToListAsync();
 
-                if (asset != null)
+                shopOrderIds = assets
+                    .Where(asset => asset.ShopOrderId.HasValue)
+                    .Select(asset => asset.ShopOrderId!.Value)
+                    .Distinct()
+                    .ToArray();
+                foreach (var asset in assets)
                 {
                     asset.Status = PrintReadyQrAssetStatus.Preparing;
                     asset.StorageKey = null;
@@ -371,9 +377,12 @@ namespace TummlyBackend.Services
             qrCode.Token = await _smartGuestLink.GenerateTokenAsync();
             await _context.SaveChangesAsync();
 
-            if (regeneratesStarterMaterial)
+            if (regeneratesPrintMaterials)
             {
-                RequestStarterMaterialRegeneration(command.LocationId);
+                RequestPrintMaterialRegeneration(
+                    command.LocationId,
+                    shopOrderIds
+                );
             }
 
             return QrLifecycleResult.Ok(new
@@ -385,26 +394,55 @@ namespace TummlyBackend.Services
             });
         }
 
-        private void RequestStarterMaterialRegeneration(int locationId)
+        private void RequestPrintMaterialRegeneration(
+            int locationId,
+            IReadOnlyCollection<Guid> shopOrderIds
+        )
+        {
+            RequestPrintMaterialRegeneration(
+                () => _printReadyQrMaterialsWork.RequestEnsureAsync(locationId),
+                "Starter",
+                locationId
+            );
+            foreach (var shopOrderId in shopOrderIds)
+            {
+                RequestPrintMaterialRegeneration(
+                    () => _printReadyQrMaterialsWork
+                        .RequestShopOrderEnsureAsync(shopOrderId),
+                    "Shop",
+                    shopOrderId
+                );
+            }
+        }
+
+        private void RequestPrintMaterialRegeneration(
+            Func<ValueTask> requestFactory,
+            string scope,
+            object scopeId
+        )
         {
             try
             {
-                var request =
-                    _printReadyQrMaterialsWork.RequestEnsureAsync(locationId);
+                var request = requestFactory();
                 if (!request.IsCompletedSuccessfully)
                 {
-                    _ = ObserveStarterMaterialRequestAsync(request, locationId);
+                    _ = ObservePrintMaterialRequestAsync(
+                        request,
+                        scope,
+                        scopeId
+                    );
                 }
             }
             catch (Exception ex)
             {
-                LogStarterMaterialRequestFailure(ex, locationId);
+                LogPrintMaterialRequestFailure(ex, scope, scopeId);
             }
         }
 
-        private async Task ObserveStarterMaterialRequestAsync(
+        private async Task ObservePrintMaterialRequestAsync(
             ValueTask request,
-            int locationId
+            string scope,
+            object scopeId
         )
         {
             try
@@ -413,19 +451,21 @@ namespace TummlyBackend.Services
             }
             catch (Exception ex)
             {
-                LogStarterMaterialRequestFailure(ex, locationId);
+                LogPrintMaterialRequestFailure(ex, scope, scopeId);
             }
         }
 
-        private void LogStarterMaterialRequestFailure(
+        private void LogPrintMaterialRequestFailure(
             Exception exception,
-            int locationId
+            string scope,
+            object scopeId
         )
         {
             _logger.LogError(
                 exception,
-                "Could not queue Starter QR material regeneration for Owned location {LocationId}",
-                locationId
+                "Could not queue {Scope} QR material regeneration for {ScopeId}",
+                scope,
+                scopeId
             );
         }
 

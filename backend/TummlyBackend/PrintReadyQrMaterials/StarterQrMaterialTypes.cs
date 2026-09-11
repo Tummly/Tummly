@@ -11,10 +11,6 @@ namespace TummlyBackend.PrintReadyQrMaterials
             QrType.OfferCard,
         ];
 
-        public static bool Contains(QrType qrType) =>
-            qrType is
-                QrType.TableTent
-                or QrType.WindowSticker
-                or QrType.OfferCard;
+        public static bool Contains(QrType qrType) => All.Contains(qrType);
     }
 }

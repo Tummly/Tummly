@@ -14,6 +14,7 @@ namespace TummlyBackend.Tests.Services
         public async Task DrainAsync_UsesFreshScopes_AndContinuesAfterEnsureFailure()
         {
             var state = new FakeMaterialsState(failingLocationId: 11);
+            var shopOrderId = Guid.NewGuid();
             var services = new ServiceCollection();
             services.AddSingleton(state);
             services.AddScoped<
@@ -28,11 +29,13 @@ namespace TummlyBackend.Tests.Services
             );
 
             await work.RequestEnsureAsync(11);
+            await work.RequestShopOrderEnsureAsync(shopOrderId);
             await work.RequestEnsureAsync(22);
             await work.DrainAsync();
 
             Assert.Equal(new[] { 11, 22 }, state.LocationIds);
-            Assert.Equal(2, state.CreatedInstances);
+            Assert.Equal(new[] { shopOrderId }, state.ShopOrderIds);
+            Assert.Equal(3, state.CreatedInstances);
         }
 
         [Fact]
@@ -66,6 +69,8 @@ namespace TummlyBackend.Tests.Services
             public int CreatedInstances { get; set; }
 
             public List<int> LocationIds { get; } = [];
+
+            public List<Guid> ShopOrderIds { get; } = [];
         }
 
         private sealed class ControlledPrintReadyQrMaterialsService
@@ -100,7 +105,11 @@ namespace TummlyBackend.Tests.Services
             public Task EnsureShopOrderMaterialsAsync(
                 Guid shopOrderId,
                 CancellationToken cancellationToken = default
-            ) => throw new NotSupportedException();
+            )
+            {
+                _state.ShopOrderIds.Add(shopOrderId);
+                return Task.CompletedTask;
+            }
 
             public Task<
                 IReadOnlyList<PrintMaterialsLocationReadinessDto>

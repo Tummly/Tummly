@@ -318,6 +318,11 @@ namespace TummlyBackend.Tests.Integration
                 return ValueTask.CompletedTask;
             }
 
+            public ValueTask RequestShopOrderEnsureAsync(
+                Guid shopOrderId,
+                CancellationToken cancellationToken = default
+            ) => ValueTask.CompletedTask;
+
             public Task RunAsync(CancellationToken stoppingToken)
                 => Task.CompletedTask;
 

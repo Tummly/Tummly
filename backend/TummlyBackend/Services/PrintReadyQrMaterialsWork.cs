@@ -6,8 +6,8 @@ namespace TummlyBackend.Services
     public sealed class PrintReadyQrMaterialsWork
         : IPrintReadyQrMaterialsWork
     {
-        private readonly Channel<int> _requests =
-            Channel.CreateUnbounded<int>(
+        private readonly Channel<PrintMaterialsRequest> _requests =
+            Channel.CreateUnbounded<PrintMaterialsRequest>(
                 new UnboundedChannelOptions
                 {
                     SingleReader = true,
@@ -35,13 +35,41 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            WriteRequest(
+                PrintMaterialsRequest.ForStarter(locationId),
+                "Starter QR materials",
+                locationId
+            );
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask RequestShopOrderEnsureAsync(
+            Guid shopOrderId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            WriteRequest(
+                PrintMaterialsRequest.ForShopOrder(shopOrderId),
+                "Shop print-ready QR materials",
+                shopOrderId
+            );
+            return ValueTask.CompletedTask;
+        }
+
+        private void WriteRequest(
+            PrintMaterialsRequest request,
+            string requestName,
+            object scopeId
+        )
+        {
             try
             {
-                if (!_requests.Writer.TryWrite(locationId))
+                if (!_requests.Writer.TryWrite(request))
                 {
                     _logger.LogWarning(
-                        "Starter QR materials request dropped for Owned location {LocationId}",
-                        locationId
+                        "{RequestName} request dropped for {ScopeId}",
+                        requestName,
+                        scopeId
                     );
                 }
             }
@@ -49,12 +77,11 @@ namespace TummlyBackend.Services
             {
                 _logger.LogWarning(
                     ex,
-                    "Starter QR materials request failed for Owned location {LocationId}",
-                    locationId
+                    "{RequestName} request failed for {ScopeId}",
+                    requestName,
+                    scopeId
                 );
             }
-
-            return ValueTask.CompletedTask;
         }
 
         public async Task RunAsync(CancellationToken stoppingToken)
@@ -67,12 +94,12 @@ namespace TummlyBackend.Services
             try
             {
                 await foreach (
-                    var locationId in _requests.Reader.ReadAllAsync(
+                    var request in _requests.Reader.ReadAllAsync(
                         stoppingToken
                     )
                 )
                 {
-                    await EnsureGuardedAsync(locationId, stoppingToken);
+                    await EnsureGuardedAsync(request, stoppingToken);
                 }
             }
             catch (OperationCanceledException) when (
@@ -87,15 +114,15 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            while (_requests.Reader.TryRead(out var locationId))
+            while (_requests.Reader.TryRead(out var request))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await EnsureGuardedAsync(locationId, cancellationToken);
+                await EnsureGuardedAsync(request, cancellationToken);
             }
         }
 
         private async Task EnsureGuardedAsync(
-            int locationId,
+            PrintMaterialsRequest request,
             CancellationToken cancellationToken
         )
         {
@@ -104,10 +131,20 @@ namespace TummlyBackend.Services
                 using var scope = _scopeFactory.CreateScope();
                 var materials = scope.ServiceProvider
                     .GetRequiredService<IPrintReadyQrMaterialsService>();
-                await materials.EnsureStarterMaterialsAsync(
-                    locationId,
-                    cancellationToken
-                );
+                if (request.LocationId is int locationId)
+                {
+                    await materials.EnsureStarterMaterialsAsync(
+                        locationId,
+                        cancellationToken
+                    );
+                }
+                else
+                {
+                    await materials.EnsureShopOrderMaterialsAsync(
+                        request.ShopOrderId!.Value,
+                        cancellationToken
+                    );
+                }
             }
             catch (OperationCanceledException) when (
                 cancellationToken.IsCancellationRequested
@@ -119,10 +156,26 @@ namespace TummlyBackend.Services
             {
                 _logger.LogError(
                     ex,
-                    "Starter QR materials generation failed for Owned location {LocationId}",
-                    locationId
+                    "Print-ready QR materials generation failed for {ScopeId}",
+                    request.ScopeId
                 );
             }
+        }
+
+        private sealed record PrintMaterialsRequest(
+            int? LocationId,
+            Guid? ShopOrderId
+        )
+        {
+            public object ScopeId => LocationId is int locationId
+                ? locationId
+                : ShopOrderId!.Value;
+
+            public static PrintMaterialsRequest ForStarter(int locationId) =>
+                new(locationId, null);
+
+            public static PrintMaterialsRequest ForShopOrder(Guid shopOrderId) =>
+                new(null, shopOrderId);
         }
     }
 }

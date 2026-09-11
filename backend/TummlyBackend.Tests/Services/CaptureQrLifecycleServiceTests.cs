@@ -160,35 +160,48 @@ namespace TummlyBackend.Tests.Services
         )
         {
             var qr = await SeedQrAsync(qrType, status);
-            _context.PrintReadyQrAssets.Add(new PrintReadyQrAsset
-            {
-                RestaurantLocationId = _locationId,
-                QrType = qrType,
-                Status = PrintReadyQrAssetStatus.Ready,
-                StorageKey = $"ready/{qr.Token}.pdf",
-                FileName = "ready.pdf",
-                QrTokenFingerprint = "old-token-fingerprint",
-                TemplatePackVersion = "old-pack",
-                OfferCopyVersion = "old-copy",
-                CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
-                UpdatedAtUtc = DateTime.UtcNow.AddHours(-1),
-            });
+            var shopOrderId = Guid.NewGuid();
+            _context.PrintReadyQrAssets.AddRange(
+                ReadyAsset(shopOrderId: null),
+                ReadyAsset(shopOrderId)
+            );
             await _context.SaveChangesAsync();
 
             var result = await _service.RotateAsync(CodeCommand(qr.Id));
 
             Assert.Equal(QrLifecycleResultKind.Ok, result.Kind);
-            var asset = await _context.PrintReadyQrAssets
+            var assets = await _context.PrintReadyQrAssets
                 .AsNoTracking()
-                .SingleAsync();
-            Assert.Equal(PrintReadyQrAssetStatus.Preparing, asset.Status);
-            Assert.Null(asset.StorageKey);
-            Assert.Null(asset.FileName);
-            Assert.Null(asset.QrTokenFingerprint);
-            Assert.Null(asset.TemplatePackVersion);
-            Assert.Null(asset.OfferCopyVersion);
-            Assert.Null(asset.LastError);
+                .ToListAsync();
+            Assert.Equal(2, assets.Count);
+            Assert.All(assets, asset =>
+            {
+                Assert.Equal(PrintReadyQrAssetStatus.Preparing, asset.Status);
+                Assert.Null(asset.StorageKey);
+                Assert.Null(asset.FileName);
+                Assert.Null(asset.QrTokenFingerprint);
+                Assert.Null(asset.TemplatePackVersion);
+                Assert.Null(asset.OfferCopyVersion);
+                Assert.Null(asset.LastError);
+            });
             Assert.Equal(new[] { _locationId }, _printWork.LocationIds);
+            Assert.Equal(new[] { shopOrderId }, _printWork.ShopOrderIds);
+
+            PrintReadyQrAsset ReadyAsset(Guid? shopOrderId) =>
+                new()
+                {
+                    RestaurantLocationId = _locationId,
+                    QrType = qrType,
+                    ShopOrderId = shopOrderId,
+                    Status = PrintReadyQrAssetStatus.Ready,
+                    StorageKey = $"ready/{qr.Token}.pdf",
+                    FileName = "ready.pdf",
+                    QrTokenFingerprint = "old-token-fingerprint",
+                    TemplatePackVersion = "old-pack",
+                    OfferCopyVersion = "old-copy",
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+                    UpdatedAtUtc = DateTime.UtcNow.AddHours(-1),
+                };
         }
 
         [Fact]
@@ -955,6 +968,8 @@ namespace TummlyBackend.Tests.Services
         {
             public List<int> LocationIds { get; } = [];
 
+            public List<Guid> ShopOrderIds { get; } = [];
+
             public bool ThrowOnRequest { get; set; }
 
             public ValueTask RequestEnsureAsync(
@@ -970,6 +985,22 @@ namespace TummlyBackend.Tests.Services
                 }
 
                 LocationIds.Add(locationId);
+                return ValueTask.CompletedTask;
+            }
+
+            public ValueTask RequestShopOrderEnsureAsync(
+                Guid shopOrderId,
+                CancellationToken cancellationToken = default
+            )
+            {
+                if (ThrowOnRequest)
+                {
+                    throw new InvalidOperationException(
+                        "Controlled queue failure."
+                    );
+                }
+
+                ShopOrderIds.Add(shopOrderId);
                 return ValueTask.CompletedTask;
             }
 

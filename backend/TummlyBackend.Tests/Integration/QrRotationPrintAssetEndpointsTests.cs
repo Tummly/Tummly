@@ -173,6 +173,24 @@ namespace TummlyBackend.Tests.Integration
                     "old-pack",
                     regenerated.TemplatePackVersion
                 );
+
+                var regeneratedShopAsset = await LoadAssetAsync(
+                    context,
+                    seeded.LocationId,
+                    seeded.ShopOrderId
+                );
+                Assert.Equal(
+                    PrintReadyQrAssetStatus.Ready,
+                    regeneratedShopAsset.Status
+                );
+                Assert.Equal(
+                    Fingerprint(newToken),
+                    regeneratedShopAsset.QrTokenFingerprint
+                );
+                Assert.Equal(
+                    regeneratedStorageKey,
+                    regeneratedShopAsset.StorageKey
+                );
             }
 
             using var download = AuthorizedRequest(
@@ -197,6 +215,18 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(
                 OldAssetBytes,
                 storage.GetRequired(seeded.OldStorageKey)
+            );
+
+            using var shopDownload = AuthorizedRequest(
+                HttpMethod.Get,
+                $"/api/admin/shop-orders/{seeded.ShopOrderId}/print-assets/TableTent/download",
+                seeded.AdminJwt
+            );
+            var shopDownloadResponse = await client.SendAsync(shopDownload);
+            Assert.Equal(HttpStatusCode.OK, shopDownloadResponse.StatusCode);
+            Assert.Equal(
+                downloadedBytes,
+                await shopDownloadResponse.Content.ReadAsByteArrayAsync()
             );
         }
 
@@ -277,22 +307,49 @@ namespace TummlyBackend.Tests.Integration
             };
             context.QrCodes.Add(qrCode);
 
+            var shopOrder = new ShopOrder
+            {
+                Id = Guid.NewGuid(),
+                OrderNumber = $"ORD-{Guid.NewGuid():N}"[..20],
+                RestaurantId = restaurant.Id,
+                LocationId = location.Id,
+                LocationNameSnapshot = location.LocationName,
+                PlacedByUserId = owner.Id,
+                PlacedByNameSnapshot = owner.FullName,
+                MaterialsNetPence = 2400,
+                VatPence = 480,
+                GrossPence = 2880,
+                DeliveryMethod = ShopDeliveryMethods.Standard,
+                PaymentStatus = ShopPaymentStatuses.Paid,
+                FulfilmentStatus = ShopFulfilmentStatuses.Processing,
+                PaidAtUtc = DateTime.UtcNow,
+                ProcessingStartedAtUtc = DateTime.UtcNow,
+                ShipToContactName = owner.FullName,
+                ShipToAddressLine1 = location.Address,
+                ShipToPostcode = location.Postcode,
+                ShipToCountry = "United Kingdom",
+                Lines =
+                {
+                    new ShopOrderLine
+                    {
+                        Id = Guid.NewGuid(),
+                        CatalogSkuId = "table-tents",
+                        TitleSnapshot = "Table tents",
+                        MaterialType = "tabletop",
+                        Quantity = 1,
+                        UnitNetPence = 2400,
+                        LineNetPence = 2400,
+                    },
+                },
+            };
+            context.ShopOrders.Add(shopOrder);
+
             var oldStorageKey =
                 $"print-ready-qr/{location.Id}/TableTent/{Fingerprint(oldToken)}.pdf";
-            context.PrintReadyQrAssets.Add(new PrintReadyQrAsset
-            {
-                RestaurantLocationId = location.Id,
-                QrType = QrType.TableTent,
-                Status = PrintReadyQrAssetStatus.Ready,
-                StorageKey = oldStorageKey,
-                ContentType = "application/pdf",
-                FileName = "old-table-tent.pdf",
-                QrTokenFingerprint = Fingerprint(oldToken),
-                TemplatePackVersion = "old-pack",
-                OfferCopyVersion = "old-copy",
-                CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
-                UpdatedAtUtc = DateTime.UtcNow.AddHours(-1),
-            });
+            context.PrintReadyQrAssets.AddRange(
+                ReadyAsset(shopOrderId: null),
+                ReadyAsset(shopOrder.Id)
+            );
 
             var admin = new Admin
             {
@@ -312,6 +369,7 @@ namespace TummlyBackend.Tests.Integration
                 owner.Id,
                 location.Id,
                 qrCode.Id,
+                shopOrder.Id,
                 oldToken,
                 oldStorageKey,
                 jwtService.GenerateToken(
@@ -321,18 +379,36 @@ namespace TummlyBackend.Tests.Integration
                 ),
                 jwtService.GenerateAdminToken(admin)
             );
+
+            PrintReadyQrAsset ReadyAsset(Guid? shopOrderId) =>
+                new()
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.TableTent,
+                    ShopOrderId = shopOrderId,
+                    Status = PrintReadyQrAssetStatus.Ready,
+                    StorageKey = oldStorageKey,
+                    ContentType = "application/pdf",
+                    FileName = "old-table-tent.pdf",
+                    QrTokenFingerprint = Fingerprint(oldToken),
+                    TemplatePackVersion = "old-pack",
+                    OfferCopyVersion = "old-copy",
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+                    UpdatedAtUtc = DateTime.UtcNow.AddHours(-1),
+                };
         }
 
         private static Task<PrintReadyQrAsset> LoadAssetAsync(
             ApplicationDbContext context,
-            int locationId
+            int locationId,
+            Guid? shopOrderId = null
         ) =>
             context.PrintReadyQrAssets
                 .AsNoTracking()
                 .SingleAsync(row =>
                     row.RestaurantLocationId == locationId
                     && row.QrType == QrType.TableTent
-                    && row.ShopOrderId == null
+                    && row.ShopOrderId == shopOrderId
                 );
 
         private static HttpRequestMessage AuthorizedRequest(
@@ -359,6 +435,7 @@ namespace TummlyBackend.Tests.Integration
             int OwnerUserId,
             int LocationId,
             int QrCodeId,
+            Guid ShopOrderId,
             string OldToken,
             string OldStorageKey,
             string OwnerJwt,
@@ -393,6 +470,11 @@ namespace TummlyBackend.Tests.Integration
                 _ = ProcessAsync();
                 return ValueTask.CompletedTask;
             }
+
+            public ValueTask RequestShopOrderEnsureAsync(
+                Guid shopOrderId,
+                CancellationToken cancellationToken = default
+            ) => ValueTask.CompletedTask;
 
             public Task RunAsync(CancellationToken stoppingToken) =>
                 Task.CompletedTask;
