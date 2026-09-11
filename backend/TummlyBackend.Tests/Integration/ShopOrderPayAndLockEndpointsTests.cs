@@ -29,9 +29,12 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task PayThenWebhook_MarksOrderPaidAndProcessing()
+        public async Task PayThenWebhook_EnsuresOrderedTypeWithoutMint_AndQuantityIsOneMasterPdf()
         {
             var seeded = await SeedPaidShopWorkspaceAsync();
+            var qrTokensBefore = await ReadQrTokensAsync(
+                seeded.InScopeLocationId
+            );
             var orderId = await PlaceAwaitingPaymentOrderAsync(
                 seeded.MemberJwt,
                 seeded.InScopeLocationId
@@ -164,7 +167,20 @@ namespace TummlyBackend.Tests.Integration
                     StringComparison.Ordinal
                 );
                 Assert.Contains("Tax = VAT", pdf, StringComparison.Ordinal);
+
+                var printAssets = await context.PrintReadyQrAssets
+                    .AsNoTracking()
+                    .Where(row => row.ShopOrderId == orderId)
+                    .ToListAsync();
+                var asset = Assert.Single(printAssets);
+                Assert.Equal(QrType.TableTent, asset.QrType);
+                Assert.Equal(PrintReadyQrAssetStatus.Ready, asset.Status);
             }
+
+            Assert.Equal(
+                qrTokensBefore,
+                await ReadQrTokensAsync(seeded.InScopeLocationId)
+            );
         }
 
         [Fact]
@@ -220,6 +236,106 @@ namespace TummlyBackend.Tests.Integration
                     .AsNoTracking()
                     .SingleAsync(row => row.ShopOrderId == orderId);
                 Assert.False(intent.IsOpen);
+            }
+        }
+
+        [Fact]
+        public async Task AwaitingPaymentOrder_DoesNotEnsurePrintAssets()
+        {
+            var seeded = await SeedPaidShopWorkspaceAsync();
+            var orderId = await PlaceAwaitingPaymentOrderAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.False(
+                await context.PrintReadyQrAssets.AnyAsync(row =>
+                    row.ShopOrderId == orderId
+                )
+            );
+        }
+
+        [Fact]
+        public async Task PaidReorder_ReusesMatchingPdf_AndQrIdentityChangeRegenerates()
+        {
+            var seeded = await SeedPaidShopWorkspaceAsync();
+            var firstOrderId = await PlaceAwaitingPaymentOrderAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId
+            );
+            await CompleteShopPaymentAsync(
+                firstOrderId,
+                seeded.MemberJwt,
+                seeded.InScopeLocationId
+            );
+
+            var reorderId = await PlaceAwaitingPaymentOrderAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId
+            );
+            await CompleteShopPaymentAsync(
+                reorderId,
+                seeded.MemberJwt,
+                seeded.InScopeLocationId
+            );
+
+            string firstStorageKey;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var firstTwo = await context.PrintReadyQrAssets
+                    .AsNoTracking()
+                    .Where(row =>
+                        row.ShopOrderId == firstOrderId
+                        || row.ShopOrderId == reorderId
+                    )
+                    .ToListAsync();
+                Assert.Equal(2, firstTwo.Count);
+                Assert.Single(
+                    firstTwo,
+                    row => row.ShopOrderId == firstOrderId
+                );
+                Assert.Single(
+                    firstTwo,
+                    row => row.ShopOrderId == reorderId
+                );
+                Assert.Equal(firstTwo[0].StorageKey, firstTwo[1].StorageKey);
+                firstStorageKey = firstTwo[0].StorageKey!;
+
+                var tableTent = await context.QrCodes.SingleAsync(row =>
+                    row.RestaurantLocationId == seeded.InScopeLocationId
+                    && row.QrType == QrType.TableTent
+                );
+                tableTent.Token = $"rotated-pay-{Guid.NewGuid():N}";
+                await context.SaveChangesAsync();
+            }
+
+            var changedOrderId = await PlaceAwaitingPaymentOrderAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId
+            );
+            await CompleteShopPaymentAsync(
+                changedOrderId,
+                seeded.MemberJwt,
+                seeded.InScopeLocationId
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var changed = await context.PrintReadyQrAssets
+                    .AsNoTracking()
+                    .SingleAsync(row => row.ShopOrderId == changedOrderId);
+                Assert.NotEqual(firstStorageKey, changed.StorageKey);
+                Assert.Equal(
+                    PrintReadyQrAssetStatus.Ready,
+                    changed.Status
+                );
             }
         }
 
@@ -446,6 +562,56 @@ namespace TummlyBackend.Tests.Integration
             return await _client.SendAsync(request);
         }
 
+        private async Task CompleteShopPaymentAsync(
+            Guid orderId,
+            string jwt,
+            int locationId
+        )
+        {
+            using var payRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/shop/orders/{orderId}/pay?locationId={locationId}"
+            );
+            payRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+            payRequest.Headers.Add(
+                "Idempotency-Key",
+                Guid.NewGuid().ToString("D")
+            );
+            var payResponse = await _client.SendAsync(payRequest);
+            Assert.Equal(HttpStatusCode.OK, payResponse.StatusCode);
+
+            string revolutOrderId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                revolutOrderId = await context.RevolutOrderIntents
+                    .Where(row => row.ShopOrderId == orderId)
+                    .Select(row => row.OrderId)
+                    .SingleAsync();
+            }
+
+            _factory.Merchant.Orders[revolutOrderId] =
+                new RevolutOrderRetrieveResult(
+                    Succeeded: true,
+                    Id: revolutOrderId,
+                    State: "completed",
+                    AmountMinor: 12480,
+                    CheckoutUrl:
+                        FakeFirstPaidRevolutMerchantClient.CheckoutUrl,
+                    PaymentMethodSummary: "Paid"
+                );
+            var webhookBody =
+                $$"""{"event":"ORDER_COMPLETED","order_id":"{{revolutOrderId}}"}""";
+            var webhook = await SendSignedWebhookAsync(webhookBody);
+            Assert.True(
+                webhook.StatusCode
+                    is HttpStatusCode.OK
+                    or HttpStatusCode.NoContent
+            );
+        }
+
         private static object ValidShipTo()
         {
             return new
@@ -591,6 +757,33 @@ namespace TummlyBackend.Tests.Integration
             context.RestaurantLocations.Add(location);
             await context.SaveChangesAsync();
 
+            context.QrCodes.AddRange(
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.TableTent,
+                    Token = $"pay-tent-{Guid.NewGuid():N}",
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                },
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.WindowSticker,
+                    Token = $"pay-window-{Guid.NewGuid():N}",
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                },
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.OfferCard,
+                    Token = $"pay-offer-{Guid.NewGuid():N}",
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+
             context.RestaurantMemberships.Add(new RestaurantMembership
             {
                 UserId = owner.Id,
@@ -641,6 +834,19 @@ namespace TummlyBackend.Tests.Integration
                 location.Id,
                 restaurant.Id
             );
+        }
+
+        private async Task<Dictionary<QrType, string>> ReadQrTokensAsync(
+            int locationId
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            return await context.QrCodes
+                .AsNoTracking()
+                .Where(row => row.RestaurantLocationId == locationId)
+                .ToDictionaryAsync(row => row.QrType, row => row.Token);
         }
 
         private static HttpRequestMessage AuthorizedGet(string url, string jwt)

@@ -97,10 +97,22 @@ namespace TummlyBackend.Tests.Services
                 return Task.CompletedTask;
             }
 
+            public Task EnsureShopOrderMaterialsAsync(
+                Guid shopOrderId,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
             public Task<
                 IReadOnlyList<PrintMaterialsLocationReadinessDto>
             > ListReadinessAsync(
                 int operatorUserId,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
+            public Task<
+                IReadOnlyList<ShopPrintAssetReadinessDto>
+            > ListShopOrderReadinessAsync(
+                Guid shopOrderId,
                 CancellationToken cancellationToken = default
             ) => throw new NotSupportedException();
 
@@ -116,9 +128,21 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             ) => throw new NotSupportedException();
 
+            public Task<PrintReadyQrDownload?> DownloadShopOrderAsync(
+                Guid shopOrderId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
             public Task<PrintMaterialsAssetReadinessDto?> RetryAsync(
                 int operatorUserId,
                 int locationId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
+            public Task<ShopPrintAssetReadinessDto?> RetryShopOrderAsync(
+                Guid shopOrderId,
                 QrType qrType,
                 CancellationToken cancellationToken = default
             ) => throw new NotSupportedException();

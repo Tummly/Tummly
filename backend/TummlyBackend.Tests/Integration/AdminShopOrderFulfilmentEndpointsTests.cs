@@ -73,6 +73,109 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ListShopOrders_ReturnsReadiness_AndDownloadsOnePdfPerOrderedType()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                quantity: 40
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                await scope.ServiceProvider
+                    .GetRequiredService<IPrintReadyQrMaterialsService>()
+                    .EnsureShopOrderMaterialsAsync(orderId);
+            }
+
+            using var list = AuthorizedGet(
+                $"/api/admin/shop-orders?restaurantId={seeded.RestaurantId}",
+                seeded.AdminJwt
+            );
+            var listResponse = await _client.SendAsync(list);
+            Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+            var listBody = await ReadJsonAsync(listResponse);
+            var asset = Assert.Single(
+                listBody.GetProperty("items")[0]
+                    .GetProperty("printAssets")
+                    .EnumerateArray()
+            );
+            Assert.Equal("TableTent", asset.GetProperty("qrType").GetString());
+            Assert.Equal(40, asset.GetProperty("quantity").GetInt32());
+            Assert.Equal("Ready", asset.GetProperty("status").GetString());
+
+            using var download = AuthorizedGet(
+                $"/api/admin/shop-orders/{orderId}/print-assets/TableTent/download",
+                seeded.AdminJwt
+            );
+            var downloadResponse = await _client.SendAsync(download);
+            Assert.Equal(HttpStatusCode.OK, downloadResponse.StatusCode);
+            Assert.Equal(
+                "application/pdf",
+                downloadResponse.Content.Headers.ContentType?.MediaType
+            );
+            Assert.StartsWith(
+                "%PDF",
+                System.Text.Encoding.ASCII.GetString(
+                    (await downloadResponse.Content.ReadAsByteArrayAsync())[..4]
+                )
+            );
+        }
+
+        [Fact]
+        public async Task SoftLock_DoesNotBlockAdminShopDownloadOrRetry()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var account = await context.BillingAccounts
+                    .SingleAsync(row =>
+                        row.RestaurantId == seeded.RestaurantId
+                    );
+                account.BillingStatus = BillingStatuses.SoftLock;
+                context.PrintReadyQrAssets.Add(new PrintReadyQrAsset
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    QrType = QrType.TableTent,
+                    ShopOrderId = orderId,
+                    Status = PrintReadyQrAssetStatus.Failed,
+                    LastError = "controlled failure",
+                    CreatedAtUtc = DateTime.UtcNow,
+                    UpdatedAtUtc = DateTime.UtcNow,
+                });
+                await context.SaveChangesAsync();
+            }
+
+            using var retry = AuthorizedPost(
+                $"/api/admin/shop-orders/{orderId}/print-assets/TableTent/retry",
+                seeded.AdminJwt
+            );
+            var retryResponse = await _client.SendAsync(retry);
+            Assert.Equal(HttpStatusCode.OK, retryResponse.StatusCode);
+            Assert.Equal(
+                "Ready",
+                (await ReadJsonAsync(retryResponse))
+                    .GetProperty("status")
+                    .GetString()
+            );
+
+            using var download = AuthorizedGet(
+                $"/api/admin/shop-orders/{orderId}/print-assets/TableTent/download",
+                seeded.AdminJwt
+            );
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(download)).StatusCode
+            );
+        }
+
+        [Fact]
         public async Task PatchFulfilment_ProcessingToInTransitToDelivered_SetsTimestamps()
         {
             var seeded = await SeedWorkspaceAsync();
@@ -320,7 +423,8 @@ namespace TummlyBackend.Tests.Integration
             string titleSnapshot = "Table tents",
             string shipToContactName = "Ada Lovelace",
             string? shipToAddressLine2 = null,
-            string? deliveryInstructions = null
+            string? deliveryInstructions = null,
+            int quantity = 2
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -393,7 +497,7 @@ namespace TummlyBackend.Tests.Integration
                         CatalogSkuId = catalogSkuId,
                         TitleSnapshot = titleSnapshot,
                         MaterialType = titleSnapshot,
-                        Quantity = 2,
+                        Quantity = quantity,
                         UnitNetPence = 1200,
                         LineNetPence = 2400,
                     },
@@ -450,6 +554,39 @@ namespace TummlyBackend.Tests.Integration
             };
             context.RestaurantLocations.Add(location);
             await context.SaveChangesAsync();
+
+            context.QrCodes.AddRange(
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.TableTent,
+                    Token = $"admin-shop-tent-{Guid.NewGuid():N}",
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                },
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.WindowSticker,
+                    Token = $"admin-shop-window-{Guid.NewGuid():N}",
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                },
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.OfferCard,
+                    Token = $"admin-shop-offer-{Guid.NewGuid():N}",
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            context.BillingAccounts.Add(new BillingAccount
+            {
+                RestaurantId = restaurant.Id,
+                BillingStatus = BillingStatuses.Active,
+                ContractedPricebookId = "pricebook-v1",
+            });
 
             context.RestaurantMemberships.Add(
                 new RestaurantMembership
@@ -508,6 +645,17 @@ namespace TummlyBackend.Tests.Integration
             {
                 Content = JsonContent.Create(payload),
             };
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+            return request;
+        }
+
+        private static HttpRequestMessage AuthorizedPost(
+            string url,
+            string jwt
+        )
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, url);
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", jwt);
             return request;

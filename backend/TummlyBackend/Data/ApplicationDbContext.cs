@@ -309,6 +309,13 @@ namespace TummlyBackend.Data
                 .IsUnique()
                 .HasFilter("[ShopOrderId] IS NULL");
 
+            // Shop assets: quantity is a print-run instruction, so each order
+            // has at most one master PDF row per ordered physical QR type.
+            modelBuilder.Entity<PrintReadyQrAsset>()
+                .HasIndex(a => new { a.ShopOrderId, a.QrType })
+                .IsUnique()
+                .HasFilter("[ShopOrderId] IS NOT NULL");
+
             // Filtered unique: at most one Active/Paused QR code per
             // (location, type) for catalog four + Smart Guest. Digital guest
             // link (QrType = 5) is excluded so many may exist per location.

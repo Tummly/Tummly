@@ -6,6 +6,7 @@ using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.PrintReadyQrMaterials;
 using TummlyBackend.Services;
+using TummlyBackend.Shop.MaterialsCatalog;
 using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
@@ -41,6 +42,7 @@ namespace TummlyBackend.Tests.Services
             var service = new PrintReadyQrMaterialsService(
                 _context,
                 PrintTemplatePack.LoadFromContentRoot(AppContext.BaseDirectory),
+                MaterialsCatalog.LoadFromContentRoot(AppContext.BaseDirectory),
                 storage,
                 new QrCoderRasterizer(),
                 guestLinks,
@@ -93,6 +95,7 @@ namespace TummlyBackend.Tests.Services
             var service = new PrintReadyQrMaterialsService(
                 _context,
                 pack,
+                MaterialsCatalog.LoadFromContentRoot(AppContext.BaseDirectory),
                 storage,
                 new QrCoderRasterizer(),
                 new SmartGuestLinkService(
@@ -110,6 +113,109 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(0, storage.UploadAttempts);
             Assert.Equal(PrintReadyQrAssetStatus.Ready, asset.Status);
             Assert.Equal(originalUpdatedAt, asset.UpdatedAtUtc);
+        }
+
+        [Fact]
+        public async Task EnsureShopOrderMaterials_ReusesOnlyWhenTokenTemplateAndOfferVersionsMatch()
+        {
+            var location = await SeedLocationWithTableTentAsync();
+            var storage = new RecordingStorage();
+            var pack = PrintTemplatePack.LoadFromContentRoot(
+                AppContext.BaseDirectory
+            );
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Frontend:BaseUrl"] = "https://tummly.example",
+                })
+                .Build();
+            var service = new PrintReadyQrMaterialsService(
+                _context,
+                pack,
+                MaterialsCatalog.LoadFromContentRoot(AppContext.BaseDirectory),
+                storage,
+                new QrCoderRasterizer(),
+                new SmartGuestLinkService(
+                    _context,
+                    configuration,
+                    new NoOpBillingAccountLifecycle()
+                ),
+                NullLogger<PrintReadyQrMaterialsService>.Instance
+            );
+
+            var firstOrderId = await SeedPaidOrderAsync(location, quantity: 25);
+            await service.EnsureShopOrderMaterialsAsync(firstOrderId);
+            Assert.Equal(1, storage.UploadAttempts);
+
+            var reorderId = await SeedPaidOrderAsync(location, quantity: 100);
+            await service.EnsureShopOrderMaterialsAsync(reorderId);
+            Assert.Equal(1, storage.UploadAttempts);
+            var reused = await _context.PrintReadyQrAssets
+                .Where(row =>
+                    row.ShopOrderId == firstOrderId
+                    || row.ShopOrderId == reorderId
+                )
+                .OrderBy(row => row.ShopOrderId)
+                .ToListAsync();
+            Assert.Equal(2, reused.Count);
+            Assert.Equal(reused[0].StorageKey, reused[1].StorageKey);
+            Assert.All(
+                reused,
+                row => Assert.Equal(
+                    PrintReadyQrAssetStatus.Ready,
+                    row.Status
+                )
+            );
+            var readiness = await service.ListShopOrderReadinessAsync(reorderId);
+            Assert.Equal(100, Assert.Single(readiness).Quantity);
+
+            foreach (var asset in await _context.PrintReadyQrAssets.ToListAsync())
+            {
+                asset.TemplatePackVersion = "older-template";
+            }
+            await _context.SaveChangesAsync();
+            var templateChangedOrderId = await SeedPaidOrderAsync(
+                location,
+                quantity: 5
+            );
+            await service.EnsureShopOrderMaterialsAsync(templateChangedOrderId);
+            Assert.Equal(2, storage.UploadAttempts);
+
+            foreach (var asset in await _context.PrintReadyQrAssets.ToListAsync())
+            {
+                asset.TemplatePackVersion = pack.CurrentPackId;
+                asset.OfferCopyVersion = "older-offer-copy";
+            }
+            await _context.SaveChangesAsync();
+            var offerChangedOrderId = await SeedPaidOrderAsync(
+                location,
+                quantity: 6
+            );
+            await service.EnsureShopOrderMaterialsAsync(offerChangedOrderId);
+            Assert.Equal(3, storage.UploadAttempts);
+
+            foreach (var asset in await _context.PrintReadyQrAssets.ToListAsync())
+            {
+                asset.TemplatePackVersion = pack.CurrentPackId;
+                asset.OfferCopyVersion = pack.Snapshot.OfferCopyVersion;
+            }
+            var qrCode = await _context.QrCodes.SingleAsync();
+            qrCode.Token = "rotated-shop-token-654321";
+            await _context.SaveChangesAsync();
+            var rotatedOrderId = await SeedPaidOrderAsync(
+                location,
+                quantity: 7
+            );
+            await service.EnsureShopOrderMaterialsAsync(rotatedOrderId);
+
+            Assert.Equal(4, storage.UploadAttempts);
+            Assert.Equal(1, await _context.QrCodes.CountAsync());
+            Assert.Equal(
+                5,
+                await _context.PrintReadyQrAssets.CountAsync(row =>
+                    row.ShopOrderId != null
+                )
+            );
         }
 
         [Fact]
@@ -204,6 +310,96 @@ namespace TummlyBackend.Tests.Services
             );
             await _context.SaveChangesAsync();
             return location;
+        }
+
+        private async Task<Guid> SeedPaidOrderAsync(
+            RestaurantLocation location,
+            int quantity
+        )
+        {
+            var restaurant = await _context.Restaurants
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == location.RestaurantId);
+            var order = new ShopOrder
+            {
+                Id = Guid.NewGuid(),
+                OrderNumber = $"ORD-{Guid.NewGuid():N}"[..20],
+                RestaurantId = restaurant.Id,
+                LocationId = location.Id,
+                LocationNameSnapshot = location.LocationName,
+                PlacedByUserId = restaurant.OwnerUserId,
+                PlacedByNameSnapshot = "Print owner",
+                MaterialsNetPence = 2400 * quantity,
+                VatPence = 480 * quantity,
+                GrossPence = 2880 * quantity,
+                DeliveryMethod = ShopDeliveryMethods.Standard,
+                PaymentStatus = ShopPaymentStatuses.Paid,
+                FulfilmentStatus = ShopFulfilmentStatuses.Processing,
+                PaidAtUtc = DateTime.UtcNow,
+                ProcessingStartedAtUtc = DateTime.UtcNow,
+                ShipToContactName = "Print owner",
+                ShipToAddressLine1 = "1 High Street",
+                ShipToPostcode = "SE1 1AA",
+                ShipToCountry = "United Kingdom",
+                Lines =
+                {
+                    new ShopOrderLine
+                    {
+                        Id = Guid.NewGuid(),
+                        CatalogSkuId = "table-tents",
+                        TitleSnapshot = "Table Tent QR",
+                        MaterialType = "tabletop",
+                        Quantity = quantity,
+                        UnitNetPence = 2400,
+                        LineNetPence = 2400 * quantity,
+                    },
+                },
+            };
+            _context.ShopOrders.Add(order);
+            await _context.SaveChangesAsync();
+            return order.Id;
+        }
+
+        private sealed class RecordingStorage : IQueryAttachmentStorage
+        {
+            private readonly Dictionary<string, byte[]> _objects = [];
+
+            public bool IsConfigured => true;
+
+            public int UploadAttempts { get; private set; }
+
+            public async Task UploadAsync(
+                string storageKey,
+                Stream content,
+                string contentType,
+                long contentLength,
+                CancellationToken cancellationToken = default
+            )
+            {
+                UploadAttempts++;
+                using var buffer = new MemoryStream();
+                await content.CopyToAsync(buffer, cancellationToken);
+                _objects[storageKey] = buffer.ToArray();
+            }
+
+            public Task<Stream> OpenReadAsync(
+                string storageKey,
+                CancellationToken cancellationToken = default
+            )
+            {
+                return Task.FromResult<Stream>(
+                    new MemoryStream(_objects[storageKey])
+                );
+            }
+
+            public Task DeleteAsync(
+                string storageKey,
+                CancellationToken cancellationToken = default
+            )
+            {
+                _objects.Remove(storageKey);
+                return Task.CompletedTask;
+            }
         }
 
         private sealed class FailFirstUploadStorage : IQueryAttachmentStorage

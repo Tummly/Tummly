@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 import axios from "axios"
+import { DownloadIcon, RefreshCcwIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { postAdminPaymentRefund } from "@/api/adminApi"
@@ -37,6 +38,10 @@ import {
   formatAdminShopGbpFromPence,
   nextAdminShopFulfilmentAction,
 } from "@/lib/adminShopOrderFulfilment"
+import {
+  createAdminShopOrderPrintAssetsPageModule,
+  httpAdminShopOrderPrintAssetsAdapters,
+} from "@/lib/admin/createAdminShopOrderPrintAssetsPageModule"
 
 type AdminShopOrderDetailDrawerProps = {
   order: AdminShopOrderListItem | null
@@ -79,7 +84,18 @@ export function AdminShopOrderDetailDrawer({
   const [refundIdempotencyKey, setRefundIdempotencyKey] = useState(() =>
     crypto.randomUUID()
   )
+  const [printAssetsModule] = useState(() =>
+    createAdminShopOrderPrintAssetsPageModule(
+      httpAdminShopOrderPrintAssetsAdapters
+    )
+  )
+  const printAssets = useSyncExternalStore(
+    printAssetsModule.subscribe,
+    printAssetsModule.getSnapshot,
+    printAssetsModule.getSnapshot
+  )
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!order) {
       return
@@ -90,6 +106,11 @@ export function AdminShopOrderDetailDrawer({
     setRefundConfirmOpen(false)
     setRefundIdempotencyKey(crypto.randomUUID())
   }, [order])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => {
+    printAssetsModule.setOrder(order)
+  }, [order, printAssetsModule])
 
   if (!order) {
     return null
@@ -210,6 +231,37 @@ export function AdminShopOrderDetailDrawer({
     }
   }
 
+  const handlePrintDownload = async (
+    qrType: "TableTent" | "WindowSticker" | "OfferCard"
+  ) => {
+    const downloaded = await printAssetsModule.download(qrType)
+    if (!downloaded) {
+      toast.error("Could not download the print-ready PDF.")
+    }
+  }
+
+  const handlePrintRetry = async (
+    qrType: "TableTent" | "WindowSticker" | "OfferCard"
+  ) => {
+    const retried = await printAssetsModule.retry(qrType)
+    if (!retried) {
+      toast.error("Could not retry the print-ready PDF.")
+      return
+    }
+
+    const updatedPrintAssets = printAssetsModule.getSnapshot().rows.map(
+      ({ qrType, quantity, status, fileName, lastError }) => ({
+        qrType,
+        quantity,
+        status,
+        fileName,
+        lastError,
+      })
+    )
+    onOrderUpdated({ ...order, printAssets: updatedPrintAssets })
+    toast.success("Print-ready PDF is ready.")
+  }
+
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange}>
@@ -259,6 +311,87 @@ export function AdminShopOrderDetailDrawer({
                   {order.revolutOrderId?.trim() || "—"}
                 </p>
               </div>
+            </section>
+
+            <Separator />
+
+            <section className="flex flex-col gap-3">
+              <div>
+                <h3 className="text-sm font-semibold">Print-ready PDFs</h3>
+                <p className="text-xs text-muted-foreground">
+                  One master PDF per ordered QR type. Quantity is the print-run
+                  instruction.
+                </p>
+              </div>
+              <ul className="flex flex-col gap-2">
+                {printAssets.rows.map((asset) => {
+                  const busy = printAssets.busyQrType === asset.qrType
+                  return (
+                    <li
+                      key={asset.qrType}
+                      className="flex flex-col gap-3 rounded-xl border px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <p className="font-medium">
+                          {asset.qrType === "TableTent"
+                            ? "Table Tent QR"
+                            : asset.qrType === "WindowSticker"
+                              ? "Window Sticker QR"
+                              : "Offer Card"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Print quantity: {asset.quantity}
+                        </p>
+                        {asset.lastError && (
+                          <p className="mt-1 text-xs text-destructive">
+                            {asset.lastError}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={
+                            asset.status === "Ready" ? "secondary" : "outline"
+                          }
+                        >
+                          {asset.status}
+                        </Badge>
+                        {asset.canDownload && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() =>
+                              void handlePrintDownload(asset.qrType)
+                            }
+                          >
+                            <DownloadIcon />
+                            Download PDF
+                          </Button>
+                        )}
+                        {asset.canRetry && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => void handlePrintRetry(asset.qrType)}
+                          >
+                            <RefreshCcwIcon />
+                            Retry
+                          </Button>
+                        )}
+                      </div>
+                    </li>
+                  )
+                })}
+                {printAssets.rows.length === 0 && (
+                  <li className="text-sm text-muted-foreground">
+                    No physical QR print assets for this order.
+                  </li>
+                )}
+              </ul>
             </section>
 
             <Separator />
