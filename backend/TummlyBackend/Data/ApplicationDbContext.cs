@@ -111,6 +111,8 @@ namespace TummlyBackend.Data
 
         public DbSet<QrCode> QrCodes { get; set; }
 
+        public DbSet<PrintReadyQrAsset> PrintReadyQrAssets { get; set; }
+
         public DbSet<GuestLoopSetup> GuestLoopSetups { get; set; }
 
         public DbSet<TrustedDevice> TrustedDevices { get; set; }
@@ -288,6 +290,24 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<QrCode>()
                 .HasIndex(q => q.Token)
                 .IsUnique();
+
+            /*
+             =========================================
+             PRINT-READY QR ASSETS (Admin fulfilment)
+             =========================================
+             */
+
+            modelBuilder.Entity<PrintReadyQrAsset>()
+                .HasOne(a => a.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(a => a.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Starter assets: one row per (location, type) when ShopOrderId is null.
+            modelBuilder.Entity<PrintReadyQrAsset>()
+                .HasIndex(a => new { a.RestaurantLocationId, a.QrType })
+                .IsUnique()
+                .HasFilter("[ShopOrderId] IS NULL");
 
             // Filtered unique: at most one Active/Paused QR code per
             // (location, type) for catalog four + Smart Guest. Digital guest

@@ -70,6 +70,18 @@
     <Content Include="..\..\docs\product\materials-catalog-v1\current-materials-catalog-id" Link="Assets\materials-catalog\current-materials-catalog-id">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="..\..\docs\product\print-template-pack-v1\manifest.json" Link="Assets\print-template-pack\manifest.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\docs\product\print-template-pack-v1\current-print-template-pack-id" Link="Assets\print-template-pack\current-print-template-pack-id">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\docs\product\print-template-pack-v1\tent-sticker-empty-dev.svg" Link="Assets\print-template-pack\tent-sticker-empty-dev.svg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\docs\product\print-template-pack-v1\card-dev.svg" Link="Assets\print-template-pack\card-dev.svg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

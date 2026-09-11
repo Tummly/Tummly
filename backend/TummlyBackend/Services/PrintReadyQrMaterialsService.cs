@@ -1,0 +1,534 @@
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Data;
+using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
+using TummlyBackend.PrintReadyQrMaterials;
+
+namespace TummlyBackend.Services
+{
+    public sealed class PrintReadyQrMaterialsService : IPrintReadyQrMaterialsService
+    {
+        private static readonly QrType[] StarterTypes =
+        {
+            QrType.TableTent,
+            QrType.WindowSticker,
+            QrType.OfferCard,
+        };
+
+        private readonly ApplicationDbContext _context;
+        private readonly PrintTemplatePack _pack;
+        private readonly IQueryAttachmentStorage _storage;
+        private readonly IQrCodeRasterizer _rasterizer;
+        private readonly ISmartGuestLinkService _guestLinks;
+        private readonly ILogger<PrintReadyQrMaterialsService> _logger;
+
+        public PrintReadyQrMaterialsService(
+            ApplicationDbContext context,
+            PrintTemplatePack pack,
+            IQueryAttachmentStorage storage,
+            IQrCodeRasterizer rasterizer,
+            ISmartGuestLinkService guestLinks,
+            ILogger<PrintReadyQrMaterialsService> logger
+        )
+        {
+            _context = context;
+            _pack = pack;
+            _storage = storage;
+            _rasterizer = rasterizer;
+            _guestLinks = guestLinks;
+            _logger = logger;
+        }
+
+        public async Task EnsureStarterMaterialsAsync(
+            int locationId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var location = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Include(row => row.Restaurant)
+                .FirstOrDefaultAsync(
+                    row => row.Id == locationId,
+                    cancellationToken
+                );
+
+            if (location?.Restaurant == null)
+            {
+                return;
+            }
+
+            foreach (var qrType in StarterTypes)
+            {
+                await EnsureOneAsync(
+                    location,
+                    qrType,
+                    cancellationToken
+                );
+            }
+        }
+
+        public async Task EnsureAllStarterMaterialsForOperatorAsync(
+            int operatorUserId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var locationIds = await OwnedLocationIdsAsync(
+                operatorUserId,
+                cancellationToken
+            );
+            foreach (var locationId in locationIds)
+            {
+                await EnsureStarterMaterialsAsync(locationId, cancellationToken);
+            }
+        }
+
+        public async Task<IReadOnlyList<PrintMaterialsLocationReadinessDto>>
+            ListReadinessAsync(
+                int operatorUserId,
+                CancellationToken cancellationToken = default
+            )
+        {
+            var locations = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Restaurant!.OwnerUserId == operatorUserId)
+                .OrderBy(row => row.CreatedAt)
+                .Select(row => new { row.Id, row.LocationName })
+                .ToListAsync(cancellationToken);
+
+            var locationIds = locations.Select(row => row.Id).ToList();
+            var assets = await _context.PrintReadyQrAssets
+                .AsNoTracking()
+                .Where(row =>
+                    locationIds.Contains(row.RestaurantLocationId)
+                    && row.ShopOrderId == null
+                    && (
+                        row.QrType == QrType.TableTent
+                        || row.QrType == QrType.WindowSticker
+                        || row.QrType == QrType.OfferCard
+                    )
+                )
+                .ToListAsync(cancellationToken);
+
+            var byLocation = assets
+                .GroupBy(row => row.RestaurantLocationId)
+                .ToDictionary(group => group.Key, group => group.ToList());
+
+            return locations
+                .Select(location =>
+                {
+                    byLocation.TryGetValue(location.Id, out var rows);
+                    rows ??= [];
+                    return new PrintMaterialsLocationReadinessDto
+                    {
+                        LocationId = location.Id,
+                        LocationName = location.LocationName,
+                        Assets = StarterTypes
+                            .Select(qrType =>
+                            {
+                                var match = rows.FirstOrDefault(row =>
+                                    row.QrType == qrType
+                                );
+                                return new PrintMaterialsAssetReadinessDto
+                                {
+                                    QrType = qrType.ToString(),
+                                    Status = match is null
+                                        ? PrintReadyQrAssetStatus.Preparing.ToString()
+                                        : match.Status.ToString(),
+                                    FileName = match?.FileName,
+                                    LastError = match?.LastError,
+                                };
+                            })
+                            .ToList(),
+                    };
+                })
+                .ToList();
+        }
+
+        public async Task<PrintReadyQrDownload?> DownloadAsync(
+            int operatorUserId,
+            int locationId,
+            QrType qrType,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!StarterTypes.Contains(qrType))
+            {
+                return null;
+            }
+
+            var owned = await IsOwnedLocationAsync(
+                operatorUserId,
+                locationId,
+                cancellationToken
+            );
+            if (!owned)
+            {
+                return null;
+            }
+
+            var asset = await _context.PrintReadyQrAssets
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.RestaurantLocationId == locationId
+                        && row.QrType == qrType
+                        && row.ShopOrderId == null,
+                    cancellationToken
+                );
+
+            if (asset == null)
+            {
+                return null;
+            }
+
+            if (asset.Status != PrintReadyQrAssetStatus.Ready
+                || string.IsNullOrWhiteSpace(asset.StorageKey)
+                || string.IsNullOrWhiteSpace(asset.FileName))
+            {
+                throw new PrintReadyQrNotReadyException(asset.Status);
+            }
+
+            await using var stream = await _storage.OpenReadAsync(
+                asset.StorageKey,
+                cancellationToken
+            );
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms, cancellationToken);
+            return new PrintReadyQrDownload(
+                ms.ToArray(),
+                asset.ContentType,
+                BuildDistinctFileName(asset.FileName, qrType)
+            );
+        }
+
+        public async Task<PrintMaterialsAssetReadinessDto?> RetryAsync(
+            int operatorUserId,
+            int locationId,
+            QrType qrType,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!StarterTypes.Contains(qrType))
+            {
+                return null;
+            }
+
+            var location = await _context.RestaurantLocations
+                .Include(row => row.Restaurant)
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.Id == locationId
+                        && row.Restaurant!.OwnerUserId == operatorUserId,
+                    cancellationToken
+                );
+
+            if (location?.Restaurant == null)
+            {
+                return null;
+            }
+
+            var asset = await _context.PrintReadyQrAssets
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.RestaurantLocationId == locationId
+                        && row.QrType == qrType
+                        && row.ShopOrderId == null,
+                    cancellationToken
+                );
+
+            if (asset == null || asset.Status != PrintReadyQrAssetStatus.Failed)
+            {
+                throw new InvalidOperationException(
+                    "Only Failed print-ready QR assets can be retried."
+                );
+            }
+
+            await GenerateAndStoreAsync(location, asset, cancellationToken);
+
+            return new PrintMaterialsAssetReadinessDto
+            {
+                QrType = qrType.ToString(),
+                Status = asset.Status.ToString(),
+                FileName = asset.FileName,
+                LastError = asset.LastError,
+            };
+        }
+
+        private async Task EnsureOneAsync(
+            RestaurantLocation location,
+            QrType qrType,
+            CancellationToken cancellationToken
+        )
+        {
+            var qrCode = await _context.QrCodes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.RestaurantLocationId == location.Id
+                        && row.QrType == qrType
+                        && row.Status == QrCodeStatus.Active,
+                    cancellationToken
+                );
+
+            if (qrCode == null)
+            {
+                return;
+            }
+
+            var fingerprint = FingerprintToken(qrCode.Token);
+            var packId = _pack.CurrentPackId;
+            var offerCopyVersion = _pack.Snapshot.OfferCopyVersion;
+
+            var asset = await _context.PrintReadyQrAssets
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.RestaurantLocationId == location.Id
+                        && row.QrType == qrType
+                        && row.ShopOrderId == null,
+                    cancellationToken
+                );
+
+            if (asset != null
+                && asset.Status == PrintReadyQrAssetStatus.Ready
+                && string.Equals(asset.QrTokenFingerprint, fingerprint, StringComparison.Ordinal)
+                && string.Equals(asset.TemplatePackVersion, packId, StringComparison.Ordinal)
+                && string.Equals(
+                    asset.OfferCopyVersion,
+                    offerCopyVersion,
+                    StringComparison.Ordinal
+                )
+                && !string.IsNullOrWhiteSpace(asset.StorageKey))
+            {
+                return;
+            }
+
+            if (asset == null)
+            {
+                asset = new PrintReadyQrAsset
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = qrType,
+                    Status = PrintReadyQrAssetStatus.Preparing,
+                    CreatedAtUtc = DateTime.UtcNow,
+                    UpdatedAtUtc = DateTime.UtcNow,
+                };
+                _context.PrintReadyQrAssets.Add(asset);
+            }
+            else
+            {
+                asset.Status = PrintReadyQrAssetStatus.Preparing;
+                asset.LastError = null;
+                asset.UpdatedAtUtc = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await GenerateAndStoreAsync(location, asset, cancellationToken);
+        }
+
+        private async Task GenerateAndStoreAsync(
+            RestaurantLocation location,
+            PrintReadyQrAsset asset,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                var qrCode = await _context.QrCodes
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        row =>
+                            row.RestaurantLocationId == location.Id
+                            && row.QrType == asset.QrType
+                            && row.Status == QrCodeStatus.Active,
+                        cancellationToken
+                    );
+
+                if (qrCode == null)
+                {
+                    throw new InvalidOperationException(
+                        $"No Active QR code for {asset.QrType} at location {location.Id}."
+                    );
+                }
+
+                if (!_storage.IsConfigured)
+                {
+                    throw new InvalidOperationException(
+                        "Object storage is not configured for print-ready QR assets."
+                    );
+                }
+
+                var guestUrl = _guestLinks.BuildGuestUrl(qrCode.Token);
+                var raster = _rasterizer.Render(guestUrl);
+                var pdf = PrintReadyQrPdfComposer.Compose(
+                    _pack.Snapshot,
+                    asset.QrType,
+                    raster,
+                    _pack.Snapshot.DefaultOfferHeadline
+                );
+
+                var fingerprint = FingerprintToken(qrCode.Token);
+                var fileName = BuildStorageFileName(
+                    location,
+                    asset.QrType
+                );
+                var storageKey =
+                    $"print-ready-qr/{location.Id}/{asset.QrType}/{fingerprint}.pdf";
+
+                await using var upload = new MemoryStream(pdf);
+                await _storage.UploadAsync(
+                    storageKey,
+                    upload,
+                    PrintReadyQrPdfComposer.ContentType,
+                    pdf.Length,
+                    cancellationToken
+                );
+
+                asset.Status = PrintReadyQrAssetStatus.Ready;
+                asset.StorageKey = storageKey;
+                asset.ContentType = PrintReadyQrPdfComposer.ContentType;
+                asset.FileName = fileName;
+                asset.QrTokenFingerprint = fingerprint;
+                asset.TemplatePackVersion = _pack.CurrentPackId;
+                asset.OfferCopyVersion = _pack.Snapshot.OfferCopyVersion;
+                asset.LastError = null;
+                asset.UpdatedAtUtc = DateTime.UtcNow;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to generate print-ready QR asset {QrType} for location {LocationId}",
+                    asset.QrType,
+                    location.Id
+                );
+                asset.Status = PrintReadyQrAssetStatus.Failed;
+                asset.LastError = TruncateError(ex.Message);
+                asset.UpdatedAtUtc = DateTime.UtcNow;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        private async Task<List<int>> OwnedLocationIdsAsync(
+            int operatorUserId,
+            CancellationToken cancellationToken
+        )
+        {
+            return await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Restaurant!.OwnerUserId == operatorUserId)
+                .Select(row => row.Id)
+                .ToListAsync(cancellationToken);
+        }
+
+        private async Task<bool> IsOwnedLocationAsync(
+            int operatorUserId,
+            int locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            return await _context.RestaurantLocations
+                .AsNoTracking()
+                .AnyAsync(
+                    row =>
+                        row.Id == locationId
+                        && row.Restaurant!.OwnerUserId == operatorUserId,
+                    cancellationToken
+                );
+        }
+
+        private static string FingerprintToken(string token)
+        {
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+            return Convert.ToHexString(hash).ToLowerInvariant();
+        }
+
+        private static string BuildStorageFileName(
+            RestaurantLocation location,
+            QrType qrType
+        )
+        {
+            var restaurant = Slug(
+                location.Restaurant?.Name ?? "restaurant"
+            );
+            var locationSlug = Slug(location.LocationName);
+            var typeSlug = qrType switch
+            {
+                QrType.TableTent => "table-tent",
+                QrType.WindowSticker => "window-sticker",
+                QrType.OfferCard => "offer-card",
+                _ => qrType.ToString().ToLowerInvariant(),
+            };
+            return $"tummly-{restaurant}-{locationSlug}-{typeSlug}.pdf";
+        }
+
+        /// <summary>
+        /// Tent and Sticker may share PDF bytes but must download under
+        /// distinct type-specific names.
+        /// </summary>
+        private static string BuildDistinctFileName(string storedName, QrType qrType)
+        {
+            var typeSlug = qrType switch
+            {
+                QrType.TableTent => "table-tent",
+                QrType.WindowSticker => "window-sticker",
+                QrType.OfferCard => "offer-card",
+                _ => qrType.ToString().ToLowerInvariant(),
+            };
+
+            if (storedName.Contains(typeSlug, StringComparison.OrdinalIgnoreCase))
+            {
+                return storedName;
+            }
+
+            return storedName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
+                ? storedName[..^4] + $"-{typeSlug}.pdf"
+                : $"{storedName}-{typeSlug}.pdf";
+        }
+
+        private static string Slug(string value)
+        {
+            var sb = new StringBuilder(value.Length);
+            var lastDash = false;
+            foreach (var ch in value.ToLowerInvariant())
+            {
+                if (ch is >= 'a' and <= 'z' or >= '0' and <= '9')
+                {
+                    sb.Append(ch);
+                    lastDash = false;
+                }
+                else if (!lastDash && sb.Length > 0)
+                {
+                    sb.Append('-');
+                    lastDash = true;
+                }
+            }
+
+            var slug = sb.ToString().Trim('-');
+            return string.IsNullOrWhiteSpace(slug) ? "item" : slug;
+        }
+
+        private static string TruncateError(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return "Generation failed.";
+            }
+
+            return message.Length <= 1000 ? message : message[..1000];
+        }
+    }
+
+    public sealed class PrintReadyQrNotReadyException : Exception
+    {
+        public PrintReadyQrNotReadyException(PrintReadyQrAssetStatus status)
+            : base($"Print-ready QR asset is not ready ({status}).")
+        {
+            Status = status;
+        }
+
+        public PrintReadyQrAssetStatus Status { get; }
+    }
+}

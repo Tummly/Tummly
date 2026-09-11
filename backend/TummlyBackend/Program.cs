@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Billing;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Shop.MaterialsCatalog;
+using TummlyBackend.PrintReadyQrMaterials;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -133,6 +134,20 @@ builder.Services.Configure<IdealPostcodesSettings>(
 );
 
 builder.Services.AddQueryAttachmentStorage(builder.Configuration);
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    // Prefer in-memory object storage so print-ready QR generation can run
+    // without cloud credentials in integration tests.
+    var attachmentDescriptors = builder.Services
+        .Where(descriptor => descriptor.ServiceType == typeof(IQueryAttachmentStorage))
+        .ToList();
+    foreach (var descriptor in attachmentDescriptors)
+    {
+        builder.Services.Remove(descriptor);
+    }
+
+    builder.Services.AddSingleton<IQueryAttachmentStorage, InMemoryQueryAttachmentStorage>();
+}
 
 builder.Services.Configure<HelpCentreSettings>(
     builder.Configuration.GetSection("HelpCentre")
@@ -556,6 +571,11 @@ builder.Services.AddSingleton<IPricebookCatalog>(sp =>
 builder.Services.AddSingleton<IMaterialsCatalog>(sp =>
     MaterialsCatalog.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
 );
+builder.Services.AddSingleton(sp =>
+    PrintTemplatePack.CreateForHost(sp.GetRequiredService<IHostEnvironment>())
+);
+builder.Services.AddSingleton<IQrCodeRasterizer, QrCoderRasterizer>();
+builder.Services.AddScoped<IPrintReadyQrMaterialsService, PrintReadyQrMaterialsService>();
 builder.Services.AddScoped<IShopCartService, ShopCartService>();
 builder.Services.AddScoped<IShopLocationRecommendationsService, ShopLocationRecommendationsService>();
 builder.Services.AddScoped<IShopOrderNumberAllocator, ShopOrderNumberAllocator>();
