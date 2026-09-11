@@ -12,12 +12,6 @@ namespace TummlyBackend.Services
 {
     public sealed class PrintReadyQrMaterialsService : IPrintReadyQrMaterialsService
     {
-        private static readonly QrType[] StarterTypes =
-        {
-            QrType.TableTent,
-            QrType.WindowSticker,
-            QrType.OfferCard,
-        };
         private static readonly ConcurrentDictionary<
             (int LocationId, QrType QrType, Guid? ShopOrderId),
             SemaphoreSlim
@@ -69,7 +63,7 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            foreach (var qrType in StarterTypes)
+            foreach (var qrType in StarterQrMaterialTypes.All)
             {
                 await EnsureOneAsync(
                     location,
@@ -168,7 +162,7 @@ namespace TummlyBackend.Services
                     {
                         LocationId = location.Id,
                         LocationName = location.LocationName,
-                        Assets = StarterTypes
+                        Assets = StarterQrMaterialTypes.All
                             .Select(qrType =>
                             {
                                 var match = rows.FirstOrDefault(row =>
@@ -237,7 +231,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            if (!StarterTypes.Contains(qrType))
+            if (!StarterQrMaterialTypes.Contains(qrType))
             {
                 return null;
             }
@@ -360,7 +354,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            if (!StarterTypes.Contains(qrType))
+            if (!StarterQrMaterialTypes.Contains(qrType))
             {
                 return null;
             }
@@ -499,7 +493,10 @@ namespace TummlyBackend.Services
                     row =>
                         row.RestaurantLocationId == location.Id
                         && row.QrType == qrType
-                        && row.Status == QrCodeStatus.Active,
+                        && (
+                            row.Status == QrCodeStatus.Active
+                            || row.Status == QrCodeStatus.Paused
+                        ),
                     cancellationToken
                 );
 
@@ -700,14 +697,17 @@ namespace TummlyBackend.Services
                     row =>
                         row.RestaurantLocationId == location.Id
                         && row.QrType == asset.QrType
-                        && row.Status == QrCodeStatus.Active,
+                        && (
+                            row.Status == QrCodeStatus.Active
+                            || row.Status == QrCodeStatus.Paused
+                        ),
                     cancellationToken
                 );
 
             if (qrCode == null)
             {
                 throw new InvalidOperationException(
-                    $"No Active QR code for {asset.QrType} at location {location.Id}."
+                    $"No live QR code for {asset.QrType} at location {location.Id}."
                 );
             }
 

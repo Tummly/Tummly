@@ -6,6 +6,7 @@ using TummlyBackend.DTOs.Capture;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.PrintReadyQrMaterials;
 
 namespace TummlyBackend.Services
 {
@@ -19,16 +20,22 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly ISmartGuestLinkService _smartGuestLink;
         private readonly IPricebookCatalog _pricebookCatalog;
+        private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
+        private readonly ILogger<CaptureQrLifecycleService> _logger;
 
         public CaptureQrLifecycleService(
             ApplicationDbContext context,
             ISmartGuestLinkService smartGuestLink,
-            IPricebookCatalog pricebookCatalog
+            IPricebookCatalog pricebookCatalog,
+            IPrintReadyQrMaterialsWork printReadyQrMaterialsWork,
+            ILogger<CaptureQrLifecycleService> logger
         )
         {
             _context = context;
             _smartGuestLink = smartGuestLink;
             _pricebookCatalog = pricebookCatalog;
+            _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
+            _logger = logger;
         }
 
         public async Task<QrLifecycleResult> CreateDigitalGuestLinkAsync(
@@ -337,8 +344,37 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var regeneratesStarterMaterial =
+                StarterQrMaterialTypes.Contains(qrCode.QrType);
+            if (regeneratesStarterMaterial)
+            {
+                var asset = await _context.PrintReadyQrAssets
+                    .FirstOrDefaultAsync(row =>
+                        row.RestaurantLocationId == command.LocationId
+                        && row.QrType == qrCode.QrType
+                        && row.ShopOrderId == null
+                    );
+
+                if (asset != null)
+                {
+                    asset.Status = PrintReadyQrAssetStatus.Preparing;
+                    asset.StorageKey = null;
+                    asset.FileName = null;
+                    asset.QrTokenFingerprint = null;
+                    asset.TemplatePackVersion = null;
+                    asset.OfferCopyVersion = null;
+                    asset.LastError = null;
+                    asset.UpdatedAtUtc = DateTime.UtcNow;
+                }
+            }
+
             qrCode.Token = await _smartGuestLink.GenerateTokenAsync();
             await _context.SaveChangesAsync();
+
+            if (regeneratesStarterMaterial)
+            {
+                RequestStarterMaterialRegeneration(command.LocationId);
+            }
 
             return QrLifecycleResult.Ok(new
             {
@@ -347,6 +383,50 @@ namespace TummlyBackend.Services
                 status = qrCode.Status.ToString(),
                 qrLinkUrl = _smartGuestLink.BuildGuestUrl(qrCode.Token),
             });
+        }
+
+        private void RequestStarterMaterialRegeneration(int locationId)
+        {
+            try
+            {
+                var request =
+                    _printReadyQrMaterialsWork.RequestEnsureAsync(locationId);
+                if (!request.IsCompletedSuccessfully)
+                {
+                    _ = ObserveStarterMaterialRequestAsync(request, locationId);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogStarterMaterialRequestFailure(ex, locationId);
+            }
+        }
+
+        private async Task ObserveStarterMaterialRequestAsync(
+            ValueTask request,
+            int locationId
+        )
+        {
+            try
+            {
+                await request;
+            }
+            catch (Exception ex)
+            {
+                LogStarterMaterialRequestFailure(ex, locationId);
+            }
+        }
+
+        private void LogStarterMaterialRequestFailure(
+            Exception exception,
+            int locationId
+        )
+        {
+            _logger.LogError(
+                exception,
+                "Could not queue Starter QR material regeneration for Owned location {LocationId}",
+                locationId
+            );
         }
 
         public async Task<QrLifecycleResult> ArchiveAsync(

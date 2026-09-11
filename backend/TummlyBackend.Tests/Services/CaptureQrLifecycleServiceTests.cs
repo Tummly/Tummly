@@ -1,10 +1,12 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
 using TummlyBackend.Helpers;
+using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
 using TummlyBackend.Tests.Helpers;
@@ -16,6 +18,7 @@ namespace TummlyBackend.Tests.Services
         private readonly ApplicationDbContext _context;
         private readonly CaptureQrLifecycleService _service;
         private readonly SmartGuestLinkService _smartGuestLink;
+        private readonly RecordingPrintReadyQrMaterialsWork _printWork = new();
         private int _userId;
         private int _locationId;
 
@@ -40,7 +43,9 @@ namespace TummlyBackend.Tests.Services
             _service = new CaptureQrLifecycleService(
                 _context,
                 _smartGuestLink,
-                PricebookCatalog.LoadFromDirectory(PackDirectory())
+                PricebookCatalog.LoadFromDirectory(PackDirectory()),
+                _printWork,
+                NullLogger<CaptureQrLifecycleService>.Instance
             );
 
             SeedWorkspace();
@@ -145,6 +150,63 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Theory]
+        [InlineData(QrType.TableTent, QrCodeStatus.Active)]
+        [InlineData(QrType.WindowSticker, QrCodeStatus.Paused)]
+        [InlineData(QrType.OfferCard, QrCodeStatus.Active)]
+        public async Task Rotate_StarterMaterial_InvalidatesReadyAssetAndQueuesRegeneration(
+            QrType qrType,
+            QrCodeStatus status
+        )
+        {
+            var qr = await SeedQrAsync(qrType, status);
+            _context.PrintReadyQrAssets.Add(new PrintReadyQrAsset
+            {
+                RestaurantLocationId = _locationId,
+                QrType = qrType,
+                Status = PrintReadyQrAssetStatus.Ready,
+                StorageKey = $"ready/{qr.Token}.pdf",
+                FileName = "ready.pdf",
+                QrTokenFingerprint = "old-token-fingerprint",
+                TemplatePackVersion = "old-pack",
+                OfferCopyVersion = "old-copy",
+                CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+                UpdatedAtUtc = DateTime.UtcNow.AddHours(-1),
+            });
+            await _context.SaveChangesAsync();
+
+            var result = await _service.RotateAsync(CodeCommand(qr.Id));
+
+            Assert.Equal(QrLifecycleResultKind.Ok, result.Kind);
+            var asset = await _context.PrintReadyQrAssets
+                .AsNoTracking()
+                .SingleAsync();
+            Assert.Equal(PrintReadyQrAssetStatus.Preparing, asset.Status);
+            Assert.Null(asset.StorageKey);
+            Assert.Null(asset.FileName);
+            Assert.Null(asset.QrTokenFingerprint);
+            Assert.Null(asset.TemplatePackVersion);
+            Assert.Null(asset.OfferCopyVersion);
+            Assert.Null(asset.LastError);
+            Assert.Equal(new[] { _locationId }, _printWork.LocationIds);
+        }
+
+        [Fact]
+        public async Task Rotate_WhenPrintQueueThrows_StillReturnsSuccess()
+        {
+            var qr = await SeedQrAsync(
+                QrType.TableTent,
+                QrCodeStatus.Active
+            );
+            var oldToken = qr.Token;
+            _printWork.ThrowOnRequest = true;
+
+            var result = await _service.RotateAsync(CodeCommand(qr.Id));
+
+            Assert.Equal(QrLifecycleResultKind.Ok, result.Kind);
+            Assert.NotEqual(oldToken, (await ReloadAsync(qr.Id)).Token);
+        }
+
         [Fact]
         public async Task Rotate_DigitalGuestLink_Rejected()
         {
@@ -157,6 +219,8 @@ namespace TummlyBackend.Tests.Services
                 "Digital guest links cannot be rotated.",
                 result.Message
             );
+            Assert.Empty(_printWork.LocationIds);
+            Assert.Empty(_context.PrintReadyQrAssets);
         }
 
         [Fact]
@@ -884,6 +948,37 @@ namespace TummlyBackend.Tests.Services
                         $"Unsupported expected type {expected.GetType()}"
                     );
             }
+        }
+
+        private sealed class RecordingPrintReadyQrMaterialsWork
+            : IPrintReadyQrMaterialsWork
+        {
+            public List<int> LocationIds { get; } = [];
+
+            public bool ThrowOnRequest { get; set; }
+
+            public ValueTask RequestEnsureAsync(
+                int locationId,
+                CancellationToken cancellationToken = default
+            )
+            {
+                if (ThrowOnRequest)
+                {
+                    throw new InvalidOperationException(
+                        "Controlled queue failure."
+                    );
+                }
+
+                LocationIds.Add(locationId);
+                return ValueTask.CompletedTask;
+            }
+
+            public Task RunAsync(CancellationToken stoppingToken) =>
+                Task.CompletedTask;
+
+            public Task DrainAsync(
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
         }
     }
 }

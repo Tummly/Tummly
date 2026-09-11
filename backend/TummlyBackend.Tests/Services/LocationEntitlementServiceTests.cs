@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
@@ -80,7 +81,9 @@ namespace TummlyBackend.Tests.Services
             _lifecycle = new CaptureQrLifecycleService(
                 _context,
                 smartGuestLink,
-                catalog
+                catalog,
+                new NoOpPrintReadyQrMaterialsWork(),
+                NullLogger<CaptureQrLifecycleService>.Instance
             );
 
             SeedPilotAtCap();
