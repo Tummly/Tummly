@@ -73,12 +73,14 @@ namespace TummlyBackend.Tests.Services
                 )
             ).ToLowerInvariant();
             var originalUpdatedAt = DateTime.UtcNow.AddHours(-1);
+            var storageKey = $"ready/{fingerprint}.pdf";
+            storage.Seed(storageKey, [1, 2, 3]);
             _context.PrintReadyQrAssets.Add(new PrintReadyQrAsset
             {
                 RestaurantLocationId = location.Id,
                 QrType = QrType.TableTent,
                 Status = PrintReadyQrAssetStatus.Ready,
-                StorageKey = $"ready/{fingerprint}.pdf",
+                StorageKey = storageKey,
                 FileName = "ready.pdf",
                 QrTokenFingerprint = fingerprint,
                 TemplatePackVersion = pack.CurrentPackId,
@@ -115,6 +117,79 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(0, storage.UploadAttempts);
             Assert.Equal(PrintReadyQrAssetStatus.Ready, asset.Status);
             Assert.Equal(originalUpdatedAt, asset.UpdatedAtUtc);
+        }
+
+        [Fact]
+        public async Task EnsureStarterMaterials_MatchingMetadataButMissingPdf_Regenerates()
+        {
+            var location = await SeedLocationWithTableTentAsync();
+            var qrCode = await _context.QrCodes.SingleAsync();
+            var pack = PrintTemplatePack.LoadFromContentRoot(
+                AppContext.BaseDirectory
+            );
+            var fingerprint = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(qrCode.Token)
+                )
+            ).ToLowerInvariant();
+            _context.PrintReadyQrAssets.Add(new PrintReadyQrAsset
+            {
+                RestaurantLocationId = location.Id,
+                QrType = QrType.TableTent,
+                Status = PrintReadyQrAssetStatus.Ready,
+                StorageKey = "missing/table-tent.pdf",
+                FileName = "table-tent.pdf",
+                QrTokenFingerprint = fingerprint,
+                TemplatePackVersion = pack.CurrentPackId,
+                OfferCopyVersion = pack.Snapshot.OfferCopyVersion,
+            });
+            await _context.SaveChangesAsync();
+            var storage = new RecordingStorage();
+            var service = CreateService(
+                storage,
+                new NoOpPrintReadyQrMaterialsWork()
+            );
+
+            await service.EnsureStarterMaterialsAsync(location.Id);
+
+            var asset = await _context.PrintReadyQrAssets.SingleAsync();
+            Assert.Equal(1, storage.UploadAttempts);
+            Assert.Equal(PrintReadyQrAssetStatus.Ready, asset.Status);
+            Assert.NotEqual("missing/table-tent.pdf", asset.StorageKey);
+        }
+
+        [Fact]
+        public async Task Download_MissingStoredPdf_MarksAssetFailed()
+        {
+            var location = await SeedLocationWithTableTentAsync();
+            _context.PrintReadyQrAssets.Add(new PrintReadyQrAsset
+            {
+                RestaurantLocationId = location.Id,
+                QrType = QrType.TableTent,
+                Status = PrintReadyQrAssetStatus.Ready,
+                StorageKey = "missing/download.pdf",
+                FileName = "table-tent.pdf",
+            });
+            await _context.SaveChangesAsync();
+            var service = CreateService(
+                new RecordingStorage(),
+                new NoOpPrintReadyQrMaterialsWork()
+            );
+
+            var exception = await Assert.ThrowsAsync<
+                PrintReadyQrNotReadyException
+            >(() =>
+                service.DownloadAsync(
+                    location.Restaurant!.OwnerUserId,
+                    location.Id,
+                    QrType.TableTent
+                )
+            );
+
+            Assert.Equal(PrintReadyQrAssetStatus.Failed, exception.Status);
+            var asset = await _context.PrintReadyQrAssets.SingleAsync();
+            Assert.Equal(PrintReadyQrAssetStatus.Failed, asset.Status);
+            Assert.Contains("missing or unavailable", asset.LastError);
         }
 
         [Fact]
@@ -262,6 +337,23 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public void ResolveOrderedQrTypes_UsesStableSkuSnapshotWhenCurrentCatalogRemovedSku()
+        {
+            var types = PrintReadyQrMaterialsService.ResolveOrderedQrTypes(
+                [
+                    new ShopOrderLine
+                    {
+                        CatalogSkuId = "table-tents",
+                        Quantity = 25,
+                    },
+                ],
+                new EmptyMaterialsCatalog()
+            );
+
+            Assert.Equal(25, types[QrType.TableTent]);
+        }
+
+        [Fact]
         public async Task InvalidateAfterQrRotation_InvalidatesAndQueuesEveryAssetScope()
         {
             var location = await SeedLocationWithTableTentAsync();
@@ -381,6 +473,12 @@ namespace TummlyBackend.Tests.Services
                 whiteQr,
                 pack.Snapshot.DefaultOfferHeadline
             );
+            var pdfWithoutHeadline = PrintReadyQrPdfComposer.Compose(
+                pack.Snapshot,
+                QrType.OfferCard,
+                whiteQr,
+                string.Empty
+            );
 
             Assert.Equal(240.94f, widthPt, 2);
             Assert.Equal(155.91f, heightPt, 2);
@@ -395,6 +493,10 @@ namespace TummlyBackend.Tests.Services
             Assert.True(
                 pdf.Length > 10_000,
                 "The PDF must include the Card Dev SVG vector artwork."
+            );
+            Assert.True(
+                pdf.Length > pdfWithoutHeadline.Length + 500,
+                "The offer headline must add visible vector geometry, not metadata only."
             );
             Assert.Contains(
                 pack.Snapshot.DefaultOfferHeadline,
@@ -594,6 +696,11 @@ namespace TummlyBackend.Tests.Services
 
             public int UploadAttempts { get; private set; }
 
+            public void Seed(string storageKey, byte[] content)
+            {
+                _objects[storageKey] = content;
+            }
+
             public async Task UploadAsync(
                 string storageKey,
                 Stream content,
@@ -636,6 +743,11 @@ namespace TummlyBackend.Tests.Services
 
             public int UploadAttempts { get; private set; }
 
+            public void Seed(string storageKey, byte[] content)
+            {
+                _stored = content;
+            }
+
             public async Task UploadAsync(
                 string storageKey,
                 Stream content,
@@ -675,6 +787,26 @@ namespace TummlyBackend.Tests.Services
                 _stored = null;
                 return Task.CompletedTask;
             }
+        }
+
+        private sealed class EmptyMaterialsCatalog : IMaterialsCatalog
+        {
+            public string CurrentCatalogId => "empty";
+
+            public MaterialsCatalogSnapshot GetRequired(string catalogId) =>
+                new()
+                {
+                    Id = catalogId,
+                    Skus = [],
+                };
+
+            public IReadOnlyList<
+                TummlyBackend.DTOs.Shop.ShopCatalogListItemDto
+            > BuildList() => [];
+
+            public TummlyBackend.DTOs.Shop.ShopCatalogDetailDto? TryBuildDetail(
+                string skuId
+            ) => null;
         }
     }
 }

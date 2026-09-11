@@ -211,7 +211,7 @@ export function createOperatorPrintMaterialsPageModule(
               : row
           ),
         })
-        return true
+        return updated.status === "Ready"
       } catch {
         setSnapshot({ ...snapshot, busyKey: null })
         return false
@@ -225,6 +225,7 @@ export function createInMemoryOperatorPrintMaterialsAdapters(initial: {
   failEnsure?: boolean
   failDownload?: boolean
   failRetry?: boolean
+  retryRemainsFailed?: boolean
 }): OperatorPrintMaterialsAdapters & {
   locations: AdminPrintMaterialsLocation[]
 } {
@@ -259,6 +260,12 @@ export function createInMemoryOperatorPrintMaterialsAdapters(initial: {
         for (const asset of location.assets) {
           if (asset.qrType !== qrType) {
             continue
+          }
+          if (initial.retryRemainsFailed) {
+            asset.status = "Failed"
+            asset.fileName = null
+            asset.lastError = "storage still unavailable"
+            return structuredClone(asset)
           }
           asset.status = "Ready"
           asset.fileName = `tummly-${qrType.toLowerCase()}.pdf`

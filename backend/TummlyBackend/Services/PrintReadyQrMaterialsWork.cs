@@ -1,5 +1,8 @@
 using System.Threading.Channels;
+using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Services
 {
@@ -65,6 +68,8 @@ namespace TummlyBackend.Services
                 return;
             }
 
+            await RecoverPendingRequestsGuardedAsync(stoppingToken);
+
             try
             {
                 await foreach (
@@ -81,6 +86,133 @@ namespace TummlyBackend.Services
             )
             {
                 // The host controls the bounded shutdown window.
+            }
+        }
+
+        private async Task RecoverPendingRequestsGuardedAsync(
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var catalog = scope.ServiceProvider
+                    .GetRequiredService<IMaterialsCatalog>();
+
+                var starterQrScopes = await context.QrCodes
+                    .AsNoTracking()
+                    .Where(row =>
+                        (
+                            row.QrType == QrType.TableTent
+                            || row.QrType == QrType.WindowSticker
+                            || row.QrType == QrType.OfferCard
+                        )
+                        && (
+                            row.Status == QrCodeStatus.Active
+                            || row.Status == QrCodeStatus.Paused
+                        )
+                    )
+                    .Select(row => new
+                    {
+                        LocationId = row.RestaurantLocationId,
+                        row.QrType,
+                    })
+                    .ToListAsync(cancellationToken);
+                var starterAssets = await context.PrintReadyQrAssets
+                    .AsNoTracking()
+                    .Where(row => row.ShopOrderId == null)
+                    .Select(row => new
+                    {
+                        LocationId = row.RestaurantLocationId,
+                        row.QrType,
+                        row.Status,
+                    })
+                    .ToListAsync(cancellationToken);
+                var starterByScope = starterAssets.ToDictionary(
+                    row => (row.LocationId, row.QrType)
+                );
+
+                foreach (
+                    var locationId in starterQrScopes
+                        .Where(scopeRow =>
+                            !starterByScope.TryGetValue(
+                                (scopeRow.LocationId, scopeRow.QrType),
+                                out var asset
+                            )
+                            || asset.Status
+                                == PrintReadyQrAssetStatus.Preparing
+                        )
+                        .Select(row => row.LocationId)
+                        .Distinct()
+                )
+                {
+                    WriteRequest(new StarterMaterialsRequest(locationId));
+                }
+
+                var paidOrders = await context.ShopOrders
+                    .AsNoTracking()
+                    .Include(row => row.Lines)
+                    .Where(row =>
+                        row.PaymentStatus == ShopPaymentStatuses.Paid
+                        || row.PaymentStatus == ShopPaymentStatuses.Refunded
+                    )
+                    .ToListAsync(cancellationToken);
+                var paidOrderIds = paidOrders.Select(row => row.Id).ToList();
+                var shopAssets = await context.PrintReadyQrAssets
+                    .AsNoTracking()
+                    .Where(row =>
+                        row.ShopOrderId != null
+                        && paidOrderIds.Contains(row.ShopOrderId.Value)
+                    )
+                    .Select(row => new
+                    {
+                        ShopOrderId = row.ShopOrderId!.Value,
+                        row.QrType,
+                        row.Status,
+                    })
+                    .ToListAsync(cancellationToken);
+                var shopByScope = shopAssets.ToDictionary(
+                    row => (row.ShopOrderId, row.QrType)
+                );
+
+                foreach (var order in paidOrders)
+                {
+                    var orderedTypes =
+                        PrintReadyQrMaterialsService.ResolveOrderedQrTypes(
+                            order.Lines,
+                            catalog
+                        );
+                    if (
+                        orderedTypes.Keys.Any(qrType =>
+                            !shopByScope.TryGetValue(
+                                (order.Id, qrType),
+                                out var asset
+                            )
+                            || asset.Status
+                                == PrintReadyQrAssetStatus.Preparing
+                        )
+                    )
+                    {
+                        WriteRequest(
+                            new ShopOrderMaterialsRequest(order.Id)
+                        );
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (
+                cancellationToken.IsCancellationRequested
+            )
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Could not recover pending print-ready QR material requests"
+                );
             }
         }
 

@@ -259,10 +259,7 @@ namespace TummlyBackend.PrintReadyQrMaterials
         {
             var boxWidth = (float)(box.WidthMm * MmToPt);
             var boxHeight = (float)(box.HeightMm * MmToPt);
-            using var typeface = SKTypeface.FromFamilyName(
-                "Arial",
-                SKFontStyle.Bold
-            );
+            using var typeface = LoadHeadlineTypeface();
             using var paint = new SKPaint
             {
                 IsAntialias = true,
@@ -292,14 +289,14 @@ namespace TummlyBackend.PrintReadyQrMaterials
 
             foreach (var line in lines)
             {
-                canvas.DrawText(
+                // The Linux PDF backend can omit text when its resolved
+                // system font cannot be embedded. Convert glyphs to vector
+                // outlines so the printable headline is always visible.
+                using var textPath = font.GetTextPath(
                     line,
-                    x,
-                    y,
-                    SKTextAlign.Left,
-                    font,
-                    paint
+                    new SKPoint(x, y)
                 );
+                canvas.DrawPath(textPath, paint);
                 y += lineHeight;
             }
         }
@@ -340,6 +337,36 @@ namespace TummlyBackend.PrintReadyQrMaterials
             }
 
             return lines;
+        }
+
+        private static SKTypeface LoadHeadlineTypeface()
+        {
+            var fontDirectory = Environment.GetFolderPath(
+                Environment.SpecialFolder.Fonts
+            );
+            var candidates = new[]
+            {
+                Path.Combine(fontDirectory, "arialbd.ttf"),
+                "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                "/usr/share/fonts/liberation/LiberationSans-Bold.ttf",
+            };
+
+            foreach (var path in candidates)
+            {
+                if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                {
+                    var typeface = SKTypeface.FromFile(path);
+                    if (typeface != null)
+                    {
+                        return typeface;
+                    }
+                }
+            }
+
+            throw new InvalidOperationException(
+                "The printable Offer headline font is not installed."
+            );
         }
     }
 }

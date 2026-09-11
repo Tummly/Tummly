@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -30,8 +29,6 @@ namespace TummlyBackend.Services
             private readonly ICreditLedger _creditLedger;
             private readonly IRevolutMerchantClient _merchant;
             private readonly TimeProvider _clock;
-            private readonly IPrintReadyQrMaterialsService? _printReadyQrMaterials;
-            private readonly ILogger<RevolutOrderCompletedApplier> _logger;
 
             public RevolutOrderCompletedApplier(
                 ApplicationDbContext context,
@@ -42,9 +39,7 @@ namespace TummlyBackend.Services
                 ICreditLedger creditLedger,
                 IRevolutMerchantClient merchant,
                 TimeProvider clock,
-                ITummlyVatInvoiceEmailDelivery? invoiceEmail = null,
-                IPrintReadyQrMaterialsService? printReadyQrMaterials = null,
-                ILogger<RevolutOrderCompletedApplier>? logger = null
+                ITummlyVatInvoiceEmailDelivery? invoiceEmail = null
             )
             {
                 _context = context;
@@ -56,9 +51,6 @@ namespace TummlyBackend.Services
                 _creditLedger = creditLedger;
                 _merchant = merchant;
                 _clock = clock;
-                _printReadyQrMaterials = printReadyQrMaterials;
-                _logger = logger
-                    ?? NullLogger<RevolutOrderCompletedApplier>.Instance;
             }
 
         public static bool IsMintableBillingReason(string? billingReason)
@@ -761,38 +753,6 @@ namespace TummlyBackend.Services
             }
 
             await _context.SaveChangesAsync(cancellationToken);
-
-            if (_printReadyQrMaterials != null)
-            {
-                try
-                {
-                    await _printReadyQrMaterials.EnsureShopOrderMaterialsAsync(
-                        shopOrder.Id,
-                        cancellationToken
-                    );
-                }
-                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-                {
-                    foreach (
-                        var entry in _context.ChangeTracker
-                            .Entries<PrintReadyQrAsset>()
-                            .Where(entry =>
-                                entry.State
-                                    is EntityState.Added
-                                    or EntityState.Modified
-                                    or EntityState.Deleted
-                            )
-                    )
-                    {
-                        entry.State = EntityState.Detached;
-                    }
-                    _logger.LogError(
-                        ex,
-                        "Shop order {ShopOrderId} was committed Paid but print-ready asset ensure failed",
-                        shopOrder.Id
-                    );
-                }
-            }
         }
 
         private static IReadOnlyList<TummlyVatInvoiceLineItemDto> BuildShopInvoiceLineItems(

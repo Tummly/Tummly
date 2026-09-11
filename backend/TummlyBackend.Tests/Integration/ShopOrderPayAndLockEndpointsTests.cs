@@ -650,7 +650,11 @@ namespace TummlyBackend.Tests.Integration
                 timestamp
             );
             request.Headers.TryAddWithoutValidation("Revolut-Signature", signature);
-            return await _client.SendAsync(request);
+            var response = await _client.SendAsync(request);
+            await _factory.Services
+                .GetRequiredService<IPrintReadyQrMaterialsWork>()
+                .DrainAsync();
+            return response;
         }
 
         private async Task CompleteShopPaymentAsync(

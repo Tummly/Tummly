@@ -1,10 +1,13 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Shop.MaterialsCatalog;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -57,6 +60,75 @@ namespace TummlyBackend.Tests.Services
                 .WaitAsync(TimeSpan.FromSeconds(2));
         }
 
+        [Fact]
+        public async Task RunAsync_RecoversMissingStarterRequestAfterRestart()
+        {
+            var databaseName = Guid.NewGuid().ToString();
+            using var cancellation = new CancellationTokenSource(
+                TimeSpan.FromSeconds(5)
+            );
+            var state = new FakeMaterialsState(failingLocationId: -1)
+            {
+                OnEnsure = cancellation.Cancel,
+            };
+            var services = new ServiceCollection();
+            services.AddSingleton(state);
+            services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseInMemoryDatabase(databaseName)
+            );
+            services.AddSingleton<IMaterialsCatalog>(
+                MaterialsCatalog.LoadFromContentRoot(AppContext.BaseDirectory)
+            );
+            services.AddScoped<
+                IPrintReadyQrMaterialsService,
+                ControlledPrintReadyQrMaterialsService
+            >();
+            await using var provider = services.BuildServiceProvider();
+            await using (var scope = provider.CreateAsyncScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var owner = new User
+                {
+                    FullName = "Restart owner",
+                    Email = $"restart-{Guid.NewGuid():N}@example.com",
+                    PasswordHash = "hash",
+                    Role = "Owner",
+                };
+                var restaurant = new Restaurant
+                {
+                    Name = "Restart venue",
+                    OwnerUser = owner,
+                };
+                var location = new RestaurantLocation
+                {
+                    Restaurant = restaurant,
+                    LocationName = "Main",
+                    Address = "1 High Street",
+                };
+                context.QrCodes.Add(new QrCode
+                {
+                    RestaurantLocation = location,
+                    QrType = QrType.TableTent,
+                    Token = "restart-recovery-token",
+                    Status = QrCodeStatus.Active,
+                });
+                await context.SaveChangesAsync();
+            }
+
+            var work = new PrintReadyQrMaterialsWork(
+                provider.GetRequiredService<IServiceScopeFactory>(),
+                new TestHostEnvironment("Production"),
+                NullLogger<PrintReadyQrMaterialsWork>.Instance
+            );
+
+            await work
+                .RunAsync(cancellation.Token)
+                .WaitAsync(TimeSpan.FromSeconds(6));
+
+            Assert.Single(state.LocationIds);
+        }
+
         private sealed class FakeMaterialsState
         {
             public FakeMaterialsState(int failingLocationId)
@@ -71,6 +143,8 @@ namespace TummlyBackend.Tests.Services
             public List<int> LocationIds { get; } = [];
 
             public List<Guid> ShopOrderIds { get; } = [];
+
+            public Action? OnEnsure { get; init; }
         }
 
         private sealed class ControlledPrintReadyQrMaterialsService
@@ -99,6 +173,7 @@ namespace TummlyBackend.Tests.Services
                     );
                 }
 
+                _state.OnEnsure?.Invoke();
                 return Task.CompletedTask;
             }
 

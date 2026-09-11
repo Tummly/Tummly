@@ -60,6 +60,7 @@ namespace TummlyBackend.Services
         private readonly TimeProvider _clock;
         private readonly RevolutSettings _settings;
         private readonly ILogger<RevolutWebhookService> _logger;
+        private readonly IPrintReadyQrMaterialsWork? _printReadyQrMaterialsWork;
 
         public RevolutWebhookService(
             ApplicationDbContext context,
@@ -72,7 +73,8 @@ namespace TummlyBackend.Services
             IRevolutDunningPayAdapter? dunningPay = null,
             IRevolutPaymentRefundCompletedHandler? paymentRefundHandler = null,
             ICreditLedger? ledger = null,
-            ITummlyVatInvoiceService? vatInvoices = null
+            ITummlyVatInvoiceService? vatInvoices = null,
+            IPrintReadyQrMaterialsWork? printReadyQrMaterialsWork = null
         )
         {
             _context = context;
@@ -86,6 +88,7 @@ namespace TummlyBackend.Services
             _vatInvoices = vatInvoices ?? NoOpWebhookVatInvoiceService.Instance;
             _clock = clock;
             _settings = settings.Value;
+            _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
             _logger =
                 logger
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<RevolutWebhookService>.Instance;
@@ -903,6 +906,8 @@ namespace TummlyBackend.Services
                 await _context.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
+                await TryQueueShopPrintMaterialsAfterCommitAsync(intent);
+
                 if (!isRefundFamily && (isMintable || isOneTimeIntent))
                 {
                     await TryPatchMerchantInvoiceReferenceAsync(
@@ -947,6 +952,42 @@ namespace TummlyBackend.Services
             {
                 await AbortClaimTransactionAsync(claimId, cancellationToken);
                 throw;
+            }
+        }
+
+        private async Task TryQueueShopPrintMaterialsAfterCommitAsync(
+            RevolutOrderIntent? intent
+        )
+        {
+            if (
+                _printReadyQrMaterialsWork == null
+                || intent?.ShopOrderId is not Guid shopOrderId
+                || !string.Equals(
+                    intent.Purpose,
+                    RevolutOrderIntentPurposes.ShopMaterialsOrder,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return;
+            }
+
+            try
+            {
+                // Payment is already committed. Print generation must not
+                // keep the payment transaction open or roll it back.
+                await _printReadyQrMaterialsWork.RequestShopOrderEnsureAsync(
+                    shopOrderId,
+                    CancellationToken.None
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Shop order {ShopOrderId} was committed Paid but its print-ready work could not be queued",
+                    shopOrderId
+                );
             }
         }
 

@@ -102,7 +102,12 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            foreach (var qrType in ResolveOrderedQrTypes(order.Lines).Keys)
+            foreach (
+                var qrType in ResolveOrderedQrTypes(
+                    order.Lines,
+                    _materialsCatalog
+                ).Keys
+            )
             {
                 await EnsureOneAsync(
                     order.Location,
@@ -300,7 +305,10 @@ namespace TummlyBackend.Services
                 return Array.Empty<ShopPrintAssetReadinessDto>();
             }
 
-            var orderedTypes = ResolveOrderedQrTypes(order.Lines);
+            var orderedTypes = ResolveOrderedQrTypes(
+                order.Lines,
+                _materialsCatalog
+            );
             var assets = await _context.PrintReadyQrAssets
                 .AsNoTracking()
                 .Where(row => row.ShopOrderId == shopOrderId)
@@ -340,7 +348,6 @@ namespace TummlyBackend.Services
             }
 
             var asset = await _context.PrintReadyQrAssets
-                .AsNoTracking()
                 .FirstOrDefaultAsync(
                     row =>
                         row.RestaurantLocationId == locationId
@@ -361,14 +368,8 @@ namespace TummlyBackend.Services
                 throw new PrintReadyQrNotReadyException(asset.Status);
             }
 
-            await using var stream = await _storage.OpenReadAsync(
-                asset.StorageKey,
-                cancellationToken
-            );
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms, cancellationToken);
             return new PrintReadyQrDownload(
-                ms.ToArray(),
+                await ReadStoredPdfAsync(asset, cancellationToken),
                 asset.ContentType,
                 BuildDistinctFileName(asset.FileName, qrType)
             );
@@ -399,14 +400,16 @@ namespace TummlyBackend.Services
                 );
             if (
                 order == null
-                || !ResolveOrderedQrTypes(order.Lines).ContainsKey(qrType)
+                || !ResolveOrderedQrTypes(
+                    order.Lines,
+                    _materialsCatalog
+                ).ContainsKey(qrType)
             )
             {
                 return null;
             }
 
             var asset = await _context.PrintReadyQrAssets
-                .AsNoTracking()
                 .FirstOrDefaultAsync(
                     row =>
                         row.ShopOrderId == shopOrderId
@@ -427,14 +430,8 @@ namespace TummlyBackend.Services
                 throw new PrintReadyQrNotReadyException(asset.Status);
             }
 
-            await using var stream = await _storage.OpenReadAsync(
-                asset.StorageKey,
-                cancellationToken
-            );
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms, cancellationToken);
             return new PrintReadyQrDownload(
-                ms.ToArray(),
+                await ReadStoredPdfAsync(asset, cancellationToken),
                 asset.ContentType,
                 BuildDistinctFileName(asset.FileName, qrType)
             );
@@ -522,7 +519,10 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            var orderedTypes = ResolveOrderedQrTypes(order.Lines);
+            var orderedTypes = ResolveOrderedQrTypes(
+                order.Lines,
+                _materialsCatalog
+            );
             if (!orderedTypes.TryGetValue(qrType, out var quantity))
             {
                 return null;
@@ -607,7 +607,7 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
 
-            if (
+            var matchesCurrentGeneration =
                 fingerprint != null
                 && asset != null
                 && asset.Status == PrintReadyQrAssetStatus.Ready
@@ -618,7 +618,14 @@ namespace TummlyBackend.Services
                     offerCopyVersion,
                     StringComparison.Ordinal
                 )
-                && !string.IsNullOrWhiteSpace(asset.StorageKey))
+                && !string.IsNullOrWhiteSpace(asset.StorageKey);
+            if (
+                matchesCurrentGeneration
+                && await CanOpenStoredObjectAsync(
+                    asset!.StorageKey!,
+                    cancellationToken
+                )
+            )
             {
                 return;
             }
@@ -638,7 +645,13 @@ namespace TummlyBackend.Services
                     )
                     .OrderByDescending(row => row.UpdatedAtUtc)
                     .FirstOrDefaultAsync(cancellationToken);
-                if (reusable != null)
+                if (
+                    reusable != null
+                    && await CanOpenStoredObjectAsync(
+                        reusable.StorageKey!,
+                        cancellationToken
+                    )
+                )
                 {
                     var reusedIsNew = asset == null;
                     asset ??= new PrintReadyQrAsset
@@ -861,12 +874,13 @@ namespace TummlyBackend.Services
                 );
         }
 
-        private IReadOnlyDictionary<QrType, int> ResolveOrderedQrTypes(
-            IEnumerable<ShopOrderLine> lines
+        public static IReadOnlyDictionary<QrType, int> ResolveOrderedQrTypes(
+            IEnumerable<ShopOrderLine> lines,
+            IMaterialsCatalog materialsCatalog
         )
         {
-            var catalog = _materialsCatalog.GetRequired(
-                _materialsCatalog.CurrentCatalogId
+            var catalog = materialsCatalog.GetRequired(
+                materialsCatalog.CurrentCatalogId
             );
             var skus = catalog.Skus.ToDictionary(
                 row => row.SkuId,
@@ -876,15 +890,26 @@ namespace TummlyBackend.Services
 
             foreach (var line in lines)
             {
+                var hasQrTypeSnapshot = TryResolveKnownSkuQrType(
+                    line.CatalogSkuId,
+                    out var qrType
+                );
                 if (
-                    !skus.TryGetValue(line.CatalogSkuId, out var sku)
-                    || !Enum.TryParse<QrType>(
-                        sku.QrType,
-                        ignoreCase: false,
-                        out var qrType
+                    !hasQrTypeSnapshot
+                    && (
+                        !skus.TryGetValue(line.CatalogSkuId, out var sku)
+                        || !Enum.TryParse<QrType>(
+                            sku.QrType,
+                            ignoreCase: false,
+                            out qrType
+                        )
                     )
-                    || !StarterQrMaterialTypes.Contains(qrType)
                 )
+                {
+                    continue;
+                }
+
+                if (!StarterQrMaterialTypes.Contains(qrType))
                 {
                     continue;
                 }
@@ -894,6 +919,92 @@ namespace TummlyBackend.Services
             }
 
             return result;
+        }
+
+        private static bool TryResolveKnownSkuQrType(
+            string catalogSkuId,
+            out QrType qrType
+        )
+        {
+            qrType = catalogSkuId.Trim().ToLowerInvariant() switch
+            {
+                "table-tents" => QrType.TableTent,
+                "window-stickers" => QrType.WindowSticker,
+                "offer-card" => QrType.OfferCard,
+                _ => default,
+            };
+            return catalogSkuId.Trim().ToLowerInvariant()
+                is "table-tents" or "window-stickers" or "offer-card";
+        }
+
+        private async Task<bool> CanOpenStoredObjectAsync(
+            string storageKey,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                await using var stream = await _storage.OpenReadAsync(
+                    storageKey,
+                    cancellationToken
+                );
+                return true;
+            }
+            catch (OperationCanceledException) when (
+                cancellationToken.IsCancellationRequested
+            )
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Print-ready QR storage object {StorageKey} could not be opened; it will be regenerated",
+                    storageKey
+                );
+                return false;
+            }
+        }
+
+        private async Task<byte[]> ReadStoredPdfAsync(
+            PrintReadyQrAsset asset,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                await using var stream = await _storage.OpenReadAsync(
+                    asset.StorageKey!,
+                    cancellationToken
+                );
+                using var buffer = new MemoryStream();
+                await stream.CopyToAsync(buffer, cancellationToken);
+                return buffer.ToArray();
+            }
+            catch (OperationCanceledException) when (
+                cancellationToken.IsCancellationRequested
+            )
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Print-ready QR storage object {StorageKey} could not be downloaded",
+                    asset.StorageKey
+                );
+                asset.Status = PrintReadyQrAssetStatus.Failed;
+                asset.LastError = TruncateError(
+                    $"Stored PDF is missing or unavailable: {ex.Message}"
+                );
+                asset.UpdatedAtUtc = DateTime.UtcNow;
+                await _context.SaveChangesAsync(cancellationToken);
+                throw new PrintReadyQrNotReadyException(
+                    PrintReadyQrAssetStatus.Failed
+                );
+            }
         }
 
         private static ShopPrintAssetReadinessDto MapShopReadiness(

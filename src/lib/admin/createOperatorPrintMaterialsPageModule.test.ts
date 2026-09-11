@@ -148,4 +148,35 @@ describe("createOperatorPrintMaterialsPageModule", () => {
       canRetry: false,
     })
   })
+
+  it("keeps retry available when generation remains Failed", async () => {
+    const adapters = createInMemoryOperatorPrintMaterialsAdapters({
+      locations: [
+        {
+          locationId: 11,
+          locationName: "Front Room",
+          assets: [
+            {
+              qrType: "OfferCard",
+              status: "Failed",
+              fileName: null,
+              lastError: "boom",
+            },
+          ],
+        },
+      ],
+      retryRemainsFailed: true,
+    })
+    const module = createOperatorPrintMaterialsPageModule(adapters)
+    await module.load(7)
+
+    await expect(module.retry(11, "OfferCard")).resolves.toBe(false)
+
+    expect(module.getSnapshot().rows[0]).toMatchObject({
+      status: "Failed",
+      lastError: "storage still unavailable",
+      canDownload: false,
+      canRetry: true,
+    })
+  })
 })
