@@ -28,7 +28,7 @@ namespace TummlyBackend.Interfaces
         /// Marks every Starter and Shop asset for a rotated physical QR type
         /// stale, then queues regeneration without waiting for PDF work.
         /// </summary>
-        Task InvalidateAfterQrRotationAsync(
+        Task<bool> TryInvalidateAfterQrRotationAsync(
             int locationId,
             QrType qrType,
             CancellationToken cancellationToken = default

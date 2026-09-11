@@ -274,9 +274,11 @@ namespace TummlyBackend.Tests.Services
             var work = new RecordingPrintReadyQrMaterialsWork();
             var service = CreateService(new RecordingStorage(), work);
 
-            await service.InvalidateAfterQrRotationAsync(
-                location.Id,
-                QrType.TableTent
+            Assert.True(
+                await service.TryInvalidateAfterQrRotationAsync(
+                    location.Id,
+                    QrType.TableTent
+                )
             );
 
             var assets = await _context.PrintReadyQrAssets.ToListAsync();
@@ -313,6 +315,8 @@ namespace TummlyBackend.Tests.Services
         public async Task InvalidateAfterQrRotation_QueueFailure_MarksAffectedAssetFailed()
         {
             var location = await SeedLocationWithTableTentAsync();
+            var qrCode = await _context.QrCodes.SingleAsync();
+            qrCode.Token = "rotated-atomic-token-1234567890";
             _context.PrintReadyQrAssets.Add(new PrintReadyQrAsset
             {
                 RestaurantLocationId = location.Id,
@@ -331,14 +335,23 @@ namespace TummlyBackend.Tests.Services
             };
             var service = CreateService(new RecordingStorage(), work);
 
-            await service.InvalidateAfterQrRotationAsync(
-                location.Id,
-                QrType.TableTent
+            Assert.True(
+                await service.TryInvalidateAfterQrRotationAsync(
+                    location.Id,
+                    QrType.TableTent
+                )
             );
 
+            _context.ChangeTracker.Clear();
             var asset = await _context.PrintReadyQrAssets.SingleAsync();
             Assert.Equal(PrintReadyQrAssetStatus.Failed, asset.Status);
             Assert.Contains("Could not queue regeneration", asset.LastError);
+            Assert.Equal(
+                "rotated-atomic-token-1234567890",
+                await _context.QrCodes
+                    .Select(row => row.Token)
+                    .SingleAsync()
+            );
         }
 
         [Fact]

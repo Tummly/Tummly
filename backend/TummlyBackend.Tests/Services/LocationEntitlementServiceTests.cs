@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
@@ -82,8 +81,7 @@ namespace TummlyBackend.Tests.Services
                 _context,
                 smartGuestLink,
                 catalog,
-                new NoOpPrintReadyQrMaterialsService(),
-                NullLogger<CaptureQrLifecycleService>.Instance
+                new NoOpPrintReadyQrMaterialsService()
             );
 
             SeedPilotAtCap();
@@ -159,11 +157,11 @@ namespace TummlyBackend.Tests.Services
         private sealed class NoOpPrintReadyQrMaterialsService
             : IPrintReadyQrMaterialsService
         {
-            public Task InvalidateAfterQrRotationAsync(
+            public Task<bool> TryInvalidateAfterQrRotationAsync(
                 int locationId,
                 QrType qrType,
                 CancellationToken cancellationToken = default
-            ) => Task.CompletedTask;
+            ) => Task.FromResult(false);
 
             public Task EnsureStarterMaterialsAsync(
                 int locationId,

@@ -20,21 +20,18 @@ namespace TummlyBackend.Services
         private readonly ISmartGuestLinkService _smartGuestLink;
         private readonly IPricebookCatalog _pricebookCatalog;
         private readonly IPrintReadyQrMaterialsService _printReadyQrMaterials;
-        private readonly ILogger<CaptureQrLifecycleService> _logger;
 
         public CaptureQrLifecycleService(
             ApplicationDbContext context,
             ISmartGuestLinkService smartGuestLink,
             IPricebookCatalog pricebookCatalog,
-            IPrintReadyQrMaterialsService printReadyQrMaterials,
-            ILogger<CaptureQrLifecycleService> logger
+            IPrintReadyQrMaterialsService printReadyQrMaterials
         )
         {
             _context = context;
             _smartGuestLink = smartGuestLink;
             _pricebookCatalog = pricebookCatalog;
             _printReadyQrMaterials = printReadyQrMaterials;
-            _logger = logger;
         }
 
         public async Task<QrLifecycleResult> CreateDigitalGuestLinkAsync(
@@ -344,22 +341,14 @@ namespace TummlyBackend.Services
             }
 
             qrCode.Token = await _smartGuestLink.GenerateTokenAsync();
-            await _context.SaveChangesAsync();
-
-            try
-            {
-                await _printReadyQrMaterials.InvalidateAfterQrRotationAsync(
+            var invalidated =
+                await _printReadyQrMaterials.TryInvalidateAfterQrRotationAsync(
                     command.LocationId,
                     qrCode.QrType
                 );
-            }
-            catch (Exception ex)
+            if (!invalidated)
             {
-                _logger.LogError(
-                    ex,
-                    "Could not invalidate print-ready QR materials after rotating QR code {QrCodeId}",
-                    qrCode.Id
-                );
+                await _context.SaveChangesAsync();
             }
 
             return QrLifecycleResult.Ok(new

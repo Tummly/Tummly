@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
@@ -45,8 +44,7 @@ namespace TummlyBackend.Tests.Services
                 _context,
                 _smartGuestLink,
                 PricebookCatalog.LoadFromDirectory(PackDirectory()),
-                _printMaterials,
-                NullLogger<CaptureQrLifecycleService>.Instance
+                _printMaterials
             );
 
             SeedWorkspace();
@@ -169,22 +167,6 @@ namespace TummlyBackend.Tests.Services
                 new[] { (_locationId, qrType) },
                 _printMaterials.Rotations
             );
-        }
-
-        [Fact]
-        public async Task Rotate_WhenPrintQueueThrows_StillReturnsSuccess()
-        {
-            var qr = await SeedQrAsync(
-                QrType.TableTent,
-                QrCodeStatus.Active
-            );
-            var oldToken = qr.Token;
-            _printMaterials.ThrowOnInvalidate = true;
-
-            var result = await _service.RotateAsync(CodeCommand(qr.Id));
-
-            Assert.Equal(QrLifecycleResultKind.Ok, result.Kind);
-            Assert.NotEqual(oldToken, (await ReloadAsync(qr.Id)).Token);
         }
 
         [Fact]
@@ -935,23 +917,14 @@ namespace TummlyBackend.Tests.Services
         {
             public List<(int LocationId, QrType QrType)> Rotations { get; } = [];
 
-            public bool ThrowOnInvalidate { get; set; }
-
-            public Task InvalidateAfterQrRotationAsync(
+            public Task<bool> TryInvalidateAfterQrRotationAsync(
                 int locationId,
                 QrType qrType,
                 CancellationToken cancellationToken = default
             )
             {
-                if (ThrowOnInvalidate)
-                {
-                    throw new InvalidOperationException(
-                        "Controlled print module failure."
-                    );
-                }
-
                 Rotations.Add((locationId, qrType));
-                return Task.CompletedTask;
+                return Task.FromResult(false);
             }
 
             public Task EnsureStarterMaterialsAsync(

@@ -113,7 +113,7 @@ namespace TummlyBackend.Services
             }
         }
 
-        public async Task InvalidateAfterQrRotationAsync(
+        public async Task<bool> TryInvalidateAfterQrRotationAsync(
             int locationId,
             QrType qrType,
             CancellationToken cancellationToken = default
@@ -121,7 +121,7 @@ namespace TummlyBackend.Services
         {
             if (!StarterQrMaterialTypes.Contains(qrType))
             {
-                return;
+                return false;
             }
 
             var assets = await _context.PrintReadyQrAssets
@@ -166,6 +166,8 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
             }
+
+            return true;
         }
 
         private async Task QueueRegenerationAsync(
