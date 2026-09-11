@@ -297,6 +297,36 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task EnsureStarterMaterials_MissingEligibleQr_MarksFailed()
+        {
+            var location = await SeedLocationWithTableTentAsync();
+            _context.QrCodes.RemoveRange(_context.QrCodes);
+            await _context.SaveChangesAsync();
+            var storage = new RecordingStorage();
+            var service = CreateService(
+                storage,
+                new NoOpPrintReadyQrMaterialsWork()
+            );
+
+            await service.EnsureStarterMaterialsAsync(location.Id);
+
+            var assets = await _context.PrintReadyQrAssets.ToListAsync();
+            Assert.Equal(3, assets.Count);
+            Assert.All(
+                assets,
+                asset =>
+                {
+                    Assert.Equal(PrintReadyQrAssetStatus.Failed, asset.Status);
+                    Assert.Contains(
+                        "No Active or Paused QR code",
+                        asset.LastError
+                    );
+                }
+            );
+            Assert.Equal(0, storage.UploadAttempts);
+        }
+
+        [Fact]
         public async Task EnsureShopOrderMaterials_PausedCode_FailsWithoutGenerating()
         {
             var location = await SeedLocationWithTableTentAsync();

@@ -587,17 +587,6 @@ namespace TummlyBackend.Services
                 )
                 .FirstOrDefaultAsync(cancellationToken);
 
-            if (qrCode == null && shopOrderId == null)
-            {
-                return;
-            }
-
-            var fingerprint = qrCode == null
-                ? null
-                : FingerprintToken(qrCode.Token);
-            var packId = _pack.CurrentPackId;
-            var offerCopyVersion = _pack.Snapshot.OfferCopyVersion;
-
             var asset = await _context.PrintReadyQrAssets
                 .FirstOrDefaultAsync(
                     row =>
@@ -606,6 +595,56 @@ namespace TummlyBackend.Services
                         && row.ShopOrderId == shopOrderId,
                     cancellationToken
                 );
+
+            if (qrCode == null && shopOrderId == null)
+            {
+                // List readiness maps a missing row to Preparing, which leaves
+                // Download disabled with no Retry. Persist Failed so Admin sees
+                // why the PDF cannot be built (no Active/Paused QR).
+                var missingMessage =
+                    $"No Active or Paused QR code for {qrType} at location {location.Id}.";
+                if (asset == null)
+                {
+                    asset = new PrintReadyQrAsset
+                    {
+                        RestaurantLocationId = location.Id,
+                        QrType = qrType,
+                        ShopOrderId = null,
+                        Status = PrintReadyQrAssetStatus.Failed,
+                        LastError = TruncateError(missingMessage),
+                        CreatedAtUtc = DateTime.UtcNow,
+                        UpdatedAtUtc = DateTime.UtcNow,
+                    };
+                    _context.PrintReadyQrAssets.Add(asset);
+                }
+                else if (
+                    asset.Status != PrintReadyQrAssetStatus.Failed
+                    || !string.Equals(
+                        asset.LastError,
+                        TruncateError(missingMessage),
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    asset.Status = PrintReadyQrAssetStatus.Failed;
+                    asset.StorageKey = null;
+                    asset.FileName = null;
+                    asset.QrTokenFingerprint = null;
+                    asset.TemplatePackVersion = null;
+                    asset.OfferCopyVersion = null;
+                    asset.LastError = TruncateError(missingMessage);
+                    asset.UpdatedAtUtc = DateTime.UtcNow;
+                }
+
+                await _context.SaveChangesAsync(cancellationToken);
+                return;
+            }
+
+            var fingerprint = qrCode == null
+                ? null
+                : FingerprintToken(qrCode.Token);
+            var packId = _pack.CurrentPackId;
+            var offerCopyVersion = _pack.Snapshot.OfferCopyVersion;
 
             var matchesCurrentGeneration =
                 fingerprint != null
