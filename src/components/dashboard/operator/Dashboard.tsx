@@ -176,6 +176,7 @@ function DashboardContent({ mode }: DashboardProps) {
       aiAssistantRef.current.setComposerDraft(prompt)
     },
     getLocationId: () => workspace.snapshot.selectedLocationId,
+    getAuthorisedLocationCount: () => workspace.snapshot.locations.length,
     navigateToGuestProfile: (guestId, locationId) => {
       navigate(operatorDashboardGuestProfilePath(mode, guestId, locationId))
     },
@@ -198,6 +199,12 @@ function DashboardContent({ mode }: DashboardProps) {
       )
     },
   })
+
+  useEffect(() => {
+    // Module no-ops when Search is closed; resets to current scope when open.
+    globalSearch.notifyOwnedLocationChanged()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- shell location id only
+  }, [workspace.snapshot.selectedLocationId])
 
   const loadRef = useRef(workspace.load)
   const preferRef = useRef(workspace.preferLocationFromQuery)
@@ -481,6 +488,8 @@ function DashboardContent({ mode }: DashboardProps) {
         onSelectCampaignHit: globalSearch.selectCampaignHit,
         onSelectOfferHit: globalSearch.selectOfferHit,
         onSelectQrCodeHit: globalSearch.selectQrCodeHit,
+        onLocationScopeChange: globalSearch.setLocationScope,
+        onWidenToAllLocations: globalSearch.widenToAllLocations,
       }}
     >
       <Outlet

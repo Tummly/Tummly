@@ -83,9 +83,18 @@ function makeAdapters(
     navigateToOfferDetails: vi.fn(),
     navigateToCapturePlacementDetail: vi.fn(),
     getLocationId: () => 1,
+    getAuthorisedLocationCount: () => 1,
     debounceMs: 0,
     ...overrides,
   }
+}
+
+const emptyHits = {
+  guestHits: [] as OperatorGlobalSearchEntityHit[],
+  feedbackHits: [] as OperatorGlobalSearchEntityHit[],
+  campaignHits: [] as OperatorGlobalSearchEntityHit[],
+  offerHits: [] as OperatorGlobalSearchEntityHit[],
+  qrCodeHits: [] as OperatorGlobalSearchEntityHit[],
 }
 
 describe("isGlobalSearchOpenShortcut", () => {
@@ -146,6 +155,10 @@ describe("createOperatorGlobalSearchModule", () => {
       campaignHits: [],
       offerHits: [],
       qrCodeHits: [],
+      locationScope: "current",
+      canWidenLocationScope: false,
+      showWidenFromNoResults: false,
+      showNoResults: false,
     })
     expect(module.getSnapshot()).toBe(module.getSnapshot())
   })
@@ -179,6 +192,8 @@ describe("createOperatorGlobalSearchModule", () => {
       offerHits: [],
       qrCodeHits: [],
       hitsPending: false,
+      locationScope: "current",
+      showNoResults: false,
     })
   })
 
@@ -266,7 +281,7 @@ describe("createOperatorGlobalSearchModule", () => {
     await vi.advanceTimersByTimeAsync(300)
     await vi.waitFor(() => {
       expect(searchHits).toHaveBeenCalledWith(
-        expect.objectContaining({ q: "mo", locationId: 1 })
+        expect.objectContaining({ q: "mo", locationId: 1, scope: "current" })
       )
       expect(module.getSnapshot().guestHits).toEqual([makeGuestHit()])
       expect(module.getSnapshot().feedbackHits).toEqual([makeFeedbackHit()])
@@ -578,15 +593,9 @@ describe("createOperatorGlobalSearchModule", () => {
     vi.useRealTimers()
   })
 
-    it("does not search when overlay is closed or location is missing", async () => {
+  it("does not search when overlay is closed or location is missing", async () => {
     vi.useFakeTimers()
-    const searchHits = vi.fn(async () => ({
-      guestHits: [],
-      feedbackHits: [],
-      campaignHits: [],
-      offerHits: [],
-      qrCodeHits: [],
-    }))
+    const searchHits = vi.fn(async () => ({ ...emptyHits }))
     const module = createOperatorGlobalSearchModule(
       makeAdapters({
         searchHits,
@@ -602,6 +611,183 @@ describe("createOperatorGlobalSearchModule", () => {
     expect(module.getSnapshot().feedbackHits).toEqual([])
     expect(module.getSnapshot().campaignHits).toEqual([])
     expect(module.getSnapshot().offerHits).toEqual([])
+    vi.useRealTimers()
+  })
+
+  it("defaults locationScope to current Owned location", () => {
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({ getAuthorisedLocationCount: () => 3 })
+    )
+    expect(module.getSnapshot().locationScope).toBe("current")
+    expect(module.getSnapshot().canWidenLocationScope).toBe(true)
+  })
+
+  it("shows widen control when authorised for more than one location", () => {
+    const multi = createOperatorGlobalSearchModule(
+      makeAdapters({ getAuthorisedLocationCount: () => 2 })
+    )
+    expect(multi.getSnapshot().canWidenLocationScope).toBe(true)
+
+    const single = createOperatorGlobalSearchModule(
+      makeAdapters({ getAuthorisedLocationCount: () => 1 })
+    )
+    expect(single.getSnapshot().canWidenLocationScope).toBe(false)
+  })
+
+  it("widenToAllLocations re-runs search with all-scope", async () => {
+    vi.useFakeTimers()
+    const searchHits = vi.fn(async () => ({ ...emptyHits }))
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({
+        searchHits,
+        getAuthorisedLocationCount: () => 2,
+        debounceMs: 0,
+      })
+    )
+    module.open()
+    module.setQuery("mo")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(searchHits).toHaveBeenCalledWith(
+        expect.objectContaining({ scope: "current" })
+      )
+    })
+
+    module.widenToAllLocations()
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().locationScope).toBe("all")
+      expect(searchHits).toHaveBeenCalledWith(
+        expect.objectContaining({ q: "mo", locationId: 1, scope: "all" })
+      )
+    })
+    vi.useRealTimers()
+  })
+
+  it("setLocationScope toggles between current and all and re-searches", async () => {
+    vi.useFakeTimers()
+    const searchHits = vi.fn(async () => ({ ...emptyHits }))
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({
+        searchHits,
+        getAuthorisedLocationCount: () => 2,
+        debounceMs: 0,
+      })
+    )
+    module.open()
+    module.setQuery("mo")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => expect(searchHits).toHaveBeenCalled())
+
+    module.setLocationScope("all")
+    expect(module.getSnapshot().locationScope).toBe("all")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(searchHits).toHaveBeenCalledWith(
+        expect.objectContaining({ scope: "all" })
+      )
+    })
+
+    module.setLocationScope("current")
+    expect(module.getSnapshot().locationScope).toBe("current")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(searchHits).toHaveBeenLastCalledWith(
+        expect.objectContaining({ scope: "current" })
+      )
+    })
+    vi.useRealTimers()
+  })
+
+  it("notifyOwnedLocationChanged resets to current scope and refreshes search", async () => {
+    vi.useFakeTimers()
+    let locationId = 1
+    const searchHits = vi.fn(async () => ({
+      ...emptyHits,
+      guestHits: [makeGuestHit({ locationId })],
+    }))
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({
+        searchHits,
+        getLocationId: () => locationId,
+        getAuthorisedLocationCount: () => 2,
+        debounceMs: 0,
+      })
+    )
+    module.open()
+    module.setQuery("mo")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => expect(searchHits).toHaveBeenCalled())
+    module.widenToAllLocations()
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().locationScope).toBe("all")
+    })
+
+    locationId = 7
+    module.notifyOwnedLocationChanged()
+
+    expect(module.getSnapshot().locationScope).toBe("current")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(searchHits).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          q: "mo",
+          locationId: 7,
+          scope: "current",
+        })
+      )
+    })
+    vi.useRealTimers()
+  })
+
+  it("offers widen from no-results when multi-location and still on current scope", async () => {
+    vi.useFakeTimers()
+    const searchHits = vi.fn(async () => ({ ...emptyHits }))
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({
+        searchHits,
+        getAuthorisedLocationCount: () => 2,
+        debounceMs: 0,
+      })
+    )
+    module.open()
+    module.setQuery("zz")
+    expect(module.getSnapshot().showWidenFromNoResults).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().hitsPending).toBe(false)
+      expect(module.getSnapshot().showWidenFromNoResults).toBe(true)
+    })
+
+    module.widenToAllLocations()
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().locationScope).toBe("all")
+      expect(module.getSnapshot().showWidenFromNoResults).toBe(false)
+    })
+    vi.useRealTimers()
+  })
+
+  it("hides widen from no-results for single-location operators", async () => {
+    vi.useFakeTimers()
+    const searchHits = vi.fn(async () => ({ ...emptyHits }))
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({
+        searchHits,
+        getAuthorisedLocationCount: () => 1,
+        debounceMs: 0,
+      })
+    )
+    module.open()
+    module.setQuery("zz")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().hitsPending).toBe(false)
+    })
+    expect(module.getSnapshot().showWidenFromNoResults).toBe(false)
+    expect(module.getSnapshot().canWidenLocationScope).toBe(false)
     vi.useRealTimers()
   })
 })

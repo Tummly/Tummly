@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Data;
 using TummlyBackend.DTOs.Search;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -18,16 +20,19 @@ namespace TummlyBackend.Controllers
         private readonly IGlobalSearchService _globalSearch;
         private readonly IOwnedLocationService _ownedLocation;
         private readonly IRestaurantPermissionHelper _permissions;
+        private readonly ApplicationDbContext _context;
 
         public GlobalSearchController(
             IGlobalSearchService globalSearch,
             IOwnedLocationService ownedLocation,
-            IRestaurantPermissionHelper permissions
+            IRestaurantPermissionHelper permissions,
+            ApplicationDbContext context
         )
         {
             _globalSearch = globalSearch;
             _ownedLocation = ownedLocation;
             _permissions = permissions;
+            _context = context;
         }
 
         [HttpGet]
@@ -37,6 +42,7 @@ namespace TummlyBackend.Controllers
             [FromQuery] string? types = null,
             [FromQuery] int? limit = null,
             [FromQuery] int utcOffsetMinutes = 0,
+            [FromQuery] string? scope = null,
             CancellationToken cancellationToken = default
         )
         {
@@ -60,6 +66,20 @@ namespace TummlyBackend.Controllers
             var trimmedQ = (q ?? string.Empty).Trim();
             var clampedLimit = ClampLimit(limit);
             var requested = ResolveTypes(types);
+            var scopeAll = IsScopeAll(scope);
+
+            IReadOnlyList<int> searchLocationIds = scopeAll
+                ? await _ownedLocation.ListOwnedLocationIdsAsync(
+                    location.RestaurantId,
+                    userId,
+                    cancellationToken
+                )
+                : [locationId];
+
+            var locationNamesById = await LoadLocationNamesAsync(
+                searchLocationIds,
+                cancellationToken
+            );
 
             var searchGuests = false;
             var searchFeedback = false;
@@ -173,7 +193,8 @@ namespace TummlyBackend.Controllers
                 {
                     Q = trimmedQ,
                     LocationId = locationId,
-                    LocationName = location.LocationName,
+                    LocationIds = searchLocationIds,
+                    LocationNamesById = locationNamesById,
                     Limit = clampedLimit,
                     IncludeGuests = searchGuests,
                     IncludeFeedback = searchFeedback,
@@ -240,6 +261,37 @@ namespace TummlyBackend.Controllers
                     LocationId = locationId,
                     Groups = groups,
                 }
+            );
+        }
+
+        private async Task<IReadOnlyDictionary<int, string>> LoadLocationNamesAsync(
+            IReadOnlyList<int> locationIds,
+            CancellationToken cancellationToken
+        )
+        {
+            if (locationIds.Count == 0)
+            {
+                return new Dictionary<int, string>();
+            }
+
+            var rows = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => locationIds.Contains(row.Id))
+                .Select(row => new { row.Id, row.LocationName })
+                .ToListAsync(cancellationToken);
+
+            return rows.ToDictionary(
+                row => row.Id,
+                row => row.LocationName
+            );
+        }
+
+        private static bool IsScopeAll(string? scope)
+        {
+            return string.Equals(
+                scope,
+                "all",
+                StringComparison.OrdinalIgnoreCase
             );
         }
 

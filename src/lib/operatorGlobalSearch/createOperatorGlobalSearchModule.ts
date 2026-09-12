@@ -15,6 +15,8 @@ export const EMPTY_AI_SUGGESTIONS: readonly OperatorGlobalSearchSuggestion[] = [
   { id: "prepare-response-plan", prompt: "Prepare a response plan" },
 ] as const
 
+export type OperatorGlobalSearchLocationScope = "current" | "all"
+
 export type OperatorGlobalSearchEntityHit = {
   id: string
   title: string
@@ -36,6 +38,10 @@ export type OperatorGlobalSearchSnapshot = {
   campaignHits: readonly OperatorGlobalSearchEntityHit[]
   offerHits: readonly OperatorGlobalSearchEntityHit[]
   qrCodeHits: readonly OperatorGlobalSearchEntityHit[]
+  locationScope: OperatorGlobalSearchLocationScope
+  canWidenLocationScope: boolean
+  showWidenFromNoResults: boolean
+  showNoResults: boolean
 }
 
 export type OperatorGlobalSearchShortcutInput = {
@@ -55,6 +61,7 @@ export type OperatorGlobalSearchAdapters = {
   searchHits: (args: {
     q: string
     locationId: number
+    scope: OperatorGlobalSearchLocationScope
     signal?: AbortSignal
   }) => Promise<{
     guestHits: readonly OperatorGlobalSearchEntityHit[]
@@ -72,6 +79,8 @@ export type OperatorGlobalSearchAdapters = {
     locationId: number
   ) => void
   getLocationId: () => number | null
+  /** Shell Owned-location list length (already filtered to authorised). */
+  getAuthorisedLocationCount: () => number
   debounceMs?: number
   setTimeout?: typeof globalThis.setTimeout
   clearTimeout?: typeof globalThis.clearTimeout
@@ -93,6 +102,13 @@ export type OperatorGlobalSearchModule = {
   selectCampaignHit: (campaignId: string) => void
   selectOfferHit: (offerId: string) => void
   selectQrCodeHit: (qrCodeId: string) => void
+  setLocationScope: (scope: OperatorGlobalSearchLocationScope) => void
+  widenToAllLocations: () => void
+  /**
+   * Shell Owned-location switcher changed while Search is open.
+   * Resets to current-location scope and refreshes for the new locationId.
+   */
+  notifyOwnedLocationChanged: () => void
 }
 
 export type OperatorGlobalSearchModuleOptions = {
@@ -111,6 +127,9 @@ type SearchState = {
   campaignHits: readonly OperatorGlobalSearchEntityHit[]
   offerHits: readonly OperatorGlobalSearchEntityHit[]
   qrCodeHits: readonly OperatorGlobalSearchEntityHit[]
+  locationScope: OperatorGlobalSearchLocationScope
+  /** True after a search has settled for the current query+scope. */
+  searchSettled: boolean
 }
 
 export function isGlobalSearchOpenShortcut(
@@ -129,10 +148,33 @@ export function shortcutModifierLabel(isApplePlatform: boolean): string {
   return isApplePlatform ? "⌘" : "Ctrl"
 }
 
+function hasAnyHits(state: SearchState): boolean {
+  return (
+    state.guestHits.length > 0 ||
+    state.feedbackHits.length > 0 ||
+    state.campaignHits.length > 0 ||
+    state.offerHits.length > 0 ||
+    state.qrCodeHits.length > 0
+  )
+}
+
 function toSnapshot(
   state: SearchState,
-  isApplePlatform: () => boolean
+  isApplePlatform: () => boolean,
+  getAuthorisedLocationCount: () => number
 ): OperatorGlobalSearchSnapshot {
+  const canWidenLocationScope = getAuthorisedLocationCount() > 1
+  const trimmed = state.query.trim()
+  const showNoResults =
+    state.searchSettled &&
+    !state.hitsPending &&
+    trimmed.length >= MIN_QUERY_LENGTH &&
+    !hasAnyHits(state)
+  const showWidenFromNoResults =
+    showNoResults &&
+    canWidenLocationScope &&
+    state.locationScope === "current"
+
   return {
     open: state.open,
     query: state.query,
@@ -144,6 +186,10 @@ function toSnapshot(
     campaignHits: state.campaignHits,
     offerHits: state.offerHits,
     qrCodeHits: state.qrCodeHits,
+    locationScope: state.locationScope,
+    canWidenLocationScope,
+    showWidenFromNoResults,
+    showNoResults,
   }
 }
 
@@ -182,15 +228,25 @@ export function createOperatorGlobalSearchModule(
     campaignHits: [],
     offerHits: [],
     qrCodeHits: [],
+    locationScope: "current",
+    searchSettled: false,
   }
-  let snapshot = toSnapshot(state, isApplePlatform)
+  let snapshot = toSnapshot(
+    state,
+    isApplePlatform,
+    adapters.getAuthorisedLocationCount
+  )
   const listeners = new Set<() => void>()
   let searchGeneration = 0
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   let activeAbort: AbortController | null = null
 
   const publish = () => {
-    snapshot = toSnapshot(state, isApplePlatform)
+    snapshot = toSnapshot(
+      state,
+      isApplePlatform,
+      adapters.getAuthorisedLocationCount
+    )
     for (const listener of listeners) {
       listener()
     }
@@ -217,23 +273,30 @@ export function createOperatorGlobalSearchModule(
       campaignHits: [],
       offerHits: [],
       qrCodeHits: [],
+      searchSettled: false,
     }
     publish()
   }
 
-  const runSearch = (q: string, locationId: number) => {
+  const runSearch = (
+    q: string,
+    locationId: number,
+    scope: OperatorGlobalSearchLocationScope
+  ) => {
     const generation = ++searchGeneration
     clearPendingSearch()
     const abort = new AbortController()
     activeAbort = abort
 
     if (!state.hitsPending) {
-      state = { ...state, hitsPending: true }
+      state = { ...state, hitsPending: true, searchSettled: false }
       publish()
+    } else {
+      state = { ...state, searchSettled: false }
     }
 
     void adapters
-      .searchHits({ q, locationId, signal: abort.signal })
+      .searchHits({ q, locationId, scope, signal: abort.signal })
       .then((result) => {
         if (generation !== searchGeneration) {
           return
@@ -246,6 +309,7 @@ export function createOperatorGlobalSearchModule(
           campaignHits: result.campaignHits,
           offerHits: result.offerHits,
           qrCodeHits: result.qrCodeHits,
+          searchSettled: true,
         }
         publish()
       })
@@ -261,6 +325,7 @@ export function createOperatorGlobalSearchModule(
           campaignHits: [],
           offerHits: [],
           qrCodeHits: [],
+          searchSettled: true,
         }
         publish()
       })
@@ -272,14 +337,7 @@ export function createOperatorGlobalSearchModule(
     const locationId = adapters.getLocationId()
 
     if (!state.open || trimmed.length < MIN_QUERY_LENGTH || locationId == null) {
-      if (
-        state.hitsPending ||
-        state.guestHits.length > 0 ||
-        state.feedbackHits.length > 0 ||
-        state.campaignHits.length > 0 ||
-        state.offerHits.length > 0 ||
-        state.qrCodeHits.length > 0
-      ) {
+      if (state.hitsPending || hasAnyHits(state) || state.searchSettled) {
         clearHits()
       }
       return
@@ -296,7 +354,7 @@ export function createOperatorGlobalSearchModule(
       ) {
         return
       }
-      runSearch(latestTrimmed, latestLocationId)
+      runSearch(latestTrimmed, latestLocationId, state.locationScope)
     }, debounceMs)
   }
 
@@ -305,11 +363,9 @@ export function createOperatorGlobalSearchModule(
       !state.open &&
       state.query === "" &&
       !state.hitsPending &&
-      state.guestHits.length === 0 &&
-      state.feedbackHits.length === 0 &&
-      state.campaignHits.length === 0 &&
-      state.offerHits.length === 0 &&
-      state.qrCodeHits.length === 0
+      !hasAnyHits(state) &&
+      state.locationScope === "current" &&
+      !state.searchSettled
     ) {
       return
     }
@@ -324,6 +380,8 @@ export function createOperatorGlobalSearchModule(
       campaignHits: [],
       offerHits: [],
       qrCodeHits: [],
+      locationScope: "current",
+      searchSettled: false,
     }
     publish()
   }
@@ -357,6 +415,19 @@ export function createOperatorGlobalSearchModule(
     }
   }
 
+  const setLocationScope = (scope: OperatorGlobalSearchLocationScope) => {
+    if (state.locationScope === scope) {
+      return
+    }
+    state = {
+      ...state,
+      locationScope: scope,
+      searchSettled: false,
+    }
+    publish()
+    scheduleSearch()
+  }
+
   return {
     getSnapshot: () => snapshot,
     subscribe: (listener) => {
@@ -378,7 +449,7 @@ export function createOperatorGlobalSearchModule(
       if (state.query === query) {
         return
       }
-      state = { ...state, query }
+      state = { ...state, query, searchSettled: false }
       publish()
       scheduleSearch()
     },
@@ -433,6 +504,27 @@ export function createOperatorGlobalSearchModule(
         state.qrCodeHits,
         adapters.navigateToCapturePlacementDetail
       )
+    },
+    setLocationScope,
+    widenToAllLocations: () => {
+      setLocationScope("all")
+    },
+    notifyOwnedLocationChanged: () => {
+      if (!state.open) {
+        return
+      }
+      state = {
+        ...state,
+        locationScope: "current",
+        searchSettled: false,
+        guestHits: [],
+        feedbackHits: [],
+        campaignHits: [],
+        offerHits: [],
+        qrCodeHits: [],
+      }
+      publish()
+      scheduleSearch()
     },
   }
 }

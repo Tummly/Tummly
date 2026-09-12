@@ -18,6 +18,13 @@ export const GLOBAL_SEARCH_OFFERS_HEADING = "Offers"
 
 export const GLOBAL_SEARCH_QR_CODES_HEADING = "QR codes"
 
+export const GLOBAL_SEARCH_ALL_LOCATIONS_LABEL = "Search all authorised locations"
+
+export const GLOBAL_SEARCH_NO_RESULTS_MESSAGE = "No results for this location."
+
+export const GLOBAL_SEARCH_WIDEN_FROM_NO_RESULTS_LABEL =
+  "Search all authorised locations"
+
 export const GLOBAL_SEARCH_DIALOG_TITLE = "Global Search"
 
 export const GLOBAL_SEARCH_OVERLAY_CLASS = [

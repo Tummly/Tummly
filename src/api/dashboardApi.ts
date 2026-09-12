@@ -932,6 +932,7 @@ export const getGlobalSearch = async (params: {
   types?: string
   limit?: number
   utcOffsetMinutes?: number
+  scope?: "current" | "all"
   signal?: AbortSignal
 }): Promise<GlobalSearchResponse> => {
   const response = await axiosInstance.get<GlobalSearchResponse>("/search", {
@@ -941,6 +942,7 @@ export const getGlobalSearch = async (params: {
       types: params.types ?? "guests,feedback,campaigns,offers,qr-codes",
       limit: params.limit,
       utcOffsetMinutes: params.utcOffsetMinutes ?? -new Date().getTimezoneOffset(),
+      scope: params.scope,
     },
     signal: params.signal,
   })

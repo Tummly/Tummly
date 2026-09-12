@@ -5,6 +5,7 @@ import { AiIcon } from "@/components/ui/ai-icon"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import {
   Command,
   CommandGroup,
@@ -20,11 +21,13 @@ import {
 import { Kbd } from "@/components/ui/kbd"
 import type {
   OperatorGlobalSearchEntityHit,
+  OperatorGlobalSearchLocationScope,
   OperatorGlobalSearchSnapshot,
 } from "@/lib/operatorGlobalSearch/createOperatorGlobalSearchModule"
 import {
   GLOBAL_SEARCH_AI_HEADING,
   GLOBAL_SEARCH_AI_ROW_CLASS,
+  GLOBAL_SEARCH_ALL_LOCATIONS_LABEL,
   GLOBAL_SEARCH_CAMPAIGNS_HEADING,
   GLOBAL_SEARCH_DIALOG_TITLE,
   GLOBAL_SEARCH_ENTITY_AVATAR_CLASS,
@@ -36,10 +39,12 @@ import {
   GLOBAL_SEARCH_INPUT_CLASS,
   GLOBAL_SEARCH_INPUT_ROW_CLASS,
   GLOBAL_SEARCH_KBD_CLASS,
+  GLOBAL_SEARCH_NO_RESULTS_MESSAGE,
   GLOBAL_SEARCH_OFFERS_HEADING,
   GLOBAL_SEARCH_OVERLAY_CLASS,
   GLOBAL_SEARCH_PLACEHOLDER,
   GLOBAL_SEARCH_QR_CODES_HEADING,
+  GLOBAL_SEARCH_WIDEN_FROM_NO_RESULTS_LABEL,
 } from "@/lib/operatorGlobalSearch/globalSearchPresentation"
 import { cn } from "@/lib/utils"
 
@@ -53,6 +58,8 @@ type GlobalSearchOverlayProps = {
   onSelectCampaignHit: (campaignId: string) => void
   onSelectOfferHit: (offerId: string) => void
   onSelectQrCodeHit: (qrCodeId: string) => void
+  onLocationScopeChange: (scope: OperatorGlobalSearchLocationScope) => void
+  onWidenToAllLocations: () => void
 }
 
 const COMMAND_GROUP_HEADING_CLASS = cn(
@@ -110,6 +117,8 @@ export function GlobalSearchOverlay({
   onSelectCampaignHit,
   onSelectOfferHit,
   onSelectQrCodeHit,
+  onLocationScopeChange,
+  onWidenToAllLocations,
 }: GlobalSearchOverlayProps) {
   const trimmedQuery = snapshot.query.trim()
   const showEmptyAi =
@@ -167,6 +176,21 @@ export function GlobalSearchOverlay({
             aria-label={GLOBAL_SEARCH_DIALOG_TITLE}
           />
         </div>
+
+        {snapshot.canWidenLocationScope ? (
+          <div className="border-b border-op-card-border px-5 py-3">
+            <CheckboxLabel
+              checked={snapshot.locationScope === "all"}
+              onCheckedChange={(checked) => {
+                onLocationScopeChange(checked ? "all" : "current")
+              }}
+              className="gap-0"
+              labelClassName="text-sm font-medium text-op-text-primary"
+            >
+              {GLOBAL_SEARCH_ALL_LOCATIONS_LABEL}
+            </CheckboxLabel>
+          </div>
+        ) : null}
 
         <Command
           shouldFilter={false}
@@ -261,6 +285,28 @@ export function GlobalSearchOverlay({
                   onSelect={onSelectQrCodeHit}
                 />
               </CommandGroup>
+            ) : null}
+
+            {snapshot.showWidenFromNoResults ? (
+              <div className="flex flex-col items-start gap-3 px-5 py-5">
+                <p className="text-sm text-op-header-search-text">
+                  {GLOBAL_SEARCH_NO_RESULTS_MESSAGE}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onWidenToAllLocations}
+                >
+                  {GLOBAL_SEARCH_WIDEN_FROM_NO_RESULTS_LABEL}
+                </Button>
+              </div>
+            ) : null}
+
+            {snapshot.showNoResults && !snapshot.showWidenFromNoResults ? (
+              <div className="px-5 py-5 text-sm text-op-header-search-text">
+                {GLOBAL_SEARCH_NO_RESULTS_MESSAGE}
+              </div>
             ) : null}
           </CommandList>
         </Command>

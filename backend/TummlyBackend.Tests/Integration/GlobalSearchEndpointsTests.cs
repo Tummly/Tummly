@@ -230,6 +230,120 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetSearch_ScopeAll_ReturnsGuestsFromAllAuthorisedLocations()
+        {
+            var seeded = await SeedMultiLocationGuestsAsync(
+                "gs-scope-all-owner-token-12"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(
+                    seeded.LocationAId,
+                    "Guest",
+                    types: "guests",
+                    scope: "all"
+                )
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                seeded.LocationAId,
+                body.GetProperty("locationId").GetInt32()
+            );
+            Assert.False(body.TryGetProperty("total", out _));
+            Assert.False(body.TryGetProperty("hiddenCount", out _));
+            Assert.False(body.TryGetProperty("totalFilteredCount", out _));
+
+            var hits = body.GetProperty("groups")[0].GetProperty("hits");
+            Assert.Equal(2, hits.GetArrayLength());
+
+            var titles = hits
+                .EnumerateArray()
+                .Select(hit => hit.GetProperty("title").GetString()!)
+                .OrderBy(title => title)
+                .ToArray();
+            Assert.Equal(
+                new[] { "Location A Guest", "Location B Guest" },
+                titles
+            );
+
+            var byTitle = hits
+                .EnumerateArray()
+                .ToDictionary(
+                    hit => hit.GetProperty("title").GetString()!,
+                    hit => hit
+                );
+            Assert.Equal(
+                seeded.LocationAId,
+                byTitle["Location A Guest"].GetProperty("locationId").GetInt32()
+            );
+            Assert.Equal(
+                "Camden Street",
+                byTitle["Location A Guest"].GetProperty("locationName").GetString()
+            );
+            Assert.Equal(
+                seeded.LocationBId,
+                byTitle["Location B Guest"].GetProperty("locationId").GetInt32()
+            );
+            Assert.Equal(
+                "Second Street",
+                byTitle["Location B Guest"].GetProperty("locationName").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetSearch_ScopeAll_ScopedManager_ExcludesOutOfScopeLocation_NoExistenceLeak()
+        {
+            var seeded = await SeedLocationManagerWithGuestsAsync(
+                "gs-scope-all-mgr-token-12"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(
+                    seeded.InScopeLocationId,
+                    "Guest",
+                    types: "guests",
+                    scope: "all"
+                )
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.MemberJwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.False(body.TryGetProperty("total", out _));
+            Assert.False(body.TryGetProperty("hiddenCount", out _));
+            Assert.False(body.TryGetProperty("totalFilteredCount", out _));
+
+            var hits = body.GetProperty("groups")[0].GetProperty("hits");
+            Assert.Equal(1, hits.GetArrayLength());
+            Assert.Equal(
+                "In Scope Guest",
+                hits[0].GetProperty("title").GetString()
+            );
+            Assert.Equal(
+                seeded.InScopeLocationId,
+                hits[0].GetProperty("locationId").GetInt32()
+            );
+            Assert.DoesNotContain(
+                hits.EnumerateArray(),
+                hit =>
+                    hit.GetProperty("title").GetString()
+                    == "Out Of Scope Guest"
+            );
+        }
+
+        [Fact]
         public async Task GetSearch_ReturnsEmptyGuestHits_WhenStaffHasGuestsNoAccess()
         {
             var seeded = await SeedOwnerAndStaffMemberAsync(
@@ -1042,7 +1156,8 @@ namespace TummlyBackend.Tests.Integration
             int locationId,
             string q,
             string? types = null,
-            int? limit = null
+            int? limit = null,
+            string? scope = null
         )
         {
             var url =
@@ -1054,6 +1169,10 @@ namespace TummlyBackend.Tests.Integration
             if (limit != null)
             {
                 url += $"&limit={limit.Value}";
+            }
+            if (scope != null)
+            {
+                url += $"&scope={Uri.EscapeDataString(scope)}";
             }
             return url;
         }
@@ -2148,6 +2267,156 @@ namespace TummlyBackend.Tests.Integration
         private sealed record BillingAdminOfferSeed(
             string MemberJwt,
             int LocationId
+        );
+
+        private async Task<ScopedManagerSeed> SeedLocationManagerWithGuestsAsync(
+            string linkTokenPrefix
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var owner = new User
+            {
+                FullName = "GS Mgr Owner",
+                Email = $"{linkTokenPrefix}-owner@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900221",
+                Role = "Owner",
+                AccountType = "Multi",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(owner);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "GS Mgr Venue",
+                AccountType = "Multi",
+                OwnerUserId = owner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var inScope = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "In Scope",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            var outOfScope = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Out Of Scope",
+                Address = "2 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.AddRange(inScope, outOfScope);
+            await context.SaveChangesAsync();
+
+            context.RestaurantMemberships.Add(new RestaurantMembership
+            {
+                UserId = owner.Id,
+                RestaurantId = restaurant.Id,
+                PermissionRole = PermissionRoles.Owner,
+                LocationScope = LocationScopeKind.AllLocations,
+                NamedLocationIdsJson = "[]",
+                Status = MembershipStatus.Active,
+            });
+
+            var member = new User
+            {
+                FullName = "GS Location Manager",
+                Email = $"{linkTokenPrefix}-mgr@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900223",
+                Role = "Owner",
+                AccountType = "Multi",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                SelectedRestaurantId = restaurant.Id,
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(member);
+            await context.SaveChangesAsync();
+
+            context.RestaurantMemberships.Add(new RestaurantMembership
+            {
+                UserId = member.Id,
+                RestaurantId = restaurant.Id,
+                PermissionRole = PermissionRoles.LocationManager,
+                LocationScope = LocationScopeKind.NamedList,
+                NamedLocationIdsJson =
+                    MembershipLocationScope.SerializeNamedIds([inScope.Id]),
+                Status = MembershipStatus.Active,
+            });
+            await context.SaveChangesAsync();
+
+            var masterIn = new MasterGuest
+            {
+                RestaurantId = restaurant.Id,
+                Email = $"{linkTokenPrefix}-in@example.com",
+                NormalizedEmail = $"{linkTokenPrefix}-in@example.com",
+                CreatedAt = DateTime.UtcNow,
+            };
+            var masterOut = new MasterGuest
+            {
+                RestaurantId = restaurant.Id,
+                Email = $"{linkTokenPrefix}-out@example.com",
+                NormalizedEmail = $"{linkTokenPrefix}-out@example.com",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.MasterGuests.AddRange(masterIn, masterOut);
+            await context.SaveChangesAsync();
+
+            context.LocationGuests.AddRange(
+                new LocationGuest
+                {
+                    MasterGuestId = masterIn.Id,
+                    RestaurantLocationId = inScope.Id,
+                    Name = "In Scope Guest",
+                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
+                    CreatedAt = DateTime.UtcNow.AddDays(-1),
+                },
+                new LocationGuest
+                {
+                    MasterGuestId = masterOut.Id,
+                    RestaurantLocationId = outOfScope.Id,
+                    Name = "Out Of Scope Guest",
+                    MarketingPreference = LocationGuestMarketingPreference.Allowed,
+                    CreatedAt = DateTime.UtcNow.AddDays(-2),
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var memberJwt = jwtService.GenerateToken(
+                member.Id.ToString(),
+                member.Email,
+                member.Role
+            );
+
+            return new ScopedManagerSeed(
+                memberJwt,
+                inScope.Id,
+                outOfScope.Id
+            );
+        }
+
+        private sealed record ScopedManagerSeed(
+            string MemberJwt,
+            int InScopeLocationId,
+            int OutOfScopeLocationId
         );
     }
 }
