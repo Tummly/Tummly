@@ -18,10 +18,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Kbd } from "@/components/ui/kbd"
-import type { OperatorGlobalSearchSnapshot } from "@/lib/operatorGlobalSearch/createOperatorGlobalSearchModule"
+import type {
+  OperatorGlobalSearchEntityHit,
+  OperatorGlobalSearchSnapshot,
+} from "@/lib/operatorGlobalSearch/createOperatorGlobalSearchModule"
 import {
   GLOBAL_SEARCH_AI_HEADING,
   GLOBAL_SEARCH_AI_ROW_CLASS,
+  GLOBAL_SEARCH_CAMPAIGNS_HEADING,
   GLOBAL_SEARCH_DIALOG_TITLE,
   GLOBAL_SEARCH_ENTITY_AVATAR_CLASS,
   GLOBAL_SEARCH_ENTITY_ROW_CLASS,
@@ -42,6 +46,7 @@ type GlobalSearchOverlayProps = {
   onQueryChange: (query: string) => void
   onSelectSuggestion: (suggestionId: string) => void
   onSelectGuestHit: (guestId: string) => void
+  onSelectCampaignHit: (campaignId: string) => void
 }
 
 const COMMAND_GROUP_HEADING_CLASS = cn(
@@ -51,20 +56,63 @@ const COMMAND_GROUP_HEADING_CLASS = cn(
   "**:[[cmdk-group-heading]]:text-op-header-search-text"
 )
 
+function EntityHitRows({
+  hits,
+  valuePrefix,
+  onSelect,
+}: {
+  hits: readonly OperatorGlobalSearchEntityHit[]
+  valuePrefix: string
+  onSelect: (id: string) => void
+}) {
+  return hits.map((hit) => (
+    <CommandItem
+      key={`${valuePrefix}-${hit.id}`}
+      value={`${valuePrefix}-${hit.id}`}
+      onSelect={() => onSelect(hit.id)}
+      className={GLOBAL_SEARCH_ENTITY_ROW_CLASS}
+    >
+      <Avatar className="size-8 shrink-0">
+        <AvatarFallback className={GLOBAL_SEARCH_ENTITY_AVATAR_CLASS}>
+          {hit.initials}
+        </AvatarFallback>
+      </Avatar>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-op-text-primary">{hit.title}</span>
+        {hit.subtitle ? (
+          <span className="block truncate text-xs text-op-header-search-text">
+            {hit.subtitle}
+          </span>
+        ) : null}
+      </span>
+      {hit.status ? (
+        <Badge variant="soft" className="shrink-0">
+          {hit.status}
+        </Badge>
+      ) : null}
+    </CommandItem>
+  ))
+}
+
 export function GlobalSearchOverlay({
   snapshot,
   onOpenChange,
   onQueryChange,
   onSelectSuggestion,
   onSelectGuestHit,
+  onSelectCampaignHit,
 }: GlobalSearchOverlayProps) {
   const trimmedQuery = snapshot.query.trim()
   const showEmptyAi =
     trimmedQuery.length === 0 && snapshot.emptySuggestions.length > 0
-  // Guests group after debounce starts (pending or hits), not on raw keystrokes alone.
+  // Entity groups after debounce starts (pending or hits), not on raw keystrokes alone.
+  const showEntityGroups = trimmedQuery.length >= 2 && snapshot.hitsPending
   const showGuestsGroup =
-    trimmedQuery.length >= 2 &&
-    (snapshot.hitsPending || snapshot.guestHits.length > 0)
+    showEntityGroups ||
+    (trimmedQuery.length >= 2 && snapshot.guestHits.length > 0)
+  const showCampaignsGroup =
+    showEntityGroups ||
+    (trimmedQuery.length >= 2 && snapshot.campaignHits.length > 0)
 
   return (
     <Dialog open={snapshot.open} onOpenChange={onOpenChange}>
@@ -137,35 +185,24 @@ export function GlobalSearchOverlay({
                 heading={GLOBAL_SEARCH_GUESTS_HEADING}
                 className={COMMAND_GROUP_HEADING_CLASS}
               >
-                {snapshot.guestHits.map((hit) => (
-                  <CommandItem
-                    key={hit.id}
-                    value={`guest-${hit.id}`}
-                    onSelect={() => onSelectGuestHit(hit.id)}
-                    className={GLOBAL_SEARCH_ENTITY_ROW_CLASS}
-                  >
-                    <Avatar className="size-8 shrink-0">
-                      <AvatarFallback className={GLOBAL_SEARCH_ENTITY_AVATAR_CLASS}>
-                        {hit.initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-op-text-primary">
-                        {hit.title}
-                      </span>
-                      {hit.subtitle ? (
-                        <span className="block truncate text-xs text-op-header-search-text">
-                          {hit.subtitle}
-                        </span>
-                      ) : null}
-                    </span>
-                    {hit.status ? (
-                      <Badge variant="soft" className="shrink-0">
-                        {hit.status}
-                      </Badge>
-                    ) : null}
-                  </CommandItem>
-                ))}
+                <EntityHitRows
+                  hits={snapshot.guestHits}
+                  valuePrefix="guest"
+                  onSelect={onSelectGuestHit}
+                />
+              </CommandGroup>
+            ) : null}
+
+            {showCampaignsGroup ? (
+              <CommandGroup
+                heading={GLOBAL_SEARCH_CAMPAIGNS_HEADING}
+                className={COMMAND_GROUP_HEADING_CLASS}
+              >
+                <EntityHitRows
+                  hits={snapshot.campaignHits}
+                  valuePrefix="campaign"
+                  onSelect={onSelectCampaignHit}
+                />
               </CommandGroup>
             ) : null}
           </CommandList>

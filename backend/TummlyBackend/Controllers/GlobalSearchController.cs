@@ -58,7 +58,12 @@ namespace TummlyBackend.Controllers
             var location = ownedLocation.Location!;
             var trimmedQ = (q ?? string.Empty).Trim();
             var clampedLimit = ClampLimit(limit);
-            var includeGuests = ResolveIncludeGuests(types);
+            var (includeGuests, includeCampaigns) = ResolveTypes(types);
+
+            var searchGuests = false;
+            var searchCampaigns = false;
+            var emptyGuests = false;
+            var emptyCampaigns = false;
 
             if (includeGuests)
             {
@@ -69,25 +74,33 @@ namespace TummlyBackend.Controllers
                     locationId
                 );
 
-                if (guestsAccess.Status != RestaurantPermissionStatus.Allowed)
+                if (guestsAccess.Status == RestaurantPermissionStatus.Allowed)
+                {
+                    searchGuests = true;
+                }
+                else
                 {
                     // Owned location but Guests NoAccess: empty group (no existence leak).
-                    return Ok(
-                        new GlobalSearchResponse
-                        {
-                            Success = true,
-                            Q = trimmedQ,
-                            LocationId = locationId,
-                            Groups =
-                            [
-                                new GlobalSearchGroupDto
-                                {
-                                    Type = "guests",
-                                    Hits = [],
-                                },
-                            ],
-                        }
-                    );
+                    emptyGuests = true;
+                }
+            }
+
+            if (includeCampaigns)
+            {
+                var campaignsAccess = await _permissions.AuthorizeLocationAsync(
+                    User,
+                    OperatorAreaIds.Campaigns,
+                    PermissionLevel.View,
+                    locationId
+                );
+
+                if (campaignsAccess.Status == RestaurantPermissionStatus.Allowed)
+                {
+                    searchCampaigns = true;
+                }
+                else
+                {
+                    emptyCampaigns = true;
                 }
             }
 
@@ -98,12 +111,46 @@ namespace TummlyBackend.Controllers
                     LocationId = locationId,
                     LocationName = location.LocationName,
                     Limit = clampedLimit,
-                    IncludeGuests = includeGuests,
+                    IncludeGuests = searchGuests,
+                    IncludeCampaigns = searchCampaigns,
                 },
                 cancellationToken
             );
 
-            return Ok(result);
+            var groups = new List<GlobalSearchGroupDto>();
+            if (emptyGuests)
+            {
+                groups.Add(new GlobalSearchGroupDto { Type = "guests", Hits = [] });
+            }
+
+            if (emptyCampaigns)
+            {
+                groups.Add(
+                    new GlobalSearchGroupDto { Type = "campaigns", Hits = [] }
+                );
+            }
+
+            groups.AddRange(result.Groups);
+
+            // Stable product order: guests then campaigns (empty stubs first if any).
+            groups = groups
+                .OrderBy(group => group.Type switch
+                {
+                    "guests" => 0,
+                    "campaigns" => 1,
+                    _ => 99,
+                })
+                .ToList();
+
+            return Ok(
+                new GlobalSearchResponse
+                {
+                    Success = true,
+                    Q = trimmedQ,
+                    LocationId = locationId,
+                    Groups = groups,
+                }
+            );
         }
 
         private static int ClampLimit(int? limit)
@@ -123,14 +170,16 @@ namespace TummlyBackend.Controllers
         }
 
         /// <summary>
-        /// Default types=guests for this ticket. Unknown tokens are ignored;
+        /// Default types=guests. Unknown tokens are ignored;
         /// empty resolved set still returns an empty groups list.
         /// </summary>
-        private static bool ResolveIncludeGuests(string? types)
+        private static (bool IncludeGuests, bool IncludeCampaigns) ResolveTypes(
+            string? types
+        )
         {
             if (string.IsNullOrWhiteSpace(types))
             {
-                return true;
+                return (true, false);
             }
 
             var tokens = types
@@ -138,7 +187,7 @@ namespace TummlyBackend.Controllers
                 .Select(token => token.ToLowerInvariant())
                 .ToHashSet(StringComparer.Ordinal);
 
-            return tokens.Contains("guests");
+            return (tokens.Contains("guests"), tokens.Contains("campaigns"));
         }
     }
 }

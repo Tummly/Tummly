@@ -252,6 +252,155 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(0, hits.GetArrayLength());
         }
 
+        [Fact]
+        public async Task GetSearch_ReturnsCampaignHits_ForOwnerNameMatch()
+        {
+            var seeded = await SeedOwnerWithCampaignAsync(
+                "gs-campaign-match-token-12",
+                campaignName: "Weekend brunch push",
+                status: "draft",
+                channel: "email",
+                locationName: "Camden"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "week", types: "campaigns")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+
+            var groups = body.GetProperty("groups");
+            Assert.Equal(1, groups.GetArrayLength());
+            Assert.Equal("campaigns", groups[0].GetProperty("type").GetString());
+
+            var hits = groups[0].GetProperty("hits");
+            Assert.Equal(1, hits.GetArrayLength());
+            var hit = hits[0];
+            Assert.Equal(
+                seeded.CampaignId.ToString(),
+                hit.GetProperty("id").GetString()
+            );
+            Assert.Equal("campaign", hit.GetProperty("entityType").GetString());
+            Assert.Equal(
+                "Weekend brunch push",
+                hit.GetProperty("title").GetString()
+            );
+            Assert.Equal("Email", hit.GetProperty("subtitle").GetString());
+            Assert.Equal(
+                seeded.LocationId,
+                hit.GetProperty("locationId").GetInt32()
+            );
+            Assert.Equal("Camden", hit.GetProperty("locationName").GetString());
+            Assert.Equal("Draft", hit.GetProperty("status").GetString());
+            Assert.False(hit.TryGetProperty("billingReservationRef", out _));
+            Assert.False(hit.TryGetProperty("messageBody", out _));
+        }
+
+        [Fact]
+        public async Task GetSearch_DoesNotReturnOtherTenantCampaigns()
+        {
+            var ownerA = await SeedOwnerWithCampaignAsync(
+                "gs-camp-tenant-a-token-123",
+                campaignName: "Shared name brunch",
+                status: "scheduled",
+                channel: "sms"
+            );
+            var ownerB = await SeedOwnerWithCampaignAsync(
+                "gs-camp-tenant-b-token-123",
+                campaignName: "Shared name brunch",
+                status: "draft",
+                channel: "email",
+                emailUser: "gs-camp-tenant-b@example.com"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(ownerA.LocationId, "Shared", types: "campaigns")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", ownerA.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var hits = (await ReadJsonAsync(response))
+                .GetProperty("groups")[0]
+                .GetProperty("hits");
+            Assert.Equal(1, hits.GetArrayLength());
+            Assert.Equal(
+                ownerA.CampaignId.ToString(),
+                hits[0].GetProperty("id").GetString()
+            );
+            Assert.NotEqual(
+                ownerB.CampaignId.ToString(),
+                hits[0].GetProperty("id").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetSearch_ScopesCampaignHitsToShellLocation_NotSibling()
+        {
+            var seeded = await SeedMultiLocationCampaignsAsync(
+                "gs-multi-camp-token-12345"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationAId, "Campaign", types: "campaigns")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var hits = (await ReadJsonAsync(response))
+                .GetProperty("groups")[0]
+                .GetProperty("hits");
+            Assert.Equal(1, hits.GetArrayLength());
+            Assert.Equal(
+                "Location A Campaign",
+                hits[0].GetProperty("title").GetString()
+            );
+            Assert.Equal(
+                seeded.LocationAId,
+                hits[0].GetProperty("locationId").GetInt32()
+            );
+        }
+
+        [Fact]
+        public async Task GetSearch_ReturnsEmptyCampaignHits_WhenStaffHasCampaignsNoAccess()
+        {
+            var seeded = await SeedOwnerAndStaffMemberAsync(
+                seedMatchingGuest: false,
+                seedMatchingCampaign: true
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.InScopeLocationId, "Scope", types: "campaigns")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.MemberJwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            var groups = body.GetProperty("groups");
+            Assert.Equal(1, groups.GetArrayLength());
+            Assert.Equal("campaigns", groups[0].GetProperty("type").GetString());
+            Assert.Equal(0, groups[0].GetProperty("hits").GetArrayLength());
+        }
+
         private static string SearchUrl(
             int locationId,
             string q,
@@ -479,8 +628,131 @@ namespace TummlyBackend.Tests.Integration
             return new MultiLocationSeed(jwt, locationA.Id, locationB.Id);
         }
 
+        private async Task<OwnerCampaignSeed> SeedOwnerWithCampaignAsync(
+            string linkToken,
+            string campaignName,
+            string status,
+            string channel,
+            string locationName = "Camden Street",
+            string? emailUser = null
+        )
+        {
+            var owner = await SeedOwnerAsync(
+                linkToken,
+                email: emailUser ?? $"{Guid.NewGuid():N}@example.com",
+                locationName: locationName
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var campaign = new Campaign
+            {
+                RestaurantLocationId = owner.LocationId,
+                Name = campaignName,
+                Status = status,
+                Channel = channel,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+            context.Campaigns.Add(campaign);
+            await context.SaveChangesAsync();
+
+            return new OwnerCampaignSeed(
+                owner.Jwt,
+                owner.LocationId,
+                owner.RestaurantId,
+                campaign.Id
+            );
+        }
+
+        private async Task<MultiLocationSeed> SeedMultiLocationCampaignsAsync(
+            string linkTokenPrefix
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "GS Multi Camp Owner",
+                Email = $"{linkTokenPrefix}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900111",
+                Role = "Owner",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "GS Multi Camp Venue",
+                AccountType = "Multi",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var locationA = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Camden Street",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            var locationB = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Second Street",
+                Address = "2 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.AddRange(locationA, locationB);
+            await context.SaveChangesAsync();
+
+            context.Campaigns.AddRange(
+                new Campaign
+                {
+                    RestaurantLocationId = locationA.Id,
+                    Name = "Location A Campaign",
+                    Status = "draft",
+                    Channel = "email",
+                    CreatedAt = DateTime.UtcNow.AddDays(-2),
+                    UpdatedAt = DateTime.UtcNow.AddDays(-1),
+                },
+                new Campaign
+                {
+                    RestaurantLocationId = locationB.Id,
+                    Name = "Location B Campaign",
+                    Status = "sent",
+                    Channel = "sms",
+                    CreatedAt = DateTime.UtcNow.AddDays(-3),
+                    UpdatedAt = DateTime.UtcNow.AddDays(-2),
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return new MultiLocationSeed(jwt, locationA.Id, locationB.Id);
+        }
+
         private async Task<StaffSeed> SeedOwnerAndStaffMemberAsync(
-            bool seedMatchingGuest
+            bool seedMatchingGuest,
+            bool seedMatchingCampaign = false
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -597,6 +869,20 @@ namespace TummlyBackend.Tests.Integration
                 await context.SaveChangesAsync();
             }
 
+            if (seedMatchingCampaign)
+            {
+                context.Campaigns.Add(new Campaign
+                {
+                    RestaurantLocationId = inScope.Id,
+                    Name = "In Scope Campaign",
+                    Status = "draft",
+                    Channel = "email",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                });
+                await context.SaveChangesAsync();
+            }
+
             var memberJwt = jwtService.GenerateToken(
                 member.Id.ToString(),
                 member.Email,
@@ -620,6 +906,13 @@ namespace TummlyBackend.Tests.Integration
             int LocationId,
             int RestaurantId,
             int LocationGuestId
+        );
+
+        private sealed record OwnerCampaignSeed(
+            string Jwt,
+            int LocationId,
+            int RestaurantId,
+            int CampaignId
         );
 
         private sealed record MultiLocationSeed(

@@ -30,6 +30,7 @@ import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPre
 import type { BillingCreditsAccess } from "@/lib/operatorHome/parseOperatorProfile"
 import { getOperatorFirstName } from "@/lib/operatorHome/operatorProfile"
 import {
+  operatorDashboardCampaignDetailsPath,
   operatorDashboardGuestProfilePath,
   resolveOperatorSidebarActiveId,
 } from "@/lib/operatorHome/operatorDashboardPaths"
@@ -174,6 +175,11 @@ function DashboardContent({ mode }: DashboardProps) {
     getLocationId: () => workspace.snapshot.selectedLocationId,
     navigateToGuestProfile: (guestId, locationId) => {
       navigate(operatorDashboardGuestProfilePath(mode, guestId, locationId))
+    },
+    navigateToCampaignDetail: (campaignId, locationId) => {
+      navigate(
+        operatorDashboardCampaignDetailsPath(mode, campaignId, locationId)
+      )
     },
   })
 
@@ -455,6 +461,7 @@ function DashboardContent({ mode }: DashboardProps) {
         onQueryChange: globalSearch.setQuery,
         onSelectSuggestion: globalSearch.selectSuggestion,
         onSelectGuestHit: globalSearch.selectGuestHit,
+        onSelectCampaignHit: globalSearch.selectCampaignHit,
       }}
     >
       <Outlet

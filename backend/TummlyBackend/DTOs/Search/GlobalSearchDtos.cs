@@ -11,6 +11,8 @@ namespace TummlyBackend.DTOs.Search
         public required int Limit { get; init; }
 
         public required bool IncludeGuests { get; init; }
+
+        public required bool IncludeCampaigns { get; init; }
     }
 
     public sealed class GlobalSearchResponse

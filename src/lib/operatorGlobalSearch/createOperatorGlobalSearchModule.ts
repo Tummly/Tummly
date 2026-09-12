@@ -15,7 +15,7 @@ export const EMPTY_AI_SUGGESTIONS: readonly OperatorGlobalSearchSuggestion[] = [
   { id: "prepare-response-plan", prompt: "Prepare a response plan" },
 ] as const
 
-export type OperatorGlobalSearchGuestHit = {
+export type OperatorGlobalSearchEntityHit = {
   id: string
   title: string
   subtitle: string | null
@@ -23,6 +23,11 @@ export type OperatorGlobalSearchGuestHit = {
   locationId: number
   initials: string
 }
+
+/** @deprecated Prefer OperatorGlobalSearchEntityHit — Guest and Campaign share the shape. */
+export type OperatorGlobalSearchGuestHit = OperatorGlobalSearchEntityHit
+
+export type OperatorGlobalSearchCampaignHit = OperatorGlobalSearchEntityHit
 
 export type OperatorGlobalSearchSnapshot = {
   open: boolean
@@ -32,6 +37,7 @@ export type OperatorGlobalSearchSnapshot = {
   shortcutModifierLabel: string
   hitsPending: boolean
   guestHits: readonly OperatorGlobalSearchGuestHit[]
+  campaignHits: readonly OperatorGlobalSearchCampaignHit[]
 }
 
 export type OperatorGlobalSearchShortcutInput = {
@@ -48,12 +54,16 @@ export type OperatorGlobalSearchAdapters = {
    * Soft lock / credits may still gate Send inside Assistant.
    */
   handoffSuggestionToAssistant: (prompt: string) => void
-  searchGuests: (args: {
+  searchHits: (args: {
     q: string
     locationId: number
     signal?: AbortSignal
-  }) => Promise<{ hits: readonly OperatorGlobalSearchGuestHit[] }>
+  }) => Promise<{
+    guestHits: readonly OperatorGlobalSearchGuestHit[]
+    campaignHits: readonly OperatorGlobalSearchCampaignHit[]
+  }>
   navigateToGuestProfile: (guestId: number, locationId: number) => void
+  navigateToCampaignDetail: (campaignId: number, locationId: number) => void
   getLocationId: () => number | null
   debounceMs?: number
   setTimeout?: typeof globalThis.setTimeout
@@ -72,6 +82,7 @@ export type OperatorGlobalSearchModule = {
   handleShortcutKeydown: (input: OperatorGlobalSearchShortcutInput) => boolean
   selectSuggestion: (suggestionId: string) => void
   selectGuestHit: (guestId: string) => void
+  selectCampaignHit: (campaignId: string) => void
 }
 
 export type OperatorGlobalSearchModuleOptions = {
@@ -86,6 +97,7 @@ type SearchState = {
   query: string
   hitsPending: boolean
   guestHits: readonly OperatorGlobalSearchGuestHit[]
+  campaignHits: readonly OperatorGlobalSearchCampaignHit[]
 }
 
 export function isGlobalSearchOpenShortcut(
@@ -115,6 +127,7 @@ function toSnapshot(
     shortcutModifierLabel: shortcutModifierLabel(isApplePlatform()),
     hitsPending: state.hitsPending,
     guestHits: state.guestHits,
+    campaignHits: state.campaignHits,
   }
 }
 
@@ -125,6 +138,26 @@ export function mapGuestSearchHit(raw: {
   status?: string | null
   locationId: number
 }): OperatorGlobalSearchGuestHit {
+  return mapEntitySearchHit(raw)
+}
+
+export function mapCampaignSearchHit(raw: {
+  id: string
+  title: string
+  subtitle?: string | null
+  status?: string | null
+  locationId: number
+}): OperatorGlobalSearchCampaignHit {
+  return mapEntitySearchHit(raw)
+}
+
+function mapEntitySearchHit(raw: {
+  id: string
+  title: string
+  subtitle?: string | null
+  status?: string | null
+  locationId: number
+}): OperatorGlobalSearchEntityHit {
   return {
     id: raw.id,
     title: raw.title,
@@ -149,6 +182,7 @@ export function createOperatorGlobalSearchModule(
     query: "",
     hitsPending: false,
     guestHits: [],
+    campaignHits: [],
   }
   let snapshot = toSnapshot(state, isApplePlatform)
   const listeners = new Set<() => void>()
@@ -174,7 +208,18 @@ export function createOperatorGlobalSearchModule(
     }
   }
 
-  const runGuestSearch = (q: string, locationId: number) => {
+  const clearHits = () => {
+    searchGeneration += 1
+    state = {
+      ...state,
+      hitsPending: false,
+      guestHits: [],
+      campaignHits: [],
+    }
+    publish()
+  }
+
+  const runSearch = (q: string, locationId: number) => {
     const generation = ++searchGeneration
     clearPendingSearch()
     const abort = new AbortController()
@@ -186,7 +231,7 @@ export function createOperatorGlobalSearchModule(
     }
 
     void adapters
-      .searchGuests({ q, locationId, signal: abort.signal })
+      .searchHits({ q, locationId, signal: abort.signal })
       .then((result) => {
         if (generation !== searchGeneration) {
           return
@@ -194,7 +239,8 @@ export function createOperatorGlobalSearchModule(
         state = {
           ...state,
           hitsPending: false,
-          guestHits: result.hits,
+          guestHits: result.guestHits,
+          campaignHits: result.campaignHits,
         }
         publish()
       })
@@ -206,25 +252,24 @@ export function createOperatorGlobalSearchModule(
           ...state,
           hitsPending: false,
           guestHits: [],
+          campaignHits: [],
         }
         publish()
       })
   }
 
-  const scheduleGuestSearch = () => {
+  const scheduleSearch = () => {
     clearPendingSearch()
     const trimmed = state.query.trim()
     const locationId = adapters.getLocationId()
 
     if (!state.open || trimmed.length < MIN_QUERY_LENGTH || locationId == null) {
-      if (state.hitsPending || state.guestHits.length > 0) {
-        searchGeneration += 1
-        state = {
-          ...state,
-          hitsPending: false,
-          guestHits: [],
-        }
-        publish()
+      if (
+        state.hitsPending ||
+        state.guestHits.length > 0 ||
+        state.campaignHits.length > 0
+      ) {
+        clearHits()
       }
       return
     }
@@ -240,7 +285,7 @@ export function createOperatorGlobalSearchModule(
       ) {
         return
       }
-      runGuestSearch(latestTrimmed, latestLocationId)
+      runSearch(latestTrimmed, latestLocationId)
     }, debounceMs)
   }
 
@@ -249,7 +294,8 @@ export function createOperatorGlobalSearchModule(
       !state.open &&
       state.query === "" &&
       !state.hitsPending &&
-      state.guestHits.length === 0
+      state.guestHits.length === 0 &&
+      state.campaignHits.length === 0
     ) {
       return
     }
@@ -260,6 +306,7 @@ export function createOperatorGlobalSearchModule(
       query: "",
       hitsPending: false,
       guestHits: [],
+      campaignHits: [],
     }
     publish()
   }
@@ -270,6 +317,27 @@ export function createOperatorGlobalSearchModule(
     }
     state = { ...state, open: true }
     publish()
+  }
+
+  const selectEntityHit = (
+    hitId: string,
+    hits: readonly OperatorGlobalSearchEntityHit[],
+    navigate: (id: number, locationId: number) => void
+  ) => {
+    const hit = hits.find((row) => row.id === hitId)
+    if (hit == null) {
+      return
+    }
+    const parsedId = Number.parseInt(hitId, 10)
+    if (!Number.isFinite(parsedId)) {
+      return
+    }
+    close()
+    try {
+      navigate(parsedId, hit.locationId)
+    } catch {
+      // Search must stay usable even if navigation fails.
+    }
   }
 
   return {
@@ -295,7 +363,7 @@ export function createOperatorGlobalSearchModule(
       }
       state = { ...state, query }
       publish()
-      scheduleGuestSearch()
+      scheduleSearch()
     },
     dismissFromEscape: () => {
       close()
@@ -323,20 +391,14 @@ export function createOperatorGlobalSearchModule(
       }
     },
     selectGuestHit: (guestId) => {
-      const hit = state.guestHits.find((row) => row.id === guestId)
-      if (hit == null) {
-        return
-      }
-      const parsedId = Number.parseInt(guestId, 10)
-      if (!Number.isFinite(parsedId)) {
-        return
-      }
-      close()
-      try {
-        adapters.navigateToGuestProfile(parsedId, hit.locationId)
-      } catch {
-        // Search must stay usable even if navigation fails.
-      }
+      selectEntityHit(guestId, state.guestHits, adapters.navigateToGuestProfile)
+    },
+    selectCampaignHit: (campaignId) => {
+      selectEntityHit(
+        campaignId,
+        state.campaignHits,
+        adapters.navigateToCampaignDetail
+      )
     },
   }
 }

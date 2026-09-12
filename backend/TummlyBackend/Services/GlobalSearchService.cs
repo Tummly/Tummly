@@ -30,6 +30,13 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (query.IncludeCampaigns)
+            {
+                groups.Add(
+                    await SearchCampaignsAsync(query, cancellationToken)
+                );
+            }
+
             return new GlobalSearchResponse
             {
                 Success = true,
@@ -47,7 +54,7 @@ namespace TummlyBackend.Services
             var trimmed = query.Q.Trim();
             if (trimmed.Length < 2)
             {
-                return EmptyGuestsGroup();
+                return EmptyGroup("guests");
             }
 
             var scoped = GuestsListQueryComposer.ScopeToLocations(
@@ -72,7 +79,7 @@ namespace TummlyBackend.Services
 
             var term = trimmed.ToLowerInvariant();
             var hits = matched
-                .OrderBy(row => RankGuest(row.Name, term))
+                .OrderBy(row => RankName(row.Name, term))
                 .ThenByDescending(row => row.CreatedAt)
                 .ThenByDescending(row => row.Id)
                 .Take(query.Limit)
@@ -86,16 +93,59 @@ namespace TummlyBackend.Services
             };
         }
 
-        private static GlobalSearchGroupDto EmptyGuestsGroup()
+        private async Task<GlobalSearchGroupDto> SearchCampaignsAsync(
+            GlobalSearchQuery query,
+            CancellationToken cancellationToken
+        )
+        {
+            var trimmed = query.Q.Trim();
+            if (trimmed.Length < 2)
+            {
+                return EmptyGroup("campaigns");
+            }
+
+            var term = trimmed.ToLowerInvariant();
+            var matched = await _context.Campaigns
+                .AsNoTracking()
+                .Where(campaign =>
+                    campaign.RestaurantLocationId == query.LocationId
+                    && campaign.Name.ToLower().Contains(term)
+                )
+                .Select(campaign => new CampaignMatchRow(
+                    campaign.Id,
+                    campaign.Name,
+                    campaign.Status,
+                    campaign.Channel,
+                    campaign.UpdatedAt,
+                    campaign.RestaurantLocationId
+                ))
+                .ToListAsync(cancellationToken);
+
+            var hits = matched
+                .OrderBy(row => RankName(row.Name, term))
+                .ThenByDescending(row => row.UpdatedAt)
+                .ThenByDescending(row => row.Id)
+                .Take(query.Limit)
+                .Select(row => ToCampaignHit(row, query.LocationName))
+                .ToList();
+
+            return new GlobalSearchGroupDto
+            {
+                Type = "campaigns",
+                Hits = hits,
+            };
+        }
+
+        private static GlobalSearchGroupDto EmptyGroup(string type)
         {
             return new GlobalSearchGroupDto
             {
-                Type = "guests",
+                Type = type,
                 Hits = [],
             };
         }
 
-        private static int RankGuest(string name, string termLower)
+        private static int RankName(string name, string termLower)
         {
             var nameLower = name.ToLowerInvariant();
             if (nameLower == termLower)
@@ -140,6 +190,61 @@ namespace TummlyBackend.Services
             };
         }
 
+        private static GlobalSearchHitDto ToCampaignHit(
+            CampaignMatchRow row,
+            string locationName
+        )
+        {
+            return new GlobalSearchHitDto
+            {
+                Id = row.Id.ToString(),
+                EntityType = "campaign",
+                Title = row.Name,
+                Subtitle = FormatChannel(row.Channel),
+                LocationId = row.LocationId,
+                LocationName = locationName,
+                Status = FormatCampaignStatus(row.Status),
+            };
+        }
+
+        private static string? FormatChannel(string? channel)
+        {
+            if (string.IsNullOrWhiteSpace(channel))
+            {
+                return null;
+            }
+
+            if (string.Equals(channel, "email", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Email";
+            }
+
+            if (string.Equals(channel, "sms", StringComparison.OrdinalIgnoreCase))
+            {
+                return "SMS";
+            }
+
+            return channel;
+        }
+
+        /// <summary>
+        /// Operator-facing lifecycle labels only — no billing/reserve internals.
+        /// </summary>
+        private static string FormatCampaignStatus(string status)
+        {
+            if (string.Equals(status, "partially-sent", StringComparison.Ordinal))
+            {
+                return "Partially sent";
+            }
+
+            if (status.Length == 0)
+            {
+                return "—";
+            }
+
+            return char.ToUpperInvariant(status[0]) + status[1..];
+        }
+
         private sealed record GuestMatchRow(
             int Id,
             string Name,
@@ -147,6 +252,15 @@ namespace TummlyBackend.Services
             string? Mobile,
             LocationGuestMarketingPreference MarketingPreference,
             DateTime CreatedAt,
+            int LocationId
+        );
+
+        private sealed record CampaignMatchRow(
+            int Id,
+            string Name,
+            string Status,
+            string? Channel,
+            DateTime UpdatedAt,
             int LocationId
         );
     }

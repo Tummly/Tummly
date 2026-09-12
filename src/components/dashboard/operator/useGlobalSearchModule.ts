@@ -3,6 +3,7 @@ import { useEffect, useRef, useSyncExternalStore } from "react"
 import { getGlobalSearch } from "@/api/dashboardApi"
 import {
   createOperatorGlobalSearchModule,
+  mapCampaignSearchHit,
   mapGuestSearchHit,
   type OperatorGlobalSearchModule,
   type OperatorGlobalSearchSnapshot,
@@ -27,19 +28,23 @@ export type OperatorGlobalSearchApi = {
   setQuery: (query: string) => void
   selectSuggestion: (suggestionId: string) => void
   selectGuestHit: (guestId: string) => void
+  selectCampaignHit: (campaignId: string) => void
 }
 
 export function useGlobalSearchModule(args: {
   handoffSuggestionToAssistant: OperatorGlobalSearchHandoff
   getLocationId: () => number | null
   navigateToGuestProfile: (guestId: number, locationId: number) => void
+  navigateToCampaignDetail: (campaignId: number, locationId: number) => void
 }): OperatorGlobalSearchApi {
   const handoffRef = useRef(args.handoffSuggestionToAssistant)
   handoffRef.current = args.handoffSuggestionToAssistant
   const getLocationIdRef = useRef(args.getLocationId)
   getLocationIdRef.current = args.getLocationId
-  const navigateRef = useRef(args.navigateToGuestProfile)
-  navigateRef.current = args.navigateToGuestProfile
+  const navigateGuestRef = useRef(args.navigateToGuestProfile)
+  navigateGuestRef.current = args.navigateToGuestProfile
+  const navigateCampaignRef = useRef(args.navigateToCampaignDetail)
+  navigateCampaignRef.current = args.navigateToCampaignDetail
 
   const moduleRef = useRef<OperatorGlobalSearchModule | null>(null)
   if (moduleRef.current == null) {
@@ -50,28 +55,44 @@ export function useGlobalSearchModule(args: {
         },
         getLocationId: () => getLocationIdRef.current(),
         navigateToGuestProfile: (guestId, locationId) => {
-          navigateRef.current(guestId, locationId)
+          navigateGuestRef.current(guestId, locationId)
         },
-        searchGuests: async ({ q, locationId, signal }) => {
+        navigateToCampaignDetail: (campaignId, locationId) => {
+          navigateCampaignRef.current(campaignId, locationId)
+        },
+        searchHits: async ({ q, locationId, signal }) => {
           const response = await getGlobalSearch({
             q,
             locationId,
-            types: "guests",
+            types: "guests,campaigns",
             signal,
           })
           const guestsGroup = response.groups.find(
             (group) => group.type === "guests"
           )
-          const hits = (guestsGroup?.hits ?? []).map((hit) =>
-            mapGuestSearchHit({
-              id: hit.id,
-              title: hit.title,
-              subtitle: hit.subtitle,
-              status: hit.status,
-              locationId: hit.locationId,
-            })
+          const campaignsGroup = response.groups.find(
+            (group) => group.type === "campaigns"
           )
-          return { hits }
+          return {
+            guestHits: (guestsGroup?.hits ?? []).map((hit) =>
+              mapGuestSearchHit({
+                id: hit.id,
+                title: hit.title,
+                subtitle: hit.subtitle,
+                status: hit.status,
+                locationId: hit.locationId,
+              })
+            ),
+            campaignHits: (campaignsGroup?.hits ?? []).map((hit) =>
+              mapCampaignSearchHit({
+                id: hit.id,
+                title: hit.title,
+                subtitle: hit.subtitle,
+                status: hit.status,
+                locationId: hit.locationId,
+              })
+            ),
+          }
         },
       },
       { isApplePlatform: readIsApplePlatform }
@@ -112,5 +133,6 @@ export function useGlobalSearchModule(args: {
     setQuery: search.setQuery,
     selectSuggestion: search.selectSuggestion,
     selectGuestHit: search.selectGuestHit,
+    selectCampaignHit: search.selectCampaignHit,
   }
 }
