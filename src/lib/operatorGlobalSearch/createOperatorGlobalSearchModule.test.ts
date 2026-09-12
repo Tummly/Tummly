@@ -70,6 +70,16 @@ describe("createOperatorGlobalSearchModule", () => {
       query: "",
       emptySuggestions: [...EMPTY_AI_SUGGESTIONS],
     })
+    expect(module.getSnapshot()).toBe(module.getSnapshot())
+  })
+
+  it("keeps getSnapshot identity until publish", () => {
+    const module = createOperatorGlobalSearchModule(makeAdapters())
+    const before = module.getSnapshot()
+    expect(module.getSnapshot()).toBe(before)
+    module.open()
+    expect(module.getSnapshot()).not.toBe(before)
+    expect(module.getSnapshot()).toBe(module.getSnapshot())
   })
 
   it("opens and closes the overlay; Esc closes when open", () => {
@@ -136,7 +146,7 @@ describe("createOperatorGlobalSearchModule", () => {
     expect(handoffSuggestionToAssistant).toHaveBeenCalledWith(first!.prompt)
   })
 
-  it("still hands off when the Assistant adapter is soft-lock gated (fill only)", () => {
+  it("hands off the prompt to Assistant without sending (Send stays Assistant-gated)", () => {
     const handoffSuggestionToAssistant = vi.fn()
     const module = createOperatorGlobalSearchModule(
       makeAdapters({ handoffSuggestionToAssistant })

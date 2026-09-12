@@ -1,9 +1,10 @@
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
-import { Kbd } from "@/components/ui/kbd"
 import {
   OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS,
   OPERATOR_UTILITY_SURFACE_CLASS,
 } from "@/components/dashboard/operator/ShellUtilityChrome"
+import { Button } from "@/components/ui/button"
+import { Kbd } from "@/components/ui/kbd"
 import {
   GLOBAL_SEARCH_KBD_CLASS,
   GLOBAL_SEARCH_TRIGGER_CLASS,
@@ -27,8 +28,9 @@ export function OperatorShellSearchField({
   onOpen,
 }: OperatorShellSearchFieldProps) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       role="search"
       aria-label="Search"
       title="Open Global Search"
@@ -41,6 +43,7 @@ export function OperatorShellSearchField({
               "lg:h-10 lg:min-h-10"
             ),
         OPERATOR_UTILITY_SURFACE_CLASS,
+        "justify-start hover:bg-op-header-search-hover",
         className
       )}
       onClick={onOpen}
@@ -57,6 +60,6 @@ export function OperatorShellSearchField({
       >
         {shortcutModifierLabel}K
       </Kbd>
-    </button>
+    </Button>
   )
 }

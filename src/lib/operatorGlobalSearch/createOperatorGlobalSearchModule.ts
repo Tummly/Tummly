@@ -75,26 +75,33 @@ export function shortcutModifierLabel(isApplePlatform: boolean): string {
   return isApplePlatform ? "⌘" : "Ctrl"
 }
 
+function toSnapshot(
+  state: SearchState,
+  isApplePlatform: () => boolean
+): OperatorGlobalSearchSnapshot {
+  return {
+    open: state.open,
+    query: state.query,
+    emptySuggestions: EMPTY_AI_SUGGESTIONS,
+    shortcutModifierLabel: shortcutModifierLabel(isApplePlatform()),
+  }
+}
+
 export function createOperatorGlobalSearchModule(
   adapters: OperatorGlobalSearchAdapters,
   options: OperatorGlobalSearchModuleOptions = {}
 ): OperatorGlobalSearchModule {
   const isApplePlatform = options.isApplePlatform ?? (() => false)
   let state: SearchState = { open: false, query: "" }
+  let snapshot = toSnapshot(state, isApplePlatform)
   const listeners = new Set<() => void>()
 
   const publish = () => {
+    snapshot = toSnapshot(state, isApplePlatform)
     for (const listener of listeners) {
       listener()
     }
   }
-
-  const getSnapshot = (): OperatorGlobalSearchSnapshot => ({
-    open: state.open,
-    query: state.query,
-    emptySuggestions: EMPTY_AI_SUGGESTIONS,
-    shortcutModifierLabel: shortcutModifierLabel(isApplePlatform()),
-  })
 
   const close = () => {
     if (!state.open && state.query === "") {
@@ -113,7 +120,7 @@ export function createOperatorGlobalSearchModule(
   }
 
   return {
-    getSnapshot,
+    getSnapshot: () => snapshot,
     subscribe: (listener) => {
       listeners.add(listener)
       return () => {

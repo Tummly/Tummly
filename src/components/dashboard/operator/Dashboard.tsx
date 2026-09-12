@@ -156,16 +156,12 @@ function DashboardContent({ mode }: DashboardProps) {
   aiAssistantRef.current = aiAssistant
   const notificationsRef = useRef(notifications)
   notificationsRef.current = notifications
-  const aiAssistantAccessRef = useRef(workspace.snapshot.aiAssistantAccess)
-  aiAssistantAccessRef.current = workspace.snapshot.aiAssistantAccess
   const profileFirstNameRef = useRef(workspace.snapshot.operatorDisplayName)
   profileFirstNameRef.current = workspace.snapshot.operatorDisplayName
 
   const globalSearch = useGlobalSearchModule((prompt) => {
     notificationsRef.current.closeDrawer()
-    if (!aiAssistantAccessRef.current) {
-      return
-    }
+    // Soft lock / Dormant / zero credits still fill; Send stays gated in Assistant.
     aiAssistantRef.current.openDrawer({
       operatorFirstName: getOperatorFirstName(profileFirstNameRef.current),
     })
