@@ -68,3 +68,15 @@ export function stripCapturePlacementDetailOpenQuery(
   next.delete(CAPTURE_PLACEMENT_DETAIL_OPEN_QUERY_KEY)
   return next
 }
+
+/**
+ * Path for replace-navigation after consuming the Placement Detail open query.
+ * Shared by single and nested Capture routes.
+ */
+export function capturePlacementDetailOpenReplacePath(
+  pathname: string,
+  params: URLSearchParams
+): string {
+  const search = stripCapturePlacementDetailOpenQuery(params).toString()
+  return `${pathname}${search === "" ? "" : `?${search}`}`
+}

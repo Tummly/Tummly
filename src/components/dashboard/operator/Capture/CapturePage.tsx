@@ -6,8 +6,8 @@ import { CaptureSingleShell } from "@/components/dashboard/operator/Capture/Capt
 import { useCapturePageModule } from "@/components/dashboard/operator/Capture/utils/useCapturePageModule"
 import { useCapturePageModuleApi } from "@/components/dashboard/operator/Capture/utils/capturePageModuleContext"
 import {
+  capturePlacementDetailOpenReplacePath,
   parseCapturePlacementDetailOpenQuery,
-  stripCapturePlacementDetailOpenQuery,
 } from "@/lib/operatorCapture/captureLocationHandoff"
 
 /** Single-location Capture page — spinner until the Capture module is ready. */
@@ -43,10 +43,8 @@ export function CapturePage() {
     // Missing / archived codes fail safely as noop inside the page module.
     capturePageModule.openPlacementDetail(qrCodeId)
 
-    const nextSearch = stripCapturePlacementDetailOpenQuery(searchParams)
-    const search = nextSearch.toString()
     navigate(
-      `${location.pathname}${search === "" ? "" : `?${search}`}`,
+      capturePlacementDetailOpenReplacePath(location.pathname, searchParams),
       { replace: true }
     )
   }, [

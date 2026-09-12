@@ -17,9 +17,9 @@ import {
 } from "@/lib/operatorCapture/captureNestedLocationSync"
 import {
   captureLocationHandoffHasIntent,
+  capturePlacementDetailOpenReplacePath,
   parseCapturePlacementDetailOpenQuery,
   readCaptureLocationHandoff,
-  stripCapturePlacementDetailOpenQuery,
 } from "@/lib/operatorCapture/captureLocationHandoff"
 import {
   operatorDashboardCaptureLocationPath,
@@ -118,10 +118,8 @@ export function CaptureNestedRoute() {
       capturePageModule.openPlacementDetail(qrCodeId)
     }
 
-    const nextSearch = stripCapturePlacementDetailOpenQuery(searchParams)
-    const search = nextSearch.toString()
     navigate(
-      `${location.pathname}${search === "" ? "" : `?${search}`}`,
+      capturePlacementDetailOpenReplacePath(location.pathname, searchParams),
       {
         replace: true,
         state: null,

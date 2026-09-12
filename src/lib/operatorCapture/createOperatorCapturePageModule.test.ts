@@ -1598,7 +1598,9 @@ const placements = pageModule.getSnapshot().viewModel?.placements
     ).toBe(10)
     pageModule.closePlacementDetail()
 
-    // Archived / unknown ids are not in live placementsFacts → noop.
+    // Archived codes are not in live placementsFacts (Search excludes them).
+    // Deep-link with an archived id therefore fails the same as a missing id.
+    expect(pageModule.openPlacementDetail(888)).toBe("noop")
     expect(pageModule.openPlacementDetail(999)).toBe("noop")
     expect(pageModule.getPlacementDetailModule().getSnapshot().isOpen).toBe(
       false
