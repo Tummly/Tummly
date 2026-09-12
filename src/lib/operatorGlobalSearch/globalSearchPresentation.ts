@@ -23,7 +23,7 @@ export const GLOBAL_SEARCH_ALL_LOCATIONS_LABEL = "Search all authorised location
 export const GLOBAL_SEARCH_NO_RESULTS_MESSAGE = "No results for this location."
 
 export const GLOBAL_SEARCH_WIDEN_FROM_NO_RESULTS_LABEL =
-  "Search all authorised locations"
+  GLOBAL_SEARCH_ALL_LOCATIONS_LABEL
 
 export const GLOBAL_SEARCH_DIALOG_TITLE = "Global Search"
 

@@ -497,13 +497,6 @@ namespace TummlyBackend.Services
                 row.Mobile
             );
 
-            var locationName = locationNamesById.TryGetValue(
-                row.LocationId,
-                out var name
-            )
-                ? name
-                : string.Empty;
-
             return new GlobalSearchHitDto
             {
                 Id = row.Id.ToString(),
@@ -511,7 +504,10 @@ namespace TummlyBackend.Services
                 Title = row.Name,
                 Subtitle = subtitle,
                 LocationId = row.LocationId,
-                LocationName = locationName,
+                LocationName = ResolveLocationName(
+                    row.LocationId,
+                    locationNamesById
+                ),
                 Status = status,
             };
         }
