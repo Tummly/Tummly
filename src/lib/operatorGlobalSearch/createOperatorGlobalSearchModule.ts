@@ -24,11 +24,6 @@ export type OperatorGlobalSearchEntityHit = {
   initials: string
 }
 
-/** @deprecated Prefer OperatorGlobalSearchEntityHit — Guest and Campaign share the shape. */
-export type OperatorGlobalSearchGuestHit = OperatorGlobalSearchEntityHit
-
-export type OperatorGlobalSearchCampaignHit = OperatorGlobalSearchEntityHit
-
 export type OperatorGlobalSearchSnapshot = {
   open: boolean
   query: string
@@ -36,8 +31,8 @@ export type OperatorGlobalSearchSnapshot = {
   /** Modifier glyph for the closed Search field Kbd hint. */
   shortcutModifierLabel: string
   hitsPending: boolean
-  guestHits: readonly OperatorGlobalSearchGuestHit[]
-  campaignHits: readonly OperatorGlobalSearchCampaignHit[]
+  guestHits: readonly OperatorGlobalSearchEntityHit[]
+  campaignHits: readonly OperatorGlobalSearchEntityHit[]
 }
 
 export type OperatorGlobalSearchShortcutInput = {
@@ -59,8 +54,8 @@ export type OperatorGlobalSearchAdapters = {
     locationId: number
     signal?: AbortSignal
   }) => Promise<{
-    guestHits: readonly OperatorGlobalSearchGuestHit[]
-    campaignHits: readonly OperatorGlobalSearchCampaignHit[]
+    guestHits: readonly OperatorGlobalSearchEntityHit[]
+    campaignHits: readonly OperatorGlobalSearchEntityHit[]
   }>
   navigateToGuestProfile: (guestId: number, locationId: number) => void
   navigateToCampaignDetail: (campaignId: number, locationId: number) => void
@@ -96,8 +91,8 @@ type SearchState = {
   open: boolean
   query: string
   hitsPending: boolean
-  guestHits: readonly OperatorGlobalSearchGuestHit[]
-  campaignHits: readonly OperatorGlobalSearchCampaignHit[]
+  guestHits: readonly OperatorGlobalSearchEntityHit[]
+  campaignHits: readonly OperatorGlobalSearchEntityHit[]
 }
 
 export function isGlobalSearchOpenShortcut(
@@ -131,27 +126,7 @@ function toSnapshot(
   }
 }
 
-export function mapGuestSearchHit(raw: {
-  id: string
-  title: string
-  subtitle?: string | null
-  status?: string | null
-  locationId: number
-}): OperatorGlobalSearchGuestHit {
-  return mapEntitySearchHit(raw)
-}
-
-export function mapCampaignSearchHit(raw: {
-  id: string
-  title: string
-  subtitle?: string | null
-  status?: string | null
-  locationId: number
-}): OperatorGlobalSearchCampaignHit {
-  return mapEntitySearchHit(raw)
-}
-
-function mapEntitySearchHit(raw: {
+export function mapSearchHit(raw: {
   id: string
   title: string
   subtitle?: string | null

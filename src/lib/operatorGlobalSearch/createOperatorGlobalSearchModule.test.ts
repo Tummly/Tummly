@@ -6,13 +6,12 @@ import {
   isGlobalSearchOpenShortcut,
   shortcutModifierLabel,
   type OperatorGlobalSearchAdapters,
-  type OperatorGlobalSearchCampaignHit,
-  type OperatorGlobalSearchGuestHit,
+  type OperatorGlobalSearchEntityHit,
 } from "./createOperatorGlobalSearchModule"
 
 function makeGuestHit(
-  overrides: Partial<OperatorGlobalSearchGuestHit> = {}
-): OperatorGlobalSearchGuestHit {
+  overrides: Partial<OperatorGlobalSearchEntityHit> = {}
+): OperatorGlobalSearchEntityHit {
   return {
     id: "12",
     title: "Mohamed",
@@ -25,8 +24,8 @@ function makeGuestHit(
 }
 
 function makeCampaignHit(
-  overrides: Partial<OperatorGlobalSearchCampaignHit> = {}
-): OperatorGlobalSearchCampaignHit {
+  overrides: Partial<OperatorGlobalSearchEntityHit> = {}
+): OperatorGlobalSearchEntityHit {
   return {
     id: "55",
     title: "Weekend brunch",
@@ -233,12 +232,12 @@ describe("createOperatorGlobalSearchModule", () => {
   it("ignores stale search results when a newer query wins", async () => {
     vi.useFakeTimers()
     let resolveSlow!: (value: {
-      guestHits: OperatorGlobalSearchGuestHit[]
-      campaignHits: OperatorGlobalSearchCampaignHit[]
+      guestHits: OperatorGlobalSearchEntityHit[]
+      campaignHits: OperatorGlobalSearchEntityHit[]
     }) => void
     const slow = new Promise<{
-      guestHits: OperatorGlobalSearchGuestHit[]
-      campaignHits: OperatorGlobalSearchCampaignHit[]
+      guestHits: OperatorGlobalSearchEntityHit[]
+      campaignHits: OperatorGlobalSearchEntityHit[]
     }>((resolve) => {
       resolveSlow = resolve
     })

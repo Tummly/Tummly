@@ -3,8 +3,7 @@ import { useEffect, useRef, useSyncExternalStore } from "react"
 import { getGlobalSearch } from "@/api/dashboardApi"
 import {
   createOperatorGlobalSearchModule,
-  mapCampaignSearchHit,
-  mapGuestSearchHit,
+  mapSearchHit,
   type OperatorGlobalSearchModule,
   type OperatorGlobalSearchSnapshot,
 } from "@/lib/operatorGlobalSearch/createOperatorGlobalSearchModule"
@@ -75,7 +74,7 @@ export function useGlobalSearchModule(args: {
           )
           return {
             guestHits: (guestsGroup?.hits ?? []).map((hit) =>
-              mapGuestSearchHit({
+              mapSearchHit({
                 id: hit.id,
                 title: hit.title,
                 subtitle: hit.subtitle,
@@ -84,7 +83,7 @@ export function useGlobalSearchModule(args: {
               })
             ),
             campaignHits: (campaignsGroup?.hits ?? []).map((hit) =>
-              mapCampaignSearchHit({
+              mapSearchHit({
                 id: hit.id,
                 title: hit.title,
                 subtitle: hit.subtitle,
