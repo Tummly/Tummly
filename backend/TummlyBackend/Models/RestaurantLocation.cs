@@ -60,8 +60,10 @@ namespace TummlyBackend.Models
 
         /*
          =========================================
-         LOCATION MANAGER (nomination FK)
-         Distinct from PermissionRoles.LocationManager and LocalContact.
+         LOCATION MANAGER (legacy nomination FK)
+         Display now comes from permission role
+         Location Manager NamedList membership.
+         Column kept for migration compatibility.
          =========================================
         */
 

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Locations;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -61,13 +62,24 @@ namespace TummlyBackend.Services
                     l.LocationName,
                     l.LifecycleStatus,
                     l.City,
-                    l.Postcode,
-                    l.ManagerUserId,
-                    l.ManagerUser != null ? l.ManagerUser.FullName : null
+                    l.Postcode
                 ))
                 .ToListAsync();
 
             var locationIds = locations.Select(l => l.Id).ToList();
+
+            var locationManagers = await _context.RestaurantMemberships
+                .AsNoTracking()
+                .Include(row => row.User)
+                .Where(row =>
+                    row.RestaurantId == query.RestaurantId
+                    && row.Status == MembershipStatus.Active
+                    && row.PermissionRole == PermissionRoles.LocationManager
+                )
+                .ToListAsync();
+            var managerByLocationId = LocationAssignedManager.MapByLocationId(
+                locationManagers
+            );
 
             var activeQrLocationIds = await _context.QrCodes
                 .AsNoTracking()
@@ -111,15 +123,14 @@ namespace TummlyBackend.Services
                         l.Id,
                         out var lastAt
                     );
+                    managerByLocationId.TryGetValue(l.Id, out var manager);
                     return new ProjectedRow(
                         l.Id,
                         l.LocationName,
                         LocationRowWire.ToLifecycleWire(l.LifecycleStatus),
                         setup,
-                        string.IsNullOrWhiteSpace(l.ManagerName)
-                            ? null
-                            : l.ManagerName.Trim(),
-                        l.ManagerUserId,
+                        manager?.FullName,
+                        manager?.UserId,
                         city,
                         postcode,
                         cityId,
@@ -444,9 +455,7 @@ namespace TummlyBackend.Services
             string LocationName,
             LocationLifecycleStatus LifecycleStatus,
             string? City,
-            string? Postcode,
-            int? ManagerUserId,
-            string? ManagerName
+            string? Postcode
         );
 
         private sealed record ProjectedRow(

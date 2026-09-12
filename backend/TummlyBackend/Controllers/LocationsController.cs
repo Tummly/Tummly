@@ -331,24 +331,6 @@ namespace TummlyBackend.Controllers
             );
         }
 
-        [HttpPut("{locationId:int}/manager")]
-        public async Task<IActionResult> SetManager(
-            int locationId,
-            [FromBody] SetLocationManagerRequest request
-        )
-        {
-            return await RunLifecycleWriteAsync(
-                locationId,
-                (restaurantId, userId) =>
-                    _lifecycleWrite.SetManagerAsync(
-                        restaurantId,
-                        locationId,
-                        userId,
-                        request.ManagerUserId
-                    )
-            );
-        }
-
         [HttpPut("{locationId:int}")]
         public async Task<IActionResult> UpdateLocation(
             int locationId,

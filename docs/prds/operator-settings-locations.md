@@ -100,10 +100,11 @@ When Settings lifecycle becomes **Paused** (and while not **Active**):
 
 ### 6. Location manager
 
-- Source of truth: optional `ManagerUserId` FK on `RestaurantLocation` (nomination).
-- When set: Active membership; role Owner, Admin, Area Manager, or Location Manager; if NamedList scope, list must include this location.
-- Display: nominated user’s display name; null → **—**.
+- Source of truth: active restaurant membership with permission role **Location Manager** whose NamedList includes this Owned location.
+- At most one Location Manager per location (invite / role / scope / reactivate / accept reject a second).
+- Display: that member’s display name; none → **—**.
 - Do not use free-text `LocalContact` for the table column (`LocalContact` stays setup free-text).
+- Do not use a separate Settings “Set manager” nomination (`ManagerUserId` is legacy/unused for display).
 
 ### 7. Setup status (derived)
 
@@ -264,7 +265,6 @@ Also in slice: integration tests; frontend off demo data; CONTEXT glossary updat
 - Merging Settings lifecycle into `CaptureLocationStatus` as one enum.
 - Hard-deleting Archived locations in v1.
 - Operator override of Setup status.
-- Using Team NamedList to invent a “primary” manager without `ManagerUserId`.
 - Cascading Pause to Billing or other locations.
 - Shipping destination pages for row ⋮ navigation (F).
 
@@ -276,7 +276,7 @@ Agents should add or update CONTEXT entries when implementing:
 
 - **Location lifecycle status** (Settings) vs **Capture location status**.
 - **Pause location** (Settings cascade) vs **Pause location capture** vs **Pause workspace**.
-- **Location manager** (nomination FK) vs **Location Manager** (permission role) vs **Local contact** (free text).
+- **Location manager** (from Location Manager NamedList membership) vs **Local contact** (free text).
 - **Privacy consent ready** (restaurant) vs Privacy contact (Key contacts).
 
 ---

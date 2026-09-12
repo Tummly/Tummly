@@ -720,9 +720,9 @@ _Avoid_: Capture location status (when meaning Settings lifecycle); venue status
 Operator action that sets Settings **Location lifecycle status** to **Paused** and runs the Pause cascade (Capture pause restore-set, block new guest intake / Campaign send / Offer issue at that venue). Distinct from **Pause location capture** (Capture-only) and from **Pause workspace** (Restaurant-wide).
 _Avoid_: Pause location capture (when meaning Settings Pause); Pause workspace
 
-**Location manager** (nomination):
-Optional `ManagerUserId` FK on an **Owned location** — who the Settings Locations table shows as manager (display name, or — when null). Distinct from permission role **Location Manager** and from free-text **Local contact**.
-_Avoid_: Location Manager (role); Local contact; primary manager (from NamedList invent)
+**Location manager**:
+Who the Settings Locations table (and Location detail header) shows for an **Owned location**. Source of truth: the active team membership with permission role **Location Manager** whose NamedList includes that location (one Location Manager per location). Display name, or — when none. Distinct from free-text **Local contact**. Legacy column `ManagerUserId` is unused for display.
+_Avoid_: Local contact; inventing a manager from Owner/Admin/Area Manager alone
 
 **Local contact**:
 Free-text setup field on an **Owned location** (`LocalContact`). Not used for the Settings Locations manager column.

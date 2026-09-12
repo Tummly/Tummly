@@ -260,6 +260,20 @@ namespace TummlyBackend.Services
                 return null;
             }
 
+            if (permissionRole == PermissionRoles.LocationManager)
+            {
+                var exclusive = await LocationAssignedManager.ValidateExclusiveAsync(
+                    _context,
+                    restaurantId,
+                    namedIds,
+                    excludeMembershipId: target.Id
+                );
+                if (exclusive != null)
+                {
+                    return exclusive;
+                }
+            }
+
             var from = target.PermissionRole;
             target.PermissionRole = permissionRole;
             AddActivity(
@@ -330,6 +344,20 @@ namespace TummlyBackend.Services
                 if (namedDecision.Status != RestaurantPermissionStatus.Allowed)
                 {
                     return namedDecision.Message;
+                }
+            }
+
+            if (target.PermissionRole == PermissionRoles.LocationManager)
+            {
+                var exclusive = await LocationAssignedManager.ValidateExclusiveAsync(
+                    _context,
+                    restaurantId,
+                    named,
+                    excludeMembershipId: target.Id
+                );
+                if (exclusive != null)
+                {
+                    return exclusive;
                 }
             }
 
@@ -425,6 +453,23 @@ namespace TummlyBackend.Services
             if (!cap.AllowIncrement)
             {
                 return TeamPermissionsWriteResult.FromCap(cap);
+            }
+
+            if (target.PermissionRole == PermissionRoles.LocationManager)
+            {
+                var namedIds = MembershipLocationScope.ParseNamedIds(
+                    target.NamedLocationIdsJson
+                );
+                var exclusive = await LocationAssignedManager.ValidateExclusiveAsync(
+                    _context,
+                    restaurantId,
+                    namedIds,
+                    excludeMembershipId: target.Id
+                );
+                if (exclusive != null)
+                {
+                    return TeamPermissionsWriteResult.Fail(exclusive);
+                }
             }
 
             target.Status = MembershipStatus.Active;
@@ -642,6 +687,19 @@ namespace TummlyBackend.Services
                 if (namedDecision.Status != RestaurantPermissionStatus.Allowed)
                 {
                     return TeamPermissionsWriteResult.Fail(namedDecision.Message);
+                }
+            }
+
+            if (request.PermissionRole == PermissionRoles.LocationManager)
+            {
+                var exclusive = await LocationAssignedManager.ValidateExclusiveAsync(
+                    _context,
+                    restaurantId,
+                    named
+                );
+                if (exclusive != null)
+                {
+                    return TeamPermissionsWriteResult.Fail(exclusive);
                 }
             }
 

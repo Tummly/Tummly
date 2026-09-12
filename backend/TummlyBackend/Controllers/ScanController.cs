@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Scan;
-using TummlyBackend.DTOs.Scan;
 using TummlyBackend.DTOs.SmartGuestLink;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
