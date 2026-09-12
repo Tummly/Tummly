@@ -18,6 +18,8 @@ namespace TummlyBackend.DTOs.Search
 
         public required bool IncludeOffers { get; init; }
 
+        public required bool IncludeQrCodes { get; init; }
+
         /// <summary>Venue offset for Offer effective status (Expired vs Active).</summary>
         public int UtcOffsetMinutes { get; init; }
     }

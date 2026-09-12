@@ -75,11 +75,13 @@ function makeAdapters(
       feedbackHits: [],
       campaignHits: [],
       offerHits: [],
+      qrCodeHits: [],
     })),
     navigateToGuestProfile: vi.fn(),
     navigateToFeedbackDetail: vi.fn(),
     navigateToCampaignDetail: vi.fn(),
     navigateToOfferDetails: vi.fn(),
+    navigateToCapturePlacementDetail: vi.fn(),
     getLocationId: () => 1,
     debounceMs: 0,
     ...overrides,
@@ -143,6 +145,7 @@ describe("createOperatorGlobalSearchModule", () => {
       feedbackHits: [],
       campaignHits: [],
       offerHits: [],
+      qrCodeHits: [],
     })
     expect(module.getSnapshot()).toBe(module.getSnapshot())
   })
@@ -174,6 +177,7 @@ describe("createOperatorGlobalSearchModule", () => {
       feedbackHits: [],
       campaignHits: [],
       offerHits: [],
+      qrCodeHits: [],
       hitsPending: false,
     })
   })
@@ -247,6 +251,7 @@ describe("createOperatorGlobalSearchModule", () => {
       feedbackHits: [makeFeedbackHit()],
       campaignHits: [makeCampaignHit()],
       offerHits: [makeOfferHit()],
+      qrCodeHits: [],
     }))
     const module = createOperatorGlobalSearchModule(
       makeAdapters({ searchHits, debounceMs: 300 })
@@ -279,12 +284,14 @@ describe("createOperatorGlobalSearchModule", () => {
       feedbackHits: OperatorGlobalSearchEntityHit[]
       campaignHits: OperatorGlobalSearchEntityHit[]
       offerHits: OperatorGlobalSearchEntityHit[]
+      qrCodeHits: OperatorGlobalSearchEntityHit[]
     }) => void
     const slow = new Promise<{
       guestHits: OperatorGlobalSearchEntityHit[]
       feedbackHits: OperatorGlobalSearchEntityHit[]
       campaignHits: OperatorGlobalSearchEntityHit[]
       offerHits: OperatorGlobalSearchEntityHit[]
+      qrCodeHits: OperatorGlobalSearchEntityHit[]
     }>((resolve) => {
       resolveSlow = resolve
     })
@@ -296,6 +303,7 @@ describe("createOperatorGlobalSearchModule", () => {
         feedbackHits: [],
         campaignHits: [makeCampaignHit({ id: "88", title: "Morgan offer" })],
         offerHits: [],
+      qrCodeHits: [],
       })
 
     const module = createOperatorGlobalSearchModule(
@@ -322,6 +330,7 @@ describe("createOperatorGlobalSearchModule", () => {
       feedbackHits: [],
       campaignHits: [makeCampaignHit({ id: "55", title: "Mohamed brunch" })],
       offerHits: [],
+      qrCodeHits: [],
     })
     await Promise.resolve()
 
@@ -338,6 +347,7 @@ describe("createOperatorGlobalSearchModule", () => {
       feedbackHits: [makeFeedbackHit()],
       campaignHits: [makeCampaignHit()],
       offerHits: [makeOfferHit()],
+      qrCodeHits: [],
     }))
     const module = createOperatorGlobalSearchModule(
       makeAdapters({ searchHits, debounceMs: 0 })
@@ -358,6 +368,7 @@ describe("createOperatorGlobalSearchModule", () => {
     expect(module.getSnapshot().feedbackHits).toEqual([])
     expect(module.getSnapshot().campaignHits).toEqual([])
     expect(module.getSnapshot().offerHits).toEqual([])
+    expect(module.getSnapshot().qrCodeHits).toEqual([])
     expect(module.getSnapshot().hitsPending).toBe(false)
     vi.useRealTimers()
   })
@@ -370,6 +381,7 @@ describe("createOperatorGlobalSearchModule", () => {
       feedbackHits: [],
       campaignHits: [],
       offerHits: [],
+      qrCodeHits: [],
     }))
     const module = createOperatorGlobalSearchModule(
       makeAdapters({
@@ -395,6 +407,7 @@ describe("createOperatorGlobalSearchModule", () => {
       feedbackHits: [],
       campaignHits: [],
       offerHits: [],
+      qrCodeHits: [],
     })
     expect(navigateToGuestProfile).toHaveBeenCalledWith(42, 7)
     vi.useRealTimers()
@@ -408,6 +421,7 @@ describe("createOperatorGlobalSearchModule", () => {
       feedbackHits: [makeFeedbackHit({ id: "88", locationId: 9 })],
       campaignHits: [],
       offerHits: [],
+      qrCodeHits: [],
     }))
     const module = createOperatorGlobalSearchModule(
       makeAdapters({
@@ -433,6 +447,7 @@ describe("createOperatorGlobalSearchModule", () => {
       feedbackHits: [],
       campaignHits: [],
       offerHits: [],
+      qrCodeHits: [],
     })
     expect(navigateToFeedbackDetail).toHaveBeenCalledWith(88, 9)
     vi.useRealTimers()
@@ -446,6 +461,7 @@ describe("createOperatorGlobalSearchModule", () => {
       feedbackHits: [],
       campaignHits: [makeCampaignHit({ id: "77", locationId: 9 })],
       offerHits: [],
+      qrCodeHits: [],
     }))
     const module = createOperatorGlobalSearchModule(
       makeAdapters({
@@ -471,6 +487,7 @@ describe("createOperatorGlobalSearchModule", () => {
       feedbackHits: [],
       campaignHits: [],
       offerHits: [],
+      qrCodeHits: [],
     })
     expect(navigateToCampaignDetail).toHaveBeenCalledWith(77, 9)
     vi.useRealTimers()
@@ -484,6 +501,7 @@ describe("createOperatorGlobalSearchModule", () => {
       feedbackHits: [],
       campaignHits: [],
       offerHits: [makeOfferHit({ id: "88", locationId: 9 })],
+      qrCodeHits: [],
     }))
     const module = createOperatorGlobalSearchModule(
       makeAdapters({
@@ -509,18 +527,65 @@ describe("createOperatorGlobalSearchModule", () => {
       feedbackHits: [],
       campaignHits: [],
       offerHits: [],
+      qrCodeHits: [],
     })
     expect(navigateToOfferDetails).toHaveBeenCalledWith(88, 9)
     vi.useRealTimers()
   })
 
-  it("does not search when overlay is closed or location is missing", async () => {
+  it("selectQrCodeHit closes Search and navigates to Capture Placement Detail open query", async () => {
+    vi.useFakeTimers()
+    const navigateToCapturePlacementDetail = vi.fn()
+    const searchHits = vi.fn(async () => ({
+      guestHits: [],
+      feedbackHits: [],
+      campaignHits: [],
+      offerHits: [],
+      qrCodeHits: [
+        {
+          id: "55",
+          title: "Table tent",
+          subtitle: null,
+          status: "Active",
+          locationId: 3,
+          initials: "TT",
+        },
+      ],
+    }))
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({
+        searchHits,
+        navigateToCapturePlacementDetail,
+        getLocationId: () => 3,
+        debounceMs: 0,
+      })
+    )
+    module.open()
+    module.setQuery("ta")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().qrCodeHits).toHaveLength(1)
+    })
+
+    module.selectQrCodeHit("55")
+
+    expect(module.getSnapshot()).toMatchObject({
+      open: false,
+      query: "",
+      qrCodeHits: [],
+    })
+    expect(navigateToCapturePlacementDetail).toHaveBeenCalledWith(55, 3)
+    vi.useRealTimers()
+  })
+
+    it("does not search when overlay is closed or location is missing", async () => {
     vi.useFakeTimers()
     const searchHits = vi.fn(async () => ({
       guestHits: [],
       feedbackHits: [],
       campaignHits: [],
       offerHits: [],
+      qrCodeHits: [],
     }))
     const module = createOperatorGlobalSearchModule(
       makeAdapters({

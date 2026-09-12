@@ -31,6 +31,7 @@ import type { BillingCreditsAccess } from "@/lib/operatorHome/parseOperatorProfi
 import { getOperatorFirstName } from "@/lib/operatorHome/operatorProfile"
 import {
   operatorDashboardCampaignDetailsPath,
+  operatorDashboardCapturePlacementDetailPath,
   operatorDashboardGuestProfilePath,
   operatorDashboardNavPath,
   operatorDashboardOfferDetailsPath,
@@ -190,6 +191,11 @@ function DashboardContent({ mode }: DashboardProps) {
     },
     navigateToOfferDetails: (offerId, locationId) => {
       navigate(operatorDashboardOfferDetailsPath(mode, offerId, locationId))
+    },
+    navigateToCapturePlacementDetail: (qrCodeId, locationId) => {
+      navigate(
+        operatorDashboardCapturePlacementDetailPath(mode, locationId, qrCodeId)
+      )
     },
   })
 
@@ -474,6 +480,7 @@ function DashboardContent({ mode }: DashboardProps) {
         onSelectFeedbackHit: globalSearch.selectFeedbackHit,
         onSelectCampaignHit: globalSearch.selectCampaignHit,
         onSelectOfferHit: globalSearch.selectOfferHit,
+        onSelectQrCodeHit: globalSearch.selectQrCodeHit,
       }}
     >
       <Outlet

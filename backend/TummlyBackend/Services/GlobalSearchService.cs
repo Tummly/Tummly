@@ -58,6 +58,13 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (query.IncludeQrCodes)
+            {
+                groups.Add(
+                    await SearchQrCodesAsync(query, cancellationToken)
+                );
+            }
+
             return new GlobalSearchResponse
             {
                 Success = true,
@@ -253,6 +260,58 @@ namespace TummlyBackend.Services
             return new GlobalSearchGroupDto
             {
                 Type = "offers",
+                Hits = hits,
+            };
+        }
+
+        private async Task<GlobalSearchGroupDto> SearchQrCodesAsync(
+            GlobalSearchQuery query,
+            CancellationToken cancellationToken
+        )
+        {
+            var trimmed = query.Q.Trim();
+            if (trimmed.Length < 2)
+            {
+                return EmptyGroup("qr-codes");
+            }
+
+            var candidates = await _context.QrCodes
+                .AsNoTracking()
+                .Where(q =>
+                    q.RestaurantLocationId == query.LocationId
+                    && (q.Status == QrCodeStatus.Active
+                        || q.Status == QrCodeStatus.Paused)
+                )
+                .Select(q => new QrMatchRow(
+                    q.Id,
+                    q.QrType,
+                    q.LinkName,
+                    q.Status,
+                    q.CreatedAt,
+                    q.RestaurantLocationId
+                ))
+                .ToListAsync(cancellationToken);
+
+            var term = trimmed.ToLowerInvariant();
+            var hits = candidates
+                .Select(row => new
+                {
+                    Row = row,
+                    Title = ResolveQrTitle(row),
+                })
+                .Where(item =>
+                    item.Title.ToLowerInvariant().Contains(term)
+                )
+                .OrderBy(item => RankName(item.Title, term))
+                .ThenByDescending(item => item.Row.CreatedAt)
+                .ThenByDescending(item => item.Row.Id)
+                .Take(query.Limit)
+                .Select(item => ToQrHit(item.Row, item.Title, query.LocationName))
+                .ToList();
+
+            return new GlobalSearchGroupDto
+            {
+                Type = "qr-codes",
                 Hits = hits,
             };
         }
@@ -489,6 +548,36 @@ namespace TummlyBackend.Services
             };
         }
 
+        private static string ResolveQrTitle(QrMatchRow row)
+        {
+            return FeedbackQrSourceMapping.ToDisplay(
+                    new QrCode
+                    {
+                        QrType = row.QrType,
+                        LinkName = row.LinkName,
+                    }
+                )
+                ?? row.QrType.ToString();
+        }
+
+        private static GlobalSearchHitDto ToQrHit(
+            QrMatchRow row,
+            string title,
+            string locationName
+        )
+        {
+            return new GlobalSearchHitDto
+            {
+                Id = row.Id.ToString(),
+                EntityType = "qr-code",
+                Title = title,
+                Subtitle = null,
+                LocationId = row.LocationId,
+                LocationName = locationName,
+                Status = row.Status.ToString(),
+            };
+        }
+
         private static string TruncateComment(string comment)
         {
             var trimmed = comment.Trim();
@@ -584,6 +673,15 @@ namespace TummlyBackend.Services
             CatalogOfferValidity Validity,
             DateOnly? CustomExpiryDate,
             DateTime UpdatedAt,
+            int LocationId
+        );
+
+        private sealed record QrMatchRow(
+            int Id,
+            QrType QrType,
+            string? LinkName,
+            QrCodeStatus Status,
+            DateTime CreatedAt,
             int LocationId
         );
     }

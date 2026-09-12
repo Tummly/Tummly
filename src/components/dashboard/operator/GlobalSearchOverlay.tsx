@@ -39,6 +39,7 @@ import {
   GLOBAL_SEARCH_OFFERS_HEADING,
   GLOBAL_SEARCH_OVERLAY_CLASS,
   GLOBAL_SEARCH_PLACEHOLDER,
+  GLOBAL_SEARCH_QR_CODES_HEADING,
 } from "@/lib/operatorGlobalSearch/globalSearchPresentation"
 import { cn } from "@/lib/utils"
 
@@ -51,6 +52,7 @@ type GlobalSearchOverlayProps = {
   onSelectFeedbackHit: (feedbackId: string) => void
   onSelectCampaignHit: (campaignId: string) => void
   onSelectOfferHit: (offerId: string) => void
+  onSelectQrCodeHit: (qrCodeId: string) => void
 }
 
 const COMMAND_GROUP_HEADING_CLASS = cn(
@@ -107,6 +109,7 @@ export function GlobalSearchOverlay({
   onSelectFeedbackHit,
   onSelectCampaignHit,
   onSelectOfferHit,
+  onSelectQrCodeHit,
 }: GlobalSearchOverlayProps) {
   const trimmedQuery = snapshot.query.trim()
   const showEmptyAi =
@@ -125,6 +128,9 @@ export function GlobalSearchOverlay({
   const showOffersGroup =
     showEntityGroups ||
     (trimmedQuery.length >= 2 && snapshot.offerHits.length > 0)
+  const showQrCodesGroup =
+    showEntityGroups ||
+    (trimmedQuery.length >= 2 && snapshot.qrCodeHits.length > 0)
 
   return (
     <Dialog open={snapshot.open} onOpenChange={onOpenChange}>
@@ -240,6 +246,19 @@ export function GlobalSearchOverlay({
                   hits={snapshot.offerHits}
                   valuePrefix="offer"
                   onSelect={onSelectOfferHit}
+                />
+              </CommandGroup>
+            ) : null}
+
+            {showQrCodesGroup ? (
+              <CommandGroup
+                heading={GLOBAL_SEARCH_QR_CODES_HEADING}
+                className={COMMAND_GROUP_HEADING_CLASS}
+              >
+                <EntityHitRows
+                  hits={snapshot.qrCodeHits}
+                  valuePrefix="qr-code"
+                  onSelect={onSelectQrCodeHit}
                 />
               </CommandGroup>
             ) : null}

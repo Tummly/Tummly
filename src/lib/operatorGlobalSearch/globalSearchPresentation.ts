@@ -16,6 +16,8 @@ export const GLOBAL_SEARCH_CAMPAIGNS_HEADING = "Campaigns"
 
 export const GLOBAL_SEARCH_OFFERS_HEADING = "Offers"
 
+export const GLOBAL_SEARCH_QR_CODES_HEADING = "QR codes"
+
 export const GLOBAL_SEARCH_DIALOG_TITLE = "Global Search"
 
 export const GLOBAL_SEARCH_OVERLAY_CLASS = [

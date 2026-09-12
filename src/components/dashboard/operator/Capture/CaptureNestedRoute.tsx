@@ -17,7 +17,9 @@ import {
 } from "@/lib/operatorCapture/captureNestedLocationSync"
 import {
   captureLocationHandoffHasIntent,
+  parseCapturePlacementDetailOpenQuery,
   readCaptureLocationHandoff,
+  stripCapturePlacementDetailOpenQuery,
 } from "@/lib/operatorCapture/captureLocationHandoff"
 import {
   operatorDashboardCaptureLocationPath,
@@ -100,20 +102,31 @@ export function CaptureNestedRoute() {
       return
     }
 
+    const searchParams = new URLSearchParams(location.search)
+    const fromQuery = parseCapturePlacementDetailOpenQuery(searchParams)
     const handoff = readCaptureLocationHandoff(location.state)
-    if (!captureLocationHandoffHasIntent(handoff)) {
+    const qrCodeId =
+      fromQuery ?? handoff.openPlacementDetailQrCodeId ?? null
+
+    if (qrCodeId == null && !captureLocationHandoffHasIntent(handoff)) {
       return
     }
 
     handoffConsumedRef.current = true
-    const qrCodeId = handoff.openPlacementDetailQrCodeId
     if (qrCodeId != null) {
+      // Missing / archived codes fail safely as noop inside the page module.
       capturePageModule.openPlacementDetail(qrCodeId)
     }
-    navigate(`${location.pathname}${location.search}`, {
-      replace: true,
-      state: null,
-    })
+
+    const nextSearch = stripCapturePlacementDetailOpenQuery(searchParams)
+    const search = nextSearch.toString()
+    navigate(
+      `${location.pathname}${search === "" ? "" : `?${search}`}`,
+      {
+        replace: true,
+        state: null,
+      }
+    )
   }, [
     snapshot.loadStatus,
     snapshot.viewModel,

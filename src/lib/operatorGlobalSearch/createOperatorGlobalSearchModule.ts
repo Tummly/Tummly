@@ -35,6 +35,7 @@ export type OperatorGlobalSearchSnapshot = {
   feedbackHits: readonly OperatorGlobalSearchEntityHit[]
   campaignHits: readonly OperatorGlobalSearchEntityHit[]
   offerHits: readonly OperatorGlobalSearchEntityHit[]
+  qrCodeHits: readonly OperatorGlobalSearchEntityHit[]
 }
 
 export type OperatorGlobalSearchShortcutInput = {
@@ -60,11 +61,16 @@ export type OperatorGlobalSearchAdapters = {
     feedbackHits: readonly OperatorGlobalSearchEntityHit[]
     campaignHits: readonly OperatorGlobalSearchEntityHit[]
     offerHits: readonly OperatorGlobalSearchEntityHit[]
+    qrCodeHits: readonly OperatorGlobalSearchEntityHit[]
   }>
   navigateToGuestProfile: (guestId: number, locationId: number) => void
   navigateToFeedbackDetail: (feedbackId: number, locationId: number) => void
   navigateToCampaignDetail: (campaignId: number, locationId: number) => void
   navigateToOfferDetails: (offerId: number, locationId: number) => void
+  navigateToCapturePlacementDetail: (
+    qrCodeId: number,
+    locationId: number
+  ) => void
   getLocationId: () => number | null
   debounceMs?: number
   setTimeout?: typeof globalThis.setTimeout
@@ -86,6 +92,7 @@ export type OperatorGlobalSearchModule = {
   selectFeedbackHit: (feedbackId: string) => void
   selectCampaignHit: (campaignId: string) => void
   selectOfferHit: (offerId: string) => void
+  selectQrCodeHit: (qrCodeId: string) => void
 }
 
 export type OperatorGlobalSearchModuleOptions = {
@@ -103,6 +110,7 @@ type SearchState = {
   feedbackHits: readonly OperatorGlobalSearchEntityHit[]
   campaignHits: readonly OperatorGlobalSearchEntityHit[]
   offerHits: readonly OperatorGlobalSearchEntityHit[]
+  qrCodeHits: readonly OperatorGlobalSearchEntityHit[]
 }
 
 export function isGlobalSearchOpenShortcut(
@@ -135,6 +143,7 @@ function toSnapshot(
     feedbackHits: state.feedbackHits,
     campaignHits: state.campaignHits,
     offerHits: state.offerHits,
+    qrCodeHits: state.qrCodeHits,
   }
 }
 
@@ -172,6 +181,7 @@ export function createOperatorGlobalSearchModule(
     feedbackHits: [],
     campaignHits: [],
     offerHits: [],
+    qrCodeHits: [],
   }
   let snapshot = toSnapshot(state, isApplePlatform)
   const listeners = new Set<() => void>()
@@ -206,6 +216,7 @@ export function createOperatorGlobalSearchModule(
       feedbackHits: [],
       campaignHits: [],
       offerHits: [],
+      qrCodeHits: [],
     }
     publish()
   }
@@ -234,6 +245,7 @@ export function createOperatorGlobalSearchModule(
           feedbackHits: result.feedbackHits,
           campaignHits: result.campaignHits,
           offerHits: result.offerHits,
+          qrCodeHits: result.qrCodeHits,
         }
         publish()
       })
@@ -248,6 +260,7 @@ export function createOperatorGlobalSearchModule(
           feedbackHits: [],
           campaignHits: [],
           offerHits: [],
+          qrCodeHits: [],
         }
         publish()
       })
@@ -264,7 +277,8 @@ export function createOperatorGlobalSearchModule(
         state.guestHits.length > 0 ||
         state.feedbackHits.length > 0 ||
         state.campaignHits.length > 0 ||
-        state.offerHits.length > 0
+        state.offerHits.length > 0 ||
+        state.qrCodeHits.length > 0
       ) {
         clearHits()
       }
@@ -294,7 +308,8 @@ export function createOperatorGlobalSearchModule(
       state.guestHits.length === 0 &&
       state.feedbackHits.length === 0 &&
       state.campaignHits.length === 0 &&
-      state.offerHits.length === 0
+      state.offerHits.length === 0 &&
+      state.qrCodeHits.length === 0
     ) {
       return
     }
@@ -308,6 +323,7 @@ export function createOperatorGlobalSearchModule(
       feedbackHits: [],
       campaignHits: [],
       offerHits: [],
+      qrCodeHits: [],
     }
     publish()
   }
@@ -410,6 +426,13 @@ export function createOperatorGlobalSearchModule(
     },
     selectOfferHit: (offerId) => {
       selectEntityHit(offerId, state.offerHits, adapters.navigateToOfferDetails)
+    },
+    selectQrCodeHit: (qrCodeId) => {
+      selectEntityHit(
+        qrCodeId,
+        state.qrCodeHits,
+        adapters.navigateToCapturePlacementDetail
+      )
     },
   }
 }

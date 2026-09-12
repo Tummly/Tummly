@@ -65,10 +65,12 @@ namespace TummlyBackend.Controllers
             var searchFeedback = false;
             var searchCampaigns = false;
             var searchOffers = false;
+            var searchQrCodes = false;
             var emptyGuests = false;
             var emptyFeedback = false;
             var emptyCampaigns = false;
             var emptyOffers = false;
+            var emptyQrCodes = false;
 
             if (requested.IncludeGuests)
             {
@@ -147,6 +149,25 @@ namespace TummlyBackend.Controllers
                 }
             }
 
+            if (requested.IncludeQrCodes)
+            {
+                var captureAccess = await _permissions.AuthorizeLocationAsync(
+                    User,
+                    OperatorAreaIds.Capture,
+                    PermissionLevel.View,
+                    locationId
+                );
+
+                if (captureAccess.Status == RestaurantPermissionStatus.Allowed)
+                {
+                    searchQrCodes = true;
+                }
+                else
+                {
+                    emptyQrCodes = true;
+                }
+            }
+
             var result = await _globalSearch.SearchAsync(
                 new GlobalSearchQuery
                 {
@@ -158,6 +179,7 @@ namespace TummlyBackend.Controllers
                     IncludeFeedback = searchFeedback,
                     IncludeCampaigns = searchCampaigns,
                     IncludeOffers = searchOffers,
+                    IncludeQrCodes = searchQrCodes,
                     UtcOffsetMinutes = utcOffsetMinutes,
                 },
                 cancellationToken
@@ -188,9 +210,16 @@ namespace TummlyBackend.Controllers
                 groups.Add(new GlobalSearchGroupDto { Type = "offers", Hits = [] });
             }
 
+            if (emptyQrCodes)
+            {
+                groups.Add(
+                    new GlobalSearchGroupDto { Type = "qr-codes", Hits = [] }
+                );
+            }
+
             groups.AddRange(result.Groups);
 
-            // Stable product order: guests, feedback, campaigns, offers.
+            // Stable product order: guests, feedback, campaigns, offers, qr-codes.
             groups = groups
                 .OrderBy(group => group.Type switch
                 {
@@ -198,6 +227,7 @@ namespace TummlyBackend.Controllers
                     "feedback" => 1,
                     "campaigns" => 2,
                     "offers" => 3,
+                    "qr-codes" => 4,
                     _ => 99,
                 })
                 .ToList();
@@ -230,9 +260,9 @@ namespace TummlyBackend.Controllers
         }
 
         /// <summary>
-        /// Empty <c>types</c> defaults to guests, feedback, campaigns, and offers.
-        /// Unknown tokens are ignored; empty resolved set still returns an empty
-        /// groups list.
+        /// Empty <c>types</c> defaults to guests, feedback, campaigns, offers,
+        /// and qr-codes. Unknown tokens are ignored; empty resolved set still
+        /// returns an empty groups list.
         /// </summary>
         private static RequestedTypes ResolveTypes(string? types)
         {
@@ -242,7 +272,8 @@ namespace TummlyBackend.Controllers
                     IncludeGuests: true,
                     IncludeFeedback: true,
                     IncludeCampaigns: true,
-                    IncludeOffers: true
+                    IncludeOffers: true,
+                    IncludeQrCodes: true
                 );
             }
 
@@ -255,7 +286,8 @@ namespace TummlyBackend.Controllers
                 IncludeGuests: tokens.Contains("guests"),
                 IncludeFeedback: tokens.Contains("feedback"),
                 IncludeCampaigns: tokens.Contains("campaigns"),
-                IncludeOffers: tokens.Contains("offers")
+                IncludeOffers: tokens.Contains("offers"),
+                IncludeQrCodes: tokens.Contains("qr-codes")
             );
         }
 
@@ -263,7 +295,8 @@ namespace TummlyBackend.Controllers
             bool IncludeGuests,
             bool IncludeFeedback,
             bool IncludeCampaigns,
-            bool IncludeOffers
+            bool IncludeOffers,
+            bool IncludeQrCodes
         );
     }
 }

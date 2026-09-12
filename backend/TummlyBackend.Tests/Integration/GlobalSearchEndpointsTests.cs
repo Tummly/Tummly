@@ -543,6 +543,176 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(0, groups[0].GetProperty("hits").GetArrayLength());
         }
 
+
+        [Fact]
+        public async Task GetSearch_ReturnsActiveAndPausedQrHits_ExcludesArchived()
+        {
+            var seeded = await SeedOwnerWithQrCodesAsync(
+                "gs-qr-status-token-1234567"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "table", types: "qr-codes")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            var groups = body.GetProperty("groups");
+            Assert.Equal(1, groups.GetArrayLength());
+            Assert.Equal("qr-codes", groups[0].GetProperty("type").GetString());
+
+            var hits = groups[0].GetProperty("hits");
+            Assert.Equal(1, hits.GetArrayLength());
+            var hit = hits[0];
+            Assert.Equal(
+                seeded.ActiveTableTentId.ToString(),
+                hit.GetProperty("id").GetString()
+            );
+            Assert.Equal("qr-code", hit.GetProperty("entityType").GetString());
+            Assert.Equal("Table tent", hit.GetProperty("title").GetString());
+            Assert.Equal("Active", hit.GetProperty("status").GetString());
+            Assert.Equal(
+                seeded.LocationId,
+                hit.GetProperty("locationId").GetInt32()
+            );
+            Assert.Equal("Camden", hit.GetProperty("locationName").GetString());
+
+            using var pausedRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "window", types: "qr-codes")
+            );
+            pausedRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var pausedResponse = await _client.SendAsync(pausedRequest);
+            Assert.Equal(HttpStatusCode.OK, pausedResponse.StatusCode);
+            var pausedHits = (await ReadJsonAsync(pausedResponse))
+                .GetProperty("groups")[0]
+                .GetProperty("hits");
+            Assert.Equal(1, pausedHits.GetArrayLength());
+            Assert.Equal(
+                seeded.PausedWindowId.ToString(),
+                pausedHits[0].GetProperty("id").GetString()
+            );
+            Assert.Equal(
+                "Paused",
+                pausedHits[0].GetProperty("status").GetString()
+            );
+
+            using var archivedRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "offer", types: "qr-codes")
+            );
+            archivedRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var archivedResponse = await _client.SendAsync(archivedRequest);
+            Assert.Equal(HttpStatusCode.OK, archivedResponse.StatusCode);
+            var archivedHits = (await ReadJsonAsync(archivedResponse))
+                .GetProperty("groups")[0]
+                .GetProperty("hits");
+            Assert.Equal(0, archivedHits.GetArrayLength());
+        }
+
+        [Fact]
+        public async Task GetSearch_MatchesDigitalGuestLinkName_ForQrHits()
+        {
+            var seeded = await SeedOwnerWithQrCodesAsync(
+                "gs-qr-link-token-123456789"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "instagram", types: "qr-codes")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var hits = (await ReadJsonAsync(response))
+                .GetProperty("groups")[0]
+                .GetProperty("hits");
+            Assert.Equal(1, hits.GetArrayLength());
+            Assert.Equal(
+                seeded.DigitalLinkId.ToString(),
+                hits[0].GetProperty("id").GetString()
+            );
+            Assert.Equal(
+                "Instagram bio",
+                hits[0].GetProperty("title").GetString()
+            );
+            Assert.Equal("Active", hits[0].GetProperty("status").GetString());
+        }
+
+        [Fact]
+        public async Task GetSearch_DoesNotReturnOtherTenantQrCodes()
+        {
+            var ownerA = await SeedOwnerWithQrCodesAsync(
+                "gs-qr-tenant-a-token-12345"
+            );
+            var ownerB = await SeedOwnerWithQrCodesAsync(
+                "gs-qr-tenant-b-token-12345"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(ownerA.LocationId, "table", types: "qr-codes")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", ownerA.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var hits = (await ReadJsonAsync(response))
+                .GetProperty("groups")[0]
+                .GetProperty("hits");
+            Assert.Equal(1, hits.GetArrayLength());
+            Assert.Equal(
+                ownerA.ActiveTableTentId.ToString(),
+                hits[0].GetProperty("id").GetString()
+            );
+            Assert.NotEqual(
+                ownerB.ActiveTableTentId.ToString(),
+                hits[0].GetProperty("id").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetSearch_ReturnsEmptyQrHits_WhenStaffHasCaptureNoAccess()
+        {
+            var seeded = await SeedOwnerAndStaffMemberWithQrAsync();
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(
+                    seeded.InScopeLocationId,
+                    "table",
+                    types: "qr-codes"
+                )
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.MemberJwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(1, body.GetProperty("groups").GetArrayLength());
+            Assert.Equal(
+                "qr-codes",
+                body.GetProperty("groups")[0].GetProperty("type").GetString()
+            );
+            Assert.Equal(
+                0,
+                body.GetProperty("groups")[0]
+                    .GetProperty("hits")
+                    .GetArrayLength()
+            );
+        }
+
         [Fact]
         public async Task GetSearch_ProjectsEffectiveExpiredStatus_NotStoredActive()
         {
@@ -1862,6 +2032,15 @@ namespace TummlyBackend.Tests.Integration
             int LocationId,
             int RestaurantId,
             int OfferId
+        );
+
+
+        private sealed record OwnerQrSeed(
+            string Jwt,
+            int LocationId,
+            int ActiveTableTentId,
+            int PausedWindowId,
+            int DigitalLinkId
         );
 
         private sealed record MultiLocationSeed(

@@ -938,7 +938,7 @@ export const getGlobalSearch = async (params: {
     params: {
       q: params.q,
       locationId: params.locationId,
-      types: params.types ?? "guests,feedback,campaigns,offers",
+      types: params.types ?? "guests,feedback,campaigns,offers,qr-codes",
       limit: params.limit,
       utcOffsetMinutes: params.utcOffsetMinutes ?? -new Date().getTimezoneOffset(),
     },
