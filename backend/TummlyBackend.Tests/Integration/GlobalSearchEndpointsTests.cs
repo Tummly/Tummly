@@ -1133,11 +1133,12 @@ namespace TummlyBackend.Tests.Integration
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var groups = (await ReadJsonAsync(response)).GetProperty("groups");
-            Assert.Equal(4, groups.GetArrayLength());
+            Assert.Equal(5, groups.GetArrayLength());
             Assert.Equal("guests", groups[0].GetProperty("type").GetString());
             Assert.Equal("feedback", groups[1].GetProperty("type").GetString());
             Assert.Equal("campaigns", groups[2].GetProperty("type").GetString());
             Assert.Equal("offers", groups[3].GetProperty("type").GetString());
+            Assert.Equal("qr-codes", groups[4].GetProperty("type").GetString());
             Assert.True(groups[0].GetProperty("hits").GetArrayLength() >= 1);
             Assert.True(groups[1].GetProperty("hits").GetArrayLength() >= 1);
         }
