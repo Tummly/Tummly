@@ -1771,6 +1771,97 @@ namespace TummlyBackend.Tests.Integration
             return new BillingAdminOfferSeed(memberJwt, location.Id);
         }
 
+        private async Task<OwnerQrSeed> SeedOwnerWithQrCodesAsync(
+            string linkToken
+        )
+        {
+            var owner = await SeedOwnerAsync(
+                linkToken,
+                email: $"{Guid.NewGuid():N}@example.com",
+                locationName: "Camden"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var activeTableTent = new QrCode
+            {
+                RestaurantLocationId = owner.LocationId,
+                QrType = QrType.TableTent,
+                Token = $"{linkToken}-table-tent-token12",
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow.AddDays(-2),
+            };
+            var pausedWindow = new QrCode
+            {
+                RestaurantLocationId = owner.LocationId,
+                QrType = QrType.WindowSticker,
+                Token = $"{linkToken}-window-token123456",
+                Status = QrCodeStatus.Paused,
+                CreatedAt = DateTime.UtcNow.AddDays(-3),
+            };
+            var archivedOffer = new QrCode
+            {
+                RestaurantLocationId = owner.LocationId,
+                QrType = QrType.OfferCard,
+                Token = $"{linkToken}-offer-token1234567",
+                Status = QrCodeStatus.Archived,
+                CreatedAt = DateTime.UtcNow.AddDays(-4),
+                ArchivedAt = DateTime.UtcNow.AddDays(-1),
+            };
+            var digitalLink = new QrCode
+            {
+                RestaurantLocationId = owner.LocationId,
+                QrType = QrType.DigitalGuestLink,
+                Token = $"{linkToken}-digital-token12345",
+                Status = QrCodeStatus.Active,
+                LinkName = "Instagram bio",
+                NormalizedLinkName = "instagram bio",
+                CreatedAt = DateTime.UtcNow.AddDays(-1),
+            };
+            context.QrCodes.AddRange(
+                activeTableTent,
+                pausedWindow,
+                archivedOffer,
+                digitalLink
+            );
+            await context.SaveChangesAsync();
+
+            return new OwnerQrSeed(
+                owner.Jwt,
+                owner.LocationId,
+                activeTableTent.Id,
+                pausedWindow.Id,
+                digitalLink.Id
+            );
+        }
+
+        private async Task<StaffSeed> SeedOwnerAndStaffMemberWithQrAsync()
+        {
+            var seeded = await SeedOwnerAndStaffMemberAsync(
+                seedMatchingGuest: false
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            context.QrCodes.Add(
+                new QrCode
+                {
+                    RestaurantLocationId = seeded.InScopeLocationId,
+                    QrType = QrType.TableTent,
+                    Token = $"gs-staff-qr-table-tent-token1",
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            return seeded;
+        }
+
         private static async Task<JsonElement> ReadJsonAsync(
             HttpResponseMessage response
         )
