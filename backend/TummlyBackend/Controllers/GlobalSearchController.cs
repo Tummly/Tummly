@@ -36,6 +36,7 @@ namespace TummlyBackend.Controllers
             [FromQuery] int locationId,
             [FromQuery] string? types = null,
             [FromQuery] int? limit = null,
+            [FromQuery] int utcOffsetMinutes = 0,
             CancellationToken cancellationToken = default
         )
         {
@@ -135,6 +136,7 @@ namespace TummlyBackend.Controllers
                     IncludeGuests = searchGuests,
                     IncludeCampaigns = searchCampaigns,
                     IncludeOffers = searchOffers,
+                    UtcOffsetMinutes = utcOffsetMinutes,
                 },
                 cancellationToken
             );

@@ -15,6 +15,9 @@ namespace TummlyBackend.DTOs.Search
         public required bool IncludeCampaigns { get; init; }
 
         public required bool IncludeOffers { get; init; }
+
+        /// <summary>Venue offset for Offer effective status (Expired vs Active).</summary>
+        public int UtcOffsetMinutes { get; init; }
     }
 
     public sealed class GlobalSearchResponse

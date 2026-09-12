@@ -601,6 +601,53 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(CatalogOfferStatus.Draft, offer!.Status);
         }
 
+        [Fact]
+        public async Task GetSearch_MatchesOfferViaAttachedCampaignName()
+        {
+            var seeded = await SeedOwnerWithOfferAsync(
+                "gs-offer-camp-name-token-12",
+                offerTitle: "Quiet Title Offer"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            context.Campaigns.Add(new Campaign
+            {
+                RestaurantLocationId = seeded.LocationId,
+                OfferId = seeded.OfferId,
+                Name = "Brunch Blast Campaign",
+                Status = "draft",
+                Channel = "email",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            });
+            await context.SaveChangesAsync();
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "Brunch", types: "offers")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var hits = (await ReadJsonAsync(response))
+                .GetProperty("groups")[0]
+                .GetProperty("hits");
+            Assert.Equal(1, hits.GetArrayLength());
+            Assert.Equal(
+                seeded.OfferId.ToString(),
+                hits[0].GetProperty("id").GetString()
+            );
+            Assert.Equal(
+                "Quiet Title Offer",
+                hits[0].GetProperty("title").GetString()
+            );
+        }
+
         private static string SearchUrl(
             int locationId,
             string q,

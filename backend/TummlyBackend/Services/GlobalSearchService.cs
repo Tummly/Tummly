@@ -155,11 +155,18 @@ namespace TummlyBackend.Services
             }
 
             var term = trimmed.ToLowerInvariant();
+            // Same match fields as Offers list: title or attached campaign name.
             var matched = await _context.CatalogOffers
                 .AsNoTracking()
                 .Where(offer =>
                     offer.RestaurantLocationId == query.LocationId
-                    && offer.Title.ToLower().Contains(term)
+                    && (
+                        offer.Title.ToLower().Contains(term)
+                        || _context.Campaigns.Any(campaign =>
+                            campaign.OfferId == offer.Id
+                            && campaign.Name.ToLower().Contains(term)
+                        )
+                    )
                 )
                 .Select(offer => new OfferMatchRow(
                     offer.Id,
@@ -174,7 +181,7 @@ namespace TummlyBackend.Services
 
             var today = CatalogOfferStatus.VenueLocalToday(
                 DateTime.UtcNow,
-                utcOffsetMinutes: 0
+                query.UtcOffsetMinutes
             );
             var hits = matched
                 .OrderBy(row => RankName(row.Title, term))
