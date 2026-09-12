@@ -4,6 +4,7 @@ import { getGlobalSearch } from "@/api/dashboardApi"
 import {
   createOperatorGlobalSearchModule,
   mapSearchHit,
+  type OperatorGlobalSearchLocationScope,
   type OperatorGlobalSearchModule,
   type OperatorGlobalSearchSnapshot,
 } from "@/lib/operatorGlobalSearch/createOperatorGlobalSearchModule"
@@ -31,11 +32,15 @@ export type OperatorGlobalSearchApi = {
   selectCampaignHit: (campaignId: string) => void
   selectOfferHit: (offerId: string) => void
   selectQrCodeHit: (qrCodeId: string) => void
+  setLocationScope: (scope: OperatorGlobalSearchLocationScope) => void
+  widenToAllLocations: () => void
+  notifyOwnedLocationChanged: () => void
 }
 
 export function useGlobalSearchModule(args: {
   handoffSuggestionToAssistant: OperatorGlobalSearchHandoff
   getLocationId: () => number | null
+  getAuthorisedLocationCount: () => number
   navigateToGuestProfile: (guestId: number, locationId: number) => void
   navigateToFeedbackDetail: (feedbackId: number, locationId: number) => void
   navigateToCampaignDetail: (campaignId: number, locationId: number) => void
@@ -49,6 +54,8 @@ export function useGlobalSearchModule(args: {
   handoffRef.current = args.handoffSuggestionToAssistant
   const getLocationIdRef = useRef(args.getLocationId)
   getLocationIdRef.current = args.getLocationId
+  const getAuthorisedLocationCountRef = useRef(args.getAuthorisedLocationCount)
+  getAuthorisedLocationCountRef.current = args.getAuthorisedLocationCount
   const navigateGuestRef = useRef(args.navigateToGuestProfile)
   navigateGuestRef.current = args.navigateToGuestProfile
   const navigateFeedbackRef = useRef(args.navigateToFeedbackDetail)
@@ -68,6 +75,7 @@ export function useGlobalSearchModule(args: {
           handoffRef.current(prompt)
         },
         getLocationId: () => getLocationIdRef.current(),
+        getAuthorisedLocationCount: () => getAuthorisedLocationCountRef.current(),
         navigateToGuestProfile: (guestId, locationId) => {
           navigateGuestRef.current(guestId, locationId)
         },
@@ -83,11 +91,12 @@ export function useGlobalSearchModule(args: {
         navigateToCapturePlacementDetail: (qrCodeId, locationId) => {
           navigateCaptureRef.current(qrCodeId, locationId)
         },
-        searchHits: async ({ q, locationId, signal }) => {
+        searchHits: async ({ q, locationId, scope, signal }) => {
           const response = await getGlobalSearch({
             q,
             locationId,
             types: "guests,feedback,campaigns,offers,qr-codes",
+            scope,
             signal,
           })
           const guestsGroup = response.groups.find(
@@ -196,5 +205,8 @@ export function useGlobalSearchModule(args: {
     selectCampaignHit: search.selectCampaignHit,
     selectOfferHit: search.selectOfferHit,
     selectQrCodeHit: search.selectQrCodeHit,
+    setLocationScope: search.setLocationScope,
+    widenToAllLocations: search.widenToAllLocations,
+    notifyOwnedLocationChanged: search.notifyOwnedLocationChanged,
   }
 }

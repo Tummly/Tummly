@@ -80,7 +80,7 @@ namespace TummlyBackend.Services
         )
         {
             var trimmed = query.Q.Trim();
-            if (trimmed.Length < 2)
+            if (trimmed.Length < 2 || query.LocationIds.Count == 0)
             {
                 return EmptyGroup("guests");
             }
@@ -89,7 +89,7 @@ namespace TummlyBackend.Services
                 _context.LocationGuests
                     .AsNoTracking()
                     .Include(lg => lg.MasterGuest),
-                [query.LocationId]
+                query.LocationIds
             );
 
             var matched = await GuestsListQueryComposer
@@ -111,7 +111,7 @@ namespace TummlyBackend.Services
                 .ThenByDescending(row => row.CreatedAt)
                 .ThenByDescending(row => row.Id)
                 .Take(query.Limit)
-                .Select(row => ToGuestHit(row, query.LocationName))
+                .Select(row => ToGuestHit(row, query.LocationNamesById))
                 .ToList();
 
             return new GlobalSearchGroupDto
@@ -133,9 +133,15 @@ namespace TummlyBackend.Services
                 return EmptyGroup("feedback");
             }
 
+            if (query.LocationIds.Count == 0)
+            {
+                return EmptyGroup("feedback");
+            }
+
+            var locationIdSet = query.LocationIds.ToHashSet();
             var scoped = _context.Feedbacks
                 .AsNoTracking()
-                .Where(f => f.RestaurantLocationId == query.LocationId);
+                .Where(f => locationIdSet.Contains(f.RestaurantLocationId));
 
             var matched = await ApplyFeedbackSearch(scoped, trimmed)
                 .Select(f => new FeedbackMatchRow(
@@ -156,7 +162,7 @@ namespace TummlyBackend.Services
                 .ThenByDescending(row => row.CreatedAt)
                 .ThenByDescending(row => row.Id)
                 .Take(query.Limit)
-                .Select(row => ToFeedbackHit(row, query.LocationName))
+                .Select(row => ToFeedbackHit(row, query.LocationNamesById))
                 .ToList();
 
             return new GlobalSearchGroupDto
@@ -177,11 +183,17 @@ namespace TummlyBackend.Services
                 return EmptyGroup("campaigns");
             }
 
+            if (query.LocationIds.Count == 0)
+            {
+                return EmptyGroup("campaigns");
+            }
+
             var term = trimmed.ToLowerInvariant();
+            var locationIdSet = query.LocationIds.ToHashSet();
             var matched = await _context.Campaigns
                 .AsNoTracking()
                 .Where(campaign =>
-                    campaign.RestaurantLocationId == query.LocationId
+                    locationIdSet.Contains(campaign.RestaurantLocationId)
                     && campaign.Name.ToLower().Contains(term)
                 )
                 .Select(campaign => new CampaignMatchRow(
@@ -199,7 +211,7 @@ namespace TummlyBackend.Services
                 .ThenByDescending(row => row.UpdatedAt)
                 .ThenByDescending(row => row.Id)
                 .Take(query.Limit)
-                .Select(row => ToCampaignHit(row, query.LocationName))
+                .Select(row => ToCampaignHit(row, query.LocationNamesById))
                 .ToList();
 
             return new GlobalSearchGroupDto
@@ -220,12 +232,18 @@ namespace TummlyBackend.Services
                 return EmptyGroup("offers");
             }
 
+            if (query.LocationIds.Count == 0)
+            {
+                return EmptyGroup("offers");
+            }
+
             var term = trimmed.ToLowerInvariant();
+            var locationIdSet = query.LocationIds.ToHashSet();
             // Same match fields as Offers list: title or attached campaign name.
             var matched = await _context.CatalogOffers
                 .AsNoTracking()
                 .Where(offer =>
-                    offer.RestaurantLocationId == query.LocationId
+                    locationIdSet.Contains(offer.RestaurantLocationId)
                     && (
                         offer.Title.ToLower().Contains(term)
                         || _context.Campaigns.Any(campaign =>
@@ -254,7 +272,7 @@ namespace TummlyBackend.Services
                 .ThenByDescending(row => row.UpdatedAt)
                 .ThenByDescending(row => row.Id)
                 .Take(query.Limit)
-                .Select(row => ToOfferHit(row, query.LocationName, today))
+                .Select(row => ToOfferHit(row, query.LocationNamesById, today))
                 .ToList();
 
             return new GlobalSearchGroupDto
@@ -275,10 +293,16 @@ namespace TummlyBackend.Services
                 return EmptyGroup("qr-codes");
             }
 
+            if (query.LocationIds.Count == 0)
+            {
+                return EmptyGroup("qr-codes");
+            }
+
+            var locationIdSet = query.LocationIds.ToHashSet();
             var candidates = await _context.QrCodes
                 .AsNoTracking()
                 .Where(q =>
-                    q.RestaurantLocationId == query.LocationId
+                    locationIdSet.Contains(q.RestaurantLocationId)
                     && (q.Status == QrCodeStatus.Active
                         || q.Status == QrCodeStatus.Paused)
                 )
@@ -306,7 +330,9 @@ namespace TummlyBackend.Services
                 .ThenByDescending(item => item.Row.CreatedAt)
                 .ThenByDescending(item => item.Row.Id)
                 .Take(query.Limit)
-                .Select(item => ToQrHit(item.Row, item.Title, query.LocationName))
+                .Select(item =>
+                    ToQrHit(item.Row, item.Title, query.LocationNamesById)
+                )
                 .ToList();
 
             return new GlobalSearchGroupDto
@@ -456,7 +482,7 @@ namespace TummlyBackend.Services
 
         private static GlobalSearchHitDto ToGuestHit(
             GuestMatchRow row,
-            string locationName
+            IReadOnlyDictionary<int, string> locationNamesById
         )
         {
             var subtitle = !string.IsNullOrWhiteSpace(row.Email)
@@ -471,6 +497,13 @@ namespace TummlyBackend.Services
                 row.Mobile
             );
 
+            var locationName = locationNamesById.TryGetValue(
+                row.LocationId,
+                out var name
+            )
+                ? name
+                : string.Empty;
+
             return new GlobalSearchHitDto
             {
                 Id = row.Id.ToString(),
@@ -483,14 +516,28 @@ namespace TummlyBackend.Services
             };
         }
 
+        private static string ResolveLocationName(
+            int locationId,
+            IReadOnlyDictionary<int, string> locationNamesById
+        )
+        {
+            return locationNamesById.TryGetValue(locationId, out var name)
+                ? name
+                : string.Empty;
+        }
+
         private static GlobalSearchHitDto ToFeedbackHit(
             FeedbackMatchRow row,
-            string locationName
+            IReadOnlyDictionary<int, string> locationNamesById
         )
         {
             var title = !string.IsNullOrWhiteSpace(row.GuestName)
                 ? row.GuestName
                 : TruncateComment(row.Comment);
+            var locationName = ResolveLocationName(
+                row.LocationId,
+                locationNamesById
+            );
 
             return new GlobalSearchHitDto
             {
@@ -508,7 +555,7 @@ namespace TummlyBackend.Services
 
         private static GlobalSearchHitDto ToCampaignHit(
             CampaignMatchRow row,
-            string locationName
+            IReadOnlyDictionary<int, string> locationNamesById
         )
         {
             return new GlobalSearchHitDto
@@ -518,14 +565,17 @@ namespace TummlyBackend.Services
                 Title = row.Name,
                 Subtitle = FormatChannel(row.Channel),
                 LocationId = row.LocationId,
-                LocationName = locationName,
+                LocationName = ResolveLocationName(
+                    row.LocationId,
+                    locationNamesById
+                ),
                 Status = FormatCampaignStatus(row.Status),
             };
         }
 
         private static GlobalSearchHitDto ToOfferHit(
             OfferMatchRow row,
-            string locationName,
+            IReadOnlyDictionary<int, string> locationNamesById,
             DateOnly venueLocalToday
         )
         {
@@ -534,6 +584,10 @@ namespace TummlyBackend.Services
                 row.Validity,
                 row.CustomExpiryDate,
                 venueLocalToday
+            );
+            var locationName = ResolveLocationName(
+                row.LocationId,
+                locationNamesById
             );
 
             return new GlobalSearchHitDto
@@ -563,7 +617,7 @@ namespace TummlyBackend.Services
         private static GlobalSearchHitDto ToQrHit(
             QrMatchRow row,
             string title,
-            string locationName
+            IReadOnlyDictionary<int, string> locationNamesById
         )
         {
             return new GlobalSearchHitDto
@@ -573,7 +627,10 @@ namespace TummlyBackend.Services
                 Title = title,
                 Subtitle = null,
                 LocationId = row.LocationId,
-                LocationName = locationName,
+                LocationName = ResolveLocationName(
+                    row.LocationId,
+                    locationNamesById
+                ),
                 Status = row.Status.ToString(),
             };
         }

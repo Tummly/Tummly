@@ -4,9 +4,14 @@ namespace TummlyBackend.DTOs.Search
     {
         public required string Q { get; init; }
 
+        /// <summary>Shell Owned-location anchor (always required on the wire).</summary>
         public required int LocationId { get; init; }
 
-        public required string LocationName { get; init; }
+        /// <summary>Authorised location ids to search (one for current, many for all).</summary>
+        public required IReadOnlyList<int> LocationIds { get; init; }
+
+        /// <summary>Hit locationName lookup keyed by restaurant location id.</summary>
+        public required IReadOnlyDictionary<int, string> LocationNamesById { get; init; }
 
         public required int Limit { get; init; }
 

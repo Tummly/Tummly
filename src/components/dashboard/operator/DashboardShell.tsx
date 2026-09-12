@@ -52,7 +52,10 @@ import type {
   OperatorNotificationsSnapshot,
   OperatorNotificationsTab,
 } from "@/lib/operatorNotifications/createOperatorNotificationsModule"
-import type { OperatorGlobalSearchSnapshot } from "@/lib/operatorGlobalSearch/createOperatorGlobalSearchModule"
+import type {
+  OperatorGlobalSearchLocationScope,
+  OperatorGlobalSearchSnapshot,
+} from "@/lib/operatorGlobalSearch/createOperatorGlobalSearchModule"
 import { cn } from "@/lib/utils"
 import type { OperatorShellPresentation } from "@/types/operatorHome"
 
@@ -128,6 +131,8 @@ type DashboardShellProps = {
     onSelectCampaignHit: (campaignId: string) => void
     onSelectOfferHit: (offerId: string) => void
     onSelectQrCodeHit: (qrCodeId: string) => void
+    onLocationScopeChange: (scope: OperatorGlobalSearchLocationScope) => void
+    onWidenToAllLocations: () => void
   }
   children?: ReactNode
 }
@@ -320,6 +325,8 @@ export function DashboardShell({
           onSelectCampaignHit={globalSearch.onSelectCampaignHit}
           onSelectOfferHit={globalSearch.onSelectOfferHit}
           onSelectQrCodeHit={globalSearch.onSelectQrCodeHit}
+          onLocationScopeChange={globalSearch.onLocationScopeChange}
+          onWidenToAllLocations={globalSearch.onWidenToAllLocations}
         />
       ) : null}
 
