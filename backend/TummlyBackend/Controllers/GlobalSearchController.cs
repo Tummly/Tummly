@@ -58,14 +58,16 @@ namespace TummlyBackend.Controllers
             var location = ownedLocation.Location!;
             var trimmedQ = (q ?? string.Empty).Trim();
             var clampedLimit = ClampLimit(limit);
-            var (includeGuests, includeCampaigns) = ResolveTypes(types);
+            var requested = ResolveTypes(types);
 
             var searchGuests = false;
             var searchCampaigns = false;
+            var searchOffers = false;
             var emptyGuests = false;
             var emptyCampaigns = false;
+            var emptyOffers = false;
 
-            if (includeGuests)
+            if (requested.IncludeGuests)
             {
                 var guestsAccess = await _permissions.AuthorizeLocationAsync(
                     User,
@@ -85,7 +87,7 @@ namespace TummlyBackend.Controllers
                 }
             }
 
-            if (includeCampaigns)
+            if (requested.IncludeCampaigns)
             {
                 var campaignsAccess = await _permissions.AuthorizeLocationAsync(
                     User,
@@ -104,6 +106,25 @@ namespace TummlyBackend.Controllers
                 }
             }
 
+            if (requested.IncludeOffers)
+            {
+                var offersAccess = await _permissions.AuthorizeLocationAsync(
+                    User,
+                    OperatorAreaIds.Offers,
+                    PermissionLevel.View,
+                    locationId
+                );
+
+                if (offersAccess.Status == RestaurantPermissionStatus.Allowed)
+                {
+                    searchOffers = true;
+                }
+                else
+                {
+                    emptyOffers = true;
+                }
+            }
+
             var result = await _globalSearch.SearchAsync(
                 new GlobalSearchQuery
                 {
@@ -113,6 +134,7 @@ namespace TummlyBackend.Controllers
                     Limit = clampedLimit,
                     IncludeGuests = searchGuests,
                     IncludeCampaigns = searchCampaigns,
+                    IncludeOffers = searchOffers,
                 },
                 cancellationToken
             );
@@ -130,14 +152,20 @@ namespace TummlyBackend.Controllers
                 );
             }
 
+            if (emptyOffers)
+            {
+                groups.Add(new GlobalSearchGroupDto { Type = "offers", Hits = [] });
+            }
+
             groups.AddRange(result.Groups);
 
-            // Stable product order: guests then campaigns (empty stubs first if any).
+            // Stable product order: guests, campaigns, offers.
             groups = groups
                 .OrderBy(group => group.Type switch
                 {
                     "guests" => 0,
                     "campaigns" => 1,
+                    "offers" => 2,
                     _ => 99,
                 })
                 .ToList();
@@ -173,13 +201,15 @@ namespace TummlyBackend.Controllers
         /// Default types=guests. Unknown tokens are ignored;
         /// empty resolved set still returns an empty groups list.
         /// </summary>
-        private static (bool IncludeGuests, bool IncludeCampaigns) ResolveTypes(
-            string? types
-        )
+        private static RequestedTypes ResolveTypes(string? types)
         {
             if (string.IsNullOrWhiteSpace(types))
             {
-                return (true, false);
+                return new RequestedTypes(
+                    IncludeGuests: true,
+                    IncludeCampaigns: false,
+                    IncludeOffers: false
+                );
             }
 
             var tokens = types
@@ -187,7 +217,17 @@ namespace TummlyBackend.Controllers
                 .Select(token => token.ToLowerInvariant())
                 .ToHashSet(StringComparer.Ordinal);
 
-            return (tokens.Contains("guests"), tokens.Contains("campaigns"));
+            return new RequestedTypes(
+                IncludeGuests: tokens.Contains("guests"),
+                IncludeCampaigns: tokens.Contains("campaigns"),
+                IncludeOffers: tokens.Contains("offers")
+            );
         }
+
+        private sealed record RequestedTypes(
+            bool IncludeGuests,
+            bool IncludeCampaigns,
+            bool IncludeOffers
+        );
     }
 }

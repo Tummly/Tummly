@@ -35,6 +35,7 @@ import {
   GLOBAL_SEARCH_INPUT_CLASS,
   GLOBAL_SEARCH_INPUT_ROW_CLASS,
   GLOBAL_SEARCH_KBD_CLASS,
+  GLOBAL_SEARCH_OFFERS_HEADING,
   GLOBAL_SEARCH_OVERLAY_CLASS,
   GLOBAL_SEARCH_PLACEHOLDER,
 } from "@/lib/operatorGlobalSearch/globalSearchPresentation"
@@ -47,6 +48,7 @@ type GlobalSearchOverlayProps = {
   onSelectSuggestion: (suggestionId: string) => void
   onSelectGuestHit: (guestId: string) => void
   onSelectCampaignHit: (campaignId: string) => void
+  onSelectOfferHit: (offerId: string) => void
 }
 
 const COMMAND_GROUP_HEADING_CLASS = cn(
@@ -101,6 +103,7 @@ export function GlobalSearchOverlay({
   onSelectSuggestion,
   onSelectGuestHit,
   onSelectCampaignHit,
+  onSelectOfferHit,
 }: GlobalSearchOverlayProps) {
   const trimmedQuery = snapshot.query.trim()
   const showEmptyAi =
@@ -113,6 +116,9 @@ export function GlobalSearchOverlay({
   const showCampaignsGroup =
     showEntityGroups ||
     (trimmedQuery.length >= 2 && snapshot.campaignHits.length > 0)
+  const showOffersGroup =
+    showEntityGroups ||
+    (trimmedQuery.length >= 2 && snapshot.offerHits.length > 0)
 
   return (
     <Dialog open={snapshot.open} onOpenChange={onOpenChange}>
@@ -202,6 +208,19 @@ export function GlobalSearchOverlay({
                   hits={snapshot.campaignHits}
                   valuePrefix="campaign"
                   onSelect={onSelectCampaignHit}
+                />
+              </CommandGroup>
+            ) : null}
+
+            {showOffersGroup ? (
+              <CommandGroup
+                heading={GLOBAL_SEARCH_OFFERS_HEADING}
+                className={COMMAND_GROUP_HEADING_CLASS}
+              >
+                <EntityHitRows
+                  hits={snapshot.offerHits}
+                  valuePrefix="offer"
+                  onSelect={onSelectOfferHit}
                 />
               </CommandGroup>
             ) : null}

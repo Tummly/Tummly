@@ -32,6 +32,7 @@ import { getOperatorFirstName } from "@/lib/operatorHome/operatorProfile"
 import {
   operatorDashboardCampaignDetailsPath,
   operatorDashboardGuestProfilePath,
+  operatorDashboardOfferDetailsPath,
   resolveOperatorSidebarActiveId,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
@@ -180,6 +181,9 @@ function DashboardContent({ mode }: DashboardProps) {
       navigate(
         operatorDashboardCampaignDetailsPath(mode, campaignId, locationId)
       )
+    },
+    navigateToOfferDetails: (offerId, locationId) => {
+      navigate(operatorDashboardOfferDetailsPath(mode, offerId, locationId))
     },
   })
 
@@ -462,6 +466,7 @@ function DashboardContent({ mode }: DashboardProps) {
         onSelectSuggestion: globalSearch.selectSuggestion,
         onSelectGuestHit: globalSearch.selectGuestHit,
         onSelectCampaignHit: globalSearch.selectCampaignHit,
+        onSelectOfferHit: globalSearch.selectOfferHit,
       }}
     >
       <Outlet

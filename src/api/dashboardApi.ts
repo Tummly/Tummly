@@ -937,7 +937,7 @@ export const getGlobalSearch = async (params: {
     params: {
       q: params.q,
       locationId: params.locationId,
-      types: params.types ?? "guests,campaigns",
+      types: params.types ?? "guests,campaigns,offers",
       limit: params.limit,
     },
     signal: params.signal,

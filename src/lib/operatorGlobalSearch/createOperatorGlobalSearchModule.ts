@@ -33,6 +33,7 @@ export type OperatorGlobalSearchSnapshot = {
   hitsPending: boolean
   guestHits: readonly OperatorGlobalSearchEntityHit[]
   campaignHits: readonly OperatorGlobalSearchEntityHit[]
+  offerHits: readonly OperatorGlobalSearchEntityHit[]
 }
 
 export type OperatorGlobalSearchShortcutInput = {
@@ -56,9 +57,11 @@ export type OperatorGlobalSearchAdapters = {
   }) => Promise<{
     guestHits: readonly OperatorGlobalSearchEntityHit[]
     campaignHits: readonly OperatorGlobalSearchEntityHit[]
+    offerHits: readonly OperatorGlobalSearchEntityHit[]
   }>
   navigateToGuestProfile: (guestId: number, locationId: number) => void
   navigateToCampaignDetail: (campaignId: number, locationId: number) => void
+  navigateToOfferDetails: (offerId: number, locationId: number) => void
   getLocationId: () => number | null
   debounceMs?: number
   setTimeout?: typeof globalThis.setTimeout
@@ -78,6 +81,7 @@ export type OperatorGlobalSearchModule = {
   selectSuggestion: (suggestionId: string) => void
   selectGuestHit: (guestId: string) => void
   selectCampaignHit: (campaignId: string) => void
+  selectOfferHit: (offerId: string) => void
 }
 
 export type OperatorGlobalSearchModuleOptions = {
@@ -93,6 +97,7 @@ type SearchState = {
   hitsPending: boolean
   guestHits: readonly OperatorGlobalSearchEntityHit[]
   campaignHits: readonly OperatorGlobalSearchEntityHit[]
+  offerHits: readonly OperatorGlobalSearchEntityHit[]
 }
 
 export function isGlobalSearchOpenShortcut(
@@ -123,6 +128,7 @@ function toSnapshot(
     hitsPending: state.hitsPending,
     guestHits: state.guestHits,
     campaignHits: state.campaignHits,
+    offerHits: state.offerHits,
   }
 }
 
@@ -158,6 +164,7 @@ export function createOperatorGlobalSearchModule(
     hitsPending: false,
     guestHits: [],
     campaignHits: [],
+    offerHits: [],
   }
   let snapshot = toSnapshot(state, isApplePlatform)
   const listeners = new Set<() => void>()
@@ -190,6 +197,7 @@ export function createOperatorGlobalSearchModule(
       hitsPending: false,
       guestHits: [],
       campaignHits: [],
+      offerHits: [],
     }
     publish()
   }
@@ -216,6 +224,7 @@ export function createOperatorGlobalSearchModule(
           hitsPending: false,
           guestHits: result.guestHits,
           campaignHits: result.campaignHits,
+          offerHits: result.offerHits,
         }
         publish()
       })
@@ -228,6 +237,7 @@ export function createOperatorGlobalSearchModule(
           hitsPending: false,
           guestHits: [],
           campaignHits: [],
+          offerHits: [],
         }
         publish()
       })
@@ -242,7 +252,8 @@ export function createOperatorGlobalSearchModule(
       if (
         state.hitsPending ||
         state.guestHits.length > 0 ||
-        state.campaignHits.length > 0
+        state.campaignHits.length > 0 ||
+        state.offerHits.length > 0
       ) {
         clearHits()
       }
@@ -270,7 +281,8 @@ export function createOperatorGlobalSearchModule(
       state.query === "" &&
       !state.hitsPending &&
       state.guestHits.length === 0 &&
-      state.campaignHits.length === 0
+      state.campaignHits.length === 0 &&
+      state.offerHits.length === 0
     ) {
       return
     }
@@ -282,6 +294,7 @@ export function createOperatorGlobalSearchModule(
       hitsPending: false,
       guestHits: [],
       campaignHits: [],
+      offerHits: [],
     }
     publish()
   }
@@ -374,6 +387,9 @@ export function createOperatorGlobalSearchModule(
         state.campaignHits,
         adapters.navigateToCampaignDetail
       )
+    },
+    selectOfferHit: (offerId) => {
+      selectEntityHit(offerId, state.offerHits, adapters.navigateToOfferDetails)
     },
   }
 }

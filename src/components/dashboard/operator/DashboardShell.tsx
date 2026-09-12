@@ -125,6 +125,7 @@ type DashboardShellProps = {
     onSelectSuggestion: (suggestionId: string) => void
     onSelectGuestHit: (guestId: string) => void
     onSelectCampaignHit: (campaignId: string) => void
+    onSelectOfferHit: (offerId: string) => void
   }
   children?: ReactNode
 }
@@ -314,6 +315,7 @@ export function DashboardShell({
           onSelectSuggestion={globalSearch.onSelectSuggestion}
           onSelectGuestHit={globalSearch.onSelectGuestHit}
           onSelectCampaignHit={globalSearch.onSelectCampaignHit}
+          onSelectOfferHit={globalSearch.onSelectOfferHit}
         />
       ) : null}
 

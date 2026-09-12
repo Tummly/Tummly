@@ -401,6 +401,206 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(0, groups[0].GetProperty("hits").GetArrayLength());
         }
 
+        [Fact]
+        public async Task GetSearch_ReturnsOfferHits_ForOwnerTitleMatch()
+        {
+            var seeded = await SeedOwnerWithOfferAsync(
+                "gs-offer-match-token-12345",
+                offerTitle: "Monday Lunch Deal",
+                locationName: "Camden"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "lunch", types: "offers")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal("lunch", body.GetProperty("q").GetString());
+            Assert.Equal(
+                seeded.LocationId,
+                body.GetProperty("locationId").GetInt32()
+            );
+
+            var groups = body.GetProperty("groups");
+            Assert.Equal(1, groups.GetArrayLength());
+            Assert.Equal("offers", groups[0].GetProperty("type").GetString());
+
+            var hits = groups[0].GetProperty("hits");
+            Assert.Equal(1, hits.GetArrayLength());
+            var hit = hits[0];
+            Assert.Equal(
+                seeded.OfferId.ToString(),
+                hit.GetProperty("id").GetString()
+            );
+            Assert.Equal("offer", hit.GetProperty("entityType").GetString());
+            Assert.Equal(
+                "Monday Lunch Deal",
+                hit.GetProperty("title").GetString()
+            );
+            Assert.Equal(
+                seeded.LocationId,
+                hit.GetProperty("locationId").GetInt32()
+            );
+            Assert.Equal("Camden", hit.GetProperty("locationName").GetString());
+            Assert.Equal("Active", hit.GetProperty("status").GetString());
+        }
+
+        [Fact]
+        public async Task GetSearch_DoesNotReturnOtherTenantOffers()
+        {
+            var ownerA = await SeedOwnerWithOfferAsync(
+                "gs-offer-tenant-a-token-123",
+                offerTitle: "Shared Title Deal"
+            );
+            var ownerB = await SeedOwnerWithOfferAsync(
+                "gs-offer-tenant-b-token-123",
+                offerTitle: "Shared Title Deal",
+                emailUser: "gs-offer-tenant-b@example.com"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(ownerA.LocationId, "Shared", types: "offers")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", ownerA.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var hits = (await ReadJsonAsync(response))
+                .GetProperty("groups")[0]
+                .GetProperty("hits");
+            Assert.Equal(1, hits.GetArrayLength());
+            Assert.Equal(
+                ownerA.OfferId.ToString(),
+                hits[0].GetProperty("id").GetString()
+            );
+            Assert.NotEqual(
+                ownerB.OfferId.ToString(),
+                hits[0].GetProperty("id").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetSearch_ScopesOfferHitsToShellLocation_NotSiblingLocation()
+        {
+            var seeded = await SeedMultiLocationOffersAsync(
+                "gs-offer-multi-loc-token-12"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationAId, "Deal", types: "offers")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var hits = (await ReadJsonAsync(response))
+                .GetProperty("groups")[0]
+                .GetProperty("hits");
+            Assert.Equal(1, hits.GetArrayLength());
+            Assert.Equal(
+                "Location A Deal",
+                hits[0].GetProperty("title").GetString()
+            );
+            Assert.Equal(
+                seeded.LocationAId,
+                hits[0].GetProperty("locationId").GetInt32()
+            );
+        }
+
+        [Fact]
+        public async Task GetSearch_ReturnsEmptyOfferHits_WhenBillingAdminHasOffersNoAccess()
+        {
+            var seeded = await SeedOwnerAndBillingAdminWithOfferAsync();
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "Lunch", types: "offers")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.MemberJwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            var groups = body.GetProperty("groups");
+            Assert.Equal(1, groups.GetArrayLength());
+            Assert.Equal("offers", groups[0].GetProperty("type").GetString());
+            Assert.Equal(0, groups[0].GetProperty("hits").GetArrayLength());
+        }
+
+        [Fact]
+        public async Task GetSearch_ProjectsEffectiveExpiredStatus_NotStoredActive()
+        {
+            var seeded = await SeedOwnerWithOfferAsync(
+                "gs-offer-expired-token-1234",
+                offerTitle: "Expired Lunch Deal",
+                status: CatalogOfferStatus.Active,
+                validity: CatalogOfferValidity.ChooseExpiryDate,
+                customExpiryDate: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-3))
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "Expired", types: "offers")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var hit = (await ReadJsonAsync(response))
+                .GetProperty("groups")[0]
+                .GetProperty("hits")[0];
+            Assert.Equal("Expired", hit.GetProperty("status").GetString());
+            Assert.Equal(
+                "Expired Lunch Deal",
+                hit.GetProperty("title").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetSearch_DoesNotMutateOfferStatus_WhenSearching()
+        {
+            var seeded = await SeedOwnerWithOfferAsync(
+                "gs-offer-readonly-token-123",
+                offerTitle: "Stable Draft Deal",
+                status: CatalogOfferStatus.Draft
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "Stable", types: "offers")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var offer = await context.CatalogOffers.FindAsync(seeded.OfferId);
+            Assert.NotNull(offer);
+            Assert.Equal(CatalogOfferStatus.Draft, offer!.Status);
+        }
+
         private static string SearchUrl(
             int locationId,
             string q,
@@ -892,6 +1092,248 @@ namespace TummlyBackend.Tests.Integration
             return new StaffSeed(memberJwt, inScope.Id);
         }
 
+        private async Task<OwnerOfferSeed> SeedOwnerWithOfferAsync(
+            string linkToken,
+            string offerTitle,
+            string status = CatalogOfferStatus.Active,
+            CatalogOfferValidity validity = CatalogOfferValidity.Days14AfterIssue,
+            DateOnly? customExpiryDate = null,
+            string locationName = "Camden Street",
+            string? emailUser = null
+        )
+        {
+            var owner = await SeedOwnerAsync(
+                linkToken,
+                email: emailUser ?? $"{Guid.NewGuid():N}@example.com",
+                locationName: locationName
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var now = DateTime.UtcNow;
+            var offer = new CatalogOffer
+            {
+                RestaurantLocationId = owner.LocationId,
+                Status = status,
+                OfferType = CatalogOfferType.FixedDiscount,
+                Title = offerTitle,
+                Description = "Global Search offer seed.",
+                Validity = validity,
+                CustomExpiryDate = customExpiryDate,
+                DiscountAmount = 5m,
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+            context.CatalogOffers.Add(offer);
+            await context.SaveChangesAsync();
+
+            return new OwnerOfferSeed(
+                owner.Jwt,
+                owner.LocationId,
+                owner.RestaurantId,
+                offer.Id
+            );
+        }
+
+        private async Task<MultiLocationSeed> SeedMultiLocationOffersAsync(
+            string linkTokenPrefix
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "GS Offer Multi Owner",
+                Email = $"{linkTokenPrefix}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900112",
+                Role = "Owner",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "GS Offer Multi Venue",
+                AccountType = "Multi",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var locationA = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Camden Street",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            var locationB = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Second Street",
+                Address = "2 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.AddRange(locationA, locationB);
+            await context.SaveChangesAsync();
+
+            var now = DateTime.UtcNow;
+            context.CatalogOffers.AddRange(
+                new CatalogOffer
+                {
+                    RestaurantLocationId = locationA.Id,
+                    Status = CatalogOfferStatus.Active,
+                    OfferType = CatalogOfferType.FixedDiscount,
+                    Title = "Location A Deal",
+                    Description = "A",
+                    Validity = CatalogOfferValidity.Days14AfterIssue,
+                    DiscountAmount = 5m,
+                    CreatedAt = now.AddDays(-2),
+                    UpdatedAt = now.AddDays(-2),
+                },
+                new CatalogOffer
+                {
+                    RestaurantLocationId = locationB.Id,
+                    Status = CatalogOfferStatus.Active,
+                    OfferType = CatalogOfferType.FixedDiscount,
+                    Title = "Location B Deal",
+                    Description = "B",
+                    Validity = CatalogOfferValidity.Days14AfterIssue,
+                    DiscountAmount = 5m,
+                    CreatedAt = now.AddDays(-3),
+                    UpdatedAt = now.AddDays(-3),
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return new MultiLocationSeed(jwt, locationA.Id, locationB.Id);
+        }
+
+        private async Task<BillingAdminOfferSeed> SeedOwnerAndBillingAdminWithOfferAsync()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var owner = new User
+            {
+                FullName = "GS Offer Scope Owner",
+                Email = $"gs-offer-owner-{Guid.NewGuid():N}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900114",
+                Role = "Owner",
+                AccountType = "Multi",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(owner);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "GS Offer Scope Venue",
+                AccountType = "Multi",
+                OwnerUserId = owner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "In Scope",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            context.RestaurantMemberships.Add(new RestaurantMembership
+            {
+                UserId = owner.Id,
+                RestaurantId = restaurant.Id,
+                PermissionRole = PermissionRoles.Owner,
+                LocationScope = LocationScopeKind.AllLocations,
+                NamedLocationIdsJson = "[]",
+                Status = MembershipStatus.Active,
+            });
+
+            var member = new User
+            {
+                FullName = "GS Billing Admin",
+                Email = $"gs-billing-{Guid.NewGuid():N}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900115",
+                Role = "Owner",
+                AccountType = "Multi",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                SelectedRestaurantId = restaurant.Id,
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(member);
+            await context.SaveChangesAsync();
+
+            context.RestaurantMemberships.Add(new RestaurantMembership
+            {
+                UserId = member.Id,
+                RestaurantId = restaurant.Id,
+                PermissionRole = PermissionRoles.BillingAdmin,
+                LocationScope = LocationScopeKind.AllLocations,
+                NamedLocationIdsJson = "[]",
+                Status = MembershipStatus.Active,
+            });
+
+            var now = DateTime.UtcNow;
+            context.CatalogOffers.Add(new CatalogOffer
+            {
+                RestaurantLocationId = location.Id,
+                Status = CatalogOfferStatus.Active,
+                OfferType = CatalogOfferType.FixedDiscount,
+                Title = "Lunch Special",
+                Description = "NoAccess check",
+                Validity = CatalogOfferValidity.Days14AfterIssue,
+                DiscountAmount = 5m,
+                CreatedAt = now,
+                UpdatedAt = now,
+            });
+            await context.SaveChangesAsync();
+
+            var memberJwt = jwtService.GenerateToken(
+                member.Id.ToString(),
+                member.Email,
+                member.Role
+            );
+
+            return new BillingAdminOfferSeed(memberJwt, location.Id);
+        }
+
         private static async Task<JsonElement> ReadJsonAsync(
             HttpResponseMessage response
         )
@@ -915,6 +1357,13 @@ namespace TummlyBackend.Tests.Integration
             int CampaignId
         );
 
+        private sealed record OwnerOfferSeed(
+            string Jwt,
+            int LocationId,
+            int RestaurantId,
+            int OfferId
+        );
+
         private sealed record MultiLocationSeed(
             string Jwt,
             int LocationAId,
@@ -924,6 +1373,11 @@ namespace TummlyBackend.Tests.Integration
         private sealed record StaffSeed(
             string MemberJwt,
             int InScopeLocationId
+        );
+
+        private sealed record BillingAdminOfferSeed(
+            string MemberJwt,
+            int LocationId
         );
     }
 }

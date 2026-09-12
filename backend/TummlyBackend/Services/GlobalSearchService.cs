@@ -37,6 +37,13 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (query.IncludeOffers)
+            {
+                groups.Add(
+                    await SearchOffersAsync(query, cancellationToken)
+                );
+            }
+
             return new GlobalSearchResponse
             {
                 Success = true,
@@ -136,6 +143,54 @@ namespace TummlyBackend.Services
             };
         }
 
+        private async Task<GlobalSearchGroupDto> SearchOffersAsync(
+            GlobalSearchQuery query,
+            CancellationToken cancellationToken
+        )
+        {
+            var trimmed = query.Q.Trim();
+            if (trimmed.Length < 2)
+            {
+                return EmptyGroup("offers");
+            }
+
+            var term = trimmed.ToLowerInvariant();
+            var matched = await _context.CatalogOffers
+                .AsNoTracking()
+                .Where(offer =>
+                    offer.RestaurantLocationId == query.LocationId
+                    && offer.Title.ToLower().Contains(term)
+                )
+                .Select(offer => new OfferMatchRow(
+                    offer.Id,
+                    offer.Title,
+                    offer.Status,
+                    offer.Validity,
+                    offer.CustomExpiryDate,
+                    offer.UpdatedAt,
+                    offer.RestaurantLocationId
+                ))
+                .ToListAsync(cancellationToken);
+
+            var today = CatalogOfferStatus.VenueLocalToday(
+                DateTime.UtcNow,
+                utcOffsetMinutes: 0
+            );
+            var hits = matched
+                .OrderBy(row => RankName(row.Title, term))
+                .ThenByDescending(row => row.UpdatedAt)
+                .ThenByDescending(row => row.Id)
+                .Take(query.Limit)
+                .Select(row => ToOfferHit(row, query.LocationName, today))
+                .ToList();
+
+            return new GlobalSearchGroupDto
+            {
+                Type = "offers",
+                Hits = hits,
+            };
+        }
+
         private static GlobalSearchGroupDto EmptyGroup(string type)
         {
             return new GlobalSearchGroupDto
@@ -207,6 +262,42 @@ namespace TummlyBackend.Services
             };
         }
 
+        private static GlobalSearchHitDto ToOfferHit(
+            OfferMatchRow row,
+            string locationName,
+            DateOnly venueLocalToday
+        )
+        {
+            var effective = CatalogOfferStatus.ResolveEffectiveStatus(
+                row.StoredStatus,
+                row.Validity,
+                row.CustomExpiryDate,
+                venueLocalToday
+            );
+
+            return new GlobalSearchHitDto
+            {
+                Id = row.Id.ToString(),
+                EntityType = "offer",
+                Title = row.Title,
+                Subtitle = locationName,
+                LocationId = row.LocationId,
+                LocationName = locationName,
+                Status = FormatOfferStatusLabel(effective),
+            };
+        }
+
+        private static string FormatOfferStatusLabel(string effectiveStatus)
+            => effectiveStatus switch
+            {
+                CatalogOfferStatus.Draft => "Draft",
+                CatalogOfferStatus.Active => "Active",
+                CatalogOfferStatus.Paused => "Paused",
+                CatalogOfferStatus.Expired => "Expired",
+                CatalogOfferStatus.Archived => "Archived",
+                _ => effectiveStatus,
+            };
+
         private static string? FormatChannel(string? channel)
         {
             if (string.IsNullOrWhiteSpace(channel))
@@ -260,6 +351,16 @@ namespace TummlyBackend.Services
             string Name,
             string Status,
             string? Channel,
+            DateTime UpdatedAt,
+            int LocationId
+        );
+
+        private sealed record OfferMatchRow(
+            int Id,
+            string Title,
+            string StoredStatus,
+            CatalogOfferValidity Validity,
+            DateOnly? CustomExpiryDate,
             DateTime UpdatedAt,
             int LocationId
         );

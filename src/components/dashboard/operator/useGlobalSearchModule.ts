@@ -28,6 +28,7 @@ export type OperatorGlobalSearchApi = {
   selectSuggestion: (suggestionId: string) => void
   selectGuestHit: (guestId: string) => void
   selectCampaignHit: (campaignId: string) => void
+  selectOfferHit: (offerId: string) => void
 }
 
 export function useGlobalSearchModule(args: {
@@ -35,6 +36,7 @@ export function useGlobalSearchModule(args: {
   getLocationId: () => number | null
   navigateToGuestProfile: (guestId: number, locationId: number) => void
   navigateToCampaignDetail: (campaignId: number, locationId: number) => void
+  navigateToOfferDetails: (offerId: number, locationId: number) => void
 }): OperatorGlobalSearchApi {
   const handoffRef = useRef(args.handoffSuggestionToAssistant)
   handoffRef.current = args.handoffSuggestionToAssistant
@@ -44,6 +46,8 @@ export function useGlobalSearchModule(args: {
   navigateGuestRef.current = args.navigateToGuestProfile
   const navigateCampaignRef = useRef(args.navigateToCampaignDetail)
   navigateCampaignRef.current = args.navigateToCampaignDetail
+  const navigateOfferRef = useRef(args.navigateToOfferDetails)
+  navigateOfferRef.current = args.navigateToOfferDetails
 
   const moduleRef = useRef<OperatorGlobalSearchModule | null>(null)
   if (moduleRef.current == null) {
@@ -59,11 +63,14 @@ export function useGlobalSearchModule(args: {
         navigateToCampaignDetail: (campaignId, locationId) => {
           navigateCampaignRef.current(campaignId, locationId)
         },
+        navigateToOfferDetails: (offerId, locationId) => {
+          navigateOfferRef.current(offerId, locationId)
+        },
         searchHits: async ({ q, locationId, signal }) => {
           const response = await getGlobalSearch({
             q,
             locationId,
-            types: "guests,campaigns",
+            types: "guests,campaigns,offers",
             signal,
           })
           const guestsGroup = response.groups.find(
@@ -71,6 +78,9 @@ export function useGlobalSearchModule(args: {
           )
           const campaignsGroup = response.groups.find(
             (group) => group.type === "campaigns"
+          )
+          const offersGroup = response.groups.find(
+            (group) => group.type === "offers"
           )
           return {
             guestHits: (guestsGroup?.hits ?? []).map((hit) =>
@@ -83,6 +93,15 @@ export function useGlobalSearchModule(args: {
               })
             ),
             campaignHits: (campaignsGroup?.hits ?? []).map((hit) =>
+              mapSearchHit({
+                id: hit.id,
+                title: hit.title,
+                subtitle: hit.subtitle,
+                status: hit.status,
+                locationId: hit.locationId,
+              })
+            ),
+            offerHits: (offersGroup?.hits ?? []).map((hit) =>
               mapSearchHit({
                 id: hit.id,
                 title: hit.title,
@@ -133,5 +152,6 @@ export function useGlobalSearchModule(args: {
     selectSuggestion: search.selectSuggestion,
     selectGuestHit: search.selectGuestHit,
     selectCampaignHit: search.selectCampaignHit,
+    selectOfferHit: search.selectOfferHit,
   }
 }

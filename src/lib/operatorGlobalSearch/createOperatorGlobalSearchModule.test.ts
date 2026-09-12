@@ -37,14 +37,33 @@ function makeCampaignHit(
   }
 }
 
+function makeOfferHit(
+  overrides: Partial<OperatorGlobalSearchEntityHit> = {}
+): OperatorGlobalSearchEntityHit {
+  return {
+    id: "66",
+    title: "Monday Lunch Deal",
+    subtitle: "Camden",
+    status: "Active",
+    locationId: 1,
+    initials: "ML",
+    ...overrides,
+  }
+}
+
 function makeAdapters(
   overrides: Partial<OperatorGlobalSearchAdapters> = {}
 ): OperatorGlobalSearchAdapters {
   return {
     handoffSuggestionToAssistant: vi.fn(),
-    searchHits: vi.fn(async () => ({ guestHits: [], campaignHits: [] })),
+    searchHits: vi.fn(async () => ({
+      guestHits: [],
+      campaignHits: [],
+      offerHits: [],
+    })),
     navigateToGuestProfile: vi.fn(),
     navigateToCampaignDetail: vi.fn(),
+    navigateToOfferDetails: vi.fn(),
     getLocationId: () => 1,
     debounceMs: 0,
     ...overrides,
@@ -106,6 +125,7 @@ describe("createOperatorGlobalSearchModule", () => {
       hitsPending: false,
       guestHits: [],
       campaignHits: [],
+      offerHits: [],
     })
     expect(module.getSnapshot()).toBe(module.getSnapshot())
   })
@@ -135,6 +155,7 @@ describe("createOperatorGlobalSearchModule", () => {
       query: "",
       guestHits: [],
       campaignHits: [],
+      offerHits: [],
       hitsPending: false,
     })
   })
@@ -206,6 +227,7 @@ describe("createOperatorGlobalSearchModule", () => {
     const searchHits = vi.fn(async () => ({
       guestHits: [makeGuestHit()],
       campaignHits: [makeCampaignHit()],
+      offerHits: [makeOfferHit()],
     }))
     const module = createOperatorGlobalSearchModule(
       makeAdapters({ searchHits, debounceMs: 300 })
@@ -224,6 +246,7 @@ describe("createOperatorGlobalSearchModule", () => {
       )
       expect(module.getSnapshot().guestHits).toEqual([makeGuestHit()])
       expect(module.getSnapshot().campaignHits).toEqual([makeCampaignHit()])
+      expect(module.getSnapshot().offerHits).toEqual([makeOfferHit()])
       expect(module.getSnapshot().hitsPending).toBe(false)
     })
     vi.useRealTimers()
@@ -234,10 +257,12 @@ describe("createOperatorGlobalSearchModule", () => {
     let resolveSlow!: (value: {
       guestHits: OperatorGlobalSearchEntityHit[]
       campaignHits: OperatorGlobalSearchEntityHit[]
+      offerHits: OperatorGlobalSearchEntityHit[]
     }) => void
     const slow = new Promise<{
       guestHits: OperatorGlobalSearchEntityHit[]
       campaignHits: OperatorGlobalSearchEntityHit[]
+      offerHits: OperatorGlobalSearchEntityHit[]
     }>((resolve) => {
       resolveSlow = resolve
     })
@@ -247,6 +272,7 @@ describe("createOperatorGlobalSearchModule", () => {
       .mockResolvedValueOnce({
         guestHits: [makeGuestHit({ id: "99", title: "Morgan" })],
         campaignHits: [makeCampaignHit({ id: "88", title: "Morgan offer" })],
+        offerHits: [],
       })
 
     const module = createOperatorGlobalSearchModule(
@@ -271,6 +297,7 @@ describe("createOperatorGlobalSearchModule", () => {
     resolveSlow({
       guestHits: [makeGuestHit({ id: "12", title: "Mohamed" })],
       campaignHits: [makeCampaignHit({ id: "55", title: "Mohamed brunch" })],
+      offerHits: [],
     })
     await Promise.resolve()
 
@@ -285,6 +312,7 @@ describe("createOperatorGlobalSearchModule", () => {
     const searchHits = vi.fn(async () => ({
       guestHits: [makeGuestHit()],
       campaignHits: [makeCampaignHit()],
+      offerHits: [makeOfferHit()],
     }))
     const module = createOperatorGlobalSearchModule(
       makeAdapters({ searchHits, debounceMs: 0 })
@@ -295,12 +323,14 @@ describe("createOperatorGlobalSearchModule", () => {
     await vi.waitFor(() => {
       expect(module.getSnapshot().guestHits).toHaveLength(1)
       expect(module.getSnapshot().campaignHits).toHaveLength(1)
+      expect(module.getSnapshot().offerHits).toHaveLength(1)
     })
 
     module.setQuery("m")
     expect(module.getSnapshot().query).toBe("m")
     expect(module.getSnapshot().guestHits).toEqual([])
     expect(module.getSnapshot().campaignHits).toEqual([])
+    expect(module.getSnapshot().offerHits).toEqual([])
     expect(module.getSnapshot().hitsPending).toBe(false)
     vi.useRealTimers()
   })
@@ -311,6 +341,7 @@ describe("createOperatorGlobalSearchModule", () => {
     const searchHits = vi.fn(async () => ({
       guestHits: [makeGuestHit({ id: "42", locationId: 7 })],
       campaignHits: [],
+      offerHits: [],
     }))
     const module = createOperatorGlobalSearchModule(
       makeAdapters({
@@ -334,6 +365,7 @@ describe("createOperatorGlobalSearchModule", () => {
       query: "",
       guestHits: [],
       campaignHits: [],
+      offerHits: [],
     })
     expect(navigateToGuestProfile).toHaveBeenCalledWith(42, 7)
     vi.useRealTimers()
@@ -345,6 +377,7 @@ describe("createOperatorGlobalSearchModule", () => {
     const searchHits = vi.fn(async () => ({
       guestHits: [],
       campaignHits: [makeCampaignHit({ id: "77", locationId: 9 })],
+      offerHits: [],
     }))
     const module = createOperatorGlobalSearchModule(
       makeAdapters({
@@ -368,8 +401,45 @@ describe("createOperatorGlobalSearchModule", () => {
       query: "",
       guestHits: [],
       campaignHits: [],
+      offerHits: [],
     })
     expect(navigateToCampaignDetail).toHaveBeenCalledWith(77, 9)
+    vi.useRealTimers()
+  })
+
+  it("selectOfferHit closes Search and navigates to Offer details", async () => {
+    vi.useFakeTimers()
+    const navigateToOfferDetails = vi.fn()
+    const searchHits = vi.fn(async () => ({
+      guestHits: [],
+      campaignHits: [],
+      offerHits: [makeOfferHit({ id: "88", locationId: 9 })],
+    }))
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({
+        searchHits,
+        navigateToOfferDetails,
+        getLocationId: () => 9,
+        debounceMs: 0,
+      })
+    )
+    module.open()
+    module.setQuery("lu")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().offerHits).toHaveLength(1)
+    })
+
+    module.selectOfferHit("88")
+
+    expect(module.getSnapshot()).toMatchObject({
+      open: false,
+      query: "",
+      guestHits: [],
+      campaignHits: [],
+      offerHits: [],
+    })
+    expect(navigateToOfferDetails).toHaveBeenCalledWith(88, 9)
     vi.useRealTimers()
   })
 
@@ -378,6 +448,7 @@ describe("createOperatorGlobalSearchModule", () => {
     const searchHits = vi.fn(async () => ({
       guestHits: [],
       campaignHits: [],
+      offerHits: [],
     }))
     const module = createOperatorGlobalSearchModule(
       makeAdapters({
@@ -392,6 +463,7 @@ describe("createOperatorGlobalSearchModule", () => {
     expect(searchHits).not.toHaveBeenCalled()
     expect(module.getSnapshot().guestHits).toEqual([])
     expect(module.getSnapshot().campaignHits).toEqual([])
+    expect(module.getSnapshot().offerHits).toEqual([])
     vi.useRealTimers()
   })
 })
