@@ -18,6 +18,7 @@ import { useFeedbackPageModuleApi } from "@/components/dashboard/operator/Feedba
 import { useGuestsPageModuleApi } from "@/components/dashboard/operator/Guests/utils/guestsPageModuleContext"
 import { useOffersPageModuleApi } from "@/components/dashboard/operator/Offers/utils/offersPageModuleContext"
 import { useAiAssistantModule } from "@/components/dashboard/operator/useAiAssistantModule"
+import { useGlobalSearchModule } from "@/components/dashboard/operator/useGlobalSearchModule"
 import { useNotificationsModule } from "@/components/dashboard/operator/useNotificationsModule"
 import { useWorkspaceSession } from "@/components/dashboard/operator/useWorkspaceSession"
 import { Button } from "@/components/ui/button"
@@ -27,6 +28,7 @@ import {
 } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
 import type { BillingCreditsAccess } from "@/lib/operatorHome/parseOperatorProfile"
+import { getOperatorFirstName } from "@/lib/operatorHome/operatorProfile"
 import { resolveOperatorSidebarActiveId } from "@/lib/operatorHome/operatorDashboardPaths"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
@@ -148,6 +150,26 @@ function DashboardContent({ mode }: DashboardProps) {
       offersPage.closeCreateOfferDrawer()
       closeExclusivePeerRightDrawers()
     },
+  })
+
+  const aiAssistantRef = useRef(aiAssistant)
+  aiAssistantRef.current = aiAssistant
+  const notificationsRef = useRef(notifications)
+  notificationsRef.current = notifications
+  const aiAssistantAccessRef = useRef(workspace.snapshot.aiAssistantAccess)
+  aiAssistantAccessRef.current = workspace.snapshot.aiAssistantAccess
+  const profileFirstNameRef = useRef(workspace.snapshot.operatorDisplayName)
+  profileFirstNameRef.current = workspace.snapshot.operatorDisplayName
+
+  const globalSearch = useGlobalSearchModule((prompt) => {
+    notificationsRef.current.closeDrawer()
+    if (!aiAssistantAccessRef.current) {
+      return
+    }
+    aiAssistantRef.current.openDrawer({
+      operatorFirstName: getOperatorFirstName(profileFirstNameRef.current),
+    })
+    aiAssistantRef.current.setComposerDraft(prompt)
   })
 
   const loadRef = useRef(workspace.load)
@@ -411,6 +433,23 @@ function DashboardContent({ mode }: DashboardProps) {
           }
           : undefined
       }
+      globalSearch={{
+        snapshot: globalSearch.snapshot,
+        onOpen: () => {
+          notifications.closeDrawer()
+          globalSearch.open()
+        },
+        onOpenChange: (open) => {
+          if (open) {
+            notifications.closeDrawer()
+            globalSearch.open()
+          } else {
+            globalSearch.close()
+          }
+        },
+        onQueryChange: globalSearch.setQuery,
+        onSelectSuggestion: globalSearch.selectSuggestion,
+      }}
     >
       <Outlet
         context={{

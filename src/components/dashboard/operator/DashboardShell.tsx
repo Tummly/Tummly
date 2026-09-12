@@ -7,6 +7,7 @@ import logo from "@/assets/svg/logo.svg"
 import { AiAssistantDrawer } from "@/components/dashboard/operator/AiAssistantDrawer"
 import { DashboardNavbar } from "@/components/dashboard/operator/DashboardNavbar"
 import { DashboardSidebar } from "@/components/dashboard/operator/DashboardSidebar"
+import { GlobalSearchOverlay } from "@/components/dashboard/operator/GlobalSearchOverlay"
 import { MobileNavSheetHeader } from "@/components/dashboard/operator/MobileNavSheetHeader"
 import { NotificationsDrawer } from "@/components/dashboard/operator/NotificationsDrawer"
 import { Button } from "@/components/ui/button"
@@ -51,6 +52,7 @@ import type {
   OperatorNotificationsSnapshot,
   OperatorNotificationsTab,
 } from "@/lib/operatorNotifications/createOperatorNotificationsModule"
+import type { OperatorGlobalSearchSnapshot } from "@/lib/operatorGlobalSearch/createOperatorGlobalSearchModule"
 import { cn } from "@/lib/utils"
 import type { OperatorShellPresentation } from "@/types/operatorHome"
 
@@ -115,6 +117,13 @@ type DashboardShellProps = {
     onAddCredits: () => void
     onFollowRestorationHelper: () => void
   }
+  globalSearch?: {
+    snapshot: OperatorGlobalSearchSnapshot
+    onOpen: () => void
+    onOpenChange: (open: boolean) => void
+    onQueryChange: (query: string) => void
+    onSelectSuggestion: (suggestionId: string) => void
+  }
   children?: ReactNode
 }
 
@@ -132,6 +141,7 @@ export function DashboardShell({
   onSignOut,
   notifications,
   aiAssistant,
+  globalSearch,
   children,
 }: DashboardShellProps) {
   const location = useLocation()
@@ -191,6 +201,11 @@ export function DashboardShell({
     aiAssistant?.onOpen()
   }
 
+  const handleOpenGlobalSearch = () => {
+    setMobileNavOpen(false)
+    globalSearch?.onOpen()
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-op-header-background">
       {!isShopPage && (
@@ -228,6 +243,12 @@ export function DashboardShell({
             aiAssistant ? handleOpenAiAssistant : undefined
           }
           aiAssistantOpen={Boolean(aiAssistant?.snapshot.drawerOpen)}
+          onOpenGlobalSearch={
+            globalSearch ? handleOpenGlobalSearch : undefined
+          }
+          globalSearchShortcutModifierLabel={
+            globalSearch?.snapshot.shortcutModifierLabel
+          }
           onRouteDestination={aiAssistant?.onRouteDestination}
           onSelectLocation={handleSelectLocation}
           onSignOut={onSignOut}
@@ -280,6 +301,15 @@ export function DashboardShell({
           onOpenSettings={notifications.onOpenSettings}
           onCloseSettings={notifications.onCloseSettings}
           onSetPreference={notifications.onSetPreference}
+        />
+      ) : null}
+
+      {globalSearch ? (
+        <GlobalSearchOverlay
+          snapshot={globalSearch.snapshot}
+          onOpenChange={globalSearch.onOpenChange}
+          onQueryChange={globalSearch.onQueryChange}
+          onSelectSuggestion={globalSearch.onSelectSuggestion}
         />
       ) : null}
 
@@ -370,7 +400,14 @@ export function DashboardShell({
               <SheetTitle>Operator navigation</SheetTitle>
               <SheetDescription>Open dashboard sections.</SheetDescription>
             </SheetHeader>
-            <MobileNavSheetHeader />
+            <MobileNavSheetHeader
+              onOpenGlobalSearch={
+                globalSearch ? handleOpenGlobalSearch : undefined
+              }
+              globalSearchShortcutModifierLabel={
+                globalSearch?.snapshot.shortcutModifierLabel
+              }
+            />
             <div className="min-h-0 flex-1 overflow-y-auto">
               <DashboardSidebar
                 sidebarNav={presentation.sidebarNav}
