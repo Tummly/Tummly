@@ -11,19 +11,10 @@ namespace TummlyBackend.Services
     {
         private const int CommentExcerptMaxLength = 120;
 
-        private static readonly (string Key, string Label)[] DetectedTagLabels =
-        [
-            (nameof(DetectedTag.FoodQuality), "Food quality"),
-            (nameof(DetectedTag.Service), "Service"),
-            (nameof(DetectedTag.WaitTime), "Wait time"),
-            (nameof(DetectedTag.Cleanliness), "Cleanliness"),
-            (nameof(DetectedTag.Value), "Value"),
-            (nameof(DetectedTag.Atmosphere), "Atmosphere"),
-            (nameof(DetectedTag.Billing), "Billing"),
-            (nameof(DetectedTag.AllergiesDietary), "Allergies & dietary"),
-            (nameof(DetectedTag.BookingSeating), "Booking & seating"),
-            (nameof(DetectedTag.Other), "Other"),
-        ];
+        private static readonly (string Key, string Label)[] FeedbackSearchTagLabels =
+            Enum.GetValues<DetectedTag>()
+                .Select(tag => (tag.ToString(), DetectedTagLabels.For(tag)))
+                .ToArray();
 
         private readonly ApplicationDbContext _context;
 
@@ -275,7 +266,7 @@ namespace TummlyBackend.Services
             string needle
         )
         {
-            var matchingTagKeys = DetectedTagLabels
+            var matchingTagKeys = FeedbackSearchTagLabels
                 .Where(pair =>
                     pair.Label.Contains(needle, StringComparison.OrdinalIgnoreCase)
                     || pair.Key.Contains(needle, StringComparison.OrdinalIgnoreCase)
@@ -450,7 +441,9 @@ namespace TummlyBackend.Services
                 Subtitle = TruncateComment(row.Comment),
                 LocationId = row.LocationId,
                 LocationName = locationName,
-                Status = FormatWorkflowStatus(row.WorkflowStatus),
+                Status = FeedbackWorkflowStatusMapping.ToOperatorLabel(
+                    row.WorkflowStatus
+                ),
             };
         }
 
@@ -506,15 +499,6 @@ namespace TummlyBackend.Services
 
             return trimmed[..CommentExcerptMaxLength].TrimEnd() + "…";
         }
-
-        private static string FormatWorkflowStatus(FeedbackWorkflowStatus status)
-            => status switch
-            {
-                FeedbackWorkflowStatus.New => "New",
-                FeedbackWorkflowStatus.InProgress => "In progress",
-                FeedbackWorkflowStatus.Resolved => "Resolved",
-                _ => "New",
-            };
 
         private static string FormatOfferStatusLabel(string effectiveStatus)
             => effectiveStatus switch

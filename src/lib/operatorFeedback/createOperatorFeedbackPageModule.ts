@@ -1323,6 +1323,13 @@ export function createOperatorFeedbackPageModule(
     }
   }
 
+  const openFeedbackDetails = async (feedbackId: number) => {
+    closeExclusiveAssistantDrawer()
+    await feedbackDetails.open(feedbackId)
+    refreshListNavigation(feedbackId)
+    publish()
+  }
+
 
 
   return {
@@ -1644,12 +1651,7 @@ export function createOperatorFeedbackPageModule(
         return false
       }
     },
-    async openFeedbackDetails(feedbackId) {
-      closeExclusiveAssistantDrawer()
-      await feedbackDetails.open(feedbackId)
-      refreshListNavigation(feedbackId)
-      publish()
-    },
+    openFeedbackDetails,
     async openFeedbackDetailsFromQuery(input) {
       if (input.startRecovery) {
         feedbackDetails.close()
@@ -1657,10 +1659,7 @@ export function createOperatorFeedbackPageModule(
         await refreshSummaryAndInbox()
         return "recovery"
       }
-      closeExclusiveAssistantDrawer()
-      await feedbackDetails.open(input.feedbackId)
-      refreshListNavigation(input.feedbackId)
-      publish()
+      await openFeedbackDetails(input.feedbackId)
       return "details"
     },
     closeFeedbackDetails() {
