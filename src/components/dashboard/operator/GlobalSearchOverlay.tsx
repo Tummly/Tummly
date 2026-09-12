@@ -2,6 +2,8 @@ import { ArrowRightIcon, ArrowUpIcon, ArrowDownIcon, CornerDownLeftIcon } from "
 
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { AiIcon } from "@/components/ui/ai-icon"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -21,8 +23,11 @@ import {
   GLOBAL_SEARCH_AI_HEADING,
   GLOBAL_SEARCH_AI_ROW_CLASS,
   GLOBAL_SEARCH_DIALOG_TITLE,
+  GLOBAL_SEARCH_ENTITY_AVATAR_CLASS,
+  GLOBAL_SEARCH_ENTITY_ROW_CLASS,
   GLOBAL_SEARCH_FOOTER_CLASS,
   GLOBAL_SEARCH_FOOTER_HINT_CLASS,
+  GLOBAL_SEARCH_GUESTS_HEADING,
   GLOBAL_SEARCH_INPUT_CLASS,
   GLOBAL_SEARCH_INPUT_ROW_CLASS,
   GLOBAL_SEARCH_KBD_CLASS,
@@ -36,16 +41,27 @@ type GlobalSearchOverlayProps = {
   onOpenChange: (open: boolean) => void
   onQueryChange: (query: string) => void
   onSelectSuggestion: (suggestionId: string) => void
+  onSelectGuestHit: (guestId: string) => void
 }
+
+const COMMAND_GROUP_HEADING_CLASS = cn(
+  "p-0",
+  "**:[[cmdk-group-heading]]:px-5 **:[[cmdk-group-heading]]:pt-5 **:[[cmdk-group-heading]]:pb-3",
+  "**:[[cmdk-group-heading]]:text-sm **:[[cmdk-group-heading]]:font-medium",
+  "**:[[cmdk-group-heading]]:text-op-header-search-text"
+)
 
 export function GlobalSearchOverlay({
   snapshot,
   onOpenChange,
   onQueryChange,
   onSelectSuggestion,
+  onSelectGuestHit,
 }: GlobalSearchOverlayProps) {
+  const trimmedQuery = snapshot.query.trim()
   const showEmptyAi =
-    snapshot.query.trim().length === 0 && snapshot.emptySuggestions.length > 0
+    trimmedQuery.length === 0 && snapshot.emptySuggestions.length > 0
+  const showGuestsGroup = trimmedQuery.length >= 2
 
   return (
     <Dialog open={snapshot.open} onOpenChange={onOpenChange}>
@@ -91,12 +107,7 @@ export function GlobalSearchOverlay({
             {showEmptyAi ? (
               <CommandGroup
                 heading={GLOBAL_SEARCH_AI_HEADING}
-                className={cn(
-                  "p-0",
-                  "**:[[cmdk-group-heading]]:px-5 **:[[cmdk-group-heading]]:pt-5 **:[[cmdk-group-heading]]:pb-3",
-                  "**:[[cmdk-group-heading]]:text-sm **:[[cmdk-group-heading]]:font-medium",
-                  "**:[[cmdk-group-heading]]:text-op-header-search-text"
-                )}
+                className={COMMAND_GROUP_HEADING_CLASS}
               >
                 {snapshot.emptySuggestions.map((suggestion) => (
                   <CommandItem
@@ -113,6 +124,43 @@ export function GlobalSearchOverlay({
                       className="size-3.5 shrink-0 text-op-header-search-text"
                       aria-hidden
                     />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ) : null}
+
+            {showGuestsGroup ? (
+              <CommandGroup
+                heading={GLOBAL_SEARCH_GUESTS_HEADING}
+                className={COMMAND_GROUP_HEADING_CLASS}
+              >
+                {snapshot.guestHits.map((hit) => (
+                  <CommandItem
+                    key={hit.id}
+                    value={`guest-${hit.id}`}
+                    onSelect={() => onSelectGuestHit(hit.id)}
+                    className={GLOBAL_SEARCH_ENTITY_ROW_CLASS}
+                  >
+                    <Avatar className="size-8 shrink-0">
+                      <AvatarFallback className={GLOBAL_SEARCH_ENTITY_AVATAR_CLASS}>
+                        {hit.initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-op-text-primary">
+                        {hit.title}
+                      </span>
+                      {hit.subtitle ? (
+                        <span className="block truncate text-xs text-op-header-search-text">
+                          {hit.subtitle}
+                        </span>
+                      ) : null}
+                    </span>
+                    {hit.status ? (
+                      <Badge variant="soft" className="shrink-0">
+                        {hit.status}
+                      </Badge>
+                    ) : null}
                   </CommandItem>
                 ))}
               </CommandGroup>

@@ -6,13 +6,32 @@ import {
   isGlobalSearchOpenShortcut,
   shortcutModifierLabel,
   type OperatorGlobalSearchAdapters,
+  type OperatorGlobalSearchGuestHit,
 } from "./createOperatorGlobalSearchModule"
+
+function makeGuestHit(
+  overrides: Partial<OperatorGlobalSearchGuestHit> = {}
+): OperatorGlobalSearchGuestHit {
+  return {
+    id: "12",
+    title: "Mohamed",
+    subtitle: "a@example.com",
+    status: "Eligible — Email",
+    locationId: 1,
+    initials: "M",
+    ...overrides,
+  }
+}
 
 function makeAdapters(
   overrides: Partial<OperatorGlobalSearchAdapters> = {}
 ): OperatorGlobalSearchAdapters {
   return {
     handoffSuggestionToAssistant: vi.fn(),
+    searchGuests: vi.fn(async () => ({ hits: [] })),
+    navigateToGuestProfile: vi.fn(),
+    getLocationId: () => 1,
+    debounceMs: 0,
     ...overrides,
   }
 }
@@ -69,6 +88,8 @@ describe("createOperatorGlobalSearchModule", () => {
       open: false,
       query: "",
       emptySuggestions: [...EMPTY_AI_SUGGESTIONS],
+      hitsPending: false,
+      guestHits: [],
     })
     expect(module.getSnapshot()).toBe(module.getSnapshot())
   })
@@ -141,6 +162,8 @@ describe("createOperatorGlobalSearchModule", () => {
     expect(module.getSnapshot()).toMatchObject({
       open: false,
       query: "",
+      guestHits: [],
+      hitsPending: false,
     })
     expect(handoffSuggestionToAssistant).toHaveBeenCalledTimes(1)
     expect(handoffSuggestionToAssistant).toHaveBeenCalledWith(first!.prompt)
@@ -189,5 +212,144 @@ describe("createOperatorGlobalSearchModule", () => {
 
     module.open()
     expect(module.getSnapshot().open).toBe(true)
+  })
+
+  it("updates query immediately and debounces guest search without blocking typing", async () => {
+    vi.useFakeTimers()
+    const searchGuests = vi.fn(async () => ({
+      hits: [makeGuestHit()],
+    }))
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({ searchGuests, debounceMs: 300 })
+    )
+    module.open()
+
+    module.setQuery("mo")
+    expect(module.getSnapshot().query).toBe("mo")
+    expect(searchGuests).not.toHaveBeenCalled()
+    expect(module.getSnapshot().hitsPending).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(300)
+    await vi.waitFor(() => {
+      expect(searchGuests).toHaveBeenCalledWith(
+        expect.objectContaining({ q: "mo", locationId: 1 })
+      )
+      expect(module.getSnapshot().guestHits).toEqual([makeGuestHit()])
+      expect(module.getSnapshot().hitsPending).toBe(false)
+    })
+    vi.useRealTimers()
+  })
+
+  it("ignores stale guest search results when a newer query wins", async () => {
+    vi.useFakeTimers()
+    let resolveSlow!: (value: { hits: OperatorGlobalSearchGuestHit[] }) => void
+    const slow = new Promise<{ hits: OperatorGlobalSearchGuestHit[] }>(
+      (resolve) => {
+        resolveSlow = resolve
+      }
+    )
+    const searchGuests = vi
+      .fn()
+      .mockImplementationOnce(() => slow)
+      .mockResolvedValueOnce({
+        hits: [makeGuestHit({ id: "99", title: "Morgan" })],
+      })
+
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({ searchGuests, debounceMs: 0 })
+    )
+    module.open()
+
+    module.setQuery("mo")
+    await vi.advanceTimersByTimeAsync(0)
+    expect(module.getSnapshot().hitsPending).toBe(true)
+
+    module.setQuery("mor")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(searchGuests).toHaveBeenCalledTimes(2)
+    })
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().guestHits[0]?.title).toBe("Morgan")
+    })
+
+    resolveSlow({ hits: [makeGuestHit({ id: "12", title: "Mohamed" })] })
+    await Promise.resolve()
+
+    expect(module.getSnapshot().guestHits[0]?.title).toBe("Morgan")
+    expect(module.getSnapshot().hitsPending).toBe(false)
+    vi.useRealTimers()
+  })
+
+  it("clears guest hits when query drops below two characters", async () => {
+    vi.useFakeTimers()
+    const searchGuests = vi.fn(async () => ({
+      hits: [makeGuestHit()],
+    }))
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({ searchGuests, debounceMs: 0 })
+    )
+    module.open()
+    module.setQuery("mo")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().guestHits).toHaveLength(1)
+    })
+
+    module.setQuery("m")
+    expect(module.getSnapshot().query).toBe("m")
+    expect(module.getSnapshot().guestHits).toEqual([])
+    expect(module.getSnapshot().hitsPending).toBe(false)
+    vi.useRealTimers()
+  })
+
+  it("selectGuestHit closes Search and navigates to Guest profile", async () => {
+    vi.useFakeTimers()
+    const navigateToGuestProfile = vi.fn()
+    const searchGuests = vi.fn(async () => ({
+      hits: [makeGuestHit({ id: "42", locationId: 7 })],
+    }))
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({
+        searchGuests,
+        navigateToGuestProfile,
+        getLocationId: () => 7,
+        debounceMs: 0,
+      })
+    )
+    module.open()
+    module.setQuery("mo")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().guestHits).toHaveLength(1)
+    })
+
+    module.selectGuestHit("42")
+
+    expect(module.getSnapshot()).toMatchObject({
+      open: false,
+      query: "",
+      guestHits: [],
+    })
+    expect(navigateToGuestProfile).toHaveBeenCalledWith(42, 7)
+    vi.useRealTimers()
+  })
+
+  it("does not search when overlay is closed or location is missing", async () => {
+    vi.useFakeTimers()
+    const searchGuests = vi.fn(async () => ({ hits: [] }))
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({
+        searchGuests,
+        getLocationId: () => null,
+        debounceMs: 0,
+      })
+    )
+    module.open()
+    module.setQuery("mo")
+    await vi.advanceTimersByTimeAsync(0)
+    expect(searchGuests).not.toHaveBeenCalled()
+    expect(module.getSnapshot().guestHits).toEqual([])
+    vi.useRealTimers()
   })
 })

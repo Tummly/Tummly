@@ -29,7 +29,10 @@ import {
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
 import type { BillingCreditsAccess } from "@/lib/operatorHome/parseOperatorProfile"
 import { getOperatorFirstName } from "@/lib/operatorHome/operatorProfile"
-import { resolveOperatorSidebarActiveId } from "@/lib/operatorHome/operatorDashboardPaths"
+import {
+  operatorDashboardGuestProfilePath,
+  resolveOperatorSidebarActiveId,
+} from "@/lib/operatorHome/operatorDashboardPaths"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 
@@ -159,13 +162,19 @@ function DashboardContent({ mode }: DashboardProps) {
   const profileFirstNameRef = useRef(workspace.snapshot.operatorDisplayName)
   profileFirstNameRef.current = workspace.snapshot.operatorDisplayName
 
-  const globalSearch = useGlobalSearchModule((prompt) => {
-    notificationsRef.current.closeDrawer()
-    // Soft lock / Dormant / zero credits still fill; Send stays gated in Assistant.
-    aiAssistantRef.current.openDrawer({
-      operatorFirstName: getOperatorFirstName(profileFirstNameRef.current),
-    })
-    aiAssistantRef.current.setComposerDraft(prompt)
+  const globalSearch = useGlobalSearchModule({
+    handoffSuggestionToAssistant: (prompt) => {
+      notificationsRef.current.closeDrawer()
+      // Soft lock / Dormant / zero credits still fill; Send stays gated in Assistant.
+      aiAssistantRef.current.openDrawer({
+        operatorFirstName: getOperatorFirstName(profileFirstNameRef.current),
+      })
+      aiAssistantRef.current.setComposerDraft(prompt)
+    },
+    getLocationId: () => workspace.snapshot.selectedLocationId,
+    navigateToGuestProfile: (guestId, locationId) => {
+      navigate(operatorDashboardGuestProfilePath(mode, guestId, locationId))
+    },
   })
 
   const loadRef = useRef(workspace.load)
@@ -445,6 +454,7 @@ function DashboardContent({ mode }: DashboardProps) {
         },
         onQueryChange: globalSearch.setQuery,
         onSelectSuggestion: globalSearch.selectSuggestion,
+        onSelectGuestHit: globalSearch.selectGuestHit,
       }}
     >
       <Outlet

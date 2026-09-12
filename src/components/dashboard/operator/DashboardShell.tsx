@@ -123,6 +123,7 @@ type DashboardShellProps = {
     onOpenChange: (open: boolean) => void
     onQueryChange: (query: string) => void
     onSelectSuggestion: (suggestionId: string) => void
+    onSelectGuestHit: (guestId: string) => void
   }
   children?: ReactNode
 }
@@ -310,6 +311,7 @@ export function DashboardShell({
           onOpenChange={globalSearch.onOpenChange}
           onQueryChange={globalSearch.onQueryChange}
           onSelectSuggestion={globalSearch.onSelectSuggestion}
+          onSelectGuestHit={globalSearch.onSelectGuestHit}
         />
       ) : null}
 

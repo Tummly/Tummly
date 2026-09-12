@@ -276,6 +276,7 @@ builder.Services.AddScoped<IGuestsListService>(sp =>
 builder.Services.AddScoped<IGuestsExportService>(sp =>
     sp.GetRequiredService<GuestsListService>()
 );
+builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();
 
 builder.Services.AddScoped<CaptureWindowedEngagementAggregate>();
 builder.Services.AddScoped<CaptureMultiLocationReadsService>();
