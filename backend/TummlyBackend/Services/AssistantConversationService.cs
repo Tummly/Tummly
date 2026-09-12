@@ -513,14 +513,50 @@ namespace TummlyBackend.Services
 
             var cap = Math.Max(0, _liveAnswerSettings.AssistantHistoryMessageCap);
             var historyEnd = Math.Max(0, lastUserIndex);
-            return ordered
-                .Take(historyEnd)
+            var prior = ordered.Take(historyEnd).ToList();
+            var filtered = FilterUnansweredVagueClarifyPairs(prior);
+            return filtered
                 .TakeLast(cap)
                 .Select(message => new AssistantLiveAnswerHistoryTurn(
                     message.Role,
                     message.Body
                 ))
                 .ToList();
+        }
+
+        /// <summary>
+        /// Drop VagueAsk clarify turns and the user ask that produced them so a
+        /// later retrieve does not answer that earlier open question from history.
+        /// </summary>
+        private static List<AssistantMessage> FilterUnansweredVagueClarifyPairs(
+            IReadOnlyList<AssistantMessage> prior
+        )
+        {
+            var filtered = new List<AssistantMessage>(prior.Count);
+            for (var i = 0; i < prior.Count; i++)
+            {
+                var message = prior[i];
+                if (message.Role == AssistantMessageRole.Assistant
+                    && message.Class == AssistantMessageClass.Clarify
+                    && string.Equals(
+                        message.Body,
+                        AssistantLiveAnswerCopy.VagueAskClarifyBody,
+                        StringComparison.Ordinal
+                    ))
+                {
+                    if (filtered.Count > 0
+                        && filtered[^1].Role == AssistantMessageRole.User)
+                    {
+                        filtered.RemoveAt(filtered.Count - 1);
+                    }
+
+                    continue;
+                }
+
+                filtered.Add(message);
+            }
+
+            return filtered;
         }
 
         private async Task<AssistantTurnOutcome> CompleteTurnAsync(

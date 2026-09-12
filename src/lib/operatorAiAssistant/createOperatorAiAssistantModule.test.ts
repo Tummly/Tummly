@@ -1179,6 +1179,72 @@ describe("empty-state chips and composer placeholders", () => {
 })
 
 describe("first send creates a durable Assistant conversation", () => {
+  it("keeps send locked until the turn finishes so the wait row is not a finished answer", async () => {
+    let release!: (
+      row: ReturnType<
+        typeof createInMemoryOperatorAiAssistantAdapters
+      >["conversations"][number]
+    ) => void
+    const pending = new Promise<
+      ReturnType<
+        typeof createInMemoryOperatorAiAssistantAdapters
+      >["conversations"][number]
+    >((resolve) => {
+      release = resolve
+    })
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: () => pending,
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("How many guests are on all Locations")
+    module.send()
+
+    const snapshot = module.getSnapshot()
+    expect(snapshot.turnInFlight).toBe(true)
+    expect(snapshot.sendLocked).toBe(true)
+    const wait = snapshot.messages.find((message) => message.role === "wait")
+    expect(wait?.body).toBeTruthy()
+    expect(wait?.body).not.toMatch(/Checking Feedback/i)
+    expect(wait?.body).not.toMatch(/Grouping recurring issues/i)
+
+    module.setComposerDraft("Second prompt")
+    module.send()
+    expect(module.getSnapshot().messages.filter((m) => m.role === "user")).toHaveLength(
+      1
+    )
+
+    release({
+      id: "conv-1",
+      title: "How many guests",
+      analysisScope: module.getSnapshot().analysisScope!,
+      lastActivityAt: new Date().toISOString(),
+      isArchived: false,
+      messages: [
+        {
+          id: "u1",
+          role: "user",
+          body: "How many guests are on all Locations",
+        },
+        {
+          id: "a1",
+          role: "assistant",
+          class: "grounded",
+          body: "2 guests configured on the location.",
+        },
+      ],
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().turnInFlight).toBe(false)
+    expect(module.getSnapshot().sendLocked).toBe(false)
+    expect(
+      module.getSnapshot().messages.find((m) => m.role === "assistant")?.body
+    ).toContain("2 guests")
+  })
+
   it("replaces the wait text with live pipeline progress and ignores late events", async () => {
     let release!: (
       row: ReturnType<

@@ -402,7 +402,6 @@ function DashboardContent({ mode }: DashboardProps) {
             onDismissMicError: aiAssistant.dismissMicError,
             micAudioLevelSource: aiAssistant.micAudioLevelSource,
             onRetry: aiAssistant.retry,
-            onToggleHelpful: aiAssistant.toggleHelpful,
             onActivateAction: aiAssistant.clickAction,
             onDismissFromEscape: aiAssistant.dismissFromEscape,
             onRefreshCreditsChrome: aiAssistant.refreshCreditsChrome,

@@ -27,7 +27,6 @@ import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudio
 import type {
   OperatorAiAssistantAction,
   OperatorAiAssistantDraftLocation,
-  OperatorAiAssistantHelpfulFill,
   OperatorAiAssistantSnapshot,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import { assistantSideNavExpandLock } from "@/lib/operatorHome/assistantSideNavExpandLock"
@@ -109,10 +108,6 @@ type DashboardShellProps = {
     onDismissMicError: () => void
     micAudioLevelSource: GuestMicAudioLevelSource
     onRetry: () => void
-    onToggleHelpful: (
-      messageId: string,
-      fill: OperatorAiAssistantHelpfulFill
-    ) => void
     onActivateAction: (action: OperatorAiAssistantAction) => void
     onDismissFromEscape: () => void
     onRefreshCreditsChrome: () => void
@@ -504,7 +499,6 @@ export function DashboardShell({
             onDismissMicError={aiAssistant.onDismissMicError}
             micAudioLevelSource={aiAssistant.micAudioLevelSource}
             onRetry={aiAssistant.onRetry}
-            onToggleHelpful={aiAssistant.onToggleHelpful}
             onActivateAction={aiAssistant.onActivateAction}
             onDismissFromEscape={aiAssistant.onDismissFromEscape}
             onViewUsage={aiAssistant.onViewUsage}
