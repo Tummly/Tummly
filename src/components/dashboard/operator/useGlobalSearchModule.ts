@@ -27,6 +27,7 @@ export type OperatorGlobalSearchApi = {
   setQuery: (query: string) => void
   selectSuggestion: (suggestionId: string) => void
   selectGuestHit: (guestId: string) => void
+  selectFeedbackHit: (feedbackId: string) => void
   selectCampaignHit: (campaignId: string) => void
   selectOfferHit: (offerId: string) => void
 }
@@ -35,6 +36,7 @@ export function useGlobalSearchModule(args: {
   handoffSuggestionToAssistant: OperatorGlobalSearchHandoff
   getLocationId: () => number | null
   navigateToGuestProfile: (guestId: number, locationId: number) => void
+  navigateToFeedbackDetail: (feedbackId: number, locationId: number) => void
   navigateToCampaignDetail: (campaignId: number, locationId: number) => void
   navigateToOfferDetails: (offerId: number, locationId: number) => void
 }): OperatorGlobalSearchApi {
@@ -44,6 +46,8 @@ export function useGlobalSearchModule(args: {
   getLocationIdRef.current = args.getLocationId
   const navigateGuestRef = useRef(args.navigateToGuestProfile)
   navigateGuestRef.current = args.navigateToGuestProfile
+  const navigateFeedbackRef = useRef(args.navigateToFeedbackDetail)
+  navigateFeedbackRef.current = args.navigateToFeedbackDetail
   const navigateCampaignRef = useRef(args.navigateToCampaignDetail)
   navigateCampaignRef.current = args.navigateToCampaignDetail
   const navigateOfferRef = useRef(args.navigateToOfferDetails)
@@ -60,6 +64,9 @@ export function useGlobalSearchModule(args: {
         navigateToGuestProfile: (guestId, locationId) => {
           navigateGuestRef.current(guestId, locationId)
         },
+        navigateToFeedbackDetail: (feedbackId, locationId) => {
+          navigateFeedbackRef.current(feedbackId, locationId)
+        },
         navigateToCampaignDetail: (campaignId, locationId) => {
           navigateCampaignRef.current(campaignId, locationId)
         },
@@ -70,11 +77,14 @@ export function useGlobalSearchModule(args: {
           const response = await getGlobalSearch({
             q,
             locationId,
-            types: "guests,campaigns,offers",
+            types: "guests,feedback,campaigns,offers",
             signal,
           })
           const guestsGroup = response.groups.find(
             (group) => group.type === "guests"
+          )
+          const feedbackGroup = response.groups.find(
+            (group) => group.type === "feedback"
           )
           const campaignsGroup = response.groups.find(
             (group) => group.type === "campaigns"
@@ -84,6 +94,15 @@ export function useGlobalSearchModule(args: {
           )
           return {
             guestHits: (guestsGroup?.hits ?? []).map((hit) =>
+              mapSearchHit({
+                id: hit.id,
+                title: hit.title,
+                subtitle: hit.subtitle,
+                status: hit.status,
+                locationId: hit.locationId,
+              })
+            ),
+            feedbackHits: (feedbackGroup?.hits ?? []).map((hit) =>
               mapSearchHit({
                 id: hit.id,
                 title: hit.title,
@@ -151,6 +170,7 @@ export function useGlobalSearchModule(args: {
     setQuery: search.setQuery,
     selectSuggestion: search.selectSuggestion,
     selectGuestHit: search.selectGuestHit,
+    selectFeedbackHit: search.selectFeedbackHit,
     selectCampaignHit: search.selectCampaignHit,
     selectOfferHit: search.selectOfferHit,
   }

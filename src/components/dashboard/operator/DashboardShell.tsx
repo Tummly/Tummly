@@ -124,6 +124,7 @@ type DashboardShellProps = {
     onQueryChange: (query: string) => void
     onSelectSuggestion: (suggestionId: string) => void
     onSelectGuestHit: (guestId: string) => void
+    onSelectFeedbackHit: (feedbackId: string) => void
     onSelectCampaignHit: (campaignId: string) => void
     onSelectOfferHit: (offerId: string) => void
   }
@@ -314,6 +315,7 @@ export function DashboardShell({
           onQueryChange={globalSearch.onQueryChange}
           onSelectSuggestion={globalSearch.onSelectSuggestion}
           onSelectGuestHit={globalSearch.onSelectGuestHit}
+          onSelectFeedbackHit={globalSearch.onSelectFeedbackHit}
           onSelectCampaignHit={globalSearch.onSelectCampaignHit}
           onSelectOfferHit={globalSearch.onSelectOfferHit}
         />

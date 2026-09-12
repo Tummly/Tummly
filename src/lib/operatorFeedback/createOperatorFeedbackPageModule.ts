@@ -223,6 +223,15 @@ export type OperatorFeedbackPageModule = {
   downloadExport: () => Promise<void>
   exportSingleFeedback: (feedbackId: number) => Promise<boolean>
   openFeedbackDetails: (feedbackId: number) => Promise<void>
+  /**
+   * Honour Global Search / Reports detail-open query, or Location Start recovery.
+   * Bare feedbackId opens the detail drawer; startRecovery opens Start recovery.
+   * Missing/deleted Feedback fails safely via the details module load error.
+   */
+  openFeedbackDetailsFromQuery: (input: {
+    feedbackId: number
+    startRecovery?: boolean
+  }) => Promise<"details" | "recovery">
   closeFeedbackDetails: () => void
   openPreviousFeedback: () => Promise<void>
   openNextFeedback: () => Promise<void>
@@ -1640,6 +1649,19 @@ export function createOperatorFeedbackPageModule(
       await feedbackDetails.open(feedbackId)
       refreshListNavigation(feedbackId)
       publish()
+    },
+    async openFeedbackDetailsFromQuery(input) {
+      if (input.startRecovery) {
+        feedbackDetails.close()
+        await startRecovery.open(input.feedbackId)
+        await refreshSummaryAndInbox()
+        return "recovery"
+      }
+      closeExclusiveAssistantDrawer()
+      await feedbackDetails.open(input.feedbackId)
+      refreshListNavigation(input.feedbackId)
+      publish()
+      return "details"
     },
     closeFeedbackDetails() {
       feedbackDetails.close()

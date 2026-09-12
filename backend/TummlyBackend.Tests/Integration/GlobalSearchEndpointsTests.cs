@@ -45,7 +45,7 @@ namespace TummlyBackend.Tests.Integration
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                SearchUrl(other.LocationId, "mo")
+                SearchUrl(other.LocationId, "mo", types: "guests")
             );
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", owner.Jwt);
@@ -62,7 +62,7 @@ namespace TummlyBackend.Tests.Integration
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                SearchUrl(999_999, "mo")
+                SearchUrl(999_999, "mo", types: "guests")
             );
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", owner.Jwt);
@@ -83,7 +83,7 @@ namespace TummlyBackend.Tests.Integration
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                SearchUrl(seeded.LocationId, "m")
+                SearchUrl(seeded.LocationId, "m", types: "guests")
             );
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
@@ -112,7 +112,7 @@ namespace TummlyBackend.Tests.Integration
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                SearchUrl(seeded.LocationId, "mo")
+                SearchUrl(seeded.LocationId, "mo", types: "guests")
             );
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
@@ -172,7 +172,7 @@ namespace TummlyBackend.Tests.Integration
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                SearchUrl(ownerA.LocationId, "mo")
+                SearchUrl(ownerA.LocationId, "mo", types: "guests")
             );
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", ownerA.Jwt);
@@ -207,7 +207,7 @@ namespace TummlyBackend.Tests.Integration
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                SearchUrl(seeded.LocationAId, "Guest")
+                SearchUrl(seeded.LocationAId, "Guest", types: "guests")
             );
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
@@ -238,7 +238,7 @@ namespace TummlyBackend.Tests.Integration
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                SearchUrl(seeded.InScopeLocationId, "Scope")
+                SearchUrl(seeded.InScopeLocationId, "Scope", types: "guests")
             );
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", seeded.MemberJwt);
@@ -646,6 +646,226 @@ namespace TummlyBackend.Tests.Integration
                 "Quiet Title Offer",
                 hits[0].GetProperty("title").GetString()
             );
+        }
+
+        [Fact]
+        public async Task GetSearch_ReturnsFeedbackHits_ForAuthorisedLocationMatches()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "gs-fb-match-token-1234567",
+                guestName: "Sam Guest",
+                comment: "Cold chips at the counter",
+                locationName: "Camden",
+                detectedTagsJson: "[\"WaitTime\"]",
+                sentiment: FeedbackSentiment.Negative
+            );
+
+            // Comment match
+            using (var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "cold", types: "feedback")
+            ))
+            {
+                request.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+                var response = await _client.SendAsync(request);
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                var hit = AssertSingleFeedbackHit(await ReadJsonAsync(response));
+                Assert.Equal(seeded.FeedbackId.ToString(), hit.GetProperty("id").GetString());
+                Assert.Equal("feedback", hit.GetProperty("entityType").GetString());
+                Assert.Equal("Sam Guest", hit.GetProperty("title").GetString());
+                Assert.Equal(
+                    "Cold chips at the counter",
+                    hit.GetProperty("subtitle").GetString()
+                );
+                Assert.Equal(
+                    seeded.LocationId,
+                    hit.GetProperty("locationId").GetInt32()
+                );
+                Assert.Equal("Camden", hit.GetProperty("locationName").GetString());
+                Assert.Equal("New", hit.GetProperty("status").GetString());
+            }
+
+            // Guest name match
+            using (var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "Sam", types: "feedback")
+            ))
+            {
+                request.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+                var hit = AssertSingleFeedbackHit(
+                    await ReadJsonAsync(await _client.SendAsync(request))
+                );
+                Assert.Equal(seeded.FeedbackId.ToString(), hit.GetProperty("id").GetString());
+            }
+
+            // Numeric id match
+            using (var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(
+                    seeded.LocationId,
+                    seeded.FeedbackId.ToString(),
+                    types: "feedback"
+                )
+            ))
+            {
+                request.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+                var hit = AssertSingleFeedbackHit(
+                    await ReadJsonAsync(await _client.SendAsync(request))
+                );
+                Assert.Equal(seeded.FeedbackId.ToString(), hit.GetProperty("id").GetString());
+            }
+
+            // FDB-style identity match
+            var fdb =
+                $"FDB-{seeded.FeedbackId.ToString().PadLeft(6, '0')}";
+            using (var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, fdb, types: "feedback")
+            ))
+            {
+                request.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+                var hit = AssertSingleFeedbackHit(
+                    await ReadJsonAsync(await _client.SendAsync(request))
+                );
+                Assert.Equal(seeded.FeedbackId.ToString(), hit.GetProperty("id").GetString());
+            }
+
+            // Governed tag label match
+            using (var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "wait", types: "feedback")
+            ))
+            {
+                request.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+                var hit = AssertSingleFeedbackHit(
+                    await ReadJsonAsync(await _client.SendAsync(request))
+                );
+                Assert.Equal(seeded.FeedbackId.ToString(), hit.GetProperty("id").GetString());
+            }
+        }
+
+        [Fact]
+        public async Task GetSearch_DoesNotReturnOtherTenantOrSiblingLocationFeedback()
+        {
+            var ownerA = await SeedOwnerWithFeedbackAsync(
+                "gs-fb-tenant-a-token-12345",
+                guestName: "Shared Name",
+                comment: "Shared comment text",
+                emailUser: "gs-fb-a@example.com"
+            );
+            var ownerB = await SeedOwnerWithFeedbackAsync(
+                "gs-fb-tenant-b-token-12345",
+                guestName: "Shared Name",
+                comment: "Shared comment text",
+                emailUser: "gs-fb-b@example.com"
+            );
+            var multi = await SeedMultiLocationFeedbackAsync(
+                "gs-fb-multi-loc-token-123"
+            );
+
+            using (var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(ownerA.LocationId, "Shared", types: "feedback")
+            ))
+            {
+                request.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", ownerA.Jwt);
+                var hit = AssertSingleFeedbackHit(
+                    await ReadJsonAsync(await _client.SendAsync(request))
+                );
+                Assert.Equal(
+                    ownerA.FeedbackId.ToString(),
+                    hit.GetProperty("id").GetString()
+                );
+                Assert.NotEqual(
+                    ownerB.FeedbackId.ToString(),
+                    hit.GetProperty("id").GetString()
+                );
+            }
+
+            using (var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(multi.LocationAId, "Sibling", types: "feedback")
+            ))
+            {
+                request.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", multi.Jwt);
+                var hit = AssertSingleFeedbackHit(
+                    await ReadJsonAsync(await _client.SendAsync(request))
+                );
+                Assert.Equal(
+                    multi.FeedbackAId.ToString(),
+                    hit.GetProperty("id").GetString()
+                );
+                Assert.Equal(
+                    multi.LocationAId,
+                    hit.GetProperty("locationId").GetInt32()
+                );
+            }
+        }
+
+        [Fact]
+        public async Task GetSearch_ReturnsEmptyFeedbackHits_WhenStaffHasFeedbackNoAccess()
+        {
+            var seeded = await SeedOwnerAndStaffMemberWithFeedbackAsync();
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.InScopeLocationId, "Scope", types: "feedback")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.MemberJwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            var groups = body.GetProperty("groups");
+            Assert.Equal(1, groups.GetArrayLength());
+            Assert.Equal("feedback", groups[0].GetProperty("type").GetString());
+            Assert.Equal(0, groups[0].GetProperty("hits").GetArrayLength());
+        }
+
+        [Fact]
+        public async Task GetSearch_ReturnsAllDefaultGroups_WhenTypesOmitted()
+        {
+            var seeded = await SeedOwnerWithGuestAndFeedbackAsync(
+                "gs-both-groups-token-12345"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "Mo")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var groups = (await ReadJsonAsync(response)).GetProperty("groups");
+            Assert.Equal(4, groups.GetArrayLength());
+            Assert.Equal("guests", groups[0].GetProperty("type").GetString());
+            Assert.Equal("feedback", groups[1].GetProperty("type").GetString());
+            Assert.Equal("campaigns", groups[2].GetProperty("type").GetString());
+            Assert.Equal("offers", groups[3].GetProperty("type").GetString());
+            Assert.True(groups[0].GetProperty("hits").GetArrayLength() >= 1);
+            Assert.True(groups[1].GetProperty("hits").GetArrayLength() >= 1);
+        }
+
+        private static JsonElement AssertSingleFeedbackHit(JsonElement body)
+        {
+            var groups = body.GetProperty("groups");
+            Assert.Equal(1, groups.GetArrayLength());
+            Assert.Equal("feedback", groups[0].GetProperty("type").GetString());
+            var hits = groups[0].GetProperty("hits");
+            Assert.Equal(1, hits.GetArrayLength());
+            return hits[0];
         }
 
         private static string SearchUrl(
@@ -1390,11 +1610,244 @@ namespace TummlyBackend.Tests.Integration
             return body;
         }
 
+        private async Task<OwnerFeedbackSeed> SeedOwnerWithFeedbackAsync(
+            string linkToken,
+            string guestName,
+            string comment,
+            string locationName = "Camden Street",
+            string? emailUser = null,
+            string? detectedTagsJson = null,
+            FeedbackSentiment? sentiment = null
+        )
+        {
+            var owner = await SeedOwnerAsync(
+                linkToken,
+                email: emailUser ?? $"{Guid.NewGuid():N}@example.com",
+                locationName: locationName
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var classificationSucceeded =
+                sentiment != null || detectedTagsJson != null;
+            var feedback = new Feedback
+            {
+                RestaurantLocationId = owner.LocationId,
+                GuestName = guestName,
+                GuestContact = "guest@example.com",
+                ContactType = ContactType.Email,
+                Comment = comment,
+                CreatedAt = DateTime.UtcNow,
+                ClassificationStatus = classificationSucceeded
+                    ? ClassificationStatus.Succeeded
+                    : ClassificationStatus.Pending,
+                Sentiment = sentiment,
+                DetectedTagsJson = classificationSucceeded
+                    ? detectedTagsJson ?? "[]"
+                    : null,
+                WorkflowStatus = FeedbackWorkflowStatus.New,
+            };
+            context.Feedbacks.Add(feedback);
+            await context.SaveChangesAsync();
+
+            return new OwnerFeedbackSeed(
+                owner.Jwt,
+                owner.LocationId,
+                owner.RestaurantId,
+                feedback.Id
+            );
+        }
+
+        private async Task<MultiLocationFeedbackSeed> SeedMultiLocationFeedbackAsync(
+            string linkTokenPrefix
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "GS FB Multi Owner",
+                Email = $"{linkTokenPrefix}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900112",
+                Role = "Owner",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "GS FB Multi Venue",
+                AccountType = "Multi",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var locationA = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Camden Street",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            var locationB = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Second Street",
+                Address = "2 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.AddRange(locationA, locationB);
+            await context.SaveChangesAsync();
+
+            var feedbackA = new Feedback
+            {
+                RestaurantLocationId = locationA.Id,
+                GuestName = "Sibling A",
+                GuestContact = "a@example.com",
+                ContactType = ContactType.Email,
+                Comment = "Sibling location A note",
+                CreatedAt = DateTime.UtcNow.AddDays(-1),
+                WorkflowStatus = FeedbackWorkflowStatus.New,
+            };
+            var feedbackB = new Feedback
+            {
+                RestaurantLocationId = locationB.Id,
+                GuestName = "Sibling B",
+                GuestContact = "b@example.com",
+                ContactType = ContactType.Email,
+                Comment = "Sibling location B note",
+                CreatedAt = DateTime.UtcNow.AddDays(-2),
+                WorkflowStatus = FeedbackWorkflowStatus.New,
+            };
+            context.Feedbacks.AddRange(feedbackA, feedbackB);
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return new MultiLocationFeedbackSeed(
+                jwt,
+                locationA.Id,
+                locationB.Id,
+                feedbackA.Id,
+                feedbackB.Id
+            );
+        }
+
+        private async Task<StaffSeed> SeedOwnerAndStaffMemberWithFeedbackAsync()
+        {
+            var seeded = await SeedOwnerAndStaffMemberAsync(
+                seedMatchingGuest: false
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            context.Feedbacks.Add(new Feedback
+            {
+                RestaurantLocationId = seeded.InScopeLocationId,
+                GuestName = "In Scope Feedback Guest",
+                GuestContact = "scope@example.com",
+                ContactType = ContactType.Email,
+                Comment = "Scope feedback comment",
+                CreatedAt = DateTime.UtcNow,
+                WorkflowStatus = FeedbackWorkflowStatus.New,
+            });
+            await context.SaveChangesAsync();
+
+            return seeded;
+        }
+
+        private async Task<OwnerGuestAndFeedbackSeed> SeedOwnerWithGuestAndFeedbackAsync(
+            string linkToken
+        )
+        {
+            var owner = await SeedOwnerAsync(
+                linkToken,
+                email: $"{Guid.NewGuid():N}@example.com",
+                locationName: "Camden"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var master = new MasterGuest
+            {
+                RestaurantId = owner.RestaurantId,
+                Email = "mo-guest@example.com",
+                NormalizedEmail = "mo-guest@example.com",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
+
+            context.LocationGuests.Add(new LocationGuest
+            {
+                MasterGuestId = master.Id,
+                RestaurantLocationId = owner.LocationId,
+                Name = "Morgan Guest",
+                MarketingPreference = LocationGuestMarketingPreference.Allowed,
+                CreatedAt = DateTime.UtcNow,
+            });
+
+            context.Feedbacks.Add(new Feedback
+            {
+                RestaurantLocationId = owner.LocationId,
+                GuestName = "Morgan Feedback",
+                GuestContact = "mo-fb@example.com",
+                ContactType = ContactType.Email,
+                Comment = "Morning service was slow",
+                CreatedAt = DateTime.UtcNow,
+                WorkflowStatus = FeedbackWorkflowStatus.New,
+            });
+            await context.SaveChangesAsync();
+
+            return new OwnerGuestAndFeedbackSeed(owner.Jwt, owner.LocationId);
+        }
+
         private sealed record OwnerGuestSeed(
             string Jwt,
             int LocationId,
             int RestaurantId,
             int LocationGuestId
+        );
+
+        private sealed record OwnerFeedbackSeed(
+            string Jwt,
+            int LocationId,
+            int RestaurantId,
+            int FeedbackId
+        );
+
+        private sealed record OwnerGuestAndFeedbackSeed(
+            string Jwt,
+            int LocationId
+        );
+
+        private sealed record MultiLocationFeedbackSeed(
+            string Jwt,
+            int LocationAId,
+            int LocationBId,
+            int FeedbackAId,
+            int FeedbackBId
         );
 
         private sealed record OwnerCampaignSeed(

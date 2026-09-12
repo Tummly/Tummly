@@ -10,6 +10,8 @@ export const GLOBAL_SEARCH_AI_HEADING = "AI suggestions"
 
 export const GLOBAL_SEARCH_GUESTS_HEADING = "Guests"
 
+export const GLOBAL_SEARCH_FEEDBACK_HEADING = "Feedback"
+
 export const GLOBAL_SEARCH_CAMPAIGNS_HEADING = "Campaigns"
 
 export const GLOBAL_SEARCH_OFFERS_HEADING = "Offers"

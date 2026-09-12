@@ -9,6 +9,22 @@ namespace TummlyBackend.Services
 {
     public sealed class GlobalSearchService : IGlobalSearchService
     {
+        private const int CommentExcerptMaxLength = 120;
+
+        private static readonly (string Key, string Label)[] DetectedTagLabels =
+        [
+            (nameof(DetectedTag.FoodQuality), "Food quality"),
+            (nameof(DetectedTag.Service), "Service"),
+            (nameof(DetectedTag.WaitTime), "Wait time"),
+            (nameof(DetectedTag.Cleanliness), "Cleanliness"),
+            (nameof(DetectedTag.Value), "Value"),
+            (nameof(DetectedTag.Atmosphere), "Atmosphere"),
+            (nameof(DetectedTag.Billing), "Billing"),
+            (nameof(DetectedTag.AllergiesDietary), "Allergies & dietary"),
+            (nameof(DetectedTag.BookingSeating), "Booking & seating"),
+            (nameof(DetectedTag.Other), "Other"),
+        ];
+
         private readonly ApplicationDbContext _context;
 
         public GlobalSearchService(ApplicationDbContext context)
@@ -27,6 +43,13 @@ namespace TummlyBackend.Services
             {
                 groups.Add(
                     await SearchGuestsAsync(query, cancellationToken)
+                );
+            }
+
+            if (query.IncludeFeedback)
+            {
+                groups.Add(
+                    await SearchFeedbacksAsync(query, cancellationToken)
                 );
             }
 
@@ -96,6 +119,51 @@ namespace TummlyBackend.Services
             return new GlobalSearchGroupDto
             {
                 Type = "guests",
+                Hits = hits,
+            };
+        }
+
+        private async Task<GlobalSearchGroupDto> SearchFeedbacksAsync(
+            GlobalSearchQuery query,
+            CancellationToken cancellationToken
+        )
+        {
+            var trimmed = query.Q.Trim();
+            var hasIdentity = TryParseFeedbackIdentity(trimmed, out var identityId);
+            if (trimmed.Length < 2 && !hasIdentity)
+            {
+                return EmptyGroup("feedback");
+            }
+
+            var scoped = _context.Feedbacks
+                .AsNoTracking()
+                .Where(f => f.RestaurantLocationId == query.LocationId);
+
+            var matched = await ApplyFeedbackSearch(scoped, trimmed)
+                .Select(f => new FeedbackMatchRow(
+                    f.Id,
+                    f.GuestName,
+                    f.Comment,
+                    f.WorkflowStatus,
+                    f.CreatedAt,
+                    f.RestaurantLocationId
+                ))
+                .ToListAsync(cancellationToken);
+
+            var term = trimmed.ToLowerInvariant();
+            var hits = matched
+                .OrderBy(row =>
+                    RankFeedback(row, term, hasIdentity ? identityId : null)
+                )
+                .ThenByDescending(row => row.CreatedAt)
+                .ThenByDescending(row => row.Id)
+                .Take(query.Limit)
+                .Select(row => ToFeedbackHit(row, query.LocationName))
+                .ToList();
+
+            return new GlobalSearchGroupDto
+            {
+                Type = "feedback",
                 Hits = hits,
             };
         }
@@ -198,6 +266,94 @@ namespace TummlyBackend.Services
             };
         }
 
+        /// <summary>
+        /// Mirrors FeedbackInboxListService.ApplySearch for comment / guest /
+        /// governed tags, plus numeric / FDB- identity matching for Global Search.
+        /// </summary>
+        private static IQueryable<Feedback> ApplyFeedbackSearch(
+            IQueryable<Feedback> query,
+            string needle
+        )
+        {
+            var matchingTagKeys = DetectedTagLabels
+                .Where(pair =>
+                    pair.Label.Contains(needle, StringComparison.OrdinalIgnoreCase)
+                    || pair.Key.Contains(needle, StringComparison.OrdinalIgnoreCase)
+                )
+                .Select(pair => pair.Key)
+                .ToList();
+
+            var hasIdentity = TryParseFeedbackIdentity(needle, out var identityId);
+            var term = needle.ToLowerInvariant();
+
+            return query.Where(f =>
+                (hasIdentity && f.Id == identityId)
+                || f.Comment.ToLower().Contains(term)
+                || f.GuestName.ToLower().Contains(term)
+                || (
+                    f.ClassificationStatus == ClassificationStatus.Succeeded
+                    && f.DetectedTagsJson != null
+                    && (
+                        matchingTagKeys.Contains(nameof(DetectedTag.FoodQuality))
+                            && f.DetectedTagsJson.Contains("\"FoodQuality\"")
+                        || matchingTagKeys.Contains(nameof(DetectedTag.Service))
+                            && f.DetectedTagsJson.Contains("\"Service\"")
+                        || matchingTagKeys.Contains(nameof(DetectedTag.WaitTime))
+                            && f.DetectedTagsJson.Contains("\"WaitTime\"")
+                        || matchingTagKeys.Contains(
+                                nameof(DetectedTag.Cleanliness)
+                            )
+                            && f.DetectedTagsJson.Contains("\"Cleanliness\"")
+                        || matchingTagKeys.Contains(nameof(DetectedTag.Value))
+                            && f.DetectedTagsJson.Contains("\"Value\"")
+                        || matchingTagKeys.Contains(
+                                nameof(DetectedTag.Atmosphere)
+                            )
+                            && f.DetectedTagsJson.Contains("\"Atmosphere\"")
+                        || matchingTagKeys.Contains(nameof(DetectedTag.Billing))
+                            && f.DetectedTagsJson.Contains("\"Billing\"")
+                        || matchingTagKeys.Contains(
+                                nameof(DetectedTag.AllergiesDietary)
+                            )
+                            && f.DetectedTagsJson.Contains("\"AllergiesDietary\"")
+                        || matchingTagKeys.Contains(
+                                nameof(DetectedTag.BookingSeating)
+                            )
+                            && f.DetectedTagsJson.Contains("\"BookingSeating\"")
+                        || matchingTagKeys.Contains(nameof(DetectedTag.Other))
+                            && f.DetectedTagsJson.Contains("\"Other\"")
+                    )
+                )
+            );
+        }
+
+        private static bool TryParseFeedbackIdentity(
+            string needle,
+            out int identityId
+        )
+        {
+            var trimmed = needle.Trim();
+            if (int.TryParse(trimmed, out var numericId) && numericId > 0)
+            {
+                identityId = numericId;
+                return true;
+            }
+
+            if (
+                trimmed.StartsWith("FDB-", StringComparison.OrdinalIgnoreCase)
+                && trimmed.Length > 4
+                && int.TryParse(trimmed.AsSpan(4), out var fdbId)
+                && fdbId > 0
+            )
+            {
+                identityId = fdbId;
+                return true;
+            }
+
+            identityId = 0;
+            return false;
+        }
+
         private static GlobalSearchGroupDto EmptyGroup(string type)
         {
             return new GlobalSearchGroupDto
@@ -210,6 +366,31 @@ namespace TummlyBackend.Services
         private static int RankName(string name, string termLower)
         {
             var nameLower = name.ToLowerInvariant();
+            if (nameLower == termLower)
+            {
+                return 0;
+            }
+
+            if (nameLower.StartsWith(termLower, StringComparison.Ordinal))
+            {
+                return 1;
+            }
+
+            return 2;
+        }
+
+        private static int RankFeedback(
+            FeedbackMatchRow row,
+            string termLower,
+            int? identityId
+        )
+        {
+            if (identityId != null && row.Id == identityId.Value)
+            {
+                return 0;
+            }
+
+            var nameLower = row.GuestName.ToLowerInvariant();
             if (nameLower == termLower)
             {
                 return 0;
@@ -249,6 +430,27 @@ namespace TummlyBackend.Services
                 LocationId = row.LocationId,
                 LocationName = locationName,
                 Status = status,
+            };
+        }
+
+        private static GlobalSearchHitDto ToFeedbackHit(
+            FeedbackMatchRow row,
+            string locationName
+        )
+        {
+            var title = !string.IsNullOrWhiteSpace(row.GuestName)
+                ? row.GuestName
+                : TruncateComment(row.Comment);
+
+            return new GlobalSearchHitDto
+            {
+                Id = row.Id.ToString(),
+                EntityType = "feedback",
+                Title = title,
+                Subtitle = TruncateComment(row.Comment),
+                LocationId = row.LocationId,
+                LocationName = locationName,
+                Status = FormatWorkflowStatus(row.WorkflowStatus),
             };
         }
 
@@ -293,6 +495,26 @@ namespace TummlyBackend.Services
                 Status = FormatOfferStatusLabel(effective),
             };
         }
+
+        private static string TruncateComment(string comment)
+        {
+            var trimmed = comment.Trim();
+            if (trimmed.Length <= CommentExcerptMaxLength)
+            {
+                return trimmed;
+            }
+
+            return trimmed[..CommentExcerptMaxLength].TrimEnd() + "…";
+        }
+
+        private static string FormatWorkflowStatus(FeedbackWorkflowStatus status)
+            => status switch
+            {
+                FeedbackWorkflowStatus.New => "New",
+                FeedbackWorkflowStatus.InProgress => "In progress",
+                FeedbackWorkflowStatus.Resolved => "Resolved",
+                _ => "New",
+            };
 
         private static string FormatOfferStatusLabel(string effectiveStatus)
             => effectiveStatus switch
@@ -349,6 +571,15 @@ namespace TummlyBackend.Services
             string? Email,
             string? Mobile,
             LocationGuestMarketingPreference MarketingPreference,
+            DateTime CreatedAt,
+            int LocationId
+        );
+
+        private sealed record FeedbackMatchRow(
+            int Id,
+            string GuestName,
+            string Comment,
+            FeedbackWorkflowStatus WorkflowStatus,
             DateTime CreatedAt,
             int LocationId
         );

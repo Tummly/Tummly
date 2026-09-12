@@ -12,6 +12,8 @@ namespace TummlyBackend.DTOs.Search
 
         public required bool IncludeGuests { get; init; }
 
+        public required bool IncludeFeedback { get; init; }
+
         public required bool IncludeCampaigns { get; init; }
 
         public required bool IncludeOffers { get; init; }

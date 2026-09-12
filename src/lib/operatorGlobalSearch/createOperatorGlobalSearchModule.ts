@@ -32,6 +32,7 @@ export type OperatorGlobalSearchSnapshot = {
   shortcutModifierLabel: string
   hitsPending: boolean
   guestHits: readonly OperatorGlobalSearchEntityHit[]
+  feedbackHits: readonly OperatorGlobalSearchEntityHit[]
   campaignHits: readonly OperatorGlobalSearchEntityHit[]
   offerHits: readonly OperatorGlobalSearchEntityHit[]
 }
@@ -56,10 +57,12 @@ export type OperatorGlobalSearchAdapters = {
     signal?: AbortSignal
   }) => Promise<{
     guestHits: readonly OperatorGlobalSearchEntityHit[]
+    feedbackHits: readonly OperatorGlobalSearchEntityHit[]
     campaignHits: readonly OperatorGlobalSearchEntityHit[]
     offerHits: readonly OperatorGlobalSearchEntityHit[]
   }>
   navigateToGuestProfile: (guestId: number, locationId: number) => void
+  navigateToFeedbackDetail: (feedbackId: number, locationId: number) => void
   navigateToCampaignDetail: (campaignId: number, locationId: number) => void
   navigateToOfferDetails: (offerId: number, locationId: number) => void
   getLocationId: () => number | null
@@ -80,6 +83,7 @@ export type OperatorGlobalSearchModule = {
   handleShortcutKeydown: (input: OperatorGlobalSearchShortcutInput) => boolean
   selectSuggestion: (suggestionId: string) => void
   selectGuestHit: (guestId: string) => void
+  selectFeedbackHit: (feedbackId: string) => void
   selectCampaignHit: (campaignId: string) => void
   selectOfferHit: (offerId: string) => void
 }
@@ -96,6 +100,7 @@ type SearchState = {
   query: string
   hitsPending: boolean
   guestHits: readonly OperatorGlobalSearchEntityHit[]
+  feedbackHits: readonly OperatorGlobalSearchEntityHit[]
   campaignHits: readonly OperatorGlobalSearchEntityHit[]
   offerHits: readonly OperatorGlobalSearchEntityHit[]
 }
@@ -127,6 +132,7 @@ function toSnapshot(
     shortcutModifierLabel: shortcutModifierLabel(isApplePlatform()),
     hitsPending: state.hitsPending,
     guestHits: state.guestHits,
+    feedbackHits: state.feedbackHits,
     campaignHits: state.campaignHits,
     offerHits: state.offerHits,
   }
@@ -163,6 +169,7 @@ export function createOperatorGlobalSearchModule(
     query: "",
     hitsPending: false,
     guestHits: [],
+    feedbackHits: [],
     campaignHits: [],
     offerHits: [],
   }
@@ -196,6 +203,7 @@ export function createOperatorGlobalSearchModule(
       ...state,
       hitsPending: false,
       guestHits: [],
+      feedbackHits: [],
       campaignHits: [],
       offerHits: [],
     }
@@ -223,6 +231,7 @@ export function createOperatorGlobalSearchModule(
           ...state,
           hitsPending: false,
           guestHits: result.guestHits,
+          feedbackHits: result.feedbackHits,
           campaignHits: result.campaignHits,
           offerHits: result.offerHits,
         }
@@ -236,6 +245,7 @@ export function createOperatorGlobalSearchModule(
           ...state,
           hitsPending: false,
           guestHits: [],
+          feedbackHits: [],
           campaignHits: [],
           offerHits: [],
         }
@@ -252,6 +262,7 @@ export function createOperatorGlobalSearchModule(
       if (
         state.hitsPending ||
         state.guestHits.length > 0 ||
+        state.feedbackHits.length > 0 ||
         state.campaignHits.length > 0 ||
         state.offerHits.length > 0
       ) {
@@ -281,6 +292,7 @@ export function createOperatorGlobalSearchModule(
       state.query === "" &&
       !state.hitsPending &&
       state.guestHits.length === 0 &&
+      state.feedbackHits.length === 0 &&
       state.campaignHits.length === 0 &&
       state.offerHits.length === 0
     ) {
@@ -293,6 +305,7 @@ export function createOperatorGlobalSearchModule(
       query: "",
       hitsPending: false,
       guestHits: [],
+      feedbackHits: [],
       campaignHits: [],
       offerHits: [],
     }
@@ -380,6 +393,13 @@ export function createOperatorGlobalSearchModule(
     },
     selectGuestHit: (guestId) => {
       selectEntityHit(guestId, state.guestHits, adapters.navigateToGuestProfile)
+    },
+    selectFeedbackHit: (feedbackId) => {
+      selectEntityHit(
+        feedbackId,
+        state.feedbackHits,
+        adapters.navigateToFeedbackDetail
+      )
     },
     selectCampaignHit: (campaignId) => {
       selectEntityHit(

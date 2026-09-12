@@ -62,9 +62,11 @@ namespace TummlyBackend.Controllers
             var requested = ResolveTypes(types);
 
             var searchGuests = false;
+            var searchFeedback = false;
             var searchCampaigns = false;
             var searchOffers = false;
             var emptyGuests = false;
+            var emptyFeedback = false;
             var emptyCampaigns = false;
             var emptyOffers = false;
 
@@ -85,6 +87,25 @@ namespace TummlyBackend.Controllers
                 {
                     // Owned location but Guests NoAccess: empty group (no existence leak).
                     emptyGuests = true;
+                }
+            }
+
+            if (requested.IncludeFeedback)
+            {
+                var feedbackAccess = await _permissions.AuthorizeLocationAsync(
+                    User,
+                    OperatorAreaIds.Feedback,
+                    PermissionLevel.View,
+                    locationId
+                );
+
+                if (feedbackAccess.Status == RestaurantPermissionStatus.Allowed)
+                {
+                    searchFeedback = true;
+                }
+                else
+                {
+                    emptyFeedback = true;
                 }
             }
 
@@ -134,6 +155,7 @@ namespace TummlyBackend.Controllers
                     LocationName = location.LocationName,
                     Limit = clampedLimit,
                     IncludeGuests = searchGuests,
+                    IncludeFeedback = searchFeedback,
                     IncludeCampaigns = searchCampaigns,
                     IncludeOffers = searchOffers,
                     UtcOffsetMinutes = utcOffsetMinutes,
@@ -145,6 +167,13 @@ namespace TummlyBackend.Controllers
             if (emptyGuests)
             {
                 groups.Add(new GlobalSearchGroupDto { Type = "guests", Hits = [] });
+            }
+
+            if (emptyFeedback)
+            {
+                groups.Add(
+                    new GlobalSearchGroupDto { Type = "feedback", Hits = [] }
+                );
             }
 
             if (emptyCampaigns)
@@ -161,13 +190,14 @@ namespace TummlyBackend.Controllers
 
             groups.AddRange(result.Groups);
 
-            // Stable product order: guests, campaigns, offers.
+            // Stable product order: guests, feedback, campaigns, offers.
             groups = groups
                 .OrderBy(group => group.Type switch
                 {
                     "guests" => 0,
-                    "campaigns" => 1,
-                    "offers" => 2,
+                    "feedback" => 1,
+                    "campaigns" => 2,
+                    "offers" => 3,
                     _ => 99,
                 })
                 .ToList();
@@ -200,8 +230,9 @@ namespace TummlyBackend.Controllers
         }
 
         /// <summary>
-        /// Default types=guests. Unknown tokens are ignored;
-        /// empty resolved set still returns an empty groups list.
+        /// Empty <c>types</c> defaults to guests, feedback, campaigns, and offers.
+        /// Unknown tokens are ignored; empty resolved set still returns an empty
+        /// groups list.
         /// </summary>
         private static RequestedTypes ResolveTypes(string? types)
         {
@@ -209,8 +240,9 @@ namespace TummlyBackend.Controllers
             {
                 return new RequestedTypes(
                     IncludeGuests: true,
-                    IncludeCampaigns: false,
-                    IncludeOffers: false
+                    IncludeFeedback: true,
+                    IncludeCampaigns: true,
+                    IncludeOffers: true
                 );
             }
 
@@ -221,6 +253,7 @@ namespace TummlyBackend.Controllers
 
             return new RequestedTypes(
                 IncludeGuests: tokens.Contains("guests"),
+                IncludeFeedback: tokens.Contains("feedback"),
                 IncludeCampaigns: tokens.Contains("campaigns"),
                 IncludeOffers: tokens.Contains("offers")
             );
@@ -228,6 +261,7 @@ namespace TummlyBackend.Controllers
 
         private sealed record RequestedTypes(
             bool IncludeGuests,
+            bool IncludeFeedback,
             bool IncludeCampaigns,
             bool IncludeOffers
         );

@@ -29,6 +29,7 @@ import {
   GLOBAL_SEARCH_DIALOG_TITLE,
   GLOBAL_SEARCH_ENTITY_AVATAR_CLASS,
   GLOBAL_SEARCH_ENTITY_ROW_CLASS,
+  GLOBAL_SEARCH_FEEDBACK_HEADING,
   GLOBAL_SEARCH_FOOTER_CLASS,
   GLOBAL_SEARCH_FOOTER_HINT_CLASS,
   GLOBAL_SEARCH_GUESTS_HEADING,
@@ -47,6 +48,7 @@ type GlobalSearchOverlayProps = {
   onQueryChange: (query: string) => void
   onSelectSuggestion: (suggestionId: string) => void
   onSelectGuestHit: (guestId: string) => void
+  onSelectFeedbackHit: (feedbackId: string) => void
   onSelectCampaignHit: (campaignId: string) => void
   onSelectOfferHit: (offerId: string) => void
 }
@@ -102,6 +104,7 @@ export function GlobalSearchOverlay({
   onQueryChange,
   onSelectSuggestion,
   onSelectGuestHit,
+  onSelectFeedbackHit,
   onSelectCampaignHit,
   onSelectOfferHit,
 }: GlobalSearchOverlayProps) {
@@ -113,6 +116,9 @@ export function GlobalSearchOverlay({
   const showGuestsGroup =
     showEntityGroups ||
     (trimmedQuery.length >= 2 && snapshot.guestHits.length > 0)
+  const showFeedbackGroup =
+    showEntityGroups ||
+    (trimmedQuery.length >= 2 && snapshot.feedbackHits.length > 0)
   const showCampaignsGroup =
     showEntityGroups ||
     (trimmedQuery.length >= 2 && snapshot.campaignHits.length > 0)
@@ -195,6 +201,19 @@ export function GlobalSearchOverlay({
                   hits={snapshot.guestHits}
                   valuePrefix="guest"
                   onSelect={onSelectGuestHit}
+                />
+              </CommandGroup>
+            ) : null}
+
+            {showFeedbackGroup ? (
+              <CommandGroup
+                heading={GLOBAL_SEARCH_FEEDBACK_HEADING}
+                className={COMMAND_GROUP_HEADING_CLASS}
+              >
+                <EntityHitRows
+                  hits={snapshot.feedbackHits}
+                  valuePrefix="feedback"
+                  onSelect={onSelectFeedbackHit}
                 />
               </CommandGroup>
             ) : null}

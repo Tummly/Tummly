@@ -32,6 +32,7 @@ import { getOperatorFirstName } from "@/lib/operatorHome/operatorProfile"
 import {
   operatorDashboardCampaignDetailsPath,
   operatorDashboardGuestProfilePath,
+  operatorDashboardNavPath,
   operatorDashboardOfferDetailsPath,
   resolveOperatorSidebarActiveId,
 } from "@/lib/operatorHome/operatorDashboardPaths"
@@ -176,6 +177,11 @@ function DashboardContent({ mode }: DashboardProps) {
     getLocationId: () => workspace.snapshot.selectedLocationId,
     navigateToGuestProfile: (guestId, locationId) => {
       navigate(operatorDashboardGuestProfilePath(mode, guestId, locationId))
+    },
+    navigateToFeedbackDetail: (feedbackId, locationId) => {
+      const base = operatorDashboardNavPath(mode, "feedback", locationId)
+      const separator = base.includes("?") ? "&" : "?"
+      navigate(`${base}${separator}feedbackId=${feedbackId}`)
     },
     navigateToCampaignDetail: (campaignId, locationId) => {
       navigate(
@@ -465,6 +471,7 @@ function DashboardContent({ mode }: DashboardProps) {
         onQueryChange: globalSearch.setQuery,
         onSelectSuggestion: globalSearch.selectSuggestion,
         onSelectGuestHit: globalSearch.selectGuestHit,
+        onSelectFeedbackHit: globalSearch.selectFeedbackHit,
         onSelectCampaignHit: globalSearch.selectCampaignHit,
         onSelectOfferHit: globalSearch.selectOfferHit,
       }}
