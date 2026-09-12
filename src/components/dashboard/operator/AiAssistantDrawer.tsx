@@ -9,8 +9,6 @@ import {
   MoreVerticalIcon,
   PlusCircleIcon,
   Settings,
-  ThumbsDownIcon,
-  ThumbsUpIcon,
   XIcon,
 } from "lucide-react"
 
@@ -63,9 +61,7 @@ import {
 } from "@/lib/operatorAiAssistant/assistantCreditsPresentation"
 import type {
   OperatorAiAssistantAction,
-  OperatorAiAssistantAnalysisScope,
   OperatorAiAssistantDraftLocation,
-  OperatorAiAssistantHelpfulFill,
   OperatorAiAssistantMessage,
   OperatorAiAssistantSnapshot,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
@@ -107,20 +103,12 @@ type AiAssistantDrawerProps = {
   onDismissMicError: () => void
   micAudioLevelSource: GuestMicAudioLevelSource
   onRetry: () => void
-  onToggleHelpful: (
-    messageId: string,
-    fill: OperatorAiAssistantHelpfulFill
-  ) => void
   onActivateAction: (action: OperatorAiAssistantAction) => void
   onDismissFromEscape: () => void
   onViewUsage: () => void
   onAddCredits: () => void
   onFollowRestorationHelper: () => void
 }
-
-
-const HELPFUL_HIT_CLASS =
-  "size-11 min-h-11 min-w-11 p-0 text-op-text-primary hover:bg-transparent md:size-4 md:min-h-0 md:min-w-0"
 
 /** Same chrome as New chat suggestion prompts (arrow + label). */
 const ACTION_PROMPT_CLASS =
@@ -135,77 +123,15 @@ function readViewportAtLeastLg(): boolean {
   return window.matchMedia(LG_VIEWPORT_QUERY).matches
 }
 
-function HelpfulButtons({
-  messageId,
-  helpfulFill,
-  onToggleHelpful,
-}: {
-  messageId: string
-  helpfulFill?: OperatorAiAssistantHelpfulFill
-  onToggleHelpful: (
-    messageId: string,
-    fill: OperatorAiAssistantHelpfulFill
-  ) => void
-}) {
-  return (
-    <div className="flex shrink-0 items-center gap-3 pl-[4px]">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className={HELPFUL_HIT_CLASS}
-        aria-label="Helpful"
-        aria-pressed={helpfulFill === "helpful"}
-        onClick={() => {
-          onToggleHelpful(messageId, "helpful")
-        }}
-      >
-        <ThumbsUpIcon
-          className={cn("size-4", helpfulFill === "helpful" && "fill-current")}
-          aria-hidden
-        />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className={HELPFUL_HIT_CLASS}
-        aria-label="Not helpful"
-        aria-pressed={helpfulFill === "not-helpful"}
-        onClick={() => {
-          onToggleHelpful(messageId, "not-helpful")
-        }}
-      >
-        <ThumbsDownIcon
-          className={cn(
-            "size-4",
-            helpfulFill === "not-helpful" && "fill-current"
-          )}
-          aria-hidden
-        />
-      </Button>
-    </div>
-  )
-}
-
 function ThreadMessage({
   message,
   retryVisible,
-  helpfulFill,
-  activeScope,
   onRetry,
-  onToggleHelpful,
   onActivateAction,
 }: {
   message: OperatorAiAssistantMessage
   retryVisible: boolean
-  helpfulFill?: OperatorAiAssistantHelpfulFill
-  activeScope?: OperatorAiAssistantAnalysisScope | null
   onRetry: () => void
-  onToggleHelpful: (
-    messageId: string,
-    fill: OperatorAiAssistantHelpfulFill
-  ) => void
   onActivateAction: (action: OperatorAiAssistantAction) => void
 }) {
   if (message.role === "user") {
@@ -227,12 +153,10 @@ function ThreadMessage({
         className="flex flex-col gap-[30px]"
         data-assistant-thread-row={message.id}
       >
-        <AssistantPreparingAnswer scope={message.analysisScope ?? activeScope} />
+        <AssistantPreparingAnswer phrase={message.body} />
       </div>
     )
   }
-
-  const showHelpful = message.class === "grounded"
 
   return (
     <div
@@ -257,13 +181,6 @@ function ThreadMessage({
             )}
           </div>
         </div>
-        {showHelpful ? (
-          <HelpfulButtons
-            messageId={message.id}
-            helpfulFill={helpfulFill}
-            onToggleHelpful={onToggleHelpful}
-          />
-        ) : null}
       </div>
       {message.class === "grounded" && (message.actions?.length ?? 0) > 0 ? (
         <div className="flex flex-col gap-3.5">
@@ -339,7 +256,6 @@ export function AiAssistantDrawer({
   onDismissMicError,
   micAudioLevelSource,
   onRetry,
-  onToggleHelpful,
   onActivateAction,
   onDismissFromEscape,
   onViewUsage,
@@ -722,10 +638,7 @@ export function AiAssistantDrawer({
                     key={message.id}
                     message={message}
                     retryVisible={snapshot.retryVisible}
-                    helpfulFill={snapshot.helpfulFills[message.id]}
-                    activeScope={snapshot.analysisScope}
                     onRetry={onRetry}
-                    onToggleHelpful={onToggleHelpful}
                     onActivateAction={onActivateAction}
                   />
                 ))}

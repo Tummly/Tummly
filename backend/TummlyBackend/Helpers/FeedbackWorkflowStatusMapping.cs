@@ -13,6 +13,18 @@ namespace TummlyBackend.Helpers
                 _ => "new",
             };
 
+        /// <summary>
+        /// Operator-facing badge / hit label (New / In progress / Resolved).
+        /// </summary>
+        public static string ToOperatorLabel(FeedbackWorkflowStatus status)
+            => status switch
+            {
+                FeedbackWorkflowStatus.New => "New",
+                FeedbackWorkflowStatus.InProgress => "In progress",
+                FeedbackWorkflowStatus.Resolved => "Resolved",
+                _ => "New",
+            };
+
         public static bool TryParseWire(
             string? wire,
             out FeedbackWorkflowStatus status

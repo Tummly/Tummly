@@ -5,6 +5,7 @@ import logoMark from "@/assets/svg/logo-mark.svg"
 import logo from "@/assets/svg/logo.svg"
 import { AccountMenu } from "@/components/dashboard/operator/AccountMenu"
 import { LocationSwitcher } from "@/components/dashboard/operator/LocationSwitcher"
+import { OperatorShellSearchField } from "@/components/dashboard/operator/OperatorShellSearchField"
 import { ShellAiCreditsButton } from "@/components/dashboard/operator/ShellAiCreditsButton"
 import {
   OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS,
@@ -42,6 +43,8 @@ type DashboardNavbarProps = {
   onAddAiCredits?: () => void
   onOpenAiAssistant?: () => void
   aiAssistantOpen?: boolean
+  onOpenGlobalSearch?: () => void
+  globalSearchShortcutModifierLabel?: string
   onRouteDestination?: () => void
   onSelectLocation: (locationId: number) => void
   onSignOut: () => void
@@ -64,6 +67,8 @@ export function DashboardNavbar({
   onAddAiCredits,
   onOpenAiAssistant,
   aiAssistantOpen = false,
+  onOpenGlobalSearch,
+  globalSearchShortcutModifierLabel = "Ctrl",
   onRouteDestination,
   onSelectLocation,
   onSignOut,
@@ -163,7 +168,15 @@ export function DashboardNavbar({
               onSelectLocation={onSelectLocation}
             />
 
-            <OperatorShellDisabledSearchField className="hidden min-w-0 flex-1 lg:flex" />
+            {onOpenGlobalSearch != null ? (
+              <OperatorShellSearchField
+                className="hidden min-w-0 flex-1 lg:flex"
+                shortcutModifierLabel={globalSearchShortcutModifierLabel}
+                onOpen={onOpenGlobalSearch}
+              />
+            ) : (
+              <OperatorShellDisabledSearchField className="hidden min-w-0 flex-1 lg:flex" />
+            )}
 
             <div className="flex shrink-0 items-center gap-0.5 lg:ml-auto lg:gap-1.5">
               {shellAiCreditsEnabled ? (

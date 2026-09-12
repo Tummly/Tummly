@@ -16,6 +16,9 @@ COPY docs/product/materials-catalog-v1/tummly_uk_materials_catalog_v1.json \
      docs/product/materials-catalog-v1/current-materials-catalog-id \
      docs/product/materials-catalog-v1/
 
+COPY docs/product/print-template-pack-v1/ \
+     docs/product/print-template-pack-v1/
+
 COPY backend/TummlyBackend/TummlyBackend.csproj backend/TummlyBackend/
 WORKDIR /src/backend/TummlyBackend
 RUN dotnet restore
@@ -25,6 +28,10 @@ RUN dotnet publish TummlyBackend.csproj -c Release -o /app/publish /p:UseAppHost
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/publish .
 

@@ -1,5 +1,6 @@
 import { XIcon } from "lucide-react"
 
+import { OperatorShellSearchField } from "@/components/dashboard/operator/OperatorShellSearchField"
 import {
   OperatorShellDisabledSearchField,
   OperatorShellHelpLink,
@@ -11,11 +12,15 @@ import { cn } from "@/lib/utils"
 
 type MobileNavSheetHeaderProps = {
   className?: string
+  onOpenGlobalSearch?: () => void
+  globalSearchShortcutModifierLabel?: string
 }
 
 /** Mobile nav sheet chrome — search + help live here below `lg`, not on the navbar. */
 export function MobileNavSheetHeader({
   className,
+  onOpenGlobalSearch,
+  globalSearchShortcutModifierLabel = "Ctrl",
 }: MobileNavSheetHeaderProps) {
   return (
     <div
@@ -24,7 +29,16 @@ export function MobileNavSheetHeader({
         className
       )}
     >
-      <OperatorShellDisabledSearchField compact className="min-w-0 flex-1" />
+      {onOpenGlobalSearch != null ? (
+        <OperatorShellSearchField
+          compact
+          className="min-w-0 flex-1"
+          shortcutModifierLabel={globalSearchShortcutModifierLabel}
+          onOpen={onOpenGlobalSearch}
+        />
+      ) : (
+        <OperatorShellDisabledSearchField compact className="min-w-0 flex-1" />
+      )}
       <OperatorShellHelpLink showLabel={false} />
       <SheetClose asChild>
         <Button

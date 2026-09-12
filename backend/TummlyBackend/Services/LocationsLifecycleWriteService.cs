@@ -10,14 +10,6 @@ namespace TummlyBackend.Services
     public sealed class LocationsLifecycleWriteService
         : ILocationsLifecycleWriteService
     {
-        private static readonly HashSet<string> ManagerEligibleRoles =
-        [
-            PermissionRoles.Owner,
-            PermissionRoles.Admin,
-            PermissionRoles.AreaManager,
-            PermissionRoles.LocationManager,
-        ];
-
         private readonly ApplicationDbContext _context;
 
         public LocationsLifecycleWriteService(ApplicationDbContext context)
@@ -107,83 +99,6 @@ namespace TummlyBackend.Services
                 ToWire(LocationLifecycleStatus.Draft),
                 "deleted",
                 $"Deleted draft location “{name}”."
-            );
-            await _context.SaveChangesAsync();
-            return new LocationLifecycleWriteResult.Ok();
-        }
-
-        public async Task<LocationLifecycleWriteResult> SetManagerAsync(
-            int restaurantId,
-            int locationId,
-            int actorUserId,
-            int? managerUserId
-        )
-        {
-            var location = await LoadOwnedAsync(restaurantId, locationId);
-            if (location == null)
-            {
-                return new LocationLifecycleWriteResult.NotFound();
-            }
-
-            if (managerUserId == null)
-            {
-                var fromClear = location.ManagerUserId?.ToString();
-                location.ManagerUserId = null;
-                await EmitManagerAsync(
-                    restaurantId,
-                    locationId,
-                    actorUserId,
-                    fromClear,
-                    null,
-                    $"Cleared manager for “{location.LocationName}”."
-                );
-                await _context.SaveChangesAsync();
-                return new LocationLifecycleWriteResult.Ok();
-            }
-
-            var membership = await _context.RestaurantMemberships
-                .AsNoTracking()
-                .FirstOrDefaultAsync(row =>
-                    row.RestaurantId == restaurantId
-                    && row.UserId == managerUserId.Value
-                    && row.Status == MembershipStatus.Active
-                );
-
-            if (membership == null)
-            {
-                return new LocationLifecycleWriteResult.InvalidRequest(
-                    "Manager must be an active restaurant member."
-                );
-            }
-
-            if (!ManagerEligibleRoles.Contains(membership.PermissionRole))
-            {
-                return new LocationLifecycleWriteResult.InvalidRequest(
-                    "Manager role must be Owner, Admin, Area Manager, or Location Manager."
-                );
-            }
-
-            if (
-                membership.LocationScope == LocationScopeKind.NamedList
-                && !MembershipLocationScope
-                    .ParseNamedIds(membership.NamedLocationIdsJson)
-                    .Contains(locationId)
-            )
-            {
-                return new LocationLifecycleWriteResult.InvalidRequest(
-                    "Manager location scope must include this location."
-                );
-            }
-
-            var from = location.ManagerUserId?.ToString();
-            location.ManagerUserId = managerUserId;
-            await EmitManagerAsync(
-                restaurantId,
-                locationId,
-                actorUserId,
-                from,
-                managerUserId.Value.ToString(),
-                $"Set manager for “{location.LocationName}”."
             );
             await _context.SaveChangesAsync();
             return new LocationLifecycleWriteResult.Ok();
@@ -387,32 +302,6 @@ namespace TummlyBackend.Services
                     ActorUserId = actorUserId,
                     ActorDisplayName = actorDisplayName,
                     Kind = LocationActivityKinds.LifecycleChanged,
-                    Description = description,
-                    FromValue = from,
-                    ToValue = to,
-                    OccurredAt = DateTime.UtcNow,
-                }
-            );
-        }
-
-        private async Task EmitManagerAsync(
-            int restaurantId,
-            int locationId,
-            int actorUserId,
-            string? from,
-            string? to,
-            string description
-        )
-        {
-            var actorDisplayName = await ActorDisplayNameAsync(actorUserId);
-            _context.LocationActivities.Add(
-                new LocationActivity
-                {
-                    RestaurantId = restaurantId,
-                    LocationId = locationId,
-                    ActorUserId = actorUserId,
-                    ActorDisplayName = actorDisplayName,
-                    Kind = LocationActivityKinds.ManagerChanged,
                     Description = description,
                     FromValue = from,
                     ToValue = to,

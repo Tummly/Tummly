@@ -904,6 +904,51 @@ export const getGuests = async (
   return response.data
 }
 
+export type GlobalSearchHitDto = {
+  id: string
+  entityType: string
+  title: string
+  subtitle?: string | null
+  locationId: number
+  locationName: string
+  status?: string | null
+}
+
+export type GlobalSearchGroupDto = {
+  type: string
+  hits: GlobalSearchHitDto[]
+}
+
+export type GlobalSearchResponse = {
+  success: boolean
+  q: string
+  locationId: number
+  groups: GlobalSearchGroupDto[]
+}
+
+export const getGlobalSearch = async (params: {
+  q: string
+  locationId: number
+  types?: string
+  limit?: number
+  utcOffsetMinutes?: number
+  scope?: "current" | "all"
+  signal?: AbortSignal
+}): Promise<GlobalSearchResponse> => {
+  const response = await axiosInstance.get<GlobalSearchResponse>("/search", {
+    params: {
+      q: params.q,
+      locationId: params.locationId,
+      types: params.types ?? "guests,feedback,campaigns,offers,qr-codes",
+      limit: params.limit,
+      utcOffsetMinutes: params.utcOffsetMinutes ?? -new Date().getTimezoneOffset(),
+      scope: params.scope,
+    },
+    signal: params.signal,
+  })
+  return response.data
+}
+
 function parseContentDispositionFilename(
   header: string | undefined
 ): string | null {

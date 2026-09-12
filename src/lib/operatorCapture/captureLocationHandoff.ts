@@ -3,6 +3,8 @@ export type CaptureLocationHandoff = {
   openPlacementDetailQrCodeId?: number
 }
 
+export const CAPTURE_PLACEMENT_DETAIL_OPEN_QUERY_KEY = "qrCodeId"
+
 /**
  * Reads Capture nested handoff intent from router location state.
  * Invalid / missing fields are ignored.
@@ -38,4 +40,43 @@ export function buildCaptureLocationHandoffState(
   openPlacementDetailQrCodeId: number
 ): CaptureLocationHandoff {
   return { openPlacementDetailQrCodeId }
+}
+
+/**
+ * Reads Placement Detail open query (`qrCodeId`) from Capture search params.
+ * Invalid / missing values yield null.
+ */
+export function parseCapturePlacementDetailOpenQuery(
+  params: { get: (key: string) => string | null }
+): number | null {
+  const raw = params.get(CAPTURE_PLACEMENT_DETAIL_OPEN_QUERY_KEY)
+  if (raw == null || raw.trim() === "") {
+    return null
+  }
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null
+  }
+  return parsed
+}
+
+/** Removes the Placement Detail open query without mutating the input. */
+export function stripCapturePlacementDetailOpenQuery(
+  params: URLSearchParams
+): URLSearchParams {
+  const next = new URLSearchParams(params)
+  next.delete(CAPTURE_PLACEMENT_DETAIL_OPEN_QUERY_KEY)
+  return next
+}
+
+/**
+ * Path for replace-navigation after consuming the Placement Detail open query.
+ * Shared by single and nested Capture routes.
+ */
+export function capturePlacementDetailOpenReplacePath(
+  pathname: string,
+  params: URLSearchParams
+): string {
+  const search = stripCapturePlacementDetailOpenQuery(params).toString()
+  return `${pathname}${search === "" ? "" : `?${search}`}`
 }

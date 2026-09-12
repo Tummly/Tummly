@@ -1,0 +1,45 @@
+{
+  "pack": {
+    "id": "print-template-pack-v1",
+    "defaultOfferHeadline": "A thank-you offer for your next visit",
+    "offerCopyVersion": "offer-copy-v1"
+  },
+  "templates": {
+    "tentStickerEmptySvg": "tent-sticker-empty-dev.svg",
+    "cardSvg": "card-dev.svg"
+  },
+  "slots": {
+    "tableTent": {
+      "qr": {
+        "widthMm": 44,
+        "heightMm": 44,
+        "xMm": null,
+        "yMm": null,
+        "centreWhenBlank": true
+      }
+    },
+    "windowSticker": {
+      "qr": {
+        "widthMm": 44,
+        "heightMm": 44,
+        "xMm": null,
+        "yMm": null,
+        "centreWhenBlank": true
+      }
+    },
+    "offerCard": {
+      "offerHeadline": {
+        "xMm": 7.0,
+        "yMm": 7.0,
+        "widthMm": 43,
+        "heightMm": 18
+      },
+      "qr": {
+        "xMm": 62.12,
+        "yMm": 4.81,
+        "widthMm": 18,
+        "heightMm": 18
+      }
+    }
+  }
+}

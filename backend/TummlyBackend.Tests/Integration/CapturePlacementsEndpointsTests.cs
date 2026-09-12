@@ -810,6 +810,11 @@ namespace TummlyBackend.Tests.Integration
             var qrCode = context.QrCodes.AsEnumerable()
                 .Single(q => q.Id == seeded.QrCodeId);
             Assert.Equal(seeded.Token, qrCode.Token);
+            Assert.False(
+                context.PrintReadyQrAssets.Any(row =>
+                    row.RestaurantLocationId == seeded.LocationId
+                )
+            );
         }
 
         [Fact]
@@ -2042,5 +2047,6 @@ namespace TummlyBackend.Tests.Integration
             var body = await response.Content.ReadFromJsonAsync<JsonElement>();
             return body;
         }
+
     }
 }

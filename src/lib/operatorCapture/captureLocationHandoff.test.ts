@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest"
 import {
   buildCaptureLocationHandoffState,
   captureLocationHandoffHasIntent,
+  capturePlacementDetailOpenReplacePath,
+  parseCapturePlacementDetailOpenQuery,
   readCaptureLocationHandoff,
+  stripCapturePlacementDetailOpenQuery,
 } from "./captureLocationHandoff"
 
 describe("captureLocationHandoff", () => {
@@ -42,5 +45,43 @@ describe("captureLocationHandoff", () => {
     expect(buildCaptureLocationHandoffState(42)).toEqual({
       openPlacementDetailQrCodeId: 42,
     })
+  })
+
+  it("parses Placement Detail open query qrCodeId", () => {
+    expect(
+      parseCapturePlacementDetailOpenQuery(new URLSearchParams("qrCodeId=12"))
+    ).toBe(12)
+    expect(
+      parseCapturePlacementDetailOpenQuery(new URLSearchParams("location=3"))
+    ).toBeNull()
+    expect(
+      parseCapturePlacementDetailOpenQuery(new URLSearchParams("qrCodeId=0"))
+    ).toBeNull()
+    expect(
+      parseCapturePlacementDetailOpenQuery(new URLSearchParams("qrCodeId=abc"))
+    ).toBeNull()
+  })
+
+  it("strips Placement Detail open query without mutating input", () => {
+    const input = new URLSearchParams("location=3&qrCodeId=12")
+    const next = stripCapturePlacementDetailOpenQuery(input)
+    expect(input.get("qrCodeId")).toBe("12")
+    expect(next.get("qrCodeId")).toBeNull()
+    expect(next.get("location")).toBe("3")
+  })
+
+  it("builds replace path after consuming Placement Detail open query", () => {
+    expect(
+      capturePlacementDetailOpenReplacePath(
+        "/multi-dashboard/capture/3",
+        new URLSearchParams("qrCodeId=12")
+      )
+    ).toBe("/multi-dashboard/capture/3")
+    expect(
+      capturePlacementDetailOpenReplacePath(
+        "/multi-dashboard/capture/3",
+        new URLSearchParams("location=3&qrCodeId=12")
+      )
+    ).toBe("/multi-dashboard/capture/3?location=3")
   })
 })

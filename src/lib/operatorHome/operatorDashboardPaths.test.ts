@@ -5,6 +5,7 @@ import {
   operatorDashboardCampaignsPathWithOffer,
   operatorDashboardCaptureForLocationPath,
   operatorDashboardCaptureLocationPath,
+  operatorDashboardCapturePlacementDetailPath,
   operatorDashboardCaptureReportPath,
   operatorDashboardFeedbackReportPath,
   operatorDashboardGuestEditPath,
@@ -200,6 +201,15 @@ describe("operatorDashboardNavPath", () => {
     expect(operatorDashboardCaptureForLocationPath("multi", 7)).toBe(
       "/multi-dashboard/capture/locations/7?location=7"
     )
+  })
+
+  it("builds Capture Placement Detail open query path from Search", () => {
+    expect(
+      operatorDashboardCapturePlacementDetailPath("single", 42, 9)
+    ).toBe("/single-dashboard/capture?location=42&qrCodeId=9")
+    expect(
+      operatorDashboardCapturePlacementDetailPath("multi", 7, 55)
+    ).toBe("/multi-dashboard/capture/locations/7?location=7&qrCodeId=55")
   })
 
   it("builds Team & permissions settings path with location query", () => {

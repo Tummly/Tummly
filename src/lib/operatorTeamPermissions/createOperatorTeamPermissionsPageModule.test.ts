@@ -449,6 +449,28 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     expect(snap.busy).toBe(false)
   })
 
+  it("moves to the invitations tab after a successful invite", async () => {
+    const sendInvite = vi.fn(async () => undefined)
+    const api = adapters({ sendInvite })
+    const module = createOperatorTeamPermissionsPageModule(api)
+    await module.load()
+    expect(module.getSnapshot().activeTabId).toBe("members")
+    module.openInvite()
+    module.setInviteDraft({
+      email: "mark@example.com",
+      fullName: "Mark Invitee",
+      permissionRole: "Reporting Only",
+      locationScope: "all",
+      namedLocationIds: [],
+      message: "",
+    })
+    await module.confirmDialogPrimary()
+    const snap = module.getSnapshot()
+    expect(sendInvite).toHaveBeenCalledTimes(1)
+    expect(snap.dialog.kind).toBe("none")
+    expect(snap.activeTabId).toBe("invitations")
+  })
+
   it("ignores a second send while the first send is busy", async () => {
     let release!: () => void
     const sendInvite = vi.fn(
@@ -477,6 +499,7 @@ describe("createOperatorTeamPermissionsPageModule", () => {
     await first
     expect(module.getSnapshot().busy).toBe(false)
     expect(module.getSnapshot().dialog.kind).toBe("none")
+    expect(module.getSnapshot().activeTabId).toBe("invitations")
   })
 
   it("resends and revokes through adapters with a busy lock", async () => {

@@ -340,6 +340,23 @@ namespace TummlyBackend.Services
                 return null;
             }
 
+            if (invite.PermissionRole == PermissionRoles.LocationManager)
+            {
+                var named = MembershipLocationScope.ParseNamedIds(
+                    invite.NamedLocationIdsJson
+                );
+                var exclusive = await LocationAssignedManager.ValidateExclusiveAsync(
+                    _context,
+                    restaurant.Id,
+                    named,
+                    excludeInvitationId: invite.Id
+                );
+                if (exclusive != null)
+                {
+                    return exclusive;
+                }
+            }
+
             invitee.SelectedRestaurantId = restaurant.Id;
             invitee.AccountType = restaurant.AccountType;
             invitee.HasCompletedFirstSignIn = true;

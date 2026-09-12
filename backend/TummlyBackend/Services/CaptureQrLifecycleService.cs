@@ -19,16 +19,19 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly ISmartGuestLinkService _smartGuestLink;
         private readonly IPricebookCatalog _pricebookCatalog;
+        private readonly IPrintReadyQrMaterialsService _printReadyQrMaterials;
 
         public CaptureQrLifecycleService(
             ApplicationDbContext context,
             ISmartGuestLinkService smartGuestLink,
-            IPricebookCatalog pricebookCatalog
+            IPricebookCatalog pricebookCatalog,
+            IPrintReadyQrMaterialsService printReadyQrMaterials
         )
         {
             _context = context;
             _smartGuestLink = smartGuestLink;
             _pricebookCatalog = pricebookCatalog;
+            _printReadyQrMaterials = printReadyQrMaterials;
         }
 
         public async Task<QrLifecycleResult> CreateDigitalGuestLinkAsync(
@@ -338,7 +341,15 @@ namespace TummlyBackend.Services
             }
 
             qrCode.Token = await _smartGuestLink.GenerateTokenAsync();
-            await _context.SaveChangesAsync();
+            var invalidated =
+                await _printReadyQrMaterials.TryInvalidateAfterQrRotationAsync(
+                    command.LocationId,
+                    qrCode.QrType
+                );
+            if (!invalidated)
+            {
+                await _context.SaveChangesAsync();
+            }
 
             return QrLifecycleResult.Ok(new
             {

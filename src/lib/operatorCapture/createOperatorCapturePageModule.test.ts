@@ -1550,6 +1550,63 @@ const placements = pageModule.getSnapshot().viewModel?.placements
     })
   })
 
+  it("honours Search Placement Detail open query for Active QR; missing and Archived fail safely", async () => {
+    const { pageModule } = createModule({
+      snapshot: emptySnapshotResponse({
+        placements: [
+          {
+            qrCodeId: 9,
+            qrType: "TableTent",
+            status: "Active",
+            qrLinkUrl: "https://example.test/scan/table",
+            qrScans: 1,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+          {
+            qrCodeId: 10,
+            qrType: "WindowSticker",
+            status: "Paused",
+            qrLinkUrl: "https://example.test/scan/window",
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    // Search → Capture open query maps to openPlacementDetail(qrCodeId).
+    expect(pageModule.openPlacementDetail(9)).toBe("opened")
+    expect(pageModule.getPlacementDetailModule().getSnapshot().isOpen).toBe(
+      true
+    )
+    pageModule.closePlacementDetail()
+
+    expect(pageModule.openPlacementDetail(10)).toBe("opened")
+    expect(
+      pageModule.getPlacementDetailModule().getSnapshot().selectedQrCodeId
+    ).toBe(10)
+    pageModule.closePlacementDetail()
+
+    // Archived codes are not in live placementsFacts (Search excludes them).
+    // Deep-link with an archived id therefore fails the same as a missing id.
+    expect(pageModule.openPlacementDetail(888)).toBe("noop")
+    expect(pageModule.openPlacementDetail(999)).toBe("noop")
+    expect(pageModule.getPlacementDetailModule().getSnapshot().isOpen).toBe(
+      false
+    )
+  })
+
   it("exposes Smart Guest Detail drawer chrome with Rotate enabled", async () => {
     const { pageModule } = createModule({
       snapshot: emptySnapshotResponse({

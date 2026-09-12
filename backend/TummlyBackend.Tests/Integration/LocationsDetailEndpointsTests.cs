@@ -554,7 +554,6 @@ namespace TummlyBackend.Tests.Integration
                 City = "Camden",
                 Postcode = "NW1 1AA",
                 LifecycleStatus = LocationLifecycleStatus.Active,
-                ManagerUserId = manager.Id,
                 CreatedAt = DateTime.UtcNow,
             };
             var draft = new RestaurantLocation
@@ -640,6 +639,20 @@ namespace TummlyBackend.Tests.Integration
                     PermissionRole = PermissionRoles.Owner,
                     LocationScope = LocationScopeKind.AllLocations,
                     NamedLocationIdsJson = "[]",
+                    Status = MembershipStatus.Active,
+                }
+            );
+            context.RestaurantMemberships.Add(
+                new RestaurantMembership
+                {
+                    UserId = manager.Id,
+                    RestaurantId = restaurant.Id,
+                    PermissionRole = PermissionRoles.LocationManager,
+                    LocationScope = LocationScopeKind.NamedList,
+                    NamedLocationIdsJson =
+                        MembershipLocationScope.SerializeNamedIds(
+                            [active.Id]
+                        ),
                     Status = MembershipStatus.Active,
                 }
             );

@@ -277,5 +277,5 @@ export function locationDetailRecoveryFeedbackPath(
   feedbackId: number
 ): string {
   const separator = feedbackPath.includes("?") ? "&" : "?"
-  return `${feedbackPath}${separator}feedbackId=${feedbackId}`
+  return `${feedbackPath}${separator}feedbackId=${feedbackId}&startRecovery=1`
 }

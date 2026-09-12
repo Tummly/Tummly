@@ -18,6 +18,7 @@ import { useFeedbackPageModuleApi } from "@/components/dashboard/operator/Feedba
 import { useGuestsPageModuleApi } from "@/components/dashboard/operator/Guests/utils/guestsPageModuleContext"
 import { useOffersPageModuleApi } from "@/components/dashboard/operator/Offers/utils/offersPageModuleContext"
 import { useAiAssistantModule } from "@/components/dashboard/operator/useAiAssistantModule"
+import { useGlobalSearchModule } from "@/components/dashboard/operator/useGlobalSearchModule"
 import { useNotificationsModule } from "@/components/dashboard/operator/useNotificationsModule"
 import { useWorkspaceSession } from "@/components/dashboard/operator/useWorkspaceSession"
 import { Button } from "@/components/ui/button"
@@ -27,7 +28,15 @@ import {
 } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
 import type { BillingCreditsAccess } from "@/lib/operatorHome/parseOperatorProfile"
-import { resolveOperatorSidebarActiveId } from "@/lib/operatorHome/operatorDashboardPaths"
+import { getOperatorFirstName } from "@/lib/operatorHome/operatorProfile"
+import {
+  operatorDashboardCampaignDetailsPath,
+  operatorDashboardCapturePlacementDetailPath,
+  operatorDashboardGuestProfilePath,
+  operatorDashboardNavPath,
+  operatorDashboardOfferDetailsPath,
+  resolveOperatorSidebarActiveId,
+} from "@/lib/operatorHome/operatorDashboardPaths"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 
@@ -149,6 +158,53 @@ function DashboardContent({ mode }: DashboardProps) {
       closeExclusivePeerRightDrawers()
     },
   })
+
+  const aiAssistantRef = useRef(aiAssistant)
+  aiAssistantRef.current = aiAssistant
+  const notificationsRef = useRef(notifications)
+  notificationsRef.current = notifications
+  const profileFirstNameRef = useRef(workspace.snapshot.operatorDisplayName)
+  profileFirstNameRef.current = workspace.snapshot.operatorDisplayName
+
+  const globalSearch = useGlobalSearchModule({
+    handoffSuggestionToAssistant: (prompt) => {
+      notificationsRef.current.closeDrawer()
+      // Soft lock / Dormant / zero credits still fill; Send stays gated in Assistant.
+      aiAssistantRef.current.openDrawer({
+        operatorFirstName: getOperatorFirstName(profileFirstNameRef.current),
+      })
+      aiAssistantRef.current.setComposerDraft(prompt)
+    },
+    getLocationId: () => workspace.snapshot.selectedLocationId,
+    getAuthorisedLocationCount: () => workspace.snapshot.locations.length,
+    navigateToGuestProfile: (guestId, locationId) => {
+      navigate(operatorDashboardGuestProfilePath(mode, guestId, locationId))
+    },
+    navigateToFeedbackDetail: (feedbackId, locationId) => {
+      const base = operatorDashboardNavPath(mode, "feedback", locationId)
+      const separator = base.includes("?") ? "&" : "?"
+      navigate(`${base}${separator}feedbackId=${feedbackId}`)
+    },
+    navigateToCampaignDetail: (campaignId, locationId) => {
+      navigate(
+        operatorDashboardCampaignDetailsPath(mode, campaignId, locationId)
+      )
+    },
+    navigateToOfferDetails: (offerId, locationId) => {
+      navigate(operatorDashboardOfferDetailsPath(mode, offerId, locationId))
+    },
+    navigateToCapturePlacementDetail: (qrCodeId, locationId) => {
+      navigate(
+        operatorDashboardCapturePlacementDetailPath(mode, locationId, qrCodeId)
+      )
+    },
+  })
+
+  useEffect(() => {
+    // Module no-ops when Search is closed; resets to current scope when open.
+    globalSearch.notifyOwnedLocationChanged()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- shell location id only
+  }, [workspace.snapshot.selectedLocationId])
 
   const loadRef = useRef(workspace.load)
   const preferRef = useRef(workspace.preferLocationFromQuery)
@@ -402,7 +458,6 @@ function DashboardContent({ mode }: DashboardProps) {
             onDismissMicError: aiAssistant.dismissMicError,
             micAudioLevelSource: aiAssistant.micAudioLevelSource,
             onRetry: aiAssistant.retry,
-            onToggleHelpful: aiAssistant.toggleHelpful,
             onActivateAction: aiAssistant.clickAction,
             onDismissFromEscape: aiAssistant.dismissFromEscape,
             onRefreshCreditsChrome: aiAssistant.refreshCreditsChrome,
@@ -412,6 +467,30 @@ function DashboardContent({ mode }: DashboardProps) {
           }
           : undefined
       }
+      globalSearch={{
+        snapshot: globalSearch.snapshot,
+        onOpen: () => {
+          notifications.closeDrawer()
+          globalSearch.open()
+        },
+        onOpenChange: (open) => {
+          if (open) {
+            notifications.closeDrawer()
+            globalSearch.open()
+          } else {
+            globalSearch.close()
+          }
+        },
+        onQueryChange: globalSearch.setQuery,
+        onSelectSuggestion: globalSearch.selectSuggestion,
+        onSelectGuestHit: globalSearch.selectGuestHit,
+        onSelectFeedbackHit: globalSearch.selectFeedbackHit,
+        onSelectCampaignHit: globalSearch.selectCampaignHit,
+        onSelectOfferHit: globalSearch.selectOfferHit,
+        onSelectQrCodeHit: globalSearch.selectQrCodeHit,
+        onLocationScopeChange: globalSearch.setLocationScope,
+        onWidenToAllLocations: globalSearch.widenToAllLocations,
+      }}
     >
       <Outlet
         context={{
