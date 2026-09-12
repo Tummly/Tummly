@@ -8,8 +8,6 @@ namespace TummlyBackend.DTOs.Search
 
         public required string LocationName { get; init; }
 
-        public required IReadOnlyList<string> Types { get; init; }
-
         public required int Limit { get; init; }
 
         public required bool IncludeGuests { get; init; }

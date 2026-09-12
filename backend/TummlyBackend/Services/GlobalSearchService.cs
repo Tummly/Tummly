@@ -53,8 +53,7 @@ namespace TummlyBackend.Services
             var scoped = GuestsListQueryComposer.ScopeToLocations(
                 _context.LocationGuests
                     .AsNoTracking()
-                    .Include(lg => lg.MasterGuest)
-                    .Include(lg => lg.RestaurantLocation),
+                    .Include(lg => lg.MasterGuest),
                 [query.LocationId]
             );
 
@@ -67,8 +66,7 @@ namespace TummlyBackend.Services
                     lg.MasterGuest.Mobile,
                     lg.MarketingPreference,
                     lg.CreatedAt,
-                    lg.RestaurantLocationId,
-                    lg.RestaurantLocation!.LocationName
+                    lg.RestaurantLocationId
                 ))
                 .ToListAsync(cancellationToken);
 
@@ -78,7 +76,7 @@ namespace TummlyBackend.Services
                 .ThenByDescending(row => row.CreatedAt)
                 .ThenByDescending(row => row.Id)
                 .Take(query.Limit)
-                .Select(row => ToGuestHit(row))
+                .Select(row => ToGuestHit(row, query.LocationName))
                 .ToList();
 
             return new GlobalSearchGroupDto
@@ -113,7 +111,10 @@ namespace TummlyBackend.Services
             return 2;
         }
 
-        private static GlobalSearchHitDto ToGuestHit(GuestMatchRow row)
+        private static GlobalSearchHitDto ToGuestHit(
+            GuestMatchRow row,
+            string locationName
+        )
         {
             var subtitle = !string.IsNullOrWhiteSpace(row.Email)
                 ? row.Email
@@ -134,7 +135,7 @@ namespace TummlyBackend.Services
                 Title = row.Name,
                 Subtitle = subtitle,
                 LocationId = row.LocationId,
-                LocationName = row.LocationName,
+                LocationName = locationName,
                 Status = status,
             };
         }
@@ -146,8 +147,7 @@ namespace TummlyBackend.Services
             string? Mobile,
             LocationGuestMarketingPreference MarketingPreference,
             DateTime CreatedAt,
-            int LocationId,
-            string LocationName
+            int LocationId
         );
     }
 }

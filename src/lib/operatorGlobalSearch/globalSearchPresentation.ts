@@ -36,12 +36,8 @@ export const GLOBAL_SEARCH_AI_ROW_CLASS = [
   "[&>svg:last-child]:hidden",
 ].join(" ")
 
-export const GLOBAL_SEARCH_ENTITY_ROW_CLASS = [
-  "flex cursor-pointer items-center gap-2.5 px-5 py-2 text-sm text-op-text-primary outline-none select-none",
-  "data-selected:bg-op-header-search-hover data-selected:text-op-text-primary",
-  "hover:bg-op-header-search-hover",
-  "[&>svg:last-child]:hidden",
-].join(" ")
+/** Same row chrome as AI suggestions; entity rows add Avatar/Badge content. */
+export const GLOBAL_SEARCH_ENTITY_ROW_CLASS = GLOBAL_SEARCH_AI_ROW_CLASS
 
 export const GLOBAL_SEARCH_ENTITY_AVATAR_CLASS =
   "size-8 bg-op-color-gray-992 text-xs font-medium text-op-header-search-text dark:bg-[var(--op-color-gray-980)]"

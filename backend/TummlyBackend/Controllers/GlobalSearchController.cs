@@ -97,7 +97,6 @@ namespace TummlyBackend.Controllers
                     Q = trimmedQ,
                     LocationId = locationId,
                     LocationName = location.LocationName,
-                    Types = includeGuests ? ["guests"] : [],
                     Limit = clampedLimit,
                     IncludeGuests = includeGuests,
                 },

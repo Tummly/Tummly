@@ -61,7 +61,10 @@ export function GlobalSearchOverlay({
   const trimmedQuery = snapshot.query.trim()
   const showEmptyAi =
     trimmedQuery.length === 0 && snapshot.emptySuggestions.length > 0
-  const showGuestsGroup = trimmedQuery.length >= 2
+  // Guests group after debounce starts (pending or hits), not on raw keystrokes alone.
+  const showGuestsGroup =
+    trimmedQuery.length >= 2 &&
+    (snapshot.hitsPending || snapshot.guestHits.length > 0)
 
   return (
     <Dialog open={snapshot.open} onOpenChange={onOpenChange}>

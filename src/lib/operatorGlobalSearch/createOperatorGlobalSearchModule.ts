@@ -56,7 +56,6 @@ export type OperatorGlobalSearchAdapters = {
   navigateToGuestProfile: (guestId: number, locationId: number) => void
   getLocationId: () => number | null
   debounceMs?: number
-  now?: () => number
   setTimeout?: typeof globalThis.setTimeout
   clearTimeout?: typeof globalThis.clearTimeout
 }
