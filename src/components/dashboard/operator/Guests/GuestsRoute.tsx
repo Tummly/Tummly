@@ -11,7 +11,9 @@ import { useGuestsPageModuleApi } from "@/components/dashboard/operator/Guests/u
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import {
   readGlobalSearchQueryParam,
+  readGlobalSearchScopeParam,
   stripGlobalSearchListParams,
+  withAllLocationsFilter,
 } from "@/lib/operatorGlobalSearch/applySearchQueryFromParam"
 
 export function GuestsRoute() {
@@ -51,6 +53,11 @@ export function GuestsRoute() {
     }
     consumedQueryRef.current = key
     guestsPageModule.setSearchQuery(q)
+    if (readGlobalSearchScopeParam(searchParams) === "all") {
+      guestsPageModule.applyFilters(
+        withAllLocationsFilter(guestsPageModule.getSnapshot().appliedFilters)
+      )
+    }
     const nextParams = stripGlobalSearchListParams(searchParams)
     const nextSearch = nextParams.toString()
     navigate(

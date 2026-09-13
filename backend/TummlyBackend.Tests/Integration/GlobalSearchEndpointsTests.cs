@@ -2,8 +2,11 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Search;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -98,6 +101,57 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(1, groups.GetArrayLength());
             Assert.Equal("guests", groups[0].GetProperty("type").GetString());
             Assert.Equal(0, groups[0].GetProperty("hits").GetArrayLength());
+        }
+
+        [Fact]
+        public async Task GetSearch_WhenServiceReportsPartialFailures_ReturnsThemWithValidGroups()
+        {
+            var stub = new PartialFailureGlobalSearchStub();
+            await using var rootFactory = new TummlyWebApplicationFactory();
+            await using var factory = rootFactory.WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureServices(services =>
+                {
+                    services.RemoveAll<IGlobalSearchService>();
+                    services.AddSingleton<IGlobalSearchService>(stub);
+                });
+            });
+            using var client = factory.CreateClient();
+            var seeded = await SeedOwnerOnAsync(
+                factory.Services,
+                "gs-partial-http-token-12345"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SearchUrl(seeded.LocationId, "mo", types: "guests,campaigns")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+
+            var failures = body.GetProperty("partialFailures");
+            Assert.Equal(1, failures.GetArrayLength());
+            Assert.Equal("campaigns", failures[0].GetString());
+
+            var groups = body.GetProperty("groups");
+            Assert.Contains(
+                groups.EnumerateArray(),
+                group => group.GetProperty("type").GetString() == "guests"
+            );
+            var guests = groups
+                .EnumerateArray()
+                .Single(group => group.GetProperty("type").GetString() == "guests");
+            Assert.Equal(1, guests.GetProperty("hits").GetArrayLength());
+            Assert.DoesNotContain(
+                groups.EnumerateArray(),
+                group => group.GetProperty("type").GetString() == "campaigns"
+            );
         }
 
         [Fact]
@@ -2419,5 +2473,109 @@ namespace TummlyBackend.Tests.Integration
             int InScopeLocationId,
             int OutOfScopeLocationId
         );
+
+        private static async Task<(string Jwt, int LocationId)> SeedOwnerOnAsync(
+            IServiceProvider services,
+            string linkToken
+        )
+        {
+            using var scope = services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Partial Fail HTTP Owner",
+                Email = $"{linkToken}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900999",
+                Role = "Owner",
+                AccountType = "Single",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Partial Fail HTTP Venue",
+                AccountType = "Single",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Camden",
+                Address = "1 High St",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+            return (jwt, location.Id);
+        }
+
+        /// <summary>
+        /// Stub for HTTP partial-failure composition: valid guests + campaigns failed.
+        /// </summary>
+        private sealed class PartialFailureGlobalSearchStub : IGlobalSearchService
+        {
+            public Task<GlobalSearchResponse> SearchAsync(
+                GlobalSearchQuery query,
+                CancellationToken cancellationToken = default
+            )
+            {
+                var locationId = query.LocationId;
+                var locationName = query.LocationNamesById.TryGetValue(
+                    locationId,
+                    out var name
+                )
+                    ? name
+                    : "Camden";
+
+                return Task.FromResult(
+                    new GlobalSearchResponse
+                    {
+                        Success = true,
+                        Q = query.Q,
+                        LocationId = locationId,
+                        Groups =
+                        [
+                            new GlobalSearchGroupDto
+                            {
+                                Type = "guests",
+                                Hits =
+                                [
+                                    new GlobalSearchHitDto
+                                    {
+                                        Id = "1",
+                                        EntityType = "guest",
+                                        Title = "Mohamed",
+                                        Subtitle = "mo@example.com",
+                                        LocationId = locationId,
+                                        LocationName = locationName,
+                                        Status = "Eligible — Email",
+                                    },
+                                ],
+                            },
+                        ],
+                        PartialFailures = ["campaigns"],
+                    }
+                );
+            }
+        }
     }
 }

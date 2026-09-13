@@ -260,6 +260,7 @@ namespace TummlyBackend.Controllers
                     Q = trimmedQ,
                     LocationId = locationId,
                     Groups = groups,
+                    PartialFailures = result.PartialFailures,
                 }
             );
         }

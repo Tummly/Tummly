@@ -147,6 +147,30 @@ function SuggestionRows({
   ))
 }
 
+function ViewAllRow({
+  value,
+  label,
+  onSelect,
+}: {
+  value: string
+  label: string
+  onSelect: () => void
+}) {
+  return (
+    <CommandItem
+      value={value}
+      onSelect={onSelect}
+      className={GLOBAL_SEARCH_AI_ROW_CLASS}
+    >
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <ArrowRightIcon
+        className="size-3.5 shrink-0 text-op-header-search-text"
+        aria-hidden
+      />
+    </CommandItem>
+  )
+}
+
 export function GlobalSearchOverlay({
   snapshot,
   onOpenChange,
@@ -283,19 +307,11 @@ export function GlobalSearchOverlay({
                   onSelect={onSelectGuestHit}
                 />
                 {snapshot.showViewAllGuests ? (
-                  <CommandItem
+                  <ViewAllRow
                     value="view-all-guests"
+                    label={GLOBAL_SEARCH_VIEW_ALL_GUESTS}
                     onSelect={onViewAllGuests}
-                    className={GLOBAL_SEARCH_AI_ROW_CLASS}
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      {GLOBAL_SEARCH_VIEW_ALL_GUESTS}
-                    </span>
-                    <ArrowRightIcon
-                      className="size-3.5 shrink-0 text-op-header-search-text"
-                      aria-hidden
-                    />
-                  </CommandItem>
+                  />
                 ) : null}
               </CommandGroup>
             ) : null}
@@ -311,19 +327,11 @@ export function GlobalSearchOverlay({
                   onSelect={onSelectFeedbackHit}
                 />
                 {snapshot.showViewAllFeedback ? (
-                  <CommandItem
+                  <ViewAllRow
                     value="view-all-feedback"
+                    label={GLOBAL_SEARCH_VIEW_ALL_FEEDBACK}
                     onSelect={onViewAllFeedback}
-                    className={GLOBAL_SEARCH_AI_ROW_CLASS}
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      {GLOBAL_SEARCH_VIEW_ALL_FEEDBACK}
-                    </span>
-                    <ArrowRightIcon
-                      className="size-3.5 shrink-0 text-op-header-search-text"
-                      aria-hidden
-                    />
-                  </CommandItem>
+                  />
                 ) : null}
               </CommandGroup>
             ) : null}
@@ -339,19 +347,11 @@ export function GlobalSearchOverlay({
                   onSelect={onSelectCampaignHit}
                 />
                 {snapshot.showViewAllCampaigns ? (
-                  <CommandItem
+                  <ViewAllRow
                     value="view-all-campaigns"
+                    label={GLOBAL_SEARCH_VIEW_ALL_CAMPAIGNS}
                     onSelect={onViewAllCampaigns}
-                    className={GLOBAL_SEARCH_AI_ROW_CLASS}
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      {GLOBAL_SEARCH_VIEW_ALL_CAMPAIGNS}
-                    </span>
-                    <ArrowRightIcon
-                      className="size-3.5 shrink-0 text-op-header-search-text"
-                      aria-hidden
-                    />
-                  </CommandItem>
+                  />
                 ) : null}
               </CommandGroup>
             ) : null}
@@ -367,19 +367,11 @@ export function GlobalSearchOverlay({
                   onSelect={onSelectOfferHit}
                 />
                 {snapshot.showViewAllOffers ? (
-                  <CommandItem
+                  <ViewAllRow
                     value="view-all-offers"
+                    label={GLOBAL_SEARCH_VIEW_ALL_OFFERS}
                     onSelect={onViewAllOffers}
-                    className={GLOBAL_SEARCH_AI_ROW_CLASS}
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      {GLOBAL_SEARCH_VIEW_ALL_OFFERS}
-                    </span>
-                    <ArrowRightIcon
-                      className="size-3.5 shrink-0 text-op-header-search-text"
-                      aria-hidden
-                    />
-                  </CommandItem>
+                  />
                 ) : null}
               </CommandGroup>
             ) : null}
@@ -395,19 +387,11 @@ export function GlobalSearchOverlay({
                   onSelect={onSelectQrCodeHit}
                 />
                 {snapshot.showViewAllQrCodes ? (
-                  <CommandItem
+                  <ViewAllRow
                     value="view-all-qr-codes"
+                    label={GLOBAL_SEARCH_VIEW_ALL_QR_CODES}
                     onSelect={onViewAllQrCodes}
-                    className={GLOBAL_SEARCH_AI_ROW_CLASS}
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      {GLOBAL_SEARCH_VIEW_ALL_QR_CODES}
-                    </span>
-                    <ArrowRightIcon
-                      className="size-3.5 shrink-0 text-op-header-search-text"
-                      aria-hidden
-                    />
-                  </CommandItem>
+                  />
                 ) : null}
               </CommandGroup>
             ) : null}

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import {
   readGlobalSearchQueryParam,
+  readGlobalSearchScopeParam,
   stripGlobalSearchListParams,
+  withAllLocationsFilter,
 } from "./applySearchQueryFromParam"
 
 describe("applySearchQueryFromParam", () => {
@@ -14,6 +16,29 @@ describe("applySearchQueryFromParam", () => {
   it("returns null for missing or blank q", () => {
     expect(readGlobalSearchQueryParam(new URLSearchParams())).toBeNull()
     expect(readGlobalSearchQueryParam(new URLSearchParams("q=%20"))).toBeNull()
+  })
+
+  it("reads searchScope all vs current", () => {
+    expect(
+      readGlobalSearchScopeParam(new URLSearchParams("searchScope=all"))
+    ).toBe("all")
+    expect(readGlobalSearchScopeParam(new URLSearchParams("q=mo"))).toBe(
+      "current"
+    )
+  })
+
+  it("merges location-scope all into filter selection", () => {
+    const next = withAllLocationsFilter({
+      marketing: { kind: "multi-select", ids: ["eligible"] },
+    })
+    expect(next.location).toEqual({
+      kind: "location-scope",
+      value: { kind: "all" },
+    })
+    expect(next.marketing).toEqual({
+      kind: "multi-select",
+      ids: ["eligible"],
+    })
   })
 
   it("strips q and searchScope for replace navigation", () => {

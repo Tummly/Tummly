@@ -11,7 +11,9 @@ import { useCampaignsPageModuleApi } from "@/components/dashboard/operator/Campa
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import {
   readGlobalSearchQueryParam,
+  readGlobalSearchScopeParam,
   stripGlobalSearchListParams,
+  withAllLocationsFilter,
 } from "@/lib/operatorGlobalSearch/applySearchQueryFromParam"
 
 export function CampaignsRoute() {
@@ -51,6 +53,13 @@ export function CampaignsRoute() {
     }
     consumedQueryRef.current = key
     campaignsPageModule.setSearchQuery(q)
+    if (readGlobalSearchScopeParam(searchParams) === "all") {
+      campaignsPageModule.applyFilters(
+        withAllLocationsFilter(
+          campaignsPageModule.getSnapshot().appliedFilters
+        )
+      )
+    }
     const nextParams = stripGlobalSearchListParams(searchParams)
     const nextSearch = nextParams.toString()
     navigate(

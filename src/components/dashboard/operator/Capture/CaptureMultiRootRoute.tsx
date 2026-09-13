@@ -12,7 +12,9 @@ import { useMultiCapturePageModuleApi } from "@/components/dashboard/operator/Ca
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import {
   readGlobalSearchQueryParam,
+  readGlobalSearchScopeParam,
   stripGlobalSearchListParams,
+  withAllLocationsFilter,
 } from "@/lib/operatorGlobalSearch/applySearchQueryFromParam"
 
 function CaptureMultiRootRouteContent() {
@@ -46,6 +48,13 @@ function CaptureMultiRootRouteContent() {
     }
     consumedQueryRef.current = key
     multiCapturePageModule.setSearchQuery(q)
+    if (readGlobalSearchScopeParam(searchParams) === "all") {
+      multiCapturePageModule.applyFilters(
+        withAllLocationsFilter(
+          multiCapturePageModule.getSnapshot().appliedFilters
+        )
+      )
+    }
     const nextParams = stripGlobalSearchListParams(searchParams)
     const nextSearch = nextParams.toString()
     navigate(
