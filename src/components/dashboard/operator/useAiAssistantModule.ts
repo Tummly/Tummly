@@ -105,7 +105,6 @@ export type OperatorAiAssistantApi = {
   dismissMicError: OperatorAiAssistantModule["dismissMicError"]
   micAudioLevelSource: GuestMicAudioLevelSource
   retry: OperatorAiAssistantModule["retry"]
-  toggleHelpful: OperatorAiAssistantModule["toggleHelpful"]
   clickAction: OperatorAiAssistantModule["clickAction"]
   dismissFromEscape: OperatorAiAssistantModule["dismissFromEscape"]
   refreshCreditsChrome: OperatorAiAssistantModule["refreshCreditsChrome"]
@@ -343,7 +342,6 @@ export function useAiAssistantModule(
     dismissMicError: assistant.dismissMicError,
     micAudioLevelSource: assistantBundle.audioLevelSource,
     retry: assistant.retry,
-    toggleHelpful: assistant.toggleHelpful,
     clickAction: assistant.clickAction,
     dismissFromEscape: assistant.dismissFromEscape,
     refreshCreditsChrome: assistant.refreshCreditsChrome,

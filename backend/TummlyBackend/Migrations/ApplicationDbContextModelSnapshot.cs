@@ -2490,6 +2490,74 @@ namespace TummlyBackend.Migrations
                     b.ToTable("PendingTrialRequests");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.PrintReadyQrAsset", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("OfferCopyVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("QrTokenFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("QrType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RestaurantLocationId")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ShopOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StorageKey")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("TemplatePackVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantLocationId", "QrType")
+                        .IsUnique()
+                        .HasFilter("[ShopOrderId] IS NULL");
+
+                    b.HasIndex("ShopOrderId", "QrType")
+                        .IsUnique()
+                        .HasFilter("[ShopOrderId] IS NOT NULL");
+
+                    b.ToTable("PrintReadyQrAssets");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.QrCode", b =>
                 {
                     b.Property<int>("Id")
@@ -4959,6 +5027,17 @@ namespace TummlyBackend.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.PrintReadyQrAsset", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "RestaurantLocation")
+                        .WithMany()
+                        .HasForeignKey("RestaurantLocationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RestaurantLocation");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.QrCode", b =>

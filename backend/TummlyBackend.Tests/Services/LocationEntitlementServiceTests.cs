@@ -5,6 +5,7 @@ using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
 using TummlyBackend.DTOs.Locations;
+using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
 using TummlyBackend.Tests.Helpers;
@@ -61,8 +62,6 @@ namespace TummlyBackend.Tests.Services
             }
 
             var catalog = PricebookCatalog.LoadFromDirectory(packDir);
-            _insert = new OwnedLocationInsertService(_context, catalog);
-
             var configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(
                     new Dictionary<string, string?>
@@ -72,10 +71,17 @@ namespace TummlyBackend.Tests.Services
                 )
                 .Build();
             var smartGuestLink = new SmartGuestLinkService(_context, configuration, new NoOpBillingAccountLifecycle());
+            _insert = new OwnedLocationInsertService(
+                _context,
+                catalog,
+                new QrCodeProvisioningService(_context, smartGuestLink),
+                new NoOpPrintReadyQrMaterialsWork()
+            );
             _lifecycle = new CaptureQrLifecycleService(
                 _context,
                 smartGuestLink,
-                catalog
+                catalog,
+                new NoOpPrintReadyQrMaterialsService()
             );
 
             SeedPilotAtCap();
@@ -125,6 +131,90 @@ namespace TummlyBackend.Tests.Services
         public void Dispose()
         {
             _context.Dispose();
+        }
+
+        private sealed class NoOpPrintReadyQrMaterialsWork
+            : IPrintReadyQrMaterialsWork
+        {
+            public ValueTask RequestEnsureAsync(
+                int locationId,
+                CancellationToken cancellationToken = default
+            ) => ValueTask.CompletedTask;
+
+            public ValueTask RequestShopOrderEnsureAsync(
+                Guid shopOrderId,
+                CancellationToken cancellationToken = default
+            ) => ValueTask.CompletedTask;
+
+            public Task RunAsync(CancellationToken stoppingToken)
+                => Task.CompletedTask;
+
+            public Task DrainAsync(
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
+        }
+
+        private sealed class NoOpPrintReadyQrMaterialsService
+            : IPrintReadyQrMaterialsService
+        {
+            public Task<bool> TryInvalidateAfterQrRotationAsync(
+                int locationId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            ) => Task.FromResult(false);
+
+            public Task EnsureStarterMaterialsAsync(
+                int locationId,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
+            public Task EnsureShopOrderMaterialsAsync(
+                Guid shopOrderId,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
+            public Task<IReadOnlyList<PrintMaterialsLocationReadinessDto>>
+                ListReadinessAsync(
+                    int operatorUserId,
+                    CancellationToken cancellationToken = default
+                ) => throw new NotSupportedException();
+
+            public Task<IReadOnlyList<ShopPrintAssetReadinessDto>>
+                ListShopOrderReadinessAsync(
+                    Guid shopOrderId,
+                    CancellationToken cancellationToken = default
+                ) => throw new NotSupportedException();
+
+            public Task EnsureAllStarterMaterialsForOperatorAsync(
+                int operatorUserId,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
+            public Task<PrintReadyQrDownload?> DownloadAsync(
+                int operatorUserId,
+                int locationId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
+            public Task<PrintReadyQrDownload?> DownloadShopOrderAsync(
+                Guid shopOrderId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
+            public Task<PrintMaterialsAssetReadinessDto?> RetryAsync(
+                int operatorUserId,
+                int locationId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
+
+            public Task<ShopPrintAssetReadinessDto?> RetryShopOrderAsync(
+                Guid shopOrderId,
+                QrType qrType,
+                CancellationToken cancellationToken = default
+            ) => throw new NotSupportedException();
         }
 
         private void SeedPilotAtCap()

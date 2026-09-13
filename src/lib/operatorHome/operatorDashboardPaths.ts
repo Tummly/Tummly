@@ -159,6 +159,17 @@ export function operatorDashboardCaptureForLocationPath(
   return operatorDashboardNavPath("single", "capture", locationId)
 }
 
+/** Capture path that opens Placement Detail for a QR code via `qrCodeId` query. */
+export function operatorDashboardCapturePlacementDetailPath(
+  mode: OperatorDashboardMode,
+  locationId: number,
+  qrCodeId: number
+): string {
+  const base = operatorDashboardCaptureForLocationPath(mode, locationId)
+  const join = base.includes("?") ? "&" : "?"
+  return `${base}${join}qrCodeId=${qrCodeId}`
+}
+
 /** Multi nested per-location Capture — path segment + `?location=` shell sync. */
 export function operatorDashboardCaptureLocationPath(
   locationId: number

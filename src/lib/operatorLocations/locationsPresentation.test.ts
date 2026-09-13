@@ -22,7 +22,6 @@ describe("locationRowActionsForLifecycle", () => {
     ).toEqual([
       "view-location",
       "edit-location",
-      "set-manager",
       "view-qr-placements",
       "view-feedback",
       "pause-location",
@@ -35,7 +34,6 @@ describe("locationRowActionsForLifecycle", () => {
     ).toEqual([
       "continue-setup",
       "edit-location",
-      "set-manager",
       "delete-draft",
     ])
   })

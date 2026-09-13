@@ -16,14 +16,20 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IPricebookCatalog _pricebookCatalog;
+        private readonly IQrCodeProvisioningService _qrCodeProvisioning;
+        private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
 
         public OwnedLocationInsertService(
             ApplicationDbContext context,
-            IPricebookCatalog pricebookCatalog
+            IPricebookCatalog pricebookCatalog,
+            IQrCodeProvisioningService qrCodeProvisioning,
+            IPrintReadyQrMaterialsWork printReadyQrMaterialsWork
         )
         {
             _context = context;
             _pricebookCatalog = pricebookCatalog;
+            _qrCodeProvisioning = qrCodeProvisioning;
+            _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
         }
 
         public const int ImportMaxRows = 100;
@@ -218,6 +224,7 @@ namespace TummlyBackend.Services
             };
 
             _context.RestaurantLocations.Add(location);
+            await _qrCodeProvisioning.MintDefaultQrCodesAsync(location);
             await _context.SaveChangesAsync();
 
             _context.LocationActivities.Add(
@@ -237,6 +244,7 @@ namespace TummlyBackend.Services
             );
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
+            await _printReadyQrMaterialsWork.RequestEnsureAsync(location.Id);
 
             return new AddOwnedLocationResult.Created(location.Id);
         }

@@ -4,6 +4,10 @@ import { useLocation, useNavigate, useOutletContext, useSearchParams } from "rea
 import { FeedbackPage } from "@/components/dashboard/operator/Feedback/FeedbackPage"
 import { useFeedbackPageModuleApi } from "@/components/dashboard/operator/Feedback/utils/feedbackPageModuleContext"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
+import {
+  readGlobalSearchQueryParam,
+  stripGlobalSearchListParams,
+} from "@/lib/operatorGlobalSearch/applySearchQueryFromParam"
 import { parseRecoveryDraftActionRouterState } from "@/lib/operatorFeedback/recoveryDraftAction"
 import { toast } from "sonner"
 
@@ -17,6 +21,7 @@ export function FeedbackRoute() {
   const [searchParams] = useSearchParams()
   const consumedRecoveryDraftKeyRef = useRef<string | null>(null)
   const consumedFeedbackIdRef = useRef<string | null>(null)
+  const consumedSearchQueryRef = useRef<string | null>(null)
 
   syncFeedbackRef.current = feedbackPageModule.syncWorkspace
 
@@ -79,6 +84,33 @@ export function FeedbackRoute() {
   ])
 
   useEffect(() => {
+    const q = readGlobalSearchQueryParam(searchParams)
+    if (q == null) {
+      return
+    }
+    const key = `${q}:${location.key}`
+    if (consumedSearchQueryRef.current === key) {
+      return
+    }
+    consumedSearchQueryRef.current = key
+    feedbackPageModule.setSearchQuery(q)
+    // Keep feedbackId / startRecovery for the detail hitchhiker below.
+    const nextParams = stripGlobalSearchListParams(searchParams)
+    const nextSearch = nextParams.toString()
+    navigate(
+      nextSearch === "" ? location.pathname : `${location.pathname}?${nextSearch}`,
+      { replace: true, state: location.state }
+    )
+  }, [
+    feedbackPageModule,
+    location.key,
+    location.pathname,
+    location.state,
+    navigate,
+    searchParams,
+  ])
+
+  useEffect(() => {
     const rawFeedbackId = searchParams.get("feedbackId")
     if (rawFeedbackId == null || rawFeedbackId.trim() === "") {
       return
@@ -89,27 +121,37 @@ export function FeedbackRoute() {
       return
     }
 
-    const key = `${feedbackId}:${location.key}`
+    const startRecovery = searchParams.get("startRecovery") === "1"
+    const key = `${feedbackId}:${startRecovery ? "recovery" : "details"}:${location.key}`
     if (consumedFeedbackIdRef.current === key) {
       return
     }
 
+    const clearFeedbackQuery = () => {
+      consumedFeedbackIdRef.current = key
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete("feedbackId")
+      nextParams.delete("startRecovery")
+      const nextSearch = nextParams.toString()
+      navigate(
+        nextSearch === ""
+          ? location.pathname
+          : `${location.pathname}?${nextSearch}`,
+        { replace: true, state: location.state }
+      )
+    }
+
     void feedbackPageModule
-      .startInboxRecovery(feedbackId)
+      .openFeedbackDetailsFromQuery({ feedbackId, startRecovery })
       .then(() => {
-        consumedFeedbackIdRef.current = key
-        const nextParams = new URLSearchParams(searchParams)
-        nextParams.delete("feedbackId")
-        const nextSearch = nextParams.toString()
-        navigate(
-          nextSearch === ""
-            ? location.pathname
-            : `${location.pathname}?${nextSearch}`,
-          { replace: true, state: location.state }
-        )
+        clearFeedbackQuery()
       })
       .catch(() => {
-        toast.error("Could not open recovery. Please try again.")
+        // Clear either way so a missing/deleted Feedback does not loop the URL.
+        clearFeedbackQuery()
+        if (startRecovery) {
+          toast.error("Could not open recovery. Please try again.")
+        }
       })
   }, [
     feedbackPageModule,

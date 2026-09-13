@@ -14,6 +14,14 @@ export type AdminShopOrderLineSummary = {
   lineNetPence: number
 }
 
+export type AdminShopPrintAsset = {
+  qrType: "TableTent" | "WindowSticker" | "OfferCard"
+  quantity: number
+  status: "Preparing" | "Ready" | "Failed"
+  fileName: string | null
+  lastError: string | null
+}
+
 export type AdminShopOrderListItem = {
   id: string
   orderNumber: string
@@ -28,6 +36,7 @@ export type AdminShopOrderListItem = {
   paidAtUtc: string | null
   grossPence: number
   lines: AdminShopOrderLineSummary[]
+  printAssets: AdminShopPrintAsset[]
 }
 
 export type AdminShopOrderListResponse = {
@@ -89,6 +98,27 @@ export async function patchAdminShopOrderFulfilment(
   const response = await axiosInstance.patch<AdminShopOrderListItem>(
     `/admin/shop-orders/${orderId}/fulfilment`,
     patch
+  )
+  return response.data
+}
+
+export async function downloadAdminShopOrderPrintAsset(
+  orderId: string,
+  qrType: AdminShopPrintAsset["qrType"]
+): Promise<Blob> {
+  const response = await axiosInstance.get<Blob>(
+    `/admin/shop-orders/${orderId}/print-assets/${qrType}/download`,
+    { responseType: "blob" }
+  )
+  return response.data
+}
+
+export async function retryAdminShopOrderPrintAsset(
+  orderId: string,
+  qrType: AdminShopPrintAsset["qrType"]
+): Promise<AdminShopPrintAsset> {
+  const response = await axiosInstance.post<AdminShopPrintAsset>(
+    `/admin/shop-orders/${orderId}/print-assets/${qrType}/retry`
   )
   return response.data
 }

@@ -46,7 +46,7 @@ export function formatAdminShopGbpFromPence(pence: number): string {
 
 export function nextAdminShopFulfilmentAction(
   status: string
-): { status: AdminShopFulfilmentStatus; label: string } | null {
+): { status: "in_transit" | "delivered"; label: string } | null {
   if (status === "processing") {
     return { status: "in_transit", label: "Mark as Dispatched" }
   }

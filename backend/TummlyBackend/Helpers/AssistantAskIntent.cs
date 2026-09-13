@@ -308,6 +308,11 @@ namespace TummlyBackend.Helpers
         private static bool LooksLikeInScope(string text)
         {
             var lower = text.ToLowerInvariant();
+            if (LooksLikeGuestRetrieve(lower))
+            {
+                return true;
+            }
+
             return ContainsAny(
                 lower,
                 "feedback",
@@ -320,17 +325,6 @@ namespace TummlyBackend.Helpers
                 "recently",
                 "lately",
                 "what needs",
-                "list guests",
-                "show guests",
-                "show guest",
-                "list guest",
-                "which guests",
-                "named guests",
-                "who opted",
-                "opted in",
-                "opted out",
-                "marketing eligible",
-                "location guest",
                 "offers",
                 "offers performance",
                 "catalog offer",
@@ -387,25 +381,63 @@ namespace TummlyBackend.Helpers
             );
 
         private static bool LooksLikeListGuests(string lower)
+            => LooksLikeGuestRetrieve(lower);
+
+        /// <summary>
+        /// Location Guest list or count asks. Includes natural "how many guests"
+        /// wording that is not covered by the old list/show needles alone.
+        /// </summary>
+        private static bool LooksLikeGuestRetrieve(string lower)
         {
             if (ContainsAny(
                     lower,
-                    "which guests",
-                    "named guests",
-                    "who opted out",
                     "list guests",
                     "show guests",
                     "show guest ",
                     "list guest ",
                     "show the guests",
-                    "list the guests"
+                    "list the guests",
+                    "which guests",
+                    "named guests",
+                    "who opted",
+                    "opted in",
+                    "opted out",
+                    "marketing eligible",
+                    "location guest",
+                    "location guests",
+                    "guests joined"
                 ))
             {
                 return true;
             }
 
-            return ContainsAny(lower, "who are")
-                && ContainsAny(lower, "guest");
+            if (ContainsAny(lower, "who are")
+                && ContainsAny(lower, "guest"))
+            {
+                return true;
+            }
+
+            var namesGuest =
+                ContainsWholeWord(lower, "guest")
+                || ContainsWholeWord(lower, "guests");
+            if (!namesGuest)
+            {
+                return false;
+            }
+
+            return ContainsAny(
+                lower,
+                "how many",
+                "count",
+                "total",
+                "have we",
+                "do we have",
+                "have we got",
+                "across",
+                "all location",
+                "all locations",
+                "owned location"
+            );
         }
 
         private static bool LooksLikeListFeedback(string lower)

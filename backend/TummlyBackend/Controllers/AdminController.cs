@@ -5,6 +5,7 @@ using System.Security.Claims;
 using TummlyBackend.DTOs.Admin;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Controllers
 {
@@ -18,13 +19,15 @@ namespace TummlyBackend.Controllers
         private readonly ICreditLedger _creditLedger;
         private readonly ICreditBalanceSnapshot _creditBalanceSnapshot;
         private readonly IAdminPaymentRefundService _paymentRefunds;
+        private readonly IPrintReadyQrMaterialsService _printReadyQrMaterials;
 
         public AdminController(
             IAdminService adminService,
             ITrialReviewTransition trialReviewTransition,
             ICreditLedger creditLedger,
             ICreditBalanceSnapshot creditBalanceSnapshot,
-            IAdminPaymentRefundService paymentRefunds
+            IAdminPaymentRefundService paymentRefunds,
+            IPrintReadyQrMaterialsService printReadyQrMaterials
         )
         {
             _adminService = adminService;
@@ -32,6 +35,7 @@ namespace TummlyBackend.Controllers
             _creditLedger = creditLedger;
             _creditBalanceSnapshot = creditBalanceSnapshot;
             _paymentRefunds = paymentRefunds;
+            _printReadyQrMaterials = printReadyQrMaterials;
         }
 
         /*
@@ -232,6 +236,159 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 });
             }
+        }
+
+        [HttpGet("operators/{userId}/print-materials")]
+        public async Task<IActionResult> ListPrintMaterials(int userId)
+        {
+            var data = await _printReadyQrMaterials.ListReadinessAsync(userId);
+            return Ok(new { success = true, data });
+        }
+
+        [HttpPost("operators/{userId}/print-materials/ensure")]
+        public async Task<IActionResult> EnsurePrintMaterials(int userId)
+        {
+            await _printReadyQrMaterials.EnsureAllStarterMaterialsForOperatorAsync(
+                userId
+            );
+            var data = await _printReadyQrMaterials.ListReadinessAsync(userId);
+            return Ok(new { success = true, data });
+        }
+
+        [HttpPost(
+            "operators/{userId}/locations/{locationId}/print-materials/ensure"
+        )]
+        public async Task<IActionResult> EnsureLocationPrintMaterials(
+            int userId,
+            int locationId
+        )
+        {
+            var owned = await _printReadyQrMaterials.ListReadinessAsync(userId);
+            if (owned.All(row => row.LocationId != locationId))
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Location not found for operator.",
+                });
+            }
+
+            await _printReadyQrMaterials.EnsureStarterMaterialsAsync(locationId);
+            var data = await _printReadyQrMaterials.ListReadinessAsync(userId);
+            return Ok(new { success = true, data });
+        }
+
+        [HttpGet(
+            "operators/{userId}/locations/{locationId}/print-materials/{qrType}/download"
+        )]
+        public async Task<IActionResult> DownloadPrintMaterial(
+            int userId,
+            int locationId,
+            string qrType
+        )
+        {
+            if (!TryParseStarterQrType(qrType, out var parsed))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Unsupported QR type.",
+                });
+            }
+
+            try
+            {
+                var result = await _printReadyQrMaterials.DownloadAsync(
+                    userId,
+                    locationId,
+                    parsed
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Print-ready QR asset not found.",
+                    });
+                }
+
+                return File(result.Content, result.ContentType, result.FileName);
+            }
+            catch (PrintReadyQrNotReadyException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                    status = ex.Status.ToString(),
+                });
+            }
+        }
+
+        [HttpPost(
+            "operators/{userId}/locations/{locationId}/print-materials/{qrType}/retry"
+        )]
+        public async Task<IActionResult> RetryPrintMaterial(
+            int userId,
+            int locationId,
+            string qrType
+        )
+        {
+            if (!TryParseStarterQrType(qrType, out var parsed))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Unsupported QR type.",
+                });
+            }
+
+            try
+            {
+                var result = await _printReadyQrMaterials.RetryAsync(
+                    userId,
+                    locationId,
+                    parsed
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Print-ready QR asset not found.",
+                    });
+                }
+
+                return Ok(new { success = true, data = result });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        private static bool TryParseStarterQrType(string raw, out QrType qrType)
+        {
+            qrType = default;
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return false;
+            }
+
+            if (!Enum.TryParse(raw, ignoreCase: true, out qrType))
+            {
+                return false;
+            }
+
+            return qrType is QrType.TableTent
+                or QrType.WindowSticker
+                or QrType.OfferCard;
         }
 
         private async Task<IActionResult> ExecuteTransitionAsync(

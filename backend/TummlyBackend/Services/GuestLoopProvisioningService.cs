@@ -14,18 +14,21 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IQrCodeProvisioningService _qrCodeProvisioning;
+        private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
         private readonly IConfiguration _configuration;
         private readonly IPricebookCatalog _pricebookCatalog;
 
         public GuestLoopProvisioningService(
             ApplicationDbContext context,
             IQrCodeProvisioningService qrCodeProvisioning,
+            IPrintReadyQrMaterialsWork printReadyQrMaterialsWork,
             IConfiguration configuration,
             IPricebookCatalog pricebookCatalog
         )
         {
             _context = context;
             _qrCodeProvisioning = qrCodeProvisioning;
+            _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
             _configuration = configuration;
             _pricebookCatalog = pricebookCatalog;
         }
@@ -74,6 +77,7 @@ namespace TummlyBackend.Services
 
             await using var transaction =
                 await _context.Database.BeginTransactionAsync();
+            var provisionedLocations = new List<RestaurantLocation>();
 
             try
             {
@@ -164,6 +168,7 @@ namespace TummlyBackend.Services
                     };
 
                     _context.RestaurantLocations.Add(location);
+                    provisionedLocations.Add(location);
 
                     await _qrCodeProvisioning.MintDefaultQrCodesAsync(location);
                 }
@@ -187,6 +192,11 @@ namespace TummlyBackend.Services
             {
                 await transaction.RollbackAsync();
                 throw;
+            }
+
+            foreach (var location in provisionedLocations)
+            {
+                await _printReadyQrMaterialsWork.RequestEnsureAsync(location.Id);
             }
         }
 

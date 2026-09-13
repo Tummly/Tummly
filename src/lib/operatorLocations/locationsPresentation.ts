@@ -203,7 +203,6 @@ export type LocationRowActionId =
   | "archive-location"
   | "continue-setup"
   | "delete-draft"
-  | "set-manager"
   | "view-historical-activity"
   | "resume-location"
   | "view-historical-record"
@@ -226,7 +225,6 @@ const ACTION_LABELS: Record<LocationRowActionId, string> = {
   "archive-location": "Archive location",
   "continue-setup": "Continue setup",
   "delete-draft": "Delete Draft",
-  "set-manager": "Set manager",
   "view-historical-activity": "View historical activity",
   "resume-location": "Resume location",
   "view-historical-record": "View historical record",
@@ -253,7 +251,6 @@ export function locationRowActionsForLifecycle(
       return actions([
         "view-location",
         "edit-location",
-        "set-manager",
         "view-qr-placements",
         "view-feedback",
         // view-reports hidden until Reports route ships (same as export-location-history).
@@ -263,7 +260,6 @@ export function locationRowActionsForLifecycle(
       return actions([
         "continue-setup",
         "edit-location",
-        "set-manager",
         "delete-draft",
       ])
     case "paused":

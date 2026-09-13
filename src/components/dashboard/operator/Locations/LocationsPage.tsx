@@ -12,7 +12,6 @@ import { LocationsActivitySection } from "@/components/dashboard/operator/Locati
 import { LocationsAddLocationDialog } from "@/components/dashboard/operator/Locations/LocationsAddLocationDialog"
 import { LocationsImportLocationsDialog } from "@/components/dashboard/operator/Locations/LocationsImportLocationsDialog"
 import { LocationsKpiStrip } from "@/components/dashboard/operator/Locations/LocationsKpiStrip"
-import { LocationsSetManagerDialog } from "@/components/dashboard/operator/Locations/LocationsSetManagerDialog"
 import { LocationsSetupReadinessSection } from "@/components/dashboard/operator/Locations/LocationsSetupReadinessSection"
 import { LocationsTableSection } from "@/components/dashboard/operator/Locations/LocationsTableSection"
 import { useLocationsPageModuleApi } from "@/components/dashboard/operator/Locations/utils/locationsPageModuleContext"
@@ -97,14 +96,6 @@ export function LocationsPage() {
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const [managerTarget, setManagerTarget] = useState<{
-    id: string
-    name: string
-    managerUserId: number | null
-  } | null>(null)
-  const [managerBusy, setManagerBusy] = useState(false)
-  const [managerError, setManagerError] = useState<string | null>(null)
-
   const [lifecycleConfirm, setLifecycleConfirm] = useState<{
     locationId: string
     name: string
@@ -157,15 +148,6 @@ export function LocationsPage() {
       setDeleteTarget({
         id: locationId,
         name: row?.name ?? "this draft",
-      })
-      return
-    }
-    if (actionId === "set-manager") {
-      setManagerError(null)
-      setManagerTarget({
-        id: locationId,
-        name: row?.name ?? "Location",
-        managerUserId: row?.managerUserId ?? null,
       })
       return
     }
@@ -490,43 +472,6 @@ export function LocationsPage() {
             setLifecycleError(copy.lifecycleErrorToast)
           }
           setLifecycleBusy(false)
-        }}
-      />
-
-      <LocationsSetManagerDialog
-        open={managerTarget != null}
-        locationId={managerTarget?.id ?? null}
-        locationName={managerTarget?.name ?? "Location"}
-        currentManagerUserId={managerTarget?.managerUserId ?? null}
-        busy={managerBusy}
-        error={managerError}
-        onOpenChange={(open) => {
-          if (!open) {
-            setManagerTarget(null)
-            setManagerError(null)
-          }
-        }}
-        onSubmit={async (managerUserId) => {
-          if (managerTarget == null) {
-            return
-          }
-          setManagerBusy(true)
-          setManagerError(null)
-          try {
-            await pageModule.setManager(managerTarget.id, managerUserId)
-            toast.success(
-              managerUserId == null ? "Manager cleared." : "Manager updated."
-            )
-          } catch (error) {
-            const message =
-              error instanceof Error
-                ? error.message
-                : "Could not update manager."
-            setManagerError(message)
-            throw error
-          } finally {
-            setManagerBusy(false)
-          }
         }}
       />
     </div>

@@ -105,10 +105,6 @@ export type OperatorLocationsPageAdapters = {
   }>
   activateDraft?: (locationId: string) => Promise<void>
   deleteDraft?: (locationId: string) => Promise<void>
-  setManager?: (
-    locationId: string,
-    managerUserId: number | null
-  ) => Promise<void>
   mutateLifecycle?: (
     locationId: number,
     action: "pause" | "resume" | "archive" | "restore"
@@ -158,10 +154,6 @@ export type OperatorLocationsPageModule = {
   }>
   activateDraft: (locationId: string) => Promise<void>
   deleteDraft: (locationId: string) => Promise<void>
-  setManager: (
-    locationId: string,
-    managerUserId: number | null
-  ) => Promise<void>
   onRowAction: (locationId: string, actionId: LocationRowActionId) => void | Promise<void>
   onReviewSetupAttention: (itemId: LocationsSetupAttentionItemId) => void | Promise<void>
 }
@@ -540,13 +532,6 @@ export function createOperatorLocationsPageModule(
       await adapters.deleteDraft(locationId)
       await fetchListAndActivity()
     },
-    setManager: async (locationId, managerUserId) => {
-      if (adapters.setManager == null) {
-        throw new Error("Set manager is not configured.")
-      }
-      await adapters.setManager(locationId, managerUserId)
-      await fetchListAndActivity()
-    },
     onRowAction: (locationId, actionId) => {
       const mutate = adapters.mutateLifecycle
       if (mutate == null) {
@@ -565,7 +550,7 @@ export function createOperatorLocationsPageModule(
                 : null
 
       if (lifecycleAction == null) {
-        // Activate / delete / manager use dedicated methods + confirm chrome.
+        // Activate / delete use dedicated methods + confirm chrome.
         return
       }
 

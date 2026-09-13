@@ -50,9 +50,7 @@ namespace TummlyBackend.Services
                     l.Postcode,
                     l.Address,
                     l.LocationPhone,
-                    l.LocalContact,
-                    l.ManagerUserId,
-                    l.ManagerUser != null ? l.ManagerUser.FullName : null
+                    l.LocalContact
                 ))
                 .FirstOrDefaultAsync();
 
@@ -60,6 +58,20 @@ namespace TummlyBackend.Services
             {
                 return null;
             }
+
+            var assignedManagers = await _context.RestaurantMemberships
+                .AsNoTracking()
+                .Include(row => row.User)
+                .Where(row =>
+                    row.RestaurantId == query.RestaurantId
+                    && row.Status == MembershipStatus.Active
+                    && row.PermissionRole == PermissionRoles.LocationManager
+                )
+                .ToListAsync();
+            LocationAssignedManager.MapByLocationId(assignedManagers)
+                .TryGetValue(query.LocationId, out var assignedManager);
+            var managerUserId = assignedManager?.UserId;
+            var managerName = assignedManager?.FullName;
 
             var privacyReadyAt = await _context.Restaurants
                 .AsNoTracking()
@@ -137,9 +149,6 @@ namespace TummlyBackend.Services
                 privacyReady
             );
             var city = LocationRowWire.NormalizeCity(location.City);
-            var managerName = string.IsNullOrWhiteSpace(location.ManagerName)
-                ? null
-                : location.ManagerName.Trim();
             var postcode = string.IsNullOrWhiteSpace(location.Postcode)
                 ? null
                 : location.Postcode.Trim();
@@ -153,7 +162,7 @@ namespace TummlyBackend.Services
                 hasActiveQr,
                 anyQrCount,
                 privacyReady,
-                location.ManagerUserId,
+                managerUserId,
                 hasOffer
             );
 
@@ -238,7 +247,7 @@ namespace TummlyBackend.Services
                     LifecycleStatus = lifecycleWire,
                     SetupStatus = setupStatus,
                     ManagerName = managerName,
-                    ManagerUserId = location.ManagerUserId,
+                    ManagerUserId = managerUserId,
                     Address = location.Address,
                     Postcode = postcode,
                     LocationPhone = string.IsNullOrWhiteSpace(location.LocationPhone)
@@ -311,9 +320,7 @@ namespace TummlyBackend.Services
             string? Postcode,
             string Address,
             string? LocationPhone,
-            string? LocalContact,
-            int? ManagerUserId,
-            string? ManagerName
+            string? LocalContact
         );
     }
 }

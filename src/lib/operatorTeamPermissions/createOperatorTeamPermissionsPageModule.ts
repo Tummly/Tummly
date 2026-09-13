@@ -855,6 +855,10 @@ function formatTeamMembersUsageLabel(
           dialog = { kind: "none" }
           inviteDraft = emptyInviteDraft(data?.actorPermissionRole ?? "")
           inviteEmailError = null
+          activeTabId = resolveTeamPermissionsTabId(
+            "invitations",
+            privacyConsentHasAccess
+          )
         } catch (error) {
           inviteEmailError =
             error instanceof Error

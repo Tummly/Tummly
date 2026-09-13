@@ -16,7 +16,6 @@ import {
   createOwnedLocation,
   deleteOwnedLocationDraft,
   importOwnedLocations,
-  setOwnedLocationManager,
 } from "@/api/locationsWriteApi"
 import { locationsPageModuleContext } from "@/components/dashboard/operator/Locations/utils/locationsPageModuleContext"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
@@ -56,12 +55,6 @@ export function LocationsPageModuleProvider({
         },
         deleteDraft: async (locationId) => {
           await deleteOwnedLocationDraft(Number.parseInt(locationId, 10))
-        },
-        setManager: async (locationId, managerUserId) => {
-          await setOwnedLocationManager(
-            Number.parseInt(locationId, 10),
-            managerUserId
-          )
         },
         mutateLifecycle: mutateLocationLifecycle,
         navigateToPrivacyConsent: () => {

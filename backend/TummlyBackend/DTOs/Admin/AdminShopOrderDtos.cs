@@ -55,6 +55,8 @@ namespace TummlyBackend.DTOs.Admin
         public int GrossPence { get; set; }
 
         public List<AdminShopOrderLineSummaryDto> Lines { get; set; } = [];
+
+        public List<AdminShopPrintAssetDto> PrintAssets { get; set; } = [];
     }
 
     public sealed class AdminShopOrderLineSummaryDto
@@ -68,6 +70,19 @@ namespace TummlyBackend.DTOs.Admin
         public int UnitNetPence { get; set; }
 
         public int LineNetPence { get; set; }
+    }
+
+    public sealed class AdminShopPrintAssetDto
+    {
+        public string QrType { get; set; } = string.Empty;
+
+        public int Quantity { get; set; }
+
+        public string Status { get; set; } = string.Empty;
+
+        public string? FileName { get; set; }
+
+        public string? LastError { get; set; }
     }
 
     public sealed class AdminShopOrderFulfilmentPatchDto

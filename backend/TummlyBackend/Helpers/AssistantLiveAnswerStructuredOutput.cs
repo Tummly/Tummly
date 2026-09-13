@@ -509,6 +509,10 @@ namespace TummlyBackend.Helpers
                 Not retrieved this turn, then the names. Retry this send, or name up to
                 3 locations. When any gap applies, state that the ranking is
                 partial. Empty domains use No domain at name for the period phrase.
+
+                Answer only the latest operator ask in the userMessage field of the
+                JSON user payload. Chat history is context only. Do not answer an
+                earlier history user turn that was left open or clarified.
                 """;
 
         public static bool TryExtractMessageContent(

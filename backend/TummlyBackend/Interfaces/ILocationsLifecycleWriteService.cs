@@ -16,13 +16,6 @@ namespace TummlyBackend.Interfaces
             int actorUserId
         );
 
-        Task<LocationLifecycleWriteResult> SetManagerAsync(
-            int restaurantId,
-            int locationId,
-            int actorUserId,
-            int? managerUserId
-        );
-
         Task<LocationLifecycleWriteResult> EditDetailsAsync(
             int restaurantId,
             int locationId,

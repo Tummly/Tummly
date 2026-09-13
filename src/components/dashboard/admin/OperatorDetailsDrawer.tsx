@@ -7,6 +7,7 @@ import {
   TrialRequestStatusBadge,
 } from "@/components/dashboard/admin/adminTrialRequestStatus"
 import { OperatorActivationSection } from "@/components/dashboard/admin/OperatorActivationSection"
+import { OperatorPrintMaterialsSection } from "@/components/dashboard/admin/OperatorPrintMaterialsSection"
 import { TrialRequestActionsMenu } from "@/components/dashboard/admin/TrialRequestActionsMenu"
 import {
   Drawer,
@@ -290,6 +291,8 @@ export function OperatorDetailsDrawer({
                 request={request}
                 onRequestUpdated={onRequestUpdated ?? (() => {})}
               />
+              <Separator />
+              <OperatorPrintMaterialsSection request={request} />
               <Separator />
             </>
           ) : null}

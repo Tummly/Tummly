@@ -44,10 +44,15 @@ namespace TummlyBackend.Services
         ];
 
         private readonly ApplicationDbContext _context;
+        private readonly IPrintReadyQrMaterialsService _printReadyQrMaterials;
 
-        public AdminShopOrderFulfilmentService(ApplicationDbContext context)
+        public AdminShopOrderFulfilmentService(
+            ApplicationDbContext context,
+            IPrintReadyQrMaterialsService printReadyQrMaterials
+        )
         {
             _context = context;
+            _printReadyQrMaterials = printReadyQrMaterials;
         }
 
         public async Task<AdminShopOrderListResponseDto> GetListAsync(
@@ -69,9 +74,17 @@ namespace TummlyBackend.Services
                 .Include(row => row.Lines)
                 .ToListAsync(cancellationToken);
 
+            var items = new List<AdminShopOrderListItemDto>(pageRows.Count);
+            foreach (var order in pageRows)
+            {
+                items.Add(
+                    await MapWithPrintAssetsAsync(order, cancellationToken)
+                );
+            }
+
             return new AdminShopOrderListResponseDto
             {
-                Items = pageRows.Select(MapListItem).ToList(),
+                Items = items,
                 TotalCount = totalCount,
                 Page = page,
                 PageSize = pageSize,
@@ -175,7 +188,9 @@ namespace TummlyBackend.Services
             order.UpdatedAtUtc = now;
             await _context.SaveChangesAsync(cancellationToken);
 
-            return AdminShopOrderFulfilmentResult.Ok(MapListItem(order));
+            return AdminShopOrderFulfilmentResult.Ok(
+                await MapWithPrintAssetsAsync(order, cancellationToken)
+            );
         }
 
         public async Task<AdminShopOrdersExportResult> ExportCsvAsync(
@@ -477,6 +492,30 @@ namespace TummlyBackend.Services
 
             var trimmed = opsNotes.Trim();
             return trimmed.Length == 0 ? null : trimmed;
+        }
+
+        private async Task<AdminShopOrderListItemDto> MapWithPrintAssetsAsync(
+            ShopOrder order,
+            CancellationToken cancellationToken
+        )
+        {
+            var item = MapListItem(order);
+            var printAssets =
+                await _printReadyQrMaterials.ListShopOrderReadinessAsync(
+                    order.Id,
+                    cancellationToken
+                );
+            item.PrintAssets = printAssets
+                .Select(row => new AdminShopPrintAssetDto
+                {
+                    QrType = row.QrType,
+                    Quantity = row.Quantity,
+                    Status = row.Status,
+                    FileName = row.FileName,
+                    LastError = row.LastError,
+                })
+                .ToList();
+            return item;
         }
 
         private static AdminShopOrderListItemDto MapListItem(ShopOrder order)

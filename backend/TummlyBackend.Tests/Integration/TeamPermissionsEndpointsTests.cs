@@ -486,6 +486,79 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task SendInvite_SecondLocationManagerForSameLocation_Returns400()
+        {
+            var seeded = await SeedWorkspaceAsync();
+
+            int locationId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                locationId = await context.RestaurantLocations
+                    .Where(row => row.RestaurantId == seeded.RestaurantId)
+                    .OrderBy(row => row.Id)
+                    .Select(row => row.Id)
+                    .FirstAsync();
+
+                var existing = new User
+                {
+                    FullName = "Existing Manager",
+                    Email = $"{Guid.NewGuid():N}@example.com",
+                    PasswordHash = "hash",
+                    PhoneNumber = "07700900901",
+                    Role = "User",
+                    AccountType = "Multi",
+                    IsEmailVerified = true,
+                    IsApprovedByAdmin = true,
+                    SelectedRestaurantId = seeded.RestaurantId,
+                    CreatedAt = DateTime.UtcNow,
+                    ActivatedAt = DateTime.UtcNow,
+                    ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+                };
+                context.Users.Add(existing);
+                await context.SaveChangesAsync();
+                context.RestaurantMemberships.Add(
+                    new RestaurantMembership
+                    {
+                        UserId = existing.Id,
+                        RestaurantId = seeded.RestaurantId,
+                        PermissionRole = PermissionRoles.LocationManager,
+                        LocationScope = LocationScopeKind.NamedList,
+                        NamedLocationIdsJson =
+                            MembershipLocationScope.SerializeNamedIds(
+                                [locationId]
+                            ),
+                        Status = MembershipStatus.Active,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/team-permissions/invitations",
+                seeded.OwnerJwt,
+                new
+                {
+                    email = $"{Guid.NewGuid():N}@example.com",
+                    fullName = "Second Manager",
+                    permissionRole = PermissionRoles.LocationManager,
+                    locationScope = "named",
+                    namedLocationIds = new[] { locationId },
+                    message = (string?)null,
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                LocationAssignedManager.ConflictMessage,
+                body.GetProperty("message").GetString()
+            );
+        }
+
         private async Task<Seeded> SeedWorkspaceAsync()
         {
             using var scope = _factory.Services.CreateScope();

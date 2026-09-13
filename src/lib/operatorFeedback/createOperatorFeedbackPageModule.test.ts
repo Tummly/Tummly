@@ -821,6 +821,80 @@ describe("createOperatorFeedbackPageModule", () => {
     expect(pageModule.getSnapshot().canGoPreviousFeedback).toBe(true)
     expect(pageModule.getSnapshot().canGoNextFeedback).toBe(true)
   })
+
+  it("openFeedbackDetailsFromQuery opens Feedback detail for bare feedbackId", async () => {
+    const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+      ...sampleDetails,
+      id: feedbackId,
+    }))
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({ getFeedbackDetails })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+
+    const result = await pageModule.openFeedbackDetailsFromQuery({
+      feedbackId: 77,
+    })
+
+    expect(result).toBe("details")
+    expect(getFeedbackDetails).toHaveBeenCalledWith(77)
+    expect(pageModule.getSnapshot().feedbackDetails.isOpen).toBe(true)
+    expect(pageModule.getSnapshot().feedbackDetails.feedbackId).toBe(77)
+    expect(pageModule.getSnapshot().feedbackDetails.loadStatus).toBe("loaded")
+    expect(pageModule.getSnapshot().startRecovery.isOpen).toBe(false)
+  })
+
+  it("openFeedbackDetailsFromQuery fails safely when Feedback is missing", async () => {
+    const getFeedbackDetails = vi.fn(async () => {
+      throw new Error("not found")
+    })
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({ getFeedbackDetails })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+
+    const result = await pageModule.openFeedbackDetailsFromQuery({
+      feedbackId: 404,
+    })
+
+    expect(result).toBe("details")
+    expect(pageModule.getSnapshot().feedbackDetails.isOpen).toBe(true)
+    expect(pageModule.getSnapshot().feedbackDetails.feedbackId).toBe(404)
+    expect(pageModule.getSnapshot().feedbackDetails.loadStatus).toBe("error")
+    expect(pageModule.getSnapshot().feedbackDetails.loadError).toBeTruthy()
+  })
+
+  it("openFeedbackDetailsFromQuery starts recovery when startRecovery is set", async () => {
+    const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+      ...sampleDetails,
+      id: feedbackId,
+    }))
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({ getFeedbackDetails })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+    await pageModule.openFeedbackDetails(10)
+
+    const result = await pageModule.openFeedbackDetailsFromQuery({
+      feedbackId: 10,
+      startRecovery: true,
+    })
+
+    expect(result).toBe("recovery")
+    expect(pageModule.getSnapshot().feedbackDetails.isOpen).toBe(false)
+    expect(pageModule.getSnapshot().startRecovery.isOpen).toBe(true)
+    expect(pageModule.getSnapshot().startRecovery.feedbackId).toBe(10)
+  })
+
   it("Review needs attention switches tab and refetches needs-attention", async () => {
     const getFeedbackInbox = vi.fn(async () => inboxResponse())
     const pageModule = createOperatorFeedbackPageModule(

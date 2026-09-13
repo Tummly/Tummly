@@ -197,6 +197,78 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(history!);
         }
 
+        [Fact]
+        public async Task SendTurn_GuestCountAsk_RetrievesInsteadOfVagueClarify()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "The Ivy Soho Brasserie");
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "How many guests have we got across all our location?"
+                    )
+                )
+            );
+
+            var answer = outcome.Conversation.Messages[^1];
+            Assert.NotEqual("clarify", answer.Class);
+            Assert.NotEqual(
+                AssistantLiveAnswerCopy.VagueAskClarifyBody,
+                answer.Body
+            );
+            Assert.Equal(
+                "How many guests have we got across all our location?",
+                _fake.LastInput!.UserMessage
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_AfterVagueClarify_OmitsOpenAskFromLiveAnswerHistory()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var vague = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "hello")
+                )
+            );
+            Assert.Equal(
+                AssistantLiveAnswerCopy.VagueAskClarifyBody,
+                vague.Conversation.Messages[^1].Body
+            );
+
+            var campaigns = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "How many campaigns do we have ?",
+                        vague.Conversation.Id
+                    )
+                )
+            );
+
+            Assert.Equal(
+                "How many campaigns do we have ?",
+                _fake.LastInput!.UserMessage
+            );
+            Assert.DoesNotContain(
+                _fake.LastInput!.History!,
+                turn => turn.Body == "hello"
+            );
+            Assert.DoesNotContain(
+                _fake.LastInput!.History!,
+                turn => turn.Body == AssistantLiveAnswerCopy.VagueAskClarifyBody
+            );
+            Assert.NotEqual(
+                AssistantLiveAnswerCopy.VagueAskClarifyBody,
+                campaigns.Conversation.Messages[^1].Body
+            );
+        }
+
         [Theory]
         [InlineData("hello")]
         [InlineData("what is up?")]

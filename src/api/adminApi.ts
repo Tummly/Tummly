@@ -6,6 +6,18 @@ import type {
   AdminTrialReviewTransitionResponse,
   ExtendActivationPayload,
 } from "../types/admin";
+import type {
+  AdminPrintMaterialAsset,
+  AdminPrintMaterialQrType,
+  AdminPrintMaterialsLocation,
+} from "../types/adminPrintMaterials";
+
+export type {
+  AdminPrintMaterialAsset,
+  AdminPrintMaterialQrType,
+  AdminPrintMaterialStatus,
+  AdminPrintMaterialsLocation,
+} from "../types/adminPrintMaterials";
 
 export type AdminPaymentRefundRequest = {
   restaurantId: number
@@ -189,3 +201,88 @@ export const downloadActivationAsset = async (userId: number) => {
 
   return response.data as Blob;
 };
+
+function normalizePrintMaterialAsset(
+  raw: Record<string, unknown>
+): AdminPrintMaterialAsset {
+  return {
+    qrType: String(raw.qrType ?? raw.QrType ?? "") as AdminPrintMaterialQrType,
+    status: String(
+      raw.status ?? raw.Status ?? "Preparing"
+    ) as AdminPrintMaterialAsset["status"],
+    fileName: (raw.fileName ?? raw.FileName ?? null) as string | null,
+    lastError: (raw.lastError ?? raw.LastError ?? null) as string | null,
+  };
+}
+
+function normalizePrintMaterialsLocation(
+  raw: Record<string, unknown>
+): AdminPrintMaterialsLocation {
+  const assetsRaw = raw.assets ?? raw.Assets;
+  const assets = Array.isArray(assetsRaw)
+    ? assetsRaw.map((item) =>
+        normalizePrintMaterialAsset(item as Record<string, unknown>)
+      )
+    : [];
+
+  return {
+    locationId: Number(raw.locationId ?? raw.LocationId ?? 0),
+    locationName: String(raw.locationName ?? raw.LocationName ?? ""),
+    assets,
+  };
+}
+
+export async function getOperatorPrintMaterials(
+  userId: number
+): Promise<AdminPrintMaterialsLocation[]> {
+  const response = await axiosInstance.get(
+    `/admin/operators/${userId}/print-materials`
+  );
+  const data = response.data?.data;
+  if (!Array.isArray(data)) {
+    return [];
+  }
+  return data.map((item: Record<string, unknown>) =>
+    normalizePrintMaterialsLocation(item)
+  );
+}
+
+export async function ensureOperatorPrintMaterials(
+  userId: number
+): Promise<AdminPrintMaterialsLocation[]> {
+  const response = await axiosInstance.post(
+    `/admin/operators/${userId}/print-materials/ensure`
+  );
+  const data = response.data?.data;
+  if (!Array.isArray(data)) {
+    return [];
+  }
+  return data.map((item: Record<string, unknown>) =>
+    normalizePrintMaterialsLocation(item)
+  );
+}
+
+export async function downloadOperatorPrintMaterial(
+  userId: number,
+  locationId: number,
+  qrType: AdminPrintMaterialQrType
+): Promise<Blob> {
+  const response = await axiosInstance.get(
+    `/admin/operators/${userId}/locations/${locationId}/print-materials/${qrType}/download`,
+    { responseType: "blob" }
+  );
+  return response.data as Blob;
+}
+
+export async function retryOperatorPrintMaterial(
+  userId: number,
+  locationId: number,
+  qrType: AdminPrintMaterialQrType
+): Promise<AdminPrintMaterialAsset> {
+  const response = await axiosInstance.post(
+    `/admin/operators/${userId}/locations/${locationId}/print-materials/${qrType}/retry`
+  );
+  return normalizePrintMaterialAsset(
+    (response.data?.data ?? {}) as Record<string, unknown>
+  );
+}

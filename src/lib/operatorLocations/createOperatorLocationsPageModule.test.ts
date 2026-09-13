@@ -393,29 +393,6 @@ describe("createOperatorLocationsPageModule", () => {
     expect(getActivity).toHaveBeenCalledTimes(2)
   })
 
-  it("refreshes the list after setManager", async () => {
-    const getList = vi.fn(async () => apiResponse())
-    const getActivity = vi.fn(async () => emptyActivity())
-    const setManager = vi.fn(async () => undefined)
-    const module = createOperatorLocationsPageModule({
-      getList,
-      getActivity,
-      setManager,
-      debounceMs: 0,
-    })
-    await module.load()
-    getList.mockClear()
-    getActivity.mockClear()
-
-    await module.setManager("10", 42)
-    await module.setManager("10", null)
-
-    expect(setManager).toHaveBeenNthCalledWith(1, "10", 42)
-    expect(setManager).toHaveBeenNthCalledWith(2, "10", null)
-    expect(getList).toHaveBeenCalledTimes(2)
-    expect(getActivity).toHaveBeenCalledTimes(2)
-  })
-
   it.each([
     ["pause-location", "pause", "paused"] as const,
     ["resume-location", "resume", "active"] as const,

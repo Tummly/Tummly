@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.Admin;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Controllers
 {
@@ -11,12 +13,15 @@ namespace TummlyBackend.Controllers
     public class AdminShopOrdersController : ControllerBase
     {
         private readonly IAdminShopOrderFulfilmentService _fulfilment;
+        private readonly IPrintReadyQrMaterialsService _printReadyQrMaterials;
 
         public AdminShopOrdersController(
-            IAdminShopOrderFulfilmentService fulfilment
+            IAdminShopOrderFulfilmentService fulfilment,
+            IPrintReadyQrMaterialsService printReadyQrMaterials
         )
         {
             _fulfilment = fulfilment;
+            _printReadyQrMaterials = printReadyQrMaterials;
         }
 
         [HttpGet]
@@ -116,6 +121,77 @@ namespace TummlyBackend.Controllers
             };
         }
 
+        [HttpGet("{id:guid}/print-assets/{qrType}/download")]
+        public async Task<IActionResult> DownloadPrintAsset(
+            Guid id,
+            string qrType,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!TryParsePhysicalQrType(qrType, out var parsed))
+            {
+                return NotFound();
+            }
+
+            try
+            {
+                var download =
+                    await _printReadyQrMaterials.DownloadShopOrderAsync(
+                        id,
+                        parsed,
+                        cancellationToken
+                    );
+                return download == null
+                    ? NotFound()
+                    : File(
+                        download.Content,
+                        download.ContentType,
+                        download.FileName
+                    );
+            }
+            catch (PrintReadyQrNotReadyException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                    status = ex.Status.ToString(),
+                });
+            }
+        }
+
+        [HttpPost("{id:guid}/print-assets/{qrType}/retry")]
+        public async Task<IActionResult> RetryPrintAsset(
+            Guid id,
+            string qrType,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (!TryParsePhysicalQrType(qrType, out var parsed))
+            {
+                return NotFound();
+            }
+
+            try
+            {
+                var asset =
+                    await _printReadyQrMaterials.RetryShopOrderAsync(
+                        id,
+                        parsed,
+                        cancellationToken
+                    );
+                return asset == null ? NotFound() : Ok(asset);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
         private static AdminShopOrdersListQuery BuildListQuery(
             int page,
             int pageSize,
@@ -132,6 +208,18 @@ namespace TummlyBackend.Controllers
                 RestaurantId = restaurantId,
                 FulfilmentStatus = fulfilmentStatus ?? Array.Empty<string>(),
             };
+        }
+
+        private static bool TryParsePhysicalQrType(
+            string value,
+            out QrType qrType
+        )
+        {
+            return Enum.TryParse(value, ignoreCase: true, out qrType)
+                && qrType
+                    is QrType.TableTent
+                    or QrType.WindowSticker
+                    or QrType.OfferCard;
         }
 
         private BadRequestObjectResult QueryBadRequest(ArgumentException ex)

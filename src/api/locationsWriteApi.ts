@@ -82,19 +82,6 @@ export async function deleteOwnedLocationDraft(
   }
 }
 
-export async function setOwnedLocationManager(
-  locationId: number,
-  managerUserId: number | null
-): Promise<void> {
-  try {
-    await axiosInstance.put(`/locations/${locationId}/manager`, {
-      managerUserId,
-    })
-  } catch (error) {
-    throw new Error(readApiError(error, "Could not update manager."))
-  }
-}
-
 export type ImportOwnedLocationRowInput = {
   locationName: string
   address: string
