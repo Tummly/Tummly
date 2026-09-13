@@ -8,6 +8,8 @@ export const GLOBAL_SEARCH_TRIGGER_PLACEHOLDER =
 
 export const GLOBAL_SEARCH_AI_HEADING = "AI suggestions"
 
+export const GLOBAL_SEARCH_ASK_TUMMLY_HEADING = "Ask Tummly"
+
 export const GLOBAL_SEARCH_GUESTS_HEADING = "Guests"
 
 export const GLOBAL_SEARCH_FEEDBACK_HEADING = "Feedback"
@@ -18,12 +20,33 @@ export const GLOBAL_SEARCH_OFFERS_HEADING = "Offers"
 
 export const GLOBAL_SEARCH_QR_CODES_HEADING = "QR codes"
 
+export const GLOBAL_SEARCH_VIEW_ALL_GUESTS = "View all Guests"
+
+export const GLOBAL_SEARCH_VIEW_ALL_FEEDBACK = "View all Feedback"
+
+export const GLOBAL_SEARCH_VIEW_ALL_CAMPAIGNS = "View all Campaigns"
+
+export const GLOBAL_SEARCH_VIEW_ALL_OFFERS = "View all Offers"
+
+export const GLOBAL_SEARCH_VIEW_ALL_QR_CODES = "View all QR codes"
+
 export const GLOBAL_SEARCH_ALL_LOCATIONS_LABEL = "Search all authorised locations"
 
 export const GLOBAL_SEARCH_NO_RESULTS_MESSAGE = "No results for this location."
 
 export const GLOBAL_SEARCH_WIDEN_FROM_NO_RESULTS_LABEL =
   GLOBAL_SEARCH_ALL_LOCATIONS_LABEL
+
+export const GLOBAL_SEARCH_ERROR_MESSAGE =
+  "Search could not finish. Check your connection and try again."
+
+export const GLOBAL_SEARCH_TRY_AGAIN_LABEL = "Try again"
+
+export const GLOBAL_SEARCH_OFFLINE_MESSAGE =
+  "You are offline. Connect to the internet to search."
+
+export const GLOBAL_SEARCH_PARTIAL_WARNING =
+  "Some result groups could not load. Showing what is available."
 
 export const GLOBAL_SEARCH_DIALOG_TITLE = "Global Search"
 

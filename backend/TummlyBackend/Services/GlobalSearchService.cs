@@ -7,7 +7,7 @@ using TummlyBackend.Models;
 
 namespace TummlyBackend.Services
 {
-    public sealed class GlobalSearchService : IGlobalSearchService
+    public class GlobalSearchService : IGlobalSearchService
     {
         private const int CommentExcerptMaxLength = 120;
 
@@ -29,39 +29,60 @@ namespace TummlyBackend.Services
         )
         {
             var groups = new List<GlobalSearchGroupDto>();
+            var partialFailures = new List<string>();
 
             if (query.IncludeGuests)
             {
-                groups.Add(
-                    await SearchGuestsAsync(query, cancellationToken)
+                await AddGroupSafeAsync(
+                    groups,
+                    partialFailures,
+                    "guests",
+                    () => SearchGuestsAsync(query, cancellationToken),
+                    cancellationToken
                 );
             }
 
             if (query.IncludeFeedback)
             {
-                groups.Add(
-                    await SearchFeedbacksAsync(query, cancellationToken)
+                await AddGroupSafeAsync(
+                    groups,
+                    partialFailures,
+                    "feedback",
+                    () => SearchFeedbacksAsync(query, cancellationToken),
+                    cancellationToken
                 );
             }
 
             if (query.IncludeCampaigns)
             {
-                groups.Add(
-                    await SearchCampaignsAsync(query, cancellationToken)
+                await AddGroupSafeAsync(
+                    groups,
+                    partialFailures,
+                    "campaigns",
+                    () => SearchCampaignsAsync(query, cancellationToken),
+                    cancellationToken
                 );
             }
 
             if (query.IncludeOffers)
             {
-                groups.Add(
-                    await SearchOffersAsync(query, cancellationToken)
+                await AddGroupSafeAsync(
+                    groups,
+                    partialFailures,
+                    "offers",
+                    () => SearchOffersAsync(query, cancellationToken),
+                    cancellationToken
                 );
             }
 
             if (query.IncludeQrCodes)
             {
-                groups.Add(
-                    await SearchQrCodesAsync(query, cancellationToken)
+                await AddGroupSafeAsync(
+                    groups,
+                    partialFailures,
+                    "qr-codes",
+                    () => SearchQrCodesAsync(query, cancellationToken),
+                    cancellationToken
                 );
             }
 
@@ -71,7 +92,34 @@ namespace TummlyBackend.Services
                 Q = query.Q,
                 LocationId = query.LocationId,
                 Groups = groups,
+                PartialFailures = partialFailures,
             };
+        }
+
+        /// <summary>
+        /// Runs one entity search; on failure records the group type and continues.
+        /// Cancellation still propagates so the request can abort cleanly.
+        /// </summary>
+        private static async Task AddGroupSafeAsync(
+            List<GlobalSearchGroupDto> groups,
+            List<string> partialFailures,
+            string type,
+            Func<Task<GlobalSearchGroupDto>> search,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                groups.Add(await search());
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                partialFailures.Add(type);
+            }
         }
 
         private async Task<GlobalSearchGroupDto> SearchGuestsAsync(
@@ -173,6 +221,23 @@ namespace TummlyBackend.Services
         }
 
         private async Task<GlobalSearchGroupDto> SearchCampaignsAsync(
+            GlobalSearchQuery query,
+            CancellationToken cancellationToken
+        )
+        {
+            return await SearchCampaignsCoreAsync(query, cancellationToken);
+        }
+
+        /// <summary>Test seam — subclass may throw to simulate mid-entity failure.</summary>
+        protected virtual Task<GlobalSearchGroupDto> SearchCampaignsCoreAsync(
+            GlobalSearchQuery query,
+            CancellationToken cancellationToken
+        )
+        {
+            return SearchCampaignsBodyAsync(query, cancellationToken);
+        }
+
+        private async Task<GlobalSearchGroupDto> SearchCampaignsBodyAsync(
             GlobalSearchQuery query,
             CancellationToken cancellationToken
         )

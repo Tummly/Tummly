@@ -924,6 +924,7 @@ export type GlobalSearchResponse = {
   q: string
   locationId: number
   groups: GlobalSearchGroupDto[]
+  partialFailures?: string[]
 }
 
 export const getGlobalSearch = async (params: {

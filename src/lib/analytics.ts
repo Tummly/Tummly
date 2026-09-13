@@ -75,3 +75,15 @@ export function trackPageView(path: string): void {
     page_path: path,
   });
 }
+
+/** Safe GA event — no-op when analytics is off or consent is missing. */
+export function trackEvent(
+  name: string,
+  props?: Record<string, string | number | boolean>
+): void {
+  if (!isAnalyticsEnabled() || !consentGranted || !window.gtag) {
+    return;
+  }
+
+  window.gtag("event", name, props);
+}

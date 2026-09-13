@@ -1,4 +1,4 @@
-import { ArrowRightIcon, ArrowUpIcon, ArrowDownIcon, CornerDownLeftIcon } from "lucide-react"
+import { ArrowRightIcon, ArrowUpIcon, ArrowDownIcon, CornerDownLeftIcon, Loader2Icon } from "lucide-react"
 
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { AiIcon } from "@/components/ui/ai-icon"
@@ -28,10 +28,12 @@ import {
   GLOBAL_SEARCH_AI_HEADING,
   GLOBAL_SEARCH_AI_ROW_CLASS,
   GLOBAL_SEARCH_ALL_LOCATIONS_LABEL,
+  GLOBAL_SEARCH_ASK_TUMMLY_HEADING,
   GLOBAL_SEARCH_CAMPAIGNS_HEADING,
   GLOBAL_SEARCH_DIALOG_TITLE,
   GLOBAL_SEARCH_ENTITY_AVATAR_CLASS,
   GLOBAL_SEARCH_ENTITY_ROW_CLASS,
+  GLOBAL_SEARCH_ERROR_MESSAGE,
   GLOBAL_SEARCH_FEEDBACK_HEADING,
   GLOBAL_SEARCH_FOOTER_CLASS,
   GLOBAL_SEARCH_FOOTER_HINT_CLASS,
@@ -41,9 +43,17 @@ import {
   GLOBAL_SEARCH_KBD_CLASS,
   GLOBAL_SEARCH_NO_RESULTS_MESSAGE,
   GLOBAL_SEARCH_OFFERS_HEADING,
+  GLOBAL_SEARCH_OFFLINE_MESSAGE,
   GLOBAL_SEARCH_OVERLAY_CLASS,
+  GLOBAL_SEARCH_PARTIAL_WARNING,
   GLOBAL_SEARCH_PLACEHOLDER,
   GLOBAL_SEARCH_QR_CODES_HEADING,
+  GLOBAL_SEARCH_TRY_AGAIN_LABEL,
+  GLOBAL_SEARCH_VIEW_ALL_CAMPAIGNS,
+  GLOBAL_SEARCH_VIEW_ALL_FEEDBACK,
+  GLOBAL_SEARCH_VIEW_ALL_GUESTS,
+  GLOBAL_SEARCH_VIEW_ALL_OFFERS,
+  GLOBAL_SEARCH_VIEW_ALL_QR_CODES,
   GLOBAL_SEARCH_WIDEN_FROM_NO_RESULTS_LABEL,
 } from "@/lib/operatorGlobalSearch/globalSearchPresentation"
 import { cn } from "@/lib/utils"
@@ -58,6 +68,12 @@ type GlobalSearchOverlayProps = {
   onSelectCampaignHit: (campaignId: string) => void
   onSelectOfferHit: (offerId: string) => void
   onSelectQrCodeHit: (qrCodeId: string) => void
+  onViewAllGuests: () => void
+  onViewAllFeedback: () => void
+  onViewAllCampaigns: () => void
+  onViewAllOffers: () => void
+  onViewAllQrCodes: () => void
+  onRetrySearch: () => void
   onLocationScopeChange: (scope: OperatorGlobalSearchLocationScope) => void
   onWidenToAllLocations: () => void
 }
@@ -107,6 +123,30 @@ function EntityHitRows({
   ))
 }
 
+function SuggestionRows({
+  suggestions,
+  onSelect,
+}: {
+  suggestions: OperatorGlobalSearchSnapshot["emptySuggestions"]
+  onSelect: (id: string) => void
+}) {
+  return suggestions.map((suggestion) => (
+    <CommandItem
+      key={suggestion.id}
+      value={suggestion.id}
+      onSelect={() => onSelect(suggestion.id)}
+      className={GLOBAL_SEARCH_AI_ROW_CLASS}
+    >
+      <AiIcon size={18} className="text-op-text-primary" />
+      <span className="min-w-0 flex-1 truncate">{suggestion.prompt}</span>
+      <ArrowRightIcon
+        className="size-3.5 shrink-0 text-op-header-search-text"
+        aria-hidden
+      />
+    </CommandItem>
+  ))
+}
+
 export function GlobalSearchOverlay({
   snapshot,
   onOpenChange,
@@ -117,29 +157,31 @@ export function GlobalSearchOverlay({
   onSelectCampaignHit,
   onSelectOfferHit,
   onSelectQrCodeHit,
+  onViewAllGuests,
+  onViewAllFeedback,
+  onViewAllCampaigns,
+  onViewAllOffers,
+  onViewAllQrCodes,
+  onRetrySearch,
   onLocationScopeChange,
   onWidenToAllLocations,
 }: GlobalSearchOverlayProps) {
   const trimmedQuery = snapshot.query.trim()
   const showEmptyAi =
     trimmedQuery.length === 0 && snapshot.emptySuggestions.length > 0
-  // Entity groups after debounce starts (pending or hits), not on raw keystrokes alone.
-  const showEntityGroups = trimmedQuery.length >= 2 && snapshot.hitsPending
+  const showTypedAskTummly =
+    trimmedQuery.length >= 2 && snapshot.typedSuggestions.length > 0
+  // Keep entity groups visible while pending so the panel does not flicker empty.
   const showGuestsGroup =
-    showEntityGroups ||
-    (trimmedQuery.length >= 2 && snapshot.guestHits.length > 0)
+    trimmedQuery.length >= 2 && snapshot.guestHits.length > 0
   const showFeedbackGroup =
-    showEntityGroups ||
-    (trimmedQuery.length >= 2 && snapshot.feedbackHits.length > 0)
+    trimmedQuery.length >= 2 && snapshot.feedbackHits.length > 0
   const showCampaignsGroup =
-    showEntityGroups ||
-    (trimmedQuery.length >= 2 && snapshot.campaignHits.length > 0)
+    trimmedQuery.length >= 2 && snapshot.campaignHits.length > 0
   const showOffersGroup =
-    showEntityGroups ||
-    (trimmedQuery.length >= 2 && snapshot.offerHits.length > 0)
+    trimmedQuery.length >= 2 && snapshot.offerHits.length > 0
   const showQrCodesGroup =
-    showEntityGroups ||
-    (trimmedQuery.length >= 2 && snapshot.qrCodeHits.length > 0)
+    trimmedQuery.length >= 2 && snapshot.qrCodeHits.length > 0
 
   return (
     <Dialog open={snapshot.open} onOpenChange={onOpenChange}>
@@ -153,6 +195,14 @@ export function GlobalSearchOverlay({
           Search Guests, Feedback, Campaigns, Offers, and QR codes. Empty state
           shows AI suggestions that open the AI Assistant.
         </DialogDescription>
+
+        <div
+          className="sr-only"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {snapshot.resultCountAnnouncement}
+        </div>
 
         <div className={GLOBAL_SEARCH_INPUT_ROW_CLASS}>
           <Button
@@ -168,6 +218,7 @@ export function GlobalSearchOverlay({
           <OperatorSearchIcon className="size-4 shrink-0 text-op-header-search-text" />
           <input
             type="search"
+            role="searchbox"
             value={snapshot.query}
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder={GLOBAL_SEARCH_PLACEHOLDER}
@@ -175,6 +226,12 @@ export function GlobalSearchOverlay({
             autoFocus
             aria-label={GLOBAL_SEARCH_DIALOG_TITLE}
           />
+          {snapshot.hitsPending ? (
+            <Loader2Icon
+              className="size-4 shrink-0 animate-spin text-op-header-search-text"
+              aria-hidden
+            />
+          ) : null}
         </div>
 
         {snapshot.canWidenLocationScope ? (
@@ -192,6 +249,12 @@ export function GlobalSearchOverlay({
           </div>
         ) : null}
 
+        {snapshot.showPartialWarning ? (
+          <div className="border-b border-op-card-border px-5 py-3 text-sm text-op-header-search-text">
+            {GLOBAL_SEARCH_PARTIAL_WARNING}
+          </div>
+        ) : null}
+
         <Command
           shouldFilter={false}
           className="min-h-0 flex-1 rounded-none bg-transparent p-0"
@@ -202,23 +265,10 @@ export function GlobalSearchOverlay({
                 heading={GLOBAL_SEARCH_AI_HEADING}
                 className={COMMAND_GROUP_HEADING_CLASS}
               >
-                {snapshot.emptySuggestions.map((suggestion) => (
-                  <CommandItem
-                    key={suggestion.id}
-                    value={suggestion.id}
-                    onSelect={() => onSelectSuggestion(suggestion.id)}
-                    className={GLOBAL_SEARCH_AI_ROW_CLASS}
-                  >
-                    <AiIcon size={18} className="text-op-text-primary" />
-                    <span className="min-w-0 flex-1 truncate">
-                      {suggestion.prompt}
-                    </span>
-                    <ArrowRightIcon
-                      className="size-3.5 shrink-0 text-op-header-search-text"
-                      aria-hidden
-                    />
-                  </CommandItem>
-                ))}
+                <SuggestionRows
+                  suggestions={snapshot.emptySuggestions}
+                  onSelect={onSelectSuggestion}
+                />
               </CommandGroup>
             ) : null}
 
@@ -232,6 +282,21 @@ export function GlobalSearchOverlay({
                   valuePrefix="guest"
                   onSelect={onSelectGuestHit}
                 />
+                {snapshot.showViewAllGuests ? (
+                  <CommandItem
+                    value="view-all-guests"
+                    onSelect={onViewAllGuests}
+                    className={GLOBAL_SEARCH_AI_ROW_CLASS}
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {GLOBAL_SEARCH_VIEW_ALL_GUESTS}
+                    </span>
+                    <ArrowRightIcon
+                      className="size-3.5 shrink-0 text-op-header-search-text"
+                      aria-hidden
+                    />
+                  </CommandItem>
+                ) : null}
               </CommandGroup>
             ) : null}
 
@@ -245,6 +310,21 @@ export function GlobalSearchOverlay({
                   valuePrefix="feedback"
                   onSelect={onSelectFeedbackHit}
                 />
+                {snapshot.showViewAllFeedback ? (
+                  <CommandItem
+                    value="view-all-feedback"
+                    onSelect={onViewAllFeedback}
+                    className={GLOBAL_SEARCH_AI_ROW_CLASS}
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {GLOBAL_SEARCH_VIEW_ALL_FEEDBACK}
+                    </span>
+                    <ArrowRightIcon
+                      className="size-3.5 shrink-0 text-op-header-search-text"
+                      aria-hidden
+                    />
+                  </CommandItem>
+                ) : null}
               </CommandGroup>
             ) : null}
 
@@ -258,6 +338,21 @@ export function GlobalSearchOverlay({
                   valuePrefix="campaign"
                   onSelect={onSelectCampaignHit}
                 />
+                {snapshot.showViewAllCampaigns ? (
+                  <CommandItem
+                    value="view-all-campaigns"
+                    onSelect={onViewAllCampaigns}
+                    className={GLOBAL_SEARCH_AI_ROW_CLASS}
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {GLOBAL_SEARCH_VIEW_ALL_CAMPAIGNS}
+                    </span>
+                    <ArrowRightIcon
+                      className="size-3.5 shrink-0 text-op-header-search-text"
+                      aria-hidden
+                    />
+                  </CommandItem>
+                ) : null}
               </CommandGroup>
             ) : null}
 
@@ -271,6 +366,21 @@ export function GlobalSearchOverlay({
                   valuePrefix="offer"
                   onSelect={onSelectOfferHit}
                 />
+                {snapshot.showViewAllOffers ? (
+                  <CommandItem
+                    value="view-all-offers"
+                    onSelect={onViewAllOffers}
+                    className={GLOBAL_SEARCH_AI_ROW_CLASS}
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {GLOBAL_SEARCH_VIEW_ALL_OFFERS}
+                    </span>
+                    <ArrowRightIcon
+                      className="size-3.5 shrink-0 text-op-header-search-text"
+                      aria-hidden
+                    />
+                  </CommandItem>
+                ) : null}
               </CommandGroup>
             ) : null}
 
@@ -284,7 +394,57 @@ export function GlobalSearchOverlay({
                   valuePrefix="qr-code"
                   onSelect={onSelectQrCodeHit}
                 />
+                {snapshot.showViewAllQrCodes ? (
+                  <CommandItem
+                    value="view-all-qr-codes"
+                    onSelect={onViewAllQrCodes}
+                    className={GLOBAL_SEARCH_AI_ROW_CLASS}
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {GLOBAL_SEARCH_VIEW_ALL_QR_CODES}
+                    </span>
+                    <ArrowRightIcon
+                      className="size-3.5 shrink-0 text-op-header-search-text"
+                      aria-hidden
+                    />
+                  </CommandItem>
+                ) : null}
               </CommandGroup>
+            ) : null}
+
+            {/* Ask Tummly stays below product hits when any hits exist. */}
+            {showTypedAskTummly ? (
+              <CommandGroup
+                heading={GLOBAL_SEARCH_ASK_TUMMLY_HEADING}
+                className={COMMAND_GROUP_HEADING_CLASS}
+              >
+                <SuggestionRows
+                  suggestions={snapshot.typedSuggestions}
+                  onSelect={onSelectSuggestion}
+                />
+              </CommandGroup>
+            ) : null}
+
+            {snapshot.showOffline ? (
+              <div className="px-5 py-5 text-sm text-op-header-search-text">
+                {GLOBAL_SEARCH_OFFLINE_MESSAGE}
+              </div>
+            ) : null}
+
+            {snapshot.showError ? (
+              <div className="flex flex-col items-start gap-3 px-5 py-5">
+                <p className="text-sm text-op-header-search-text">
+                  {GLOBAL_SEARCH_ERROR_MESSAGE}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onRetrySearch}
+                >
+                  {GLOBAL_SEARCH_TRY_AGAIN_LABEL}
+                </Button>
+              </div>
             ) : null}
 
             {snapshot.showWidenFromNoResults ? (
@@ -303,7 +463,10 @@ export function GlobalSearchOverlay({
               </div>
             ) : null}
 
-            {snapshot.showNoResults && !snapshot.showWidenFromNoResults ? (
+            {snapshot.showNoResults &&
+            !snapshot.showWidenFromNoResults &&
+            !snapshot.showError &&
+            !snapshot.showOffline ? (
               <div className="px-5 py-5 text-sm text-op-header-search-text">
                 {GLOBAL_SEARCH_NO_RESULTS_MESSAGE}
               </div>

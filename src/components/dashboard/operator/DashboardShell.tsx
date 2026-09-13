@@ -131,6 +131,12 @@ type DashboardShellProps = {
     onSelectCampaignHit: (campaignId: string) => void
     onSelectOfferHit: (offerId: string) => void
     onSelectQrCodeHit: (qrCodeId: string) => void
+    onViewAllGuests: () => void
+    onViewAllFeedback: () => void
+    onViewAllCampaigns: () => void
+    onViewAllOffers: () => void
+    onViewAllQrCodes: () => void
+    onRetrySearch: () => void
     onLocationScopeChange: (scope: OperatorGlobalSearchLocationScope) => void
     onWidenToAllLocations: () => void
   }
@@ -325,6 +331,12 @@ export function DashboardShell({
           onSelectCampaignHit={globalSearch.onSelectCampaignHit}
           onSelectOfferHit={globalSearch.onSelectOfferHit}
           onSelectQrCodeHit={globalSearch.onSelectQrCodeHit}
+          onViewAllGuests={globalSearch.onViewAllGuests}
+          onViewAllFeedback={globalSearch.onViewAllFeedback}
+          onViewAllCampaigns={globalSearch.onViewAllCampaigns}
+          onViewAllOffers={globalSearch.onViewAllOffers}
+          onViewAllQrCodes={globalSearch.onViewAllQrCodes}
+          onRetrySearch={globalSearch.onRetrySearch}
           onLocationScopeChange={globalSearch.onLocationScopeChange}
           onWidenToAllLocations={globalSearch.onWidenToAllLocations}
         />

@@ -38,6 +38,12 @@ namespace TummlyBackend.DTOs.Search
         public required int LocationId { get; init; }
 
         public required IReadOnlyList<GlobalSearchGroupDto> Groups { get; init; }
+
+        /// <summary>
+        /// Entity group type names that failed while other groups succeeded
+        /// (e.g. "campaigns"). Empty when every requested group completed.
+        /// </summary>
+        public IReadOnlyList<string> PartialFailures { get; init; } = [];
     }
 
     public sealed class GlobalSearchGroupDto

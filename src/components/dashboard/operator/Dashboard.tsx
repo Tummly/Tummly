@@ -198,6 +198,26 @@ function DashboardContent({ mode }: DashboardProps) {
         operatorDashboardCapturePlacementDetailPath(mode, locationId, qrCodeId)
       )
     },
+    navigateToEntityList: ({ entity, q, locationId, scope }) => {
+      const navKey =
+        entity === "qr-codes"
+          ? "capture"
+          : entity === "guests"
+            ? "guests"
+            : entity === "feedback"
+              ? "feedback"
+              : entity === "campaigns"
+                ? "campaigns"
+                : "offers"
+      const base = operatorDashboardNavPath(mode, navKey, locationId)
+      const params = new URLSearchParams()
+      params.set("q", q)
+      if (scope === "all") {
+        params.set("searchScope", "all")
+      }
+      const separator = base.includes("?") ? "&" : "?"
+      navigate(`${base}${separator}${params.toString()}`)
+    },
   })
 
   useEffect(() => {
@@ -488,6 +508,12 @@ function DashboardContent({ mode }: DashboardProps) {
         onSelectCampaignHit: globalSearch.selectCampaignHit,
         onSelectOfferHit: globalSearch.selectOfferHit,
         onSelectQrCodeHit: globalSearch.selectQrCodeHit,
+        onViewAllGuests: globalSearch.viewAllGuests,
+        onViewAllFeedback: globalSearch.viewAllFeedback,
+        onViewAllCampaigns: globalSearch.viewAllCampaigns,
+        onViewAllOffers: globalSearch.viewAllOffers,
+        onViewAllQrCodes: globalSearch.viewAllQrCodes,
+        onRetrySearch: globalSearch.retrySearch,
         onLocationScopeChange: globalSearch.setLocationScope,
         onWidenToAllLocations: globalSearch.widenToAllLocations,
       }}

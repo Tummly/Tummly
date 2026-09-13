@@ -1,9 +1,11 @@
 import { useEffect, useRef, useSyncExternalStore } from "react"
 
 import { getGlobalSearch } from "@/api/dashboardApi"
+import { trackEvent } from "@/lib/analytics"
 import {
   createOperatorGlobalSearchModule,
   mapSearchHit,
+  type OperatorGlobalSearchListEntity,
   type OperatorGlobalSearchLocationScope,
   type OperatorGlobalSearchModule,
   type OperatorGlobalSearchSnapshot,
@@ -16,6 +18,13 @@ function readIsApplePlatform(): boolean {
   const platform = navigator.platform || ""
   const ua = navigator.userAgent || ""
   return /Mac|iPhone|iPad|iPod/i.test(platform) || /Mac OS|iPhone|iPad|iPod/i.test(ua)
+}
+
+function readIsOnline(): boolean {
+  if (typeof navigator === "undefined") {
+    return true
+  }
+  return navigator.onLine !== false
 }
 
 export type OperatorGlobalSearchHandoff = (prompt: string) => void
@@ -32,6 +41,12 @@ export type OperatorGlobalSearchApi = {
   selectCampaignHit: (campaignId: string) => void
   selectOfferHit: (offerId: string) => void
   selectQrCodeHit: (qrCodeId: string) => void
+  viewAllGuests: () => void
+  viewAllFeedback: () => void
+  viewAllCampaigns: () => void
+  viewAllOffers: () => void
+  viewAllQrCodes: () => void
+  retrySearch: () => void
   setLocationScope: (scope: OperatorGlobalSearchLocationScope) => void
   widenToAllLocations: () => void
   notifyOwnedLocationChanged: () => void
@@ -49,6 +64,12 @@ export function useGlobalSearchModule(args: {
     qrCodeId: number,
     locationId: number
   ) => void
+  navigateToEntityList: (args: {
+    entity: OperatorGlobalSearchListEntity
+    q: string
+    locationId: number
+    scope: OperatorGlobalSearchLocationScope
+  }) => void
 }): OperatorGlobalSearchApi {
   const handoffRef = useRef(args.handoffSuggestionToAssistant)
   handoffRef.current = args.handoffSuggestionToAssistant
@@ -66,6 +87,8 @@ export function useGlobalSearchModule(args: {
   navigateOfferRef.current = args.navigateToOfferDetails
   const navigateCaptureRef = useRef(args.navigateToCapturePlacementDetail)
   navigateCaptureRef.current = args.navigateToCapturePlacementDetail
+  const navigateEntityListRef = useRef(args.navigateToEntityList)
+  navigateEntityListRef.current = args.navigateToEntityList
 
   const moduleRef = useRef<OperatorGlobalSearchModule | null>(null)
   if (moduleRef.current == null) {
@@ -76,6 +99,10 @@ export function useGlobalSearchModule(args: {
         },
         getLocationId: () => getLocationIdRef.current(),
         getAuthorisedLocationCount: () => getAuthorisedLocationCountRef.current(),
+        isOnline: readIsOnline,
+        trackAnalytics: (event) => {
+          trackEvent(event.name, event.props)
+        },
         navigateToGuestProfile: (guestId, locationId) => {
           navigateGuestRef.current(guestId, locationId)
         },
@@ -90,6 +117,9 @@ export function useGlobalSearchModule(args: {
         },
         navigateToCapturePlacementDetail: (qrCodeId, locationId) => {
           navigateCaptureRef.current(qrCodeId, locationId)
+        },
+        navigateToEntityList: (navigateArgs) => {
+          navigateEntityListRef.current(navigateArgs)
         },
         searchHits: async ({ q, locationId, scope, signal }) => {
           const response = await getGlobalSearch({
@@ -160,6 +190,7 @@ export function useGlobalSearchModule(args: {
                 locationId: hit.locationId,
               })
             ),
+            failedTypes: response.partialFailures ?? [],
           }
         },
       },
@@ -205,6 +236,12 @@ export function useGlobalSearchModule(args: {
     selectCampaignHit: search.selectCampaignHit,
     selectOfferHit: search.selectOfferHit,
     selectQrCodeHit: search.selectQrCodeHit,
+    viewAllGuests: search.viewAllGuests,
+    viewAllFeedback: search.viewAllFeedback,
+    viewAllCampaigns: search.viewAllCampaigns,
+    viewAllOffers: search.viewAllOffers,
+    viewAllQrCodes: search.viewAllQrCodes,
+    retrySearch: search.retrySearch,
     setLocationScope: search.setLocationScope,
     widenToAllLocations: search.widenToAllLocations,
     notifyOwnedLocationChanged: search.notifyOwnedLocationChanged,

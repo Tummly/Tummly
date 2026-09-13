@@ -4,6 +4,9 @@ import { useLocation, useNavigate, useOutletContext, useSearchParams } from "rea
 import { FeedbackPage } from "@/components/dashboard/operator/Feedback/FeedbackPage"
 import { useFeedbackPageModuleApi } from "@/components/dashboard/operator/Feedback/utils/feedbackPageModuleContext"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
+import {
+  readGlobalSearchQueryParam,
+} from "@/lib/operatorGlobalSearch/applySearchQueryFromParam"
 import { parseRecoveryDraftActionRouterState } from "@/lib/operatorFeedback/recoveryDraftAction"
 import { toast } from "sonner"
 
@@ -17,6 +20,7 @@ export function FeedbackRoute() {
   const [searchParams] = useSearchParams()
   const consumedRecoveryDraftKeyRef = useRef<string | null>(null)
   const consumedFeedbackIdRef = useRef<string | null>(null)
+  const consumedSearchQueryRef = useRef<string | null>(null)
 
   syncFeedbackRef.current = feedbackPageModule.syncWorkspace
 
@@ -76,6 +80,35 @@ export function FeedbackRoute() {
     location.search,
     location.state,
     navigate,
+  ])
+
+  useEffect(() => {
+    const q = readGlobalSearchQueryParam(searchParams)
+    if (q == null) {
+      return
+    }
+    const key = `${q}:${location.key}`
+    if (consumedSearchQueryRef.current === key) {
+      return
+    }
+    consumedSearchQueryRef.current = key
+    feedbackPageModule.setSearchQuery(q)
+    // Keep feedbackId / startRecovery for the detail hitchhiker below.
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete("q")
+    nextParams.delete("searchScope")
+    const nextSearch = nextParams.toString()
+    navigate(
+      nextSearch === "" ? location.pathname : `${location.pathname}?${nextSearch}`,
+      { replace: true, state: location.state }
+    )
+  }, [
+    feedbackPageModule,
+    location.key,
+    location.pathname,
+    location.state,
+    navigate,
+    searchParams,
   ])
 
   useEffect(() => {

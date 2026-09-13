@@ -82,6 +82,9 @@ function makeAdapters(
     navigateToCampaignDetail: vi.fn(),
     navigateToOfferDetails: vi.fn(),
     navigateToCapturePlacementDetail: vi.fn(),
+    navigateToEntityList: vi.fn(),
+    isOnline: () => true,
+    trackAnalytics: vi.fn(),
     getLocationId: () => 1,
     getAuthorisedLocationCount: () => 1,
     debounceMs: 0,
@@ -788,6 +791,347 @@ describe("createOperatorGlobalSearchModule", () => {
     })
     expect(module.getSnapshot().showWidenFromNoResults).toBe(false)
     expect(module.getSnapshot().canWidenLocationScope).toBe(false)
+    vi.useRealTimers()
+  })
+
+  it("exposes query-aware Ask Tummly rows under product hits hierarchy", async () => {
+    vi.useFakeTimers()
+    const searchHits = vi.fn(async () => ({
+      guestHits: [makeGuestHit()],
+      feedbackHits: [],
+      campaignHits: [],
+      offerHits: [],
+      qrCodeHits: [],
+    }))
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({ searchHits, debounceMs: 0 })
+    )
+    module.open()
+    expect(module.getSnapshot().typedSuggestions).toEqual([])
+
+    module.setQuery("cold")
+    expect(module.getSnapshot().typedSuggestions).toEqual([
+      {
+        id: "ask-analyse-feedback",
+        prompt: 'Analyse Feedback mentioning "cold"',
+      },
+      {
+        id: "ask-what-changed",
+        prompt: 'What changed about "cold"?',
+      },
+    ])
+    // Product hits and Ask Tummly coexist; AI is never stuffed into entity hits.
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().guestHits).toHaveLength(1)
+    })
+    const snap = module.getSnapshot()
+    expect(snap.guestHits.every((hit) => !hit.id.startsWith("ask-"))).toBe(
+      true
+    )
+    expect(snap.typedSuggestions.length).toBeGreaterThan(0)
+    expect(snap.showViewAllGuests).toBe(true)
+    expect(snap.showViewAllFeedback).toBe(false)
+    vi.useRealTimers()
+  })
+
+  it("selectSuggestion hands off typed Ask Tummly prompts", () => {
+    const handoffSuggestionToAssistant = vi.fn()
+    const trackAnalytics = vi.fn()
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({ handoffSuggestionToAssistant, trackAnalytics })
+    )
+    module.open()
+    module.setQuery("delivery")
+    module.selectSuggestion("ask-analyse-feedback")
+
+    expect(handoffSuggestionToAssistant).toHaveBeenCalledWith(
+      'Analyse Feedback mentioning "delivery"'
+    )
+    expect(module.getSnapshot().open).toBe(false)
+    expect(trackAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "global_search_ai_suggestion_clicked",
+      })
+    )
+    const aiCall = trackAnalytics.mock.calls.find(
+      (call) => call[0]?.name === "global_search_ai_suggestion_clicked"
+    )
+    expect(aiCall?.[0]?.props).not.toHaveProperty("q")
+    expect(aiCall?.[0]?.props).not.toHaveProperty("query")
+    expect(aiCall?.[0]?.props).toMatchObject({ queryLength: 8 })
+  })
+
+  it("viewAllGuests navigates with q and active location scope", async () => {
+    vi.useFakeTimers()
+    const navigateToEntityList = vi.fn()
+    const trackAnalytics = vi.fn()
+    const searchHits = vi.fn(async () => ({
+      guestHits: [makeGuestHit()],
+      feedbackHits: [],
+      campaignHits: [],
+      offerHits: [],
+      qrCodeHits: [],
+    }))
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({
+        searchHits,
+        navigateToEntityList,
+        trackAnalytics,
+        getAuthorisedLocationCount: () => 2,
+        debounceMs: 0,
+      })
+    )
+    module.open()
+    module.setQuery("mo")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().showViewAllGuests).toBe(true)
+    })
+    module.setLocationScope("all")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().locationScope).toBe("all")
+    })
+
+    module.viewAllGuests()
+
+    expect(navigateToEntityList).toHaveBeenCalledWith({
+      entity: "guests",
+      q: "mo",
+      locationId: 1,
+      scope: "all",
+    })
+    expect(module.getSnapshot().open).toBe(false)
+    expect(trackAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "global_search_view_all",
+        props: expect.objectContaining({
+          entity: "guests",
+          scope: "all",
+          queryLength: 2,
+        }),
+      })
+    )
+    const viewAllCall = trackAnalytics.mock.calls.find(
+      (call) => call[0]?.name === "global_search_view_all"
+    )
+    expect(viewAllCall?.[0]?.props).not.toHaveProperty("q")
+    expect(viewAllCall?.[0]?.props).not.toHaveProperty("query")
+    vi.useRealTimers()
+  })
+
+  it("sets offline without requesting when isOnline is false", async () => {
+    vi.useFakeTimers()
+    const searchHits = vi.fn(async () => ({ ...emptyHits }))
+    const trackAnalytics = vi.fn()
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({
+        searchHits,
+        trackAnalytics,
+        isOnline: () => false,
+        debounceMs: 0,
+      })
+    )
+    module.open()
+    module.setQuery("mo")
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(searchHits).not.toHaveBeenCalled()
+    expect(module.getSnapshot().searchStatus).toBe("offline")
+    expect(module.getSnapshot().showOffline).toBe(true)
+    expect(module.getSnapshot().hitsPending).toBe(false)
+    expect(trackAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "global_search_error" })
+    )
+    vi.useRealTimers()
+  })
+
+  it("sets error on full rejection and retrySearch re-runs", async () => {
+    vi.useFakeTimers()
+    const searchHits = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce({
+        guestHits: [makeGuestHit()],
+        feedbackHits: [],
+        campaignHits: [],
+        offerHits: [],
+        qrCodeHits: [],
+      })
+    const trackAnalytics = vi.fn()
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({ searchHits, trackAnalytics, debounceMs: 0 })
+    )
+    module.open()
+    module.setQuery("mo")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().searchStatus).toBe("error")
+    })
+    expect(module.getSnapshot().showError).toBe(true)
+    expect(module.getSnapshot().guestHits).toEqual([])
+    expect(module.getSnapshot().resultCountAnnouncement).toBe("")
+
+    module.retrySearch()
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().guestHits).toHaveLength(1)
+      expect(module.getSnapshot().searchStatus).toBe("ready")
+    })
+    vi.useRealTimers()
+  })
+
+  it("keeps valid groups on partial failure and announces counts", async () => {
+    vi.useFakeTimers()
+    const searchHits = vi.fn(async () => ({
+      guestHits: [makeGuestHit()],
+      feedbackHits: [],
+      campaignHits: [],
+      offerHits: [],
+      qrCodeHits: [],
+      failedTypes: ["campaigns"],
+    }))
+    const trackAnalytics = vi.fn()
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({ searchHits, trackAnalytics, debounceMs: 0 })
+    )
+    module.open()
+    module.setQuery("mo")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().searchStatus).toBe("partial")
+    })
+    expect(module.getSnapshot().showPartialWarning).toBe(true)
+    expect(module.getSnapshot().failedGroupTypes).toEqual(["campaigns"])
+    expect(module.getSnapshot().guestHits).toHaveLength(1)
+    expect(module.getSnapshot().resultCountAnnouncement).toBe("1 result")
+    expect(trackAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "global_search_results_returned",
+        props: expect.objectContaining({
+          queryLength: 2,
+          resultCount: 1,
+          failedGroupCount: 1,
+        }),
+      })
+    )
+    const returned = trackAnalytics.mock.calls.find(
+      (call) => call[0]?.name === "global_search_results_returned"
+    )
+    expect(returned?.[0]?.props).not.toHaveProperty("q")
+    expect(returned?.[0]?.props).not.toHaveProperty("query")
+    vi.useRealTimers()
+  })
+
+  it("does not surface abort as a hard error", async () => {
+    vi.useFakeTimers()
+    const abortError = new DOMException("Aborted", "AbortError")
+    const searchHits = vi.fn(async () => {
+      throw abortError
+    })
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({ searchHits, debounceMs: 0 })
+    )
+    module.open()
+    module.setQuery("mo")
+    await vi.advanceTimersByTimeAsync(0)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().searchStatus).not.toBe("error")
+    expect(module.getSnapshot().showError).toBe(false)
+    vi.useRealTimers()
+  })
+
+  it("keeps prior hits visible while a refresh is pending", async () => {
+    vi.useFakeTimers()
+    let resolveSecond!: (value: typeof emptyHits & {
+      guestHits: OperatorGlobalSearchEntityHit[]
+    }) => void
+    const searchHits = vi
+      .fn()
+      .mockResolvedValueOnce({
+        guestHits: [makeGuestHit({ id: "1", title: "First" })],
+        feedbackHits: [],
+        campaignHits: [],
+        offerHits: [],
+        qrCodeHits: [],
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve
+          })
+      )
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({ searchHits, debounceMs: 0 })
+    )
+    module.open()
+    module.setQuery("mo")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().guestHits[0]?.title).toBe("First")
+    })
+
+    module.setQuery("mor")
+    await vi.advanceTimersByTimeAsync(0)
+    expect(module.getSnapshot().hitsPending).toBe(true)
+    expect(module.getSnapshot().guestHits[0]?.title).toBe("First")
+    expect(module.getSnapshot().query).toBe("mor")
+
+    resolveSecond({
+      guestHits: [makeGuestHit({ id: "2", title: "Second" })],
+      feedbackHits: [],
+      campaignHits: [],
+      offerHits: [],
+      qrCodeHits: [],
+    })
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().guestHits[0]?.title).toBe("Second")
+      expect(module.getSnapshot().hitsPending).toBe(false)
+    })
+    vi.useRealTimers()
+  })
+
+  it("fires safe analytics without raw query bodies", async () => {
+    vi.useFakeTimers()
+    const trackAnalytics = vi.fn()
+    const searchHits = vi.fn(async () => ({ ...emptyHits }))
+    const module = createOperatorGlobalSearchModule(
+      makeAdapters({ trackAnalytics, searchHits, debounceMs: 0 })
+    )
+
+    module.open()
+    expect(trackAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "global_search_opened" })
+    )
+
+    module.setQuery("secret guest")
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().showNoResults).toBe(true)
+    })
+
+    for (const call of trackAnalytics.mock.calls) {
+      const props = call[0]?.props ?? {}
+      expect(props).not.toHaveProperty("q")
+      expect(props).not.toHaveProperty("query")
+      if ("queryLength" in props) {
+        expect(props.queryLength).toBe(12)
+      }
+    }
+    expect(trackAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "global_search_query_started" })
+    )
+    expect(trackAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "global_search_no_results" })
+    )
+
+    module.close()
+    expect(trackAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "global_search_closed" })
+    )
     vi.useRealTimers()
   })
 })
