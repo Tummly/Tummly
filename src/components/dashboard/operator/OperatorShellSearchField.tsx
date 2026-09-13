@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react"
 import { Loader2Icon } from "lucide-react"
 
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
-import { GlobalSearchResultsPanel } from "@/components/dashboard/operator/GlobalSearchResultsPanel"
+import {
+  GlobalSearchResultsPanel,
+  type GlobalSearchInputNav,
+} from "@/components/dashboard/operator/GlobalSearchResultsPanel"
 import {
   OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS,
   OPERATOR_UTILITY_SURFACE_CLASS,
@@ -162,7 +165,9 @@ function DesktopSearchField({
   resultsHandlers: GlobalSearchResultsHandlers
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [commandValue, setCommandValue] = useState("")
+  const fieldRef = useRef<HTMLDivElement>(null)
+  const inputNavRef = useRef<GlobalSearchInputNav | null>(null)
+  const [fieldWidthPx, setFieldWidthPx] = useState<number | null>(null)
   const isLgUp = useIsLgUp()
   const open = snapshot.open && isLgUp
 
@@ -175,6 +180,20 @@ function DesktopSearchField({
     })
     return () => window.cancelAnimationFrame(id)
   }, [open])
+
+  useEffect(() => {
+    const field = fieldRef.current
+    if (field == null) {
+      return
+    }
+    const syncWidth = () => {
+      setFieldWidthPx(field.getBoundingClientRect().width)
+    }
+    syncWidth()
+    const observer = new ResizeObserver(syncWidth)
+    observer.observe(field)
+    return () => observer.disconnect()
+  }, [])
 
   const fieldChrome = cn(
     GLOBAL_SEARCH_TRIGGER_CLASS,
@@ -202,7 +221,7 @@ function DesktopSearchField({
       modal={false}
     >
       <PopoverAnchor asChild>
-        <div role="search" className={fieldChrome}>
+        <div ref={fieldRef} role="search" className={fieldChrome}>
           <OperatorSearchIcon className="size-3.5 shrink-0 text-op-header-search-text lg:size-4" />
           <input
             ref={inputRef}
@@ -221,28 +240,8 @@ function DesktopSearchField({
                 onOpenChange(false)
                 return
               }
-              if (
-                event.key === "ArrowDown" ||
-                event.key === "ArrowUp" ||
-                event.key === "Enter" ||
-                event.key === "Home" ||
-                event.key === "End"
-              ) {
-                const root = document.querySelector<HTMLElement>(
-                  '[data-slot="popover-content"] [cmdk-root]'
-                )
-                if (root == null) {
-                  return
-                }
+              if (inputNavRef.current?.handleKeyDown(event)) {
                 event.preventDefault()
-                root.dispatchEvent(
-                  new KeyboardEvent("keydown", {
-                    key: event.key,
-                    code: event.code,
-                    bubbles: true,
-                    cancelable: true,
-                  })
-                )
               }
             }}
             placeholder={
@@ -279,16 +278,18 @@ function DesktopSearchField({
         onCloseAutoFocus={(event) => event.preventDefault()}
         onInteractOutside={(event) => {
           const target = event.target as Node | null
-          if (target != null && inputRef.current?.contains(target)) {
+          if (target != null && fieldRef.current?.contains(target)) {
             event.preventDefault()
           }
         }}
         className={GLOBAL_SEARCH_POPOVER_CLASS}
+        style={
+          fieldWidthPx != null ? { width: fieldWidthPx } : undefined
+        }
       >
         <GlobalSearchResultsPanel
           snapshot={snapshot}
-          commandValue={commandValue}
-          onCommandValueChange={setCommandValue}
+          inputNavRef={inputNavRef}
           {...resultsHandlers}
         />
       </PopoverContent>

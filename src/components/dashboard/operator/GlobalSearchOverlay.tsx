@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { ArrowRightIcon } from "lucide-react"
 
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
-import { GlobalSearchResultsPanel } from "@/components/dashboard/operator/GlobalSearchResultsPanel"
+import {
+  GlobalSearchResultsPanel,
+  type GlobalSearchInputNav,
+} from "@/components/dashboard/operator/GlobalSearchResultsPanel"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -81,6 +84,7 @@ export function GlobalSearchOverlay({
 }: GlobalSearchOverlayProps) {
   const isBelowLg = useIsBelowLg()
   const open = snapshot.open && isBelowLg
+  const inputNavRef = useRef<GlobalSearchInputNav | null>(null)
 
   return (
     <Dialog
@@ -120,6 +124,11 @@ export function GlobalSearchOverlay({
             role="searchbox"
             value={snapshot.query}
             onChange={(event) => onQueryChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (inputNavRef.current?.handleKeyDown(event)) {
+                event.preventDefault()
+              }
+            }}
             placeholder={GLOBAL_SEARCH_PLACEHOLDER}
             className={GLOBAL_SEARCH_INPUT_CLASS}
             autoFocus
@@ -129,6 +138,7 @@ export function GlobalSearchOverlay({
 
         <GlobalSearchResultsPanel
           snapshot={snapshot}
+          inputNavRef={inputNavRef}
           onSelectSuggestion={onSelectSuggestion}
           onSelectGuestHit={onSelectGuestHit}
           onSelectFeedbackHit={onSelectFeedbackHit}

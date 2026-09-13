@@ -1,4 +1,11 @@
 import { ArrowRightIcon } from "lucide-react"
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react"
 
 import {
   GlobalSearchKbdArrowIcon,
@@ -16,6 +23,10 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { Kbd } from "@/components/ui/kbd"
+import {
+  listGlobalSearchSelectables,
+  moveGlobalSearchSelection,
+} from "@/lib/operatorGlobalSearch/globalSearchCommandNav"
 import type {
   OperatorGlobalSearchEntityHit,
   OperatorGlobalSearchLocationScope,
@@ -50,6 +61,11 @@ import {
 } from "@/lib/operatorGlobalSearch/globalSearchPresentation"
 import { cn } from "@/lib/utils"
 
+export type GlobalSearchInputNav = {
+  /** Returns true when the key was handled (caller should preventDefault). */
+  handleKeyDown: (event: { key: string }) => boolean
+}
+
 export type GlobalSearchResultsPanelProps = {
   snapshot: OperatorGlobalSearchSnapshot
   onSelectSuggestion: (suggestionId: string) => void
@@ -68,9 +84,11 @@ export type GlobalSearchResultsPanelProps = {
   onWidenToAllLocations: () => void
   /** Optional class for the root (Popover vs Dialog body). */
   className?: string
-  /** Controlled cmdk highlight value for external-input keyboard nav. */
-  commandValue?: string
-  onCommandValueChange?: (value: string) => void
+  /**
+   * Parent Search input calls `handleKeyDown` for Arrow/Enter so highlight
+   * moves while focus stays in the field.
+   */
+  inputNavRef?: RefObject<GlobalSearchInputNav | null>
 }
 
 const COMMAND_GROUP_HEADING_CLASS = cn(
@@ -184,9 +202,116 @@ export function GlobalSearchResultsPanel({
   onLocationScopeChange,
   onWidenToAllLocations,
   className,
-  commandValue,
-  onCommandValueChange,
+  inputNavRef,
 }: GlobalSearchResultsPanelProps) {
+  const listRef = useRef<HTMLDivElement>(null)
+  const [commandValue, setCommandValue] = useState("")
+
+  const selectables = useMemo(
+    () =>
+      listGlobalSearchSelectables(snapshot, {
+        onSelectSuggestion,
+        onSelectGuestHit,
+        onSelectFeedbackHit,
+        onSelectCampaignHit,
+        onSelectOfferHit,
+        onSelectQrCodeHit,
+        onViewAllGuests,
+        onViewAllFeedback,
+        onViewAllCampaigns,
+        onViewAllOffers,
+        onViewAllQrCodes,
+      }),
+    [
+      snapshot,
+      onSelectSuggestion,
+      onSelectGuestHit,
+      onSelectFeedbackHit,
+      onSelectCampaignHit,
+      onSelectOfferHit,
+      onSelectQrCodeHit,
+      onViewAllGuests,
+      onViewAllFeedback,
+      onViewAllCampaigns,
+      onViewAllOffers,
+      onViewAllQrCodes,
+    ]
+  )
+  const selectableValues = useMemo(
+    () => selectables.map((item) => item.value),
+    [selectables]
+  )
+  const selectablesRef = useRef(selectables)
+  selectablesRef.current = selectables
+  const commandValueRef = useRef(commandValue)
+  commandValueRef.current = commandValue
+
+  useEffect(() => {
+    if (selectableValues.length === 0) {
+      setCommandValue("")
+      return
+    }
+    if (!selectableValues.includes(commandValue)) {
+      setCommandValue(selectableValues[0]!)
+    }
+  }, [selectableValues, commandValue])
+
+  useEffect(() => {
+    if (commandValue === "" || listRef.current == null) {
+      return
+    }
+    const selected = listRef.current.querySelector<HTMLElement>(
+      '[data-slot="command-item"][data-selected="true"]'
+    )
+    selected?.scrollIntoView({ block: "nearest" })
+  }, [commandValue])
+
+  useEffect(() => {
+    if (inputNavRef == null) {
+      return
+    }
+    inputNavRef.current = {
+      handleKeyDown: (event) => {
+        const items = selectablesRef.current
+        const values = items.map((item) => item.value)
+        if (values.length === 0) {
+          return false
+        }
+        if (event.key === "ArrowDown") {
+          setCommandValue((current) =>
+            moveGlobalSearchSelection(values, current, 1)
+          )
+          return true
+        }
+        if (event.key === "ArrowUp") {
+          setCommandValue((current) =>
+            moveGlobalSearchSelection(values, current, -1)
+          )
+          return true
+        }
+        if (event.key === "Home") {
+          setCommandValue(values[0]!)
+          return true
+        }
+        if (event.key === "End") {
+          setCommandValue(values[values.length - 1]!)
+          return true
+        }
+        if (event.key === "Enter") {
+          const current = commandValueRef.current
+          const match =
+            items.find((item) => item.value === current) ?? items[0]
+          match?.activate()
+          return true
+        }
+        return false
+      },
+    }
+    return () => {
+      inputNavRef.current = null
+    }
+  }, [inputNavRef])
+
   const trimmedQuery = snapshot.query.trim()
   const showEmptyAi =
     trimmedQuery.length === 0 && snapshot.emptySuggestions.length > 0
@@ -204,7 +329,10 @@ export function GlobalSearchResultsPanel({
     trimmedQuery.length >= 2 && snapshot.qrCodeHits.length > 0
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
+    <div
+      ref={listRef}
+      className={cn("flex min-h-0 flex-1 flex-col", className)}
+    >
       <div
         className="sr-only"
         aria-live="polite"
@@ -237,7 +365,7 @@ export function GlobalSearchResultsPanel({
       <Command
         shouldFilter={false}
         value={commandValue}
-        onValueChange={onCommandValueChange}
+        onValueChange={setCommandValue}
         className="min-h-0 flex-1 rounded-none bg-transparent p-0"
       >
         <CommandList className="max-h-none flex-1 overflow-y-auto">
