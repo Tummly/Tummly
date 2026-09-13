@@ -262,6 +262,29 @@ export function DashboardShell({
           onOpenGlobalSearch={
             globalSearch ? handleOpenGlobalSearch : undefined
           }
+          globalSearch={
+            globalSearch
+              ? {
+                  snapshot: globalSearch.snapshot,
+                  onOpenChange: globalSearch.onOpenChange,
+                  onQueryChange: globalSearch.onQueryChange,
+                  onSelectSuggestion: globalSearch.onSelectSuggestion,
+                  onSelectGuestHit: globalSearch.onSelectGuestHit,
+                  onSelectFeedbackHit: globalSearch.onSelectFeedbackHit,
+                  onSelectCampaignHit: globalSearch.onSelectCampaignHit,
+                  onSelectOfferHit: globalSearch.onSelectOfferHit,
+                  onSelectQrCodeHit: globalSearch.onSelectQrCodeHit,
+                  onViewAllGuests: globalSearch.onViewAllGuests,
+                  onViewAllFeedback: globalSearch.onViewAllFeedback,
+                  onViewAllCampaigns: globalSearch.onViewAllCampaigns,
+                  onViewAllOffers: globalSearch.onViewAllOffers,
+                  onViewAllQrCodes: globalSearch.onViewAllQrCodes,
+                  onRetrySearch: globalSearch.onRetrySearch,
+                  onLocationScopeChange: globalSearch.onLocationScopeChange,
+                  onWidenToAllLocations: globalSearch.onWidenToAllLocations,
+                }
+              : undefined
+          }
           globalSearchShortcutModifierLabel={
             globalSearch?.snapshot.shortcutModifierLabel
           }

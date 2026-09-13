@@ -50,12 +50,17 @@ export const GLOBAL_SEARCH_PARTIAL_WARNING =
 
 export const GLOBAL_SEARCH_DIALOG_TITLE = "Global Search"
 
+/** Mobile full-screen Search Dialog (desktop uses field-anchored Popover). */
 export const GLOBAL_SEARCH_OVERLAY_CLASS = [
   "flex flex-col gap-0 overflow-hidden border border-op-card-border bg-op-surface-primary p-0 text-op-text-primary shadow-none",
-  "top-[min(12vh,5rem)] max-h-[min(80vh,640px)] w-full max-w-[calc(100%-1.5rem)] -translate-y-0 sm:max-w-[777px]",
-  "rounded-op-sm",
-  // Mobile: full-screen Search surface with back control.
-  "max-md:top-0 max-md:left-0 max-md:h-dvh max-md:max-h-dvh max-md:w-full max-md:max-w-full max-md:translate-x-0 max-md:rounded-none",
+  "top-0 left-0 h-dvh max-h-dvh w-full max-w-full translate-x-0 -translate-y-0 rounded-none",
+].join(" ")
+
+/** Desktop results Popover under the navbar Search field (Figma 6518:13702). */
+export const GLOBAL_SEARCH_POPOVER_CLASS = [
+  "z-[120] flex w-[min(100vw-1.5rem,777px)] max-h-[min(80vh,640px)]",
+  "flex-col gap-0 overflow-hidden rounded-b-op-sm border border-op-card-border",
+  "bg-op-surface-primary p-0 text-op-text-primary shadow-none ring-0",
 ].join(" ")
 
 export const GLOBAL_SEARCH_INPUT_ROW_CLASS =
@@ -87,7 +92,7 @@ export const GLOBAL_SEARCH_FOOTER_HINT_CLASS =
   "inline-flex items-center gap-2"
 
 export const GLOBAL_SEARCH_KBD_CLASS =
-  "rounded-full bg-op-color-gray-992 px-1.5 py-1 text-[12px] font-normal text-op-header-search-text dark:bg-[var(--op-color-gray-980)]"
+  "inline-flex h-auto min-w-0 items-center justify-center rounded-full bg-op-color-gray-992 px-1 py-1 text-[12px] font-normal text-op-header-search-text dark:bg-[var(--op-color-gray-980)]"
 
 export const GLOBAL_SEARCH_TRIGGER_CLASS = [
   "flex min-w-0 cursor-pointer items-center gap-2 px-2.5 text-left text-xs text-op-header-search-text lg:gap-3 lg:px-3.5 lg:text-sm",

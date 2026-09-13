@@ -17,6 +17,10 @@ import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import type { OperatorShellAiCreditsViewModel } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import type {
+  OperatorGlobalSearchLocationScope,
+  OperatorGlobalSearchSnapshot,
+} from "@/lib/operatorGlobalSearch/createOperatorGlobalSearchModule"
 import {
   OPERATOR_NAVBAR_GUTTER_RIGHT,
   OPERATOR_NAVBAR_UTILITY_INSET_LEFT,
@@ -24,6 +28,26 @@ import {
 } from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 import type { OperatorShellPresentation } from "@/types/operatorHome"
+
+type DashboardNavbarGlobalSearch = {
+  snapshot: OperatorGlobalSearchSnapshot
+  onOpenChange: (open: boolean) => void
+  onQueryChange: (query: string) => void
+  onSelectSuggestion: (suggestionId: string) => void
+  onSelectGuestHit: (guestId: string) => void
+  onSelectFeedbackHit: (feedbackId: string) => void
+  onSelectCampaignHit: (campaignId: string) => void
+  onSelectOfferHit: (offerId: string) => void
+  onSelectQrCodeHit: (qrCodeId: string) => void
+  onViewAllGuests: () => void
+  onViewAllFeedback: () => void
+  onViewAllCampaigns: () => void
+  onViewAllOffers: () => void
+  onViewAllQrCodes: () => void
+  onRetrySearch: () => void
+  onLocationScopeChange: (scope: OperatorGlobalSearchLocationScope) => void
+  onWidenToAllLocations: () => void
+}
 
 type DashboardNavbarProps = {
   locationSwitcher: OperatorShellPresentation["locationSwitcher"]
@@ -43,6 +67,9 @@ type DashboardNavbarProps = {
   onAddAiCredits?: () => void
   onOpenAiAssistant?: () => void
   aiAssistantOpen?: boolean
+  /** Desktop live Search field + Popover. */
+  globalSearch?: DashboardNavbarGlobalSearch
+  /** Mobile sheet still uses a button trigger via shell. */
   onOpenGlobalSearch?: () => void
   globalSearchShortcutModifierLabel?: string
   onRouteDestination?: () => void
@@ -67,6 +94,7 @@ export function DashboardNavbar({
   onAddAiCredits,
   onOpenAiAssistant,
   aiAssistantOpen = false,
+  globalSearch,
   onOpenGlobalSearch,
   globalSearchShortcutModifierLabel = "Ctrl",
   onRouteDestination,
@@ -168,7 +196,33 @@ export function DashboardNavbar({
               onSelectLocation={onSelectLocation}
             />
 
-            {onOpenGlobalSearch != null ? (
+            {globalSearch != null ? (
+              <OperatorShellSearchField
+                className="hidden min-w-0 flex-1 lg:flex"
+                shortcutModifierLabel={
+                  globalSearch.snapshot.shortcutModifierLabel
+                }
+                snapshot={globalSearch.snapshot}
+                onOpenChange={globalSearch.onOpenChange}
+                onQueryChange={globalSearch.onQueryChange}
+                resultsHandlers={{
+                  onSelectSuggestion: globalSearch.onSelectSuggestion,
+                  onSelectGuestHit: globalSearch.onSelectGuestHit,
+                  onSelectFeedbackHit: globalSearch.onSelectFeedbackHit,
+                  onSelectCampaignHit: globalSearch.onSelectCampaignHit,
+                  onSelectOfferHit: globalSearch.onSelectOfferHit,
+                  onSelectQrCodeHit: globalSearch.onSelectQrCodeHit,
+                  onViewAllGuests: globalSearch.onViewAllGuests,
+                  onViewAllFeedback: globalSearch.onViewAllFeedback,
+                  onViewAllCampaigns: globalSearch.onViewAllCampaigns,
+                  onViewAllOffers: globalSearch.onViewAllOffers,
+                  onViewAllQrCodes: globalSearch.onViewAllQrCodes,
+                  onRetrySearch: globalSearch.onRetrySearch,
+                  onLocationScopeChange: globalSearch.onLocationScopeChange,
+                  onWidenToAllLocations: globalSearch.onWidenToAllLocations,
+                }}
+              />
+            ) : onOpenGlobalSearch != null ? (
               <OperatorShellSearchField
                 className="hidden min-w-0 flex-1 lg:flex"
                 shortcutModifierLabel={globalSearchShortcutModifierLabel}
