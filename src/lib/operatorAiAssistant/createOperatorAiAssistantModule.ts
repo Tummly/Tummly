@@ -2061,6 +2061,8 @@ export function createOperatorAiAssistantModule(
           composerDraft: "",
         }
         publish()
+        // Billing usage moves on each spent turn — reload shell + composer chrome.
+        refreshCreditsChrome()
         followSendScheduleRoute(row)
       })
       .catch((error: unknown) => {
