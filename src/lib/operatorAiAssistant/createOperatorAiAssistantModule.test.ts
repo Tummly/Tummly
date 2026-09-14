@@ -5409,6 +5409,56 @@ describe("clarify vs grounded vs failure chrome", () => {
     expect(adapters.conversations).toEqual([])
   })
 
+  it("refreshes shell and composer AI credits after a successful send", async () => {
+    let remaining = 10
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getCreditsChrome: async () => ({
+        remaining,
+        allowance: 20,
+        usedThisCycle: 20 - remaining,
+        accessLevel: "manage",
+        permissionRole: "Owner",
+        billingStatus: "Active",
+        isPilot: false,
+        mode: "multi",
+        locationId: 1,
+      }),
+    })
+    const sendTurn = adapters.sendTurn.bind(adapters)
+    adapters.sendTurn = async (input) => {
+      const row = await sendTurn(input)
+      remaining = 9
+      return row
+    }
+
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().shellAiCredits.buttonLabel).toBe("10 AI credits")
+    expect(module.getSnapshot().creditsRemainingLine).toBe(
+      "10 of 20 monthly AI credits remaining"
+    )
+
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().turnInFlight).toBe(false)
+    expect(module.getSnapshot().shellAiCredits.buttonLabel).toBe("9 AI credits")
+    expect(module.getSnapshot().creditsRemainingLine).toBe(
+      "9 of 20 monthly AI credits remaining"
+    )
+    expect(module.getSnapshot().shellAiCredits).toMatchObject({
+      usedLine: "11 of 20 AI credits used",
+      leftLine: "9 AI credits left",
+    })
+  })
+
   it("exposes live AI credit chrome and closes the drawer before Billing navigate", async () => {
     const adapters = createInMemoryOperatorAiAssistantAdapters({
       getCreditsChrome: async () => ({
