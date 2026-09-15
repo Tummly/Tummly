@@ -45,7 +45,7 @@ Roles, access control, session handling, and tenant isolation for Tummly.
 | Platform admin | `Admin` (JWT claim) | `/api/admin/*`, admin dashboard | Shipped |
 | Operator | `Owner` on `Users` (JWT claim); client session role `USER` | Operator APIs for **Owned location**s when activated | Shipped |
 | Guest | None | `/api/scan/{token}/*` only | Shipped |
-| Anonymous | None | Trial Request, address lookup, invite validate, setup-account | Shipped |
+| Anonymous | None | Self-service Pilot (Planned), address lookup, Team invitation `/start`, demo/sales invite validate + setup-account, legacy Trial Request | Shipped (Trial + setup); Self-service Planned |
 
 **No sub-roles** for operators today (no staff/manager RBAC).
 
@@ -139,6 +139,8 @@ Roles, access control, session handling, and tenant isolation for Tummly.
 
 ## Operator Setup link security
 
+Demo/sales **Operator Setup invitation** only. Public Self-service Pilot does not use this token. **Team invitation** uses a separate **opaque invitation reference** on `/start?invite=` (7-day expiry; rotate on Resend) — see [team.md](./team.md).
+
 | | |
 |---|---|
 | **Status** | Shipped |
@@ -177,7 +179,8 @@ Endpoints: `validate-invite`, `setup-account`, `generate-activation-code` — un
 | Guest feedback per token | 10 / hour | Shipped (memory cache) |
 | Activation code verify per user | 5 attempts / 15 min | Shipped (memory cache) |
 | Address suggest / resolve | 60 / 30 per 5 min (defaults) | Shipped |
-| Trial OTP resend | 60s cooldown; max 5 resends | Shipped |
+| Trial OTP resend (demo/sales) | 60s cooldown; max 5 resends | Shipped |
+| Self-service Email verification resend | TBD at build | Planned |
 | AspNetCoreRateLimit package | Not registered in `Program.cs` | Not active |
 
 ---

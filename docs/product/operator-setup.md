@@ -1,6 +1,8 @@
-# Operator Setup (sign-up)
+# Operator Setup (demo / sales)
 
-Post-approval flow where an invited operator creates an **Account password** and configures their workspace. Accessed via **Operator Setup invitation** link with `token` query parameter.
+Invite-token flow after demo/sales **Trial request review** approval. An invited operator creates an **Account password** and configures their workspace, ending in **Guest Loop provisioning**. Accessed via **Operator Setup invitation** link with `token` query parameter.
+
+**Not** the public path. Public restaurants use **Self-service Pilot** / **Guest Loop onboarding** — see [self-service-pilot.md](./self-service-pilot.md). **Team invitation** accept is a third path — see [team.md](./team.md).
 
 ## Status summary
 
@@ -24,8 +26,8 @@ Post-approval flow where an invited operator creates an **Account password** and
 
 | Term | Definition |
 |------|------------|
-| **Operator Setup** | Invite-driven wizard: credentials → restaurant/group → locations (multi) → **Guest Loop provisioning** |
-| **Guest Loop provisioning** | Final step (Ready): backend prepares three default **QR code**s per location and Activation Code |
+| **Operator Setup** | Demo/sales invite-driven wizard: credentials → restaurant/group → locations (multi) → **Guest Loop provisioning** |
+| **Guest Loop provisioning** | Final step (Ready): backend prepares three default **QR code**s per location and Activation Code — also used after Self-service Pilot plan choice |
 | **Guest Loop provisioning phases** | (1) Default QR codes / Smart Guest Link — real API, (2) private feedback form — UI only, (3) Activation Code — real API |
 | **Smart Guest Link** | Operator-facing name for the Smart Guest **QR link**: `https://{frontend}/scan/{token}` where `token` = that code’s `QrCode.Token` |
 | **QR code** | Per-location instance of a **QR type** with its own opaque token; three defaults minted at provisioning |

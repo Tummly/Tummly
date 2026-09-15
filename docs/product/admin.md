@@ -1,6 +1,8 @@
 # Admin features
 
-Platform admin workflows for **trial request review**, operator account oversight, and activation support. Admins authenticate separately from operators and use the **admin dashboard** at `/admin-dashboard`.
+Platform admin workflows for demo/sales **trial request review**, operator account oversight, and activation support. Admins authenticate separately from operators and use the **admin dashboard** at `/admin-dashboard`.
+
+**Public path note:** New restaurants use **Self-service Pilot** — see [self-service-pilot.md](./self-service-pilot.md). This doc retains Trial request review for demo/sales until map fog on retire/archive settles.
 
 ## Status summary
 
