@@ -11,7 +11,6 @@ import {
 } from "@/lib/operatorHome/buildHomeNeedsAttention"
 import { mapHomeNeedsAttentionCreditFacts } from "@/lib/operatorHome/homeNeedsAttentionCreditsPresentation"
 import {
-  attachLiveCampaignOffer,
   buildLiveOffersSectionCards,
   type OperatorHomeLiveCard,
 } from "@/lib/operatorHome/buildLiveOffersSectionCards"
@@ -45,11 +44,9 @@ import type {
   UpdateChecklistAcksRequest,
 } from "@/types/dashboard"
 import type {
-  CampaignDraftResponse,
   CampaignLifecycleActionRequest,
   CampaignLifecycleActionResponse,
   CampaignsListItem,
-  CatalogOfferResponse,
   CatalogOffersListItem,
   OpenVoidAttentionOfferApi,
 } from "@/types/operatorCampaigns"
@@ -236,8 +233,6 @@ export type OperatorHomePageAdapters = {
     campaignId: number,
     body: CampaignLifecycleActionRequest
   ) => Promise<CampaignLifecycleActionResponse>
-  getCampaignDraftById?: (campaignId: number) => Promise<CampaignDraftResponse>
-  getCatalogOfferById?: (offerId: number) => Promise<CatalogOfferResponse>
 }
 
 export type DuplicateNeedsAttentionCampaignResult =
@@ -1111,57 +1106,6 @@ export function createOperatorHomePageModule(
     publish()
   })
 
-  const enrichLiveCardsWithCampaignMessages = async (
-    cards: OperatorHomeLiveCard[],
-    offers: readonly CatalogOffersListItem[]
-  ): Promise<OperatorHomeLiveCard[]> => {
-    const getDraft = adapters.getCampaignDraftById
-    if (getDraft == null) {
-      return cards
-    }
-
-    const offersById = new Map(offers.map((offer) => [offer.id, offer]))
-
-    return Promise.all(
-      cards.map(async (card) => {
-        if (card.kind !== "campaign") {
-          return card
-        }
-        try {
-          const response = await getDraft(card.id)
-          const offerId = response.campaign.offerId
-          let attached: Pick<
-            CatalogOffersListItem,
-            "title" | "description" | "validity" | "expiryDate"
-          > | null =
-            offerId != null ? offersById.get(offerId) ?? null : null
-          if (
-            attached == null
-            && offerId != null
-            && adapters.getCatalogOfferById != null
-          ) {
-            try {
-              const offerResponse = await adapters.getCatalogOfferById(offerId)
-              attached = offerResponse.offer
-            } catch {
-              attached = null
-            }
-          }
-          return attachLiveCampaignOffer(
-            {
-              ...card,
-              messageSubject: response.campaign.messageSubject,
-              messageBody: response.campaign.messageBody,
-            },
-            attached
-          )
-        } catch {
-          return card
-        }
-      })
-    )
-  }
-
   const fetchLiveOffersForSelectedLocation = async (options?: {
     keepVisible?: boolean
   }) => {
@@ -1190,19 +1134,11 @@ export function createOperatorHomePageModule(
       }
 
       const cards = buildLiveOffersSectionCards({ campaigns, offers })
-      const enrichedCards = await enrichLiveCardsWithCampaignMessages(
-        cards,
-        offers
-      )
-
-      if (generation !== state.liveOffersLoadGeneration) {
-        return
-      }
 
       dispatch({
         type: "live_offers_load_succeeded",
         generation,
-        liveCards: enrichedCards,
+        liveCards: cards,
       })
     } catch {
       if (generation !== state.liveOffersLoadGeneration) {

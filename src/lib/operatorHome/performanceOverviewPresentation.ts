@@ -5,6 +5,10 @@ import { OPERATOR_OUTLINE_TOOLBAR_BUTTON_CLASS } from "@/lib/operatorHome/shellR
 export const PERFORMANCE_SECTION_CLASS =
   "flex flex-col gap-6 overflow-clip rounded-op-lg border border-op-card-border bg-op-card-background p-4 sm:gap-8 sm:p-5 md:gap-10 md:p-6 dark:shadow-none"
 
+/** Home Performance overview — no card chrome (sits on the main-stack wash). */
+export const PERFORMANCE_SECTION_FLAT_CLASS =
+  "flex flex-col gap-6 sm:gap-8 md:gap-10"
+
 export const PERFORMANCE_HEADER_ROW_CLASS =
   "flex items-center justify-between gap-4"
 

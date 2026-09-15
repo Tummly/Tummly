@@ -8,12 +8,6 @@ export const LIVE_OFFERS_METRIC_DASH = "—"
 
 const LIVE_CAMPAIGN_STATUSES = new Set(["scheduled", "sending"])
 
-export type OperatorHomeLiveOfferCoupon = {
-  title: string
-  description: string
-  expiryLabel: string
-}
-
 export type OperatorHomeLiveCampaignCard = {
   kind: "campaign"
   id: number
@@ -23,11 +17,6 @@ export type OperatorHomeLiveCampaignCard = {
   rowVersion: string
   metricParts: string[]
   channel: string | null
-  /** Guest message for left preview chrome — filled after optional draft fetch. */
-  messageSubject: string | null
-  messageBody: string | null
-  /** Attached catalog offer coupon — filled after optional draft + offer join. */
-  offerCoupon: OperatorHomeLiveOfferCoupon | null
 }
 
 export type OperatorHomeLiveOfferCard = {
@@ -95,9 +84,6 @@ function mapCampaignCard(item: CampaignsListItem): OperatorHomeLiveCampaignCard 
     statusLabel: statusLabelForWireStatus(item.status),
     rowVersion: item.rowVersion,
     channel: item.channel,
-    messageSubject: null,
-    messageBody: null,
-    offerCoupon: null,
     // List wire has no guest-count field — only delivery + redemptions.
     metricParts: [
       delivery === LIVE_OFFERS_METRIC_DASH
@@ -132,37 +118,6 @@ function mapOfferCard(item: CatalogOffersListItem): OperatorHomeLiveOfferCard {
     metricParts: [
       `${formatLiveMetricCount(item.lifetimeClaims)} claims`,
       `${formatLiveMetricCount(item.lifetimeRedeemed)} redemptions`,
-      expiryLabel,
-    ],
-  }
-}
-
-/**
- * Join the attached catalog offer onto a live campaign card after draft fetch.
- */
-export function attachLiveCampaignOffer(
-  card: OperatorHomeLiveCampaignCard,
-  offer: Pick<
-    CatalogOffersListItem,
-    "title" | "description" | "validity" | "expiryDate"
-  > | null
-): OperatorHomeLiveCampaignCard {
-  if (offer == null) {
-    return card
-  }
-  const expiryLabel = formatCatalogOfferExpiryLabel(
-    offer.validity,
-    offer.expiryDate
-  )
-  return {
-    ...card,
-    offerCoupon: {
-      title: offer.title,
-      description: offer.description?.trim() ?? "",
-      expiryLabel,
-    },
-    metricParts: [
-      ...card.metricParts.filter((part) => !part.startsWith("Expires")),
       expiryLabel,
     ],
   }

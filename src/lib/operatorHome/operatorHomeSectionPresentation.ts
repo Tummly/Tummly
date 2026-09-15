@@ -3,6 +3,14 @@
 export const OPERATOR_HOME_CARD_CLASS =
   "overflow-clip rounded-op-lg border border-op-card-border bg-op-card-background"
 
+/**
+ * Home stack below the hero — full-bleed wash, shell gutters re-applied.
+ * Dark: Figma `#181818` (`--op-color-gray-996`). Light: `--op-background-secondary`.
+ * `pt-5` replaces HomeBody `gap-5` after the hero (with hero `pb-5` → 40px).
+ */
+export const OPERATOR_HOME_MAIN_STACK_CLASS =
+  "flex flex-col gap-5 bg-op-background-secondary pt-5 -mx-4 -mb-10 px-4 pb-10 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8 lg:-mx-[70px] lg:-mb-[70px] lg:px-[70px] lg:pb-[70px] dark:bg-op-color-gray-996"
+
 export const OPERATOR_HOME_CARD_PADDED_CLASS = `${OPERATOR_HOME_CARD_CLASS} flex flex-col gap-6 p-4 sm:gap-8 sm:p-5 md:gap-10 md:p-6`
 
 export const OPERATOR_HOME_CARD_STACK_CLASS = `${OPERATOR_HOME_CARD_CLASS} flex flex-col gap-6 py-[25px] px-px`

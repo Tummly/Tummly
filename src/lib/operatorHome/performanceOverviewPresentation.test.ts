@@ -13,6 +13,7 @@ import {
   PERFORMANCE_KPI_VALUE_CLASS,
   PERFORMANCE_KPI_VALUE_ROW_CLASS,
   PERFORMANCE_SECTION_CLASS,
+  PERFORMANCE_SECTION_FLAT_CLASS,
   PERFORMANCE_SUBTITLE_CLASS,
   PERFORMANCE_TITLE_CLASS,
   resolveKpiTrendTextClass,
@@ -30,6 +31,16 @@ describe("performanceOverviewPresentation", () => {
     expect(PERFORMANCE_SECTION_CLASS).toContain("rounded-op-lg")
     expect(PERFORMANCE_SECTION_CLASS).toContain("bg-op-card-background")
     expect(PERFORMANCE_SECTION_CLASS).toContain("border-op-card-border")
+  })
+
+  it("keeps Home Performance overview flat (no card chrome)", () => {
+    expect(PERFORMANCE_SECTION_FLAT_CLASS).toContain("gap-6")
+    expect(PERFORMANCE_SECTION_FLAT_CLASS).toContain("sm:gap-8")
+    expect(PERFORMANCE_SECTION_FLAT_CLASS).toContain("md:gap-10")
+    expect(PERFORMANCE_SECTION_FLAT_CLASS).not.toContain("border")
+    expect(PERFORMANCE_SECTION_FLAT_CLASS).not.toContain("bg-op-card")
+    expect(PERFORMANCE_SECTION_FLAT_CLASS).not.toContain("rounded")
+    expect(PERFORMANCE_SECTION_FLAT_CLASS).not.toContain("p-4")
   })
 
   it("uses card title/subtitle tokens", () => {

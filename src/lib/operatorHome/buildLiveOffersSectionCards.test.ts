@@ -6,7 +6,6 @@ import type {
 } from "@/types/operatorCampaigns"
 
 import {
-  attachLiveCampaignOffer,
   buildLiveOffersSectionCards,
   formatLiveMetricCount,
   formatLiveMetricOrDash,
@@ -260,40 +259,5 @@ describe("buildLiveOffersSectionCards", () => {
     expect(cards[0]?.kind === "offer" && cards[0].expiryLabel).toBe(
       "Expires: 30 days after issue"
     )
-  })
-
-  it("attaches catalog offer expiry onto a live campaign card", () => {
-    const [campaignCard] = buildLiveOffersSectionCards({
-      campaigns: [
-        campaign({
-          id: 1,
-          name: "Thank-you",
-          delivery: "80%",
-          redemptions: "3",
-        }),
-      ],
-      offers: [],
-    })
-    if (campaignCard?.kind !== "campaign") {
-      throw new Error("expected campaign card")
-    }
-
-    const attached = attachLiveCampaignOffer(campaignCard, {
-      title: "10% off your next visit",
-      description: "Show this code on your next visit.",
-      validity: "14_days_after_issue",
-      expiryDate: null,
-    })
-
-    expect(attached.offerCoupon).toEqual({
-      title: "10% off your next visit",
-      description: "Show this code on your next visit.",
-      expiryLabel: "Expires: 14 days after issue",
-    })
-    expect(attached.metricParts).toEqual([
-      "80% delivered",
-      "3 offer claims",
-      "Expires: 14 days after issue",
-    ])
   })
 })
