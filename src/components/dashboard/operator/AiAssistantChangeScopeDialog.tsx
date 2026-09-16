@@ -89,6 +89,15 @@ export function AiAssistantChangeScopeDialog({
           (location) => location.id === dialog.draftOwnedLocationId
         )?.name ?? ""
 
+  const preventDialogDismissForNestedMenu = (event: {
+    target: EventTarget
+    preventDefault: () => void
+  }) => {
+    if (isChangeScopeNestedMenuTarget(event.target)) {
+      event.preventDefault()
+    }
+  }
+
   return (
     <Dialog
       open={dialog.open}
@@ -100,14 +109,10 @@ export function AiAssistantChangeScopeDialog({
         showCloseButton={false}
         className={DIALOG_CONTENT_CLASS}
         onPointerDownOutside={(event) => {
-          if (isChangeScopeNestedMenuTarget(event.target)) {
-            event.preventDefault()
-          }
+          preventDialogDismissForNestedMenu(event)
         }}
         onInteractOutside={(event) => {
-          if (isChangeScopeNestedMenuTarget(event.target)) {
-            event.preventDefault()
-          }
+          preventDialogDismissForNestedMenu(event)
         }}
       >
         <div className="flex flex-col gap-[30px]">
