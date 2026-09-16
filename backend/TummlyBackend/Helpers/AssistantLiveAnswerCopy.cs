@@ -619,29 +619,7 @@ namespace TummlyBackend.Helpers
 
             if (focus == AssistantAskFocusKind.CaptureQr)
             {
-                var lowerForCapture = userMessage.ToLowerInvariant();
-                if (ContainsAny(lowerForCapture, "qr", "scan"))
-                {
-                    return CaptureQrBody(
-                        ownedLocationName,
-                        periodPhrase,
-                        evidence.Capture
-                    );
-                }
-
-                var captureParts = CaptureParts(
-                        ownedLocationName,
-                        periodPhrase,
-                        evidence.Capture
-                    )
-                    .ToList();
-                if (captureParts.Count == 0)
-                {
-                    return $"There is nothing to summarise or list at {ownedLocationName} over {periodPhrase}. "
-                        + AssistantNextTryCopy.Sentence;
-                }
-
-                return string.Join(" ", captureParts);
+                return CaptureQrBody(ownedLocationName, periodPhrase, evidence.Capture);
             }
 
             var parts = new List<string>();

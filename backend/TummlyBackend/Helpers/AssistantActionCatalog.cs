@@ -314,9 +314,58 @@ namespace TummlyBackend.Helpers
                 proposed.Add(new AssistantActionDto { Type = "view-capture" });
             }
 
-            // Question-first: at most one next action per ask focus.
+            // Question-first: at most one next action, prefer the ask focus.
             var validated = Validate(proposed, AssistantMessageClass.Grounded, evidence, ask);
-            return validated.Count <= 1 ? validated : validated.Take(1).ToList();
+            return PreferOneActionForFocus(
+                AssistantAskFocus.Detect(userMessage),
+                validated
+            );
+        }
+
+        private static IReadOnlyList<AssistantActionDto> PreferOneActionForFocus(
+            AssistantAskFocusKind focus,
+            IReadOnlyList<AssistantActionDto> validated
+        )
+        {
+            if (validated.Count <= 1)
+            {
+                return validated;
+            }
+
+            var preferredType = focus switch
+            {
+                AssistantAskFocusKind.CampaignsActive
+                    or AssistantAskFocusKind.CampaignsAny
+                    => "view-campaigns",
+                AssistantAskFocusKind.Feedback
+                    => "view-feedback-set",
+                AssistantAskFocusKind.OffersRedemptions
+                    or AssistantAskFocusKind.OffersClaims
+                    => "view-offers",
+                AssistantAskFocusKind.CaptureQr
+                    => "view-capture",
+                AssistantAskFocusKind.Guests
+                    => "view-guests",
+                AssistantAskFocusKind.Performance
+                    => null,
+                _ => null,
+            };
+
+            if (preferredType is string type)
+            {
+                var match = validated.FirstOrDefault(action =>
+                    action.Type == type
+                    || (type == "view-offers" && action.Type == "view-offer")
+                    || (type == "view-guests"
+                        && action.Type is "view-guests" or "view-guest")
+                );
+                if (match is not null)
+                {
+                    return [match];
+                }
+            }
+
+            return validated.Take(1).ToList();
         }
 
         public static IReadOnlyList<AssistantActionDto> DefaultFeedbackActions(

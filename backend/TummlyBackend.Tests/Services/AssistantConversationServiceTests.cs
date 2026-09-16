@@ -8260,10 +8260,19 @@ namespace TummlyBackend.Tests.Services
             var answer = ok.Conversation.Messages[1];
             Assert.Equal("grounded", answer.Class);
             Assert.Contains("2 QR scans", answer.Body);
-            Assert.Contains("Previous window", answer.Body);
-            Assert.Contains("SmartGuest", answer.Body);
+            Assert.DoesNotContain(
+                "feedback submitted",
+                answer.Body,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.DoesNotContain(
+                "Previous window",
+                answer.Body,
+                StringComparison.OrdinalIgnoreCase
+            );
             Assert.DoesNotContain("offerClaims", answer.Body, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains(answer.Actions, action => action.Type == "view-capture");
+            var captureAction = Assert.Single(answer.Actions);
+            Assert.Equal("view-capture", captureAction.Type);
             Assert.Equal(2, _fake.LastInput!.Evidence.Capture.QrScans);
             Assert.DoesNotContain(
                 "offerClaims",
