@@ -261,6 +261,8 @@ export type OperatorHomePageModule = {
     campaignId: number
   ) => Promise<DuplicateNeedsAttentionCampaignResult>
   previewGuestForm: () => void
+  /** Mark Place your QR materials complete after opening the Help Centre guide. */
+  acknowledgeQrPlacementGuide: () => void
   copySmartGuestLink: () => Promise<CopySmartGuestLinkResult>
   openFeedbackDetails: (feedbackId: number) => Promise<void>
   closeFeedbackDetails: () => void
@@ -1724,6 +1726,12 @@ export function createOperatorHomePageModule(
 
       adapters.openSmartGuestLink(viewModel.smartGuestLink)
       acks.acknowledge("guestFormPreviewed")
+    },
+    acknowledgeQrPlacementGuide: () => {
+      if (acks.getSnapshot().acknowledgeBusy) {
+        return
+      }
+      acks.acknowledge("qrPlacementGuideViewed")
     },
     copySmartGuestLink: async () => {
       const link = state.viewModel?.smartGuestLink

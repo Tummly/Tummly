@@ -20,6 +20,7 @@ export type OperatorHomePageModuleApi = {
   pauseLiveCampaign: OperatorHomePageModule["pauseLiveCampaign"]
   duplicateNeedsAttentionCampaign: OperatorHomePageModule["duplicateNeedsAttentionCampaign"]
   previewGuestForm: OperatorHomePageModule["previewGuestForm"]
+  acknowledgeQrPlacementGuide: OperatorHomePageModule["acknowledgeQrPlacementGuide"]
   copySmartGuestLink: () => void
   openFeedbackDetails: OperatorHomePageModule["openFeedbackDetails"]
   closeFeedbackDetails: OperatorHomePageModule["closeFeedbackDetails"]
@@ -78,6 +79,7 @@ export function useHomePageModule(): OperatorHomePageModuleApi {
     pauseLiveCampaign: pageModule.pauseLiveCampaign,
     duplicateNeedsAttentionCampaign: pageModule.duplicateNeedsAttentionCampaign,
     previewGuestForm: pageModule.previewGuestForm,
+    acknowledgeQrPlacementGuide: pageModule.acknowledgeQrPlacementGuide,
     copySmartGuestLink: () => {
       void pageModule.copySmartGuestLink().then((result) => {
         if (result === "copied") {

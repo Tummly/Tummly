@@ -1086,6 +1086,38 @@ describe("createOperatorHomePageModule", () => {
     )
   })
 
+  it("acknowledges QR placement guide and marks the checklist step complete", async () => {
+    const setChecklistAcks = vi.fn(async () => ({
+      success: true,
+      locationId: 1,
+      guestFormPreviewed: false,
+      qrPlacementGuideViewed: true,
+      logoUploaded: false,
+      guestFormPreviewedAt: null,
+      qrPlacementGuideViewedAt: "2026-07-14T12:00:00.000Z",
+      logoUploadedAt: null,
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ setChecklistAcks })
+    )
+    await home.syncWorkspace(workspaceInput())
+
+    home.acknowledgeQrPlacementGuide()
+
+    expect(
+      home
+        .getSnapshot()
+        .viewModel?.setupSteps.find((step) => step.id === "qr-placement")
+        ?.status
+    ).toBe("complete")
+
+    await vi.waitFor(() => {
+      expect(setChecklistAcks).toHaveBeenCalledWith(1, {
+        qrPlacementGuideViewed: true,
+      })
+    })
+  })
+
   it("copies the selected Owned location Smart Guest Link and surfaces copy errors", async () => {
     const copyText = vi
       .fn()

@@ -245,7 +245,10 @@ function buildSetupSteps(input: {
       description:
         "Add your logo so guests recognise your restaurant when they open the feedback form.",
       status: logoStatus,
-      actions: [{ id: "upload-logo", label: "Upload logo", available: false }],
+      actions:
+        logoStatus === "complete"
+          ? []
+          : [{ id: "upload-logo", label: "Upload logo", available: true }],
     },
     {
       id: "guest-form",
@@ -279,12 +282,12 @@ function buildSetupSteps(input: {
               {
                 id: "view-placement-guide",
                 label: "View placement guide",
-                available: false,
+                available: true,
               },
               {
                 id: "order-qr-materials",
                 label: "Order QR materials",
-                available: false,
+                available: true,
               },
             ],
     },

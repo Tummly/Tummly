@@ -131,7 +131,7 @@ describe("createFinishSettingUpAcksModule", () => {
     })
   })
 
-  it("keeps qrPlacementGuideViewed on the acknowledge surface without enabling the guide CTA", async () => {
+  it("acknowledges qrPlacementGuideViewed when the guide is opened", async () => {
     const adapters = createInMemoryFinishSettingUpAcksAdapters({
       1: {
         guestFormPreviewed: false,
