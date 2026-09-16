@@ -79,6 +79,7 @@
   --color-op-color-green-600-muted: var(--op-color-green-600-muted);
   --color-op-color-blue-400: var(--op-color-blue-400);
   --color-op-color-blue-600: var(--op-color-blue-600);
+  --color-op-color-gray-55: var(--op-color-gray-55);
   --color-op-color-gray-60: var(--op-color-gray-60);
   --color-op-color-gray-70: var(--op-color-gray-70);
   --color-op-color-gray-85: var(--op-color-gray-85);
@@ -137,6 +138,7 @@
   --color-op-header-background: var(--op-header-background);
   --color-op-header-logo-color: var(--op-header-logo-color);
   --color-op-header-search-background: var(--op-header-search-background);
+  --color-op-header-search-border: var(--op-header-search-border);
   --color-op-header-search-hover: var(--op-header-search-hover);
   --color-op-header-search-text: var(--op-header-search-text);
   --color-op-header-ai-background: var(--op-header-ai-background);
@@ -146,6 +148,7 @@
   --color-op-header-profile-role: var(--op-header-profile-role);
   --color-op-header-icons-color: var(--op-header-icons-color);
   --color-op-header-location-background: var(--op-header-location-background);
+  --color-op-header-location-border: var(--op-header-location-border);
   --color-op-header-location-heading: var(--op-header-location-heading);
   --color-op-header-location-subheading: var(--op-header-location-subheading);
   --color-op-sidebar-background: var(--op-sidebar-background);
@@ -339,6 +342,8 @@ html.op {
   --op-color-white: #ffffff;
   --op-color-black: #141414;
   --op-color-gray-50: #f8f8f8;
+  /* Figma Home hero wash (5693:73314) */
+  --op-color-gray-55: #f6f6f6;
   /* Figma Operator intent-card / nested panel fill (light) */
   --op-color-gray-60: #f5f5f5;
   /* Figma Operator right-Drawer Close fill (light) */
@@ -364,6 +369,8 @@ html.op {
   --op-color-gray-280: #d7d7d7;
   --op-color-gray-300: #d5d5d5;
   --op-color-gray-350: #cccccc;
+  /* Figma header location / search control border (light) */
+  --op-color-gray-360: #cecece;
   /* Figma table checkbox border (light) */
   --op-color-gray-375: #c3c3c4;
   --op-color-gray-400: #bebebe;
@@ -506,11 +513,12 @@ html.op {
   --op-button-date-size: var(--op-font-size-xs);
   --op-button-collapse-background: var(--op-background-secondary);
   --op-button-collapse-hover: var(--op-surface-primary);
-  /* Shared Header + SideNav chrome strip (Figma: white / #141414). */
-  --op-shell-chrome: var(--op-color-white);
+  /* Shared Header + SideNav chrome strip (Figma: #ebebeb / #141414). */
+  --op-shell-chrome: var(--op-color-gray-150);
   --op-header-background: var(--op-shell-chrome);
   --op-header-logo-color: var(--op-text-primary);
   --op-header-search-background: var(--op-background-secondary);
+  --op-header-search-border: var(--op-color-gray-360);
   --op-header-search-hover: var(--op-surface-primary);
   --op-header-search-text: var(--op-text-muted);
   --op-header-search-radius: var(--op-radius-sm);
@@ -538,6 +546,7 @@ html.op {
   --op-assistant-list-search-hover: var(--op-color-gray-230);
   --op-assistant-list-menu-background: var(--op-color-white);
   --op-header-location-background: var(--op-background-secondary);
+  --op-header-location-border: var(--op-color-gray-360);
   --op-header-location-heading: var(--op-text-primary);
   --op-header-location-subheading: var(--op-text-muted);
   --op-header-location-radius: var(--op-radius-sm);
@@ -612,6 +621,8 @@ html.op.dark {
   /* Header + SideNav chrome — was #141414 before token migration. */
   --op-shell-chrome: var(--op-color-black);
   --op-header-ai-background: var(--op-background-secondary);
+  --op-header-search-border: var(--op-color-gray-980);
+  --op-header-location-border: transparent;
   --op-border-default: var(--op-color-gray-980);
   --op-divider: var(--op-color-gray-980);
   /* Same composite as former rgba(74,74,76,0.4) on dark surfaces */
@@ -814,5 +825,16 @@ html.op.dark .toaster [data-rich-colors="true"][data-sonner-toast] [data-close-b
 }
 
 .help-centre-search::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+
+/* Operator Global Search — hide native blue clear; Lucide XIcon is used instead. */
+.operator-global-search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+.operator-global-search-input::-webkit-search-decoration {
   -webkit-appearance: none;
 }

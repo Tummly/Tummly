@@ -43,7 +43,7 @@ type LocationSwitcherProps = {
 // Figma: same muted utility surface as search.
 // Compact (<lg): name only, capped width. Full (≥lg): content-sized beside flex search.
 const triggerSurfaceClass = cn(
-  "flex h-8 min-h-8 w-auto items-center overflow-hidden rounded-op-sm px-2.5 py-1.5 lg:h-10 lg:min-h-10 lg:px-3 lg:py-2",
+  "flex h-8 min-h-8 w-auto items-center overflow-hidden rounded-op-sm border border-op-header-location-border px-2.5 py-1.5 lg:h-10 lg:min-h-10 lg:px-3 lg:py-2",
   "bg-op-header-location-background",
   OPERATOR_LOCATION_SWITCHER_COMPACT_WIDTH_CLASS,
   OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS

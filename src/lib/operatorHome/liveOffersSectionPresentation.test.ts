@@ -20,7 +20,7 @@ describe("liveOffersSectionPresentation", () => {
   it("uses Figma card chrome", () => {
     expect(LIVE_OFFERS_SECTION_CLASS).toContain("rounded-op-lg")
     expect(LIVE_OFFERS_SECTION_CLASS).toContain("border-op-card-border")
-    expect(LIVE_OFFERS_SECTION_CLASS).toContain("bg-op-card-background")
+    expect(LIVE_OFFERS_SECTION_CLASS).toContain("bg-op-surface-primary")
     expect(LIVE_OFFERS_SECTION_CLASS).toContain("p-4")
     expect(LIVE_OFFERS_SECTION_CLASS).toContain("sm:p-5")
     expect(LIVE_OFFERS_SECTION_CLASS).toContain("md:p-6")

@@ -24,8 +24,10 @@ import {
 } from "@/components/ui/command"
 import { Kbd } from "@/components/ui/kbd"
 import {
+  globalSearchSnapshotHasEntityHits,
   listGlobalSearchSelectables,
   moveGlobalSearchSelection,
+  resolveGlobalSearchHighlight,
 } from "@/lib/operatorGlobalSearch/globalSearchCommandNav"
 import type {
   OperatorGlobalSearchEntityHit,
@@ -206,6 +208,7 @@ export function GlobalSearchResultsPanel({
 }: GlobalSearchResultsPanelProps) {
   const listRef = useRef<HTMLDivElement>(null)
   const [commandValue, setCommandValue] = useState("")
+  const hadEntityHitsRef = useRef(false)
 
   const selectables = useMemo(
     () =>
@@ -246,15 +249,18 @@ export function GlobalSearchResultsPanel({
   const commandValueRef = useRef(commandValue)
   commandValueRef.current = commandValue
 
+  const hasEntityHits = globalSearchSnapshotHasEntityHits(snapshot)
+
   useEffect(() => {
-    if (selectableValues.length === 0) {
-      setCommandValue("")
-      return
-    }
-    if (!selectableValues.includes(commandValue)) {
-      setCommandValue(selectableValues[0]!)
-    }
-  }, [selectableValues, commandValue])
+    const entityHitsJustArrived = hasEntityHits && !hadEntityHitsRef.current
+    hadEntityHitsRef.current = hasEntityHits
+
+    setCommandValue((current) =>
+      resolveGlobalSearchHighlight(selectableValues, current, {
+        entityHitsJustArrived,
+      })
+    )
+  }, [selectableValues, hasEntityHits])
 
   useEffect(() => {
     if (commandValue === "" || listRef.current == null) {

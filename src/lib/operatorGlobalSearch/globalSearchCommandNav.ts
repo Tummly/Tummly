@@ -131,3 +131,45 @@ export function moveGlobalSearchSelection(
   const next = (index + delta + values.length) % values.length
   return values[next]!
 }
+
+/**
+ * Default keyboard highlight for the results list.
+ * When entity hits first arrive, jump to the first product row even if an
+ * Ask Tummly suggestion id is still a valid selectable.
+ */
+export function resolveGlobalSearchHighlight(
+  selectableValues: readonly string[],
+  current: string,
+  options: { entityHitsJustArrived: boolean }
+): string {
+  if (selectableValues.length === 0) {
+    return ""
+  }
+  if (options.entityHitsJustArrived) {
+    return selectableValues[0]!
+  }
+  if (!selectableValues.includes(current)) {
+    return selectableValues[0]!
+  }
+  return current
+}
+
+/** True when the snapshot has at least one product entity hit. */
+export function globalSearchSnapshotHasEntityHits(
+  snapshot: Pick<
+    OperatorGlobalSearchSnapshot,
+    | "guestHits"
+    | "feedbackHits"
+    | "campaignHits"
+    | "offerHits"
+    | "qrCodeHits"
+  >
+): boolean {
+  return (
+    snapshot.guestHits.length > 0 ||
+    snapshot.feedbackHits.length > 0 ||
+    snapshot.campaignHits.length > 0 ||
+    snapshot.offerHits.length > 0 ||
+    snapshot.qrCodeHits.length > 0
+  )
+}

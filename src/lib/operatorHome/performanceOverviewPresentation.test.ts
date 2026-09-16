@@ -33,10 +33,11 @@ describe("performanceOverviewPresentation", () => {
     expect(PERFORMANCE_SECTION_CLASS).toContain("border-op-card-border")
   })
 
-  it("keeps Home Performance overview flat (no card chrome)", () => {
+  it("keeps Home Performance overview flat with 24px top padding", () => {
     expect(PERFORMANCE_SECTION_FLAT_CLASS).toContain("gap-6")
     expect(PERFORMANCE_SECTION_FLAT_CLASS).toContain("sm:gap-8")
     expect(PERFORMANCE_SECTION_FLAT_CLASS).toContain("md:gap-10")
+    expect(PERFORMANCE_SECTION_FLAT_CLASS).toContain("pt-6")
     expect(PERFORMANCE_SECTION_FLAT_CLASS).not.toContain("border")
     expect(PERFORMANCE_SECTION_FLAT_CLASS).not.toContain("bg-op-card")
     expect(PERFORMANCE_SECTION_FLAT_CLASS).not.toContain("rounded")

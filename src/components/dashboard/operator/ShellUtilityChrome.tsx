@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils"
 
 /** Figma header search / AI / location surface. */
 export const OPERATOR_UTILITY_SURFACE_CLASS =
-  "rounded-op-sm bg-op-header-search-background"
+  "rounded-op-sm border border-op-header-search-border bg-op-header-search-background"
 
 /** Compact utility height for mobile navbar + nav sheet. */
 export const OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS = "h-8 min-h-8"

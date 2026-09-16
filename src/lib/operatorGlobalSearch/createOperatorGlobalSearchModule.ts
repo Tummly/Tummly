@@ -624,7 +624,13 @@ export function createOperatorGlobalSearchModule(
     const wasOpen = state.open
     clearPendingSearch()
     searchGeneration += 1
-    state = initialSearchState()
+    // Keep query + settled hits so the field text and results survive
+    // selection / Escape; only close the overlay and cancel in-flight work.
+    state = {
+      ...state,
+      open: false,
+      hitsPending: false,
+    }
     queryStartedForOpen = false
     publish()
     if (wasOpen) {

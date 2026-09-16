@@ -33,6 +33,7 @@ import {
   LIVE_OFFERS_PAUSE_CONFIRM_TITLE,
   type LiveOffersEmptyActionId,
 } from "@/lib/operatorHome/liveOffersSectionPresentation"
+import { OPERATOR_HOME_HERO_BAND_CLASS } from "@/lib/operatorHome/heroPresentation"
 import { OPERATOR_HOME_CARD_CLASS, OPERATOR_HOME_MAIN_STACK_CLASS } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import type { ActivationPeriodBadgePresentation } from "@/lib/operatorHome/activationPeriod"
 import type { FeedbackDetailsSnapshot } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
@@ -212,7 +213,7 @@ export function HomeBody({
 
   return (
     <div className="flex flex-col">
-      <div>
+      <div className={OPERATOR_HOME_HERO_BAND_CLASS}>
         <HomeHero
           activationPeriodBadge={activationPeriodBadge}
           canPreviewGuestForm={viewModel.canPreviewGuestForm}

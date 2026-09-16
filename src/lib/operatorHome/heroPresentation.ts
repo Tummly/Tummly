@@ -1,12 +1,20 @@
 import type { ActivationPeriodBadgeCopy } from "./activationPeriod"
 
 /**
+ * Full-bleed hero wash — Figma #f6f6f6 light (`--op-color-gray-55`).
+ * Negative margins cancel shell gutters so the wash reaches the pane edge;
+ * matching padding keeps hero copy on the same inset as the rest of Home.
+ */
+export const OPERATOR_HOME_HERO_BAND_CLASS =
+  "bg-op-color-gray-55 -mx-4 -mt-6 px-4 pt-6 sm:-mx-6 sm:px-6 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 lg:-mx-[70px] lg:-mt-[70px] lg:px-[70px] lg:pt-[70px] dark:bg-transparent"
+
+/**
  * Figma hero row — not a card; sits on the shell pane (70px gutters).
  * Copy left, CTAs right at lg (`items-end`). Node 5693:73314.
- * Bottom padding = 40px − HomeBody `gap-5` (20px) → `pb-5`.
+ * Bottom padding = 40px (`pb-10`).
  */
 export const OPERATOR_HOME_HERO_INNER_CLASS =
-  "relative flex flex-col gap-[26px] pb-5 lg:flex-row lg:items-end"
+  "relative flex flex-col gap-[26px] pb-10 lg:flex-row lg:items-end"
 
 export const OPERATOR_HOME_HERO_COPY_CLASS =
   "flex min-w-0 flex-1 flex-col items-start gap-[26px]"

@@ -5,6 +5,7 @@ import {
   formatActivationPeriodBadgeAriaLabel,
   formatActivationPeriodBadgeFullVisibleText,
   OPERATOR_HOME_HERO_BADGE_CLASS,
+  OPERATOR_HOME_HERO_BAND_CLASS,
   OPERATOR_HOME_HERO_CTA_ROW_CLASS,
   OPERATOR_HOME_HERO_INNER_CLASS,
   OPERATOR_HOME_HERO_PRIMARY_BUTTON_CLASS,
@@ -20,6 +21,14 @@ const sampleBadge: ActivationPeriodBadgeCopy = {
 }
 
 describe("heroPresentation", () => {
+  it("washes the hero band with gray-55 light and cancels shell gutters", () => {
+    expect(OPERATOR_HOME_HERO_BAND_CLASS).toContain("bg-op-color-gray-55")
+    expect(OPERATOR_HOME_HERO_BAND_CLASS).toContain("lg:-mx-[70px]")
+    expect(OPERATOR_HOME_HERO_BAND_CLASS).toContain("lg:-mt-[70px]")
+    expect(OPERATOR_HOME_HERO_BAND_CLASS).toContain("lg:pt-[70px]")
+    expect(OPERATOR_HOME_HERO_BAND_CLASS).toContain("dark:bg-transparent")
+  })
+
   it("keeps the hero as a bare row (no card chrome)", () => {
     expect(OPERATOR_HOME_HERO_INNER_CLASS).not.toContain("border")
     expect(OPERATOR_HOME_HERO_INNER_CLASS).not.toContain("bg-op-card")
@@ -28,8 +37,8 @@ describe("heroPresentation", () => {
     expect(OPERATOR_HOME_HERO_INNER_CLASS).toContain("lg:items-end")
   })
 
-  it("uses 40px minus HomeBody gap-5 under the hero", () => {
-    expect(OPERATOR_HOME_HERO_INNER_CLASS).toContain("pb-5")
+  it("uses 40px bottom padding under the hero", () => {
+    expect(OPERATOR_HOME_HERO_INNER_CLASS).toContain("pb-10")
     expect(OPERATOR_HOME_HERO_INNER_CLASS).not.toContain("lg:pb-[50px]")
   })
 

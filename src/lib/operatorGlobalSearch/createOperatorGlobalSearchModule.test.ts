@@ -177,7 +177,7 @@ describe("createOperatorGlobalSearchModule", () => {
     expect(module.getSnapshot()).toBe(afterOpen)
   })
 
-  it("opens and closes Search, clearing query on close", () => {
+  it("opens and closes Search, retaining query and results on close", () => {
     const module = createOperatorGlobalSearchModule(makeAdapters())
     module.open()
     expect(module.getSnapshot().open).toBe(true)
@@ -188,7 +188,7 @@ describe("createOperatorGlobalSearchModule", () => {
     module.close()
     expect(module.getSnapshot()).toMatchObject({
       open: false,
-      query: "",
+      query: "mo",
       guestHits: [],
       feedbackHits: [],
       campaignHits: [],
@@ -420,12 +420,8 @@ describe("createOperatorGlobalSearchModule", () => {
 
     expect(module.getSnapshot()).toMatchObject({
       open: false,
-      query: "",
-      guestHits: [],
-      feedbackHits: [],
-      campaignHits: [],
-      offerHits: [],
-      qrCodeHits: [],
+      query: "mo",
+      guestHits: [expect.objectContaining({ id: "42" })],
     })
     expect(navigateToGuestProfile).toHaveBeenCalledWith(42, 7)
     vi.useRealTimers()
@@ -460,12 +456,8 @@ describe("createOperatorGlobalSearchModule", () => {
 
     expect(module.getSnapshot()).toMatchObject({
       open: false,
-      query: "",
-      guestHits: [],
-      feedbackHits: [],
-      campaignHits: [],
-      offerHits: [],
-      qrCodeHits: [],
+      query: "cold",
+      feedbackHits: [expect.objectContaining({ id: "88" })],
     })
     expect(navigateToFeedbackDetail).toHaveBeenCalledWith(88, 9)
     vi.useRealTimers()
@@ -500,12 +492,8 @@ describe("createOperatorGlobalSearchModule", () => {
 
     expect(module.getSnapshot()).toMatchObject({
       open: false,
-      query: "",
-      guestHits: [],
-      feedbackHits: [],
-      campaignHits: [],
-      offerHits: [],
-      qrCodeHits: [],
+      query: "br",
+      campaignHits: [expect.objectContaining({ id: "77" })],
     })
     expect(navigateToCampaignDetail).toHaveBeenCalledWith(77, 9)
     vi.useRealTimers()
@@ -540,12 +528,8 @@ describe("createOperatorGlobalSearchModule", () => {
 
     expect(module.getSnapshot()).toMatchObject({
       open: false,
-      query: "",
-      guestHits: [],
-      feedbackHits: [],
-      campaignHits: [],
-      offerHits: [],
-      qrCodeHits: [],
+      query: "lu",
+      offerHits: [expect.objectContaining({ id: "88" })],
     })
     expect(navigateToOfferDetails).toHaveBeenCalledWith(88, 9)
     vi.useRealTimers()
@@ -589,8 +573,8 @@ describe("createOperatorGlobalSearchModule", () => {
 
     expect(module.getSnapshot()).toMatchObject({
       open: false,
-      query: "",
-      qrCodeHits: [],
+      query: "ta",
+      qrCodeHits: [expect.objectContaining({ id: "55" })],
     })
     expect(navigateToCapturePlacementDetail).toHaveBeenCalledWith(55, 3)
     vi.useRealTimers()
