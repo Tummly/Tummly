@@ -241,7 +241,8 @@ function DesktopSearchField({
         ),
     OPERATOR_UTILITY_SURFACE_CLASS,
     "justify-start",
-    open && "rounded-b-none ring-1 ring-op-card-border",
+    open &&
+      "rounded-b-none bg-op-header-search-hover ring-1 ring-op-card-border",
     className
   )
 

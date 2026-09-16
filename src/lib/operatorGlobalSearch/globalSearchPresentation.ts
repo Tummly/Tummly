@@ -80,7 +80,7 @@ export const GLOBAL_SEARCH_SECTION_LABEL_CLASS =
 
 export const GLOBAL_SEARCH_AI_ROW_CLASS = [
   "flex cursor-pointer items-center gap-2.5 px-5 py-2 text-sm text-op-text-primary outline-none select-none",
-  // Header search hover token equals surface-primary (invisible on this panel).
+  // Header search hover is #DDDDDD on the chrome field; list rows use assistant wash.
   "hover:bg-op-assistant-list-row-hover",
   "data-[selected=true]:bg-op-assistant-list-row-active data-[selected=true]:text-op-text-primary",
   "aria-[selected=true]:bg-op-assistant-list-row-active aria-[selected=true]:text-op-text-primary",
