@@ -29,6 +29,7 @@ import {
   OPERATOR_SHELL_MENU_ITEM_CLASS,
   OPERATOR_SHELL_MENU_PANEL_CLASS,
 } from "@/lib/operatorHome/shellResponsivePresentation"
+import { isChangeScopeNestedMenuTarget } from "@/lib/operatorAiAssistant/changeScopeDialogDismiss"
 import {
   ALL_OWNED_LOCATIONS_PICKER_LABEL,
   ALL_OWNED_LOCATIONS_SELECT_VALUE,
@@ -98,6 +99,16 @@ export function AiAssistantChangeScopeDialog({
       <DialogContent
         showCloseButton={false}
         className={DIALOG_CONTENT_CLASS}
+        onPointerDownOutside={(event) => {
+          if (isChangeScopeNestedMenuTarget(event.target)) {
+            event.preventDefault()
+          }
+        }}
+        onInteractOutside={(event) => {
+          if (isChangeScopeNestedMenuTarget(event.target)) {
+            event.preventDefault()
+          }
+        }}
       >
         <div className="flex flex-col gap-[30px]">
           <div className="flex items-start gap-[22px]">
@@ -155,6 +166,9 @@ export function AiAssistantChangeScopeDialog({
                   position="popper"
                   align="start"
                   className={DIALOG_MENU_CLASS}
+                  onCloseAutoFocus={(event) => {
+                    event.preventDefault()
+                  }}
                 >
                   <SelectGroup className="p-0">
                     {dialog.includesAllOwnedLocationsOption ? (
@@ -195,6 +209,7 @@ export function AiAssistantChangeScopeDialog({
                 title="Select Reporting period"
                 triggerClassName={PERIOD_TRIGGER_CLASS}
                 contentClassName="z-[130]"
+                modal
               />
             </div>
           </div>
