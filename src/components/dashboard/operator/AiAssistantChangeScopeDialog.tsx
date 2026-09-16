@@ -90,7 +90,7 @@ export function AiAssistantChangeScopeDialog({
         )?.name ?? ""
 
   const preventDialogDismissForNestedMenu = (event: {
-    target: EventTarget
+    target: EventTarget | null
     preventDefault: () => void
   }) => {
     if (isChangeScopeNestedMenuTarget(event.target)) {
