@@ -231,6 +231,57 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void ValidateForLiveAsk_CapsAtOne_PreferringAskFocus()
+        {
+            var evidence = WithFeedback(NonEmptyFeedback()) with
+            {
+                Capture = new AssistantCaptureEvidence(
+                    4,
+                    1,
+                    2,
+                    0,
+                    1,
+                    0,
+                    [new AssistantCaptureQrRow(3, "SmartGuest", "Active", 4, 2, 1)]
+                ),
+            };
+            var proposed = new[]
+            {
+                new AssistantActionDto { Type = "view-offers" },
+                new AssistantActionDto { Type = "view-campaigns" },
+                new AssistantActionDto { Type = "view-feedback-set", Count = 6 },
+                new AssistantActionDto { Type = "view-capture" },
+            };
+
+            var campaignAsk = AssistantActionCatalog.ValidateForLiveAsk(
+                proposed,
+                AssistantMessageClass.Grounded,
+                evidence,
+                "Are there any active campaigns for this Location?"
+            );
+            Assert.Single(campaignAsk);
+            Assert.Equal("view-campaigns", campaignAsk[0].Type);
+
+            var qrAsk = AssistantActionCatalog.ValidateForLiveAsk(
+                proposed,
+                AssistantMessageClass.Grounded,
+                evidence,
+                "Have we had any QR scans today?"
+            );
+            Assert.Single(qrAsk);
+            Assert.Equal("view-capture", qrAsk[0].Type);
+
+            Assert.Equal(
+                3,
+                AssistantActionCatalog.Validate(
+                    proposed,
+                    AssistantMessageClass.Grounded,
+                    evidence
+                ).Count
+            );
+        }
+
+        [Fact]
         public void Validate_HidesActions_OnEmptyOrNonGrounded()
         {
             Assert.Empty(

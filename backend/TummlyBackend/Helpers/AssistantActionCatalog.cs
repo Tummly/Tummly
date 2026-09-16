@@ -41,7 +41,7 @@ namespace TummlyBackend.Helpers
             "dormant-guests",
         };
 
-        public static IReadOnlyList<AssistantActionDto> Validate(
+        private static IReadOnlyList<AssistantActionDto> ValidateOrdered(
             IEnumerable<AssistantActionDto>? proposed,
             AssistantMessageClass answerClass,
             AssistantRetrievedEvidence evidence,
@@ -100,8 +100,43 @@ namespace TummlyBackend.Helpers
             return CatalogOrder
                 .Where(byType.ContainsKey)
                 .Select(type => byType[type])
+                .ToList();
+        }
+
+        public static IReadOnlyList<AssistantActionDto> Validate(
+            IEnumerable<AssistantActionDto>? proposed,
+            AssistantMessageClass answerClass,
+            AssistantRetrievedEvidence evidence,
+            AssistantGroundedAsk ask = AssistantGroundedAsk.Summarise
+        )
+            => ValidateOrdered(proposed, answerClass, evidence, ask)
                 .Take(MaxActions)
                 .ToList();
+
+        /// <summary>
+        /// Live retrieve validate plus question-first cap: at most one Action,
+        /// preferred by ask focus. Preference runs before the three-Action cap
+        /// so a focused Action is not dropped when the model proposes many.
+        /// Draft-complete validators stay on their own helpers.
+        /// </summary>
+        public static IReadOnlyList<AssistantActionDto> ValidateForLiveAsk(
+            IEnumerable<AssistantActionDto>? proposed,
+            AssistantMessageClass answerClass,
+            AssistantRetrievedEvidence evidence,
+            string userMessage,
+            AssistantGroundedAsk ask = AssistantGroundedAsk.Summarise
+        )
+        {
+            var ordered = ValidateOrdered(proposed, answerClass, evidence, ask);
+            if (answerClass != AssistantMessageClass.Grounded || ordered.Count <= 1)
+            {
+                return ordered;
+            }
+
+            return PreferOneActionForFocus(
+                AssistantAskFocus.Detect(userMessage),
+                ordered
+            );
         }
 
         public static IReadOnlyList<AssistantActionDto> ValidateReviewCampaign(
@@ -314,11 +349,12 @@ namespace TummlyBackend.Helpers
                 proposed.Add(new AssistantActionDto { Type = "view-capture" });
             }
 
-            // Question-first: at most one next action, prefer the ask focus.
-            var validated = Validate(proposed, AssistantMessageClass.Grounded, evidence, ask);
-            return PreferOneActionForFocus(
-                AssistantAskFocus.Detect(userMessage),
-                validated
+            return ValidateForLiveAsk(
+                proposed,
+                AssistantMessageClass.Grounded,
+                evidence,
+                userMessage,
+                ask
             );
         }
 

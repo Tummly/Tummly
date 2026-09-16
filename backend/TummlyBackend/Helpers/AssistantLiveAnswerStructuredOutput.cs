@@ -618,10 +618,11 @@ namespace TummlyBackend.Helpers
                 }
 
                 var proposed = ParseActions(root);
-                var actions = AssistantActionCatalog.Validate(
+                var actions = AssistantActionCatalog.ValidateForLiveAsk(
                     proposed,
                     answerClass,
                     evidence,
+                    userMessage,
                     AssistantAskIntent.ClassifyGrounded(userMessage)
                 );
                 var assistantTask = AssistantTask.Retrieve;

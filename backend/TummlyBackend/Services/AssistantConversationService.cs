@@ -1465,10 +1465,11 @@ namespace TummlyBackend.Services
                 else
                 {
                     var groundedAsk = AssistantAskIntent.ClassifyGrounded(userMessage);
-                    var actions = AssistantActionCatalog.Validate(
+                    var actions = AssistantActionCatalog.ValidateForLiveAsk(
                         succeeded.Actions,
                         succeeded.Class,
                         savedEvidence,
+                        userMessage,
                         groundedAsk
                     );
                     var redactionTokens = savedEvidence.Feedback.ContactRedactionTokens
