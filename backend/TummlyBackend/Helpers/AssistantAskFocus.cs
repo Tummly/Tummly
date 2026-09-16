@@ -1,3 +1,5 @@
+using TummlyBackend.Models;
+
 namespace TummlyBackend.Helpers
 {
     /// <summary>
@@ -65,6 +67,7 @@ namespace TummlyBackend.Helpers
             "scanned the qr",
             "scan the qr",
             "any qr",
+            "capture",
         ];
 
         private static readonly string[] OffersRedemptionNeedles =
@@ -89,6 +92,12 @@ namespace TummlyBackend.Helpers
             "claim an offer",
             "claimed an offer",
             "anyone claim",
+            "offers performance",
+            "offer performance",
+            "list the offers",
+            "list offers",
+            "catalog offer",
+            "catalog offers",
         ];
 
         private static readonly string[] CampaignActiveNeedles =
@@ -165,50 +174,102 @@ namespace TummlyBackend.Helpers
                 return AssistantAskFocusKind.CreateOffer;
             }
 
-            if (ContainsAny(lower, CaptureQrNeedles)
-                || (ContainsAny(lower, "qr") && ContainsAny(lower, "scan")))
+            var wantsCapture = ContainsAny(lower, CaptureQrNeedles)
+                || (ContainsAny(lower, "qr") && ContainsAny(lower, "scan"));
+            var wantsRedemptions = ContainsAny(lower, OffersRedemptionNeedles);
+            var wantsClaims = ContainsAny(lower, OffersClaimNeedles);
+            var wantsOffers = wantsRedemptions
+                || wantsClaims
+                || ContainsAny(lower, "offer", "offers");
+            var wantsCampaignsActive = ContainsAny(lower, CampaignActiveNeedles)
+                || (NamesCampaign(lower)
+                    && ContainsAny(lower, "active", "live", "sending", "scheduled"));
+            var wantsCampaigns = NamesCampaign(lower);
+            var wantsFeedback = ContainsAny(lower, FeedbackNeedles);
+            var wantsGuests = ContainsAny(lower, GuestsNeedles);
+            var wantsPerformance = ContainsAny(lower, PerformanceNeedles)
+                && !wantsOffers
+                && !wantsCapture;
+            var wantsMixedNeedle = ContainsAny(lower, MixedSummaryNeedles);
+
+            var domainHits = 0;
+            if (wantsCapture)
+            {
+                domainHits++;
+            }
+
+            if (wantsOffers)
+            {
+                domainHits++;
+            }
+
+            if (wantsCampaigns)
+            {
+                domainHits++;
+            }
+
+            if (wantsFeedback)
+            {
+                domainHits++;
+            }
+
+            if (wantsGuests)
+            {
+                domainHits++;
+            }
+
+            if (wantsPerformance)
+            {
+                domainHits++;
+            }
+
+            // Multi-domain asks keep full evidence (MixedSummary).
+            if (domainHits >= 2)
+            {
+                return AssistantAskFocusKind.MixedSummary;
+            }
+
+            if (wantsCapture)
             {
                 return AssistantAskFocusKind.CaptureQr;
             }
 
-            if (ContainsAny(lower, OffersRedemptionNeedles))
+            if (wantsRedemptions)
             {
                 return AssistantAskFocusKind.OffersRedemptions;
             }
 
-            if (ContainsAny(lower, OffersClaimNeedles))
+            if (wantsClaims || wantsOffers)
             {
                 return AssistantAskFocusKind.OffersClaims;
             }
 
-            if (ContainsAny(lower, CampaignActiveNeedles)
-                || (NamesCampaign(lower)
-                    && ContainsAny(lower, "active", "live", "sending", "scheduled")))
+            if (wantsCampaignsActive)
             {
                 return AssistantAskFocusKind.CampaignsActive;
             }
 
-            if (NamesCampaign(lower))
+            if (wantsCampaigns)
             {
                 return AssistantAskFocusKind.CampaignsAny;
             }
 
-            if (ContainsAny(lower, FeedbackNeedles))
+            if (wantsFeedback)
             {
                 return AssistantAskFocusKind.Feedback;
             }
 
-            if (ContainsAny(lower, GuestsNeedles))
+            if (wantsGuests)
             {
                 return AssistantAskFocusKind.Guests;
             }
 
-            if (ContainsAny(lower, PerformanceNeedles))
+            if (wantsPerformance)
             {
                 return AssistantAskFocusKind.Performance;
             }
 
-            if (ContainsAny(lower, MixedSummaryNeedles))
+            if (wantsMixedNeedle)
             {
                 return AssistantAskFocusKind.MixedSummary;
             }
@@ -253,6 +314,35 @@ namespace TummlyBackend.Helpers
 
                 _ => true,
             };
+
+        /// <summary>
+        /// Drops evidence domains outside the ask focus before body and action
+        /// assembly (Fake/template path included via GroundedFromEvidence).
+        /// </summary>
+        public static AssistantRetrievedEvidence FilterEvidence(
+            AssistantAskFocusKind focus,
+            AssistantRetrievedEvidence evidence
+        )
+            => new(
+                IncludesDomain(focus, AssistantEvidenceDomain.Feedback)
+                    ? evidence.Feedback
+                    : AssistantFeedbackEvidence.Empty,
+                IncludesDomain(focus, AssistantEvidenceDomain.Offers)
+                    ? evidence.Offers
+                    : AssistantOffersEvidence.Empty,
+                IncludesDomain(focus, AssistantEvidenceDomain.Campaigns)
+                    ? evidence.Campaigns
+                    : AssistantCampaignsEvidence.Empty,
+                IncludesDomain(focus, AssistantEvidenceDomain.Capture)
+                    ? evidence.Capture
+                    : AssistantCaptureEvidence.Empty,
+                IncludesDomain(focus, AssistantEvidenceDomain.Home)
+                    ? evidence.Home
+                    : AssistantHomeKpiEvidence.Empty,
+                IncludesDomain(focus, AssistantEvidenceDomain.Guests)
+                    ? evidence.Guests
+                    : AssistantGuestsEvidence.Empty
+            );
 
         private static bool NamesCampaign(string lower)
             => ContainsAny(lower, CampaignAnyNeedles);

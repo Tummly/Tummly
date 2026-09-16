@@ -314,7 +314,9 @@ namespace TummlyBackend.Helpers
                 proposed.Add(new AssistantActionDto { Type = "view-capture" });
             }
 
-            return Validate(proposed, AssistantMessageClass.Grounded, evidence, ask);
+            // Question-first: at most one next action per ask focus.
+            var validated = Validate(proposed, AssistantMessageClass.Grounded, evidence, ask);
+            return validated.Count <= 1 ? validated : validated.Take(1).ToList();
         }
 
         public static IReadOnlyList<AssistantActionDto> DefaultFeedbackActions(

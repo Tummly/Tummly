@@ -1266,9 +1266,9 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("the last 7 days", answer.Body);
             Assert.Contains("1 feedback item", answer.Body);
             Assert.DoesNotContain("this week", answer.Body, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains(answer.Actions, action => action.Type == "view-feedback-set");
-            Assert.Contains(answer.Actions, action => action.Type == "prepare-recovery");
-            Assert.Equal("View 1 feedback item", answer.Actions[0].Label);
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("view-feedback-set", action.Type);
+            Assert.Equal("View 1 feedback item", action.Label);
             Assert.NotNull(_fake.LastInput);
             Assert.Equal(1, _fake.LastInput!.Evidence.Feedback.TotalCount);
         }
