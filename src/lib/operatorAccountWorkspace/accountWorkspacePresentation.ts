@@ -156,11 +156,11 @@ export const ACCOUNT_WORKSPACE_TAB_TRIGGER_CLASS =
   "-mb-px flex-none rounded-none border-0 bg-transparent px-3.5 pt-0 pb-2.5 text-sm font-medium text-[var(--op-color-gray-550)] shadow-none after:absolute after:inset-x-0 after:z-10 after:h-0.5 after:bg-op-button-primary-background after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:bottom-0 hover:bg-transparent hover:text-foreground focus-visible:border-transparent focus-visible:ring-0 data-active:bg-transparent data-active:font-semibold data-active:text-foreground data-active:shadow-none data-active:after:opacity-100 data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:after:opacity-100 dark:data-active:bg-transparent dark:data-[state=active]:bg-transparent"
 
 /**
- * Tab body wash — Figma `#181818` / `--op-color-gray-996`; light uses
- * `--op-background-secondary` (`#ebebeb`).
+ * Tab body wash — light white (`--op-surface-primary`); dark Figma `#181818`
+ * (`--op-color-gray-996`).
  */
 export const ACCOUNT_WORKSPACE_TAB_BODY_CLASS =
-  "flex min-h-0 flex-1 flex-col gap-6 bg-op-background-secondary pt-10 dark:bg-op-color-gray-996"
+  "flex min-h-0 flex-1 flex-col gap-6 bg-op-surface-primary pt-10 dark:bg-op-color-gray-996"
 
 /**
  * Identity card — Figma 5735:78763 fill `#1c1c1c` / `--op-color-gray-992`;

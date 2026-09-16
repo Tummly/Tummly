@@ -311,8 +311,9 @@ export function DashboardSidebar({
                       interactive: true,
                     }),
                     "h-auto min-h-0 justify-center gap-0 rounded-none border-0 px-1.5 py-1",
-                    !settingsChromeActive &&
-                      "text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default"
+                    settingsChromeActive
+                      ? "aria-expanded:bg-op-sidebar-item-active-background aria-expanded:text-op-sidebar-item-active hover:bg-op-sidebar-item-active-background hover:text-op-sidebar-item-active"
+                      : "text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default"
                   )}
                   onClick={onExpandSidebarAndOpenSettings}
                 >
@@ -338,7 +339,7 @@ export function DashboardSidebar({
                     }),
                     "h-auto min-h-0 justify-between gap-0 rounded-none border-0 px-1.5 py-1 pr-[18px]",
                     settingsChromeActive
-                      ? "hover:bg-op-sidebar-item-active-background hover:text-op-sidebar-item-active"
+                      ? "aria-expanded:bg-op-sidebar-item-active-background aria-expanded:text-op-sidebar-item-active hover:bg-op-sidebar-item-active-background hover:text-op-sidebar-item-active"
                       : "text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default aria-expanded:bg-transparent aria-expanded:text-op-sidebar-item-default"
                   )}
                   onClick={onToggleSettingsExpanded}
