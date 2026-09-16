@@ -75,7 +75,8 @@ Minimal send set via `ICampaignProductAnalytics` (ticket 32). Production uses `L
 | `/` | Marketing homepage |
 | `/privacy`, `/terms`, `/cookie-policy` | Legal |
 | `/login`, `/forgot-password`, `/reset-password` | Auth |
-| `/setup-account*` | Operator Setup |
+| `/start` | Team invitation accept |
+| `/setup-account*` | Demo/sales Operator Setup |
 | `/single-dashboard`, `/multi-dashboard`, `/admin-dashboard` | Dashboards |
 | `/scan/:token` | Guest feedback |
 
@@ -87,21 +88,30 @@ Priority for implementation. Not fired in codebase today.
 
 ### Acquisition funnel
 
+Self-service Pilot is the public path. Legacy Trial Request event names remain for demo/sales until that path is retired.
+
 | Event | Properties | Funnel step | Intended fire location | Priority |
 |-------|------------|-------------|------------------------|----------|
-| `trial_request_started` | — | Acquisition | `HeroTrialForm` submit | P1 |
-| `trial_otp_sent` | — | Acquisition | After `request-trial` success | P1 |
-| `trial_otp_verified` | — | Acquisition | `HeroTrialOtpStep` success | P1 |
-| `trial_request_success_view` | — | Acquisition | `HeroTrialSuccessStep` mount | P2 |
+| `self_service_started` | `entry` (home\|pricing\|social) | Acquisition | Get started / Start 30-day Pilot / social | P1 |
+| `email_verification_sent` | — | Acquisition | Verification link sent | P1 |
+| `email_verification_completed` | — | Acquisition | Link confirmed (or social skip) | P1 |
+| `trial_request_started` | — | Acquisition (demo/sales) | Legacy `HeroTrialForm` submit | P3 |
+| `trial_otp_sent` | — | Acquisition (demo/sales) | After `request-trial` success | P3 |
+| `trial_otp_verified` | — | Acquisition (demo/sales) | `HeroTrialOtpStep` success | P3 |
+| `trial_request_success_view` | — | Acquisition (demo/sales) | `HeroTrialSuccessStep` mount | P3 |
 
 ### Onboarding funnel
 
 | Event | Properties | Funnel step | Intended fire location | Priority |
 |-------|------------|-------------|------------------------|----------|
-| `setup_invite_opened` | `account_type` | Onboarding | `validate-invite` success | P1 |
-| `operator_setup_step_completed` | `step`, `account_type` | Onboarding | Each wizard step | P1 |
-| `operator_setup_completed` | `account_type`, `location_count` | Onboarding | `GuestLoopReadyStep` success | P1 |
+| `guest_loop_onboarding_step_completed` | `step`, `account_type` | Onboarding | Each Guest Loop onboarding step | P1 |
+| `plan_choice_selected` | `plan` | Onboarding | Plan choice continue | P1 |
+| `setup_invite_opened` | `account_type` | Onboarding (demo/sales) | `validate-invite` success | P2 |
+| `operator_setup_step_completed` | `step`, `account_type` | Onboarding (demo/sales) | Each Operator Setup wizard step | P2 |
+| `operator_setup_completed` | `account_type`, `location_count` | Onboarding | Provisioning Ready success (both paths) | P1 |
 | `activation_code_generated` | — | Onboarding | Phase 3 complete | P2 |
+| `team_invite_accept_started` | — | Onboarding | `/start?invite=` valid | P2 |
+| `team_invite_accepted` | — | Onboarding | Membership created | P2 |
 
 ### Activation funnel
 
@@ -142,10 +152,11 @@ Priority for implementation. Not fired in codebase today.
 ```mermaid
 flowchart LR
     subgraph Acquisition
-        A1[trial_request_started] --> A2[trial_otp_verified]
+        A1[self_service_started] --> A2[email_verification_completed]
     end
     subgraph Onboarding
-        B1[setup_invite_opened] --> B2[operator_setup_completed]
+        B1[guest_loop_onboarding_step_completed] --> B2[plan_choice_selected]
+        B2 --> B3[operator_setup_completed]
     end
     subgraph Activation
         C1[sign_in_otp_verified] --> C2[account_activated]
@@ -153,8 +164,8 @@ flowchart LR
     subgraph Guest
         D1[guest_scan_loaded] --> D2[guest_feedback_submitted]
     end
-    A2 -.->|Admin approve| B1
-    B2 --> C1
+    A2 --> B1
+    B3 --> C1
 ```
 
 **Shipped measurement today:** only route-level `page_view` — funnels must be approximated manually in GA4 until Target events ship.

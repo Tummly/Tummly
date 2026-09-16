@@ -25,7 +25,7 @@ export const FILTER_SELECT_MENU_CHROME_CLASS = cn(
 )
 
 /**
- * Select field Popover menus — light `#EDEFEE` ≈ `--op-background-primary`;
+ * Select field Popover menus — light Main Bg (`--op-background-primary` / `#F6F6F6`);
  * dark keeps panel `#202020`. Width matches the Popover trigger.
  */
 export const FILTER_SELECT_MENU_CLASS = cn(

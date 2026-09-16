@@ -1,5 +1,3 @@
-import { GuestPreviewEmailChrome } from "@/components/dashboard/operator/Feedback/GuestPreviewOverlay"
-import { GuestPreviewOfferCoupon } from "@/components/dashboard/operator/Feedback/GuestPreviewOfferCoupon"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { OperatorHomeLiveCard } from "@/lib/operatorHome/buildLiveOffersSectionCards"
@@ -9,9 +7,7 @@ import {
   LIVE_OFFERS_CARD_META_CLASS,
   LIVE_OFFERS_CARD_META_TOP_CLASS,
   LIVE_OFFERS_CARD_METRICS_CLASS,
-  LIVE_OFFERS_CARD_PREVIEW_CLASS,
-  LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS,
-  LIVE_OFFERS_CARD_PREVIEW_SCALE_CLASS,
+  LIVE_OFFERS_CARD_STATUS_BADGE_CLASS,
   LIVE_OFFERS_CARD_TITLE_CLASS,
   LIVE_OFFERS_CARDS_STACK_CLASS,
   LIVE_OFFERS_EMPTY_ACTION_BUTTON_CLASS,
@@ -31,10 +27,6 @@ import {
   resolveLiveOffersEmptyActionVariant,
   type LiveOffersEmptyActionId,
 } from "@/lib/operatorHome/liveOffersSectionPresentation"
-import {
-  GUEST_PREVIEW_OFFER_COPY_LABEL,
-  GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
-} from "@/lib/operatorFeedback/guestPreviewPresentation"
 import { OPERATOR_HOME_CARD_CLASS } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 
 export type HomeLiveOffersSectionProps = {
@@ -42,103 +34,15 @@ export type HomeLiveOffersSectionProps = {
   cards: readonly OperatorHomeLiveCard[]
   errorMessage?: string | null
   pauseBusy?: boolean
-  brandName?: string | null
-  locationName?: string | null
-  locationAddress?: string | null
   onEmptyAction?: (actionId: LiveOffersEmptyActionId) => void
   onRetry?: () => void
-  onPreview?: (card: OperatorHomeLiveCard) => void
   onViewCampaign?: (campaignId: number) => void
   onViewOffer?: (offerId: number) => void
   onViewRedemptions?: (offerId: number) => void
   onPauseCampaign?: (campaignId: number) => void
 }
 
-function liveOfferCouponView(
-  coupon: {
-    title: string
-    description: string
-    expiryLabel: string
-  }
-) {
-  return {
-    title: coupon.title,
-    description: coupon.description,
-    redemptionCode: GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
-    expiryLabel: coupon.expiryLabel,
-    copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
-    copyEnabled: false,
-  }
-}
-
-function LiveCardPreview({
-  card,
-  brandName,
-  locationName,
-  locationAddress,
-  onPreview,
-}: {
-  card: OperatorHomeLiveCard
-  brandName: string | null
-  locationName: string | null
-  locationAddress: string | null
-  onPreview?: (card: OperatorHomeLiveCard) => void
-}) {
-  const offerCoupon =
-    card.kind === "offer"
-      ? liveOfferCouponView({
-          title: card.title,
-          description: card.description?.trim() ?? "",
-          expiryLabel: card.expiryLabel,
-        })
-      : card.offerCoupon != null
-        ? liveOfferCouponView(card.offerCoupon)
-        : null
-
-  return (
-    <div className={LIVE_OFFERS_CARD_PREVIEW_CLASS}>
-      <div className={LIVE_OFFERS_CARD_PREVIEW_SCALE_CLASS} aria-hidden>
-        {card.kind === "campaign" ? (
-          <GuestPreviewEmailChrome
-            brandName={brandName}
-            locationName={locationName}
-            locationAddress={locationAddress}
-            subject={card.messageSubject?.trim() || card.title}
-            message={
-              card.messageBody?.trim()
-              || "Campaign message preview is not available."
-            }
-            offerCoupon={
-              offerCoupon != null ? (
-                <GuestPreviewOfferCoupon coupon={offerCoupon} />
-              ) : undefined
-            }
-            className="w-full"
-            maxWidthClass="max-w-none"
-          />
-        ) : offerCoupon != null ? (
-          <div className="w-full">
-            <GuestPreviewOfferCoupon coupon={offerCoupon} />
-          </div>
-        ) : null}
-      </div>
-      <div className={LIVE_OFFERS_CARD_PREVIEW_OVERLAY_CLASS}>
-        <Button
-          type="button"
-          variant="op-secondary"
-          size="default"
-          onClick={() => {
-            onPreview?.(card)
-          }}
-        >
-          Preview
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-function LiveCardMeta({
+function LiveCardBody({
   card,
   pauseBusy,
   onViewCampaign,
@@ -154,19 +58,23 @@ function LiveCardMeta({
   onPauseCampaign?: (campaignId: number) => void
 }) {
   return (
-    <div className={LIVE_OFFERS_CARD_META_CLASS}>
-      <div className={LIVE_OFFERS_CARD_META_TOP_CLASS}>
-        <Badge variant="soft">{card.statusLabel}</Badge>
-        <div className="flex flex-col gap-2">
-          <h3 className={LIVE_OFFERS_CARD_TITLE_CLASS}>{card.title}</h3>
-          <p className={LIVE_OFFERS_CARD_METRICS_CLASS}>
-            {card.metricParts.map((part, index) => (
-              <span key={`${card.kind}-${card.id}-${part}`}>
-                {index > 0 ? <span aria-hidden> · </span> : null}
-                {part}
-              </span>
-            ))}
-          </p>
+    <article className={LIVE_OFFERS_CARD_CLASS}>
+      <div className={LIVE_OFFERS_CARD_META_CLASS}>
+        <div className={LIVE_OFFERS_CARD_META_TOP_CLASS}>
+          <Badge variant="soft" className={LIVE_OFFERS_CARD_STATUS_BADGE_CLASS}>
+            {card.statusLabel}
+          </Badge>
+          <div className="flex flex-col gap-2">
+            <h3 className={LIVE_OFFERS_CARD_TITLE_CLASS}>{card.title}</h3>
+            <p className={LIVE_OFFERS_CARD_METRICS_CLASS}>
+              {card.metricParts.map((part, index) => (
+                <span key={`${card.kind}-${card.id}-${part}`}>
+                  {index > 0 ? <span aria-hidden> · </span> : null}
+                  {part}
+                </span>
+              ))}
+            </p>
+          </div>
         </div>
       </div>
       <div className={LIVE_OFFERS_CARD_ACTIONS_CLASS}>
@@ -215,22 +123,18 @@ function LiveCardMeta({
           </>
         )}
       </div>
-    </div>
+    </article>
   )
 }
 
-/** Figma Live offers and campaigns — empty, loading, error, and split live cards. */
+/** Figma Live offers and campaigns — empty, loading, error, and meta live cards. */
 export function HomeLiveOffersSection({
   loadStatus,
   cards,
   errorMessage = null,
   pauseBusy = false,
-  brandName = null,
-  locationName = null,
-  locationAddress = null,
   onEmptyAction,
   onRetry,
-  onPreview,
   onViewCampaign,
   onViewOffer,
   onViewRedemptions,
@@ -309,26 +213,15 @@ export function HomeLiveOffersSection({
       {showCards ? (
         <div className={LIVE_OFFERS_CARDS_STACK_CLASS}>
           {cards.map((card) => (
-            <article
+            <LiveCardBody
               key={`${card.kind}-${card.id}`}
-              className={LIVE_OFFERS_CARD_CLASS}
-            >
-              <LiveCardPreview
-                card={card}
-                brandName={brandName}
-                locationName={locationName}
-                locationAddress={locationAddress}
-                onPreview={onPreview}
-              />
-              <LiveCardMeta
-                card={card}
-                pauseBusy={pauseBusy}
-                onViewCampaign={onViewCampaign}
-                onViewOffer={onViewOffer}
-                onViewRedemptions={onViewRedemptions}
-                onPauseCampaign={onPauseCampaign}
-              />
-            </article>
+              card={card}
+              pauseBusy={pauseBusy}
+              onViewCampaign={onViewCampaign}
+              onViewOffer={onViewOffer}
+              onViewRedemptions={onViewRedemptions}
+              onPauseCampaign={onPauseCampaign}
+            />
           ))}
         </div>
       ) : null}

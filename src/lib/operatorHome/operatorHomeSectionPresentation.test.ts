@@ -17,6 +17,7 @@ import {
   OPERATOR_HOME_CARD_STACK_CLASS,
   OPERATOR_HOME_CHROME_BUTTON_CLASS,
   OPERATOR_HOME_GRAY_SHELL_TITLE_CLASS,
+  OPERATOR_HOME_MAIN_STACK_CLASS,
   OPERATOR_HOME_WHITE_CARD_CLASS,
   OPERATOR_HOME_WHITE_CARD_TITLE_CLASS,
   RECOMMENDED_EMPTY_COPY,
@@ -35,7 +36,7 @@ import {
 describe("operatorHomeSectionPresentation", () => {
   it("uses shared Figma card chrome with responsive padding", () => {
     expect(OPERATOR_HOME_CARD_CLASS).toContain("border-op-card-border")
-    expect(OPERATOR_HOME_CARD_CLASS).toContain("bg-op-card-background")
+    expect(OPERATOR_HOME_CARD_CLASS).toContain("bg-op-surface-primary")
     expect(OPERATOR_HOME_CARD_CLASS).toContain("rounded-op-lg")
     expect(OPERATOR_HOME_CARD_PADDED_CLASS).toContain("p-4")
     expect(OPERATOR_HOME_CARD_PADDED_CLASS).toContain("sm:p-5")
@@ -46,6 +47,15 @@ describe("operatorHomeSectionPresentation", () => {
     expect(OPERATOR_HOME_CARD_STACK_CLASS).toContain("py-[25px]")
     expect(OPERATOR_HOME_WHITE_CARD_CLASS).toContain("px-4")
     expect(OPERATOR_HOME_WHITE_CARD_CLASS).toContain("md:py-[25px]")
+  })
+
+  it("washes the Home main stack with gray-996 dark / surface-primary light", () => {
+    expect(OPERATOR_HOME_MAIN_STACK_CLASS).toContain("bg-op-surface-primary")
+    expect(OPERATOR_HOME_MAIN_STACK_CLASS).toContain("dark:bg-op-color-gray-996")
+    expect(OPERATOR_HOME_MAIN_STACK_CLASS).toContain("lg:px-[70px]")
+    expect(OPERATOR_HOME_MAIN_STACK_CLASS).toContain("lg:pb-[70px]")
+    expect(OPERATOR_HOME_MAIN_STACK_CLASS).toContain("pt-6")
+    expect(OPERATOR_HOME_MAIN_STACK_CLASS).toContain("gap-5")
   })
 
   it("uses responsive header and chrome button metrics", () => {

@@ -68,14 +68,19 @@ export const GLOBAL_SEARCH_INPUT_ROW_CLASS =
   "flex items-center gap-2 border-b border-op-card-border px-3 py-3 md:gap-3 md:px-5 md:py-4"
 
 export const GLOBAL_SEARCH_INPUT_CLASS =
-  "min-w-0 flex-1 border-0 bg-transparent text-sm text-op-text-primary outline-none placeholder:text-op-header-search-text focus-visible:ring-0"
+  "operator-global-search-input min-w-0 flex-1 border-0 bg-transparent text-sm text-op-text-primary outline-none placeholder:text-op-header-search-text focus-visible:ring-0"
+
+export const GLOBAL_SEARCH_FIELD_INPUT_CLASS =
+  "operator-global-search-input min-w-0 flex-1 border-0 bg-transparent text-inherit outline-none placeholder:text-op-header-search-text focus-visible:ring-0"
+
+export const GLOBAL_SEARCH_CLEAR_LABEL = "Clear search"
 
 export const GLOBAL_SEARCH_SECTION_LABEL_CLASS =
   "px-5 pt-5 text-sm font-medium text-op-header-search-text md:pt-5"
 
 export const GLOBAL_SEARCH_AI_ROW_CLASS = [
   "flex cursor-pointer items-center gap-2.5 px-5 py-2 text-sm text-op-text-primary outline-none select-none",
-  // Header search hover token equals surface-primary (invisible on this panel).
+  // Header search hover is #DDDDDD on the chrome field; list rows use assistant wash.
   "hover:bg-op-assistant-list-row-hover",
   "data-[selected=true]:bg-op-assistant-list-row-active data-[selected=true]:text-op-text-primary",
   "aria-[selected=true]:bg-op-assistant-list-row-active aria-[selected=true]:text-op-text-primary",
@@ -86,7 +91,7 @@ export const GLOBAL_SEARCH_AI_ROW_CLASS = [
 export const GLOBAL_SEARCH_ENTITY_ROW_CLASS = GLOBAL_SEARCH_AI_ROW_CLASS
 
 export const GLOBAL_SEARCH_ENTITY_AVATAR_CLASS =
-  "size-8 bg-op-color-gray-992 text-xs font-medium text-op-header-search-text dark:bg-[var(--op-color-gray-980)]"
+  "size-8 bg-op-color-gray-60 text-xs font-medium text-op-header-search-text dark:bg-[var(--op-color-gray-980)]"
 
 export const GLOBAL_SEARCH_FOOTER_CLASS =
   "mt-auto flex items-center justify-between border-t border-op-card-border px-5 py-3 text-xs text-op-header-search-text"
@@ -95,7 +100,7 @@ export const GLOBAL_SEARCH_FOOTER_HINT_CLASS =
   "inline-flex items-center gap-2"
 
 export const GLOBAL_SEARCH_KBD_CLASS =
-  "inline-flex h-auto min-w-0 items-center justify-center rounded-full bg-op-color-gray-992 px-1 py-1 text-[12px] font-normal text-op-header-search-text dark:bg-[var(--op-color-gray-980)]"
+  "inline-flex h-auto min-w-0 items-center justify-center rounded-full bg-op-color-gray-60 px-1 py-1 text-[12px] font-normal text-op-header-search-text dark:bg-[var(--op-color-gray-980)]"
 
 export const GLOBAL_SEARCH_TRIGGER_CLASS = [
   "flex min-w-0 cursor-pointer items-center gap-2 px-2.5 text-left text-xs text-op-header-search-text lg:gap-3 lg:px-3.5 lg:text-sm",

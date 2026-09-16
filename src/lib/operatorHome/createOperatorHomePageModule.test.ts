@@ -318,8 +318,6 @@ function createAdapters(overrides: {
   getNeedsAttentionCredits?: OperatorHomePageAdapters["getNeedsAttentionCredits"]
   pauseCampaign?: OperatorHomePageAdapters["pauseCampaign"]
   duplicateCampaign?: OperatorHomePageAdapters["duplicateCampaign"]
-  getCampaignDraftById?: OperatorHomePageAdapters["getCampaignDraftById"]
-  getCatalogOfferById?: OperatorHomePageAdapters["getCatalogOfferById"]
 } = {}): OperatorHomePageAdapters {
   let defaultWeeklyBriefGenerated = false
 
@@ -503,8 +501,6 @@ function createAdapters(overrides: {
       ?? (async () => {
         throw new Error("duplicateCampaign not stubbed")
       }),
-    getCampaignDraftById: overrides.getCampaignDraftById,
-    getCatalogOfferById: overrides.getCatalogOfferById,
   }
 }
 
@@ -2213,32 +2209,10 @@ describe("createOperatorHomePageModule", () => {
         redemptions: "3",
       },
     ])
-    const getCampaignDraftById = vi.fn(async () => ({
-      success: true,
-      campaign: {
-        id: 2,
-        locationId: 1,
-        status: "sending",
-        name: "Thank-you campaign",
-        goalId: null,
-        templateId: null,
-        templateVersion: null,
-        audienceKey: null,
-        channel: "email",
-        offerStance: null,
-        offerId: 11,
-        messageSubject: "Thanks for visiting",
-        messageBody: "We would love to see you again.",
-        rowVersion: "rv-2",
-        createdAt: "2026-08-01T12:00:00.000Z",
-        updatedAt: "2026-08-21T12:00:00.000Z",
-      },
-    }))
     const home = createOperatorHomePageModule(
       createAdapters({
         listLiveOffers,
         listLiveCampaigns,
-        getCampaignDraftById,
       })
     )
 
@@ -2253,21 +2227,13 @@ describe("createOperatorHomePageModule", () => {
     expect(home.getSnapshot().liveCards[0]).toMatchObject({
       kind: "campaign",
       id: 2,
-      messageSubject: "Thanks for visiting",
-      messageBody: "We would love to see you again.",
-      offerCoupon: {
-        title: "10% off your next visit",
-        expiryLabel: "Expires: 30 days after issue",
-      },
+      title: "Thank-you campaign",
+      statusLabel: "Sending",
     })
     expect(
       home.getSnapshot().liveCards[0]?.kind === "campaign"
       && home.getSnapshot().liveCards[0].metricParts
-    ).toEqual([
-      "80% delivered",
-      "3 offer claims",
-      "Expires: 30 days after issue",
-    ])
+    ).toEqual(["80% delivered", "3 offer claims"])
     expect(home.getSnapshot().liveCards[1]).toMatchObject({
       kind: "offer",
       id: 11,

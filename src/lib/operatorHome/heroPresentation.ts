@@ -1,53 +1,33 @@
 import type { ActivationPeriodBadgeCopy } from "./activationPeriod"
 
-/** Figma hero card chrome — surface + border from operator tokens (not hardcoded white). */
-export const OPERATOR_HOME_HERO_CARD_CLASS =
-  "relative overflow-hidden rounded-op-lg border border-op-card-border bg-op-card-background"
+/**
+ * Full-bleed hero wash — Figma #f6f6f6 light (`--op-color-gray-55`).
+ * Negative margins cancel shell gutters so the wash reaches the pane edge;
+ * matching padding keeps hero copy on the same inset as the rest of Home.
+ */
+export const OPERATOR_HOME_HERO_BAND_CLASS =
+  "bg-op-color-gray-55 -mx-4 -mt-6 px-4 pt-6 sm:-mx-6 sm:px-6 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 lg:-mx-[70px] lg:-mt-[70px] lg:px-[70px] lg:pt-[70px] dark:bg-transparent"
 
-/** Soften accent art into the card fill (token-aware for light/dark). */
-export const OPERATOR_HOME_HERO_ART_FADE_CLASS =
-  "absolute inset-0 bg-[linear-gradient(4deg,var(--op-card-background)_17%,color-mix(in_srgb,var(--op-card-background)_20%,transparent)_66%)]"
-
-export const OPERATOR_HOME_HERO_ART_EDGE_FADE_CLASS =
-  "absolute inset-y-0 left-0 w-[45%] bg-[linear-gradient(90deg,var(--op-card-background)_0%,transparent_100%)]"
-
-export const OPERATOR_HOME_HERO_PHONE_CANVAS_WIDTH = 393
-
-export const OPERATOR_HOME_HERO_PHONE_CLASS =
-  "absolute top-[18%] left-[8%] aspect-[300/560] w-[min(88%,340px)]"
-
-/** Light bezel uses gray-750; dark keeps gray-950. */
-export const OPERATOR_HOME_HERO_PHONE_SHELL_CLASS =
-  "relative size-full rounded-[28px] bg-[var(--op-color-gray-750)] p-[3%] dark:bg-op-color-gray-950"
-
-export const OPERATOR_HOME_HERO_PHONE_SCREEN_CLASS =
-  "relative size-full overflow-hidden rounded-[20px] bg-guest-feedback-bg"
-
-export const OPERATOR_HOME_HERO_PHONE_CANVAS_CLASS =
-  "pointer-events-none absolute top-0 left-0 w-[393px] origin-top-left select-none"
-
-export const OPERATOR_HOME_HERO_PHONE_GUEST_SHELL_CLASS =
-  "!min-h-[1000px] w-[393px] [&_form]:!transform-none [&_form]:!opacity-100 [&_form>*]:!transform-none [&_form>*]:!opacity-100 [&_h1]:!text-xl"
-
-export const OPERATOR_HOME_HERO_PHONE_GUEST_CONTENT_CLASS =
-  "!max-w-[393px] !px-[30px] !pt-[24px]"
-
-/** Soft bottom crop — dark mode only; light mode keeps a hard phone edge. */
-export const OPERATOR_HOME_HERO_PHONE_FADE_CLASS =
-  "absolute inset-x-0 bottom-0 hidden h-[28%] bg-[linear-gradient(180deg,transparent_0%,var(--op-card-background)_88%)] dark:block"
-
-/** Figma hero inner copy block — PRD §4.1 responsive padding steps. */
+/**
+ * Figma hero row — not a card; sits on the shell pane (70px gutters).
+ * Copy left, CTAs right at lg (`items-end`). Node 5693:73314.
+ * Bottom padding = 40px (`pb-10`).
+ */
 export const OPERATOR_HOME_HERO_INNER_CLASS =
-  "relative z-20 flex flex-col items-stretch px-4 py-8 sm:px-6 sm:py-10 md:px-8 lg:flex-row lg:items-center lg:px-[55px] lg:py-[71px]"
+  "relative flex flex-col gap-[26px] pb-10 lg:flex-row lg:items-end"
+
+export const OPERATOR_HOME_HERO_COPY_CLASS =
+  "flex min-w-0 flex-1 flex-col items-start gap-[26px]"
 
 export const OPERATOR_HOME_HERO_TITLE_CLASS =
-  "text-2xl leading-10 font-bold text-op-card-title-color sm:text-[32px]"
+  "font-serif text-2xl leading-10 font-semibold text-op-card-title-color sm:text-[36px]"
 
+/** Figma Main Bg/Title on body copy (same as headline). */
 export const OPERATOR_HOME_HERO_SUBTITLE_CLASS =
-  "max-w-[555px] text-sm leading-6 text-op-card-subtitle-color"
+  "max-w-[555px] text-sm leading-6 text-op-card-title-color"
 
 export const OPERATOR_HOME_HERO_CTA_ROW_CLASS =
-  "flex flex-wrap items-center gap-3"
+  "flex shrink-0 flex-wrap items-center gap-3"
 
 /** Touch + layout only — paint comes from `variant="op-primary"` / `op-secondary`. */
 export const OPERATOR_HOME_HERO_PRIMARY_BUTTON_CLASS =

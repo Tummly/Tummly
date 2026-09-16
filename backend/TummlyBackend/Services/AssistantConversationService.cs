@@ -1094,6 +1094,8 @@ namespace TummlyBackend.Services
                         window.FromUtc,
                         window.ToUtc,
                         AssistantAskIntent.NeedsCampaignCopy(userMessage),
+                        // Compare-all always loads full packs (ticket 06).
+                        AssistantAskFocusKind.MixedSummary,
                         cancellationToken
                     );
                     if (compareAll.Landed.Count == 0)
@@ -1123,6 +1125,12 @@ namespace TummlyBackend.Services
                             cancellationToken
                         );
                     }
+                    // Named compare and Recovery path need full packs (compare
+                    // fairness; Recovery binds Feedback + Offer from evidence).
+                    var askFocus = namedCompare is not null
+                        || AssistantTaskClassification.LooksLikeRecoveryPath(userMessage)
+                            ? AssistantAskFocusKind.MixedSummary
+                            : AssistantAskFocus.Detect(userMessage);
                     var retrieved = await RetrieveForTurnAsync(
                         conversation.OwnerUserId,
                         compareIds,
@@ -1131,6 +1139,7 @@ namespace TummlyBackend.Services
                         window.FromUtc,
                         window.ToUtc,
                         AssistantAskIntent.NeedsCampaignCopy(userMessage),
+                        askFocus,
                         cancellationToken
                     );
                     if (retrieved is null)
@@ -1204,12 +1213,13 @@ namespace TummlyBackend.Services
                     AssistantTurnProgressSteps.Preparing,
                     cancellationToken
                 );
+                var liveFocus = AssistantAskFocus.Detect(userMessage);
                 answer = await _liveAnswer.CompleteAsync(
                     new AssistantLiveAnswerInput(
                         userMessage,
                         locationName,
                         periodPhrase,
-                        savedEvidence,
+                        AssistantAskFocus.FilterEvidence(liveFocus, savedEvidence),
                         compareEvidence,
                         caveat,
                         droppedUnknown,
@@ -1234,12 +1244,25 @@ namespace TummlyBackend.Services
                 throw;
             }
 
+            var providerSucceeded = answer is AssistantLiveAnswerResult.Succeeded;
+            answer = AssistantLiveAnswerResolve.Resolve(
+                answer,
+                userMessage,
+                locationName,
+                periodPhrase,
+                savedEvidence,
+                allowLocalRetrieveFallback: !isCompareAll && namedCompare is null
+            );
+
             var assistantNow = DateTime.UtcNow;
             AssistantMessage assistantMessage;
             string? proposedConversationTitle = null;
             if (answer is AssistantLiveAnswerResult.Succeeded succeeded)
             {
-                turnBilling?.MarkLiveAnswerSucceeded();
+                if (providerSucceeded)
+                {
+                    turnBilling?.MarkLiveAnswerSucceeded();
+                }
                 proposedConversationTitle = succeeded.ConversationTitle;
                 AssistantConversationTitle.TryApply(
                     conversation,
@@ -1456,10 +1479,11 @@ namespace TummlyBackend.Services
                 else
                 {
                     var groundedAsk = AssistantAskIntent.ClassifyGrounded(userMessage);
-                    var actions = AssistantActionCatalog.Validate(
+                    var actions = AssistantActionCatalog.ValidateForLiveAsk(
                         succeeded.Actions,
                         succeeded.Class,
                         savedEvidence,
+                        userMessage,
                         groundedAsk
                     );
                     var redactionTokens = savedEvidence.Feedback.ContactRedactionTokens
@@ -1496,6 +1520,47 @@ namespace TummlyBackend.Services
                         title = withCaveat.Title;
                         body = withCaveat.Body;
                         actions = withCaveat.Actions;
+                    }
+                    // Prefer local question-first copy for narrow focuses so Azure
+                    // cannot dump unrequested Capture Feedback / opt-in zeros.
+                    else if (succeeded.Class == AssistantMessageClass.Grounded
+                        && string.Equals(
+                            succeeded.AssistantTask,
+                            AssistantTask.Retrieve,
+                            StringComparison.Ordinal
+                        )
+                        && compareEvidence is not { Count: >= 2 }
+                        && !pureProductExpert
+                        && !isCompareAll
+                        && PreferLocalQuestionFirstBody(
+                            AssistantAskFocus.Detect(userMessage)
+                        ))
+                    {
+                        var local = AssistantLiveAnswerCopy.WithSentences(
+                            AssistantLiveAnswerCopy.GroundedFromEvidence(
+                                userMessage,
+                                locationName,
+                                periodPhrase,
+                                savedEvidence
+                            ),
+                            caveat,
+                            droppedUnknown
+                        );
+                        title = AssistantContactRedaction.RedactTitle(
+                            local.Title,
+                            redactionTokens
+                        );
+                        body = AssistantContactRedaction.RedactBody(
+                            local.Body,
+                            redactionTokens
+                        );
+                        actions = AssistantActionCatalog.ValidateForLiveAsk(
+                            local.Actions,
+                            local.Class,
+                            savedEvidence,
+                            userMessage,
+                            groundedAsk
+                        );
                     }
                     if (isCompareAll)
                     {
@@ -4715,6 +4780,7 @@ namespace TummlyBackend.Services
             DateTime fromUtc,
             DateTime toUtc,
             bool includeCampaignCopy,
+            AssistantAskFocusKind focus,
             CancellationToken cancellationToken
         )
         {
@@ -4743,6 +4809,7 @@ namespace TummlyBackend.Services
                     fromUtc,
                     toUtc,
                     includeCampaignCopy,
+                    focus,
                     cancellationToken
                 );
                 if (evidence is null)
@@ -4857,6 +4924,7 @@ namespace TummlyBackend.Services
             DateTime fromUtc,
             DateTime toUtc,
             bool includeCampaignCopy,
+            AssistantAskFocusKind focus,
             CancellationToken cancellationToken
         )
         {
@@ -4872,6 +4940,7 @@ namespace TummlyBackend.Services
                     fromUtc,
                     toUtc,
                     includeCampaignCopy,
+                    focus,
                     cancellationToken
                 );
                 if (evidence is null)
@@ -4913,6 +4982,7 @@ namespace TummlyBackend.Services
                         fromUtc,
                         toUtc,
                         includeCampaignCopy,
+                        focus,
                         cancellationToken
                     );
                     if (savedEvidence is null)
@@ -4931,11 +5001,19 @@ namespace TummlyBackend.Services
             DateTime fromUtc,
             DateTime toUtc,
             bool includeCampaignCopy,
+            AssistantAskFocusKind focus,
             CancellationToken cancellationToken
         )
         {
             AssistantFeedbackEvidence feedback;
-            if (await CanRetrieveAreaAsync(
+            if (!AssistantAskFocus.IncludesDomain(
+                focus,
+                AssistantEvidenceDomain.Feedback
+            ))
+            {
+                feedback = AssistantFeedbackEvidence.Empty;
+            }
+            else if (await CanRetrieveAreaAsync(
                 ownerUserId,
                 OperatorAreaIds.Feedback,
                 locationId
@@ -4968,6 +5046,7 @@ namespace TummlyBackend.Services
                 toUtc,
                 feedback,
                 includeCampaignCopy,
+                focus,
                 cancellationToken
             );
         }
@@ -4979,42 +5058,75 @@ namespace TummlyBackend.Services
             DateTime toUtc,
             AssistantFeedbackEvidence savedFeedback,
             bool includeCampaignCopy,
+            AssistantAskFocusKind focus,
             CancellationToken cancellationToken
         )
         {
-            var offersRetrieve = await RetrieveOffersIfAllowedAsync(
-                ownerUserId,
-                savedLocationId,
-                fromUtc,
-                toUtc,
-                cancellationToken
-            );
-            var campaignsRetrieve = await RetrieveCampaignsIfAllowedAsync(
-                ownerUserId,
-                savedLocationId,
-                fromUtc,
-                toUtc,
-                includeCampaignCopy,
-                cancellationToken
-            );
-            var captureRetrieve = await RetrieveCaptureIfAllowedAsync(
-                ownerUserId,
-                savedLocationId,
-                fromUtc,
-                toUtc,
-                cancellationToken
-            );
-            var homeRetrieve = await _homeRetrieve.RetrieveAsync(
-                savedLocationId,
-                fromUtc,
-                toUtc,
-                cancellationToken
-            );
-            var guestsRetrieve = await RetrieveGuestsIfAllowedAsync(
-                ownerUserId,
-                savedLocationId,
-                cancellationToken
-            );
+            var offersRetrieve = AssistantAskFocus.IncludesDomain(
+                focus,
+                AssistantEvidenceDomain.Offers
+            )
+                ? await RetrieveOffersIfAllowedAsync(
+                    ownerUserId,
+                    savedLocationId,
+                    fromUtc,
+                    toUtc,
+                    cancellationToken
+                )
+                : new AssistantOffersRetrieveResult.Ok(EmptyEvidence.Offers);
+
+            var campaignsRetrieve = AssistantAskFocus.IncludesDomain(
+                focus,
+                AssistantEvidenceDomain.Campaigns
+            )
+                ? await RetrieveCampaignsIfAllowedAsync(
+                    ownerUserId,
+                    savedLocationId,
+                    fromUtc,
+                    toUtc,
+                    includeCampaignCopy,
+                    cancellationToken
+                )
+                : new AssistantCampaignsRetrieveResult.Ok(EmptyEvidence.Campaigns);
+
+            var captureRetrieve = AssistantAskFocus.IncludesDomain(
+                focus,
+                AssistantEvidenceDomain.Capture
+            )
+                ? await RetrieveCaptureIfAllowedAsync(
+                    ownerUserId,
+                    savedLocationId,
+                    fromUtc,
+                    toUtc,
+                    cancellationToken
+                )
+                : new AssistantCaptureRetrieveResult.Ok(EmptyEvidence.Capture);
+
+            AssistantHomeKpiRetrieveResult homeRetrieve;
+            if (AssistantAskFocus.IncludesDomain(focus, AssistantEvidenceDomain.Home))
+            {
+                homeRetrieve = await _homeRetrieve.RetrieveAsync(
+                    savedLocationId,
+                    fromUtc,
+                    toUtc,
+                    cancellationToken
+                );
+            }
+            else
+            {
+                homeRetrieve = new AssistantHomeKpiRetrieveResult.Ok(EmptyEvidence.Home);
+            }
+
+            var guestsRetrieve = AssistantAskFocus.IncludesDomain(
+                focus,
+                AssistantEvidenceDomain.Guests
+            )
+                ? await RetrieveGuestsIfAllowedAsync(
+                    ownerUserId,
+                    savedLocationId,
+                    cancellationToken
+                )
+                : new AssistantGuestsRetrieveResult.Ok(EmptyEvidence.Guests);
 
             if (offersRetrieve is AssistantOffersRetrieveResult.Failed
                 || campaignsRetrieve is AssistantCampaignsRetrieveResult.Failed
@@ -5946,6 +6058,7 @@ namespace TummlyBackend.Services
                     window.FromUtc,
                     window.ToUtc,
                     AssistantAskIntent.NeedsCampaignCopy(priorUser.Body),
+                    AssistantAskFocus.Detect(priorUser.Body),
                     cancellationToken
                 );
                 if (retrieved is null)
@@ -6033,6 +6146,14 @@ namespace TummlyBackend.Services
                 liveAnswerAlreadyCompleted: true
             );
         }
+
+        private static bool PreferLocalQuestionFirstBody(AssistantAskFocusKind focus)
+            => focus is AssistantAskFocusKind.CaptureQr
+                or AssistantAskFocusKind.OffersRedemptions
+                or AssistantAskFocusKind.OffersClaims
+                or AssistantAskFocusKind.CampaignsActive
+                or AssistantAskFocusKind.CampaignsAny
+                or AssistantAskFocusKind.Feedback;
 
         private static AssistantMessage FailureMessage(DateTime createdAt)
             => new()

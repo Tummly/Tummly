@@ -29,6 +29,7 @@ import {
   OPERATOR_SHELL_MENU_ITEM_CLASS,
   OPERATOR_SHELL_MENU_PANEL_CLASS,
 } from "@/lib/operatorHome/shellResponsivePresentation"
+import { isChangeScopeNestedMenuTarget } from "@/lib/operatorAiAssistant/changeScopeDialogDismiss"
 import {
   ALL_OWNED_LOCATIONS_PICKER_LABEL,
   ALL_OWNED_LOCATIONS_SELECT_VALUE,
@@ -49,8 +50,11 @@ type AiAssistantChangeScopeDialogProps = {
 /** Portaled menus inside Change analysis scope — above Dialog (`z-[120]`). */
 const DIALOG_MENU_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CLASS} min-w-40 gap-0 px-0 py-1 z-[130] p-0`
 
+const DIALOG_CONTENT_CLASS =
+  "gap-[60px] border-0 bg-op-surface-secondary p-8 text-op-text-primary shadow-lg sm:max-w-[520px] dark:bg-[var(--op-color-gray-1000)]"
+
 const SELECT_TRIGGER_CLASS =
-  "h-auto min-h-[50px] w-full justify-between rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm font-normal text-[var(--op-color-gray-550)] shadow-none dark:bg-transparent dark:hover:bg-transparent"
+  "h-auto min-h-[50px] w-full justify-between rounded border-op-input-border bg-op-surface-primary px-[15px] py-[15px] text-sm font-normal text-op-text-primary shadow-none hover:bg-op-surface-primary dark:bg-transparent dark:hover:bg-transparent dark:text-op-text-muted"
 
 /** Full-width period field — label left, chevron right (not centered). */
 const PERIOD_TRIGGER_CLASS = cn(
@@ -85,6 +89,15 @@ export function AiAssistantChangeScopeDialog({
           (location) => location.id === dialog.draftOwnedLocationId
         )?.name ?? ""
 
+  const preventDialogDismissForNestedMenu = (event: {
+    target: EventTarget | null
+    preventDefault: () => void
+  }) => {
+    if (isChangeScopeNestedMenuTarget(event.target)) {
+      event.preventDefault()
+    }
+  }
+
   return (
     <Dialog
       open={dialog.open}
@@ -94,7 +107,13 @@ export function AiAssistantChangeScopeDialog({
     >
       <DialogContent
         showCloseButton={false}
-        className="gap-[60px] bg-[var(--op-color-gray-995)] p-8 text-op-text-primary sm:max-w-[520px]"
+        className={DIALOG_CONTENT_CLASS}
+        onPointerDownOutside={(event) => {
+          preventDialogDismissForNestedMenu(event)
+        }}
+        onInteractOutside={(event) => {
+          preventDialogDismissForNestedMenu(event)
+        }}
       >
         <div className="flex flex-col gap-[30px]">
           <div className="flex items-start gap-[22px]">
@@ -152,6 +171,9 @@ export function AiAssistantChangeScopeDialog({
                   position="popper"
                   align="start"
                   className={DIALOG_MENU_CLASS}
+                  onCloseAutoFocus={(event) => {
+                    event.preventDefault()
+                  }}
                 >
                   <SelectGroup className="p-0">
                     {dialog.includesAllOwnedLocationsOption ? (
@@ -192,6 +214,7 @@ export function AiAssistantChangeScopeDialog({
                 title="Select Reporting period"
                 triggerClassName={PERIOD_TRIGGER_CLASS}
                 contentClassName="z-[130]"
+                modal
               />
             </div>
           </div>

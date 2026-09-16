@@ -51,6 +51,11 @@ export type PerformanceDateRangeControlProps = {
   contentClassName?: string
   /** Extra classes for the trigger. Merges after Family A chrome. */
   triggerClassName?: string
+  /**
+   * Use inside a modal Dialog so outside click / Esc / re-trigger dismiss the
+   * period menu without requiring a preset or Custom Apply.
+   */
+  modal?: boolean
 }
 
 function parseCommittedCustomDraft(
@@ -75,6 +80,7 @@ export function PerformanceDateRangeControl({
   onCommitLeadingOption,
   contentClassName,
   triggerClassName,
+  modal = false,
 }: PerformanceDateRangeControlProps) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<PopoverStep>("presets")
@@ -108,7 +114,7 @@ export function PerformanceDateRangeControl({
   const canApply = draftComplete && !draftOverMax
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
+    <Popover modal={modal} open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
           <Button
             type="button"

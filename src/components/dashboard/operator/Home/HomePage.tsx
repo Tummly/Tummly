@@ -10,11 +10,9 @@ import { isHomeRecommendationCampaignType } from "@/lib/operatorHome/homeRecomme
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   operatorDashboardCampaignDetailsPath,
-  operatorDashboardCampaignPreviewPath,
   operatorDashboardGuestProfilePath,
   operatorDashboardNavPath,
   operatorDashboardOfferDetailsPath,
-  operatorDashboardOfferPreviewPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import { NEEDS_ATTENTION_DUPLICATE_DRAFT_TOAST } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import { planHomeNeedsAttentionCta } from "@/lib/operatorHome/planHomeNeedsAttentionCta"
@@ -35,7 +33,7 @@ export function HomePage({
 }: HomePageProps) {
   const home = useHomePageModule()
   const navigate = useNavigate()
-  const { mode, selectedLocationId, locations, brandLogoPublicUrl } =
+  const { mode, selectedLocationId, locations } =
     useOutletContext<DashboardOutletContext>()
   const homePerformanceDateRange = useDashboardUiStore(
     (state) => state.homePerformanceDateRange
@@ -192,8 +190,6 @@ export function HomePage({
         performanceLoading={home.snapshot.performanceLoadStatus === "loading"}
         guestFormPreviewLocationName={viewModel.selectedLocationName}
         guestFormPreviewAddress={selectedLocation?.address ?? ""}
-        guestFormPreviewBrandLogoPublicUrl={brandLogoPublicUrl}
-        brandName={viewModel.selectedLocationName}
         liveOffersLoadStatus={home.snapshot.liveOffersLoadStatus}
         liveCards={home.snapshot.liveCards}
         liveOffersError={home.snapshot.liveOffersError}
@@ -209,17 +205,6 @@ export function HomePage({
         }}
         onRetryLiveOffers={() => {
           void home.retryLiveOffers()
-        }}
-        onLiveOfferPreview={(card) => {
-          if (card.kind === "campaign") {
-            openInNewTab(
-              operatorDashboardCampaignPreviewPath(mode, card.id, locationId)
-            )
-            return
-          }
-          openInNewTab(
-            operatorDashboardOfferPreviewPath(mode, card.id, locationId)
-          )
         }}
         onViewLiveCampaign={(campaignId) => {
           openInNewTab(

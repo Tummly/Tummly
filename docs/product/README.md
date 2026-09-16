@@ -1,12 +1,12 @@
 # Tummly product documentation
 
 **Product version:** 2026.07.01  
-**Last reviewed:** 2026-07-01 (codebase audit)  
+**Last reviewed:** 2026-09-15 (Self-service Pilot docs lock)  
 **Audience:** Managers, AI agents, onboarding engineers
 
 Tummly is a restaurant guest-relationship platform. Operators capture feedback, manage offers, and run campaigns across single or multi-location hospitality businesses.
 
-This documentation set describes **what the product does**, **what is shipped vs planned**, and **how flows connect** across frontend, backend, and operations. Definitions are inlined — do not depend on external glossary files.
+This documentation set describes **what the product does**, **what is shipped vs planned**, and **how flows connect** across frontend, backend, and operations. Definitions are inlined — do not depend on external glossary files. Canonical domain language lives in root `CONTEXT.md`.
 
 ## How to read these docs
 
@@ -25,12 +25,13 @@ Each feature block includes: user flow, states, backend actions, edge cases, scr
 
 | Document | Scope | Batch |
 |----------|-------|-------|
-| [trial-request.md](./trial-request.md) | Marketing Trial Request, OTP, emails, review handoff | 1 |
-| [admin.md](./admin.md) | Admin dashboard, trial review, activation admin | 1 |
-| [operator-setup.md](./operator-setup.md) | Single/multi Operator Setup, provisioning, guest links | 1 |
-| [sign-in.md](./sign-in.md) | Sign-in, OTP, password reset, trusted device | 1 |
-| [activation-and-fulfilment.md](./activation-and-fulfilment.md) | Activation code, trial period, starter kit, fulfilment | 1 |
+| [self-service-pilot.md](./self-service-pilot.md) | Public Self-service Pilot path, Email verification, Guest Loop onboarding | 1 |
 | [marketing-site.md](./marketing-site.md) | Public pages, CTAs, claims register | 2 |
+| [operator-setup.md](./operator-setup.md) | Demo/sales Operator Setup (invite after Trial review), provisioning | 1 |
+| [team.md](./team.md) | Team invitation send / accept / Resend / Revoke | 1 |
+| [admin.md](./admin.md) | Admin dashboard, demo/sales trial review, activation admin | 1 |
+| [sign-in.md](./sign-in.md) | Sign-in, OTP, password reset, trusted device, shared Auth chrome | 1 |
+| [activation-and-fulfilment.md](./activation-and-fulfilment.md) | Activation code, Activation period, starter kit, fulfilment | 1 |
 | [guest-feedback.md](./guest-feedback.md) | Guest capture form, thank-you, offers | 2 |
 | [analytics.md](./analytics.md) | Shipped page views + Target event map | 2 |
 | [security-and-rbac.md](./security-and-rbac.md) | Roles, isolation, sessions, audit gaps | 2 |
@@ -43,20 +44,39 @@ Each feature block includes: user flow, states, backend actions, edge cases, scr
 
 | Domain | Shipped | Partial | Planned | Hard launch blockers |
 |--------|---------|---------|---------|----------------------|
-| Trial Request | Form, OTP, received email | — | — | None |
-| Admin review | Approve, decline, more info, resend, extend activation | — | Audit log | None for soft launch |
-| Operator Setup | Wizard, provisioning, three default QR codes per location | Bulk upload UX | Per-location starter QR packs / Shop fulfillment | None |
-| Sign-in | Password, OTP, trusted device, reset | SMS OTP; workspace APIs | — | None |
+| Self-service Pilot | — | — | Full public path (marketing → onboarding → provisioning) | Soft until build map |
+| Demo/sales Trial Request + admin review | Form, OTP, received email, approve/decline/more info, resend, extend activation | — | Audit log | Fog: keep vs archive review docs |
+| Operator Setup (demo/sales) | Wizard, provisioning, three default QR codes per location | Bulk upload UX | Per-location starter QR packs / Shop fulfillment | None |
+| Team invitation | — | — | Accept path + Invitations UI | Soft until Team & permissions build |
+| Sign-in | Password, OTP, trusted device, reset | SMS OTP; workspace APIs | Social (Google + Microsoft) on marketing chrome | None |
 | Activation | Code generation, activation gate, 30-day period | — | Welcome email, in-app fulfilment tracking | Fulfilment is operational |
 | Guest feedback | 3-field form, thank-you | Operator inbox basic | Opt-in, offers, tags | None |
-| Marketing site | All sections live | Claims vs product | Claims alignment pass | **Starter QR, guest list, offers/campaigns copy** — see [marketing-site.md](./marketing-site.md) |
-| Analytics | Page views + consent | — | Custom events, funnels | None |
-| Security | JWT, roles, isolation, activation gate, account lock (5 attempts) | Admin lock on universal-login | Audit log | Audit only if contract requires |
+| Marketing site | All sections live | Claims vs product; CTAs still Trial-shaped in code | Self-service Pilot chrome | **Starter QR, guest list, offers/campaigns copy** — see [marketing-site.md](./marketing-site.md) |
+| Analytics | Page views + consent | — | Custom events, Self-service funnels | None |
+| Security | JWT, roles, isolation, activation gate, account lock (5 attempts) | Admin lock on universal-login | Audit log; Self-service anonymous surfaces | Audit only if contract requires |
 | Support | Admin actions list | — | Playbooks, ticketing | None |
 
 See [CHANGELOG.md](./CHANGELOG.md) for version history.
 
 ## End-to-end lifecycle
+
+### Public path (Self-service Pilot)
+
+```mermaid
+flowchart LR
+    HOME[Home / Pricing] --> VERIFY[Email verification]
+    VERIFY --> ONB[Guest Loop onboarding]
+    ONB --> PLAN[Plan choice]
+    PLAN -->|Pilot| PROV[Guest Loop provisioning]
+    PROV --> SI[Sign-in]
+    SI --> ACT[Account activation]
+    ACT --> DASH[Operator dashboard]
+
+    PROV -.->|Phase 3| CODE[Activation Code]
+    CODE -.->|Operational| FUL[Fulfilment to venues]
+```
+
+### Demo / sales path (retained)
 
 ```mermaid
 flowchart LR
@@ -66,11 +86,9 @@ flowchart LR
     OS --> PROV[Guest Loop provisioning]
     PROV --> SI[Sign-in]
     SI --> ACT[Account activation]
-    ACT --> DASH[Operator dashboard]
-
-    PROV -.->|Phase 3| CODE[Activation Code]
-    CODE -.->|Operational| FUL[Fulfilment to venues]
 ```
+
+**Team invitation** accept joins an existing restaurant — parallel path; see [team.md](./team.md).
 
 ## Local quick start
 
@@ -101,6 +119,6 @@ These files are **implementation supplements**. Product truth lives in `docs/pro
 | Legacy file | Superseded by | Still useful for |
 |-------------|---------------|------------------|
 | [sign_in_flows.md](../sign_in_flows.md) | [sign-in.md](./sign-in.md) | Figma screen IDs, OTP decision log |
-| [guest-loop-audit.md](../guest-loop-audit.md) | [operator-setup.md](./operator-setup.md) | Deploy checklist, QA notes |
-| [form_function.md](../form_function.md) | Domain product files | Form component stack |
+| [guest-loop-audit.md](../guest-loop-audit.md) | [operator-setup.md](./operator-setup.md), [self-service-pilot.md](./self-service-pilot.md) | Deploy checklist, QA notes |
+| [form_function.md](../form_function.md) | Domain product files | Form component stack (includes legacy Trial Request form notes) |
 | [pending-work.md](../pending-work.md) | CHANGELOG + product status tables | Historical build plan |

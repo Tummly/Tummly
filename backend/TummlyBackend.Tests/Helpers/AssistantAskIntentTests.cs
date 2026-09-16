@@ -45,5 +45,53 @@ namespace TummlyBackend.Tests.Helpers
         {
             Assert.False(AssistantAskIntent.HasRetrieveAsk(message));
         }
+
+        [Theory]
+        [InlineData("Any Campaigns live?")]
+        [InlineData("Any Campaigns sending?")]
+        [InlineData("Have we had any QR scans today?")]
+        [InlineData("What are there? Have you got any scans on QR code today?")]
+        [InlineData("any scans on the QR code")]
+        [InlineData("Did anyone redeem an Offer today?")]
+        [InlineData("Feedback this week")]
+        public void HasRetrieveAsk_SynonymPhrases_IsTrue(string message)
+        {
+            Assert.True(AssistantAskIntent.HasRetrieveAsk(message));
+        }
+
+        [Theory]
+        [InlineData("Can you create a Campaign?")]
+        [InlineData("create campaign")]
+        [InlineData("create a campaign")]
+        [InlineData("start a campaign")]
+        [InlineData("help me create a campaign")]
+        [InlineData("Create a Campaign for recent guests.")]
+        public void Classify_LegalCreateCampaign_IsNotMutate(string message)
+        {
+            Assert.NotEqual(
+                AssistantAskKind.Mutate,
+                AssistantAskIntent.Classify(message)
+            );
+            Assert.False(
+                AssistantAskIntent.IsFullRefusal(
+                    AssistantAskIntent.Classify(message)
+                )
+            );
+            Assert.False(AssistantAskIntent.LooksLikeMutateAsk(message));
+        }
+
+        [Theory]
+        [InlineData("schedule a campaign")]
+        [InlineData("send it now")]
+        [InlineData("change the status")]
+        [InlineData("mark as resolved")]
+        public void Classify_RealMutateAsks_StayMutate(string message)
+        {
+            Assert.Equal(
+                AssistantAskKind.Mutate,
+                AssistantAskIntent.Classify(message)
+            );
+            Assert.True(AssistantAskIntent.LooksLikeMutateAsk(message));
+        }
     }
 }

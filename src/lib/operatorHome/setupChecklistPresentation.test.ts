@@ -180,6 +180,7 @@ describe("setupChecklistPresentation", () => {
     expect(SETUP_CHECKLIST_SECTION_CLASS).toContain("p-4")
     expect(SETUP_CHECKLIST_SECTION_CLASS).toContain("sm:p-5")
     expect(SETUP_CHECKLIST_SECTION_CLASS).toContain("md:p-6")
+    expect(SETUP_CHECKLIST_SECTION_CLASS).toContain("bg-op-surface-primary")
     expect(SETUP_CHECKLIST_STEP_CLASS).toContain("pl-4")
     expect(SETUP_CHECKLIST_STEP_CLASS).toContain("pr-4")
     expect(SETUP_CHECKLIST_STEP_CLASS).toContain("py-4")

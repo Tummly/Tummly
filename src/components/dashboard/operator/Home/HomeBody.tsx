@@ -16,12 +16,12 @@ import { HomeWeeklyBriefSection } from "@/components/dashboard/operator/Home/Hom
 import { HomeSetupChecklist } from "@/components/dashboard/operator/Home/HomeSetupChecklist"
 import { OffersConfirmDialog } from "@/components/dashboard/operator/Offers/OffersConfirmDialog"
 import { Button } from "@/components/ui/button"
-import type { OperatorHomeLiveCard } from "@/lib/operatorHome/buildLiveOffersSectionCards"
 import type {
   HomeNeedsAttentionCtaKind,
   HomeNeedsAttentionItem,
   HomeNeedsAttentionProjection,
 } from "@/lib/operatorHome/buildHomeNeedsAttention"
+import type { OperatorHomeLiveCard } from "@/lib/operatorHome/buildLiveOffersSectionCards"
 import type { HomeNeedsAttentionLoadStatus } from "@/lib/operatorHome/homeNeedsAttentionSectionPresentation"
 import type {
   OperatorHomeRecommendationViewModel,
@@ -33,14 +33,15 @@ import {
   LIVE_OFFERS_PAUSE_CONFIRM_TITLE,
   type LiveOffersEmptyActionId,
 } from "@/lib/operatorHome/liveOffersSectionPresentation"
-import { OPERATOR_HOME_CARD_CLASS } from "@/lib/operatorHome/operatorHomeSectionPresentation"
+import { OPERATOR_HOME_HERO_BAND_CLASS } from "@/lib/operatorHome/heroPresentation"
+import { OPERATOR_HOME_CARD_CLASS, OPERATOR_HOME_MAIN_STACK_CLASS } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import type { ActivationPeriodBadgePresentation } from "@/lib/operatorHome/activationPeriod"
 import type { FeedbackDetailsSnapshot } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   PERFORMANCE_HEADER_COPY_CLASS,
   PERFORMANCE_HEADER_ROW_CLASS,
-  PERFORMANCE_SECTION_CLASS,
+  PERFORMANCE_SECTION_FLAT_CLASS,
   PERFORMANCE_SUBTITLE_CLASS,
   PERFORMANCE_TITLE_CLASS,
 } from "@/lib/operatorHome/performanceOverviewPresentation"
@@ -62,7 +63,6 @@ type HomeBodyProps = {
   previewBusy?: boolean
   guestFormPreviewLocationName?: string
   guestFormPreviewAddress?: string
-  guestFormPreviewBrandLogoPublicUrl?: string | null
   onPreviewGuestForm?: () => void
   onCreateOffer?: () => void
   onCreateCampaign?: () => void
@@ -77,10 +77,8 @@ type HomeBodyProps = {
   liveCards?: readonly OperatorHomeLiveCard[]
   liveOffersError?: string | null
   liveOffersPauseBusy?: boolean
-  brandName?: string | null
   onLiveOffersEmptyAction?: (actionId: LiveOffersEmptyActionId) => void
   onRetryLiveOffers?: () => void
-  onLiveOfferPreview?: (card: OperatorHomeLiveCard) => void
   onViewLiveCampaign?: (campaignId: number) => void
   onViewLiveOffer?: (offerId: number) => void
   onViewLiveOfferRedemptions?: (offerId: number) => void
@@ -148,7 +146,6 @@ export function HomeBody({
   previewBusy = false,
   guestFormPreviewLocationName = "",
   guestFormPreviewAddress = "",
-  guestFormPreviewBrandLogoPublicUrl = null,
   onPreviewGuestForm,
   onCreateOffer,
   onCreateCampaign,
@@ -163,10 +160,8 @@ export function HomeBody({
   liveCards = [],
   liveOffersError = null,
   liveOffersPauseBusy = false,
-  brandName = null,
   onLiveOffersEmptyAction,
   onRetryLiveOffers,
-  onLiveOfferPreview,
   onViewLiveCampaign,
   onViewLiveOffer,
   onViewLiveOfferRedemptions,
@@ -217,28 +212,20 @@ export function HomeBody({
   const [pauseCampaignId, setPauseCampaignId] = useState<number | null>(null)
 
   return (
-    <div className="flex flex-col gap-5">
-      <HomeHero
-        activationPeriodBadge={activationPeriodBadge}
-        canPreviewGuestForm={viewModel.canPreviewGuestForm}
-        canCopySmartGuestLink={viewModel.canCopySmartGuestLink}
-        previewBusy={previewBusy}
-        guestFormPreviewLocationName={guestFormPreviewLocationName}
-        guestFormPreviewAddress={guestFormPreviewAddress}
-        guestFormPreviewBrandLogoPublicUrl={guestFormPreviewBrandLogoPublicUrl}
-        onPreviewGuestForm={onPreviewGuestForm}
-        onCopySmartGuestLink={onCopySmartGuestLink}
-      />
+    <div className="flex flex-col">
+      <div className={OPERATOR_HOME_HERO_BAND_CLASS}>
+        <HomeHero
+          activationPeriodBadge={activationPeriodBadge}
+          canPreviewGuestForm={viewModel.canPreviewGuestForm}
+          canCopySmartGuestLink={viewModel.canCopySmartGuestLink}
+          previewBusy={previewBusy}
+          onPreviewGuestForm={onPreviewGuestForm}
+          onCopySmartGuestLink={onCopySmartGuestLink}
+        />
+      </div>
 
-      <HomeSetupChecklist
-        steps={viewModel.setupSteps}
-        onPreviewGuestForm={onPreviewGuestForm}
-        onCreateOffer={onCreateOffer}
-        onCreateCampaign={onCreateCampaign}
-        previewBusy={previewBusy}
-      />
-
-      <section className={PERFORMANCE_SECTION_CLASS}>
+      <div className={OPERATOR_HOME_MAIN_STACK_CLASS}>
+      <section className={PERFORMANCE_SECTION_FLAT_CLASS}>
         <div className={PERFORMANCE_HEADER_ROW_CLASS}>
           <div className={PERFORMANCE_HEADER_COPY_CLASS}>
             <div className="leading-[0]">
@@ -264,6 +251,14 @@ export function HomeBody({
         />
       </section>
 
+      <HomeSetupChecklist
+        steps={viewModel.setupSteps}
+        onPreviewGuestForm={onPreviewGuestForm}
+        onCreateOffer={onCreateOffer}
+        onCreateCampaign={onCreateCampaign}
+        previewBusy={previewBusy}
+      />
+
       <HomeNeedsAttentionSection
         key={viewModel.selectedLocationId}
         loadStatus={needsAttentionLoadStatus}
@@ -280,12 +275,8 @@ export function HomeBody({
         cards={liveCards}
         errorMessage={liveOffersError}
         pauseBusy={liveOffersPauseBusy}
-        brandName={brandName}
-        locationName={guestFormPreviewLocationName}
-        locationAddress={guestFormPreviewAddress}
         onEmptyAction={onLiveOffersEmptyAction}
         onRetry={onRetryLiveOffers}
-        onPreview={onLiveOfferPreview}
         onViewCampaign={onViewLiveCampaign}
         onViewOffer={onViewLiveOffer}
         onViewRedemptions={onViewLiveOfferRedemptions}
@@ -354,6 +345,7 @@ export function HomeBody({
           onRetryWeeklyBrief?.()
         }}
       />
+      </div>
 
       <OffersConfirmDialog
         open={pauseCampaignId != null}

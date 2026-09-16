@@ -26,12 +26,12 @@ Account **Activation Code**, **Activation period**, physical **Activation fulfil
 |------|------------|
 | **Activation Code** | 8-character code from unambiguous charset; displayed as `XXXX-XXXX`; stored hashed; one per account |
 | **Account activation** | Operator enters valid code → `ActivatedAt` set; **Activation period** begins |
-| **Pending activation** | After Operator Setup, before activation — Sign-in allowed; dashboard APIs blocked. True when `ActivatedAt == null` even if phase 3 code generation failed |
+| **Pending activation** | After **Guest Loop provisioning** (Self-service Pilot or demo/sales Operator Setup), before activation — Sign-in allowed; dashboard APIs blocked. True when `ActivatedAt == null` even if phase 3 code generation failed |
 | **Activation period** | 30 calendar days UTC after activation — full dashboard access |
 | **Activation expired** | Period ended — Sign-in blocked; admin may **Extend activation** |
 | **Activation fulfilment** | Physical print/ship of Activation Code to each **Owned location** address |
 | **Starter QR materials** | Future per-location print pack (table tents, stickers) — distinct from account Activation Code |
-| **Trial start trigger** | **Activation period** starts at successful **Account activation** — not at Trial Request or Operator Setup |
+| **Trial start trigger** | **Activation period** starts at successful **Account activation** — not at Self-service Pilot start, Trial Request, or Operator Setup / Guest Loop onboarding |
 
 ---
 
@@ -44,7 +44,7 @@ Account **Activation Code**, **Activation period**, physical **Activation fulfil
 
 ### User flow
 
-During Operator Setup **Guest Loop provisioning** phase 3, frontend calls `POST /api/auth/generate-activation-code` with invite token.
+During **Guest Loop provisioning** phase 3 (after Self-service Pilot plan choice or demo/sales Operator Setup), frontend calls `POST /api/auth/generate-activation-code` (today: with invite token on Operator Setup).
 
 ### Backend actions
 
@@ -167,7 +167,7 @@ See [admin.md](./admin.md#activation-administration):
 
 ### Target process (operational)
 
-1. Operator completes Operator Setup → Activation Code generated in DB.
+1. Operator completes Guest Loop provisioning (Self-service Pilot or demo/sales Operator Setup) → Activation Code generated in DB.
 2. Admin downloads activation asset from **Operator details**.
 3. Operations prints same code for each **Owned location** address from Operator Setup.
 4. Packs ship to venue addresses.
@@ -217,9 +217,10 @@ See [admin.md](./admin.md#activation-administration):
 
 | Event | Starts Activation period? |
 |-------|----------------------------|
-| Trial Request submitted | No |
-| Trial approved | No |
-| Operator Setup complete | No — enters **Pending activation** |
+| Self-service Pilot started / Email verified | No |
+| Trial Request submitted (demo/sales) | No |
+| Trial approved (demo/sales) | No |
+| Guest Loop onboarding / Operator Setup complete | No — enters **Pending activation** after provisioning |
 | Activation Code entered successfully | **Yes** |
 
 ---

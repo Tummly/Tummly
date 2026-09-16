@@ -2,6 +2,8 @@
 
 Authentication for returning **operators** and **admins**, including password reset and **Sign-in OTP**. Operators in **Pending activation** complete Sign-in but are held at the **Activation Code screen** until **Account activation** succeeds.
 
+Shared Auth chrome for marketing Create account / Log in / Self-service Pilot / Team invitation is documented once below — see [Auth chrome (shared)](#auth-chrome-shared).
+
 ## Status summary
 
 | Feature | Status |
@@ -16,6 +18,7 @@ Authentication for returning **operators** and **admins**, including password re
 | Workspace selection (A5) | Partial — UI + backend flag exist; **dormant** (one restaurant per operator today); workspace APIs not implemented |
 | Activation Code screen | Shipped |
 | New device notification email | Shipped |
+| Social Sign-in (Google + Microsoft) on marketing chrome | Planned |
 
 ## Domain terms
 
@@ -23,12 +26,32 @@ Authentication for returning **operators** and **admins**, including password re
 |------|------------|
 | **Sign-in** | Password (+ OTP when required) → JWT session |
 | **Sign-in OTP** | Six-digit code; email default; SMS alternate |
-| **Trusted device** | Browser remembered 30 days after OTP; may skip OTP |
-| **First Sign-in** | First successful Sign-in after Operator Setup — always requires OTP |
+| **Trusted device** | Browser remembered 30 days after OTP; may skip OTP. UI may say Keep me signed in or Remember this device |
+| **First Sign-in** | First successful Sign-in after **Guest Loop onboarding**, demo/sales **Operator Setup**, or new User **Team invitation** accept — always requires OTP |
 | **Verified phone** | Non-empty `PhoneNumber` on operator account — enables SMS Sign-in OTP (no separate verification flag) |
-| **Pending activation** | Setup complete but Activation Code not yet entered — APIs gated |
+| **Pending activation** | Provisioning complete but Activation Code not yet entered — APIs gated |
 | **Activation expired** | 30-day **Activation period** ended — Sign-in blocked |
 | **Workspace selection** | Post-auth restaurant picker for multi-restaurant operators — dormant |
+
+---
+
+## Auth chrome (shared)
+
+| | |
+|---|---|
+| **Status** | Planned for marketing Create account / Log in / Self-service Pilot / Team invitation; password rules Shipped |
+| **Owner** | This subsection — [team.md](./team.md) and [self-service-pilot.md](./self-service-pilot.md) cross-link only |
+
+### Claims (locked)
+
+| Topic | Rule |
+|-------|------|
+| Social providers | **Google** and **Microsoft** only. No Apple on inventored marketing frames. Named in product docs only — not a glossary term. |
+| Terms | Create-account surfaces require Terms / Privacy acceptance checkbox. |
+| **Account password** | **Password strength** **Good** minimum (8+ with uppercase and a number or symbol). Figma “≥8 characters” is an incomplete hint, not the acceptance rule. |
+| **Email verification** (Self-service Pilot) | Verification **link** — distinct from **Sign-in OTP** and from demo/sales Trial Request OTP. |
+| Team accept verify | After new-User credentials, **email OTP** (Sign-in OTP family) — not the Pilot verification link. |
+| Keep me signed in | UI copy for **Trusted device** (30-day Sign-in OTP skip). Not **Refresh token**. |
 
 ---
 
@@ -113,10 +136,11 @@ Authentication for returning **operators** and **admins**, including password re
 
 ### Behaviour
 
-- Checkbox on Sign-in (defaults checked)
+- Checkbox on Sign-in (defaults checked). Marketing Log in may label it **Keep me signed in**; shipped control may say Remember this device / Remember device — same **Trusted device** concept.
 - On OTP verify with Remember: opaque `deviceToken` in localStorage + `TrustedDevices` row (30-day expiry)
 - Sent on subsequent `universal-login` → may skip OTP
 - **First Sign-in** always requires OTP regardless of checkbox
+- Distinct from **Refresh token** (JWT renewal)
 
 ---
 

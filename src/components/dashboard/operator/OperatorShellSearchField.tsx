@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react"
-import { Loader2Icon } from "lucide-react"
+import { useEffect, useRef, useState, type PointerEvent } from "react"
+import { Loader2Icon, XIcon } from "lucide-react"
 
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import {
@@ -22,7 +22,9 @@ import type {
   OperatorGlobalSearchSnapshot,
 } from "@/lib/operatorGlobalSearch/createOperatorGlobalSearchModule"
 import {
+  GLOBAL_SEARCH_CLEAR_LABEL,
   GLOBAL_SEARCH_DIALOG_TITLE,
+  GLOBAL_SEARCH_FIELD_INPUT_CLASS,
   GLOBAL_SEARCH_KBD_CLASS,
   GLOBAL_SEARCH_PLACEHOLDER,
   GLOBAL_SEARCH_POPOVER_CLASS,
@@ -195,6 +197,40 @@ function DesktopSearchField({
     return () => observer.disconnect()
   }, [])
 
+  const isClearControl = (target: EventTarget | null) => {
+    if (!(target instanceof Element)) {
+      return false
+    }
+    return target.closest("button") != null
+  }
+
+  /** Whole chrome is the hit target — not only the input text. */
+  const activateFromFieldPointer = (event: PointerEvent<HTMLDivElement>) => {
+    if (!isLgUp || isClearControl(event.target)) {
+      return
+    }
+    if (!snapshot.open) {
+      onOpenChange(true)
+    }
+    // Focus may already be on the input after Escape; still open above.
+    if (document.activeElement !== inputRef.current) {
+      inputRef.current?.focus()
+    }
+  }
+
+  const dismissSearch = () => {
+    onOpenChange(false)
+    // Blur so the next click fires focus / pointer open again.
+    inputRef.current?.blur()
+  }
+
+  const ignoreOutsideIfOnField = (event: Event) => {
+    const target = event.target as Node | null
+    if (target != null && fieldRef.current?.contains(target)) {
+      event.preventDefault()
+    }
+  }
+
   const fieldChrome = cn(
     GLOBAL_SEARCH_TRIGGER_CLASS,
     compact
@@ -205,7 +241,8 @@ function DesktopSearchField({
         ),
     OPERATOR_UTILITY_SURFACE_CLASS,
     "justify-start",
-    open && "rounded-b-none ring-1 ring-op-card-border",
+    open &&
+      "rounded-b-none bg-op-header-search-hover ring-1 ring-op-card-border",
     className
   )
 
@@ -216,13 +253,22 @@ function DesktopSearchField({
         if (!isLgUp) {
           return
         }
-        onOpenChange(next)
+        if (!next) {
+          dismissSearch()
+          return
+        }
+        onOpenChange(true)
       }}
       modal={false}
     >
       <PopoverAnchor asChild>
-        <div ref={fieldRef} role="search" className={fieldChrome}>
-          <OperatorSearchIcon className="size-3.5 shrink-0 text-op-header-search-text lg:size-4" />
+        <div
+          ref={fieldRef}
+          role="search"
+          className={fieldChrome}
+          onPointerDown={activateFromFieldPointer}
+        >
+          <OperatorSearchIcon className="pointer-events-none size-3.5 shrink-0 text-op-header-search-text lg:size-4" />
           <input
             ref={inputRef}
             type="search"
@@ -237,7 +283,7 @@ function DesktopSearchField({
             onKeyDown={(event) => {
               if (event.key === "Escape") {
                 event.preventDefault()
-                onOpenChange(false)
+                dismissSearch()
                 return
               }
               if (inputNavRef.current?.handleKeyDown(event)) {
@@ -247,7 +293,7 @@ function DesktopSearchField({
             placeholder={
               open ? GLOBAL_SEARCH_PLACEHOLDER : GLOBAL_SEARCH_TRIGGER_PLACEHOLDER
             }
-            className="min-w-0 flex-1 border-0 bg-transparent text-inherit outline-none placeholder:text-op-header-search-text focus-visible:ring-0"
+            className={GLOBAL_SEARCH_FIELD_INPUT_CLASS}
             aria-label={GLOBAL_SEARCH_DIALOG_TITLE}
             aria-expanded={open}
             aria-controls={open ? "global-search-results" : undefined}
@@ -255,12 +301,30 @@ function DesktopSearchField({
           />
           {snapshot.hitsPending ? (
             <Loader2Icon
-              className="size-4 shrink-0 animate-spin text-op-header-search-text"
+              className="pointer-events-none size-4 shrink-0 animate-spin text-op-header-search-text"
               aria-hidden
             />
           ) : null}
-          {!open ? (
-            <KbdGroup className="hidden shrink-0 gap-1 lg:inline-flex">
+          {snapshot.query.length > 0 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 shrink-0 text-op-header-search-text hover:bg-transparent hover:text-op-text-primary"
+              aria-label={GLOBAL_SEARCH_CLEAR_LABEL}
+              onPointerDown={(event) => {
+                // Keep focus path on clear; do not treat as field activate.
+                event.stopPropagation()
+              }}
+              onClick={() => {
+                onQueryChange("")
+                inputRef.current?.focus()
+              }}
+            >
+              <XIcon className="size-3.5" aria-hidden />
+            </Button>
+          ) : !open ? (
+            <KbdGroup className="pointer-events-none hidden shrink-0 gap-1 lg:inline-flex">
               <Kbd className={GLOBAL_SEARCH_KBD_CLASS}>
                 {shortcutModifierLabel}
               </Kbd>
@@ -276,12 +340,9 @@ function DesktopSearchField({
         sideOffset={0}
         onOpenAutoFocus={(event) => event.preventDefault()}
         onCloseAutoFocus={(event) => event.preventDefault()}
-        onInteractOutside={(event) => {
-          const target = event.target as Node | null
-          if (target != null && fieldRef.current?.contains(target)) {
-            event.preventDefault()
-          }
-        }}
+        onPointerDownOutside={ignoreOutsideIfOnField}
+        onFocusOutside={ignoreOutsideIfOnField}
+        onInteractOutside={ignoreOutsideIfOnField}
         className={GLOBAL_SEARCH_POPOVER_CLASS}
         style={
           fieldWidthPx != null ? { width: fieldWidthPx } : undefined

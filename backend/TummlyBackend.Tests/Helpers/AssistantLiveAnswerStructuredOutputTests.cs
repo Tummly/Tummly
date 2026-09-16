@@ -154,6 +154,84 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void BuildSystemPrompt_RequiresQuestionFirstOperatorLanguage()
+        {
+            var prompt = AssistantLiveAnswerStructuredOutput.BuildSystemPrompt(
+                "2026-08-16"
+            );
+
+            Assert.Contains(
+                "Answer only what was asked",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "do not dump allow-list domains",
+                prompt,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.Contains(
+                "Direct answer first",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "at most one next-step",
+                prompt,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.Contains(
+                "Omit zero-value classification buckets",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "Never echo internal terms",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "Succeeded classification",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "askFocus",
+                prompt,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                "Max three",
+                prompt,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public void BuildRequestJson_IncludesAskFocusInUserPayload()
+        {
+            var input = new AssistantLiveAnswerInput(
+                "Are there any active campaigns for this Location?",
+                "Camden",
+                "today",
+                AssistantRetrievedEvidence.Empty
+            );
+
+            var request = AssistantLiveAnswerStructuredOutput.BuildRequestJson(
+                "gpt-4o-mini",
+                input,
+                "2026-08-16"
+            );
+            var messages = JsonNode.Parse(request)!["messages"]!.AsArray();
+            var payload = JsonNode.Parse(messages[^1]!["content"]!.GetValue<string>())!;
+
+            Assert.Equal(
+                "CampaignsActive",
+                payload["askFocus"]!.GetValue<string>()
+            );
+        }
+
+        [Fact]
         public void BuildRequestJson_WithoutHistory_SendsSystemThenUserPayload()
         {
             var input = new AssistantLiveAnswerInput(

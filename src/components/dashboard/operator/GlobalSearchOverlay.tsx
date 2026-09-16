@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { ArrowRightIcon } from "lucide-react"
+import { ArrowRightIcon, XIcon } from "lucide-react"
 
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import {
@@ -18,6 +18,7 @@ import type {
   OperatorGlobalSearchSnapshot,
 } from "@/lib/operatorGlobalSearch/createOperatorGlobalSearchModule"
 import {
+  GLOBAL_SEARCH_CLEAR_LABEL,
   GLOBAL_SEARCH_DIALOG_TITLE,
   GLOBAL_SEARCH_INPUT_CLASS,
   GLOBAL_SEARCH_INPUT_ROW_CLASS,
@@ -134,6 +135,18 @@ export function GlobalSearchOverlay({
             autoFocus
             aria-label={GLOBAL_SEARCH_DIALOG_TITLE}
           />
+          {snapshot.query.length > 0 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 text-op-header-search-text hover:bg-transparent hover:text-op-text-primary"
+              aria-label={GLOBAL_SEARCH_CLEAR_LABEL}
+              onClick={() => onQueryChange("")}
+            >
+              <XIcon className="size-4" aria-hidden />
+            </Button>
+          ) : null}
         </div>
 
         <GlobalSearchResultsPanel

@@ -79,6 +79,7 @@
   --color-op-color-green-600-muted: var(--op-color-green-600-muted);
   --color-op-color-blue-400: var(--op-color-blue-400);
   --color-op-color-blue-600: var(--op-color-blue-600);
+  --color-op-color-gray-55: var(--op-color-gray-55);
   --color-op-color-gray-60: var(--op-color-gray-60);
   --color-op-color-gray-70: var(--op-color-gray-70);
   --color-op-color-gray-85: var(--op-color-gray-85);
@@ -137,6 +138,7 @@
   --color-op-header-background: var(--op-header-background);
   --color-op-header-logo-color: var(--op-header-logo-color);
   --color-op-header-search-background: var(--op-header-search-background);
+  --color-op-header-search-border: var(--op-header-search-border);
   --color-op-header-search-hover: var(--op-header-search-hover);
   --color-op-header-search-text: var(--op-header-search-text);
   --color-op-header-ai-background: var(--op-header-ai-background);
@@ -146,6 +148,7 @@
   --color-op-header-profile-role: var(--op-header-profile-role);
   --color-op-header-icons-color: var(--op-header-icons-color);
   --color-op-header-location-background: var(--op-header-location-background);
+  --color-op-header-location-border: var(--op-header-location-border);
   --color-op-header-location-heading: var(--op-header-location-heading);
   --color-op-header-location-subheading: var(--op-header-location-subheading);
   --color-op-sidebar-background: var(--op-sidebar-background);
@@ -339,6 +342,8 @@ html.op {
   --op-color-white: #ffffff;
   --op-color-black: #141414;
   --op-color-gray-50: #f8f8f8;
+  /* Figma Home hero wash + Main Bg / page canvas (light) */
+  --op-color-gray-55: #f6f6f6;
   /* Figma Operator intent-card / nested panel fill (light) */
   --op-color-gray-60: #f5f5f5;
   /* Figma Operator right-Drawer Close fill (light) */
@@ -364,6 +369,8 @@ html.op {
   --op-color-gray-280: #d7d7d7;
   --op-color-gray-300: #d5d5d5;
   --op-color-gray-350: #cccccc;
+  /* Figma header location / search control border (light) */
+  --op-color-gray-360: #cecece;
   /* Figma table checkbox border (light) */
   --op-color-gray-375: #c3c3c4;
   --op-color-gray-400: #bebebe;
@@ -432,7 +439,8 @@ html.op {
   --op-icon-sm: 18px;
 
   /* Semantics — light */
-  --op-background-primary: var(--op-color-gray-100);
+  /* Main Bg / page canvas — Figma #F6F6F6 (`--op-color-gray-55`). */
+  --op-background-primary: var(--op-color-gray-55);
   --op-background-secondary: var(--op-color-gray-150);
   --op-surface-primary: var(--op-color-white);
   --op-surface-secondary: var(--op-color-gray-50);
@@ -462,7 +470,8 @@ html.op {
   /* Component — app / card / kpi / button / header / sidebar */
   --op-app-background-default: var(--op-background-primary);
   --op-app-content-background: var(--op-background-secondary);
-  --op-card-background: var(--op-surface-secondary);
+  /* Cards — white in light only (match Home). Dark keeps surface-secondary. */
+  --op-card-background: var(--op-surface-primary);
   --op-card-border: var(--op-border-default);
   --op-card-radius: var(--op-radius-lg);
   --op-card-title-color: var(--op-text-primary);
@@ -506,12 +515,14 @@ html.op {
   --op-button-date-size: var(--op-font-size-xs);
   --op-button-collapse-background: var(--op-background-secondary);
   --op-button-collapse-hover: var(--op-surface-primary);
-  /* Shared Header + SideNav chrome strip (Figma: white / #141414). */
-  --op-shell-chrome: var(--op-color-white);
+  /* Shared Header + SideNav chrome strip (Figma: #ebebeb / #141414). */
+  --op-shell-chrome: var(--op-color-gray-150);
   --op-header-background: var(--op-shell-chrome);
   --op-header-logo-color: var(--op-text-primary);
   --op-header-search-background: var(--op-background-secondary);
-  --op-header-search-hover: var(--op-surface-primary);
+  --op-header-search-border: var(--op-color-gray-360);
+  /* Header Search hover / active — light #DDDDDD (`--op-color-gray-230`). */
+  --op-header-search-hover: var(--op-color-gray-230);
   --op-header-search-text: var(--op-text-muted);
   --op-header-search-radius: var(--op-radius-sm);
   --op-header-ai-background: var(--op-color-gray-280);
@@ -521,10 +532,10 @@ html.op {
   --op-header-profile-role: var(--op-text-muted);
   --op-header-icons-color: var(--op-icon-default);
   /* Figma 3454:56050 / 5686:21043 — credits = Main Bg/Colour; composer = Side-nav bg.
-   * Light: Main Bg/Colour #EDEFEE, Side-nav/Cards #FFFFFF, Border #E5E5E5. */
-  --op-assistant-credits-background: var(--op-color-gray-100);
+   * Light: Main Bg/Colour #F6F6F6, Side-nav/Cards #FFFFFF, Border #E5E5E5. */
+  --op-assistant-credits-background: var(--op-background-primary);
   --op-assistant-composer-background: var(--op-color-white);
-  --op-assistant-composer-recording-background: var(--op-color-gray-100);
+  --op-assistant-composer-recording-background: var(--op-background-primary);
   --op-assistant-composer-border: var(--op-color-gray-200);
   --op-assistant-overlay: rgb(0 0 0 / 0.1);
   /* Figma 5686:21043 AI Assistant - Light mood / Theme Light (pairs of dark tokens). */
@@ -538,6 +549,7 @@ html.op {
   --op-assistant-list-search-hover: var(--op-color-gray-230);
   --op-assistant-list-menu-background: var(--op-color-white);
   --op-header-location-background: var(--op-background-secondary);
+  --op-header-location-border: var(--op-color-gray-360);
   --op-header-location-heading: var(--op-text-primary);
   --op-header-location-subheading: var(--op-text-muted);
   --op-header-location-radius: var(--op-radius-sm);
@@ -545,8 +557,9 @@ html.op {
   --op-sidebar-item-default: var(--op-color-gray-625);
   --op-sidebar-item-disabled: var(--op-color-gray-450);
   --op-sidebar-item-active: var(--op-text-primary);
-  --op-sidebar-item-hover-background: var(--op-background-secondary);
-  --op-sidebar-item-active-background: var(--op-background-secondary);
+  /* Side-nav hover / active fill — light #DDDDDD (`--op-color-gray-230`). */
+  --op-sidebar-item-hover-background: var(--op-color-gray-230);
+  --op-sidebar-item-active-background: var(--op-color-gray-230);
 
   /*
    * Component — toast (Figma Success message 3462:60099).
@@ -581,7 +594,7 @@ html.op {
   --muted-foreground: var(--op-text-secondary);
   --border: var(--op-border-default);
   --input: var(--op-input-border);
-  --card: var(--op-surface-secondary);
+  --card: var(--op-surface-primary);
   --card-foreground: var(--op-text-primary);
   --popover: var(--op-surface-primary);
   --popover-foreground: var(--op-text-primary);
@@ -591,7 +604,7 @@ html.op {
   /* Legacy --operator-* aliases */
   --operator-shell-main: var(--op-background-primary);
   --operator-shell-chrome: var(--op-shell-chrome);
-  --operator-card: var(--op-surface-secondary);
+  --operator-card: var(--op-surface-primary);
   --operator-sidenav-border: var(--op-border-default);
   --operator-sidenav-item: var(--op-icon-default);
   --operator-sidenav-item-focused: var(--op-text-primary);
@@ -608,10 +621,18 @@ html.op.dark {
   --op-needs-attention-row-background: var(--op-color-gray-993);
   --op-surface-primary: var(--op-color-gray-1000);
   --op-surface-secondary: var(--op-color-black);
+  /* Cards stay surface-secondary in dark (white card fill is light-only). */
+  --op-card-background: var(--op-surface-secondary);
+  --card: var(--op-surface-secondary);
+  --operator-card: var(--op-surface-secondary);
   --op-shop-banner-wash: #ece6de;
   /* Header + SideNav chrome — was #141414 before token migration. */
   --op-shell-chrome: var(--op-color-black);
   --op-header-ai-background: var(--op-background-secondary);
+  --op-header-search-border: var(--op-color-gray-980);
+  /* Header Search hover keeps surface-primary in dark (light uses gray-230). */
+  --op-header-search-hover: var(--op-surface-primary);
+  --op-header-location-border: transparent;
   --op-border-default: var(--op-color-gray-980);
   --op-divider: var(--op-color-gray-980);
   /* Same composite as former rgba(74,74,76,0.4) on dark surfaces */
@@ -635,6 +656,9 @@ html.op.dark {
   /* SideNav enabled/disabled stay muted in dark (light: #676767 / #AEAEAE). */
   --op-sidebar-item-default: var(--op-text-muted);
   --op-sidebar-item-disabled: var(--op-text-muted);
+  /* Side-nav hover / active keep secondary wash in dark (light uses gray-230). */
+  --op-sidebar-item-hover-background: var(--op-background-secondary);
+  --op-sidebar-item-active-background: var(--op-background-secondary);
   /* Date outline trigger — match Sort (not primary white). */
   --op-button-date-border: var(--op-color-gray-875);
   --op-button-date-text: #a6a6a6;
@@ -814,5 +838,16 @@ html.op.dark .toaster [data-rich-colors="true"][data-sonner-toast] [data-close-b
 }
 
 .help-centre-search::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+
+/* Operator Global Search — hide native blue clear; Lucide XIcon is used instead. */
+.operator-global-search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+.operator-global-search-input::-webkit-search-decoration {
   -webkit-appearance: none;
 }

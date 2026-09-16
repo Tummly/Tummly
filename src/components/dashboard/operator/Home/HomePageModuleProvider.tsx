@@ -6,9 +6,7 @@ import {
   correctFeedbackClassification,
   createFeedbackInternalNote,
   duplicateCampaignAsDraft,
-  getCampaignDraftById,
   getCampaignsList,
-  getCatalogOfferById,
   getChecklistAcks,
   getFeedback,
   getFeedbackDetails,
@@ -235,8 +233,6 @@ export function HomePageModuleProvider({
       },
       pauseCampaign,
       duplicateCampaign: duplicateCampaignAsDraft,
-      getCampaignDraftById,
-      getCatalogOfferById,
     })
   )
 

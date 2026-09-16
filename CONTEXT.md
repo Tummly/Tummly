@@ -4,16 +4,28 @@ Tummly is a restaurant guest-relationship platform. Operators capture feedback, 
 
 ## Onboarding
 
+**Self-service Pilot**:
+The public path from the marketing site through email verification and **Guest Loop onboarding** to later **Account activation** via **Activation Code** / **Activation gate**. Distinct from the **Pilot** Subscription plan and from demo/sales **Trial Request**. UI may say Get started, Create an account, Set up your account, or Start 30-day Pilot — those strings are not glossary headings.
+_Avoid_: Pilot Signup, Signup (in domain prose), Request Access, Trial Request (when meaning this path)
+
+**Guest Loop onboarding**:
+The self-serve wizard inside **Self-service Pilot**: account, restaurant, location, then plan choice. Distinct from demo/sales **Operator Setup** and from **Guest Loop provisioning**.
+_Avoid_: Operator Setup (when meaning this wizard), Signup wizard, onboarding form
+
+**Email verification**:
+The Self-service Pilot step that confirms the applicant's work email via a **verification link** before **Guest Loop onboarding** continues. Social Sign-in (Google or Microsoft) may skip this step. Distinct from **Sign-in OTP** and from demo/sales **Trial Request** email OTP.
+_Avoid_: Sign-in OTP, Trial OTP, verify-otp (when meaning this link step)
+
 **Trial Request**:
-A prospective operator's application to start a guided trial, submitted from the marketing site. Requires email verification before Tummly reviews the request. Requires a **Main location** address.
-_Avoid_: Register, sign up, registration
+A demo/sales-led application for a guided trial. Not the public **Self-service Pilot** path. Requires email verification before **Trial request review**. Requires a **Main location** address.
+_Avoid_: Self-service Pilot (when meaning this application); Request Access (when meaning the public path)
 
 **Main location**:
 The operator's primary venue address captured on the Trial Request form (field label: **Main location**). Required. UK-wide coverage. Shown in Operator details during trial request review for admin use only — it does not prefill Operator Setup. Distinct from **Address** on a RestaurantLocation, which is captured later during Operator Setup. When chosen from address lookup, **Main location** holds the street-level detail including town (e.g. `42 High Street, Manchester`); **Town/City** and **Postcode** are captured as separate fields and auto-filled from the same lookup result. When the operator chooses **Use my address instead**, they enter **Main location** as free text and fill **Town/City** and **Postcode** manually. **Town/City** and **Postcode** appear only after the operator commits to a lookup suggestion or **Use my address instead**; until then only **Main location** is shown. After commit, editing **Main location** does not hide **Town/City** or **Postcode**; picking a new lookup suggestion re-auto-fills those fields.
 _Avoid_: Trial address, primary location, venue address
 
 **Trial request review**:
-The admin workflow for evaluating a verified Trial Request — approve, request more info, or decline. Each outcome updates the request status and may trigger an email to the applicant.
+The admin workflow for evaluating a verified demo/sales **Trial Request** — approve, request more info, or decline. Each outcome updates the request status and may trigger an email to the applicant. Not part of public **Self-service Pilot**.
 _Avoid_: Reject, moderation, vetting
 
 **Trial review status**:
@@ -49,20 +61,20 @@ An admin decision that pauses review with status `MORE_INFO_REQUESTED`. Requires
 _Avoid_: Need info, pending documents, hold
 
 **Operator Setup invitation**:
-The email sent when a Trial Request is approved (or resent by an admin) containing the link to begin Operator Setup. Uses a single email template for approval, manual resend, and automatic reminders.
-_Avoid_: Invite email, setup link email, welcome email
+The email sent when a demo/sales **Trial Request** is approved (or resent by an admin) containing the link to begin **Operator Setup**. Uses a single email template for approval, manual resend, and automatic reminders. Not used on public **Self-service Pilot**.
+_Avoid_: Invite email, setup link email, welcome email; Team invitation
 
 **Operator Setup invitation reminder**:
-An automatic re-send of the Operator Setup invitation when an approved operator has not completed Operator Setup within 14 days of the last invitation. Each reminder rotates the invite token, extends the invitation window by 14 days, and uses the same email template as approval and manual resend. Repeats on that 14-day cycle until Operator Setup is complete.
+An automatic re-send of the Operator Setup invitation when an approved demo/sales operator has not completed Operator Setup within 14 days of the last invitation. Each reminder rotates the invite token, extends the invitation window by 14 days, and uses the same email template as approval and manual resend. Repeats on that 14-day cycle until Operator Setup is complete.
 _Avoid_: Drip email, nudge email, auto-resend
 
 **Operator Setup**:
-The post-approval flow where an invited operator creates credentials and configures their workspace, accessed via an invite token. For single-location operators, Operator Setup is a three-step wizard: credentials, restaurant confirmation, then Guest Loop provisioning. The progress stepper labels these steps Account, Restaurant, and Ready — Ready is the operator-facing name for Guest Loop provisioning. For multi-location operators, Operator Setup is a four-step wizard: credentials, group confirmation, location entry, then Guest Loop provisioning. The progress stepper labels these steps Account, Group, Locations, and Ready. The operator may correct their full name on the credentials step; the submitted name becomes the account holder's name on file. On the Confirm restaurant step (single-location), business category and restaurant phone are prefilled from the Trial Request but may be edited. On the Confirm group step (multi-location), group name, business category, and number of locations are prefilled from the Trial Request where available but may be edited. Multi-location Operator Setup uses the same full-page shell for every wizard step, even when step content differs from single-location.
-_Avoid_: Register, onboarding form
+The demo/sales invite-token flow after **Trial request review** approval, where an invited operator creates credentials and configures their workspace, ending in **Guest Loop provisioning**. Not the public **Guest Loop onboarding** path. For single-location operators, Operator Setup is a three-step wizard: credentials, restaurant confirmation, then Guest Loop provisioning (stepper: Account, Restaurant, Ready). For multi-location operators, it is a four-step wizard: credentials, group confirmation, location entry, then Guest Loop provisioning (stepper: Account, Group, Locations, Ready).
+_Avoid_: Guest Loop onboarding, Self-service Pilot, Register, onboarding form
 
 **Guest Loop provisioning**:
-The final step of Operator Setup (single- and multi-location) where Tummly prepares each location's three default **QR code**s (Table Tent, Window Sticker, Offer Card) with distinct **QR link**s. The operator sees a progress animation that awaits actual per-location generation; they are not asked to configure touchpoints, feedback tags, thank-you copy, or offers during this step. The private feedback form is standard for all locations and requires no per-location configuration. Phase 3 generates the account **Activation Code** today; per-location **Starter QR materials** (**Print-ready QR asset**s) are generated after the default **QR code**s exist and are Admin-downloadable for fulfilment — not operator downloads from provisioning or the dashboard.
-_Avoid_: Guest Loop configuration, step-3 form, rollout configuration
+The preparation step after workspace setup where Tummly prepares each location's three default **QR code**s (Table Tent, Window Sticker, Offer Card) with distinct **QR link**s. Distinct from **Guest Loop onboarding** (the self-serve account/restaurant/location/plan wizard). Runs after **Self-service Pilot** plan choice (Pilot path) and as the final step of demo/sales **Operator Setup**. The operator sees a progress animation that awaits actual per-location generation; they are not asked to configure touchpoints, feedback tags, thank-you copy, or offers during this step. The private feedback form is standard for all locations and requires no per-location configuration. Phase 3 generates the account **Activation Code** today; per-location **Starter QR materials** (**Print-ready QR asset**s) are generated after the default **QR code**s exist and are Admin-downloadable for fulfilment — not operator downloads from provisioning or the dashboard.
+_Avoid_: Guest Loop configuration, step-3 form, rollout configuration, Guest Loop onboarding
 
 **Guest Loop provisioning phases**:
 The three ordered preparation steps shown during Guest Loop provisioning: (1) Smart Guest Link / default **QR code**s — real backend mint of three Active codes per location (Table Tent, Window Sticker, Offer Card), (2) private feedback form — presentational only (standard form, no per-location configuration), (3) starter QR materials — today generates the account **Activation Code** (real backend work); **Starter QR materials** print files follow after the default **QR code**s exist and are for Admin fulfilment download, not for the operator in the wizard. The animation awaits completion of phases 1 and 3 (Activation Code) before advancing.
@@ -70,27 +82,31 @@ _Avoid_: Loading screen, fake progress
 
 **Sign-in**:
 Authentication for returning operators, **Admin**, or **Support**, including password reset and OTP verification for operator accounts. Operators in **Pending activation** may complete Sign-in but are held at the **Activation Code** screen by the **Activation gate** until **Account activation** succeeds. Operators in **Activation expired** may complete Sign-in; **Billing status** is then **Soft lock** or **Dormant**. **Admin** and **Support** sign in with email and password only — no Sign-in OTP, no **Activation gate**.
-_Avoid_: Login (acceptable in UI copy only)
+_Avoid_: Login, Log in (acceptable in UI copy only)
 
 **Activation gate**:
 The access rule that gates a Restaurant's **Operator dashboard** and operator APIs on that Restaurant's **Account owner** completing **Account activation**. It does not block Sign-in after **Activation expired**. **Team member**s who are not the Account owner skip the **Activation Code** and follow the owner's state for that Restaurant; **Admin** and **Support** are not subject to the gate.
 _Avoid_: Activation middleware, paywall, trial lock
 
 **Account password**:
-The credential an operator creates during Operator Setup, **Team invitation** accept for a new User, or password reset. Accepted only when the password strength indicator reaches **Good** or better.
+The credential an operator creates during **Guest Loop onboarding**, demo/sales **Operator Setup**, **Team invitation** accept for a new User, or password reset. Accepted only when the password strength indicator reaches **Good** or better.
 _Avoid_: Passphrase, secret, PIN
 
+**Full name**:
+The person's display name on account create and **Team invitation** send. Stored as one string. UI may show First name + Last name and combine them. Required on Team invitation send; new Users may edit on accept credentials; existing User name wins on accept.
+_Avoid_: Display name, legal name (when meaning this field)
+
 **Password strength**:
-Five-tier indicator (Very weak → Weak → Good → Strong → Excellent) shown while choosing an Account password. **Good** is the minimum to save the password: at least 8 characters with uppercase and a number or symbol. **Excellent** is the top tier: 12+ characters with uppercase, a number, and a symbol. The same rules apply on Operator Setup, **Team invitation** accept for a new User, and password reset.
+Five-tier indicator (Very weak → Weak → Good → Strong → Excellent) shown while choosing an Account password. **Good** is the minimum to save the password: at least 8 characters with uppercase and a number or symbol. **Excellent** is the top tier: 12+ characters with uppercase, a number, and a symbol. The same rules apply on **Guest Loop onboarding**, demo/sales **Operator Setup**, **Team invitation** accept for a new User, and password reset.
 _Avoid_: Password score, zxcvbn, complexity meter
 
 **First Sign-in**:
-The operator's first successful Sign-in after Operator Setup, or after a new User accepts a **Team invitation**. Distinct from trial email verification. Team accept stays on `/start` until membership exists.
+The operator's first successful Sign-in after **Guest Loop onboarding** or demo/sales **Operator Setup**, or after a new User accepts a **Team invitation**. Distinct from Trial Request or Self-service Pilot email verification. Team accept stays on `/start` until membership exists.
 _Avoid_: First login, first visit
 
 **Trusted device**:
-A browser the operator has opted to remember for 30 days after completing OTP verification. Subsequent Sign-ins from that browser may skip OTP until trust expires.
-_Avoid_: Remember me cookie, device fingerprint
+A browser the operator has opted to remember for 30 days after completing OTP verification. Subsequent Sign-ins from that browser may skip OTP until trust expires. UI may say Keep me signed in or Remember this device — those strings are not glossary headings. Distinct from **Refresh token**.
+_Avoid_: Remember me cookie, device fingerprint, Refresh token (when meaning OTP skip)
 
 **Refresh token**:
 Opaque Sign-in renewal token issued to an operator with the access JWT. The client uses it to obtain a new access JWT when the 60-minute access token ends, without a new Sign-in. Lifetime is 14 days. Distinct from **Trusted device** (OTP skip) and from the access JWT.
@@ -101,7 +117,7 @@ The one-time code sent after password validation to confirm the operator's ident
 _Avoid_: 2FA code, MFA token
 
 **Pending activation**:
-The account state after Operator Setup is complete but before the operator has entered a valid **Activation Code**. The operator may complete Sign-in (password and Sign-in OTP when required) but cannot reach the **Operator dashboard** until **Account activation** succeeds.
+The account state after **Guest Loop provisioning** (from **Self-service Pilot** or demo/sales **Operator Setup**) is complete but before the operator has entered a valid **Activation Code**. The operator may complete Sign-in (password and Sign-in OTP when required) but cannot reach the **Operator dashboard** until **Account activation** succeeds. New Users from **Team invitation** accept are not Pending activation.
 _Avoid_: Unactivated, trial pending, awaiting code
 
 **Account activation**:
@@ -113,7 +129,7 @@ The mandatory Sign-in step where an operator in **Pending activation** enters th
 _Avoid_: Activation page, unlock screen, trial gate UI
 
 **Activation Code**:
-A backend-generated code tied to one operator account, created during Guest Loop provisioning phase 3. Eight characters from an unambiguous uppercase alphanumeric charset (excludes `0`, `O`, `1`, `I`, `L`), displayed grouped as `XXXX-XXXX`; the dash is cosmetic and input accepts with or without it. One code per account; consumed on successful **Account activation**. Stored hashed on the backend; plain text visible only at generation and in admin **Operator details**. **Activation fulfillment** prints and ships the same code to every **Owned location** address from Operator Setup. Admins can view, copy, and download a print-ready asset before shipment. Distinct from per-location **Starter QR materials**, which will ship as separate venue packs in a future release. Distinct from **Sign-in OTP** (six-digit, channel-delivered).
+A backend-generated code tied to one operator account, created during Guest Loop provisioning phase 3. Eight characters from an unambiguous uppercase alphanumeric charset (excludes `0`, `O`, `1`, `I`, `L`), displayed grouped as `XXXX-XXXX`; the dash is cosmetic and input accepts with or without it. One code per account; consumed on successful **Account activation**. Stored hashed on the backend; plain text visible only at generation and in admin **Operator details**. **Activation fulfillment** prints and ships the same code to every **Owned location** address from **Guest Loop onboarding** or demo/sales **Operator Setup**. Admins can view, copy, and download a print-ready asset before shipment. Distinct from per-location **Starter QR materials**, which will ship as separate venue packs in a future release. Distinct from **Sign-in OTP** (six-digit, channel-delivered).
 _Avoid_: Invite code, setup code, OTP
 
 **Activation period**:
@@ -156,7 +172,7 @@ An admin action in **Operator details** that ends unpaid-**Pilot** **Soft lock**
 _Avoid_: Renew trial, reactivate code, extend trial
 
 **Activation fulfillment**:
-The physical delivery of the onboarding pack that includes the account **Activation Code** and initial QR material stickers. The same Activation Code is printed and shipped to every **Owned location** — each venue **Address** captured during Operator Setup (Confirm restaurant for single-location; location cards or bulk upload for multi-location). The operator uses the code to activate the **Pilot** plan on the **Operator dashboard**. Fulfillment is a separate operational step after provisioning; admins can view and download the code before shipment. Distinct from future per-location **Starter QR materials**, which will be separate print packs per venue.
+The physical delivery of the onboarding pack that includes the account **Activation Code** and initial QR material stickers. The same Activation Code is printed and shipped to every **Owned location** — each venue **Address** captured during **Guest Loop onboarding** (v1: one Location) or demo/sales **Operator Setup** (Confirm restaurant for single-location; location cards or bulk upload for multi-location). The operator uses the code to activate the **Pilot** plan on the **Operator dashboard**. Fulfillment is a separate operational step after provisioning; admins can view and download the code before shipment. Distinct from future per-location **Starter QR materials**, which will be separate print packs per venue.
 _Avoid_: QR shipment, welcome pack, onboarding kit
 
 **Subscription plan**:
@@ -164,7 +180,7 @@ The commercial tier on an operator account after **Account activation**. Canonic
 _Avoid_: Free plan (use **Pilot**), pricing tier, SKU (in domain prose)
 
 **Billing Account**:
-The billed operator entity identified by the Restaurant. Every Restaurant is one Billing Account from Operator Setup. It holds the **Subscription plan**, **Billing cycle**, **Billing status**, **Billing email**, alert who-receives flags, **Starter kit** lifetime state, **Contracted Pricebook**, paid extra Location count, at most one **Scheduled change**, the three credit pools, and the Revolut customer id. Distinct from **Billing contact**.
+The billed operator entity identified by the Restaurant. Every Restaurant is one Billing Account from **Guest Loop onboarding** or demo/sales **Operator Setup**. It holds the **Subscription plan**, **Billing cycle**, **Billing status**, **Billing email**, alert who-receives flags, **Starter kit** lifetime state, **Contracted Pricebook**, paid extra Location count, at most one **Scheduled change**, the three credit pools, and the Revolut customer id. Distinct from **Billing contact**.
 _Avoid_: Revolut customer (the payment-provider record); Workspace (when meaning the billed entity); BillingAccountId
 
 **Pricebook**:
@@ -209,8 +225,8 @@ The one-month window of plan included credits on a **Billing Account**. Unused i
 _Avoid_: billing month (when meaning this credit slice); annual credit pool; allowance year
 
 **Pilot**:
-The entry **Subscription plan** entered via **Account activation** (Activation Code from the shipped onboarding pack). Price £0 / month. Includes a one-time free credit allowance allocated at **Account activation**. Credits do not replenish. Top-ups are unavailable. No automatic paid renewal. After the **Activation period**, unpaid Pilot enters **Soft lock** on day 30 and **Dormant** on day 45. Distinct from **Trial Request**.
-_Avoid_: Free tier, free plan, trial plan
+The entry **Subscription plan** entered via **Account activation** (Activation Code from the shipped onboarding pack). Price £0 / month. Includes a one-time free credit allowance allocated at **Account activation**. Credits do not replenish. Top-ups are unavailable. No automatic paid renewal. After the **Activation period**, unpaid Pilot enters **Soft lock** on day 30 and **Dormant** on day 45. Distinct from **Self-service Pilot** (the public path) and from demo/sales **Trial Request**.
+_Avoid_: Free tier, free plan, trial plan, Self-service Pilot (when meaning the plan)
 
 **Starter**:
 The first paid **Subscription plan** above **Pilot**. Price £39 / month + VAT.
@@ -407,7 +423,7 @@ _Avoid_: Customer reply, user message
 ## Marketing site
 
 **Marketing homepage**:
-The public landing page at `/` — trial-request hero, product sections, FAQs, and marketing footer. Distinct from Legal pages, Sign-in, Operator Setup, and operator dashboards.
+The public landing page at `/` — **Self-service Pilot** entry (UI may say Get started), product sections, FAQs, and marketing footer. Distinct from Legal pages, Sign-in, **Guest Loop onboarding**, demo/sales **Operator Setup**, and operator dashboards.
 _Avoid_: Landing page, home page, marketing site (when you mean this page specifically)
 
 **Legal page**:
@@ -901,7 +917,7 @@ A User who has a **Restaurant membership** in this Restaurant (**Active** or **D
 _Avoid_: Authorised user (as the glossary noun); seat; invitee (when meaning an Active picker option)
 
 **Restaurant membership**:
-The User × Restaurant link that lets a User operate that Restaurant. Holds exactly one **permission role**, a **Location scope**, and status **Active** or **Deactivated**. Unique per User and Restaurant. Created at Operator Setup for the **Account owner**, and at invite accept for others. Distinct from **Account owner** (`OwnerUserId`) and from `User.Role`. Product lock: `.scratch/team-and-permissions/issues/03-membership-roles-and-location-scope.md`.
+The User × Restaurant link that lets a User operate that Restaurant. Holds exactly one **permission role**, a **Location scope**, and status **Active** or **Deactivated**. Unique per User and Restaurant. Created at **Guest Loop onboarding** / demo/sales **Operator Setup** for the **Account owner**, and at **Team invitation** accept for others. Distinct from **Account owner** (`OwnerUserId`) and from `User.Role`. Product lock: `.scratch/team-and-permissions/issues/03-membership-roles-and-location-scope.md`.
 _Avoid_: seat; User.Role; invite (pending invite is not a membership)
 
 **Team invitation**:
@@ -921,7 +937,7 @@ The Settings nav child that owns **Restaurant membership** (invite, **Deactivate
 _Avoid_: Team management; RBAC admin (as the settings child name); Account activation (when meaning membership status)
 
 **Permission role**:
-The named Restaurant access role on a **Restaurant membership**: **Owner**, **Admin**, **Area Manager**, **Location Manager**, **Marketing**, **Staff**, **Billing Admin**, **Reporting Only**. Distinct from **Self role**, from Tummly staff **Admin** / **Support**, from **Account owner**, and from the platform `User.Role` Sign-in claim. The first User from Operator Setup holds both **Account owner** and permission role **Owner**; v1 has no second **Owner** membership. Later **Owner** assignment is not Team; it is an **Ownership transfer request**.
+The named Restaurant access role on a **Restaurant membership**: **Owner**, **Admin**, **Area Manager**, **Location Manager**, **Marketing**, **Staff**, **Billing Admin**, **Reporting Only**. Distinct from **Self role**, from Tummly staff **Admin** / **Support**, from **Account owner**, and from the platform `User.Role` Sign-in claim. The first User from **Guest Loop onboarding** or demo/sales **Operator Setup** holds both **Account owner** and permission role **Owner**; v1 has no second **Owner** membership. Later **Owner** assignment is not Team; it is an **Ownership transfer request**.
 _Avoid_: User.Role (as the source of Restaurant access); job title; custom role (v1 has no custom-role designer)
 
 **Area**:

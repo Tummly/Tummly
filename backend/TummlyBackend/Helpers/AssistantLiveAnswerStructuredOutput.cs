@@ -32,6 +32,7 @@ namespace TummlyBackend.Helpers
             userPayload["userMessage"] = input.UserMessage;
             userPayload["ownedLocationName"] = input.OwnedLocationName;
             userPayload["periodPhrase"] = input.PeriodPhrase;
+            userPayload["askFocus"] = AssistantAskFocus.Detect(input.UserMessage).ToString();
             userPayload["caveat"] = input.Caveat;
             userPayload["droppedUnknownSentence"] = input.DroppedUnknownSentence;
             userPayload["compareLocations"] = CompareLocationsPayload(input);
@@ -357,22 +358,24 @@ namespace TummlyBackend.Helpers
                 claim/redemption logs in the Reporting period), Campaigns (list,
                 summary, eligibility, detail metadata, and message subject/body
                 only when the question needs campaign copy),
-                Capture location snapshot KPIs (qrScans, feedbackSubmitted,
-                marketingOptIns, previous window, per-QR rows), and Home Performance
-                overview KPIs (feedbackSubmitted, guestsJoined, qrScans).
-                Ground on Location Guest current-state facts in the user payload
+                Capture location snapshot KPIs (QR scans, Feedback submitted,
+                marketing opt-ins, previous window, per-QR rows), and Home Performance
+                overview KPIs (Feedback submitted, Guests joined, QR scans).
+                Ground on Location Guest facts in the user payload
                 when the operator asks to list guests. Do not say Location Guests
                 are inside the Reporting period. If guestsDiscloseSample is true,
-                say Location Guest names come from guestsSampleCount of
-                guestsTotalCount. Home guestsJoined is a count only.
+                say how many names are shown out of the total guest count using
+                the payload numbers — write those counts in plain words, never
+                camelCase field names. Home Guests joined is a count only.
 
                 Never invent guest email, phone, GuestContact, notes, or ids.
                 Never quote email, mobile, Feedback GuestContact, Location Guest
                 notes, Feedback internal notes, or per-Feedback opt-out checkboxes.
                 Never invent counts. Put counts in the body. No citation footer.
 
-                Do not ground on stubs: Home Offer redemptions, Capture offerClaims.
-                Use Offers Performance for claim and redemption counts instead.
+                Do not ground on Home Offer redemptions or Capture offer-claim
+                zeros. Use Offers Performance for claim and redemption counts
+                instead.
                 Do not read: CSV export, notes, Campaign templates, Home Latest
                 activity, QR configuration, Digital guest links, Capture Archive,
                 thank-you attach, Preview-options, Capture overview, Settings,
@@ -380,26 +383,29 @@ namespace TummlyBackend.Helpers
 
                 Windowed facts (Offers Performance, logs, Capture KPIs, Home KPIs,
                 Feedback, accepted Campaign messages) use the Reporting period.
-                Current-state facts (catalog, in-flight Campaigns, live eligibility)
-                may be used but must not be described as inside the period.
+                Catalog, in-flight Campaigns, and live eligibility may be used
+                but must not be described as inside the period.
 
-                If offersDiscloseSample is true, say catalog facts come from
-                offersCatalogSampleCount of offersCatalogTotalCount.
-                If campaignsDiscloseSample is true, say Campaign facts come from
-                campaignsListSampleCount of campaignsListTotalCount.
-                If discloseSample is true, say Feedback themes come from
-                sampleCount of feedbackTotalCount.
+                If offersDiscloseSample is true, say how many catalog offers are
+                shown out of the total using the payload numbers — plain words,
+                never camelCase field names.
+                If campaignsDiscloseSample is true, say how many Campaigns are
+                shown out of the total using the payload numbers — plain words,
+                never camelCase field names.
+                If discloseSample is true, say Feedback themes come from a sample
+                of the total Feedback count using the payload numbers — plain
+                words, never camelCase field names.
 
                 Name Location Guests or Feedback only when the operator asks to
                 show or list them. Cap 5 named rows, then "and N more", plus a
                 Guest or Feedback Action. Summarise and needs-attention stay
                 counts and themes: at most 3 quoted excerpts and no Name list.
                 Windowed Feedback facts use Analysis scope. Marketing eligible,
-                Guest tags, and Marketing status are current-state: do not say
-                those facts are inside the Reporting period.
+                Guest tags, and Marketing status are not limited to the Reporting
+                period: do not say those facts are inside the Reporting period.
 
                 Placeholder 4 (poor or negative Feedback and opted in / Marketing
-                eligible) is Succeeded Negative Feedback in the Reporting period
+                eligible) is Negative Feedback in the Reporting period
                 at the scoped Owned location, intersect current Marketing eligible
                 (placeholder4GuestRows). Do not use Needs recovery. Do not say
                 consent is inside the period.
@@ -421,6 +427,13 @@ namespace TummlyBackend.Helpers
                 Feedback, offers, Campaigns, Capture, Location Guests, or
                 Performance overview. Do not summarise or list retrieved evidence
                 for those asks.
+
+                Question-first rules: use askFocus in the user payload to decide
+                which domain to answer from. Answer only what was asked; do not dump allow-list domains
+                the operator did not ask about. Direct answer first; then optional
+                short detail; at most one next-step suggestion. Omit zero-value classification buckets.
+                Never echo internal terms such as current-state, eligibility keys,
+                camelCase KPIs, or "Succeeded classification" in title or body.
 
                 Legal Create Campaign Draft, Create Campaign with Offer, Offer path,
                 and Recovery path asks are not Mutate refusals. Emit assistantTask
@@ -475,7 +488,7 @@ namespace TummlyBackend.Helpers
                 not only the last message.
 
                 Actions: choose typed rows only. Do not invent labels or destinations.
-                Max three. Catalog order. At most one per type. Navigate only.
+                At most one Action. Catalog order. Navigate only.
                 view-feedback-set and prepare-recovery are Feedback evidence Actions.
                 view-guests and view-guest are Guest evidence Actions: use them
                 only when the answer used Location Guest list facts. view-guest
@@ -605,10 +618,11 @@ namespace TummlyBackend.Helpers
                 }
 
                 var proposed = ParseActions(root);
-                var actions = AssistantActionCatalog.Validate(
+                var actions = AssistantActionCatalog.ValidateForLiveAsk(
                     proposed,
                     answerClass,
                     evidence,
+                    userMessage,
                     AssistantAskIntent.ClassifyGrounded(userMessage)
                 );
                 var assistantTask = AssistantTask.Retrieve;
