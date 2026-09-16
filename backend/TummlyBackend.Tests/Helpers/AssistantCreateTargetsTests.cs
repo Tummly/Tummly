@@ -47,6 +47,28 @@ namespace TummlyBackend.Tests.Helpers
                 AssistantTaskClassification.Classify("Create a campaign")
             );
             Assert.Equal(
+                AssistantTask.CreateCampaignDraft,
+                AssistantTaskClassification.Classify("Can you create a Campaign?")
+            );
+            Assert.Equal(
+                AssistantTask.CreateCampaignDraft,
+                AssistantTaskClassification.Classify("create campaign")
+            );
+            Assert.Equal(
+                AssistantTask.CreateCampaignDraft,
+                AssistantTaskClassification.Classify("start a campaign")
+            );
+            Assert.Equal(
+                AssistantTask.CreateCampaignDraft,
+                AssistantTaskClassification.Classify("help me create a campaign")
+            );
+            Assert.Equal(
+                AssistantTask.CreateCampaignDraft,
+                AssistantTaskClassification.Classify(
+                    "Create a Campaign for recent guests."
+                )
+            );
+            Assert.Equal(
                 AssistantTask.OfferPath,
                 AssistantTaskClassification.Classify("Create an offer draft")
             );

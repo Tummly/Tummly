@@ -48,6 +48,7 @@ namespace TummlyBackend.Helpers
             "can you create a campaign",
             "start a campaign",
             "help me create a campaign",
+            "create a campaign for recent guests",
         ];
 
         private static readonly string[] CreateOfferNeedles =
@@ -67,6 +68,7 @@ namespace TummlyBackend.Helpers
             "scanned the qr",
             "scan the qr",
             "any qr",
+            "have we had any qr",
             "capture",
         ];
 
@@ -80,6 +82,8 @@ namespace TummlyBackend.Helpers
             "redeemed offer",
             "anyone redeem",
             "did anyone redeem",
+            "redeem today",
+            "redeemed today",
             "redemption",
             "redemptions",
             "redeem",
@@ -125,6 +129,7 @@ namespace TummlyBackend.Helpers
         private static readonly string[] FeedbackNeedles =
         [
             "feedback",
+            "feedback this week",
             "complain",
             "needs attention",
         ];

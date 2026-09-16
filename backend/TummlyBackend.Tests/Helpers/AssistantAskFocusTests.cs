@@ -31,8 +31,32 @@ namespace TummlyBackend.Tests.Helpers
             AssistantAskFocusKind.OffersRedemptions
         )]
         [InlineData(
+            "Anyone redeem today?",
+            AssistantAskFocusKind.OffersRedemptions
+        )]
+        [InlineData(
             "Create a Campaign for recent guests.",
             AssistantAskFocusKind.CreateCampaign
+        )]
+        [InlineData(
+            "Any Campaigns sending?",
+            AssistantAskFocusKind.CampaignsActive
+        )]
+        [InlineData(
+            "create campaign",
+            AssistantAskFocusKind.CreateCampaign
+        )]
+        [InlineData(
+            "start a campaign",
+            AssistantAskFocusKind.CreateCampaign
+        )]
+        [InlineData(
+            "help me create a campaign",
+            AssistantAskFocusKind.CreateCampaign
+        )]
+        [InlineData(
+            "Feedback this week",
+            AssistantAskFocusKind.Feedback
         )]
         public void Detect_MapsTesterPhrases_ToFocus(
             string message,

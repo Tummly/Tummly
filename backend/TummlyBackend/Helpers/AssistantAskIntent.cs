@@ -254,11 +254,18 @@ namespace TummlyBackend.Helpers
 
         private static bool LooksLikeMutate(string text)
         {
+            // Legal Create Campaign Draft / Offer path must not count as mutate.
+            // Create needles live on AssistantTaskClassification, not here.
+            if (AssistantTaskClassification.LooksLikeCreateCampaignDraft(text)
+                || AssistantTaskClassification.LooksLikeCreateCampaignWithOffer(text)
+                || AssistantTaskClassification.LooksLikeOfferPath(text))
+            {
+                return false;
+            }
+
             var lower = text.ToLowerInvariant();
             return ContainsAny(
                 lower,
-                "create a campaign",
-                "create an offer",
                 "send an email",
                 "send a message",
                 "schedule a campaign",
@@ -339,12 +346,22 @@ namespace TummlyBackend.Helpers
                 "campaign list",
                 "campaign summary",
                 "campaign message",
+                "campaigns live",
+                "campaign live",
+                "live campaign",
+                "live campaigns",
+                "campaigns sending",
+                "campaign sending",
                 "in-flight",
                 "in flight",
                 "eligibility",
                 "capture",
                 "qr scan",
                 "qr scans",
+                "qr code scan",
+                "any qr",
+                "scanned the qr",
+                "scan the qr",
                 "performance overview",
                 "performance",
                 "guests joined",

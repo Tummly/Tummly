@@ -438,6 +438,46 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Theory]
+        [InlineData("Can you create a Campaign?")]
+        [InlineData("create campaign")]
+        [InlineData("start a campaign")]
+        [InlineData("help me create a campaign")]
+        [InlineData("Create a Campaign for recent guests.")]
+        public async Task SendTurn_LegalCreateCampaignPhrases_NeverMutateRefuse(
+            string message
+        )
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, message)
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal(
+                AssistantTask.CreateCampaignDraft,
+                AssistantTaskClassification.Classify(message)
+            );
+            Assert.True(
+                answer.Class is "gap" or "grounded",
+                $"Expected gap or grounded create path, got {answer.Class}"
+            );
+            Assert.NotEqual("refusal", answer.Class);
+            Assert.DoesNotContain(
+                AssistantLiveAnswerCopy.MutateRefusalBody,
+                answer.Body,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                AssistantLiveAnswerCopy.VagueAskClarifyBody,
+                answer.Body,
+                StringComparison.Ordinal
+            );
+        }
+
         [Fact]
         public async Task SendTurn_ProgressPublishFailure_DoesNotFailTurn()
         {
