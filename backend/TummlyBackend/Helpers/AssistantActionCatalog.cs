@@ -151,17 +151,10 @@ namespace TummlyBackend.Helpers
                 return [];
             }
 
-            var actions = new List<AssistantActionDto>
-            {
-                CompletingCampaignAction("review-campaign", campaignId.Value),
-                CompletingCampaignAction("change-audience", campaignId.Value),
-            };
-            if (DraftHasNoOffer(offerStance, offerId))
-            {
-                actions.Add(CompletingCampaignAction("add-offer", campaignId.Value));
-            }
-
-            return actions;
+            // Question-first: at most one next action after Draft save.
+            _ = offerStance;
+            _ = offerId;
+            return [CompletingCampaignAction("review-campaign", campaignId.Value)];
         }
 
         public static IReadOnlyList<AssistantActionDto> ValidateCombinedCreate(

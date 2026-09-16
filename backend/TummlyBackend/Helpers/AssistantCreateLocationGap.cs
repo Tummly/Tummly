@@ -357,7 +357,20 @@ namespace TummlyBackend.Helpers
                 || lower.Contains("email", StringComparison.Ordinal)
                 || lower.Contains("eligible", StringComparison.Ordinal)
                 || lower.Contains("campaign", StringComparison.Ordinal)
-                || lower.Contains("offer", StringComparison.Ordinal);
+                || lower.Contains("camapgin", StringComparison.Ordinal)
+                || lower.Contains("offer", StringComparison.Ordinal)
+                // Time windows after "for/at" are not venue names.
+                || lower.Contains("rest of", StringComparison.Ordinal)
+                || lower.Contains("week", StringComparison.Ordinal)
+                || lower.Contains("month", StringComparison.Ordinal)
+                || lower.Contains("today", StringComparison.Ordinal)
+                || lower.Contains("tomorrow", StringComparison.Ordinal)
+                || lower.Contains("weekend", StringComparison.Ordinal)
+                || lower.EndsWith(" day", StringComparison.Ordinal)
+                || lower.EndsWith(" days", StringComparison.Ordinal)
+                || lower.Contains(" days ", StringComparison.Ordinal)
+                || lower.Contains("current week", StringComparison.Ordinal)
+                || lower.Contains("this week", StringComparison.Ordinal);
         }
 
         private static readonly HashSet<string> StopPhrases = new(StringComparer.OrdinalIgnoreCase)
@@ -375,6 +388,10 @@ namespace TummlyBackend.Helpers
             "this location",
             "that location",
             "this venue",
+            "rest of the days",
+            "rest of the week",
+            "rest of this week",
+            "current week",
         };
 
         [GeneratedRegex(

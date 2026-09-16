@@ -41,6 +41,13 @@ namespace TummlyBackend.Helpers
         public static bool LooksLikeOfferActivate(string message)
         {
             var lower = message.Trim().ToLowerInvariant();
+            // Performance / count asks about redemptions must stay Retrieve.
+            // e.g. "Did anyone redeem an Offer today?" contains "redeem an offer".
+            if (LooksLikeOfferRedeemPerformanceAsk(lower))
+            {
+                return false;
+            }
+
             return ContainsAny(
                 lower,
                 "activate this offer",
@@ -58,6 +65,40 @@ namespace TummlyBackend.Helpers
                 "redeem an offer",
                 "redeem it",
                 "redeem offer"
+            );
+        }
+
+        /// <summary>
+        /// Question / list forms about Offer redemption counts — not staff redeem.
+        /// </summary>
+        private static bool LooksLikeOfferRedeemPerformanceAsk(string lower)
+        {
+            if (ContainsAny(lower, "redemption", "redemptions"))
+            {
+                return true;
+            }
+
+            if (!ContainsAny(lower, "redeem", "redeemed"))
+            {
+                return false;
+            }
+
+            return ContainsAny(
+                lower,
+                "did anyone",
+                "anyone redeem",
+                "anyone redeemed",
+                "has anyone",
+                "have anyone",
+                "how many",
+                "are there any",
+                "have we had",
+                "show me",
+                "list ",
+                "summarise",
+                "summarize",
+                "who redeemed",
+                "who redeem"
             );
         }
 

@@ -27,6 +27,29 @@ namespace TummlyBackend.Tests.Helpers
             Assert.IsType<AssistantLocationGapOutcome.Unnamed>(outcome);
         }
 
+        [Theory]
+        [InlineData(
+            "can you please create a camapgin sent to the Guests that we have to offer them 20% off on any food menu items. Make it avauilabile for the rest of the days of the current week."
+        )]
+        [InlineData(
+            "Create a campaign for the rest of this week only"
+        )]
+        [InlineData(
+            "Draft a campaign available for the current week"
+        )]
+        public void TimeWindowForPhrase_IsNotUnknownLocationRefusal(string message)
+        {
+            var outcome = AssistantCreateLocationGap.Resolve(
+                message,
+                Camden.Id,
+                Camden.Name,
+                Two()
+            );
+
+            Assert.IsNotType<AssistantLocationGapOutcome.Refusal>(outcome);
+            Assert.IsType<AssistantLocationGapOutcome.Unnamed>(outcome);
+        }
+
         [Fact]
         public void UniqueNameMatchingAnalysisScope_IsUnique()
         {

@@ -32,9 +32,33 @@ namespace TummlyBackend.Tests.Helpers
         [InlineData("activate it")]
         [InlineData("issue an offer")]
         [InlineData("redeem the offer")]
+        [InlineData("redeem an offer")]
+        [InlineData("redeem this offer")]
         public void LooksLikeOfferActivate_IsTrue(string message)
         {
             Assert.True(AssistantSendScheduleAsk.LooksLikeOfferActivate(message));
+        }
+
+        [Theory]
+        [InlineData("Did anyone redeem an Offer today?")]
+        [InlineData("Did anyone redeem an offer today?")]
+        [InlineData("How many Offer redemptions happened today?")]
+        [InlineData("Are there any Offer Redemptions today?")]
+        [InlineData("Show me offer redemptions")]
+        public void LooksLikeOfferActivate_RedeemPerformanceAsk_IsFalse(string message)
+        {
+            Assert.False(AssistantSendScheduleAsk.LooksLikeOfferActivate(message));
+        }
+
+        [Fact]
+        public void Classify_DidAnyoneRedeemOfferToday_IsRetrieve()
+        {
+            Assert.Equal(
+                AssistantTask.Retrieve,
+                AssistantTaskClassification.Classify(
+                    "Did anyone redeem an Offer today?"
+                )
+            );
         }
 
         [Fact]

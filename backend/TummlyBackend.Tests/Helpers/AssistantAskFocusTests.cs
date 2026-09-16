@@ -15,11 +15,19 @@ namespace TummlyBackend.Tests.Helpers
             AssistantAskFocusKind.CaptureQr
         )]
         [InlineData(
+            "What are there? Have you got any scans on QR code today?",
+            AssistantAskFocusKind.CaptureQr
+        )]
+        [InlineData(
             "Are there any Offer Redemptions today?",
             AssistantAskFocusKind.OffersRedemptions
         )]
         [InlineData(
             "Can you create a Campaign?",
+            AssistantAskFocusKind.CreateCampaign
+        )]
+        [InlineData(
+            "Can you creaete a camapgin",
             AssistantAskFocusKind.CreateCampaign
         )]
         [InlineData(

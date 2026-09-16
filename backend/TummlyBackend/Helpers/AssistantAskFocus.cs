@@ -49,6 +49,25 @@ namespace TummlyBackend.Helpers
             "start a campaign",
             "help me create a campaign",
             "create a campaign for recent guests",
+            "creaete a camapgin",
+            "create a camapgin",
+            "creaete a campaign",
+            "can you creaete a camapgin",
+            "can you create a camapgin",
+        ];
+
+        private static readonly string[] CaptureQrNeedles =
+        [
+            "qr scan",
+            "qr scans",
+            "qr code scan",
+            "qr code",
+            "scanned the qr",
+            "scan the qr",
+            "scans on qr",
+            "any qr",
+            "have we had any qr",
+            "capture",
         ];
 
         private static readonly string[] CreateOfferNeedles =
@@ -58,18 +77,6 @@ namespace TummlyBackend.Helpers
             "can you create an offer",
             "start an offer",
             "help me create an offer",
-        ];
-
-        private static readonly string[] CaptureQrNeedles =
-        [
-            "qr scan",
-            "qr scans",
-            "qr code scan",
-            "scanned the qr",
-            "scan the qr",
-            "any qr",
-            "have we had any qr",
-            "capture",
         ];
 
         private static readonly string[] OffersRedemptionNeedles =
@@ -169,7 +176,8 @@ namespace TummlyBackend.Helpers
             }
 
             // Create beats mutate-shaped campaign wording for focus.
-            if (ContainsAny(lower, CreateCampaignNeedles))
+            if (ContainsAny(lower, CreateCampaignNeedles)
+                || AssistantTaskClassification.LooksLikeCreateCampaignDraft(userMessage))
             {
                 return AssistantAskFocusKind.CreateCampaign;
             }
@@ -339,7 +347,7 @@ namespace TummlyBackend.Helpers
                     ? evidence.Campaigns
                     : AssistantCampaignsEvidence.Empty,
                 IncludesDomain(focus, AssistantEvidenceDomain.Capture)
-                    ? evidence.Capture
+                    ? CaptureForFocus(focus, evidence.Capture)
                     : AssistantCaptureEvidence.Empty,
                 IncludesDomain(focus, AssistantEvidenceDomain.Home)
                     ? evidence.Home
@@ -348,6 +356,37 @@ namespace TummlyBackend.Helpers
                     ? evidence.Guests
                     : AssistantGuestsEvidence.Empty
             );
+
+        /// <summary>
+        /// QR / scan asks: keep scan counts only. Drop Feedback submitted,
+        /// marketing opt-ins, and previous-window zeros unless also asked.
+        /// </summary>
+        private static AssistantCaptureEvidence CaptureForFocus(
+            AssistantAskFocusKind focus,
+            AssistantCaptureEvidence capture
+        )
+        {
+            if (focus != AssistantAskFocusKind.CaptureQr)
+            {
+                return capture;
+            }
+
+            return new AssistantCaptureEvidence(
+                capture.QrScans,
+                QrScansPrevious: 0,
+                FeedbackSubmitted: 0,
+                FeedbackSubmittedPrevious: 0,
+                MarketingOptIns: 0,
+                MarketingOptInsPrevious: 0,
+                capture.QrRows
+                    .Select(row => row with
+                    {
+                        FeedbackSubmitted = 0,
+                        MarketingOptIns = 0,
+                    })
+                    .ToList()
+            );
+        }
 
         private static bool NamesCampaign(string lower)
             => ContainsAny(lower, CampaignAnyNeedles);

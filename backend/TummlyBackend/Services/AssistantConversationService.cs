@@ -1213,12 +1213,13 @@ namespace TummlyBackend.Services
                     AssistantTurnProgressSteps.Preparing,
                     cancellationToken
                 );
+                var liveFocus = AssistantAskFocus.Detect(userMessage);
                 answer = await _liveAnswer.CompleteAsync(
                     new AssistantLiveAnswerInput(
                         userMessage,
                         locationName,
                         periodPhrase,
-                        savedEvidence,
+                        AssistantAskFocus.FilterEvidence(liveFocus, savedEvidence),
                         compareEvidence,
                         caveat,
                         droppedUnknown,
@@ -1243,12 +1244,25 @@ namespace TummlyBackend.Services
                 throw;
             }
 
+            var providerSucceeded = answer is AssistantLiveAnswerResult.Succeeded;
+            answer = AssistantLiveAnswerResolve.Resolve(
+                answer,
+                userMessage,
+                locationName,
+                periodPhrase,
+                savedEvidence,
+                allowLocalRetrieveFallback: !isCompareAll && namedCompare is null
+            );
+
             var assistantNow = DateTime.UtcNow;
             AssistantMessage assistantMessage;
             string? proposedConversationTitle = null;
             if (answer is AssistantLiveAnswerResult.Succeeded succeeded)
             {
-                turnBilling?.MarkLiveAnswerSucceeded();
+                if (providerSucceeded)
+                {
+                    turnBilling?.MarkLiveAnswerSucceeded();
+                }
                 proposedConversationTitle = succeeded.ConversationTitle;
                 AssistantConversationTitle.TryApply(
                     conversation,
@@ -1506,6 +1520,47 @@ namespace TummlyBackend.Services
                         title = withCaveat.Title;
                         body = withCaveat.Body;
                         actions = withCaveat.Actions;
+                    }
+                    // Prefer local question-first copy for narrow focuses so Azure
+                    // cannot dump unrequested Capture Feedback / opt-in zeros.
+                    else if (succeeded.Class == AssistantMessageClass.Grounded
+                        && string.Equals(
+                            succeeded.AssistantTask,
+                            AssistantTask.Retrieve,
+                            StringComparison.Ordinal
+                        )
+                        && compareEvidence is not { Count: >= 2 }
+                        && !pureProductExpert
+                        && !isCompareAll
+                        && PreferLocalQuestionFirstBody(
+                            AssistantAskFocus.Detect(userMessage)
+                        ))
+                    {
+                        var local = AssistantLiveAnswerCopy.WithSentences(
+                            AssistantLiveAnswerCopy.GroundedFromEvidence(
+                                userMessage,
+                                locationName,
+                                periodPhrase,
+                                savedEvidence
+                            ),
+                            caveat,
+                            droppedUnknown
+                        );
+                        title = AssistantContactRedaction.RedactTitle(
+                            local.Title,
+                            redactionTokens
+                        );
+                        body = AssistantContactRedaction.RedactBody(
+                            local.Body,
+                            redactionTokens
+                        );
+                        actions = AssistantActionCatalog.ValidateForLiveAsk(
+                            local.Actions,
+                            local.Class,
+                            savedEvidence,
+                            userMessage,
+                            groundedAsk
+                        );
                     }
                     if (isCompareAll)
                     {
@@ -6091,6 +6146,14 @@ namespace TummlyBackend.Services
                 liveAnswerAlreadyCompleted: true
             );
         }
+
+        private static bool PreferLocalQuestionFirstBody(AssistantAskFocusKind focus)
+            => focus is AssistantAskFocusKind.CaptureQr
+                or AssistantAskFocusKind.OffersRedemptions
+                or AssistantAskFocusKind.OffersClaims
+                or AssistantAskFocusKind.CampaignsActive
+                or AssistantAskFocusKind.CampaignsAny
+                or AssistantAskFocusKind.Feedback;
 
         private static AssistantMessage FailureMessage(DateTime createdAt)
             => new()

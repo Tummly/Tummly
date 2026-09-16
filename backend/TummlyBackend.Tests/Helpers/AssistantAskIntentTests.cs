@@ -50,6 +50,8 @@ namespace TummlyBackend.Tests.Helpers
         [InlineData("Any Campaigns live?")]
         [InlineData("Any Campaigns sending?")]
         [InlineData("Have we had any QR scans today?")]
+        [InlineData("What are there? Have you got any scans on QR code today?")]
+        [InlineData("any scans on the QR code")]
         [InlineData("Did anyone redeem an Offer today?")]
         [InlineData("Feedback this week")]
         public void HasRetrieveAsk_SynonymPhrases_IsTrue(string message)

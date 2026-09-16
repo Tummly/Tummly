@@ -48,6 +48,14 @@ namespace TummlyBackend.Tests.Helpers
             );
             Assert.Equal(
                 AssistantTask.CreateCampaignDraft,
+                AssistantTaskClassification.Classify("Can you creaete a camapgin")
+            );
+            Assert.Equal(
+                AssistantTask.CreateCampaignDraft,
+                AssistantTaskClassification.Classify("can you create a camapgin")
+            );
+            Assert.Equal(
+                AssistantTask.CreateCampaignDraft,
                 AssistantTaskClassification.Classify("Can you create a Campaign?")
             );
             Assert.Equal(

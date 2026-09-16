@@ -354,6 +354,17 @@ namespace TummlyBackend.Tests.Helpers
 
             Assert.True(filtered.Feedback.IsEmpty);
             Assert.True(filtered.Capture.HasSnapshotFacts);
+            Assert.Equal(0, filtered.Capture.FeedbackSubmitted);
+            Assert.Equal(0, filtered.Capture.MarketingOptIns);
+            Assert.Equal(0, filtered.Capture.QrScansPrevious);
+            Assert.All(
+                filtered.Capture.QrRows,
+                row =>
+                {
+                    Assert.Equal(0, row.FeedbackSubmitted);
+                    Assert.Equal(0, row.MarketingOptIns);
+                }
+            );
         }
 
         private static AssistantFeedbackEvidence NeutralOnlyFeedback()

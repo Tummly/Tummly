@@ -479,6 +479,50 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_ProviderFailure_CreateCampaign_StillPersistsDraft()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.Fail();
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Help me create a Campaign")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal("Campaign Draft saved", answer.Title);
+            Assert.Contains("I saved a Campaign Draft", answer.Body, StringComparison.Ordinal);
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("review-campaign", action.Type);
+        }
+
+        [Fact]
+        public async Task SendTurn_ProviderRetrieve_CreateForRecentGuests_StillPersistsDraft()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _fake.SucceedWith(
+                AssistantMessageClass.Grounded,
+                "No facts",
+                "There is nothing to summarise or list.",
+                AssistantTask.Retrieve
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Create a Campaign for recent guests.")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.Equal("Campaign Draft saved", answer.Title);
+            Assert.Single(answer.Actions);
+            Assert.Equal("review-campaign", answer.Actions[0].Type);
+        }
+
+        [Fact]
         public async Task SendTurn_ProgressPublishFailure_DoesNotFailTurn()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
@@ -509,7 +553,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_UsesFakeProviderFailure_AsFailureClass()
+        public async Task SendTurn_UsesFakeProviderFailure_FallsBackToLocalGrounded()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             _fake.Fail();
@@ -521,9 +565,8 @@ namespace TummlyBackend.Tests.Services
 
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             Assert.Equal(2, ok.Conversation.Messages.Count);
-            Assert.Equal("failure", ok.Conversation.Messages[1].Class);
-            Assert.Equal(AssistantAnalysisScope.FailureBody, ok.Conversation.Messages[1].Body);
-            Assert.Null(ok.Conversation.Messages[1].Title);
+            Assert.Equal("grounded", ok.Conversation.Messages[1].Class);
+            Assert.NotEqual(AssistantAnalysisScope.FailureBody, ok.Conversation.Messages[1].Body);
         }
 
         [Fact]
@@ -1738,12 +1781,10 @@ namespace TummlyBackend.Tests.Services
             Assert.False(ok.Conversation.DraftInterviewActive);
 
             Assert.Equal(
-                new[] { "review-campaign", "change-audience", "add-offer" },
+                new[] { "review-campaign" },
                 answer.Actions.Select(action => action.Type)
             );
             Assert.Equal("Review campaign draft", answer.Actions[0].Label);
-            Assert.Equal("Change audience", answer.Actions[1].Label);
-            Assert.Equal("Add Offer", answer.Actions[2].Label);
             Assert.All(answer.Actions, action => Assert.NotNull(action.CampaignId));
             var action = answer.Actions[0];
 
@@ -1783,7 +1824,7 @@ namespace TummlyBackend.Tests.Services
                 await _service.GetAsync(ownerUserId: 7, ok.Conversation.Id)
             );
             Assert.Equal(
-                new[] { "review-campaign", "change-audience", "add-offer" },
+                new[] { "review-campaign" },
                 resumed.Conversation.Messages[^1].Actions.Select(item => item.Type)
             );
             var resumeAction = resumed.Conversation.Messages[^1].Actions[0];
@@ -3759,7 +3800,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(offerId, campaign.OfferId);
             Assert.Contains("Weekend brunch", ok.Conversation.Messages[^1].Body, StringComparison.Ordinal);
             Assert.Equal(
-                new[] { "review-campaign", "change-audience" },
+                new[] { "review-campaign" },
                 ok.Conversation.Messages[^1].Actions.Select(action => action.Type)
             );
         }
@@ -4587,7 +4628,7 @@ namespace TummlyBackend.Tests.Services
             Assert.DoesNotContain(answer.Actions, action => action.Type == "draft-campaign");
             Assert.DoesNotContain(answer.Actions, action => action.Type == "view-feedback-set");
             Assert.Equal(
-                new[] { "review-campaign", "change-audience", "add-offer" },
+                new[] { "review-campaign" },
                 answer.Actions.Select(action => action.Type)
             );
         }
@@ -4658,7 +4699,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("Nothing was sent or scheduled", ok.Conversation.Messages[^1].Body);
             Assert.Null(ok.Conversation.SendScheduleRoute);
             Assert.Equal(
-                new[] { "review-campaign", "change-audience", "add-offer" },
+                new[] { "review-campaign" },
                 ok.Conversation.Messages[^1].Actions.Select(action => action.Type)
             );
         }
@@ -5413,7 +5454,7 @@ namespace TummlyBackend.Tests.Services
             var answer = answered.Conversation.Messages[^1];
             Assert.Equal("grounded", answer.Class);
             Assert.Equal(
-                new[] { "review-campaign", "change-audience", "add-offer" },
+                new[] { "review-campaign" },
                 answer.Actions.Select(action => action.Type)
             );
             Assert.Equal(1, await _context.Campaigns.CountAsync());
@@ -5495,7 +5536,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(0, await _context.CatalogOffers.CountAsync());
             Assert.Equal("grounded", answer.Class);
             Assert.Equal(
-                new[] { "review-campaign", "change-audience", "add-offer" },
+                new[] { "review-campaign" },
                 answer.Actions.Select(action => action.Type)
             );
             Assert.Equal(1, await _context.Campaigns.CountAsync());
@@ -5647,7 +5688,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("Camden", answered.Conversation.AnalysisScope.OwnedLocationName);
             Assert.Equal("grounded", answered.Conversation.Messages[^1].Class);
             Assert.Equal(
-                new[] { "review-campaign", "change-audience", "add-offer" },
+                new[] { "review-campaign" },
                 answered.Conversation.Messages[^1].Actions.Select(action => action.Type)
             );
         }

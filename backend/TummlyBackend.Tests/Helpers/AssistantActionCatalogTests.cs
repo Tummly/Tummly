@@ -7,7 +7,7 @@ namespace TummlyBackend.Tests.Helpers
     public class AssistantActionCatalogTests
     {
         [Fact]
-        public void ValidateReviewCampaign_AttachesReviewChangeAudienceAndAddOffer_WhenNoOffer()
+        public void ValidateReviewCampaign_AttachesReviewOnly()
         {
             var actions = AssistantActionCatalog.ValidateReviewCampaign(
                 41,
@@ -16,14 +16,10 @@ namespace TummlyBackend.Tests.Helpers
                 offerId: null
             );
 
-            Assert.Equal(
-                new[] { "review-campaign", "change-audience", "add-offer" },
-                actions.Select(action => action.Type)
-            );
-            Assert.Equal("Review campaign draft", actions[0].Label);
-            Assert.Equal("Change audience", actions[1].Label);
-            Assert.Equal("Add Offer", actions[2].Label);
-            Assert.All(actions, action => Assert.Equal(41, action.CampaignId));
+            var action = Assert.Single(actions);
+            Assert.Equal("review-campaign", action.Type);
+            Assert.Equal("Review campaign draft", action.Label);
+            Assert.Equal(41, action.CampaignId);
             Assert.Empty(
                 AssistantActionCatalog.ValidateReviewCampaign(
                     null,
@@ -84,7 +80,7 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void ValidateReviewCampaign_OmitsAddOffer_WhenOfferIsAttached()
+        public void ValidateReviewCampaign_StillReviewOnly_WhenOfferIsAttached()
         {
             var actions = AssistantActionCatalog.ValidateReviewCampaign(
                 41,
@@ -93,11 +89,10 @@ namespace TummlyBackend.Tests.Helpers
                 offerId: 9
             );
 
-            Assert.Equal(
-                new[] { "review-campaign", "change-audience" },
-                actions.Select(action => action.Type)
-            );
-            Assert.DoesNotContain(actions, action => action.Type == "add-offer");
+            var action = Assert.Single(actions);
+            Assert.Equal("review-campaign", action.Type);
+            Assert.DoesNotContain(actions, a => a.Type == "add-offer");
+            Assert.DoesNotContain(actions, a => a.Type == "change-audience");
         }
 
         [Fact]

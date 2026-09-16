@@ -197,7 +197,7 @@ namespace TummlyBackend.Helpers
                 return false;
             }
 
-            if (!lower.Contains("campaign", StringComparison.Ordinal))
+            if (!NamesCampaignNoun(lower))
             {
                 return false;
             }
@@ -217,8 +217,24 @@ namespace TummlyBackend.Helpers
                 "make a campaign",
                 "make a draft campaign",
                 "write a campaign"
-            );
+            )
+            || CreateCampaignOutcomeRegex().IsMatch(lower);
         }
+
+        /// <summary>
+        /// Campaign noun including common operator typos from QA history.
+        /// </summary>
+        private static bool NamesCampaignNoun(string lower)
+            => ContainsAny(
+                lower,
+                "campaign",
+                "campaigns",
+                "camapgin",
+                "campagin",
+                "campaing",
+                "camapaign",
+                "campagn"
+            );
 
         public static bool LooksLikeCampaignRetrieveOnly(string lower)
         {
@@ -230,8 +246,8 @@ namespace TummlyBackend.Helpers
                 "summarise",
                 "summarize"
             );
-            var campaignDraftNoun = lower.Contains("campaign draft", StringComparison.Ordinal)
-                || lower.Contains("campaign drafts", StringComparison.Ordinal);
+            var campaignDraftNoun = NamesCampaignNoun(lower)
+                && ContainsAny(lower, "draft", "drafts");
             if (!retrieve || !campaignDraftNoun)
             {
                 return false;
@@ -240,6 +256,7 @@ namespace TummlyBackend.Helpers
             return !ContainsAny(
                 lower,
                 "create",
+                "creaete",
                 "prepare",
                 "make a",
                 "draft an",
@@ -321,5 +338,16 @@ namespace TummlyBackend.Helpers
             | System.Text.RegularExpressions.RegexOptions.CultureInvariant
         )]
         private static partial System.Text.RegularExpressions.Regex OfferPathOutcomeRegex();
+
+        /// <summary>
+        /// Create/draft/start + campaign noun (including common typos).
+        /// </summary>
+        [System.Text.RegularExpressions.GeneratedRegex(
+            @"\b(?:create|creaete|draft|prepare|make|build|set\s+up|write|start|help\s+me\s+create)\b.{0,80}?\b(?:campaign|campaigns|camapgin|campagin|campaing|camapaign|campagn)s?\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            | System.Text.RegularExpressions.RegexOptions.Singleline
+            | System.Text.RegularExpressions.RegexOptions.CultureInvariant
+        )]
+        private static partial System.Text.RegularExpressions.Regex CreateCampaignOutcomeRegex();
     }
 }

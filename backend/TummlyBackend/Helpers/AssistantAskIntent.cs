@@ -320,6 +320,12 @@ namespace TummlyBackend.Helpers
                 return true;
             }
 
+            // "scans on QR code" — QR and scan need not be adjacent.
+            if (ContainsAny(lower, "qr") && ContainsAny(lower, "scan"))
+            {
+                return true;
+            }
+
             return ContainsAny(
                 lower,
                 "feedback",
@@ -359,6 +365,7 @@ namespace TummlyBackend.Helpers
                 "qr scan",
                 "qr scans",
                 "qr code scan",
+                "qr code",
                 "any qr",
                 "scanned the qr",
                 "scan the qr",
