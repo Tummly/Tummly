@@ -7789,7 +7789,14 @@ namespace TummlyBackend.Tests.Services
             Assert.DoesNotContain("Outside Window", body);
             Assert.DoesNotContain("Needs Recovery Old", body);
             Assert.DoesNotContain("consent", body, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("current state", body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(
+                "not limited to the Reporting period",
+                body,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.DoesNotContain("Succeeded", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("current state", body, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("live list", body, StringComparison.OrdinalIgnoreCase);
 
             var guestsAction = Assert.Single(
                 ok.Conversation.Messages[1].Actions,
@@ -7868,7 +7875,13 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("grounded", ok.Conversation.Messages[1].Class);
             Assert.Contains("Only Guest", body);
             Assert.DoesNotContain("the last 7 days", body);
-            Assert.Contains("current state", body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(
+                "not limited to the Reporting period",
+                body,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.DoesNotContain("current state", body, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("live list", body, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(
                 ok.Conversation.Messages[1].Actions,
                 action => action.Type == "view-guest"
@@ -8338,9 +8351,12 @@ namespace TummlyBackend.Tests.Services
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             var answer = ok.Conversation.Messages[1];
             Assert.Equal("grounded", answer.Class);
-            Assert.Contains("feedbackSubmitted", answer.Body);
-            Assert.Contains("guestsJoined", answer.Body);
-            Assert.Contains("qrScans", answer.Body);
+            Assert.Contains("Feedback submitted", answer.Body);
+            Assert.Contains("Guests joined", answer.Body);
+            Assert.Contains("QR scans", answer.Body);
+            Assert.DoesNotContain("feedbackSubmitted", answer.Body);
+            Assert.DoesNotContain("guestsJoined", answer.Body);
+            Assert.DoesNotContain("qrScans", answer.Body);
             Assert.DoesNotContain("offer redemption", answer.Body, StringComparison.OrdinalIgnoreCase);
             Assert.Equal(1, _fake.LastInput!.Evidence.Home.FeedbackSubmitted);
             Assert.Equal(1, _fake.LastInput.Evidence.Home.GuestsJoined);

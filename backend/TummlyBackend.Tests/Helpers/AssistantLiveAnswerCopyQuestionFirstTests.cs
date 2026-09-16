@@ -201,6 +201,94 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void GroundedFromEvidence_PerformanceAsk_UsesOperatorHomeLanguage()
+        {
+            var evidence = new AssistantRetrievedEvidence(
+                Feedback: AssistantFeedbackEvidence.Empty,
+                Offers: AssistantOffersEvidence.Empty,
+                Campaigns: AssistantCampaignsEvidence.Empty,
+                Capture: AssistantCaptureEvidence.Empty,
+                Home: new AssistantHomeKpiEvidence(2, 0, 5, 0, 7, 0),
+                Guests: AssistantGuestsEvidence.Empty
+            );
+
+            var result = AssistantLiveAnswerCopy.GroundedFromEvidence(
+                "What is the Performance overview?",
+                "Camden",
+                "the last 7 days",
+                evidence
+            );
+
+            Assert.Equal(AssistantMessageClass.Grounded, result.Class);
+            Assert.Contains(
+                "2 Feedback submitted",
+                result.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "5 Guests joined",
+                result.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "7 QR scans",
+                result.Body,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                "feedbackSubmitted",
+                result.Body,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                "guestsJoined",
+                result.Body,
+                StringComparison.Ordinal
+            );
+            Assert.DoesNotContain(
+                "qrScans",
+                result.Body,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
+        public void GroundedFromEvidence_StubCountsAsk_UsesOperatorLanguage()
+        {
+            var evidence = new AssistantRetrievedEvidence(
+                Feedback: NeutralOnlyFeedback(),
+                Offers: AssistantOffersEvidence.Empty,
+                Campaigns: AssistantCampaignsEvidence.Empty,
+                Capture: AssistantCaptureEvidence.Empty,
+                Home: AssistantHomeKpiEvidence.Empty,
+                Guests: AssistantGuestsEvidence.Empty
+            );
+
+            var result = AssistantLiveAnswerCopy.GroundedFromEvidence(
+                "How many Home offer redemptions and Feedback submitted?",
+                "Camden",
+                "today",
+                evidence
+            );
+
+            Assert.DoesNotContain(
+                "stub",
+                result.Body,
+                StringComparison.OrdinalIgnoreCase
+            );
+            Assert.DoesNotContain(
+                "offerClaims",
+                result.Body,
+                StringComparison.Ordinal
+            );
+            Assert.Contains(
+                "Offers Performance",
+                result.Body,
+                StringComparison.Ordinal
+            );
+        }
+
+        [Fact]
         public void FilterEvidence_CampaignsActive_KeepsCampaignsOnly()
         {
             var evidence = new AssistantRetrievedEvidence(

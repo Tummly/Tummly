@@ -375,9 +375,7 @@ namespace TummlyBackend.Helpers
 
             if (!evidence.Home.IsEmpty)
             {
-                bits.Add(
-                    $"{row.LocationName} Performance overview: {evidence.Home.FeedbackSubmitted} feedbackSubmitted, {evidence.Home.GuestsJoined} guestsJoined, {evidence.Home.QrScans} qrScans."
-                );
+                bits.Add(HomeOverviewSentence(row.LocationName, evidence.Home));
             }
             else if (VenueHasNoFacts(evidence))
             {
@@ -393,7 +391,7 @@ namespace TummlyBackend.Helpers
             if (!evidence.Guests.IsEmpty)
             {
                 bits.Add(
-                    $"{row.LocationName} has {evidence.Guests.TotalCount} Location Guest{(evidence.Guests.TotalCount == 1 ? "" : "s")} (current state)."
+                    $"{row.LocationName} has {evidence.Guests.TotalCount} Location Guest{(evidence.Guests.TotalCount == 1 ? "" : "s")} (not limited to the Reporting period)."
                 );
             }
             else if (VenueHasNoFacts(evidence))
@@ -467,15 +465,13 @@ namespace TummlyBackend.Helpers
 
             if (!evidence.Home.IsEmpty)
             {
-                bits.Add(
-                    $"{row.LocationName} Performance overview: {evidence.Home.FeedbackSubmitted} feedbackSubmitted, {evidence.Home.GuestsJoined} guestsJoined, {evidence.Home.QrScans} qrScans."
-                );
+                bits.Add(HomeOverviewSentence(row.LocationName, evidence.Home));
             }
 
             if (!evidence.Guests.IsEmpty)
             {
                 bits.Add(
-                    $"{row.LocationName} has {evidence.Guests.TotalCount} Location Guest{(evidence.Guests.TotalCount == 1 ? "" : "s")} (current state)."
+                    $"{row.LocationName} has {evidence.Guests.TotalCount} Location Guest{(evidence.Guests.TotalCount == 1 ? "" : "s")} (not limited to the Reporting period)."
                 );
                 if (evidence.Guests.DisclosesSample)
                 {
@@ -683,13 +679,13 @@ namespace TummlyBackend.Helpers
                 if (evidence.Offers.HasPerformanceFacts)
                 {
                     parts.Add(
-                        "Claim and redemption counts come from Offers Performance, not Home or Capture stubs."
+                        "Claim and redemption counts come from Offers Performance, not from Home or Capture totals."
                     );
                 }
                 else
                 {
                     parts.Add(
-                        "I cannot use Home offer redemptions or Capture offerClaims stub zeros."
+                        "Home and Capture do not show offer redemptions. Check Offers Performance for claim and redemption counts."
                     );
                 }
             }
@@ -985,8 +981,17 @@ namespace TummlyBackend.Helpers
             }
 
             yield return
-                $"Performance overview at {ownedLocationName} over {periodPhrase}: {evidence.FeedbackSubmitted} feedbackSubmitted, {evidence.GuestsJoined} guestsJoined, {evidence.QrScans} qrScans.";
+                $"Performance overview at {ownedLocationName} over {periodPhrase}: {FormatHomeKpis(evidence)}.";
         }
+
+        private static string HomeOverviewSentence(
+            string locationName,
+            AssistantHomeKpiEvidence evidence
+        )
+            => $"{locationName} Performance overview: {FormatHomeKpis(evidence)}.";
+
+        private static string FormatHomeKpis(AssistantHomeKpiEvidence evidence)
+            => $"{evidence.FeedbackSubmitted} Feedback submitted, {evidence.GuestsJoined} Guests joined, {evidence.QrScans} QR scans.";
 
         private static string ListFeedbackBody(
             string ownedLocationName,
@@ -1033,7 +1038,7 @@ namespace TummlyBackend.Helpers
             var disclose = guests.DisclosesSample
                 ? $" Names come from {guests.SampleCount} of {guests.TotalCount}."
                 : string.Empty;
-            return $"Location Guests at {ownedLocationName} (current state, not inside the Reporting period): {string.Join("; ", named)}{more}.{disclose}";
+            return $"Location Guests at {ownedLocationName} (not limited to the Reporting period): {string.Join("; ", named)}{more}.{disclose}";
         }
 
         private static string Placeholder4Body(
@@ -1045,13 +1050,13 @@ namespace TummlyBackend.Helpers
             var guests = evidence.Placeholder4GuestRows;
             if (guests.Count == 0)
             {
-                return $"No Location Guests currently Marketing eligible also left Succeeded Negative Feedback at {ownedLocationName} over {periodPhrase}. Marketing eligible is the current state, not a fact inside the Reporting period.";
+                return $"No Location Guests currently Marketing eligible also left Negative Feedback at {ownedLocationName} over {periodPhrase}. Marketing eligible is not limited to the Reporting period.";
             }
 
             var named = guests.Take(NamedRowCap).Select(FormatGuestRow).ToList();
             var remaining = guests.Count - named.Count;
             var more = remaining > 0 ? $" and {remaining} more" : string.Empty;
-            return $"{guests.Count} Location Guest{(guests.Count == 1 ? "" : "s")} currently Marketing eligible also left Succeeded Negative Feedback at {ownedLocationName} over {periodPhrase}: {string.Join("; ", named)}{more}. Marketing eligible is the current state, not a fact inside the Reporting period.";
+            return $"{guests.Count} Location Guest{(guests.Count == 1 ? "" : "s")} currently Marketing eligible also left Negative Feedback at {ownedLocationName} over {periodPhrase}: {string.Join("; ", named)}{more}. Marketing eligible is not limited to the Reporting period.";
         }
 
         private static string FormatFeedbackRow(AssistantFeedbackEvidenceRow row)
