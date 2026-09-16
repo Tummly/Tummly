@@ -64,6 +64,9 @@ type HomeBodyProps = {
   guestFormPreviewLocationName?: string
   guestFormPreviewAddress?: string
   onPreviewGuestForm?: () => void
+  onUploadLogo?: () => void
+  onViewPlacementGuide?: () => void
+  onOrderQrMaterials?: () => void
   onCreateOffer?: () => void
   onCreateCampaign?: () => void
   onCopySmartGuestLink?: () => void
@@ -147,6 +150,9 @@ export function HomeBody({
   guestFormPreviewLocationName = "",
   guestFormPreviewAddress = "",
   onPreviewGuestForm,
+  onUploadLogo,
+  onViewPlacementGuide,
+  onOrderQrMaterials,
   onCreateOffer,
   onCreateCampaign,
   onCopySmartGuestLink,
@@ -254,6 +260,9 @@ export function HomeBody({
       <HomeSetupChecklist
         steps={viewModel.setupSteps}
         onPreviewGuestForm={onPreviewGuestForm}
+        onUploadLogo={onUploadLogo}
+        onViewPlacementGuide={onViewPlacementGuide}
+        onOrderQrMaterials={onOrderQrMaterials}
         onCreateOffer={onCreateOffer}
         onCreateCampaign={onCreateCampaign}
         previewBusy={previewBusy}

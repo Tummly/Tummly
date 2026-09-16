@@ -17,6 +17,7 @@ import {
 import { NEEDS_ATTENTION_DUPLICATE_DRAFT_TOAST } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import { planHomeNeedsAttentionCta } from "@/lib/operatorHome/planHomeNeedsAttentionCta"
 import type { HomeRecommendation } from "@/types/operatorHome"
+import { HELP_CENTRE_URL } from "@/config/support"
 import { useNavigate, useOutletContext } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -265,6 +266,24 @@ export function HomePage({
         }}
         previewBusy={home.snapshot.previewBusy}
         onPreviewGuestForm={home.previewGuestForm}
+        onUploadLogo={() => {
+          navigate(
+            operatorDashboardNavPath(
+              mode,
+              "account-workspace",
+              selectedLocationId
+            )
+          )
+        }}
+        onViewPlacementGuide={() => {
+          home.acknowledgeQrPlacementGuide()
+          navigate(HELP_CENTRE_URL)
+        }}
+        onOrderQrMaterials={() => {
+          navigate(
+            operatorDashboardNavPath(mode, "tummly-shop", selectedLocationId)
+          )
+        }}
         onCreateOffer={() => {
           setOffersIntent({ openBlankCreate: true })
           navigate(

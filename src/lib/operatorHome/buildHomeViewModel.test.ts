@@ -170,7 +170,7 @@ describe("buildOperatorHomeViewModel", () => {
       ["first-campaign", "incomplete"],
     ])
     expect(withoutPreview?.setupSteps[1]?.actions).toEqual([
-      { id: "upload-logo", label: "Upload logo", available: false },
+      { id: "upload-logo", label: "Upload logo", available: true },
     ])
     expect(withoutPreview?.setupSteps[2]?.actions).toEqual([
       { id: "preview-guest-form", label: "Preview form", available: true },
@@ -182,12 +182,12 @@ describe("buildOperatorHomeViewModel", () => {
       {
         id: "view-placement-guide",
         label: "View placement guide",
-        available: false,
+        available: true,
       },
       {
         id: "order-qr-materials",
         label: "Order QR materials",
-        available: false,
+        available: true,
       },
     ])
     expect(withoutPreview?.setupSteps[5]?.actions).toEqual([

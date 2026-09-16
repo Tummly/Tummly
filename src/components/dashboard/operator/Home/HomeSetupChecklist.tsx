@@ -65,6 +65,9 @@ const SETUP_ACCORDION_VALUE = "setup"
 type HomeSetupChecklistProps = {
   steps: OperatorHomeSetupStep[]
   onPreviewGuestForm?: () => void
+  onUploadLogo?: () => void
+  onViewPlacementGuide?: () => void
+  onOrderQrMaterials?: () => void
   onCreateOffer?: () => void
   onCreateCampaign?: () => void
   previewBusy?: boolean
@@ -74,6 +77,9 @@ type HomeSetupChecklistProps = {
 export function HomeSetupChecklist({
   steps,
   onPreviewGuestForm,
+  onUploadLogo,
+  onViewPlacementGuide,
+  onOrderQrMaterials,
   onCreateOffer,
   onCreateCampaign,
   previewBusy = false,
@@ -205,19 +211,23 @@ export function HomeSetupChecklist({
                             {step.actions.map((action) => {
                               const isPreview =
                                 action.id === "preview-guest-form"
-                              const isCreateOffer = action.id === "create-offer"
-                              const isCreateCampaign =
-                                action.id === "create-campaign"
                               const available = isPreview
                                 ? action.available && !previewBusy
                                 : action.available
-                              const onClick = isPreview
-                                ? onPreviewGuestForm
-                                : isCreateOffer
-                                  ? onCreateOffer
-                                  : isCreateCampaign
-                                    ? onCreateCampaign
-                                    : undefined
+                              const onClick =
+                                action.id === "preview-guest-form"
+                                  ? onPreviewGuestForm
+                                  : action.id === "upload-logo"
+                                    ? onUploadLogo
+                                    : action.id === "view-placement-guide"
+                                      ? onViewPlacementGuide
+                                      : action.id === "order-qr-materials"
+                                        ? onOrderQrMaterials
+                                        : action.id === "create-offer"
+                                          ? onCreateOffer
+                                          : action.id === "create-campaign"
+                                            ? onCreateCampaign
+                                            : undefined
 
                               return (
                                 <Button
