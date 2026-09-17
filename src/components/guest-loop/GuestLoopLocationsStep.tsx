@@ -27,6 +27,7 @@ type GuestLoopLocationsStepProps = {
   form: UseFormReturn<AccountSetupMultiFormValues>
   activeStep: number
   steps?: readonly GuestLoopProgressStep[]
+  submitLabel?: string
   onContinue: () => void | Promise<void>
   isSubmitting?: boolean
 }
@@ -35,6 +36,7 @@ export function GuestLoopLocationsStep({
   form,
   activeStep,
   steps = GUEST_LOOP_MULTI_STEPS,
+  submitLabel = "Continue to rollout",
   onContinue,
   isSubmitting = false,
 }: GuestLoopLocationsStepProps) {
@@ -188,7 +190,7 @@ export function GuestLoopLocationsStep({
           isSubmitting={isSubmitting}
           onClick={onContinue}
         >
-          Continue to rollout
+          {submitLabel}
         </GuestLoopStepButton>
       </GuestLoopStepFooter>
 

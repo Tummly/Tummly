@@ -20,6 +20,12 @@ import RegisterSinglePage from "../auth/RegisterSinglePage";
 import RegisterMultiPage from "../auth/RegisterMultiPage";
 import ResetPasswordPage from "../auth/ResetPasswordPage";
 import ForgotPasswordPage from "../auth/ForgotPasswordPage";
+import VerifyEmailPage from "../auth/VerifyEmailPage";
+import SignupPage from "../auth/SignupPage";
+import SignupVerifyPage from "../auth/SignupVerifyPage";
+import SignupOnboardingPage from "../auth/SignupOnboardingPage";
+import SignupChoosePlanPage from "../auth/SignupChoosePlanPage";
+import SignupProvisioningPage from "../auth/SignupProvisioningPage";
 import GuestFeedbackPage from "../public/GuestFeedbackPage";
 import PrivacyPage from "../public/PrivacyPage";
 import TermsPage from "../public/TermsPage";
@@ -112,6 +118,54 @@ function AppRoutes() {
           }
         />
         <Route
+          path="verify-email"
+          element={
+            <ErrorBoundary>
+              <VerifyEmailPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="signup"
+          element={
+            <ErrorBoundary>
+              <SignupPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="signup/verify"
+          element={
+            <ErrorBoundary>
+              <SignupVerifyPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="signup/onboarding"
+          element={
+            <ErrorBoundary>
+              <SignupOnboardingPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="signup/choose-plan"
+          element={
+            <ErrorBoundary>
+              <SignupChoosePlanPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="signup/provisioning"
+          element={
+            <ErrorBoundary>
+              <SignupProvisioningPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
           path="reset-password"
           element={
             <ErrorBoundary>
@@ -156,11 +210,17 @@ function AppRoutes() {
             <Route index element={<HomePage />} />
             <Route
               path="request-trial"
-              element={<Navigate to="/#request-trial" replace />}
+              element={<Navigate to="/signup" replace />}
             />
 
-            <Route path="register/single" element={<RegisterSinglePage />} />
-            <Route path="register/multi" element={<RegisterMultiPage />} />
+            <Route
+              path="register/single"
+              element={<Navigate to="/signup" replace />}
+            />
+            <Route
+              path="register/multi"
+              element={<Navigate to="/signup" replace />}
+            />
           </Route>
 
           <Route element={<ProtectedRoute />}>

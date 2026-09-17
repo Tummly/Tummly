@@ -1,34 +1,72 @@
-import { Link } from "react-router-dom"
+import { useState } from "react"
 
+import { AuthBackToLogin } from "@/components/auth/AuthBackToLogin"
+import { AuthFormHeader } from "@/components/auth/AuthFormHeader"
 import { Button } from "@/components/ui/button"
+import { FieldErrorSlot } from "@/components/ui/field"
 
-const cardShadow =
-  "shadow-[2px_6px_14px_rgba(0,0,0,0.04),9px_25px_26px_rgba(0,0,0,0.03),20px_55px_35px_rgba(0,0,0,0.02)]"
+type ForgotPasswordEmailSentStepProps = {
+  email: string
+  onResend: () => Promise<void>
+  resending?: boolean
+}
 
-export function ForgotPasswordEmailSentStep() {
+export function ForgotPasswordEmailSentStep({
+  email,
+  onResend,
+  resending = false,
+}: ForgotPasswordEmailSentStepProps) {
+  const [resendError, setResendError] = useState<string | undefined>()
+  const [isResending, setIsResending] = useState(false)
+  const busy = resending || isResending
+
+  const handleResend = async () => {
+    setResendError(undefined)
+    setIsResending(true)
+
+    try {
+      await onResend()
+    } catch (error) {
+      setResendError(
+        error instanceof Error ? error.message : "Unable to send reset link."
+      )
+    } finally {
+      setIsResending(false)
+    }
+  }
+
   return (
-    <div
-      className={`flex w-full max-w-[490px] shrink-0 flex-col gap-6 rounded-[6px] border border-[#d2d2d2] bg-white px-[clamp(1.25rem,4vw,1.875rem)] py-[clamp(1.25rem,4vw,2.375rem)] sm:gap-7 lg:gap-16 ${cardShadow}`}
-    >
-      <header className="flex flex-col gap-4 text-[#232323]">
-        <h1 className="m-0 text-[clamp(1.625rem,4vw,2rem)] font-bold leading-normal tracking-[-0.64px]">
-          Check your email
-        </h1>
-        <p className="m-0 text-sm leading-normal">
-          If an account exists for that email, we&apos;ve sent password reset
-          instructions.
-        </p>
-      </header>
+    <div className="flex w-full flex-col gap-10">
+      <AuthFormHeader
+        title="Check your inbox"
+        description={`If a Tummly account exists for ${email}, we've sent a password reset link.`}
+      />
 
-      <Button
-        type="button"
-        variant="link"
-        size="link-sm"
-        asChild
-        className="self-start font-medium text-primary underline underline-offset-2"
-      >
-        <Link to="/login">Back to sign in</Link>
-      </Button>
+      <div className="flex flex-col gap-9">
+        <div className="flex flex-col gap-1.5">
+          <p className="m-0 flex flex-wrap items-center gap-2.5 text-sm font-medium tracking-[0.4px] text-[#232323]">
+            <span>Didn&apos;t get it?</span>
+            <Button
+              type="button"
+              variant="link"
+              size="link-sm"
+              disabled={busy}
+              onClick={() => {
+                void handleResend()
+              }}
+              className="font-medium text-primary underline underline-offset-2"
+            >
+              {busy ? "Sending..." : "Send another link"}
+            </Button>
+          </p>
+
+          <FieldErrorSlot error={resendError} />
+        </div>
+
+        <div className="h-px w-full bg-[#d2d2d2]" />
+
+        <AuthBackToLogin />
+      </div>
     </div>
   )
 }

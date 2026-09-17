@@ -1,7 +1,9 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Provisioning;
+using TummlyBackend.DTOs.Signup;
 using TummlyBackend.DTOs.Trial;
 using TummlyBackend.Exceptions;
 using TummlyBackend.Helpers;
@@ -75,129 +77,214 @@ namespace TummlyBackend.Services
                     : dto.PrimaryPhone.Trim()
             );
 
-            await using var transaction =
-                await _context.Database.BeginTransactionAsync();
-            var provisionedLocations = new List<RestaurantLocation>();
+            var locations = dto.Locations
+                .Select(item => new ProvisionLocationInput(
+                    item.LocationName,
+                    item.Address,
+                    item.City,
+                    item.Postcode,
+                    item.LocationPhone,
+                    item.LocalContact
+                ))
+                .ToList();
 
-            try
+            await CreateOperatorAccountAsync(
+                new ProvisionAccountInput(
+                    Email: trialRequest.Email,
+                    PasswordHash: BCrypt.Net.BCrypt.HashPassword(dto.Password),
+                    FullName: fullName,
+                    AccountType: trialRequest.AccountType,
+                    TermsAccepted: trialRequest.TermsAccepted,
+                    GroupName: dto.GroupName,
+                    BusinessCategory: dto.BusinessCategory,
+                    PrimaryPhone: primaryPhone,
+                    BusinessLink: dto.BusinessLink,
+                    Locations: locations
+                ),
+                afterUserSaved: () =>
+                {
+                    trialRequest.IsAccountCreated = true;
+                    trialRequest.Status = TrialRequestStatus.AccountCreated;
+                }
+            );
+        }
+
+        public async Task ProvisionFromPendingAsync(Guid pendingSignupId)
+        {
+            var pending = await _context.PendingSignups.FirstOrDefaultAsync(x =>
+                x.Id == pendingSignupId
+            );
+
+            if (pending == null)
             {
-                var user = new User
-                {
-                    FullName = fullName,
-                    Email = trialRequest.Email,
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                    PhoneNumber = primaryPhone ?? string.Empty,
-                    Role = "Owner",
-                    AccountType = trialRequest.AccountType,
-                    IsEmailVerified = true,
-                    IsApprovedByAdmin = true,
-                    IsLocked = false,
-                    FailedLoginAttempts = 0,
-                    TermsAccepted = trialRequest.TermsAccepted,
-                };
+                throw new ArgumentException("No pending signup found.");
+            }
 
-                _context.Users.Add(user);
+            if (pending.Status == PendingSignupStatuses.Complete)
+            {
+                return;
+            }
 
-                trialRequest.IsAccountCreated = true;
-                trialRequest.Status = TrialRequestStatus.AccountCreated;
-
-                await _context.SaveChangesAsync();
-
-                var restaurant = new Restaurant
-                {
-                    Name = dto.GroupName,
-                    AccountType = trialRequest.AccountType,
-                    OwnerUserId = user.Id,
-                    BillingContactUserId = user.Id,
-                    PrivacyContactUserId = user.Id,
-                    SupportContactUserId = user.Id,
-                    BusinessCategory = dto.BusinessCategory,
-                    BusinessLink = dto.BusinessLink,
-                    PublicPhoneNumber = primaryPhone,
-                    CreatedAt = DateTime.UtcNow,
-                    BillingAccount = BillingCreditsService.CreateDefaultBillingAccount(
-                        restaurantId: 0,
-                        _pricebookCatalog.CurrentPricebookId
-                    ),
-                };
-
-                _context.Restaurants.Add(restaurant);
-                await _context.SaveChangesAsync();
-
-                user.SelectedRestaurantId = restaurant.Id;
-
-                var scopeError = MembershipLocationScope.Validate(
-                    PermissionRoles.Owner,
-                    LocationScopeKind.AllLocations,
-                    []
+            if (string.IsNullOrWhiteSpace(pending.PasswordHash))
+            {
+                throw new ArgumentException(
+                    "Pending signup is missing a password hash."
                 );
-                if (scopeError != null)
-                {
-                    throw new ArgumentException(scopeError);
-                }
-
-                _context.RestaurantMemberships.Add(new RestaurantMembership
-                {
-                    UserId = user.Id,
-                    RestaurantId = restaurant.Id,
-                    PermissionRole = PermissionRoles.Owner,
-                    LocationScope = LocationScopeKind.AllLocations,
-                    NamedLocationIdsJson = "[]",
-                    Status = MembershipStatus.Active,
-                });
-
-                foreach (var item in dto.Locations)
-                {
-                    var location = new RestaurantLocation
-                    {
-                        RestaurantId = restaurant.Id,
-                        LocationName = item.LocationName ?? "",
-                        Address = item.Address ?? "",
-                        City = string.IsNullOrWhiteSpace(item.City)
-                            ? null
-                            : item.City.Trim(),
-                        Postcode = string.IsNullOrWhiteSpace(item.Postcode)
-                            ? null
-                            : UkPostcode.FormatForDisplay(item.Postcode),
-                        LifecycleStatus = LocationLifecycleStatus.Active,
-                        LocationPhone = PhoneNumberHelper.NormalizeOptional(
-                            item.LocationPhone
-                        ),
-                        LocalContact = item.LocalContact,
-                        CreatedAt = DateTime.UtcNow
-                    };
-
-                    _context.RestaurantLocations.Add(location);
-                    provisionedLocations.Add(location);
-
-                    await _qrCodeProvisioning.MintDefaultQrCodesAsync(location);
-                }
-
-                await _context.SaveChangesAsync();
-
-                var guestLoop = new GuestLoopSetup
-                {
-                    RestaurantId = restaurant.Id,
-                    SendPhysicalQrMaterials = false,
-                    AutoSendReviewRequests = true,
-                    CreatedAt = DateTime.UtcNow,
-                };
-
-                _context.GuestLoopSetups.Add(guestLoop);
-                await _context.SaveChangesAsync();
-
-                await transaction.CommitAsync();
             }
-            catch
+
+            if (string.IsNullOrWhiteSpace(pending.OnboardingJson))
             {
-                await transaction.RollbackAsync();
-                throw;
+                throw new ArgumentException(
+                    "Pending signup is missing onboarding data."
+                );
             }
 
-            foreach (var location in provisionedLocations)
+            var profile = JsonSerializer.Deserialize<SignupOnboardingPayload>(
+                pending.OnboardingJson
+            );
+
+            if (profile == null || profile.Locations.Count == 0)
             {
-                await _printReadyQrMaterialsWork.RequestEnsureAsync(location.Id);
+                throw new ArgumentException(
+                    "Pending signup onboarding data is invalid."
+                );
             }
+
+            var accountType = string.IsNullOrWhiteSpace(pending.AccountType)
+                ? (profile.Locations.Count == 1 ? "Single" : "Multi")
+                : pending.AccountType;
+
+            if (accountType == "Single" && profile.Locations.Count > 1)
+            {
+                throw new ArgumentException(
+                    "Single-location accounts can only have one location."
+                );
+            }
+
+            var fullName = string.IsNullOrWhiteSpace(pending.FullName)
+                ? profile.FullName?.Trim()
+                : pending.FullName.Trim();
+
+            if (string.IsNullOrWhiteSpace(fullName))
+            {
+                throw new ArgumentException("Full name is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(profile.GroupName))
+            {
+                throw new ArgumentException("Group name is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(profile.BusinessCategory))
+            {
+                throw new ArgumentException("Business category is required.");
+            }
+
+            var existingUser = await _context.Users.FirstOrDefaultAsync(x =>
+                x.Email == pending.Email
+            );
+
+            if (existingUser != null)
+            {
+                // Race / retry: user already exists — mark complete and exit.
+                pending.Status = PendingSignupStatuses.Complete;
+                pending.UpdatedAtUtc = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                return;
+            }
+
+            var primaryPhone = PhoneNumberHelper.NormalizeOptional(
+                profile.PrimaryPhone
+            );
+
+            var locations = profile.Locations
+                .Select(item => new ProvisionLocationInput(
+                    item.LocationName,
+                    item.Address,
+                    item.City,
+                    item.Postcode,
+                    item.LocationPhone,
+                    item.LocalContact
+                ))
+                .ToList();
+
+            // Pilot uses CreateDefaultBillingAccount defaults.
+            // Paid plans apply Active + ChosenPlan after create (Task 9).
+            var isPaidPlan =
+                !string.IsNullOrWhiteSpace(pending.ChosenPlan)
+                && !string.Equals(
+                    pending.ChosenPlan,
+                    BillingSubscriptionPlans.Pilot,
+                    StringComparison.OrdinalIgnoreCase
+                );
+
+            await CreateOperatorAccountAsync(
+                new ProvisionAccountInput(
+                    Email: pending.Email,
+                    PasswordHash: pending.PasswordHash,
+                    FullName: fullName,
+                    AccountType: accountType,
+                    TermsAccepted: pending.TermsAccepted,
+                    GroupName: profile.GroupName.Trim(),
+                    BusinessCategory: profile.BusinessCategory.Trim(),
+                    PrimaryPhone: primaryPhone,
+                    BusinessLink: profile.BusinessLink,
+                    Locations: locations
+                ),
+                afterUserSaved: () =>
+                {
+                    pending.Status = PendingSignupStatuses.Complete;
+                    pending.UpdatedAtUtc = DateTime.UtcNow;
+                }
+            );
+
+            if (isPaidPlan)
+            {
+                await ApplyPaidSignupBillingAsync(
+                    pending.Email,
+                    pending.ChosenPlan!,
+                    pending.ChosenCadence ?? "monthly"
+                );
+            }
+        }
+
+        private async Task ApplyPaidSignupBillingAsync(
+            string email,
+            string chosenPlan,
+            string chosenCadence
+        )
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(x =>
+                x.Email == email
+            );
+            if (user == null)
+            {
+                return;
+            }
+
+            var restaurant = await _context.Restaurants.FirstOrDefaultAsync(x =>
+                x.OwnerUserId == user.Id
+            );
+            if (restaurant == null)
+            {
+                return;
+            }
+
+            var billing = await _context.BillingAccounts.FirstOrDefaultAsync(
+                x => x.RestaurantId == restaurant.Id
+            );
+            if (billing == null)
+            {
+                return;
+            }
+
+            BillingCreditsService.ApplyPaidSignupBilling(
+                billing,
+                chosenPlan,
+                chosenCadence,
+                DateTime.UtcNow
+            );
+            await _context.SaveChangesAsync();
         }
 
         public async Task GenerateActivationCodeAsync(string inviteToken)
@@ -237,6 +324,136 @@ namespace TummlyBackend.Services
                 );
 
             await _context.SaveChangesAsync();
+        }
+
+        private async Task CreateOperatorAccountAsync(
+            ProvisionAccountInput input,
+            Action afterUserSaved
+        )
+        {
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync();
+            var provisionedLocations = new List<RestaurantLocation>();
+
+            try
+            {
+                var user = new User
+                {
+                    FullName = input.FullName,
+                    Email = input.Email,
+                    PasswordHash = input.PasswordHash,
+                    PhoneNumber = input.PrimaryPhone ?? string.Empty,
+                    Role = "Owner",
+                    AccountType = input.AccountType,
+                    IsEmailVerified = true,
+                    IsApprovedByAdmin = true,
+                    IsLocked = false,
+                    FailedLoginAttempts = 0,
+                    TermsAccepted = input.TermsAccepted,
+                };
+
+                _context.Users.Add(user);
+                afterUserSaved();
+                await _context.SaveChangesAsync();
+
+                var restaurant = new Restaurant
+                {
+                    Name = input.GroupName,
+                    AccountType = input.AccountType,
+                    OwnerUserId = user.Id,
+                    BillingContactUserId = user.Id,
+                    PrivacyContactUserId = user.Id,
+                    SupportContactUserId = user.Id,
+                    BusinessCategory = input.BusinessCategory,
+                    BusinessLink = input.BusinessLink,
+                    PublicPhoneNumber = input.PrimaryPhone,
+                    CreatedAt = DateTime.UtcNow,
+                    BillingAccount =
+                        BillingCreditsService.CreateDefaultBillingAccount(
+                            restaurantId: 0,
+                            _pricebookCatalog.CurrentPricebookId
+                        ),
+                };
+
+                _context.Restaurants.Add(restaurant);
+                await _context.SaveChangesAsync();
+
+                user.SelectedRestaurantId = restaurant.Id;
+
+                var scopeError = MembershipLocationScope.Validate(
+                    PermissionRoles.Owner,
+                    LocationScopeKind.AllLocations,
+                    []
+                );
+                if (scopeError != null)
+                {
+                    throw new ArgumentException(scopeError);
+                }
+
+                _context.RestaurantMemberships.Add(
+                    new RestaurantMembership
+                    {
+                        UserId = user.Id,
+                        RestaurantId = restaurant.Id,
+                        PermissionRole = PermissionRoles.Owner,
+                        LocationScope = LocationScopeKind.AllLocations,
+                        NamedLocationIdsJson = "[]",
+                        Status = MembershipStatus.Active,
+                    }
+                );
+
+                foreach (var item in input.Locations)
+                {
+                    var location = new RestaurantLocation
+                    {
+                        RestaurantId = restaurant.Id,
+                        LocationName = item.LocationName ?? "",
+                        Address = item.Address ?? "",
+                        City = string.IsNullOrWhiteSpace(item.City)
+                            ? null
+                            : item.City.Trim(),
+                        Postcode = string.IsNullOrWhiteSpace(item.Postcode)
+                            ? null
+                            : UkPostcode.FormatForDisplay(item.Postcode),
+                        LifecycleStatus = LocationLifecycleStatus.Active,
+                        LocationPhone = PhoneNumberHelper.NormalizeOptional(
+                            item.LocationPhone
+                        ),
+                        LocalContact = item.LocalContact,
+                        CreatedAt = DateTime.UtcNow,
+                    };
+
+                    _context.RestaurantLocations.Add(location);
+                    provisionedLocations.Add(location);
+
+                    await _qrCodeProvisioning.MintDefaultQrCodesAsync(location);
+                }
+
+                await _context.SaveChangesAsync();
+
+                var guestLoop = new GuestLoopSetup
+                {
+                    RestaurantId = restaurant.Id,
+                    SendPhysicalQrMaterials = false,
+                    AutoSendReviewRequests = true,
+                    CreatedAt = DateTime.UtcNow,
+                };
+
+                _context.GuestLoopSetups.Add(guestLoop);
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
+            foreach (var location in provisionedLocations)
+            {
+                await _printReadyQrMaterialsWork.RequestEnsureAsync(location.Id);
+            }
         }
 
         private string GetActivationProtectionKey()
@@ -362,5 +579,26 @@ namespace TummlyBackend.Services
             };
         }
 
+        private sealed record ProvisionLocationInput(
+            string? LocationName,
+            string? Address,
+            string? City,
+            string? Postcode,
+            string? LocationPhone,
+            string? LocalContact
+        );
+
+        private sealed record ProvisionAccountInput(
+            string Email,
+            string PasswordHash,
+            string FullName,
+            string AccountType,
+            bool TermsAccepted,
+            string GroupName,
+            string BusinessCategory,
+            string? PrimaryPhone,
+            string? BusinessLink,
+            IReadOnlyList<ProvisionLocationInput> Locations
+        );
     }
 }

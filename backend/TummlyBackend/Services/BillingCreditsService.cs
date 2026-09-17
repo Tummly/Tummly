@@ -1200,6 +1200,46 @@ namespace TummlyBackend.Services
             billingAccount.BillingCycle = BillingCycles.Monthly;
         }
 
+        /// <summary>
+        /// Post-provision billing for self-serve paid signup (Starter / Growth / Group).
+        /// Matches Manage Plan paid state after first payment.
+        /// </summary>
+        public static void ApplyPaidSignupBilling(
+            BillingAccount billingAccount,
+            string chosenPlan,
+            string chosenCadenceApi,
+            DateTime nowUtc
+        )
+        {
+            var plan = chosenPlan.Trim().ToLowerInvariant() switch
+            {
+                "starter" => BillingSubscriptionPlans.Starter,
+                "growth" => BillingSubscriptionPlans.Growth,
+                "group" => BillingSubscriptionPlans.Group,
+                _ => throw new InvalidOperationException("invalid_plan_target"),
+            };
+
+            var annual = string.Equals(
+                chosenCadenceApi.Trim(),
+                "annual",
+                StringComparison.OrdinalIgnoreCase
+            );
+
+            billingAccount.SubscriptionPlan = plan;
+            billingAccount.BillingCycle = annual
+                ? BillingCycles.Annual
+                : BillingCycles.Monthly;
+            billingAccount.BillingStatus = BillingStatuses.Active;
+            billingAccount.PilotPeriodEnd = null;
+            billingAccount.SoftLockEnteredAt = null;
+            billingAccount.DormantEnteredAt = null;
+            billingAccount.PilotSoftLockNotified = false;
+            billingAccount.PilotDormantNotified = false;
+            billingAccount.RenewalDateUtc = annual
+                ? nowUtc.Date.AddMonths(12)
+                : nowUtc.Date.AddMonths(1);
+        }
+
         private static string SubscriptionPlanKey(string subscriptionPlan)
         {
             return subscriptionPlan.Trim().ToLowerInvariant() switch

@@ -1,10 +1,6 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
-import {
-  REQUEST_TRIAL_HASH,
-  scrollToRequestTrial,
-} from "@/lib/scrollToRequestTrial";
 import { MARKETING_FAQS_HASH } from "@/constants/marketingNav";
 import Hero from "../../components/home/Hero";
 import About from "../../components/home/About";
@@ -23,16 +19,6 @@ function HomePage() {
   useEffect(() => {
     if (pathname !== "/") {
       return;
-    }
-
-    if (hash === REQUEST_TRIAL_HASH) {
-      const frame = requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          scrollToRequestTrial();
-        });
-      });
-
-      return () => cancelAnimationFrame(frame);
     }
 
     if (hash === MARKETING_FAQS_HASH) {

@@ -14,6 +14,8 @@ interface GuestLoopShellProps {
   hideFooters?: boolean
   /** Vertical alignment of main content within the shell. */
   contentAlign?: "center" | "start"
+  /** Override the default 560px content max width (e.g. choose-plan cards). */
+  contentMaxWidthClassName?: string
   /** When false, the back control is hidden (e.g. Account Setup step 1). */
   showBackButton?: boolean
   /** When true, back is visible but not actionable (e.g. Guest Loop provisioning in progress). */
@@ -30,6 +32,7 @@ export function GuestLoopShell({
   className,
   hideFooters = false,
   contentAlign = "center",
+  contentMaxWidthClassName = "max-w-[min(100%,560px)]",
   showBackButton = false,
   backButtonDisabled = false,
   onBack,
@@ -59,7 +62,12 @@ export function GuestLoopShell({
                 disabled={backButtonDisabled}
               />
             ) : null}
-            <div className="flex w-full max-w-[min(100%,560px)] flex-col">
+            <div
+              className={cn(
+                "flex w-full flex-col",
+                contentMaxWidthClassName
+              )}
+            >
               {children}
             </div>
           </main>

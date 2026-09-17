@@ -21,6 +21,7 @@ function ForgotPasswordPage() {
   const [step, setStep] = useState<ForgotPasswordStep>(
     FORGOT_PASSWORD_STEPS.REQUEST_EMAIL
   )
+  const [sentEmail, setSentEmail] = useState("")
 
   const form = useForm<SignInEmailValues>({
     resolver: zodResolver(signInEmailSchema),
@@ -32,7 +33,8 @@ function ForgotPasswordPage() {
     form.clearErrors("root")
 
     try {
-      await requestPasswordReset(values)
+      const email = await requestPasswordReset(values)
+      setSentEmail(email)
       setStep(FORGOT_PASSWORD_STEPS.EMAIL_SENT)
     } catch (error) {
       form.setError("root", {
@@ -42,6 +44,10 @@ function ForgotPasswordPage() {
     }
   }
 
+  const onResend = async () => {
+    await requestPasswordReset({ email: sentEmail })
+  }
+
   return (
     <AuthShell>
       {step === FORGOT_PASSWORD_STEPS.REQUEST_EMAIL && (
@@ -49,7 +55,7 @@ function ForgotPasswordPage() {
       )}
 
       {step === FORGOT_PASSWORD_STEPS.EMAIL_SENT && (
-        <ForgotPasswordEmailSentStep />
+        <ForgotPasswordEmailSentStep email={sentEmail} onResend={onResend} />
       )}
     </AuthShell>
   )

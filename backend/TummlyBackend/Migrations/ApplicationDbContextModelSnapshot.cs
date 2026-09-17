@@ -2397,6 +2397,81 @@ namespace TummlyBackend.Migrations
                     b.ToTable("PasswordResets");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.PendingSignup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AccountType")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("ChosenCadence")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("ChosenPlan")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("EmailVerifiedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FullName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime?>("LastOtpSentAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OnboardingJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("OtpResendCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PasswordHash")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RevolutOrderId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid>("SessionToken")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<bool>("TermsAccepted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("SessionToken")
+                        .IsUnique();
+
+                    b.ToTable("PendingSignups");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.PendingTrialRequest", b =>
                 {
                     b.Property<int>("Id")
@@ -3246,6 +3321,9 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<Guid?>("PendingSignupId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Purpose")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -3254,7 +3332,7 @@ namespace TummlyBackend.Migrations
                     b.Property<int?>("Quantity")
                         .HasColumnType("int");
 
-                    b.Property<int>("RestaurantId")
+                    b.Property<int?>("RestaurantId")
                         .HasColumnType("int");
 
                     b.Property<string>("RevolutSubscriptionId")
@@ -3285,6 +3363,8 @@ namespace TummlyBackend.Migrations
 
                     b.HasIndex("OrderId")
                         .IsUnique();
+
+                    b.HasIndex("PendingSignupId");
 
                     b.HasIndex("ShopOrderId");
 
@@ -5241,8 +5321,7 @@ namespace TummlyBackend.Migrations
                     b.HasOne("TummlyBackend.Models.BillingAccount", "BillingAccount")
                         .WithMany()
                         .HasForeignKey("RestaurantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("BillingAccount");
                 });

@@ -167,7 +167,7 @@ export default function MarketingHeader() {
                   Log in
                 </SignInLink>
                 <Button asChild className={pilotButtonClass}>
-                  <RequestTrialLink>Start 30-day Pilot</RequestTrialLink>
+                  <RequestTrialLink>Sign up</RequestTrialLink>
                 </Button>
               </>
             )}
@@ -253,7 +253,7 @@ export default function MarketingHeader() {
                       </SignInLink>
                       <Button asChild className={cn(pilotButtonClass, "w-full")}>
                         <RequestTrialLink onClick={closeMobile}>
-                          Start 30-day Pilot
+                          Sign up
                         </RequestTrialLink>
                       </Button>
                     </>

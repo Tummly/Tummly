@@ -108,7 +108,7 @@ function Navbar({ showRequestTrial = true, variant = "solid" }: NavbarProps) {
             <>
               {showRequestTrial ? (
                 <Button asChild className={cn(navButtonClass)}>
-                  <RequestTrialLink>Request trial</RequestTrialLink>
+                  <RequestTrialLink>Sign up</RequestTrialLink>
                 </Button>
               ) : null}
 

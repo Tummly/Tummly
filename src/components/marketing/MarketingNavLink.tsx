@@ -2,7 +2,6 @@ import type { ComponentProps, ReactNode } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 
 import SignInLink from "@/components/auth/SignInLink"
-import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import { CookieSettingsTrigger } from "@/components/common/CookieSettingsDialog"
 import type { MarketingNavHref } from "@/constants/marketingNav"
 import { cn } from "@/lib/utils"
@@ -84,14 +83,6 @@ export function MarketingNavLink({
   }
 
   if (href.kind === "hash") {
-    if (href.hash === "#request-trial") {
-      return (
-        <RequestTrialLink className={linkClass} onClick={() => onNavigate?.()}>
-          {label}
-        </RequestTrialLink>
-      )
-    }
-
     return (
       <HashLink
         hash={href.hash}

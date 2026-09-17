@@ -3,6 +3,8 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { Link, useSearchParams } from "react-router-dom"
 
+import { AuthBackToLogin } from "@/components/auth/AuthBackToLogin"
+import { AuthFormHeader } from "@/components/auth/AuthFormHeader"
 import { AuthShell } from "@/components/auth/AuthShell"
 import { ResetPasswordCreateStep } from "@/components/auth/ResetPasswordCreateStep"
 import { ResetPasswordSuccessStep } from "@/components/auth/ResetPasswordSuccessStep"
@@ -19,17 +21,6 @@ import {
   resetPasswordFormSchema,
   type ResetPasswordFormValues,
 } from "@/schemas/resetPassword"
-
-const cardClassName =
-  "flex w-full max-w-[490px] shrink-0 flex-col gap-6 rounded-[6px] border border-[#d2d2d2] bg-white px-[clamp(1.25rem,4vw,1.875rem)] py-[clamp(1.25rem,4vw,2.375rem)] shadow-[2px_6px_14px_rgba(0,0,0,0.04),9px_25px_26px_rgba(0,0,0,0.03),20px_55px_35px_rgba(0,0,0,0.02)]"
-
-const headingClassName =
-  "m-0 text-[clamp(1.625rem,4vw,2rem)] font-bold leading-normal tracking-[-0.64px] text-[#232323]"
-
-const bodyClassName = "m-0 text-sm leading-normal text-[#232323]"
-
-const linkButtonClassName =
-  "self-start font-medium text-primary underline underline-offset-2"
 
 function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
@@ -77,37 +68,32 @@ function ResetPasswordPage() {
   return (
     <AuthShell>
       {step === RESET_PASSWORD_STEPS.INVALID_TOKEN && (
-        <div className={cardClassName}>
-          <h1 className={headingClassName}>Link expired or invalid</h1>
+        <div className="flex w-full flex-col gap-10">
+          <AuthFormHeader
+            title="Link expired or invalid"
+            description={
+              <span role="alert">{tokenErrorMessage}</span>
+            }
+          />
 
-          <p className={bodyClassName} role="alert">
-            {tokenErrorMessage}
-          </p>
+          <div className="flex flex-col gap-9">
+            <p className="m-0 text-base leading-[22px] text-[#141414]">
+              Request a new reset link or return to sign in to continue.
+            </p>
 
-          <p className={bodyClassName}>
-            Request a new reset link or return to sign in to continue.
-          </p>
+            <div className="flex flex-col gap-3">
+              <Button
+                type="button"
+                variant="link"
+                size="link-sm"
+                asChild
+                className="self-start font-medium text-primary underline underline-offset-2"
+              >
+                <Link to="/forgot-password">Request a new reset link</Link>
+              </Button>
 
-          <div className="flex flex-col gap-3">
-            <Button
-              type="button"
-              variant="link"
-              size="link-sm"
-              asChild
-              className={linkButtonClassName}
-            >
-              <Link to="/forgot-password">Request a new reset link</Link>
-            </Button>
-
-            <Button
-              type="button"
-              variant="link"
-              size="link-sm"
-              asChild
-              className={linkButtonClassName}
-            >
-              <Link to="/login">Back to sign in</Link>
-            </Button>
+              <AuthBackToLogin />
+            </div>
           </div>
         </div>
       )}

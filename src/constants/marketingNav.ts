@@ -69,7 +69,7 @@ export const MARKETING_FOOTER_RESTAURANTS: MarketingNavItem[] = [
   {
     id: "30-day-pilot",
     label: "30-day Pilot",
-    href: { kind: "hash", hash: "#request-trial" },
+    href: { kind: "route", to: "/signup" },
   },
   {
     id: "multi-location",

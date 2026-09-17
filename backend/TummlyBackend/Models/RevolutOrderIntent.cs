@@ -14,10 +14,17 @@ namespace TummlyBackend.Models
         [MaxLength(128)]
         public string OrderId { get; set; } = string.Empty;
 
-        public int RestaurantId { get; set; }
+        /// <summary>
+        /// Billing account restaurant id. Null for <c>signup_plan</c> intents
+        /// before the restaurant exists.
+        /// </summary>
+        public int? RestaurantId { get; set; }
 
         [ForeignKey(nameof(RestaurantId))]
         public BillingAccount? BillingAccount { get; set; }
+
+        /// <summary>Pending signup row for <c>signup_plan</c> intents.</summary>
+        public Guid? PendingSignupId { get; set; }
 
         /// <summary>
         /// e.g. <c>plan_upgrade_proration</c>, <c>extra_location</c>, <c>topup</c>.
@@ -81,5 +88,7 @@ namespace TummlyBackend.Models
         public const string Topup = "topup";
 
         public const string ShopMaterialsOrder = "shop_materials_order";
+
+        public const string SignupPlan = "signup_plan";
     }
 }

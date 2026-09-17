@@ -67,8 +67,8 @@ function CTALaunch() {
                 "text-white"
               )}
             >
-              Request guided access and we&apos;ll help you prepare the guest
-              prompts, feedback form and first return offer for your restaurant.
+              Sign up to prepare guest prompts, feedback forms and your first
+              return offer for your restaurant.
             </p>
           </div>
 
@@ -80,7 +80,7 @@ function CTALaunch() {
                 asChild
                 className="shadow-none hover:bg-white/95"
               >
-                <RequestTrialLink>Request guided trial</RequestTrialLink>
+                <RequestTrialLink>Sign up</RequestTrialLink>
               </Button>
 
               <p className="m-0 text-sm font-medium leading-[normal] text-white lg:text-base">
@@ -97,7 +97,7 @@ function CTALaunch() {
             </div>
 
             <p className="m-0 text-sm font-medium leading-[normal] text-white">
-              No payment is taken when you request access.
+              No payment is taken when you create an Essential account.
             </p>
           </div>
         </div>

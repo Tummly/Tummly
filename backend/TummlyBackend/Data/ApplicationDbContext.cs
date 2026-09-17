@@ -101,6 +101,8 @@ namespace TummlyBackend.Data
 
         public DbSet<RevolutOrderIntent> RevolutOrderIntents { get; set; }
 
+        public DbSet<PendingSignup> PendingSignups { get; set; }
+
         public DbSet<AdminPaymentRefundIntent> AdminPaymentRefundIntents
         {
             get;
@@ -982,6 +984,57 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<RevolutOrderIntent>()
                 .HasIndex(row => row.ShopOrderId);
+
+            modelBuilder.Entity<RevolutOrderIntent>()
+                .HasIndex(row => row.PendingSignupId);
+
+            /*
+             =========================================
+             PENDING SIGNUPS (self-serve signup)
+             =========================================
+             */
+
+            modelBuilder.Entity<PendingSignup>()
+                .HasIndex(row => row.SessionToken)
+                .IsUnique();
+
+            modelBuilder.Entity<PendingSignup>()
+                .HasIndex(row => row.Email)
+                .IsUnique();
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.Email)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.Status)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.PasswordHash)
+                .HasMaxLength(200);
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.FullName)
+                .HasMaxLength(150);
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.AccountType)
+                .HasMaxLength(16);
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.ChosenPlan)
+                .HasMaxLength(32);
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.ChosenCadence)
+                .HasMaxLength(16);
+
+            modelBuilder.Entity<PendingSignup>()
+                .Property(row => row.RevolutOrderId)
+                .HasMaxLength(128);
 
             /*
              =========================================
