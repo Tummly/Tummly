@@ -11,8 +11,8 @@ describe("sidebarCollapsed persistence", () => {
     localStorage.removeItem(OPERATOR_SIDEBAR_COLLAPSED_KEY)
   })
 
-  it("defaults to expanded when unset", () => {
-    expect(readSidebarCollapsed()).toBe(false)
+  it("defaults to collapsed when unset so hover can peek open", () => {
+    expect(readSidebarCollapsed()).toBe(true)
   })
 
   it("round-trips collapsed preference", () => {

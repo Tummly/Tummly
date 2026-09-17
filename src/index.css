@@ -380,8 +380,8 @@ html.op {
   /* Figma Main Bg/Subtitle — toast message text */
   --op-color-gray-550: #7c7c7c;
   --op-color-gray-600: #707070;
-  /* Figma SideNav enabled icon / item — light */
-  --op-color-gray-625: #676767;
+  /* Figma Side-nav Item-colour_default — light `#6C6C6C` */
+  --op-color-gray-625: #6c6c6c;
   --op-color-gray-650: #616161;
   --op-color-gray-700: #5d5d5d;
   --op-color-gray-750: #4e4e4e;

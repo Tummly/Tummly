@@ -1068,7 +1068,7 @@ export function AiAssistantDrawer({
                 ease: [0.32, 0.72, 0, 1],
               }}
               className={cn(
-                "relative my-2 flex h-[calc(100%-1rem)] min-h-0 flex-col",
+                "relative mb-2 flex h-[calc(100%-0.5rem)] min-h-0 flex-col",
                 paintExpanded ? "flex-1 min-w-0 shrink" : "shrink-0"
               )}
               data-assistant-width={paintExpanded ? "expanded" : "collapsed"}
@@ -1077,7 +1077,7 @@ export function AiAssistantDrawer({
               <AiAssistantLoadingBorder
                 loading={snapshot.turnInFlight}
                 className={cn(
-                  "flex min-h-0 flex-1 flex-col overflow-hidden shadow-2xl",
+                  "flex min-h-0 flex-1 flex-col overflow-hidden",
                   "rounded-tl-[20px] rounded-tr-[20px] rounded-bl-[10px] rounded-br-[10px]",
                   !snapshot.turnInFlight && "border border-op-border-default"
                 )}

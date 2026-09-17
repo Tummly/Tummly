@@ -1,13 +1,7 @@
 import { useState } from "react"
 import { CheckIcon } from "lucide-react"
 
-import stepAccount from "@/assets/operator-home/step-account.png"
-import stepCampaign from "@/assets/operator-home/step-campaign.png"
-import stepGuestForm from "@/assets/operator-home/step-guest-form.png"
-import stepLogo from "@/assets/operator-home/step-logo.png"
-import stepResponse from "@/assets/operator-home/step-offer.png"
-import stepQr from "@/assets/operator-home/step-qr.png"
-import stepOffer from "@/assets/operator-home/step-response.png"
+import { HomeSetupStepIcon } from "@/components/dashboard/operator/Home/HomeSetupStepIcons"
 import { Button } from "@/components/ui/button"
 import {
   Accordion,
@@ -45,20 +39,7 @@ import {
   writeSetupChecklistOpen,
 } from "@/lib/operatorHome/setupChecklistOpen"
 import { cn } from "@/lib/utils"
-import type {
-  OperatorHomeSetupStep,
-  OperatorHomeSetupStepId,
-} from "@/types/operatorHome"
-
-const STEP_IMAGES: Record<OperatorHomeSetupStepId, string> = {
-  "account-ready": stepAccount,
-  "upload-logo": stepLogo,
-  "guest-form": stepGuestForm,
-  "first-response": stepResponse,
-  "qr-placement": stepQr,
-  "first-offer": stepOffer,
-  "first-campaign": stepCampaign,
-}
+import type { OperatorHomeSetupStep } from "@/types/operatorHome"
 
 const SETUP_ACCORDION_VALUE = "setup"
 
@@ -176,7 +157,8 @@ export function HomeSetupChecklist({
 
                     <div className={SETUP_CHECKLIST_STEP_BODY_CLASS}>
                       <SetupStepIllustration
-                        src={STEP_IMAGES[step.id]}
+                        stepId={step.id}
+                        complete={isComplete}
                         config={illustration}
                       />
 
@@ -313,37 +295,20 @@ function SetupStepCompletedLabel() {
 }
 
 function SetupStepIllustration({
-  src,
+  stepId,
+  complete,
   config,
 }: {
-  src: string
+  stepId: OperatorHomeSetupStep["id"]
+  complete: boolean
   config: ReturnType<typeof getSetupStepIllustration>
 }) {
   return (
     <div
-      className="relative w-[49px] shrink-0 overflow-hidden"
+      className="flex w-[49px] shrink-0 items-center justify-center"
       style={{ height: `${config.height}px` }}
     >
-      <img
-        src={src}
-        alt=""
-        className={cn(
-          "absolute max-w-none",
-          config.crop === "cover"
-            ? "inset-0 size-full object-cover"
-            : "pointer-events-none"
-        )}
-        style={
-          config.crop === "cover"
-            ? undefined
-            : {
-              width: config.crop.width,
-              height: config.crop.height,
-              left: config.crop.left,
-              top: config.crop.top,
-            }
-        }
-      />
+      <HomeSetupStepIcon stepId={stepId} complete={complete} />
     </div>
   )
 }

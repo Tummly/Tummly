@@ -1,4 +1,5 @@
 import {
+  ASSISTANT_WAIT_ICON_CLASS,
   ASSISTANT_WAIT_TEXT_CLASS,
 } from "@/lib/operatorAiAssistant/assistantWaitPresentation"
 
@@ -39,7 +40,7 @@ export function AssistantPreparingAnswer({
       aria-live="polite"
       aria-label={label}
     >
-      <DaisySpinner className="size-5 shrink-0 animate-spin text-white" />
+      <DaisySpinner className={ASSISTANT_WAIT_ICON_CLASS} />
       <p className={ASSISTANT_WAIT_TEXT_CLASS}>
         <span key={label} data-assistant-wait-phrase>
           {label}

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { MenuIcon } from "lucide-react"
 
@@ -30,8 +30,8 @@ import type {
   OperatorAiAssistantDraftLocation,
   OperatorAiAssistantSnapshot,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
-import { assistantSideNavExpandLock } from "@/lib/operatorHome/assistantSideNavExpandLock"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
+import { resolveDesktopSidebarRail } from "@/lib/operatorHome/resolveDesktopSidebarRail"
 import {
   OPERATOR_MOBILE_NAV_SHEET_CLASS,
   OPERATOR_SHELL_GUTTER_X,
@@ -150,6 +150,8 @@ const SHELL_SCROLL_CLASS =
 /** Figma Side-nav expanded / collapsed widths. */
 const SIDEBAR_EXPANDED_WIDTH = "w-[260px]"
 const SIDEBAR_COLLAPSED_WIDTH = "w-[52px]"
+/** Hold open briefly after leave so the rail does not flap. */
+const SIDEBAR_HOVER_LEAVE_DELAY_MS = 200
 
 export function DashboardShell({
   presentation,
@@ -171,6 +173,10 @@ export function DashboardShell({
     )
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed)
+  const [sidebarHoverExpanded, setSidebarHoverExpanded] = useState(false)
+  const sidebarHoverLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  )
   const [settingsExpanded, setSettingsExpanded] = useState(
     readSidebarSettingsExpanded
   )
@@ -178,23 +184,54 @@ export function DashboardShell({
   const isAssistantExpanded =
     isAiDrawerOpen && aiAssistant?.snapshot.widthMode === "expanded"
 
-  const sideNavExpandLock = assistantSideNavExpandLock({
-    priorCollapsed: sidebarCollapsed,
+  const sideNavRail = resolveDesktopSidebarRail({
+    preferenceCollapsed: sidebarCollapsed,
+    hoverExpanded: sidebarHoverExpanded,
     assistantExpanded: isAssistantExpanded,
   })
-  const effectiveSidebarCollapsed = sideNavExpandLock.effectiveCollapsed
+  const effectiveSidebarCollapsed = sideNavRail.effectiveCollapsed
+
+  const clearSidebarHoverLeaveTimer = () => {
+    if (sidebarHoverLeaveTimerRef.current !== null) {
+      clearTimeout(sidebarHoverLeaveTimerRef.current)
+      sidebarHoverLeaveTimerRef.current = null
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (sidebarHoverLeaveTimerRef.current !== null) {
+        clearTimeout(sidebarHoverLeaveTimerRef.current)
+      }
+    }
+  }, [])
 
   const handleSelectLocation = (locationId: number) => {
     onSelectLocation(locationId)
     setMobileNavOpen(false)
   }
 
+  /** Hamburger pins the open rail; click again clears the pin. */
   const handleToggleSidebarCollapsed = () => {
     setSidebarCollapsed((prev) => {
       const next = !prev
       writeSidebarCollapsed(next)
       return next
     })
+  }
+
+  const handleSidebarMouseEnter = () => {
+    if (sideNavRail.toggleLocked) return
+    clearSidebarHoverLeaveTimer()
+    setSidebarHoverExpanded(true)
+  }
+
+  const handleSidebarMouseLeave = () => {
+    clearSidebarHoverLeaveTimer()
+    sidebarHoverLeaveTimerRef.current = setTimeout(() => {
+      sidebarHoverLeaveTimerRef.current = null
+      setSidebarHoverExpanded(false)
+    }, SIDEBAR_HOVER_LEAVE_DELAY_MS)
   }
 
   const handleToggleSettingsExpanded = () => {
@@ -374,6 +411,8 @@ export function DashboardShell({
               ? SIDEBAR_COLLAPSED_WIDTH
               : SIDEBAR_EXPANDED_WIDTH
           )}
+          onMouseEnter={handleSidebarMouseEnter}
+          onMouseLeave={handleSidebarMouseLeave}
         >
           {isShopPage && (
             <div
@@ -420,15 +459,16 @@ export function DashboardShell({
           <DashboardSidebar
             sidebarNav={presentation.sidebarNav}
             collapsed={effectiveSidebarCollapsed}
+            menuPinned={!sidebarCollapsed}
             onToggleCollapsed={
-              sideNavExpandLock.toggleLocked
+              sideNavRail.toggleLocked
                 ? undefined
                 : handleToggleSidebarCollapsed
             }
             settingsExpanded={settingsExpanded}
             onToggleSettingsExpanded={handleToggleSettingsExpanded}
             onExpandSidebarAndOpenSettings={
-              sideNavExpandLock.toggleLocked
+              sideNavRail.toggleLocked
                 ? undefined
                 : handleExpandSidebarAndOpenSettings
             }
@@ -486,7 +526,7 @@ export function DashboardShell({
                 ),
             isAiDrawerOpen &&
               !isShopPage &&
-              "my-2 h-[calc(100%-1rem)] rounded-tl-[20px] rounded-tr-[20px] rounded-bl-[10px] rounded-br-[10px] border border-op-border-default",
+              "mb-2 h-[calc(100%-0.5rem)] rounded-tl-[20px] rounded-tr-[20px] rounded-bl-[10px] rounded-br-[10px] border border-op-border-default",
             isAssistantExpanded
               ? "w-0 min-w-0 flex-none opacity-0 pointer-events-none p-0 m-0 border-0 overflow-hidden"
               : "flex-1 min-w-0 opacity-100"

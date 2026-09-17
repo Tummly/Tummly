@@ -155,19 +155,13 @@ describe("setupChecklistPresentation", () => {
   })
 
   it("uses per-step Figma illustration frame sizes", () => {
-    expect(getSetupStepIllustration("account-ready")).toEqual({
-      height: 35,
-      crop: {
-        width: "154.26%",
-        height: "162.5%",
-        left: "-34.59%",
-        top: "-31.25%",
-      },
-    })
-    expect(getSetupStepIllustration("guest-form").height).toBe(37)
-    expect(getSetupStepIllustration("first-response").height).toBe(43)
-    expect(getSetupStepIllustration("qr-placement").height).toBe(47)
-    expect(getSetupStepIllustration("upload-logo").crop).toBe("cover")
+    expect(getSetupStepIllustration("account-ready")).toEqual({ height: 31 })
+    expect(getSetupStepIllustration("upload-logo")).toEqual({ height: 31 })
+    expect(getSetupStepIllustration("guest-form").height).toBe(26)
+    expect(getSetupStepIllustration("first-response").height).toBe(26)
+    expect(getSetupStepIllustration("qr-placement").height).toBe(26)
+    expect(getSetupStepIllustration("first-offer").height).toBe(26)
+    expect(getSetupStepIllustration("first-campaign").height).toBe(26)
   })
 
   it("uses Figma step copy metrics (16/24 title, 14/17 description)", () => {
