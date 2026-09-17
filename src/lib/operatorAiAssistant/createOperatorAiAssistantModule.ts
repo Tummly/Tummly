@@ -73,12 +73,12 @@ import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCa
 import { ASSISTANT_NEXT_TRY_SCOPE_SENTENCE } from "./assistantNextTryCopy"
 import {
   ASSISTANT_WAIT_BODY,
-  ASSISTANT_WAIT_GERUND_INTERVAL_MS,
-  ASSISTANT_WAIT_PREPARING_BODY,
-  ASSISTANT_WAIT_RETRIEVING_BODY,
-  assistantWaitGerundAt,
-  formatAssistantWaitGerund,
-} from "./assistantWaitGerunds"
+  ASSISTANT_WAIT_PHRASE_INTERVAL_MS,
+  assistantWaitPhraseAt,
+  planAssistantWaitPhrases,
+  type AssistantWaitPhrasePlan,
+  type AssistantWaitStep,
+} from "./assistantWaitPhrases"
 
 export type OperatorAiAssistantWidthMode = "collapsed" | "expanded"
 
@@ -1598,8 +1598,12 @@ export function createOperatorAiAssistantModule(
   let listGeneration = 0
   let inflight: AbortController | null = null
   let waitTimer: ReturnType<typeof setInterval> | null = null
-  let waitGerundIndex = 0
-  let waitPipeline: "checking" | "retrieving" | "preparing" = "checking"
+  let waitPhraseIndex = 0
+  let waitPipeline: AssistantWaitStep = "checking"
+  let waitPlan: AssistantWaitPhrasePlan = {
+    gate: "retrieve",
+    retrieveFocus: "generic",
+  }
   const initialSwitcherOwnedLocationId = adapters.getDashboardOwnedLocation().id
   let lastSwitcherOwnedLocationId: number | null =
     initialSwitcherOwnedLocationId === 0 ? null : initialSwitcherOwnedLocationId
@@ -1616,33 +1620,33 @@ export function createOperatorAiAssistantModule(
   }
   let creditsLoadGeneration = 0
 
-  const stopCheckingWaitRotation = () => {
+  const stopWaitRotation = () => {
     if (waitTimer != null) {
       clearInterval(waitTimer)
       waitTimer = null
     }
   }
 
-  const startCheckingWaitRotation = () => {
-    stopCheckingWaitRotation()
+  const waitBodyForIndex = (index: number) =>
+    assistantWaitPhraseAt(waitPlan, waitPipeline, index)
+
+  const startWaitRotation = (message: string) => {
+    stopWaitRotation()
+    waitPlan = planAssistantWaitPhrases(message)
     waitPipeline = "checking"
-    waitGerundIndex = adapters.nowMs()
-    const waitBody = formatAssistantWaitGerund(
-      assistantWaitGerundAt(waitGerundIndex)
-    )
+    waitPhraseIndex = 0
+    const waitBody = waitBodyForIndex(waitPhraseIndex)
     waitTimer = setInterval(() => {
-      if (!state.turnInFlight || waitPipeline !== "checking") {
+      if (!state.turnInFlight) {
         return
       }
-      waitGerundIndex += 1
+      waitPhraseIndex += 1
       state = {
         ...state,
-        waitBody: formatAssistantWaitGerund(
-          assistantWaitGerundAt(waitGerundIndex)
-        ),
+        waitBody: waitBodyForIndex(waitPhraseIndex),
       }
       publish()
-    }, ASSISTANT_WAIT_GERUND_INTERVAL_MS)
+    }, ASSISTANT_WAIT_PHRASE_INTERVAL_MS)
     return waitBody
   }
 
@@ -1749,7 +1753,7 @@ export function createOperatorAiAssistantModule(
     sendGeneration += 1
     inflight?.abort()
     inflight = null
-    stopCheckingWaitRotation()
+    stopWaitRotation()
   }
 
   const beginNewChat = (analysisScope?: OperatorAiAssistantAnalysisScope) => {
@@ -2023,7 +2027,7 @@ export function createOperatorAiAssistantModule(
           },
         ]
 
-    const waitBody = startCheckingWaitRotation()
+    const waitBody = startWaitRotation(message)
     state = {
       ...state,
       view: "thread",
@@ -2055,7 +2059,7 @@ export function createOperatorAiAssistantModule(
           return
         }
         inflight = null
-        stopCheckingWaitRotation()
+        stopWaitRotation()
         state = {
           ...applyConversation(state, row),
           composerDraft: "",
@@ -2070,7 +2074,7 @@ export function createOperatorAiAssistantModule(
           return
         }
         inflight = null
-        stopCheckingWaitRotation()
+        stopWaitRotation()
         if (isAbortError(error)) {
           state = {
             ...state,
@@ -2576,17 +2580,15 @@ export function createOperatorAiAssistantModule(
       if (signal.step === "checking" && waitPipeline !== "checking") {
         return
       }
-      const waitBody = {
-        checking: formatAssistantWaitGerund(
-          assistantWaitGerundAt(waitGerundIndex)
-        ),
-        retrieving: ASSISTANT_WAIT_RETRIEVING_BODY,
-        preparing: ASSISTANT_WAIT_PREPARING_BODY,
-      }[signal.step]
       if (signal.step === "retrieving" || signal.step === "preparing") {
-        waitPipeline = signal.step
-        stopCheckingWaitRotation()
+        if (waitPipeline !== signal.step) {
+          waitPipeline = signal.step
+          waitPhraseIndex = 0
+        }
+      } else {
+        waitPipeline = "checking"
       }
+      const waitBody = waitBodyForIndex(waitPhraseIndex)
       state = {
         ...state,
         waitBody,

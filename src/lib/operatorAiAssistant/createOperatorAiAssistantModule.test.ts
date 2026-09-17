@@ -23,13 +23,11 @@ import {
 import { planAssistantActionNavigate, planAssistantSendScheduleRoute } from "./assistantActionNavigate"
 import { ASSISTANT_NEXT_TRY_SCOPE_SENTENCE } from "./assistantNextTryCopy"
 import {
-  ASSISTANT_WAIT_GERUND_INTERVAL_MS,
-  ASSISTANT_WAIT_PREPARING_BODY,
-  ASSISTANT_WAIT_RETRIEVING_BODY,
-  assistantWaitGerundAt,
-  formatAssistantWaitGerund,
+  ASSISTANT_WAIT_PHRASE_INTERVAL_MS,
+  assistantWaitPhraseAt,
   isAssistantCheckingWaitBody,
-} from "./assistantWaitGerunds"
+  planAssistantWaitPhrases,
+} from "./assistantWaitPhrases"
 
 describe("createOperatorAiAssistantModule", () => {
   it("openDrawer shows the empty greeting at collapsed 620 width with no server row", () => {
@@ -1279,13 +1277,20 @@ describe("first send creates a durable Assistant conversation", () => {
     expect(isAssistantCheckingWaitBody(waitBody() ?? "")).toBe(true)
 
     module.onTurnProgress({ conversationId: "conv-1", step: "retrieving" })
-    expect(waitBody()).toBe(ASSISTANT_WAIT_RETRIEVING_BODY)
+    const feedbackPlan = planAssistantWaitPhrases("Summarise recent feedback")
+    expect(waitBody()).toBe(
+      assistantWaitPhraseAt(feedbackPlan, "retrieving", 0)
+    )
 
     module.onTurnProgress({ conversationId: "conv-1", step: "checking" })
-    expect(waitBody()).toBe(ASSISTANT_WAIT_RETRIEVING_BODY)
+    expect(waitBody()).toBe(
+      assistantWaitPhraseAt(feedbackPlan, "retrieving", 0)
+    )
 
     module.onTurnProgress({ conversationId: "conv-1", step: "preparing" })
-    expect(waitBody()).toBe(ASSISTANT_WAIT_PREPARING_BODY)
+    expect(waitBody()).toBe(
+      assistantWaitPhraseAt(feedbackPlan, "preparing", 0)
+    )
 
     release({
       id: "conv-1",
@@ -1303,7 +1308,7 @@ describe("first send creates a durable Assistant conversation", () => {
     expect(waitBody()).toBeUndefined()
   })
 
-  it("rotates checking wait gerunds until retrieving", async () => {
+  it("rotates gate wait phrases until the turn ends", async () => {
     vi.useFakeTimers()
     try {
       let release!: (
@@ -1323,6 +1328,7 @@ describe("first send creates a durable Assistant conversation", () => {
         sendTurn: () => pending,
       })
       const module = createOperatorAiAssistantModule(adapters)
+      const feedbackPlan = planAssistantWaitPhrases("Summarise recent feedback")
 
       module.openDrawer({ operatorFirstName: "Mohamed" })
       module.setComposerDraft("Summarise recent feedback")
@@ -1333,14 +1339,22 @@ describe("first send creates a durable Assistant conversation", () => {
           .getSnapshot()
           .messages.find((message) => message.role === "wait")?.body
 
-      expect(waitBody()).toBe(formatAssistantWaitGerund(assistantWaitGerundAt(0)))
-      vi.advanceTimersByTime(ASSISTANT_WAIT_GERUND_INTERVAL_MS)
-      expect(waitBody()).toBe(formatAssistantWaitGerund(assistantWaitGerundAt(1)))
+      expect(waitBody()).toBe(
+        assistantWaitPhraseAt(feedbackPlan, "checking", 0)
+      )
+      vi.advanceTimersByTime(ASSISTANT_WAIT_PHRASE_INTERVAL_MS)
+      expect(waitBody()).toBe(
+        assistantWaitPhraseAt(feedbackPlan, "checking", 1)
+      )
 
       module.onTurnProgress({ conversationId: "conv-1", step: "retrieving" })
-      expect(waitBody()).toBe(ASSISTANT_WAIT_RETRIEVING_BODY)
-      vi.advanceTimersByTime(ASSISTANT_WAIT_GERUND_INTERVAL_MS)
-      expect(waitBody()).toBe(ASSISTANT_WAIT_RETRIEVING_BODY)
+      expect(waitBody()).toBe(
+        assistantWaitPhraseAt(feedbackPlan, "retrieving", 0)
+      )
+      vi.advanceTimersByTime(ASSISTANT_WAIT_PHRASE_INTERVAL_MS)
+      expect(waitBody()).toBe(
+        assistantWaitPhraseAt(feedbackPlan, "retrieving", 1)
+      )
 
       release({
         id: "conv-1",
@@ -4427,7 +4441,11 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     module.onTurnProgress({ conversationId: "conv-1", step: "retrieving" })
     expect(module.getSnapshot().messages.at(-1)).toMatchObject({
       role: "wait",
-      body: ASSISTANT_WAIT_RETRIEVING_BODY,
+      body: assistantWaitPhraseAt(
+        planAssistantWaitPhrases("Summarise recent feedback"),
+        "retrieving",
+        0
+      ),
     })
     await Promise.resolve()
     await Promise.resolve()

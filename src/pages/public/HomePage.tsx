@@ -5,6 +5,7 @@ import {
   REQUEST_TRIAL_HASH,
   scrollToRequestTrial,
 } from "@/lib/scrollToRequestTrial";
+import { MARKETING_FAQS_HASH } from "@/constants/marketingNav";
 import Hero from "../../components/home/Hero";
 import About from "../../components/home/About";
 import Hospitality from "../../components/home/Hospitality";
@@ -20,17 +21,31 @@ function HomePage() {
   const { hash, pathname } = useLocation();
 
   useEffect(() => {
-    if (pathname !== "/" || hash !== REQUEST_TRIAL_HASH) {
+    if (pathname !== "/") {
       return;
     }
 
-    const frame = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        scrollToRequestTrial();
+    if (hash === REQUEST_TRIAL_HASH) {
+      const frame = requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          scrollToRequestTrial();
+        });
       });
-    });
 
-    return () => cancelAnimationFrame(frame);
+      return () => cancelAnimationFrame(frame);
+    }
+
+    if (hash === MARKETING_FAQS_HASH) {
+      const frame = requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          document
+            .getElementById("faqs")
+            ?.scrollIntoView({ behavior: "smooth" });
+        });
+      });
+
+      return () => cancelAnimationFrame(frame);
+    }
   }, [hash, pathname]);
 
   return (
