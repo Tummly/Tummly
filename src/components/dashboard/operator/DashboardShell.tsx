@@ -259,6 +259,10 @@ export function DashboardShell({
     globalSearch?.onOpen()
   }
 
+  const myAccountTo = presentation.sidebarNav.settings.children.find(
+    (child) => child.id === "account-workspace" && child.navigable
+  )?.to
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-op-header-background">
       {!isShopPage && (
@@ -278,6 +282,7 @@ export function DashboardShell({
               }
               : undefined
           }
+          myAccountTo={myAccountTo}
           shellAiCredits={
             aiAssistant ? aiAssistant.snapshot.shellAiCredits : undefined
           }

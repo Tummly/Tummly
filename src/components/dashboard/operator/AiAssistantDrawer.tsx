@@ -6,7 +6,6 @@ import {
   HistoryIcon,
   Maximize2Icon,
   Minimize2Icon,
-  MoreVerticalIcon,
   PlusCircleIcon,
   Settings,
   XIcon,
@@ -21,18 +20,9 @@ import { AiAssistantLoadingBorder } from "@/components/dashboard/operator/AiAssi
 import { AssistantPreparingAnswer } from "@/components/dashboard/operator/AssistantPreparingAnswer"
 import { GroundedLiveAnswerBody } from "@/components/dashboard/operator/GroundedLiveAnswerBody"
 import { AiAssistantMicChrome } from "@/components/dashboard/operator/AiAssistantMicChrome"
-import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { useEmptyComposerPlaceholder } from "@/components/dashboard/operator/useEmptyComposerPlaceholder"
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import { ASSISTANT_SEARCH_PLACEHOLDER } from "@/lib/operatorAiAssistant/assistantListPresentation"
 import {
   Drawer,
   DrawerContent,
@@ -264,6 +254,8 @@ export function AiAssistantDrawer({
 }: AiAssistantDrawerProps) {
   const [viewportAtLeastLg, setViewportAtLeastLg] = useState(readViewportAtLeastLg)
   const shouldReduceMotion = useReducedMotion()
+  /** Expand list rail — open only after Recent / Archive (or Expand from a list). */
+  const [expandedListOpen, setExpandedListOpen] = useState(false)
 
   const paintExpanded = paintsAssistantExpand({
     widthMode: snapshot.widthMode,
@@ -296,8 +288,48 @@ export function AiAssistantDrawer({
   const showList =
     !paintExpanded
     && (snapshot.view === "recent" || snapshot.view === "archive")
+  const showExpandedList = paintExpanded && expandedListOpen
   const showGreeting =
     !showList && !snapshot.messages.some((message) => message.role === "user")
+
+  const handleOpenRecent = () => {
+    if (paintExpanded) {
+      setExpandedListOpen(true)
+    }
+    onOpenRecent()
+  }
+
+  const handleOpenArchive = () => {
+    if (paintExpanded) {
+      setExpandedListOpen(true)
+    }
+    onOpenArchive()
+  }
+
+  const handleBackToConversation = () => {
+    if (paintExpanded) {
+      setExpandedListOpen(false)
+    }
+    onBackToConversation()
+  }
+
+  const handleExpand = () => {
+    if (snapshot.view === "recent" || snapshot.view === "archive") {
+      setExpandedListOpen(true)
+    }
+    onExpand()
+  }
+
+  const handleLeaveExpand = () => {
+    setExpandedListOpen(false)
+    onLeaveExpand()
+  }
+
+  useEffect(() => {
+    if (!snapshot.drawerOpen) {
+      setExpandedListOpen(false)
+    }
+  }, [snapshot.drawerOpen])
 
   const handleComposerKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -314,6 +346,7 @@ export function AiAssistantDrawer({
       const matches = media.matches
       setViewportAtLeastLg(matches)
       if (!matches) {
+        setExpandedListOpen(false)
         onLeaveExpand()
       }
     }
@@ -772,116 +805,83 @@ export function AiAssistantDrawer({
 
   const panelContent = paintExpanded ? (
     <div className="flex min-h-0 flex-1 flex-row" data-vaul-no-drag>
-      {/* Left Sidebar: Conversations List */}
-      <div className="w-[280px] shrink-0 border-r border-op-assistant-list-border flex flex-col min-h-0 bg-op-assistant-list-background">
-        <div className="flex items-center gap-5 px-5 pt-5 pb-4">
-          <Button
-            type="button"
-            variant="op-ghost"
-            size="icon"
-            className="size-4 min-h-0 min-w-0 p-0 text-op-assistant-list-title hover:bg-transparent"
-            aria-label="Change analysis scope"
-            onClick={onOpenChangeScope}
-          >
-            <Settings className="size-4 text-op-assistant-list-title" aria-hidden />
-          </Button>
-          <Button
-            type="button"
-            variant="op-ghost"
-            className="h-auto min-h-0 gap-1.5 p-0 text-sm font-normal text-op-assistant-list-title hover:bg-transparent cursor-pointer"
-            onClick={onStartNewChat}
-          >
-            <PlusCircleIcon className="size-3.5 text-op-assistant-list-title" aria-hidden />
-            New chat
-          </Button>
-          <Button
-            type="button"
-            variant="op-ghost"
-            className="h-auto min-h-0 gap-1.5 p-0 text-sm font-normal text-op-assistant-list-title hover:bg-transparent cursor-pointer"
-            onClick={onOpenRecent}
-          >
-            <HistoryIcon className="size-3 text-op-assistant-list-title" aria-hidden />
-            Recent
-          </Button>
-        </div>
+      {showExpandedList ? (
+        <AiAssistantConversationList
+          snapshot={snapshot}
+          expandedSidebar
+          onBackToConversation={handleBackToConversation}
+          onSearchQueryChange={onSearchQueryChange}
+          onOpenConversation={onOpenConversation}
+          onArchive={onArchiveConversation}
+          onUnarchive={onUnarchiveConversation}
+          onRequestDelete={onRequestDelete}
+          onOpenArchive={handleOpenArchive}
+          onStartConversation={onStartNewChat}
+          onRetry={
+            snapshot.listChromeKind === "body-error"
+              ? onRetryBody
+              : onRetryList
+          }
+        />
+      ) : null}
 
-        {snapshot.listRows.length > 0 ? (
-          <div className="px-5 pb-3">
-            <div className="relative w-full">
-              <OperatorSearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-op-assistant-list-subtitle" />
-              <Input
-                value={snapshot.searchQuery}
-                onChange={(event) => onSearchQueryChange(event.target.value)}
-                aria-label={ASSISTANT_SEARCH_PLACEHOLDER}
-                placeholder={ASSISTANT_SEARCH_PLACEHOLDER}
-                className="h-8 rounded-[4px] border border-op-assistant-list-border bg-op-assistant-list-search-background pl-8 pr-2 text-xs text-op-assistant-list-title placeholder:text-op-assistant-list-subtitle focus-visible:ring-0 focus-visible:border-op-assistant-list-border"
-              />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex shrink-0 flex-col gap-1.5 px-7 pt-5 pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-5">
+              <Button
+                type="button"
+                variant="op-ghost"
+                size="icon"
+                className="size-4 min-h-0 min-w-0 p-0 text-op-assistant-list-title hover:bg-transparent"
+                aria-label="Change analysis scope"
+                onClick={onOpenChangeScope}
+              >
+                <Settings className="size-4 text-op-assistant-list-title" aria-hidden />
+              </Button>
+              <Button
+                type="button"
+                variant="op-ghost"
+                className="h-auto min-h-0 gap-1.5 p-0 text-sm font-normal text-op-assistant-list-title hover:bg-transparent cursor-pointer"
+                onClick={onStartNewChat}
+              >
+                <PlusCircleIcon className="size-3.5 text-op-assistant-list-title" aria-hidden />
+                New chat
+              </Button>
+              <Button
+                type="button"
+                variant="op-ghost"
+                className="h-auto min-h-0 gap-1.5 p-0 text-sm font-normal text-op-assistant-list-title hover:bg-transparent cursor-pointer"
+                onClick={handleOpenRecent}
+              >
+                <HistoryIcon className="size-3 text-op-assistant-list-title" aria-hidden />
+                Recent
+              </Button>
+            </div>
+            <div className="flex items-center gap-5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="hidden size-4 min-h-0 min-w-0 p-0 text-op-assistant-list-subtitle hover:text-op-assistant-list-title hover:bg-transparent lg:inline-flex"
+                aria-label="Collapse AI Assistant"
+                onClick={handleLeaveExpand}
+              >
+                <Minimize2Icon className="size-4 text-op-assistant-list-subtitle" aria-hidden />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8 min-h-0 min-w-0 rounded-md bg-op-assistant-list-row-active text-op-assistant-list-subtitle hover:bg-op-assistant-list-search-hover hover:text-op-assistant-list-title flex items-center justify-center cursor-pointer transition-colors"
+                aria-label="Close AI Assistant"
+                onClick={() => onOpenChange(false)}
+              >
+                <XIcon className="size-4" aria-hidden />
+              </Button>
             </div>
           </div>
-        ) : null}
-
-        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-1 flex flex-col gap-1">
-          {snapshot.listRows.length > 0 ? (
-            snapshot.listRows.map((row) => (
-              <div
-                key={row.id}
-                className={cn(
-                  "group flex w-full items-center justify-between rounded-lg px-3 py-2 transition-colors cursor-pointer text-left",
-                  row.isCurrent
-                    ? "bg-op-assistant-list-row-active text-op-assistant-list-title"
-                    : "text-op-assistant-list-subtitle hover:bg-op-assistant-list-row-hover hover:text-op-assistant-list-title"
-                )}
-                onClick={() => onOpenConversation(row.id)}
-              >
-                <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
-                  <span className="w-full truncate text-sm font-medium">
-                    {row.title}
-                  </span>
-                  <span className="w-full truncate text-xs text-op-assistant-list-subtitle">
-                    {row.meta}
-                  </span>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-6 shrink-0 opacity-0 group-hover:opacity-100 p-0 text-op-assistant-list-subtitle hover:text-op-assistant-list-title hover:bg-transparent transition-opacity"
-                      onClick={(e) => e.stopPropagation()}
-                      aria-label={`Actions for ${row.title}`}
-                    >
-                      <MoreVerticalIcon className="size-3.5" aria-hidden />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-op-assistant-list-menu-background border-op-assistant-list-border text-op-assistant-list-title text-xs z-[120]">
-                    <DropdownMenuItem onClick={() => onArchiveConversation(row.id)}>
-                      Archive
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-red-400 focus:text-red-400"
-                      onClick={() => onRequestDelete(row.id)}
-                    >
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            ))
-          ) : (
-            <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
-              <p className="text-xs text-op-assistant-list-subtitle">
-                No conversations yet
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Right Column: Chat Stage */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="flex shrink-0 items-center justify-between px-7 pt-5 pb-3">
-          <div>
+          <div className="flex flex-col items-start">
             <button
               type="button"
               onClick={onOpenChangeScope}
@@ -891,28 +891,6 @@ export function AiAssistantDrawer({
             >
               {snapshot.headerStatusLine}
             </button>
-          </div>
-          <div className="flex items-center gap-5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="hidden size-4 min-h-0 min-w-0 p-0 text-op-assistant-list-subtitle hover:text-op-assistant-list-title hover:bg-transparent lg:inline-flex"
-              aria-label="Collapse AI Assistant"
-              onClick={onLeaveExpand}
-            >
-              <Minimize2Icon className="size-4 text-op-assistant-list-subtitle" aria-hidden />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8 min-h-0 min-w-0 rounded-md bg-op-assistant-list-row-active text-op-assistant-list-subtitle hover:bg-op-assistant-list-search-hover hover:text-op-assistant-list-title flex items-center justify-center cursor-pointer transition-colors"
-              aria-label="Close AI Assistant"
-              onClick={() => onOpenChange(false)}
-            >
-              <XIcon className="size-4" aria-hidden />
-            </Button>
           </div>
         </div>
 
@@ -935,13 +913,13 @@ export function AiAssistantDrawer({
         {showList ? (
           <AiAssistantConversationList
             snapshot={snapshot}
-            onBackToConversation={onBackToConversation}
+            onBackToConversation={handleBackToConversation}
             onSearchQueryChange={onSearchQueryChange}
             onOpenConversation={onOpenConversation}
             onArchive={onArchiveConversation}
             onUnarchive={onUnarchiveConversation}
             onRequestDelete={onRequestDelete}
-            onOpenArchive={onOpenArchive}
+            onOpenArchive={handleOpenArchive}
             onStartConversation={onStartNewChat}
             onRetry={
               snapshot.listChromeKind === "body-error"
@@ -980,7 +958,7 @@ export function AiAssistantDrawer({
                     type="button"
                     variant="op-ghost"
                     className="h-auto min-h-0 gap-1.5 p-0 text-sm font-normal text-op-assistant-list-title hover:bg-transparent"
-                    onClick={onOpenRecent}
+                    onClick={handleOpenRecent}
                   >
                     <HistoryIcon
                       className="size-3 text-op-assistant-list-title"
@@ -996,7 +974,7 @@ export function AiAssistantDrawer({
                     size="icon"
                     className="hidden size-4 min-h-0 min-w-0 p-0 text-op-assistant-list-subtitle hover:text-op-assistant-list-title hover:bg-transparent lg:inline-flex"
                     aria-label="Expand AI Assistant"
-                    onClick={onExpand}
+                    onClick={handleExpand}
                   >
                     <Maximize2Icon
                       className="size-4 text-op-assistant-list-subtitle"

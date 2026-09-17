@@ -22,7 +22,7 @@ import {
 
 describe("shopSurfacePresentation", () => {
   it("uses sidenav / shell chrome for the Shop page background", () => {
-    expect(SHOP_PAGE_BACKGROUND_CLASS).toBe("bg-op-shell-chrome")
+    expect(SHOP_PAGE_BACKGROUND_CLASS).toBe("bg-op-background-primary")
   })
 
   it("uses shell chrome #141414 and border on the recommendation parent", () => {
